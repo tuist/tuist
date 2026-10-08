@@ -159,6 +159,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     for slug <- ["slow-builds", "flaky-tests", "slow-tests", "ci-costs"] do
       path = "/solutions/" <> slug
       markdown = MarketingMarkdown.get(path)
+      [_heading, introduction | _rest] = String.split(markdown, "\n\n")
+      assert String.starts_with?(introduction, "Tuist")
       assert markdown =~ "## Diagnose"
       assert markdown =~ "## Investigate with an agent"
       assert markdown =~ "## First experiment"
@@ -190,7 +192,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     for {slug, vendor} <- @providers do
       markdown = MarketingMarkdown.get("/compare/" <> slug)
       assert markdown =~ "## Choose Tuist when"
-      assert markdown =~ "## Choose #{vendor} when"
+      refute markdown =~ "## Choose #{vendor} when"
       assert markdown =~ "## Sources and review"
       assert markdown =~ "## What overlaps"
       assert markdown =~ "## First experiment"
@@ -199,6 +201,25 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/compare/bitrise") =~ "Agent access and insights are not unique to Tuist"
     assert MarketingMarkdown.get("/compare") =~ "Openness is not unique to Tuist"
     assert MarketingMarkdown.get("/compare") =~ "Runner independence alone is not a unique Tuist claim"
+  end
+
+  test "comparisons keep recommendations and adoption experiments focused on Tuist" do
+    for path <- ["/compare" | @comparison_paths] do
+      markdown = MarketingMarkdown.get(path)
+      [_heading, introduction | _rest] = String.split(markdown, "\n\n")
+      assert String.starts_with?(introduction, "Choose Tuist")
+      refute markdown =~ "## Choose another approach"
+      refute markdown =~ ~r/^## Choose (?!Tuist when$)/m
+
+      for {_slug, vendor} <- @providers do
+        refute markdown =~ Regex.compile!("\\b(?:Choose|Evaluate) #{Regex.escape(vendor)} (?:when|for)\\b", "i")
+      end
+
+      [_before, experiment_and_rest] = String.split(markdown, "## First experiment\n\n", parts: 2)
+      [experiment | _rest] = String.split(experiment_and_rest, "\n## ", parts: 2)
+      assert experiment =~ "Tuist"
+      assert experiment =~ "/marketing-markdown/" or experiment =~ "/en/docs-markdown/"
+    end
   end
 
   test "comparison overview links every detailed provider guide" do

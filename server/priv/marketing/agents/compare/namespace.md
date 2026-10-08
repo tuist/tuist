@@ -1,6 +1,6 @@
 # Tuist and Namespace: reusable build outputs or runner-attached caches?
 
-Evaluate Tuist when the goal is understanding and reducing build and test work across local developers, CI, and agents. Evaluate Namespace when its execution infrastructure and persistent caching fit your CI needs. These approaches can coexist: Tuist Cache does not require Tuist Runners.
+Choose Tuist to understand and reduce build and test work across local developers, CI, and agents. Its [build-output cache](/marketing-markdown/cache) follows compatible inputs across those environments without requiring Tuist Runners or a compute migration.
 
 ## What overlaps
 
@@ -24,15 +24,9 @@ You want to adopt caching and insights without choosing a new execution environm
 
 Start with the [slow-build guide](/marketing-markdown/solutions/slow-builds), then test one supported integration on your existing machines. Generated projects are not required for Xcode compilation caching or most server capabilities; they are required for module caching and selective testing.
 
-## Choose Namespace when
-
-The immediate requirement is its managed execution environment and persistent CI state, and its available runner shapes, images, integrations, and operational model fit the workload. Runner-attached caches can be particularly useful when restoring large dependency directories is the bottleneck. Validate current platform support and commercial terms directly.
-
-You do not need an all-or-nothing choice. A Namespace-hosted job can also use a supported Tuist integration; measure the benefit and avoid configuring two competing remote cache endpoints for the same build-system operation.
-
 ## First experiment
 
-Compare one representative workflow before and after changing the cache or runner configuration. Measure job setup, compilation, cache transfers, queueing, retries, and total machine-minutes. Then build compatible inputs on a developer or agent machine to test whether reuse reaches the environments you care about. Use [Build Insights](/en/docs-markdown/guides/features/build-insights) to inspect what actually changed. Review cache-producer trust as part of the experiment: Namespace documents custom cache tags and branch/job write controls, while Tuist's build-output integration needs its own trusted producer and reader configuration.
+Keep the current runner configuration and enable a supported [Tuist Cache integration](/marketing-markdown/cache) for one representative workflow. Compare job setup, compilation, transfers, retries, and total machine-minutes before and after adoption. Build compatible inputs on a developer or agent machine to test cross-environment reuse, and use [Build Insights](/en/docs-markdown/guides/features/build-insights) to inspect the change. Configure trusted cache producers and readers before widening access.
 
 ## Sources and review
 

@@ -1,6 +1,6 @@
 # Tuist and Codemagic: development infrastructure or managed app delivery?
 
-Choose Tuist when you want build and test evidence and compatible cached outputs across developers, CI, and agents without replacing your CI platform. Choose Codemagic when managing app builds, signing, and distribution is the immediate requirement. A supported Tuist integration can also run inside a Codemagic workflow.
+Choose Tuist when you want build and test evidence and compatible cached outputs across developers, CI, and agents without replacing your CI platform. Adopt [Xcode Cache](/en/docs-markdown/guides/features/cache/xcode-cache) for supported projects and use Tuist insights to connect CI behavior with the local development loop.
 
 ## What overlaps
 
@@ -23,13 +23,9 @@ Codemagic also publishes [CLI tools](https://docs.codemagic.io/knowledge-codemag
 
 Your priority is improving the development loop, not migrating release automation. You need cache reuse to reach laptops and fresh agent checkouts, want to investigate recorded Xcode or Gradle work, or already use generated Xcode projects and can benefit from module caching and selective testing. Tuist's public implementation lets your engineers inspect behavior and participate in fixes.
 
-## Choose Codemagic when
-
-You need a managed app-delivery workflow with the required machines, signing, testing, and publishing integrations. Existing Codemagic teams should first measure its documented dependency and compilation caching before introducing another cache. Keep Codemagic for delivery and add Tuist only where a supported integration provides additional value.
-
 ## First experiment
 
-Keep the same commit, Xcode version, build settings, and scheme. Compare uncached builds, Codemagic's restored compilation-cache directory, and Tuist remote compilation caching separately. Measure cache save/restore, compilation, total job duration, and whether a compatible developer build reuses outputs. Use the [slow-build guide](/marketing-markdown/solutions/slow-builds) to separate setup time from compilation. Do not substitute Tuist's development-oriented module cache into a release archive without checking its documented limitations.
+Enable [Tuist Xcode Cache](/en/docs-markdown/guides/features/cache/xcode-cache) in one Xcode 26+ workflow without changing signing or publishing. Keep the same commit, Xcode version, build settings, and scheme, and compare the current baseline with Tuist remote compilation caching. Measure transfers, compilation, total job duration, and compatible developer-build reuse. Use the [slow-build guide](/marketing-markdown/solutions/slow-builds) to separate setup from compilation. Do not substitute Tuist's development-oriented module cache into a release archive without checking its documented limitations.
 
 ## Sources and review
 

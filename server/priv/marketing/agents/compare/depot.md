@@ -1,6 +1,6 @@
 # Tuist and Depot: compare cache integrations as well as compute
 
-Choose Tuist when its toolchain-specific build and test evidence, public implementation, and supported local/CI/agent integrations fit your workflow. Evaluate Depot for its managed runners, remote container builds, and independently available remote cache. It is not accurate to describe Depot as only faster hardware or as requiring its runners for all caching.
+Choose Tuist for toolchain-specific build and test evidence, public implementation, and supported local/CI/agent integrations. In particular, [Tuist Xcode Cache](/en/docs-markdown/guides/features/cache/xcode-cache) connects compatible developer builds to the same remote cache as CI, without requiring a runner migration.
 
 ## What overlaps
 
@@ -21,13 +21,9 @@ Its [Xcode integration](https://depot.dev/docs/cache/integrations/xcode.md) docu
 
 You need compatible Xcode outputs to reach laptops and agent checkouts as well as CI, or want build and test investigation across supported Xcode, Gradle, Bazel, and Elixir workflows. Tuist's [public development](https://github.com/tuist/tuist) lets engineers inspect and contribute to relevant behavior. Generated-project module caching and selective testing are additional options, not requirements for ordinary compilation caching.
 
-## Choose Depot when
-
-Its runner offering, remote container builds, or supported standalone cache integrations solve the bottleneck more directly. Existing Depot users should measure the integrated cache before introducing another service. For non-Xcode tools, evaluate its documented local reuse rather than carrying over the Xcode workstation restriction.
-
 ## First experiment
 
-For Xcode, use the same commit and toolchain, measure cold and warm CI builds, and then try a compatible local build. For Gradle or Bazel, compare remote caches separately with identical inputs. Measure queueing, compilation, cache transfers, and total charges. Explicitly inspect automatic runner configuration so two remote-cache endpoints do not compete.
+Enable a [supported Tuist cache](/marketing-markdown/cache) on the current machines and compare against the existing baseline with identical inputs. For Xcode 26+, measure cold and warm CI builds, then try a compatible developer build through Tuist's remote compilation cache. Record queueing, compilation, transfers, and total usage. Inspect automatic runner configuration so only the intended remote-cache endpoint is active.
 
 ## Sources and review
 

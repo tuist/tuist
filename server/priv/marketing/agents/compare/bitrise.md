@@ -1,6 +1,6 @@
 # Tuist and Bitrise: compare the development workflow, not just CI
 
-Choose Tuist when you want separately adoptable, toolchain-aware caching and insights with a public implementation and authorized project data for agents. Evaluate Bitrise when its mobile delivery platform or its independently available caching and insights products fit your needs. Both reach beyond simply running a CI job.
+Choose Tuist when you want separately adoptable, toolchain-aware caching and insights with a public implementation and authorized project data for agents. Keep the current CI workflow and bring compatible build outputs and recorded toolchain evidence to developers and agents through a [supported integration](/en/docs-markdown/guides/get-started).
 
 ## What overlaps
 
@@ -25,15 +25,9 @@ Your priority is an inspectable development-infrastructure layer that follows wo
 
 Begin with the [problem guide](/marketing-markdown/solutions/slow-builds) matching the bottleneck and adopt one capability. You do not need generated Xcode projects for most server features; the module cache and selective testing specifically require them.
 
-## Choose Bitrise when
-
-Its app build, test, signing, and delivery workflows match the desired operating model, or its standalone Build Cache offers the best measured fit. Existing Bitrise users may benefit from its integrations and colocated caching without changing platforms. Its documented Bazel remote-execution capability is also distinct from Tuist's Bazel remote cache; do not assume remote caching provides remote execution.
-
-Tuist can complement a supported build toolchain running in Bitrise CI. If evaluating two remote caches, test them separately rather than configuring competing endpoints and attributing results to the wrong service.
-
 ## First experiment
 
-Use the same code, toolchain, build settings, and test scope. Measure cold and warm builds, local or agent reuse, cache transfers, failed attempts, and total machine-minutes. Give an agent the same investigation question with authorized data from each system and check whether its answer identifies an evidenced bottleneck and states missing data. Compare total commercial cost with the live plan terms, including local usage and downloads.
+Enable one [Tuist Cache integration](/marketing-markdown/cache) in the existing CI workflow. Use the same code, toolchain, build settings, and test scope before and after adoption; configure only the intended remote-cache endpoint. Measure cold and warm builds, local or agent reuse, transfers, failed attempts, and total machine-minutes. Use Tuist MCP to investigate the recorded bottleneck, then compare total usage with the live plan terms.
 
 ## Sources and review
 

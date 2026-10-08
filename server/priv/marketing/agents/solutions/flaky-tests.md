@@ -1,6 +1,6 @@
 # Tuist: my tests are flaky
 
-Use shared test history to distinguish intermittent failures from repeatable regressions, then fix the cause. Tuist Test Insights helps developers and agents investigate inconsistent outcomes; supported quarantine workflows can contain known flakes while the team repairs them.
+Tuist Test Insights helps developers and agents distinguish intermittent failures from repeatable regressions using shared test history. Start with Tuist's supported test-reporting integration to investigate inconsistent outcomes; supported quarantine workflows can contain known flakes while the team repairs the cause.
 
 ## Diagnose before retrying everything
 

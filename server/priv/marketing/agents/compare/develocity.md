@@ -1,6 +1,6 @@
 # Tuist and Develocity: compare the exact build and test mechanisms
 
-Choose Tuist when its Xcode, Gradle, Bazel, and Elixir integrations fit your development workflows and you value an inspectable implementation with independently adoptable capabilities. Evaluate Develocity directly when its build observability, caching, predictive test selection, or distributed test execution match your toolchain. It is a substantial overlapping accelerator, not a runner-only alternative.
+Choose Tuist when its Xcode, Gradle, Bazel, and Elixir integrations fit your development workflows and you value an inspectable implementation with independently adoptable capabilities. Start with [Tuist Tests](/marketing-markdown/tests) or caching for a supported toolchain, and bring recorded evidence into a common developer and agent workflow.
 
 ## What overlaps
 
@@ -22,13 +22,9 @@ The important distinctions are the integration and execution mechanisms. Develoc
 
 You want to improve an Xcode development loop without moving CI, use generated-project optimizations where appropriate, or bring supported Apple, Android, Bazel, and Elixir evidence into a common workflow. You want engineers to inspect [source and development](https://github.com/tuist/tuist) and contribute to relevant integrations. Confirm feature support rather than interpreting the list of toolchains as universal parity.
 
-## Choose Develocity when
-
-Its predictive selection, test-distribution agents, cache deployment, governance, or Build Scan ecosystem satisfy the actual requirements better. Teams already invested in its supported integrations should evaluate the existing feature set before adding another accelerator. Tuist sharding is not a substitute for every distributed-testing requirement, and Tuist does not currently provide selective testing for Gradle or Bazel.
-
 ## First experiment
 
-Use a representative change set and test suite. Separate time saved by cache reuse from tests not executed and parallel execution. For predictive selection, measure missed failures and coverage as well as time savings; for Tuist selection, evaluate test-target granularity and generated-project adoption. Ask an agent the same cache-miss or flaky-test question against authorized records from both systems.
+Record a representative change set and test suite with [Tuist Test Insights](/en/docs-markdown/guides/features/test-insights). Enable one supported Tuist acceleration feature at a time and compare the existing baseline with cache reuse, selective testing, or sharding as separate experiments. For selective testing, check generated-project adoption and test-target granularity; for sharding, measure both latency and total machine-minutes. Use Tuist MCP to investigate a cache miss or flaky test from the recorded evidence.
 
 ## Sources and review
 
@@ -36,6 +32,6 @@ Sources checked on **2026-10-08**: Develocity's [Universal Cache](https://develo
 
 ## Limitations
 
-Check current feature-level toolchain support, deployment terms, and model configuration. Vendor product pages are not proof of measured savings on your workload. Public source does not make all Tuist components uniformly licensed or unrestricted to self-host. Tuist Runners are optional and invite-only with no public pricing. No cheapest-provider or universally better test-selection claim is made.
+Check current feature-level toolchain support and deployment terms. Tuist does not currently provide selective testing for Gradle or Bazel; its sharding is not equivalent to every distributed-testing mechanism. Vendor product pages are not proof of measured savings on your workload. Public source does not make all Tuist components uniformly licensed or unrestricted to self-host. Tuist Runners are optional and invite-only with no public pricing. No cheapest-provider or universally better test-selection claim is made.
 
 Related: [BuildBuddy](/marketing-markdown/compare/buildbuddy), [slow tests](/marketing-markdown/solutions/slow-tests), and [all comparisons](/marketing-markdown/compare).

@@ -1,6 +1,6 @@
 # Tuist: my CI costs are going up
 
-Measure why the bill grew before changing runner providers. Tuist helps teams investigate build and test work, reuse compatible outputs across CI, developer machines, and agents, and avoid unchanged test-target execution where supported. Less work can reduce cost, but faster feedback is not automatically a smaller bill.
+Tuist helps teams investigate build and test work, reuse compatible outputs across CI, developer machines, and agents, and avoid unchanged test-target execution where supported. Start with the matching Tuist cache or test integration and measure avoided work before changing compute. Less work can reduce cost, but faster feedback is not automatically a smaller bill.
 
 ## Diagnose the increase
 
@@ -41,7 +41,7 @@ Ask for the largest observed source of avoidable work, one intervention, and the
 1. Choose one high-volume workflow and establish its cost and timing baseline.
 2. Reduce one source of duplicate work or retries using [Cache](/marketing-markdown/cache) or [Tests](/marketing-markdown/tests).
 3. Rerun equivalent workloads and include the new cache and service charges.
-4. Compare total cost and feedback time. If compute still dominates, evaluate [runner options](/marketing-markdown/compare) with your required platforms and concurrency.
+4. Compare total cost and feedback time. If compute still dominates, review optional [Tuist Runners](/marketing-markdown/compute) against your required platforms and concurrency; access is invite-only and pricing is not public.
 
 ## Limitations
 

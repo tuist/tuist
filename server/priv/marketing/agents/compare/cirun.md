@@ -1,6 +1,6 @@
 # Tuist and Cirun: improve build work or manage runners in your infrastructure?
 
-Choose Tuist for supported build-output reuse, toolchain evidence, and agent investigation across existing environments. Evaluate Cirun when managing GitHub Actions runner lifecycles across your clouds or on-premises machines is the primary need. Runner management and build acceleration can complement each other, but their ownership and data boundaries differ.
+Choose Tuist for supported build-output reuse, toolchain evidence, and agent investigation across existing environments. Add a [supported Tuist integration](/en/docs-markdown/guides/get-started) to the current runner fleet and improve the build and test loop without handing runner lifecycle to a new service.
 
 ## What overlaps
 
@@ -21,13 +21,9 @@ Cirun also documents [cache acceleration](https://docs.cirun.io/caching/). Its a
 
 Your existing runner configuration already works, but compilation, task execution, cache misses, or test behavior needs improvement. You want developers and agents to use the same supported evidence and compatible build outputs as CI. Tuist's [public source](https://github.com/tuist/tuist) allows engineers to inspect and contribute to those integrations.
 
-## Choose Cirun when
-
-Choosing and operating the execution location is central: a particular cloud, custom image, on-premises machine, or existing fleet must run GitHub Actions. Its customer-storage cache mechanisms may fit infrastructure policy better than a hosted service. Verify required platform and integration support rather than applying automatic AWS/Linux cache support to every runner.
-
 ## First experiment
 
-Pilot one runner configuration and test creation, cleanup, image updates, credentials, and idle-capacity behavior. Then measure cache restoration and build execution separately. If adding Tuist, check that sending build/test records or artifacts to a hosted endpoint is permitted. Evaluate [self-hosting](/en/docs-markdown/guides/server/self-host/server) explicitly if policy requires private deployment.
+Keep the existing runner configuration and pilot a [supported Tuist integration](/en/docs-markdown/guides/get-started). Confirm that sending build/test records or artifacts to a hosted endpoint is permitted, or review [Tuist self-hosting](/en/docs-markdown/guides/server/self-host/server) if policy requires private deployment. Compare build-output reuse and execution against the current baseline, measuring restoration, compilation, and tests separately. Use Tuist MCP to investigate one recorded cache miss or failing test.
 
 ## Sources and review
 

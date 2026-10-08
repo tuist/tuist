@@ -1,12 +1,12 @@
 # Tuist and Ubicloud: development evidence or open cloud infrastructure?
 
-Choose Tuist when you need supported build-output caching, toolchain insights, and agent investigation without selecting a new execution environment. Evaluate Ubicloud when open cloud infrastructure and its GitHub Actions runner and cache integration are the priority. Openness is not unique to Tuist.
+Choose Tuist when you need supported build-output caching, toolchain insights, and agent investigation without selecting a new execution environment. Its [public implementation](https://github.com/tuist/tuist) lets engineers inspect the integrations that reuse compatible outputs across developers, CI, and agents.
 
 ## What overlaps
 
 [Ubicloud's public repository](https://github.com/ubicloud/ubicloud) describes an open-source cloud control plane and deployment on bare-metal infrastructure. Its [GitHub Actions quickstart](https://www.ubicloud.com/docs/github-actions-integration/quickstart.md) offers managed runners, while [Ubicloud Cache](https://www.ubicloud.com/docs/github-actions-integration/ubicloud-cache.md) accelerates the Actions cache protocol.
 
-The current cache documentation recommends **Transparent Cache**, preserving existing `actions/cache` and compatible setup actions. Older replacement cache actions are deprecated. Do not describe Ubicloud as closed infrastructure or recommend an outdated integration merely because a previous comparison linked to it.
+The current cache documentation recommends **Transparent Cache**, preserving existing `actions/cache` and compatible setup actions. Older replacement cache actions are deprecated.
 
 ## Compare the layer you need
 
@@ -21,13 +21,9 @@ The current cache documentation recommends **Transparent Cache**, preserving exi
 
 You want to keep the current compute environment and improve the build/test loop across developer and CI machines. You need evidence about tasks, compilation, cache misses, or test attempts, not just faster restoration of dependency directories. Inspectable development and component-specific integrations are useful reasons to evaluate Tuist, but not a blanket advantage over Ubicloud's public implementation.
 
-## Choose Ubicloud when
-
-Its managed GitHub Actions runners or open-cloud operating model fit your infrastructure needs, and the documented transparent cache addresses slow setup and cache transfer. Distinguish using the hosted service from deploying and operating the public control plane yourself.
-
 ## First experiment
 
-Keep the same workflow and compare queueing, dependency/cache restoration, compilation, and test time. Enable the current recommended Ubicloud integration rather than its deprecated cache actions. If adding Tuist, test a supported build-output cache separately and check whether compatible local builds benefit. Review branch isolation and cache-producer trust before widening sharing.
+Keep the current workflow and enable a [supported Tuist build-output cache](/marketing-markdown/cache). Compare queueing, directory restoration, compilation, and test time against the existing baseline, then try a compatible local or agent build. Use Tuist's recorded evidence to explain avoided work and misses. Review branch isolation and cache-producer trust before widening sharing.
 
 ## Sources and review
 

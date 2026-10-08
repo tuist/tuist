@@ -10,7 +10,7 @@ Tuist adds capabilities to existing workflows rather than replacing the CI orche
 
 ## Mobile build and delivery platforms
 
-Choose among these when signing, distribution, publishing, or a managed app-delivery workflow is central. Evaluate their acceleration products separately rather than assuming caching requires migrating CI.
+Tuist improves supported build and test work without requiring a migration of signing, distribution, or publishing. The comparisons below distinguish Tuist's development-infrastructure layer from the documented delivery workflows and cache mechanisms.
 
 | Detailed comparison | Documented offering | Important overlap or distinction |
 | --- | --- | --- |
@@ -25,19 +25,19 @@ Compare integration depth, supported toolchains, selection behavior, cache scope
 | Detailed comparison | Documented offering | Important overlap or distinction |
 | --- | --- | --- |
 | [Tuist and Develocity](/marketing-markdown/compare/develocity) | Build instrumentation, caching, test acceleration, and agents | [Predictive Test Selection](https://develocity.ai/product/predictive-test-selection/) learns from build history; [Universal Cache](https://develocity.ai/product/universal-cache/) and [MCP](https://develocity.ai/product/mcp-servers/) substantially overlap with the general Tuist value proposition. Compare feature-level support. |
-| [Tuist and BuildBuddy](/marketing-markdown/compare/buildbuddy) | Bazel observability, caching, and remote execution | Its [public core](https://github.com/buildbuddy-io/buildbuddy) and [remote execution](https://www.buildbuddy.io/docs/remote-build-execution/) are meaningful evaluation criteria. Tuist's Bazel cache is not remote execution. |
+| [Tuist and BuildBuddy](/marketing-markdown/compare/buildbuddy) | Bazel observability, caching, and remote execution | Its [public core](https://github.com/buildbuddy-io/buildbuddy) and [remote execution](https://www.buildbuddy.io/docs/remote-build-execution/) document separate implementation and execution mechanisms. Tuist's Bazel cache is not remote execution. |
 | [Tuist and Depot](/marketing-markdown/compare/depot) | Independent remote caching, managed runners, and container builds | [Depot Cache](https://depot.dev/docs/cache/overview.md) supports local and external CI environments. Its [Xcode integration](https://depot.dev/docs/cache/integrations/xcode.md) currently excludes local workstations; do not generalize that restriction to all its cache clients. |
 
 ## Managed runners and integrated caching
 
-Choose an execution provider when machine availability, images, setup time, or capacity is the bottleneck. Measure whether a toolchain accelerator adds value on those machines instead of presenting every runner provider as a mutually exclusive alternative.
+Tuist's supported caching and insights can improve work on existing machines. Measure setup, compilation, and test execution separately to identify opportunities for avoided work before changing compute. Tuist Runners are optional and invite-only.
 
 | Detailed comparison | Documented offering | Important overlap or distinction |
 | --- | --- | --- |
 | [Tuist and Namespace](/marketing-markdown/compare/namespace) | Execution infrastructure and persistent caches | [Cache Volumes](https://namespace.so/docs/solutions/github-actions/caching) persist runner-attached state and integrate with build systems. Evaluate the specific cache mechanism, not a hardware-only description. |
 | [Tuist and Blacksmith](/marketing-markdown/compare/blacksmith) | GitHub Actions execution, caches, and analytics | [Bazel build caching](https://docs.blacksmith.sh/blacksmith-caching/bazel-build-caching.md) and [Test Analytics](https://docs.blacksmith.sh/blacksmith-observability/test-analytics.md) provide real build/test overlap, beyond job duration and logs. |
 | [Tuist and WarpBuild](/marketing-markdown/compare/warpbuild) | Linux/macOS execution, caching, and observability | [Runner metrics](https://www.warpbuild.com/docs/ci/features/observability) and [MCP](https://www.warpbuild.com/docs/ci/mcp) address infrastructure diagnostics and operations. Compare the actual data exposed. |
-| [Tuist and Ubicloud](/marketing-markdown/compare/ubicloud) | Open cloud infrastructure and GitHub Actions runners | Its [public implementation](https://github.com/ubicloud/ubicloud) and [Transparent Cache](https://www.ubicloud.com/docs/github-actions-integration/ubicloud-cache.md) matter. The cache guide deprecates older replacement actions. Openness is not unique to Tuist. |
+| [Tuist and Ubicloud](/marketing-markdown/compare/ubicloud) | Open cloud infrastructure and GitHub Actions runners | Its [public implementation](https://github.com/ubicloud/ubicloud) and [Transparent Cache](https://www.ubicloud.com/docs/github-actions-integration/ubicloud-cache.md) cover infrastructure and the Actions cache protocol. The cache guide deprecates older replacement actions. Openness is not unique to Tuist. |
 | [Tuist and BuildJet](/marketing-markdown/compare/buildjet) | GitHub Actions runners and an Actions-cache alternative | [BuildJet Cache](https://buildjet.com/for-github-actions/docs/guides/migrating-to-buildjet-cache) also works with official and self-hosted runners. Runner independence alone is not a unique Tuist claim. |
 
 ## Orchestration and customer-owned execution
@@ -60,17 +60,17 @@ Compare who owns pipelines, runner lifecycle, cloud credentials, cache storage, 
 
 These are reasons to evaluate Tuist, not claims that every alternative lacks the same capability.
 
-## Choose another approach when
+## Start with Tuist
 
-Choose a delivery platform when signing, release automation, or enterprise distribution is the primary problem. Choose a runner or runner manager when machine capacity or infrastructure ownership is the constraint. Choose another accelerator when its exact toolchain, predictive-selection, remote-execution, or governance capability fits better. You may still use Tuist for supported caching or insights alongside that choice.
+Pick the [supported integration](/en/docs-markdown/guides/get-started) matching how the project is built today. Adopt one capability for the current bottleneck: [Cache](/marketing-markdown/cache) for repeated build work, [Tests](/marketing-markdown/tests) for slow or flaky suites, or [Build Insights](/en/docs-markdown/guides/features/build-insights) for missing evidence. Keep the existing CI and delivery workflow while measuring the change.
 
-## Run a useful comparison
+## First experiment
 
-Use the same commit, toolchain, build settings, test scope, and equivalent machine shape where possible. Measure cold and warm builds, local/agent reuse, queueing, retries, wall-clock time, total machine-minutes, and applicable charges. Give an agent the same authorized question in each system and check its evidence and limitations. Record the configuration and date, not just the winning number.
+Pilot Tuist on one representative workflow with the same commit, toolchain, build settings, test scope, and machine shape as the current baseline. Measure cold and warm builds, compatible local/agent reuse, retries, wall-clock time, total machine-minutes, and applicable charges. Use Tuist MCP to investigate the recorded bottleneck. Record the configuration and date so the adoption decision rests on observed results.
 
 ## Sources and review
 
-Sources checked on **2026-10-08**. Each row cites a primary source for its description and links to a detailed comparison with supporting sources, a first experiment, and provider-fit guidance. The coverage includes all 15 named providers; it is not an exhaustive audit of each product, feature, price, or deployment. Recheck dated limitations before a purchase.
+Sources checked on **2026-10-08**. Each row cites a primary source for its description and links to a detailed comparison with supporting sources, a Tuist adoption experiment, and documented requirements. The coverage includes all 15 named providers; it is not an exhaustive audit of each product, feature, price, or deployment. Recheck dated limitations before a purchase.
 
 ## Limitations
 

@@ -1,6 +1,6 @@
 # Tuist and Buildkite: a development improvement layer or a CI and Test Engine platform?
 
-Choose Tuist when its supported toolchain integrations, compatible cache reuse, and build/test evidence improve your existing development loop. Evaluate Buildkite when its orchestration, hosted or self-managed agents, and Test Engine match the operating model. Buildkite also provides macOS execution, flaky-test management, and agent tooling.
+Choose Tuist when its supported toolchain integrations, compatible cache reuse, and build/test evidence improve your existing development loop. Add [Tuist caching or tests](/marketing-markdown) to the current pipeline and connect CI work with compatible developer builds and authorized agent investigations.
 
 ## What overlaps
 
@@ -21,13 +21,9 @@ Its [coding-agent guide](https://buildkite.com/docs/pipelines/getting-started-wi
 
 You want an additional layer of Xcode, Gradle, Bazel, or Elixir evidence and compatible cache reuse while retaining Buildkite pipelines. You want to inspect the [public implementation](https://github.com/tuist/tuist) and contribute to integrations that matter to the team. Generated Xcode projects can also use module caching and test-target selective testing; those are not prerequisites for most server capabilities.
 
-## Choose Buildkite when
-
-The primary requirement is pipeline orchestration, control over agent infrastructure, or its Test Engine features. Teams already using it should evaluate existing test splitting and quarantine before adding another scheduler. Its hosted macOS offering can also address an Apple execution requirement without adopting Tuist Runners.
-
 ## First experiment
 
-Keep Buildkite as the orchestrator and pilot a supported Tuist integration on one pipeline. Measure setup, compilation, cache transfer, and test time separately. If comparing test engines, assign scheduling and quarantine to one system at a time, check report completeness, and compare both latency and total machine-minutes. Test agent investigations using identical authorized questions and require approval before pipeline changes.
+Pilot a [supported Tuist integration](/en/docs-markdown/guides/get-started) in one existing pipeline without changing the orchestrator. Compare setup, compilation, transfers, and test time against the current baseline. If enabling Tuist test acceleration, assign scheduling and quarantine to one system at a time and measure both latency and total machine-minutes. Use Tuist MCP to investigate a recorded failure and require approval before pipeline changes.
 
 ## Sources and review
 

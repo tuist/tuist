@@ -1,6 +1,6 @@
 # Tuist and Appcircle: toolchain work or an app-delivery platform?
 
-Choose Tuist for separately adoptable build-output caching, build and test insights, and evidence-backed agent investigation across supported development environments. Choose Appcircle when an integrated mobile delivery platform, including private deployment, best matches the operating model. Self-hosting and agent access are not exclusive Tuist advantages.
+Choose Tuist for separately adoptable build-output caching, build and test insights, and evidence-backed agent investigation across supported development environments. Improve the build and test loop without migrating the team's delivery platform; start with a [supported Tuist integration](/en/docs-markdown/guides/get-started).
 
 ## What overlaps
 
@@ -23,13 +23,9 @@ Your bottleneck is understanding or reducing build and test work, and your curre
 
 Tuist's [public source](https://github.com/tuist/tuist) also gives engineers a way to inspect implementation and contribute fixes. Evaluate component terms rather than assuming that public source grants every self-hosting right.
 
-## Choose Appcircle when
-
-You want an integrated mobile build, signing, distribution, and publishing platform, or its Enterprise private-deployment options match organizational requirements. Its documented MCP can help agents inspect delivery workflows too. Evaluate those capabilities directly rather than buying Tuist for a signing or store-management problem it is not intended to replace.
-
 ## First experiment
 
-Take one build failure and one delivery failure. Ask an authorized agent to identify the expensive build operation or failing test, then separately diagnose signing or publication state. Compare the evidence each system supplies. Pilot Tuist on a supported workflow while keeping the existing delivery path, and assess whether running both systems creates useful coverage or duplicate maintenance.
+Pilot a [supported Tuist integration](/en/docs-markdown/guides/get-started) while keeping the existing delivery path. Record a representative build and test run, then use Tuist's authorized MCP tools to identify an expensive operation or failing test. Enable the applicable cache or test capability and compare before/after timings and failure evidence. Signing and publication remain responsibilities of the existing delivery workflow.
 
 ## Sources and review
 

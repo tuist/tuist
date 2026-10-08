@@ -1,6 +1,6 @@
 # Tuist and CircleCI: toolchain improvement or CI orchestration and test acceleration?
 
-Choose Tuist when you want supported caching and build/test investigation across developer, CI, and agent environments without replacing the orchestrator. Evaluate CircleCI when its pipeline platform, execution options, and test acceleration fit the desired workflow. It already provides test insights and agent tooling; those are not unique Tuist features.
+Choose Tuist when you want supported caching and build/test investigation across developer, CI, and agent environments without replacing the orchestrator. Start with [Tuist Tests](/marketing-markdown/tests) or a supported cache to make the existing workflow more observable and reduce repeated work.
 
 ## What overlaps
 
@@ -22,13 +22,9 @@ Its [MCP overview](https://circleci.com/docs/guides/toolkit/circleci-mcp-overvie
 
 Your CI orchestrator already meets the need, but you want compatible cached outputs and recorded build/test evidence spanning laptops, CI, and agents. You need supported Xcode, Gradle, Bazel, or Elixir integrations, and value inspecting or contributing to the [implementation](https://github.com/tuist/tuist). Generated-project module caching and selective testing are additional Apple-workflow options, not equivalent to CircleCI's dynamic splitting.
 
-## Choose CircleCI when
-
-You want its CI platform and its integrated testing workflow, or existing CircleCI test insights and splitting already solve the bottleneck. Assess its test impact analysis and scheduling capabilities against the exact required framework; Tuist's current selective testing does not cover Gradle or Bazel.
-
 ## First experiment
 
-Keep the test scope and commit fixed. Measure reports, flake detection, retries, shard scheduling, wall-clock time, and total machine-minutes. Test a local-build investigation separately from a CI-job investigation. If using both products, decide which system owns test scheduling and quarantine rather than letting two integrations make competing decisions.
+Record a representative suite with [Tuist Test Insights](/en/docs-markdown/guides/features/test-insights), keeping the test scope and commit fixed. Enable one supported Tuist test feature and compare reports, retries, scheduling, wall-clock time, and total machine-minutes against the current baseline. Use Tuist MCP to investigate a local or CI failure. Assign test scheduling and quarantine to one system so integrations do not make competing decisions.
 
 ## Sources and review
 
@@ -36,6 +32,6 @@ Sources checked on **2026-10-08**: CircleCI's [Test Insights](https://circleci.c
 
 ## Limitations
 
-Test frameworks, plan availability, scheduling mechanisms, and detection definitions differ. Parallel execution does not guarantee lower total cost. Tuist selective testing requires generated Xcode projects; Elixir quarantine is not applied yet. Public source does not imply uniform licenses or unrestricted self-hosting. Tuist Runners are invite-only with no public pricing; no universal speed or cost advantage is established.
+Test frameworks, plan availability, scheduling mechanisms, and detection definitions differ. Parallel execution does not guarantee lower total cost. Tuist selective testing requires generated Xcode projects and does not currently cover Gradle or Bazel; Elixir quarantine is not applied yet. Public source does not imply uniform licenses or unrestricted self-hosting. Tuist Runners are invite-only with no public pricing; no universal speed or cost advantage is established.
 
 Related: [Buildkite](/marketing-markdown/compare/buildkite), [Develocity](/marketing-markdown/compare/develocity), and [all comparisons](/marketing-markdown/compare).

@@ -1,6 +1,6 @@
 # Tuist and WarpBuild: reduce toolchain work or improve its execution environment?
 
-Choose Tuist when the goal is understanding and reducing supported build and test work across developers, CI, and agents. Evaluate WarpBuild when its GitHub Actions infrastructure, cache integrations, and runner observability fit the execution bottleneck. The two can complement each other; agent access is not unique to Tuist.
+Choose Tuist when the goal is understanding and reducing supported build and test work across developers, CI, and agents. Use [Build Insights](/en/docs-markdown/guides/features/build-insights) to identify expensive operations and a supported cache to avoid repeated work, without requiring a compute migration.
 
 ## What overlaps
 
@@ -21,13 +21,9 @@ It also documents [MCP support](https://www.warpbuild.com/docs/ci/mcp) for inter
 
 You want to inspect the build graph or tasks rather than only resize the machine, share compatible compilation or task outputs across environments, or investigate slow and flaky tests through supported integrations. Tuist's [public source](https://github.com/tuist/tuist) gives engineers a path to inspect behavior and contribute fixes. Its caching and insights do not require a compute migration.
 
-## Choose WarpBuild when
-
-Machine availability, GitHub Actions execution, image configuration, resource sizing, or its cache integrations are the immediate concern. Use its metrics to test whether a job is CPU-bound, memory-constrained, or oversize before adding another diagnostic service. Its documented MCP may also fit infrastructure-management tasks better than a build-data tool.
-
 ## First experiment
 
-Measure one representative workflow on the required shapes. Separate queueing and setup from compilation, cache transfers, and tests. Inspect runner resource utilization alongside toolchain timings. Compare total machine-minutes as well as wall-clock time, and keep infrastructure-changing agent tools disabled unless an operator explicitly authorizes the changes.
+Keep the machine shape fixed and record one representative workflow with [Tuist Build Insights](/en/docs-markdown/guides/features/build-insights). Use Tuist MCP to investigate the expensive operation, then enable a supported Tuist cache or test capability and compare against the existing baseline. Separate setup, compilation, transfers, and tests; measure total machine-minutes as well as wall-clock time. Require operator approval before any infrastructure changes.
 
 ## Sources and review
 

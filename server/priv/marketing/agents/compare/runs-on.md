@@ -1,6 +1,6 @@
 # Tuist and RunsOn: development infrastructure or GitHub Actions in your AWS account?
 
-Choose Tuist when the priority is understanding and reducing supported build and test work across environments. Evaluate RunsOn when owning GitHub Actions execution and caching inside your AWS account is the requirement. A supported Tuist integration can run on suitable RunsOn machines, but using a hosted Tuist service changes the data boundary.
+Choose Tuist when the priority is understanding and reducing supported build and test work across environments. Keep supported existing machines and add [Tuist caching and insights](/marketing-markdown), or review [Enterprise self-hosting](/en/docs-markdown/guides/server/self-host/server) when a private deployment is required.
 
 ## What overlaps
 
@@ -21,13 +21,9 @@ Its [platform documentation](https://runs-on.com/docs/runners/platforms/) curren
 
 You want an improvement layer that does not require choosing AWS or changing CI, or need compatible local/agent reuse and toolchain-specific evidence. You have Apple development workflows that need Xcode integration as well as supported Android, Bazel, or Elixir insights. Engineers can inspect and contribute to Tuist's [public implementation](https://github.com/tuist/tuist), subject to component terms.
 
-## Choose RunsOn when
-
-Your platform team wants GitHub Actions execution in its AWS account, the required workload is supported, and it can own networking, IAM, capacity, upgrades, and AWS charges. Magic Cache may be the right fit when customer-owned Actions-cache storage is the requirement. Do not add a hosted cache if the policy requires every relevant artifact to remain inside the AWS boundary.
-
 ## First experiment
 
-Measure provisioning, queueing, cache restore/save, build/test execution, and Spot interruption recovery where relevant. Include AWS compute, storage, network/NAT, and RunsOn license costs. If adding Tuist, verify data residency and producer/reader authentication first, then measure avoided work separately from a machine-price change.
+Verify data residency and producer/reader authentication, then pilot a [supported Tuist integration](/en/docs-markdown/guides/get-started) without changing the execution environment. Compare compilation, cache transfers, test execution, and total usage against the existing baseline. Measure avoided work separately from provisioning, queueing, or machine-price changes. Review [Tuist self-hosting](/en/docs-markdown/guides/server/self-host/server) before adoption if policy requires private artifact and record storage.
 
 ## Sources and review
 

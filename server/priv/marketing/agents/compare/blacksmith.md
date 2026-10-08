@@ -1,6 +1,6 @@
 # Tuist and Blacksmith: toolchain evidence or integrated GitHub Actions acceleration?
 
-Choose Tuist when you need supported build and test investigation and compatible cache reuse beyond one runner fleet. Evaluate Blacksmith when accelerating and diagnosing your GitHub Actions jobs with its integrated caches and analytics is the main requirement. It offers more than hardware: remote build outputs and structured test results are part of the comparison.
+Choose Tuist when you need supported build and test investigation and compatible cache reuse beyond one runner fleet. Combine [Build Insights](/en/docs-markdown/guides/features/build-insights), test evidence, and authorized agent access to explain the toolchain work behind a slow job, without moving CI.
 
 ## What overlaps
 
@@ -21,13 +21,9 @@ These are real overlapping capabilities. Tuist's case should rest on the environ
 
 Your investigation needs to connect local and CI behavior, or needs specific Xcode steps, Gradle tasks, Bazel profile data, and test attempts that its documented integrations expose. You want agents to reason over authorized records and engineers to inspect the [public implementation](https://github.com/tuist/tuist). Adopt that capability independently of compute and measure whether it adds evidence beyond the runner dashboard.
 
-## Choose Blacksmith when
-
-Its GitHub Actions runners, automatic caches, test parsing, and CI cost view cover the desired workflow with less operational effort. Before adding Tuist for a Bazel cache or test-failure problem, evaluate the corresponding Blacksmith feature already available to the team.
-
 ## First experiment
 
-Benchmark the same job and emit structured test results. Compare setup, compilation, cache hit/miss transfers, test-report completeness, and total job cost. Run a compatible build on a developer machine to evaluate reuse outside the fleet. Blacksmith documents that an explicit Bazel `--remote_cache` configuration takes precedence over its automatic cache; verify which backend is actually active.
+Pilot a [supported Tuist integration](/en/docs-markdown/guides/get-started) on the current runner and emit structured test results. Compare setup, compilation, hit/miss transfers, report completeness, and total job cost against the existing baseline. Use Tuist MCP to investigate one expensive operation or failed test, then try compatible cache reuse on a developer machine. Blacksmith documents that an explicit Bazel `--remote_cache` takes precedence over its automatic cache; verify that the intended Tuist backend is active.
 
 ## Sources and review
 

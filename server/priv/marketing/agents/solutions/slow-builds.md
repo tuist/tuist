@@ -1,6 +1,6 @@
 # Tuist: my builds are slow
 
-Understand what the build is doing before buying more compute. Tuist combines toolchain-aware Build Insights with remote caching so developers, CI, and coding agents can investigate bottlenecks and reuse compatible outputs without moving jobs to Tuist Runners.
+Tuist combines toolchain-aware Build Insights with remote caching so developers, CI, and coding agents can investigate bottlenecks and reuse compatible outputs without moving jobs to Tuist Runners. Start with the supported Tuist integration for your build system to understand expensive work and identify reuse opportunities before buying more compute.
 
 ## Diagnose the bottleneck
 

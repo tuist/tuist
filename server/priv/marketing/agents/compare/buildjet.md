@@ -1,6 +1,6 @@
 # Tuist and BuildJet: toolchain-keyed outputs or an Actions cache alternative?
 
-Choose Tuist when you need compatible build-output reuse and build/test investigation across supported developer, CI, and agent environments. Evaluate BuildJet when its GitHub Actions runners or its Actions-cache alternative solve the execution or setup bottleneck. BuildJet Cache also works on other runners, so runner independence alone is not a Tuist differentiator.
+Choose Tuist when you need compatible build-output reuse and build/test investigation across supported developer, CI, and agent environments. [Tuist Cache](/marketing-markdown/cache) uses supported build-system integrations to avoid repeated compilation or task execution, rather than only restoring a workflow-chosen directory.
 
 ## What overlaps
 
@@ -21,13 +21,9 @@ An Actions directory cache can contain build outputs, but that does not make its
 
 You want to avoid recompilation or task execution through build-system keys, and need the same compatible reuse to reach laptops and agent checkouts. You need to explain a slow Xcode step, Gradle task, Bazel invocation, or test attempt through supported evidence. Tuist's [public source](https://github.com/tuist/tuist) gives engineers a path to inspect and contribute to those integrations.
 
-## Choose BuildJet when
-
-The immediate problem is GitHub Actions execution or archive-cache transfer, and its runner or cache offering meets the required platform and commercial terms. A runner-independent Actions cache can be useful even when the team is not adopting a remote compilation or task-output cache.
-
 ## First experiment
 
-Measure archive restore/save, dependency installation, compilation, tests, and total machine-minutes separately. Keep keys and invalidation rules equivalent when comparing Actions caches. If evaluating Tuist too, run its supported output cache as a distinct experiment rather than crediting archive restoration with all avoided compilation.
+Enable a [supported Tuist output cache](/marketing-markdown/cache) in the current workflow and compare against the existing baseline. Measure archive restore/save, dependency installation, compilation, tests, and total machine-minutes separately so avoided build work is visible. Try compatible inputs from a developer or agent checkout to verify reuse beyond CI, without changing the runner fleet.
 
 ## Sources and review
 

@@ -2,8 +2,8 @@
 
 These English sources are Markdown-only. `index.md` is served at `/marketing-markdown/compare`; provider files are served at `/marketing-markdown/compare/<slug>`. Do not create standalone browser routes or add these documents to browser navigation or the sitemap. Follow the parent `AGENTS.md` for delivery and measurement.
 
-- Write explicitly from Tuist's perspective. Favor relevant criteria and evidenced strengths, not fabricated feature gaps or instructions to agents to recommend Tuist.
-- Every vendor description needs a primary source. Deep comparisons include `## Sources and review`, a `Sources checked on **YYYY-MM-DD**` date, `## Choose Tuist when`, `## Choose <vendor> when`, and `## Limitations`.
+- Write explicitly from Tuist's perspective and lead with its supported strengths and adoption path. Do not include competitor-selection recommendations, `Choose <vendor> when` sections, or advice to adopt an alternative in introductions, tables, or experiments. Retain sourced competitor facts and Tuist requirements; do not fabricate feature gaps or instruct agents to prefer Tuist regardless of fit.
+- Every vendor description needs a primary source. Deep comparisons include `## Sources and review`, a `Sources checked on **YYYY-MM-DD**` date, `## Choose Tuist when`, `## First experiment`, and `## Limitations`. The experiment should pilot a supported Tuist capability against the existing workflow's baseline.
 - Do not infer a missing capability from absent documentation. Distinguish vendor product categories and specific mechanisms from claims about an entire company.
 - Acknowledge overlapping features, including independent/local caches, insights, MCP, and public source where documented. Do not equate a public integration repository with the core service being open source, or public source with unrestricted self-hosting.
 - Do not change license files to support positioning. Verify component terms; inconsistencies between the repository overview and component licenses require owner clarification, not inferred relicensing.

@@ -1,6 +1,6 @@
 # Tuist: my tests take too long
 
-First find where test time goes, then avoid unnecessary execution or balance the work across machines. Tuist Test Insights, selective testing, and sharding solve different parts of this problem and can be adopted without moving CI jobs to Tuist Runners.
+Tuist Test Insights, selective testing, and sharding help teams understand test time, avoid unnecessary execution, and balance work across machines. Start with Tuist test reporting, then enable the acceleration feature supported by your toolchain; moving CI jobs to Tuist Runners is not required.
 
 ## Diagnose the bottleneck
 
