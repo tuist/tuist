@@ -325,12 +325,14 @@ jobs:
       # On main the shards also report the server's coverage to tuist/server.
       # A run from a dirty checkout keeps its coverage off the commit: a cold
       # cache install writes checksums into mise.lock and deps.get can rewrite
-      # mix.lock, neither of which changes the measured code. Mix's own
+      # mix.lock, neither of which changes the measured code. Git is told to
+      # ignore them rather than having them restored, which would leave the
+      # fetched dependencies out of step with mix.lock and stop Mix. Mix's own
       # coverage step only exports its data, instead of failing the shard
       # under its 90% default threshold and writing HTML for every module.
-      - name: Restore lockfiles for coverage
+      - name: Ignore lockfile changes for coverage
         if: github.event_name == 'push'
-        run: git checkout -- ../mise.lock mix.lock
+        run: git update-index --assume-unchanged ../mise.lock mix.lock
       - name: Run shard ${{ matrix.shard }}
         run: mix tuist.test --no-download --scheme clickhouse-current --warnings-as-errors ${{ github.event_name == 'push' && '--cover --export-coverage shard' || '' }}
   test-clickhouse-floor:
@@ -396,6 +398,7 @@ jobs:
     timeout-minutes: 15
     needs: test
     if: always() && github.event_name == 'push' && (needs.test.result == 'success' || needs.test.result == 'failure')
+    continue-on-error: true
     permissions:
       contents: read
       id-token: write
@@ -405,7 +408,6 @@ jobs:
         with:
           restore-mix-cache: "false"
       - name: Signal that the commit's coverage is complete
-        continue-on-error: true
         run: mix 'do' deps.compile tuist_ex + tuist.login + tuist.coverage.complete
   test-unsharded:
     name: Test (unsharded fallback, ${{ matrix.clickhouse }})
