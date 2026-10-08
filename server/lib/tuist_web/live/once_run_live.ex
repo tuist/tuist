@@ -1429,7 +1429,7 @@ defmodule TuistWeb.OnceRunLive do
       |> assign(:remaining_count, max(length(assigns.files) - 3, 0))
 
     ~H"""
-    <div data-part="cell" data-type="text" data-source-files>
+    <div data-source-files>
       <span :if={@preview == []} data-part="label">—</span>
       <span :for={{file, link?} <- @preview} data-part="sublabel" title={file}>
         <.source_file_link :if={link?} project={@project} path={file} commit_sha={@run.git_rev} />

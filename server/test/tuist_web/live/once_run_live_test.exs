@@ -82,6 +82,8 @@ defmodule TuistWeb.OnceRunLiveTest do
       assert has_element?(action_view, "#{table} summary", "+1")
       assert has_element?(action_view, "#{table} details[phx-mounted]", "native-target")
       assert has_element?(action_view, "#{table} [data-action-badges]", "library 1.2")
+      assert has_element?(action_view, "#{table} [data-once-action] > [data-source-files]", "src/main.c")
+      refute has_element?(action_view, "#{table} [data-source-files][data-part=cell]")
       assert has_element?(action_view, "#{table} details", "custom.mode: release")
       refute has_element?(action_view, "#{table} [data-once-action] b")
     end
