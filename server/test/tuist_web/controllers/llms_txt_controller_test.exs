@@ -48,6 +48,7 @@ defmodule TuistWeb.LlmsTxtControllerTest do
         refute body =~ "(#{Tuist.Environment.app_url(path: page.path)})"
       end
 
+      refute body =~ "](/"
       refute body =~ "/compare/index"
       refute body =~ "/solutions/AGENTS"
       refute body =~ "/compare/AGENTS"

@@ -75,7 +75,13 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
 
   def paths, do: @pages |> Map.keys() |> Enum.sort()
   def guide_paths, do: @guides |> Map.keys() |> Enum.sort()
-  def decision_guides, do: @decision_guides |> Map.values() |> Enum.sort_by(& &1.path)
+
+  def decision_guides do
+    @decision_guides
+    |> Map.values()
+    |> Enum.sort_by(& &1.path)
+    |> Enum.map(fn page -> %{page | description: render(page.description)} end)
+  end
 
   def get(path) do
     case Map.fetch(@pages, path) do

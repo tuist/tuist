@@ -66,7 +66,7 @@ Pick the [supported integration](/en/docs-markdown/guides/get-started) matching 
 
 ## First experiment
 
-Pilot Tuist on one representative workflow with the same commit, toolchain, build settings, test scope, and machine shape as the current baseline. Measure cold and warm builds, compatible local/agent reuse, retries, wall-clock time, total machine-minutes, and applicable charges. Use Tuist MCP to investigate the recorded bottleneck. Record the configuration and date so the adoption decision rests on observed results.
+Pilot Tuist on one representative workflow with the same commit, toolchain, build settings, test scope, and machine shape as the current baseline. Measure cold and warm builds, compatible local/agent reuse, retries, wall-clock time, total machine-minutes, and applicable charges. Use [Tuist MCP](/en/docs-markdown/guides/features/agentic-coding/mcp) to investigate the recorded bottleneck. Record the configuration and date so the adoption decision rests on observed results.
 
 ## Sources and review
 
