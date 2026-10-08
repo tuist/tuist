@@ -9,12 +9,6 @@ public struct LogInView: View {
     @EnvironmentObject private var authenticationService: AuthenticationService
     @Environment(\.colorScheme) private var colorScheme
     @State private var appleSignInDelegate: AppleSignInDelegate?
-    @State private var step: Step = .hostingChoice
-
-    private enum Step {
-        case hostingChoice
-        case signIn
-    }
 
     public init() {}
 
@@ -32,59 +26,15 @@ public struct LogInView: View {
                 .foregroundColor(Noora.Colors.surfaceLabelPrimary)
                 .padding(.bottom, Noora.Spacing.spacing5)
 
-            switch step {
-            case .hostingChoice:
-                hostingChoice
-                Spacer()
-            case .signIn:
-                signIn
-            }
+            signIn
         }
         .disabled(authenticationService.isSigningIn)
-        .onAppear {
-            if authenticationService.selfHostedServerURL != nil {
-                step = .signIn
-            }
-        }
         .background(
             Image("LaunchScreenBackground")
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .ignoresSafeArea()
         )
-    }
-
-    private var hostingChoice: some View {
-        VStack(spacing: Noora.Spacing.spacing8) {
-            Text("Choose where Tuist is hosted")
-                .font(.headline.weight(.medium))
-                .foregroundColor(Noora.Colors.surfaceLabelPrimary)
-
-            VStack(spacing: Noora.Spacing.spacing5) {
-                SocialButton(
-                    title: "Tuist-hosted",
-                    style: .primary,
-                    icon: "TuistLogo"
-                ) {
-                    errorHandler.fireAndHandleError {
-                        try await authenticationService.selectServer(nil)
-                        step = .signIn
-                    }
-                }
-
-                SocialButton(
-                    title: "Self-hosted",
-                    style: .secondary,
-                    icon: "ServerIcon"
-                ) {
-                    SelfHostedServerAlert.present(
-                        serverURL: authenticationService.selfHostedServerURL ?? ""
-                    ) { selectSelfHostedServer($0) }
-                }
-            }
-        }
-        .padding(.horizontal, Noora.Spacing.spacing9)
-        .padding(.top, Noora.Spacing.spacing16 + Noora.Spacing.spacing6)
     }
 
     @ViewBuilder
@@ -99,7 +49,7 @@ public struct LogInView: View {
 
         if let selfHostedServerURL = authenticationService.selfHostedServerURL {
             Button {
-                step = .hostingChoice
+                presentSelfHostedServerAlert()
             } label: {
                 HStack(spacing: Noora.Spacing.spacing1) {
                     Image("ServerIcon")
@@ -117,7 +67,7 @@ public struct LogInView: View {
                 .background(Noora.Colors.surfaceBackgroundPrimary)
                 .cornerRadius(Noora.CornerRadius.large)
             }
-            .accessibilityHint("Changes where Tuist is hosted")
+            .accessibilityHint("Changes the self-hosted server address")
             .padding(.horizontal, Noora.Spacing.spacing9)
             .padding(.bottom, Noora.Spacing.spacing9)
         }
@@ -164,6 +114,25 @@ public struct LogInView: View {
             ) {
                 errorHandler.fireAndHandleError { try await authenticationService.signInWithGitHub() }
             }
+
+            divider
+
+            if authenticationService.selfHostedServerURL == nil {
+                SocialButton(
+                    title: "Self-hosted server",
+                    style: .secondary,
+                    icon: "ServerIcon"
+                ) {
+                    presentSelfHostedServerAlert()
+                }
+            } else {
+                SocialButton(
+                    title: "Use Tuist-hosted",
+                    style: .secondary
+                ) {
+                    errorHandler.fireAndHandleError { try await authenticationService.selectServer(nil) }
+                }
+            }
         }
         .padding(.horizontal, Noora.Spacing.spacing8)
         .padding(.top, Noora.Spacing.spacing9)
@@ -190,10 +159,26 @@ public struct LogInView: View {
         )
     }
 
-    private func selectSelfHostedServer(_ serverURL: String) {
-        errorHandler.fireAndHandleError {
-            try await authenticationService.selectServer(serverURL)
-            step = .signIn
+    private var divider: some View {
+        HStack(spacing: Noora.Spacing.spacing4) {
+            line
+            Text("or")
+                .font(.footnote)
+                .foregroundColor(Noora.Colors.surfaceLabelTertiary)
+            line
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var line: some View {
+        Rectangle()
+            .fill(Noora.Colors.surfaceLabelTertiary.opacity(0.3))
+            .frame(height: 1)
+    }
+
+    private func presentSelfHostedServerAlert() {
+        SelfHostedServerAlert.present(serverURL: authenticationService.selfHostedServerURL ?? "") { serverURL in
+            errorHandler.fireAndHandleError { try await authenticationService.selectServer(serverURL) }
         }
     }
 }

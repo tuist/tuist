@@ -4,13 +4,12 @@ import TuistAuthentication
 struct MenuBarLoginView: View {
     @EnvironmentObject var errorHandling: ErrorHandling
     @EnvironmentObject var authenticationService: AuthenticationService
-    @State private var step: Step = .hostingChoice
+    @State private var step: Step = .signIn
     @State private var serverURL = ""
 
     private enum Step {
-        case hostingChoice
-        case selfHosted
         case signIn
+        case selfHosted
     }
 
     private var invalidServerURL: Bool {
@@ -36,40 +35,13 @@ struct MenuBarLoginView: View {
                 .padding(.bottom, 6)
 
             switch step {
-            case .hostingChoice:
-                hostingChoice
-            case .selfHosted:
-                selfHosted
             case .signIn:
                 signIn
+            case .selfHosted:
+                selfHosted
             }
         }
         .disabled(authenticationService.isSigningIn)
-        .onAppear {
-            if authenticationService.selfHostedServerURL != nil {
-                step = .signIn
-            }
-        }
-    }
-
-    private var hostingChoice: some View {
-        VStack(spacing: 0) {
-            caption("Choose where Tuist is hosted")
-
-            primaryButton("Tuist-hosted") {
-                errorHandling.fireAndHandleError {
-                    try await authenticationService.selectServer(nil)
-                    step = .signIn
-                }
-            }
-            .padding(.bottom, 8)
-
-            secondaryButton("Self-hosted") {
-                serverURL = authenticationService.selfHostedServerURL ?? ""
-                step = .selfHosted
-            }
-            .padding(.bottom, 16)
-        }
     }
 
     private var selfHosted: some View {
@@ -89,7 +61,7 @@ struct MenuBarLoginView: View {
             .padding(.bottom, 8)
 
             secondaryButton("Cancel") {
-                step = .hostingChoice
+                step = .signIn
             }
             .padding(.bottom, 16)
         }
@@ -101,7 +73,7 @@ struct MenuBarLoginView: View {
 
             if let selfHostedServerURL = authenticationService.selfHostedServerURL {
                 Button {
-                    step = .hostingChoice
+                    editSelfHostedServer()
                 } label: {
                     Label(selfHostedServerURL, image: "ServerIcon")
                         .lineLimit(1)
@@ -110,7 +82,7 @@ struct MenuBarLoginView: View {
                 .buttonStyle(.plain)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .help("Change where Tuist is hosted")
+                .help("Change the self-hosted server address")
                 .padding(.horizontal, 12)
                 .padding(.bottom, 12)
             }
@@ -120,7 +92,21 @@ struct MenuBarLoginView: View {
                     try await authenticationService.signIn()
                 }
             }
-            .padding(.bottom, 16)
+            .padding(.bottom, 8)
+
+            if authenticationService.selfHostedServerURL == nil {
+                secondaryButton("Self-hosted server") {
+                    editSelfHostedServer()
+                }
+                .padding(.bottom, 16)
+            } else {
+                secondaryButton("Use Tuist-hosted") {
+                    errorHandling.fireAndHandleError {
+                        try await authenticationService.selectServer(nil)
+                    }
+                }
+                .padding(.bottom, 16)
+            }
         }
     }
 
@@ -157,6 +143,11 @@ struct MenuBarLoginView: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 12)
+    }
+
+    private func editSelfHostedServer() {
+        serverURL = authenticationService.selfHostedServerURL ?? ""
+        step = .selfHosted
     }
 
     private func selectSelfHostedServer() {
