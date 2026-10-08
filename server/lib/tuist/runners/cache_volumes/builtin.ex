@@ -10,12 +10,16 @@ defmodule Tuist.Runners.CacheVolumes.Builtin do
   alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.WorkflowJob
 
+  # A GitHub `completed` delivery can still bind a session shortly after its pod
+  # is gone. Past this, a closed session without a binding never executed a job.
+  @binding_grace_seconds 3600
+
   # Only the authenticated host calls this after finalizing its private branch.
   # The durable execution binding supplies account, repository and job identity.
   def report(node, %{"pod_name" => pod, "pod_uid" => uid, "volume_name" => name} = params) do
     with true <- is_binary(uid) and byte_size(uid) in 1..128,
          true <- VolumeHeads.valid_volume_name?(name),
-         {session, job} <- execution(node, pod),
+         {:ok, session, job} <- execution(node, pod),
          true <- name in [VolumeHeads.reserved_tuist_cache(), VolumeHeads.volume_name_for_repository(job.repository)],
          true <- is_binary(params["attached_at"]),
          {:ok, attached, _} <- DateTime.from_iso8601(params["attached_at"] || ""),
@@ -25,7 +29,7 @@ defmodule Tuist.Runners.CacheVolumes.Builtin do
       attached = DateTime.from_unix!(DateTime.to_unix(attached, :microsecond), :microsecond)
       record(job, node, pod, uid, name, attached, params)
     else
-      nil -> {:error, :pending}
+      {:error, reason} when reason in [:pending, :unbound] -> {:error, reason}
       _ -> {:error, :invalid_report}
     end
   end
@@ -33,19 +37,30 @@ defmodule Tuist.Runners.CacheVolumes.Builtin do
   def report(_, _), do: {:error, :invalid_report}
 
   defp execution(node, pod) when is_binary(pod) do
-    Repo.one(
-      from(s in RunnerSession,
-        join: j in WorkflowJob,
-        on: j.workflow_job_id == s.executed_workflow_job_id and j.account_id == s.account_id,
-        where: s.node_name == ^node and s.pod_name == ^pod and s.platform == :macos,
-        order_by: [desc: s.started_at],
-        limit: 1,
-        select: {s, j}
-      )
+    from(s in RunnerSession,
+      left_join: j in WorkflowJob,
+      on: j.workflow_job_id == s.executed_workflow_job_id and j.account_id == s.account_id,
+      where: s.node_name == ^node and s.pod_name == ^pod and s.platform == :macos,
+      order_by: [desc: s.started_at],
+      limit: 1,
+      select: {s, j}
     )
+    |> Repo.one()
+    |> execution_binding()
   end
 
-  defp execution(_, _), do: nil
+  defp execution(_, _), do: {:error, :unbound}
+
+  defp execution_binding({session, %WorkflowJob{} = job}), do: {:ok, session, job}
+  defp execution_binding({%RunnerSession{ended_at: nil}, nil}), do: {:error, :pending}
+
+  defp execution_binding({%RunnerSession{ended_at: ended_at}, nil}) do
+    if DateTime.diff(DateTime.utc_now(), ended_at) < @binding_grace_seconds,
+      do: {:error, :pending},
+      else: {:error, :unbound}
+  end
+
+  defp execution_binding(nil), do: {:error, :unbound}
 
   defp valid_measurements?(params) do
     counters = ~w(size_bytes capacity_bytes attached_size_bytes attach_ms generation base_generation)

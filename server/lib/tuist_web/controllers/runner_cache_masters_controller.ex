@@ -23,6 +23,7 @@ defmodule TuistWeb.RunnerCacheMastersController do
       case Builtin.report(node, params) do
         {:ok, result} -> json(conn, result)
         {:error, :pending} -> conn |> put_status(425) |> json(%{error: "execution pending"})
+        {:error, :unbound} -> conn |> put_status(:gone) |> json(%{error: "execution unavailable"})
         _ -> conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid report"})
       end
     else

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,15 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+const (
+	usageRetryDelay   = time.Minute
+	usageReportMaxAge = 24 * time.Hour
+)
+
+// The server will never accept this report: its execution binding cannot
+// arrive (410) or the report is invalid (422).
+var errUsageRejected = errors.New("volume usage report rejected")
 
 type volumeUsage struct {
 	PodName           string `json:"pod_name"`
@@ -126,6 +136,7 @@ func (w *ConvergeWorker) reportUsage(ctx context.Context) {
 		return errA == nil && errB == nil && a.ModTime().Before(b.ModTime())
 	})
 	sent := 0
+	now := time.Now()
 	for _, entry := range entries {
 		if sent >= 8 || ctx.Err() != nil {
 			return
@@ -133,19 +144,37 @@ func (w *ConvergeWorker) reportUsage(ctx context.Context) {
 		if !strings.HasSuffix(entry.Name(), ".json") || !entry.Type().IsRegular() {
 			continue
 		}
+		// A failed report's mtime is pushed into the future until its next attempt.
+		if info, err := entry.Info(); err != nil || info.ModTime().After(now) {
+			continue
+		}
 		data, ok := readGuestFile(dir, entry.Name(), guestMarkerMaxBytes)
 		if !ok {
 			continue
 		}
 		sent++
-		if err := source.reportUsage(ctx, data); err != nil {
+		path := filepath.Join(dir, entry.Name())
+		err := source.reportUsage(ctx, data)
+		if err != nil && !errors.Is(err, errUsageRejected) && !usageReportExpired(data, now) {
 			log.FromContext(ctx).Error(err, "report volume usage", "report", entry.Name())
-			now := time.Now()
-			_ = os.Chtimes(filepath.Join(dir, entry.Name()), now, now)
+			retry := now.Add(usageRetryDelay)
+			_ = os.Chtimes(path, retry, retry)
 			continue
 		}
-		_ = os.Remove(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			log.FromContext(ctx).Info("drop volume usage report", "report", entry.Name(), "error", err.Error())
+		}
+		_ = os.Remove(path)
 	}
+}
+
+func usageReportExpired(data []byte, now time.Time) bool {
+	var usage volumeUsage
+	if json.Unmarshal(data, &usage) != nil {
+		return true
+	}
+	attached, err := time.Parse(time.RFC3339, usage.AttachedAt)
+	return err != nil || now.Sub(attached) > usageReportMaxAge
 }
 
 func (s *ServerPrefetch) reportUsage(ctx context.Context, data []byte) error {
@@ -177,8 +206,12 @@ func (s *ServerPrefetch) reportUsage(ctx context.Context, data []byte) error {
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
-	if resp.StatusCode != http.StatusOK {
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return nil
+	case http.StatusGone, http.StatusUnprocessableEntity:
+		return fmt.Errorf("%w: HTTP %d", errUsageRejected, resp.StatusCode)
+	default:
 		return fmt.Errorf("report volume usage: HTTP %d", resp.StatusCode)
 	}
-	return nil
 }

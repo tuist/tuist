@@ -47,6 +47,21 @@ defmodule TuistWeb.RunnerCacheMastersControllerTest do
 
       assert json_response(conn, 425) == %{"error" => "execution pending"}
     end
+
+    test "tells the agent to drop reports whose execution binding can no longer arrive", %{conn: conn} do
+      stub(K8sClient, :create_runner_host_token_review, fn "host-token" ->
+        {:ok, %{namespace: "tuist", name: "tart-kubelet-mac-01"}}
+      end)
+
+      expect(Builtin, :report, fn "mac-01", _ -> {:error, :unbound} end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer host-token")
+        |> post("/api/internal/runners/cache-masters/usage", %{})
+
+      assert json_response(conn, 410) == %{"error" => "execution unavailable"}
+    end
   end
 
   describe "GET /api/internal/runners/cache-masters" do

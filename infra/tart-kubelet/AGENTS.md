@@ -30,6 +30,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   existing per-machine host token and a private fsynced queue under the cache root.
   Preserve execution binding, bounded guest-file reads, retry idempotency, and the
   separation between a superseded canonical measurement and physical deletion.
+  The queue drops a report on 410/422 or once it is 24 hours past attachment, and
+  defers other failures (including 425) by pushing the file's mtime one minute ahead.
 
 - Custom admission locks cover reservation only, never remote downloads or image
   creation. Count remaining growth for running VMs and recover it from journals.

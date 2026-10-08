@@ -95,12 +95,44 @@ defmodule Tuist.Runners.CacheVolumes.BuiltinTest do
   end
 
   test "node and repository scope are taken from execution, not body", %{account: account, params: params} do
-    assert {:error, :pending} = Builtin.report("other-node", params)
+    assert {:error, :unbound} = Builtin.report("other-node", params)
     assert {:error, :invalid_report} = Builtin.report("mac-node", %{params | "volume_name" => "repo-0000000000000000"})
     other = AccountsFixtures.account_fixture()
     assert {:ok, %{id: id}} = Builtin.report("mac-node", Map.put(params, "account_id", other.id))
     assert CacheVolumes.get(account.id, id)
     refute CacheVolumes.get(other.id, id)
+  end
+
+  test "a session without an execution binding is pending until it has been closed past the grace", %{
+    account: account,
+    job: job,
+    params: params
+  } do
+    now = DateTime.utc_now()
+
+    session =
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: job.workflow_job_id,
+        fleet_name: "macos",
+        platform: :macos,
+        pod_name: "idle-pod",
+        node_name: "mac-node",
+        vcpus: 2,
+        memory_gb: 8,
+        billing_multiplier: 10_000,
+        started_at: DateTime.add(now, -7200)
+      })
+
+    params = %{params | "pod_name" => "idle-pod", "pod_uid" => "uid-idle"}
+    assert {:error, :pending} = Builtin.report("mac-node", params)
+
+    session = Repo.update!(Ecto.Changeset.change(session, ended_at: DateTime.add(now, -60)))
+    assert {:error, :pending} = Builtin.report("mac-node", params)
+
+    Repo.update!(Ecto.Changeset.change(session, ended_at: DateTime.add(now, -3601)))
+    assert {:error, :unbound} = Builtin.report("mac-node", params)
+    assert {:error, :unbound} = Builtin.report("mac-node", %{params | "pod_name" => "unknown-pod"})
   end
 
   test "rejects missing, negative and oversized measurements", %{params: params} do

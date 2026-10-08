@@ -89,6 +89,9 @@ these schemas persist volume identities and per-job uses.
   host-audience endpoint. Resolve job/account/repository from the executed session
   on the authenticated node. `builtin_name` selects the existing storage identity;
   never run the custom allocation, image, clear or seven-day expiry protocol on it.
+  An open session without its binding, or one closed less than an hour ago (a late
+  `completed` webhook can still bind it), is pending (425). A missing session or one
+  closed longer than that never executed a job: return 410 so the host drops the report.
   Rows use the same inventory, job history and analytics without a UI type label.
 - Built-in measurements describe mounted images and the current canonical saved
   image. `superseded_at` / measurement `retired` withdraw an older canonical
