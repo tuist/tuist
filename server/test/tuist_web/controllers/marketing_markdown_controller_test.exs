@@ -68,6 +68,21 @@ defmodule TuistWeb.MarketingMarkdownControllerTest do
     assert get_resp_header(conn, "content-language") == ["en"]
   end
 
+  test "problem and comparison guides remain Markdown regardless of browser or language preferences" do
+    for page <- MarketingMarkdown.decision_guides() do
+      conn =
+        build_conn()
+        |> put_req_header("accept", "text/html")
+        |> put_req_header("accept-language", "ko")
+        |> get(MarketingMarkdown.alternate_path(page.path) <> "?utm_source=agent")
+
+      assert response(conn, 200) == MarketingMarkdown.get(page.path)
+      assert get_resp_header(conn, "content-type") == ["text/markdown; charset=utf-8"]
+      assert get_resp_header(conn, "content-language") == ["en"]
+      assert get_resp_header(conn, "set-cookie") == []
+    end
+  end
+
   test "HEAD has the same representation headers without a response body" do
     conn = head(build_conn(), "/marketing-markdown/cache")
 

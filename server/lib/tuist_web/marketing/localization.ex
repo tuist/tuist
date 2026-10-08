@@ -54,7 +54,6 @@ defmodule TuistWeb.Marketing.Localization do
     # 3. Redirect is not disabled (no query param or user preference)
     should_redirect =
       private_locale == "en" and
-        !conn.private[:marketing_english_only] and
         Enum.member?(additional_locales(), headers_locale) and
         !disable_locale_redirect
 

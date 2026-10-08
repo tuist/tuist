@@ -1,7 +1,6 @@
 defmodule Tuist.Docs.HTML do
   @moduledoc """
-  Shared HTML post-processing helpers for documentation and trusted-source
-  marketing-guide rendering.
+  Shared HTML post-processing helpers for documentation rendering.
   """
 
   alias Tuist.Markdown

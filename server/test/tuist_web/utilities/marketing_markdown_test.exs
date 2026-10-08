@@ -130,8 +130,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/AGENTS") == nil
   end
 
-  test "public problem and comparison pages derive HTML and metadata from their Markdown" do
-    assert Enum.map(MarketingMarkdown.public_pages(), & &1.path) ==
+  test "problem and comparison discovery metadata derives from Markdown-only guides" do
+    assert Enum.map(MarketingMarkdown.decision_guides(), & &1.path) ==
              Enum.sort(
                [
                  "/compare",
@@ -142,26 +142,10 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                ] ++ @comparison_paths
              )
 
-    for page <- MarketingMarkdown.public_pages() do
+    for page <- MarketingMarkdown.decision_guides() do
       markdown = MarketingMarkdown.get(page.path)
-      html_page = MarketingMarkdown.public_page(page.path)
       assert String.starts_with?(markdown, "# " <> page.title <> "\n\n" <> page.description)
-      assert html_page.body =~ "<table>"
-      assert html_page.body =~ "Limitations"
-      refute html_page.body =~ "<h1"
-      refute html_page.body =~ "href=\"/marketing-markdown"
-      refute html_page.body =~ "href=\"/en/docs-markdown"
       assert MarketingMarkdown.alternate_path(page.path) == "/marketing-markdown" <> page.path
-    end
-
-    html = MarketingMarkdown.public_page("/solutions/slow-builds").body
-    assert html =~ ~s(href="/cache")
-    assert html =~ ~s(href="/en/docs/guides/features/build-insights")
-    assert html =~ ~s(href="/solutions/slow-tests")
-    assert html =~ ~s(href="/compare")
-
-    for path <- ["/cache", "/compare/index", "/compare/AGENTS", "/solutions/AGENTS", "/solutions/missing"] do
-      assert MarketingMarkdown.public_page(path) == nil
     end
 
     assert MarketingMarkdown.get("/compare/index") == nil
@@ -219,14 +203,11 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
 
   test "comparison overview links every detailed provider guide" do
     overview = MarketingMarkdown.get("/compare")
-    html = MarketingMarkdown.public_page("/compare").body
-    links = html |> Floki.parse_fragment!() |> Floki.attribute("a", "href")
 
     for {slug, vendor} <- @providers do
       path = "/compare/" <> slug
       assert overview =~ "[Tuist and #{vendor}]"
       assert overview =~ MarketingMarkdown.alternate_path(path)
-      assert path in links
       assert MarketingMarkdown.get(path) =~ MarketingMarkdown.alternate_path("/compare")
     end
   end

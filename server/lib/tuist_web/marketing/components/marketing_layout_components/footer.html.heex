@@ -150,27 +150,6 @@
     ]
   }
 ] %>
-<% columns =
-  if Gettext.get_locale() == "en" do
-    Enum.map(columns, fn column ->
-      if column.title == "Product" do
-        Map.update!(column, :links, fn links ->
-          links ++
-            [
-              %{label: "Slow builds", href: "/solutions/slow-builds"},
-              %{label: "Flaky tests", href: "/solutions/flaky-tests"},
-              %{label: "Slow tests", href: "/solutions/slow-tests"},
-              %{label: "Rising CI costs", href: "/solutions/ci-costs"},
-              %{label: "Compare approaches", href: "/compare"}
-            ]
-        end)
-      else
-        column
-      end
-    end)
-  else
-    columns
-  end %>
 <% assistants = [
   %{name: "ChatGPT", href: "https://chatgpt.com/?q=What+does+Tuist+do%3F", icon: "brand_chatgpt"},
   %{
@@ -318,7 +297,6 @@ alone on join. The navbar does the same. --%>
         leaving the panel empty. This is the exact same DOM the component
         produces post-teleport, with the label and items inlined. --%>
         <div
-          :if={!assigns[:head_english_only]}
           id="footer-locale-dropdown"
           class="noora-dropdown"
           data-static-hook="NooraDropdown"

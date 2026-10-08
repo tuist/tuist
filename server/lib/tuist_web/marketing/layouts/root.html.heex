@@ -115,10 +115,7 @@
       }
     />
     <!-- Language alternates for SEO -->
-    <%= for locale <- if(assigns[:head_english_only],
-      do: ["en"],
-      else: TuistWeb.Marketing.Localization.all_locales()
-    ) do %>
+    <%= for locale <- TuistWeb.Marketing.Localization.all_locales() do %>
       <link
         rel="alternate"
         hreflang={locale}

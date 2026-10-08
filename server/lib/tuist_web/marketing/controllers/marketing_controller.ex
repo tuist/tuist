@@ -17,7 +17,6 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.SocialCards
-  alias TuistWeb.Utilities.MarketingMarkdown
 
   plug :assign_default_head_tags
   plug :put_agent_discovery_links when action in [:home]
@@ -731,8 +730,6 @@ defmodule TuistWeb.Marketing.MarketingController do
         |> sitemap_entry(Map.get(section_last_modified, path))
       end
 
-    guide_entries = Enum.map(MarketingMarkdown.public_pages(), &sitemap_entry(&1.path, nil))
-
     docs_entries =
       Enum.map(
         Tuist.Docs.slugs(),
@@ -741,7 +738,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     entries =
       localized_entries ++
-        case_study_entries ++ page_entries ++ post_entries ++ newsletter_issue_entries ++ guide_entries ++ docs_entries
+        case_study_entries ++ page_entries ++ post_entries ++ newsletter_issue_entries ++ docs_entries
 
     conn
     |> assign(:entries, Enum.uniq_by(entries, & &1.loc))
@@ -973,28 +970,6 @@ defmodule TuistWeb.Marketing.MarketingController do
       ])
     )
     |> render(:tests, layout: false)
-  end
-
-  def decision_guide(conn, _params) do
-    page = MarketingMarkdown.public_page(conn.request_path)
-
-    if is_nil(page) do
-      raise NotFoundError, dgettext("errors", "Page not found")
-    end
-
-    conn
-    |> assign(:head_title, page.title)
-    |> assign(:head_description, page.description)
-    |> assign(:head_image, SocialCards.image_url("home"))
-    |> assign(:head_english_only, true)
-    |> assign_structured_data(
-      get_breadcrumbs_structured_data([
-        {"Tuist", Tuist.Environment.app_url(path: "/")},
-        {page.title, Tuist.Environment.app_url(path: page.path)}
-      ])
-    )
-    |> assign(:page, Map.merge(page, %{slug: page.path, logo: nil, last_updated: nil}))
-    |> render(:page, layout: false)
   end
 
   def page(conn, _params) do

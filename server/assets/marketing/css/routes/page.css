@@ -81,17 +81,6 @@
       margin-top: var(--noora-spacing-11);
       width: 100%;
 
-      & .noora-table table {
-        min-width: 600px;
-        table-layout: fixed;
-
-        & th,
-        & td {
-          white-space: normal;
-          overflow-wrap: anywhere;
-        }
-      }
-
       /* Every image rounds at 8px, like on the blog post — prose.css's
          site-wide 12px loses here. */
       & img,

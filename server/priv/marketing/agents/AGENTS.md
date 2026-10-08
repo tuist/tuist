@@ -10,13 +10,13 @@ Purpose-written English Markdown for all marketing landing pages: homepage, prod
 - Do not duplicate numeric pricing rates during the billing-model rollout. Link the live table and explain which usage and plan details to check.
 - Use root-relative Markdown links. `TuistWeb.Utilities.MarketingMarkdown` expands them to the configured app URL.
 - Only add English source content. Other localized marketing pages retain HTML conversion; do not silently replace translated pages with English guides.
-- `home.md` maps to `/`; other root filenames map to `/<filename>`. `solutions/<slug>.md` maps to `/solutions/<slug>` and `compare/index.md` to `/compare`, with other comparison files at `/compare/<slug>`. Files are embedded at compilation, with content and inventory changes triggering recompilation. They are not arbitrary filesystem downloads.
-- Problem and comparison guides have English-only public HTML pages generated from the same source as Markdown. Their inventory supplies router entries, sitemap entries, and dedicated `/llms.txt` sections. HTML links resolve to browser pages; Markdown retains explicit agent-friendly links. Do not advertise localized HTML routes that do not exist.
+- `home.md` uses the `/` guide key; other root filenames use `/<filename>`. `solutions/<slug>.md` uses `/solutions/<slug>` and `compare/index.md` uses `/compare`, with other comparison files at `/compare/<slug>`. These keys identify documents, not standalone browser routes. Files are embedded at compilation, with content and inventory changes triggering recompilation. They are not arbitrary filesystem downloads.
+- Problem and comparison guides are English-only Markdown documents at `/marketing-markdown/solutions/<slug>` and `/marketing-markdown/compare[/<provider>]`. Their metadata supplies dedicated `/llms.txt` sections, and the Markdown homepage links to them. Do not add browser pages, browser-navigation links, sitemap entries, or localized alternates for these documents.
 - Problem guides: see `solutions/AGENTS.md`. Provider comparisons: see `compare/AGENTS.md`.
 
 ## Delivery and discovery
 
-- `Accept: text/markdown` on the matching marketing URL selects the guide. Unknown marketing pages keep HTML-to-Markdown conversion.
+- `Accept: text/markdown` on an existing marketing landing-page URL selects its guide. Unknown marketing pages keep HTML-to-Markdown conversion. The new problem and comparison documents have only explicit Markdown URLs; do not register `/solutions/...` or `/compare...` browser routes for negotiation.
 - `/marketing-markdown` and `/marketing-markdown/<page>` provide header-free access, with one-hour public caching and no session cookies. `/marketing-markdown/source/<page>` serves original static-page Markdown, including the full statements that authored guides override.
 - Blog, changelog, customer, and newsletter directory guides append up to 20 current entry links from their existing content modules. Individual entries retain their full content through HTML conversion; never freeze the changing catalog into an authored guide.
 - HTML alternate links, HTTP `Link` headers, and `/llms.txt` advertise these documents.

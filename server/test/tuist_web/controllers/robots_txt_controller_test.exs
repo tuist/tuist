@@ -32,26 +32,31 @@ defmodule TuistWeb.RobotsTxtControllerTest do
       assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
     end
 
-    test "opts public decision guides into marketing content usage", %{conn: conn} do
+    test "opts Markdown-only decision guides into marketing content usage", %{conn: conn} do
       body = conn |> get("/robots.txt") |> response(200)
 
       public_patterns =
         Regex.scan(~r/^Content-Usage: (\S+) train-ai=y, search=y, ai-input=y$/m, body, capture: :all_but_first)
 
-      for page <- MarketingMarkdown.public_pages() do
+      for page <- MarketingMarkdown.decision_guides() do
+        path = MarketingMarkdown.alternate_path(page.path)
+
         assert Enum.any?(public_patterns, fn [pattern] ->
                  if String.ends_with?(pattern, "$") do
-                   page.path == String.trim_trailing(pattern, "$")
+                   path == String.trim_trailing(pattern, "$")
                  else
-                   String.starts_with?(page.path, pattern)
+                   String.starts_with?(path, pattern)
                  end
                end)
 
         refute Enum.any?(RobotsTxt.disallow_patterns(), fn pattern ->
                  regex = pattern |> Regex.escape() |> String.replace("\\*", ".*") |> String.replace("\\$", "$")
-                 Regex.match?(Regex.compile!("^" <> regex), page.path)
+                 Regex.match?(Regex.compile!("^" <> regex), path)
                end)
       end
+
+      refute body =~ "Content-Usage: /solutions"
+      refute body =~ "Content-Usage: /compare"
     end
 
     test "points crawlers at the sitemap", %{conn: conn} do

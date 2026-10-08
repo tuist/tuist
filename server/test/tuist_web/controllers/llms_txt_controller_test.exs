@@ -42,7 +42,7 @@ defmodule TuistWeb.LlmsTxtControllerTest do
       assert body =~ "## Solve a problem"
       assert body =~ "## Comparisons"
 
-      for page <- MarketingMarkdown.public_pages() do
+      for page <- MarketingMarkdown.decision_guides() do
         url = Tuist.Environment.app_url(path: MarketingMarkdown.alternate_path(page.path))
         assert body =~ "[#{page.title}](#{url})"
         refute body =~ "(#{Tuist.Environment.app_url(path: page.path)})"

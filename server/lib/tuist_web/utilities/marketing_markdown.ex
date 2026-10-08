@@ -1,14 +1,15 @@
 defmodule TuistWeb.Utilities.MarketingMarkdown do
   @moduledoc """
-  English marketing decision guides, shared-source problem and comparison HTML,
-  and unchanged policy sources.
+  English marketing decision guides and unchanged policy sources.
+
+  Problem and comparison guides are Markdown-only documents, discovered through
+  the Markdown homepage and `/llms.txt`, not standalone browser pages.
 
   Keep capabilities and constraints aligned with the corresponding HTML and
   feature documentation. Individual articles retain HTML-to-Markdown negotiation;
   legal documents retain their original wording rather than a marketing summary.
   """
 
-  alias Tuist.Docs.HTML, as: DocsHTML
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Changelog
   alias Tuist.Marketing.Customers
@@ -57,14 +58,14 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
 
   @pages Map.merge(@policies, @guides)
 
-  @public_pages @guides
-                |> Enum.filter(fn {path, _markdown} ->
-                  path == "/compare" or String.starts_with?(path, ["/solutions/", "/compare/"])
-                end)
-                |> Map.new(fn {path, markdown} ->
-                  [heading, description | _rest] = String.split(markdown, "\n\n")
-                  {path, %{path: path, title: String.trim_leading(heading, "# "), description: description}}
-                end)
+  @decision_guides @guides
+                   |> Enum.filter(fn {path, _markdown} ->
+                     path == "/compare" or String.starts_with?(path, ["/solutions/", "/compare/"])
+                   end)
+                   |> Map.new(fn {path, markdown} ->
+                     [heading, description | _rest] = String.split(markdown, "\n\n")
+                     {path, %{path: path, title: String.trim_leading(heading, "# "), description: description}}
+                   end)
 
   def __mix_recompile__? do
     @patterns |> Enum.flat_map(&Path.wildcard/1) |> Enum.sort() |> :erlang.md5() != @paths_digest
@@ -74,34 +75,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
 
   def paths, do: @pages |> Map.keys() |> Enum.sort()
   def guide_paths, do: @guides |> Map.keys() |> Enum.sort()
-  def public_pages, do: @public_pages |> Map.values() |> Enum.sort_by(& &1.path)
-
-  def public_page(path) do
-    case Map.fetch(@public_pages, path) do
-      {:ok, page} ->
-        [_heading, body] = String.split(Map.fetch!(@guides, path), "\n\n", parts: 2)
-
-        body =
-          Regex.replace(~r/\]\((\/[^\s)]*)\)/, body, fn _match, target ->
-            "](" <> html_target(target) <> ")"
-          end)
-
-        html = body |> MDEx.to_html!(extension: [table: true]) |> DocsHTML.wrap_tables()
-        Map.put(page, :body, html)
-
-      :error ->
-        nil
-    end
-  end
-
-  defp html_target("/marketing-markdown"), do: "/"
-
-  defp html_target("/marketing-markdown/" <> path = target) do
-    if Map.has_key?(@pages, "/" <> path), do: "/" <> path, else: target
-  end
-
-  defp html_target("/en/docs-markdown/" <> path), do: "/en/docs/" <> path
-  defp html_target(target), do: target
+  def decision_guides, do: @decision_guides |> Map.values() |> Enum.sort_by(& &1.path)
 
   def get(path) do
     case Map.fetch(@pages, path) do

@@ -5,8 +5,8 @@ defmodule TuistWeb.Utilities.LlmsTxt do
 
   The file provides a curated map for agents that use it, not a guarantee of
   search discovery or citations. It points at documentation Markdown twins
-  (`/:locale/docs-markdown/*`), landing-page guides, and shared-source problem
-  and comparison guides. Public HTML guides are also linked in the sitemap.
+  (`/:locale/docs-markdown/*`), landing-page guides, and Markdown-only problem
+  and comparison guides. These guides do not introduce standalone browser pages.
 
   Only English is indexed. The file lives at a single URL, so a translated
   variant would have nowhere to be served from.
@@ -187,7 +187,7 @@ defmodule TuistWeb.Utilities.LlmsTxt do
   end
 
   defp guide_section(title, prefix) do
-    pages = Enum.filter(MarketingMarkdown.public_pages(), &String.starts_with?(&1.path, prefix))
+    pages = Enum.filter(MarketingMarkdown.decision_guides(), &String.starts_with?(&1.path, prefix))
 
     ["## #{title}", ""] ++
       Enum.map(pages, fn page ->

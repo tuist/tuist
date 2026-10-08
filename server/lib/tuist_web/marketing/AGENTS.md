@@ -6,7 +6,7 @@ This area owns marketing controllers and components for the public site.
 - Keep individual changelog entries, including their localized URLs, in the marketing sitemap. Shared canonical URLs must not retain tracking or filtering parameters.
 - Browser newsletter issue documents include the shared analytics component; their email versions must omit scripts.
 - Render marketing pages and UI components.
-- `/solutions/<slug>` and `/compare[/<provider>]` render English-only decision guides from the same source as their explicit Markdown twins. `MarketingMarkdown.public_pages/0` supplies exact routes and sitemap entries; do not create localized alternates for these pages. Keep footer discovery, English-only locale behavior, and original legacy redirects intact.
+- Problem and comparison guides are Markdown-only at `/marketing-markdown/solutions/<slug>` and `/marketing-markdown/compare[/<provider>]`. Do not add standalone browser routes, footer links, or sitemap entries for them. Their discovery belongs in the Markdown homepage and `/llms.txt`; keep existing browser pages and legacy redirects intact.
 - The shared root layout advertises purpose-written English Markdown alternates for marketing landing pages, omitting tracking queries. Content lives in `priv/marketing/agents`; see that directory's `AGENTS.md` for factual alignment and CDN rollout requirements.
 - Whenever HTML marketing page content changes, review and update the corresponding guide in `priv/marketing/agents` in the same change. Keep facts, support, requirements, availability, pricing guidance, limitations, and links consistent; preserve the Markdown guide's concise, agent-oriented presentation.
 - Bridge marketing content from `Tuist.Marketing` into controllers/views.
