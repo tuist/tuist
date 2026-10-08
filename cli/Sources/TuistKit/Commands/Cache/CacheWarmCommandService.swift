@@ -38,10 +38,8 @@ import XcodeGraph
                 \(failures.count) of \(failures.count + storedCount) targets failed to upload to the remote cache:
                 \(failedTargets)
 
-                If the failures were temporary, warming again uploads them from a machine that doesn't have them \
-                in its local cache. On this machine, run tuist clean binaries first, since targets in the local \
-                cache count as cached. If every warm fails the same way, cleaning won't help: resolve the \
-                reported cause first.
+                If the failures were temporary, warming again uploads them. If every warm fails the same way, \
+                resolve the reported cause first.
                 """
             case let .diskExhausted(scratchDirectory, space, underlyingError):
                 return """
@@ -224,10 +222,6 @@ import XcodeGraph
             )
             let cacheableTargets = hashedGraph.targetsToBuild
 
-            if !noUpload, !generateOnly {
-                try await cacheStorage.republishIfNeeded(hashedGraph.localHits, cacheCategory: .binaries)
-            }
-
             try foreignBuildOutputValidator.validate(
                 targets: cacheableTargets.map(\.0),
                 scratchDirectory: scratchDirectoryMode
@@ -236,6 +230,9 @@ import XcodeGraph
             let cacheableTargetNames = Set(cacheableTargets.map(\.0.target.name))
             guard !cacheableTargets.isEmpty else {
                 Logger.current.info("All cacheable targets are already cached")
+                if !noUpload, !generateOnly {
+                    try await republishIfNeeded(hashedGraph.localHits, cacheStorage: cacheStorage)
+                }
                 await logCacheWarmSummary()
                 return
             }
@@ -278,12 +275,30 @@ import XcodeGraph
                 scratchDirectory: scratchDirectoryMode
             )
 
+            if !noUpload {
+                try await republishIfNeeded(hashedGraph.localHits, cacheStorage: cacheStorage)
+            }
+
             Logger.current.info(
                 "All cacheable targets have been cached successfully as xcframeworks",
                 metadata: .success
             )
 
             await logCacheWarmSummary()
+        }
+
+        private func republishIfNeeded(
+            _ localHits: [CacheStorableItem: AbsolutePath],
+            cacheStorage: CacheStoring
+        ) async throws {
+            do {
+                try await cacheStorage.republishIfNeeded(localHits, cacheCategory: .binaries)
+            } catch let error as CacheUploadError {
+                throw CacheWarmCommandServiceError.uploadsFailed(
+                    failures: error.failures,
+                    storedCount: Set(localHits.keys).subtracting(error.failures.map(\.item)).count
+                )
+            }
         }
 
         /// Prints how cacheable targets were resolved during this run: how many were served from the

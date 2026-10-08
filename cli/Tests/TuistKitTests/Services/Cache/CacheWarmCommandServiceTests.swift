@@ -204,6 +204,35 @@
                 .called(1)
         }
 
+        @Test(.inTemporaryDirectory) func run_storesMissesBeforeRepublishingLocalHits() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let path = temporaryDirectory.appending(components: "Binaries", "Cached.bundle")
+            let failure = CacheUploadFailure(
+                item: CacheStorableItem(name: "Cached", hash: "cached-hash"),
+                reason: "request timed out"
+            )
+
+            let error = await #expect(throws: CacheWarmCommandServiceError.self) {
+                try await run(
+                    noUpload: false,
+                    fetched: [CacheItem(name: "Cached", hash: "cached-hash", source: .local, cacheCategory: .binaries): path],
+                    cachedTarget: true,
+                    republishError: CacheUploadError(failures: [failure])
+                )
+            }
+
+            #expect(error?.errorDescription?.contains("  - Cached (cached-hash): request timed out") == true)
+            verify(cacheStorage)
+                .store(.any, cacheCategory: .value(.binaries))
+                .called(1)
+            verify(cacheStorage)
+                .republishIfNeeded(
+                    .matching { $0.keys.map(\.name) == ["Cached"] },
+                    cacheCategory: .value(.binaries)
+                )
+                .called(1)
+        }
+
         @Test(.inTemporaryDirectory) func run_doesNotRepublishLocalHits_whenNoUpload() async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let path = temporaryDirectory.appending(components: "Binaries", "Fixtures.bundle")
@@ -593,13 +622,25 @@
             targetProduct: Product = .bundle,
             projectSettings: Settings = .test(),
             fetched: [CacheItem: AbsolutePath] = [:],
-            generateOnly: Bool = false
+            generateOnly: Bool = false,
+            cachedTarget: Bool = false,
+            republishError: Error? = nil
         ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let resolvedConfiguration = configuration ?? "Debug"
             let target = Target.test(name: "Fixtures", product: targetProduct, foreignBuild: foreignBuild)
-            let project = Project.test(path: temporaryDirectory, settings: projectSettings, targets: [target], schemes: [])
+            let cached = Target.test(name: "Cached", product: .bundle)
+            let project = Project.test(
+                path: temporaryDirectory,
+                settings: projectSettings,
+                targets: cachedTarget ? [target, cached] : [target],
+                schemes: []
+            )
             let graphTarget = GraphTarget(path: temporaryDirectory, target: target, project: project)
+            var hashes: [GraphTarget: TargetContentHash] = [:]
+            if cachedTarget {
+                hashes[GraphTarget(path: temporaryDirectory, target: cached, project: project)] = .test(hash: "cached-hash")
+            }
             let graph = Graph.test(
                 path: temporaryDirectory,
                 workspace: .test(path: temporaryDirectory, schemes: schemes),
@@ -633,6 +674,7 @@
                 .willReturn(resolvedConfiguration)
             var targetHash = TargetContentHash.test(hash: "fixtures-hash")
             targetHash.binaryCacheFingerprints = fingerprints
+            hashes[graphTarget] = targetHash
             given(cacheGraphContentHasher)
                 .contentHashes(
                     for: .value(graph),
@@ -641,13 +683,19 @@
                     excludedTargets: .value([]),
                     destination: .value(nil)
                 )
-                .willReturn([graphTarget: targetHash])
+                .willReturn(hashes)
             given(cacheStorage)
                 .fetch(.any, cacheCategory: .value(.binaries))
                 .willReturn(fetched)
-            given(cacheStorage)
-                .republishIfNeeded(.any, cacheCategory: .value(.binaries))
-                .willReturn()
+            if let republishError {
+                given(cacheStorage)
+                    .republishIfNeeded(.any, cacheCategory: .value(.binaries))
+                    .willThrow(republishError)
+            } else {
+                given(cacheStorage)
+                    .republishIfNeeded(.any, cacheCategory: .value(.binaries))
+                    .willReturn()
+            }
             given(generatorFactory)
                 .binaryCacheWarming(
                     config: .value(config),
