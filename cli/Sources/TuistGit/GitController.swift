@@ -246,6 +246,8 @@ public struct GitController: GitControlling {
         "BUILDKITE_PULL_REQUEST",
         // CircleCI
         "CIRCLE_PR_NUMBER",
+        // TeamCity
+        "teamcity.pullRequest.number",
     ]
 
     private static let baseBranchEnvironmentVariables = [
@@ -264,6 +266,8 @@ public struct GitController: GitControlling {
         "CI_PULL_REQUEST_TARGET_BRANCH",
         // Azure DevOps (a full ref, refs/heads/main)
         "SYSTEM_PULLREQUEST_TARGETBRANCH",
+        // TeamCity
+        "teamcity.pullRequest.target.branch",
     ]
 
     private static let branchEnvironmentVariables = [
@@ -284,6 +288,7 @@ public struct GitController: GitControlling {
         // Xcode Cloud
         "CI_BRANCH",
         // TeamCity
+        "teamcity.pullRequest.source.branch",
         "teamcity.build.branch",
         // Azure DevOps
         "BUILD_SOURCEBRANCHNAME",
@@ -308,8 +313,8 @@ public struct GitController: GitControlling {
     }
 
     public func gitInfo(workingDirectory: AbsolutePath) async throws -> GitInfo {
-        let environment = environment.variables
-        let teamCity = await TeamCityBuildParameters.read(environment: environment)
+        let environment = await CIBuildParameters.read(environment: environment.variables)
+            .merging(environment.variables) { _, variable in variable }
 
         // Ref
         let gitRef: String?
@@ -329,7 +334,7 @@ public struct GitController: GitControlling {
         {
             gitRef = "refs/pull/\(pullRequestID)/merge"
         } else {
-            gitRef = teamCity?.ref
+            gitRef = nil
         }
 
         // The base branch and pull request number, from the CI provider only: a checkout does not
@@ -337,17 +342,15 @@ public struct GitController: GitControlling {
         let baseBranch = Self.baseBranchEnvironmentVariables
             .compactMap { environment[$0] }
             .first { !$0.isEmpty }
-            .map { $0.hasPrefix("refs/heads/") ? String($0.dropFirst("refs/heads/".count)) : $0 }
-            ?? teamCity?.targetBranch
+            .map(Self.branchName)
         let pullRequestNumber = Self.pullRequestNumber(ref: gitRef, environment: environment)
-            ?? teamCity?.pullRequestNumber
 
         // Branch
         let ciBranch = Self.branchEnvironmentVariables
             .compactMap { environment[$0] }
             .first { !$0.isEmpty }
+            .map(Self.branchName)
             ?? Self.githubBranch(environment: environment)
-            ?? teamCity?.branch
 
         let branchName: String?
         if let ciBranch {
@@ -375,8 +378,8 @@ public struct GitController: GitControlling {
             return GitInfo(
                 ref: gitRef,
                 branch: branchName,
-                sha: teamCity?.commitSHA,
-                remoteURLOrigin: teamCity?.remoteURL,
+                sha: nil,
+                remoteURLOrigin: nil,
                 baseBranch: baseBranch,
                 pullRequestNumber: pullRequestNumber
             )
@@ -385,10 +388,9 @@ public struct GitController: GitControlling {
         // SHA — if CI checked out a PR merge ref (e.g. refs/pull/N/merge),
         // HEAD is an ephemeral merge commit. Use the second parent (the actual
         // PR branch tip) instead, since the merge commit doesn't exist on the remote.
-        // A `refs/pull/N/head` checkout (TeamCity's for GitHub) is the tip itself.
         let commitSHA: String?
         if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
-            let isPullRequestMergeRef = gitRef?.hasPrefix("refs/pull/") == true && gitRef?.hasSuffix("/merge") == true
+            let isPullRequestMergeRef = gitRef?.hasPrefix("refs/pull/") == true
             if isPullRequestMergeRef,
                let secondParent = try? await capture(
                    command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
@@ -418,6 +420,11 @@ public struct GitController: GitControlling {
             baseBranch: baseBranch,
             pullRequestNumber: pullRequestNumber
         )
+    }
+
+    /// Some providers name a branch by its full ref, `refs/heads/main`.
+    private static func branchName(_ name: String) -> String {
+        name.hasPrefix("refs/heads/") ? String(name.dropFirst("refs/heads/".count)) : name
     }
 
     /// The pull request number from a `refs/pull/<n>/...` ref (which the CI variables above are
