@@ -13,6 +13,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Utilities.MarketingMarkdown
 
   @iphone_user_agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
 
@@ -83,6 +84,33 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
+  describe "Markdown-only problem and comparison guides" do
+    test "does not register standalone marketing browser routes" do
+      for page <- MarketingMarkdown.decision_guides() do
+        case Phoenix.Router.route_info(TuistWeb.Router, "GET", page.path, "") do
+          :error -> :ok
+          route -> refute Map.get(route, :type) == :marketing, page.path
+        end
+      end
+    end
+
+    test "does not link the Markdown-only guides from browser navigation", %{conn: conn} do
+      document = conn |> get("/") |> html_response(200) |> Floki.parse_document!()
+      links = Floki.attribute(document, "a", "href")
+
+      for page <- MarketingMarkdown.decision_guides() do
+        refute page.path in links
+        refute MarketingMarkdown.alternate_path(page.path) in links
+      end
+
+      assert Floki.find(document, "#footer-locale-dropdown") != []
+    end
+
+    test "legacy feature redirects remain intact", %{conn: conn} do
+      assert conn |> get("/flaky-tests") |> redirected_to(301) == "/tests"
+    end
+  end
+
   describe "GET /blog/:year/:month/:day/:slug" do
     test "emits article metadata with a profile URL for the author", %{conn: conn} do
       post = List.first(Blog.get_posts())
@@ -130,6 +158,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Folded into the tests page; their URLs redirect and are not advertised.
       for path <- ["/flaky-tests", "/test-insights"] do
         refute xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+      end
+    end
+
+    test "does not advertise Markdown-only problem and comparison guides", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+
+      for page <- MarketingMarkdown.decision_guides() do
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: page.path)}</loc>"
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: "/ko" <> page.path)}</loc>"
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: MarketingMarkdown.alternate_path(page.path))}</loc>"
       end
     end
 
