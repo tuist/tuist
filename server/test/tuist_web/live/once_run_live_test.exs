@@ -111,6 +111,66 @@ defmodule TuistWeb.OnceRunLiveTest do
     refute has_element?(view, ~s(#once-actions-table a[href*="/blob/"]))
   end
 
+  test "source classification controls links identically in actions and cache views", %{
+    conn: conn,
+    organization: organization
+  } do
+    project =
+      ProjectsFixtures.project_fixture(
+        account_id: organization.account.id,
+        build_system: :once,
+        vcs_connection: [repository_full_handle: "org/repository"]
+      )
+
+    {:ok, run} =
+      OnceEvents.upsert_run(%{project_id: project.id, run_id: UUIDv7.generate(), git_rev: "abc123"})
+
+    files = ["src/main.c", "third_party/rust/vendor/input.rs", "generated/input.c"]
+
+    {:ok, action} =
+      OnceEvents.ingest_action(run, %{
+        target_execution_id: "classified",
+        capability: "build",
+        action_index: 0,
+        source_files: files,
+        source_file_statuses: [1, 2, 3],
+        result: "succeeded",
+        started_at: DateTime.utc_now(),
+        finished_at: DateTime.utc_now()
+      })
+
+    conn = Plug.Conn.assign(conn, :selected_project, project)
+    path = "/#{organization.account.name}/#{project.name}/once/runs/#{run.run_id}"
+
+    cases = [
+      {[1, 2, 3], ["src/main.c"]},
+      {[1, 0, 65_536], ["src/main.c"]},
+      {[1], []},
+      {[1, 1, 1, 1], []},
+      {[3, 3, 3], []},
+      {[0, 0, 0], []},
+      {[65_536, 65_536, 65_536], []},
+      {[-1, -1, -1], []},
+      {nil, files},
+      {[], files}
+    ]
+
+    for {statuses, linked} <- cases do
+      action = Tuist.Repo.get!(Tuist.OnceEvents.Action, action.id)
+      action |> Ecto.Changeset.change(source_file_statuses: statuses) |> Tuist.Repo.update!()
+
+      for suffix <- ["", "/cache"] do
+        {:ok, view, _} = live(conn, path <> suffix)
+
+        for file <- files do
+          assert has_element?(view, "[data-source-files]", file)
+          selector = ~s([data-source-files] a[href="https://github.com/org/repository/blob/abc123/#{file}"])
+          assert has_element?(view, selector) == file in linked
+        end
+      end
+    end
+  end
+
   test "large source lists have a bounded preview and all recorded paths remain searchable", %{
     conn: conn,
     path: path,

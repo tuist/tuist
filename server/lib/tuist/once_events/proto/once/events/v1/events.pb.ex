@@ -80,6 +80,16 @@ defmodule Once.Events.V1.TargetResult do
   field :TARGET_RESULT_INFRASTRUCTURE_ERROR, 6
 end
 
+defmodule Once.Events.V1.SourceFileStatus do
+  @moduledoc false
+  use Protobuf, enum: true, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
+
+  field :SOURCE_FILE_STATUS_UNSPECIFIED, 0
+  field :SOURCE_FILE_STATUS_COMMITTED, 1
+  field :SOURCE_FILE_STATUS_NOT_COMMITTED, 2
+  field :SOURCE_FILE_STATUS_UNKNOWN, 3
+end
+
 defmodule Once.Events.V1.TestCaseResult do
   @moduledoc false
   use Protobuf, enum: true, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
@@ -669,6 +679,12 @@ defmodule Once.Events.V1.ActionCompleted do
   field :selected_attempt, 14, type: :uint32, json_name: "selectedAttempt"
   field :display_name, 15, proto3_optional: true, type: :string, json_name: "displayName"
   field :source_files, 16, repeated: true, type: :string, json_name: "sourceFiles"
+
+  field :source_file_statuses, 17,
+    repeated: true,
+    type: Once.Events.V1.SourceFileStatus,
+    json_name: "sourceFileStatuses",
+    enum: true
 end
 
 defmodule Once.Events.V1.ActionAttemptStarted do

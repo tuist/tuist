@@ -68,22 +68,62 @@ defmodule Tuist.OnceEventsTest do
       identifier: "diagnostic:compile",
       display_name: "Compile main.c",
       source_files: ["src/main.c", "include/api.h"],
+      source_file_statuses: [:SOURCE_FILE_STATUS_COMMITTED, :SOURCE_FILE_STATUS_NOT_COMMITTED],
       duration_ms: 12,
       was_cached: true
     }
 
     decoded = action |> ActionCompleted.encode() |> ActionCompleted.decode()
     project(run, decoded)
-    project(run, %{decoded | display_name: "A different label", source_files: []})
+    project(run, %{decoded | display_name: "A different label", source_files: [], source_file_statuses: []})
 
     assert [stored] = OnceEvents.list_actions(run)
     assert stored.identifier == "diagnostic:compile"
     assert stored.display_name == "Compile main.c"
     assert stored.source_files == ["src/main.c", "include/api.h"]
+    assert stored.source_file_statuses == [1, 2]
     assert %{total_actions: 1, cached_actions: 1} = OnceEvents.get_run(run.project_id, run.run_id)
 
-    assert [%{action_display_name: "Compile main.c", source_files: ["src/main.c", "include/api.h"]}] =
+    assert [
+             %{
+               action_display_name: "Compile main.c",
+               source_files: ["src/main.c", "include/api.h"],
+               source_file_statuses: [1, 2]
+             }
+           ] =
              OnceEvents.list_cache_events(run, view: "actions")
+  end
+
+  test "source classifications retain numeric and future enum values across wire decoding", %{run: run} do
+    action = %ActionCompleted{
+      target_execution_id: "classified",
+      source_files: ["src/main.c", "vendor/input.c", "generated/input.c", "future/input.c"],
+      source_file_statuses: [
+        :SOURCE_FILE_STATUS_COMMITTED,
+        :SOURCE_FILE_STATUS_NOT_COMMITTED,
+        :SOURCE_FILE_STATUS_UNKNOWN,
+        65_536
+      ]
+    }
+
+    # Rust sends field 17 packed; include a future enum value larger than smallint.
+    wire = ActionCompleted.encode(%{action | source_file_statuses: []}) <> <<138, 1, 6, 1, 2, 3, 128, 128, 4>>
+    project(run, ActionCompleted.decode(wire))
+    project(run, action |> ActionCompleted.encode() |> ActionCompleted.decode())
+    assert [stored] = OnceEvents.list_actions(run)
+    assert stored.source_files == action.source_files
+    assert stored.source_file_statuses == [1, 2, 3, 65_536]
+    assert [%{source_file_statuses: [1, 2, 3, 65_536]}] = OnceEvents.list_cache_events(run, view: "actions")
+    assert [%{source_files: files}] = OnceEvents.list_actions(run, search: "vendor/input.c")
+    assert files == action.source_files
+
+    project(run, %ActionCompleted{
+      target_execution_id: "numeric",
+      source_files: ["src/main.c"],
+      source_file_statuses: [1]
+    })
+
+    assert [%{source_file_statuses: [1]}] = OnceEvents.list_actions(run, search: "numeric")
   end
 
   test "legacy action messages default to no presentation metadata", %{run: run} do
@@ -91,6 +131,7 @@ defmodule Tuist.OnceEventsTest do
     decoded = ActionCompleted.decode(<<10, 3, "app", 34, 7, "compile">>)
     assert decoded.display_name == nil
     assert decoded.source_files == []
+    assert decoded.source_file_statuses == []
     project(run, decoded)
     project(run, %{decoded | action_index: 1, display_name: ""})
 
@@ -98,6 +139,7 @@ defmodule Tuist.OnceEventsTest do
     assert first.identifier == "compile"
     assert first.display_name == nil
     assert first.source_files == []
+    assert first.source_file_statuses == []
     assert second.display_name == nil
   end
 

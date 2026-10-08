@@ -418,6 +418,7 @@ defmodule TuistWeb.OnceRunLive do
                 >
                   <.action_source_files
                     files={action.source_files}
+                    statuses={action.source_file_statuses}
                     project={@selected_project}
                     run={@run}
                   />
@@ -810,7 +811,12 @@ defmodule TuistWeb.OnceRunLive do
               }
               label={dgettext("dashboard_projects", "Source files")}
             >
-              <.action_source_files files={event.source_files} project={@project} run={@run} />
+              <.action_source_files
+                files={event.source_files}
+                statuses={event.source_file_statuses}
+                project={@project}
+                run={@run}
+              />
             </:col>
             <:col
               :let={event}
@@ -1296,20 +1302,34 @@ defmodule TuistWeb.OnceRunLive do
   defp action_status_variant(_), do: "in_progress"
 
   attr :files, :list, required: true
+  attr :statuses, :list, default: nil
   attr :project, :map, required: true
   attr :run, :map, required: true
 
   defp action_source_files(assigns) do
+    statuses = assigns.statuses || []
+    legacy? = statuses == []
+    aligned? = length(statuses) == length(assigns.files)
+
+    preview =
+      assigns.files
+      |> Enum.take(3)
+      |> Enum.with_index()
+      |> Enum.map(fn {file, index} ->
+        {file, legacy? or (aligned? and Enum.at(statuses, index) == 1)}
+      end)
+
     assigns =
       assigns
-      |> assign(:preview, Enum.take(assigns.files, 3))
+      |> assign(:preview, preview)
       |> assign(:remaining_count, max(length(assigns.files) - 3, 0))
 
     ~H"""
     <div data-part="cell" data-type="text" data-source-files>
       <span :if={@preview == []} data-part="label">—</span>
-      <span :for={file <- @preview} data-part="label" title={file}>
-        <.source_file_link project={@project} path={file} commit_sha={@run.git_rev} />
+      <span :for={{file, link?} <- @preview} data-part="label" title={file}>
+        <.source_file_link :if={link?} project={@project} path={file} commit_sha={@run.git_rev} />
+        <span :if={not link?}>{file}</span>
       </span>
       <span :if={@remaining_count > 0} data-part="sublabel">
         {dngettext(

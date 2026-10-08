@@ -1185,6 +1185,7 @@ defmodule Tuist.OnceEvents do
       action_identifier: action.identifier,
       action_display_name: action.display_name,
       source_files: action.source_files,
+      source_file_statuses: action.source_file_statuses,
       outcome: if(action.was_cached, do: "hit", else: "miss"),
       duration_ms: action.duration_ms || 0,
       observed_at: action.finished_at || action.started_at,

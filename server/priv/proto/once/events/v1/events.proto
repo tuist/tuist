@@ -372,9 +372,26 @@ message ActionCompleted {
   uint32 selected_attempt = 14;
   // Presentation only; does not replace identifier or affect cache identity.
   optional string display_name = 15;
-  // Repository-relative file paths using forward slashes, never host paths
-  // or generated outputs. Servers may link these at RunStarted.git_rev.
+  // Repository-relative presentation paths using forward slashes, never
+  // host paths. Includes untracked or downloaded sources; consumers must
+  // consult source_file_statuses before linking at RunStarted.git_rev.
   repeated string source_files = 16;
+  // Entry i describes source_files[i] at RunStarted.git_rev. Classifying
+  // clients send one status per path, including UNKNOWN on lookup failure.
+  // Empty means legacy metadata. A nonempty length mismatch is invalid for
+  // linking: consumers must show every path without a repository link.
+  repeated SourceFileStatus source_file_statuses = 17;
+}
+
+// Presentation only: these values must not affect action or cache identity.
+enum SourceFileStatus {
+  SOURCE_FILE_STATUS_UNSPECIFIED = 0;
+  // A blob (regular file or symlink) at the path in RunStarted.git_rev.
+  SOURCE_FILE_STATUS_COMMITTED = 1;
+  // The commit tree was read successfully and contains no blob at the path.
+  SOURCE_FILE_STATUS_NOT_COMMITTED = 2;
+  // No usable commit tree, including failed or bounded-out lookups.
+  SOURCE_FILE_STATUS_UNKNOWN = 3;
 }
 
 // The tuple (target_execution_id, capability, action_index, attempt) is a
