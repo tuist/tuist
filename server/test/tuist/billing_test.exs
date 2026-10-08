@@ -151,10 +151,14 @@ defmodule Tuist.BillingTest do
       # Given
       account = AccountsFixtures.organization_fixture(preload: [:account]).account
 
+      now = DateTime.truncate(DateTime.utc_now(), :second)
+      period_start = DateTime.add(now, -1, :day)
+      period_end = DateTime.shift(period_start, month: 1)
+
       BillingFixtures.subscription_fixture(
         account_id: account.id,
-        current_period_start: ~U[2026-09-08 10:00:00Z],
-        current_period_end: ~U[2026-10-08 10:00:00Z]
+        current_period_start: period_start,
+        current_period_end: period_end
       )
 
       # The webhooks keep the row current, so the page render that asks
@@ -165,7 +169,7 @@ defmodule Tuist.BillingTest do
       got = Billing.current_billing_period(account)
 
       # Then
-      assert got == {~U[2026-09-08 10:00:00Z], ~U[2026-10-08 10:00:00Z]}
+      assert got == {period_start, period_end}
     end
 
     test "asks Stripe when the mirrored period has already closed" do
