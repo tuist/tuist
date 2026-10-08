@@ -45,8 +45,9 @@ jobs:
           set -euo pipefail
           target=.build
           test -L "$target"
-          mountpoint=$(cd "$target" && pwd -P)
-          filesystem=$(diskutil info -plist "$mountpoint" | plutil -extract FilesystemType raw -)
+          device=$(df -P "$target" | awk 'NR == 2 { print $1 }')
+          [[ "$device" == /dev/disk* ]]
+          filesystem=$(diskutil info -plist "$device" | plutil -extract FilesystemType raw -)
           test "$filesystem" = apfs
           df -h "$target"
           proof="$target/.tuist-volume-smoke"
