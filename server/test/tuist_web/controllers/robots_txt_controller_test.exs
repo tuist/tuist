@@ -80,10 +80,14 @@ defmodule TuistWeb.RobotsTxtControllerTest do
       end
     end
 
-    test "opts llms.txt into the public content usage", %{conn: conn} do
+    test "opts llms.txt and llms-full.txt into the public content usage", %{conn: conn} do
       conn = get(conn, "/robots.txt")
 
-      assert response(conn, 200) =~ "Content-Usage: /llms.txt$ train-ai=y, search=y, ai-input=y"
+      body = response(conn, 200)
+
+      assert body =~ "Content-Usage: /llms.txt$ train-ai=y, search=y, ai-input=y"
+      assert body =~ "Content-Usage: /llms-full.txt$ train-ai=y, search=y, ai-input=y"
+      refute body =~ "Disallow: /llms-full.txt"
     end
   end
 end
