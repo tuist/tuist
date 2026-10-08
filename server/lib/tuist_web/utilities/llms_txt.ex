@@ -1,6 +1,7 @@
 defmodule TuistWeb.Utilities.LlmsTxt do
   @moduledoc """
-  Builds the `/llms.txt` index described by https://llmstxt.org.
+  Builds the `/llms.txt` index described by https://llmstxt.org and the
+  `/llms-full.txt` export containing the full English documentation as Markdown.
 
   The file provides a curated map for agents that use it, not a guarantee of
   search discovery or citations. It points at documentation Markdown twins
@@ -47,6 +48,7 @@ defmodule TuistWeb.Utilities.LlmsTxt do
   ]
 
   @optional_pages [
+    {"/llms-full.txt", "The full English documentation, including the CLI reference, in a single Markdown document."},
     {"/blog", "Long-form engineering writing on build systems, caching, and developer infrastructure."},
     {"/changelog", "Every user-facing change, newest first."},
     {"/newsletter", "Tuist Digest, product updates and perspectives from the team."},
@@ -90,6 +92,27 @@ defmodule TuistWeb.Utilities.LlmsTxt do
   """
   def render do
     KeyValueStore.get_or_update([__MODULE__, "llms_txt"], [ttl: @cache_ttl], &build/0)
+  end
+
+  @doc """
+  Renders the full English documentation as Markdown, memoized for an hour.
+
+  Uses the same Markdown source as the individual documentation endpoints,
+  including the runtime CLI reference pages.
+  """
+  def render_full do
+    KeyValueStore.get_or_update([__MODULE__, "llms_full_txt"], [ttl: @cache_ttl], fn ->
+      documentation =
+        Docs.pages()
+        |> Enum.filter(&english_page?/1)
+        |> Enum.sort_by(& &1.slug)
+        |> Enum.map_join("\n\n---\n\n", fn page ->
+          url = Tuist.Environment.app_url(path: Paths.markdown_path_from_slug(page.slug))
+          "# #{page.title}\n\nSource: #{url}\n\n#{page.markdown}"
+        end)
+
+      "# Tuist\n\n> #{@summary}\n\n#{documentation}\n"
+    end)
   end
 
   defp build do
@@ -173,6 +196,7 @@ defmodule TuistWeb.Utilities.LlmsTxt do
       end) ++ [""]
   end
 
+  defp page_title("/llms-full.txt"), do: "Full documentation"
   defp page_title("/"), do: "Tuist"
 
   defp page_title(path) do

@@ -3,6 +3,7 @@
 This area owns web-layer utilities (query helpers, hashing).
 
 ## Responsibilities
+- `LlmsTxt` builds and independently caches the `/llms.txt` index and `/llms-full.txt` documentation export from `Tuist.Docs.pages/0`. Keep exports English-only, deterministically ordered, and sourced from the same Markdown as individual docs endpoints.
 - `SEO` owns query-free canonical URLs and informational project-route classification. `RobotsTxt` advertises both marketing and public-project sitemaps; never treat crawler policy as authorization.
 - Provide query string manipulation utilities.
 - Provide helpers like SHA and misc web utilities.

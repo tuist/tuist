@@ -667,6 +667,8 @@ defmodule Once.Events.V1.ActionCompleted do
   field :execute_ms, 12, type: :int64, json_name: "executeMs"
   field :cache_key, 13, type: :string, json_name: "cacheKey"
   field :selected_attempt, 14, type: :uint32, json_name: "selectedAttempt"
+  field :display_name, 15, proto3_optional: true, type: :string, json_name: "displayName"
+  field :source_files, 16, repeated: true, type: :string, json_name: "sourceFiles"
 end
 
 defmodule Once.Events.V1.ActionAttemptStarted do

@@ -168,6 +168,7 @@ const CGROUP_V1_UNLIMITED_THRESHOLD_BYTES: u64 = 1 << 53;
 
 #[derive(Clone, Debug)]
 pub struct Config {
+    pub serving_authority: Option<crate::serving_authority::AuthorityConfig>,
     /// Plaintext port for the co-hosted HTTP cache API + h2c REAPI gRPC service,
     /// dispatching each request to the right subsystem by path. When `public_tls`
     /// is set the same surface is also served over TLS on `https_port`.
@@ -1994,6 +1995,7 @@ impl Config {
         }
 
         Ok(Self {
+            serving_authority: crate::serving_authority::AuthorityConfig::from_env()?,
             port: port.expect("port should be present when configuration is valid"),
             internal_port: internal_port
                 .expect("internal_port should be present when configuration is valid"),

@@ -234,16 +234,17 @@ func (tlsPeerPathProber) Probe(ctx context.Context, address string, serverName s
 }
 
 type runtimeStatus struct {
-	Ready                      bool   `json:"ready"`
-	State                      string `json:"state"`
-	RingMembers                int    `json:"ring_members"`
-	RingFingerprint            string `json:"ring_fingerprint"`
-	WriterLockOwned            bool   `json:"writer_lock_owned"`
-	Generation                 uint64 `json:"generation"`
-	BackfillingPeers           int64  `json:"backfill_backfilling_peers"`
-	MemoryPressureState        int64  `json:"memory_pressure_state"`
-	FDTimeoutCount             uint64 `json:"fd_timeout_count"`
-	PeerConnectionFailureCount uint64 `json:"peer_connection_failure_count"`
+	ServingAuthority           servingReport `json:"serving_authority"`
+	Ready                      bool          `json:"ready"`
+	State                      string        `json:"state"`
+	RingMembers                int           `json:"ring_members"`
+	RingFingerprint            string        `json:"ring_fingerprint"`
+	WriterLockOwned            bool          `json:"writer_lock_owned"`
+	Generation                 uint64        `json:"generation"`
+	BackfillingPeers           int64         `json:"backfill_backfilling_peers"`
+	MemoryPressureState        int64         `json:"memory_pressure_state"`
+	FDTimeoutCount             uint64        `json:"fd_timeout_count"`
+	PeerConnectionFailureCount uint64        `json:"peer_connection_failure_count"`
 	// BackfillInitialCycle reports whether a pod's initial peer catch-up has
 	// settled. Primary selection deliberately does NOT consume it (see
 	// primaryPodHealth): a rolling deploy has to promote a caught-up standby
@@ -579,6 +580,16 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// dropping its PVCs via the Delete retention policy — and let it provision
 	// fresh volumes on the current class and node. Requeue while the cleanup is
 	// in flight so the recreated StatefulSet never re-adopts a stale PVC.
+	if fencedServing(instance) {
+		if err := r.holdRecoveryRollout(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+	if inProgress, err := r.reconcileReplicaRecovery(ctx, instance, pods, samples, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	} else if inProgress {
+		return ctrl.Result{RequeueAfter: 2 * time.Second}, r.publishPeerRoles(ctx, instance, pods, primaryPod, gatewayPod)
+	}
 	if inProgress, err := r.reconcileStaleDataStorage(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	} else if inProgress {
@@ -659,6 +670,10 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
+	if fencedServing(instance) && primaryPod == "fenced-unavailable" {
+		instance.Status.Phase = "Pending"
+		instance.Status.Message = "No acknowledged serving authority; inspect the durable serving grant"
+	}
 	instance.Status.NodeAddress = external.nodeAddress
 	instance.Status.NodePortCache = external.nodePortCache
 	instance.Status.LastReconciledAt = &now
@@ -2179,6 +2194,10 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(
 	pods []corev1.Pod,
 	samples map[string]runtimeStatus,
 ) (string, map[string]bool, error) {
+	if fencedServing(instance) {
+		primary, err := r.fencedPrimary(ctx, instance, samples)
+		return primary, map[string]bool{}, err
+	}
 	current := ""
 	service := &corev1.Service{}
 	switch err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, service); {
@@ -3352,6 +3371,9 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 // applyStatefulSet creates or updates the instance's StatefulSet. With
 // createHeld, a StatefulSet it creates starts on the resize's rollout hold.
 func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance *kurav1alpha1.KuraInstance, createHeld bool) error {
+	if floor := instance.Annotations["kura.tuist.dev/fenced-runtime-image"]; fencedServing(instance) && floor != "" && floor != instance.Spec.Image {
+		return fmt.Errorf("fenced runtime image is pinned to %s; qualify a new image before changing the rollback floor", floor)
+	}
 	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
 	sharedSecretsResourceVersion, err := r.sharedSecretsResourceVersion(ctx, instance.Namespace)
 	if err != nil {
@@ -3396,6 +3418,10 @@ func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance 
 			WhenDeleted: appsv1.DeletePersistentVolumeClaimRetentionPolicyType,
 			WhenScaled:  appsv1.RetainPersistentVolumeClaimRetentionPolicyType,
 		}
+		if fencedServing(instance) || instance.Spec.ReplicaRecovery != nil || instance.Status.ReplicaRecovery != nil {
+			sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType}
+			sts.Spec.PersistentVolumeClaimRetentionPolicy.WhenDeleted = appsv1.RetainPersistentVolumeClaimRetentionPolicyType
+		}
 		return nil
 	})
 	return err
@@ -3413,6 +3439,9 @@ func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance 
 // image. This makes the operation safe across retries without repeatedly
 // restarting a new pod that is still bootstrapping.
 func (r *KuraInstanceReconciler) replaceUnreadyPodsForImageChange(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if fencedServing(instance) {
+		return nil
+	}
 	if instance.Annotations[unreadyPodsReplacedForImageAnnotation] == instance.Spec.Image {
 		return nil
 	}
@@ -3505,6 +3534,9 @@ func podKuraImage(pod *corev1.Pod) string {
 // Only grows. A volume larger than the declared claim already holds the ring it
 // is told to budget and evicts down into it, so it is left alone.
 func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
+	if fencedServing(instance) {
+		return false, nil
+	}
 	desired := storageQuantity(instance)
 	if desired.IsZero() {
 		return false, nil
@@ -3687,7 +3719,7 @@ func (r *KuraInstanceReconciler) reclaimDataVolume(ctx context.Context, pvc *cor
 		}
 		return err
 	}
-	if pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
+	if pv.Annotations[recoveryQuarantine] != "" || pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
 		return nil
 	}
 	before := pv.DeepCopy()
@@ -3723,7 +3755,7 @@ func (r *KuraInstanceReconciler) reclaimDataVolumes(ctx context.Context, instanc
 			}
 			return err
 		}
-		if pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
+		if pv.Annotations[recoveryQuarantine] != "" || pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
 			continue
 		}
 		before := pv.DeepCopy()
@@ -3735,15 +3767,16 @@ func (r *KuraInstanceReconciler) reclaimDataVolumes(ctx context.Context, instanc
 	return nil
 }
 
-// reconcileStaleDataStorage recreates the StatefulSet when its data PVCs can
-// never bind on the current infrastructure. It reports true while the cleanup is
-// still in flight; the caller requeues and skips the rest of the reconcile until
-// the stale StatefulSet and PVCs are gone, at which point the normal
-// reconcileStatefulSet path recreates them fresh.
+// Activated instances require explicit fenced recovery. Legacy instances retain
+// their automatic stale-storage recreation until they opt into serving authority.
 func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
 	reason, err := r.staleDataStorageReason(ctx, instance)
 	if err != nil || reason == "" {
 		return false, err
+	}
+	if fencedServing(instance) {
+		log.FromContext(ctx).Info("holding Kura storage recovery; explicit fenced replica recovery required", "reason", reason)
+		return true, r.holdRecoveryRollout(ctx, instance)
 	}
 	log.FromContext(ctx).Info("recreating Kura StatefulSet for stale data storage", "reason", reason)
 
@@ -4077,6 +4110,23 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 			}},
 			Volumes: volumes(instance),
 		},
+	}
+	if fencedServing(instance) {
+		template.Spec.ServiceAccountName = instance.Name + "-serving"
+		template.Spec.AutomountServiceAccountToken = ptr(true)
+		reserved := map[string]bool{"KURA_SERVING_AUTHORITY": true, "KURA_INSTANCE_UID": true, "POD_UID": true, "POD_NODE_NAME": true}
+		env := []corev1.EnvVar{}
+		for _, value := range template.Spec.Containers[0].Env {
+			if !reserved[value.Name] {
+				env = append(env, value)
+			}
+		}
+		template.Spec.Containers[0].Env = append(env,
+			corev1.EnvVar{Name: "KURA_SERVING_AUTHORITY", Value: instance.Name},
+			corev1.EnvVar{Name: "KURA_INSTANCE_UID", Value: string(instance.UID)},
+			corev1.EnvVar{Name: "POD_UID", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+			corev1.EnvVar{Name: "POD_NODE_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "spec.nodeName"}}},
+		)
 	}
 	applyNodeLocalDNS(instance, &template.Spec)
 	return template
@@ -4650,6 +4700,15 @@ func nodeSelector(instance *kurav1alpha1.KuraInstance) map[string]string {
 // single host cannot fit the whole instance. The gateway routes to the primary
 // Service regardless of the primary pod's host.
 func instancePodAffinity(instance *kurav1alpha1.KuraInstance) *corev1.Affinity {
+	if instance.Spec.ReplicaRecovery != nil || fencedServing(instance) {
+		affinity := &corev1.Affinity{
+			PodAntiAffinity: &corev1.PodAntiAffinity{RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{{TopologyKey: corev1.LabelHostname, LabelSelector: &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}}}},
+		}
+		if instance.Spec.ReplicaRecovery != nil {
+			affinity.NodeAffinity = &corev1.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchFields: []corev1.NodeSelectorRequirement{{Key: "metadata.name", Operator: corev1.NodeSelectorOpNotIn, Values: []string{instance.Spec.ReplicaRecovery.HostName}}}}}}}
+		}
+		return affinity
+	}
 	return &corev1.Affinity{
 		PodAffinity: &corev1.PodAffinity{
 			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{{
@@ -5067,6 +5126,7 @@ func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).
+		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&networkingv1.NetworkPolicy{}).

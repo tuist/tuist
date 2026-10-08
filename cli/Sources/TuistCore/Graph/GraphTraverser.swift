@@ -746,12 +746,18 @@ public class GraphTraverser: GraphTraversing {
 
             var linkedPackageProducts = packageProducts(reachableFrom: targetGraphDependency, for: .link)
             if let hostApplication {
+                let hostDependency = GraphDependency.target(name: hostApplication.target.name, path: hostApplication.project.path)
+                let dynamicProductPlatforms = dynamicPackageProductPlatforms(
+                    reachableFrom: targetGraphDependency,
+                    defaultPlatformFilters: target.target.dependencyPlatformFilters
+                ).merging(dynamicPackageProductPlatforms(
+                    reachableFrom: hostDependency,
+                    defaultPlatformFilters: hostApplication.target.dependencyPlatformFilters
+                )) { $0.union($1) }
                 linkedPackageProducts = packageProductsExcludingProductsLinkedByHost(
                     linkedPackageProducts,
-                    hostPackageProducts: packageProducts(
-                        reachableFrom: .target(name: hostApplication.target.name, path: hostApplication.project.path),
-                        for: .link
-                    ),
+                    hostPackageProducts: packageProducts(reachableFrom: hostDependency, for: .link),
+                    dynamicProductPlatforms: dynamicProductPlatforms,
                     targetPlatformFilters: target.target.dependencyPlatformFilters,
                     hostPlatformFilters: hostApplication.target.dependencyPlatformFilters
                 )
@@ -834,7 +840,8 @@ public class GraphTraverser: GraphTraversing {
             for child in children {
                 let edgeCondition = graph.dependencyConditions[(dependency, child)]
                 switch child {
-                case .packageProduct(_, _, .runtime), .packageProduct(_, _, .runtimeEmbedded):
+                case .packageProduct(_, _, .runtime), .packageProduct(_, _, .runtimeEmbedded),
+                     .packageProduct(_, _, .runtimeDynamic), .packageProduct(_, _, .runtimeDynamicEmbedded):
                     conditions[child] = conditions[child, default: .incompatible].combineWith(.condition(edgeCondition))
                 default:
                     guard packageProductWalk(for: purpose, entersInto: child),
@@ -869,9 +876,29 @@ public class GraphTraverser: GraphTraversing {
             || testTarget(dependency: dependency) { $0.product.isDynamic }
     }
 
+    /// A host links dynamic products but does not contain their symbols. Hints on either consumer
+    /// therefore prevent host subtraction, only on the platforms where the hinted product is reachable.
+    private func dynamicPackageProductPlatforms(
+        reachableFrom rootDependency: GraphDependency,
+        defaultPlatformFilters: PlatformFilters
+    ) -> [String: PlatformFilters] {
+        var platformsByProduct: [String: PlatformFilters] = [:]
+        for (dependency, condition) in packageProductConditions(reachableFrom: rootDependency, for: .link) {
+            guard case let .packageProduct(_, product, type) = dependency,
+                  type == .runtimeDynamic || type == .runtimeDynamicEmbedded,
+                  case let .condition(platformCondition) = condition
+            else { continue }
+            platformsByProduct[product, default: []].formUnion(
+                resolvedPlatformFilters(platformCondition, default: defaultPlatformFilters)
+            )
+        }
+        return platformsByProduct
+    }
+
     private func packageProductsExcludingProductsLinkedByHost(
         _ packageProducts: Set<GraphDependencyReference>,
         hostPackageProducts: Set<GraphDependencyReference>,
+        dynamicProductPlatforms: [String: PlatformFilters],
         targetPlatformFilters: PlatformFilters,
         hostPlatformFilters: PlatformFilters
     ) -> Set<GraphDependencyReference> {
@@ -897,7 +924,7 @@ public class GraphTraverser: GraphTraversing {
             let providedPlatformFilters = resolvedPlatformFilters(
                 hostCondition,
                 default: hostPlatformFilters
-            )
+            ).subtracting(dynamicProductPlatforms[product, default: []])
             let remainingPlatformFilters = requiredPlatformFilters.subtracting(providedPlatformFilters)
             guard !remainingPlatformFilters.isEmpty else { return nil }
 
@@ -2242,7 +2269,7 @@ public class GraphTraverser: GraphTraversing {
             )
         case let .bundle(path):
             return .bundle(path: path, condition: condition)
-        case let .packageProduct(_, product, .runtimeEmbedded):
+        case let .packageProduct(_, product, .runtimeEmbedded), let .packageProduct(_, product, .runtimeDynamicEmbedded):
             return .packageProduct(product: product, condition: condition)
         case .packageProduct:
             return nil
