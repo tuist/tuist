@@ -1,7 +1,6 @@
 # Tuist Grafana data source plugin
 
-A backend Grafana data source plugin (Go + React) that exposes Tuist build and
-test duration metrics as Grafana time series. It is a thin client over the Tuist
+A backend Grafana data source plugin (Go + React) that exposes build-health metrics across Bazel, Once, Gradle and Xcode, plus test durations as Grafana time series, whole-period statistics and tables. It declares backend alert support. It is a thin client over the Tuist
 server's public metrics API — no aggregation happens here.
 
 ## Layout
@@ -24,6 +23,10 @@ authorized for account tokens via `project:builds:read` / `project:tests:read`
 - `GET /tests/metrics/duration?from&to&is_ci&scheme`
   - Response (`DurationMetrics`): `{ dates: [unix_seconds], average:{values,total}, p50:{…}, p90:{…}, p99:{…}, trend }`, durations in milliseconds.
 - `GET /builds/metrics/dimensions/{dimension}/values` (dimension: `scheme` | `configuration`) and `GET /tests/metrics/dimensions/{dimension}/values` (dimension: `scheme`) → `{ values: [string] }`. Prometheus-style metadata endpoint backing the filter dropdowns; the plugin proxies it via the `dimension-values` resource.
+- `GET /gradle/builds/metrics?from&to&is_ci&git_branch&workload&status&view&slow_build_threshold_ms` → series/totals or rows. Views: `series`, `total`, `workloads`, `failures`, `recent_failures`. Durations are milliseconds; rates are 0–100; missing duration/rate/savings evidence remains null. Counts are zero for empty cohorts. Whole-period statistics aggregate builds directly. Attention counts failed-or-slow builds once. Success rate excludes cancelled builds.
+- `GET /gradle/builds/metrics/dimensions/{dimension}/values` (`git_branch` | `workload`) backs Gradle variables and dropdowns.
+- `GET /builds/metrics/health` and `/builds/metrics/health/dimensions/{dimension}/values` share the Gradle metric contract and dispatch from the authorized project's build system. Standard queries are `buildHealth`, `buildWorkloads`, `buildFailureReasons`, and `buildRecentFailures`. The legacy Gradle query types remain readable for saved panels. Tables include `build_system` to route links to the correct detail page. Once cache savings remain null because its reports do not contain elapsed savings; missing actor data remains Unknown. Generic failure tables add an all row; legacy Gradle tables retain three rows. Bazel user is reported by the tool; Once actor is the credential account captured at stream admission.
+- `src/dashboards/build-health.json` is the standard dashboard; keep `gradle-build-health.json` with its original identifier and Gradle queries as a compatibility download. Existing duration defaults, query identifiers, response fields, filter variables and secure `apiToken` settings must stay unchanged; variable All values use `__tuist_all__`, which the frontend omits from filter requests. Alerts require fixed values instead of dashboard variables.
 - `GET /api/projects` (account-level) → `{ projects: [{ full_name: "account/project" }] }` — backs the project dropdown.
 
 `from`/`to` are Unix seconds taken from Grafana's panel time range. The server
@@ -78,3 +81,9 @@ only — they are intentionally not part of the generated CLI client.
 - The account token lives in `secureJsonData` and must never be returned to the
   browser — dropdown data flows through `CallResource`, not direct frontend calls.
 - Plugin id `tuist-metrics-datasource`; backend executable `gpx_tuist_datasource`.
+
+- Keep Grafana documentation organized around metric tables, with build-system differences, query options, and setup in separate sections.
+
+Backend health queries reject unresolved dashboard variables in alert filters and normalize the All sentinel before querying. Automatic Gradle cache estimates use separate generic metrics; legacy Gradle responses retain their original metric keys.
+
+- The standard dashboard labels automatic percentile counts Failed or slow builds and renders them neutrally; explicit duration targets remain configurable. Show total failures separately and filter the compatibility all row out of the Failure categories chart. Group the Gradle Cumulative task time saved estimate beside its coverage, then reported elapsed savings beside their own coverage. Preserve metric keys, query frames and the legacy dashboard.

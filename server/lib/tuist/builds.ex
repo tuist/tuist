@@ -22,6 +22,8 @@ defmodule Tuist.Builds do
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
+  require Tuist.BuildMetrics
+
   @short_cache_ttl to_timeout(second: 10)
   @build_lookup_recent_window_days 90
   @task_cas_outputs_page_size 20
@@ -558,6 +560,16 @@ defmodule Tuist.Builds do
       from(b in Build, hints: ["FINAL"])
       |> apply_custom_values_filter(custom_values)
       |> apply_custom_tag_filters(custom_tag_filters)
+
+    base_query =
+      case Keyword.get(opts, :failure_category_project_id) do
+        nil ->
+          base_query
+
+        project_id ->
+          base_query = where(base_query, [b], b.project_id == ^project_id)
+          Tuist.BuildMetrics.with_failure_category(base_query, "xcode", project_id)
+      end
 
     {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
 

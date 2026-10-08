@@ -102,9 +102,21 @@
       gap: var(--noora-spacing-9);
 
       & [data-part="metadata-row"] {
-        display: flex;
-        flex-direction: row;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: var(--noora-spacing-7);
+
+        & > [data-field="requested-tasks"] {
+          overflow-wrap: anywhere;
+        }
+
+        @media (max-width: 900px) {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        @media (max-width: 600px) {
+          grid-template-columns: minmax(0, 1fr);
+        }
 
         & > [data-part="metadata"] {
           display: flex;

@@ -32,3 +32,9 @@ Related: `gradle/AGENTS.md`, `server/lib/tuist_web/live/gradle_tasks_live.ex`.
 - Legacy clock-origin metadata remains available to API/MCP clients, but the dashboard does not display an internal missing-start-timestamp banner over otherwise valid recorded steps and samples.
 
 - Cache hit-rate analytics expose `has_data` from observed cacheable-task buckets. A recorded zero percent hit rate is valid data; absence of observations is the empty state.
+
+- `Metrics` serves project-scoped Grafana health using half-open time ranges and parameterized filters. Aggregate counts/rates/percentiles from builds for both time buckets and whole-period statistics. Success rate excludes cancelled builds. Attention is the union of failed and slow builds; default slow threshold is the cohort's whole-period 90th percentile. Keep missing evidence null. Existing custom metadata keys `tuist.workload`, `tuist.failure_category`, and `tuist.cache_time_saved_ms` provide optional reporting overrides; failed known verification task types can establish verification failures, but other failures remain unknown. Never turn cache hits or cumulative task duration into elapsed savings. Lists are bounded and recent failure accounts are batch loaded.
+
+The generic build-health queries expose Gradle `cache_work_avoided` estimates from `tuist.cache_work_avoided_ms`. Legacy Gradle response maps omit these additive generic metrics. They are cumulative task-time estimates and remain separate from explicitly reported elapsed savings.
+
+- Native build listings opt into the virtual failure-category column from `BuildMetrics`. Use the shared classifier before database filtering, sorting and pagination, scope evidence to the selected project, and leave stored records and legacy listing defaults unchanged.

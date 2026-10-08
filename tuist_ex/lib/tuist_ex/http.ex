@@ -2,8 +2,7 @@ defmodule TuistEx.HTTP do
   @moduledoc false
 
   def request(method, url, body \\ nil, headers \\ []) do
-    Application.ensure_all_started(:inets)
-    Application.ensure_all_started(:ssl)
+    start()
 
     headers =
       [
@@ -87,9 +86,13 @@ defmodule TuistEx.HTTP do
     end
   end
 
+  # While Mix compiles dependencies it prunes the OTP code paths, and an
+  # application that is already running does not get its path back from
+  # `Application.ensure_all_started/1`. `:httpc` loads modules lazily, so
+  # restore the paths first.
   defp start do
-    Application.ensure_all_started(:inets)
-    Application.ensure_all_started(:ssl)
+    if Code.ensure_loaded?(Mix), do: Enum.each([:inets, :ssl], &Mix.ensure_application!/1)
+    {:ok, _} = Application.ensure_all_started([:inets, :ssl])
   end
 
   defp options(url, timeout) do

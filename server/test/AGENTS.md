@@ -64,3 +64,15 @@ This directory contains ExUnit tests for the Tuist Server.
 - Storage telemetry regression tests distinguish capacity churn, pressure-only days, and mixed-reason days; pressure cannot establish a retention or occupancy resize verdict.
 
 - Verify analytics transitions locally with headless Chrome, not just the settled page: capture before and after screenshots, measure section bounds, and check that chart and table elements remain mounted during refresh. Cover empty and populated sibling pages across build systems, narrow viewports and both themes. Initial renders must tolerate partially completed required results; optional requests must not delay the whole card, and failed loads must leave filter controls usable.
+
+- Gradle Grafana metric coverage verifies project/filter isolation, half-open ranges, direct period statistics, cancellation handling, failed-or-slow attention counts, missing/invalid cache observations, workload overrides, evidence-based failure categories, and build-read authorization. Use dates within the 90-day retention window.
+
+- Shared Grafana build-health regression coverage lives in `tuist/build_metrics_test.exs`, alongside the legacy Gradle tests. Exercise both database sources, terminal status semantics, source-specific links, missing evidence, and project/range isolation.
+
+- Native build-health regression coverage checks database source dimensions, Xcode overview scheme/environment wiring, Gradle cache environment/coverage wiring, and missing versus zero detail estimates. Component tests check category labels, source-specific navigation and loading/failure states.
+
+- Native failure-category listing coverage checks project isolation, filtering before pagination, ascending and descending ordering, tied Xcode cursors, historical compiler/task evidence, and empty categories for non-failures. Keep native and Grafana categories aligned.
+
+- Verify that detail classification matches listing/Grafana evidence and is project scoped, while default run tables omit category columns and retain filters. Cumulative task-time widgets use one label with no repeated caption. The standard Grafana dashboard tests keep total failures separate and pair each cache value with its coverage.
+
+- Cumulative task-time comparisons cover positive, zero and missing previous estimates with neutral styling, matching environment filters and custom range boundaries. Failure-category hints must be focusable and use the shared Noora tooltip interaction.

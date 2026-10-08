@@ -3336,11 +3336,9 @@ defmodule Tuist.Tests do
     filters = Map.get(attrs, :filters, [])
     offset = (page - 1) * page_size
 
-    search_term = extract_search_term(filters)
-
     results =
       project_id
-      |> build_flaky_test_cases_query(search_term, opts)
+      |> build_flaky_test_cases_query(filters, opts)
       |> apply_flaky_order(order_by, order_direction)
       |> from(limit: ^page_size, offset: ^offset)
       |> ClickHouseRepo.all()
@@ -3349,7 +3347,7 @@ defmodule Tuist.Tests do
 
     total_count =
       project_id
-      |> build_flaky_test_cases_count_query(search_term, opts)
+      |> build_flaky_test_cases_count_query(filters, opts)
       |> ClickHouseRepo.one()
 
     total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
@@ -3376,7 +3374,7 @@ defmodule Tuist.Tests do
   # or a test whose recent flaky runs sit in a different `:is_ci` segment.
   # `inner_join` here would silently drop such rows and put the list out of
   # sync with the analytics card, which counts purely off events.
-  defp build_flaky_test_cases_query(project_id, search_term, opts) do
+  defp build_flaky_test_cases_query(project_id, filters, opts) do
     base_query =
       from(test_case in TestCase,
         hints: ["FINAL"],
@@ -3405,10 +3403,10 @@ defmodule Tuist.Tests do
         }
       )
 
-    apply_name_search(base_query, search_term)
+    apply_flaky_test_case_filters(base_query, filters)
   end
 
-  defp build_flaky_test_cases_count_query(project_id, search_term, opts) do
+  defp build_flaky_test_cases_count_query(project_id, filters, opts) do
     base_query =
       from(test_case in TestCase,
         hints: ["FINAL"],
@@ -3420,7 +3418,29 @@ defmodule Tuist.Tests do
         select: count(test_case.id)
       )
 
-    apply_name_search(base_query, search_term)
+    apply_flaky_test_case_filters(base_query, filters)
+  end
+
+  defp apply_flaky_test_case_filters(query, filters) do
+    {search_filters, identity_filters} =
+      Enum.split_with(filters, &(&1[:field] == :name and &1[:op] == :ilike_and))
+
+    flop = Tuist.ClickHouseFlop.validate!(%{filters: identity_filters}, for: TestCase)
+    query = Tuist.ClickHouseFlop.filter(query, flop, for: TestCase)
+
+    case extract_search_term(search_filters) do
+      nil ->
+        query
+
+      term ->
+        pattern = "%#{term}%"
+
+        from(test_case in query,
+          where:
+            ilike(test_case.name, ^pattern) or ilike(test_case.suite_name, ^pattern) or
+              ilike(test_case.module_name, ^pattern)
+        )
+    end
   end
 
   defp flaky_stats_subquery(project_id, opts) do
