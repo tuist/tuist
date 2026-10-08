@@ -23,9 +23,11 @@ Purpose-written English Markdown for all marketing landing pages: homepage, prod
 
 ## CDN rollout
 
-Cloudflare does not generally use `Vary: Accept` to separate its cached representations. Header-negotiated marketing responses therefore send `Cloudflare-CDN-Cache-Control: no-store` for both HTML and Markdown; browser caching remains governed by the existing Cache-Control and Vary headers. Explicit Markdown paths can be cached normally.
+Cloudflare does not generally use `Vary: Accept` to separate its cached representations. Only responses actually converted to Markdown send `Cloudflare-CDN-Cache-Control: no-store`, for both marketing and docs negotiation. HTML, redirects, errors, and unconverted bodies retain their existing CDN cache policies; browser caching remains governed by the existing Cache-Control and Vary headers. Explicit Markdown paths can be cached normally.
 
-Before release, purge previously cached marketing responses through the normal deployment/operations process. After deployment, verify both request orders (HTML then Markdown, and Markdown then HTML) against the public edge, not only the origin:
+A cached HTML response can still reach a client requesting Markdown because a cache hit does not execute the origin plug. Use the advertised explicit Markdown URLs when representation must be reliable. Never configure an edge rule that ignores the converted response's `no-store` directive or stores Markdown under canonical HTML URLs.
+
+Before release, check the active cache rules and purge any canonical marketing/docs cache entries that could contain previously negotiated Markdown through the normal deployment/operations process. After deployment, verify both request orders (HTML then Markdown, and Markdown then HTML) against the public edge, not only the origin:
 
 ```bash
 curl -i https://tuist.dev/cache
@@ -33,7 +35,7 @@ curl -i -H 'Accept: text/markdown' https://tuist.dev/cache
 curl -i https://tuist.dev/marketing-markdown/cache
 ```
 
-Confirm the negotiated URL is not an edge cache HIT and the Content-Type matches each request. Confirm the explicit document is Markdown with no Set-Cookie. Do not re-enable canonical marketing CDN caching until an Accept-aware cache key or request-level bypass rule is deployed and verified. No live CDN configuration is changed by these files.
+Confirm ordinary browser requests always receive HTML, even after a Markdown request. When negotiation reaches the origin and returns Markdown, confirm `Cloudflare-CDN-Cache-Control: no-store` and that this representation is not an edge cache HIT. A Markdown-preferring request may receive cached HTML; this is an accepted limitation, not a reason to disable HTML caching. Confirm the explicit document is always Markdown with no Set-Cookie and retains its public cache policy. Apply the same origin-policy checks to docs negotiation. An Accept-aware cache key or request-level bypass rule is needed only to guarantee Markdown negotiation on the canonical URLs. No live CDN configuration is changed by these files.
 
 ## Validation
 

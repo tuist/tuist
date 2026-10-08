@@ -47,7 +47,7 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlugTest do
     assert body =~ "Tuist"
     assert body =~ ~s(type="text/markdown")
     assert body =~ ~s(href="#{Tuist.Environment.app_url(path: "/marketing-markdown")}")
-    assert get_resp_header(conn, "cloudflare-cdn-cache-control") == ["no-store"]
+    assert get_resp_header(conn, "cloudflare-cdn-cache-control") == []
     assert Enum.any?(get_resp_header(conn, "link"), &String.contains?(&1, ~s(rel="alternate")))
     assert Enum.any?(get_resp_header(conn, "link"), &String.contains?(&1, ~s(rel="api-catalog")))
   end
@@ -58,6 +58,7 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlugTest do
 
       assert conn.resp_body == MarketingMarkdown.get(path)
       assert get_resp_header(conn, "content-language") == ["en"]
+      assert get_resp_header(conn, "cloudflare-cdn-cache-control") == ["no-store"]
     end
   end
 
@@ -72,6 +73,7 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlugTest do
       conn = negotiated_response("/cache", accept, 200, "<html>Original HTML</html>")
       assert conn.resp_body == "<html>Original HTML</html>"
       assert get_resp_header(conn, "content-type") == ["text/html; charset=utf-8"]
+      assert get_resp_header(conn, "cloudflare-cdn-cache-control") == []
     end
 
     for accept <- [
@@ -92,6 +94,7 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlugTest do
       assert conn.resp_body == "<html>Not a product page</html>"
       assert get_resp_header(conn, "x-markdown-tokens") == []
       assert get_resp_header(conn, "link") == []
+      assert get_resp_header(conn, "cloudflare-cdn-cache-control") == []
     end
   end
 
@@ -107,6 +110,7 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlugTest do
     assert conn.resp_body =~ "# Example post"
     assert conn.resp_body =~ "Useful content"
     refute conn.resp_body =~ "<main>"
+    assert get_resp_header(conn, "cloudflare-cdn-cache-control") == ["no-store"]
   end
 
   test "localized marketing pages do not get an English override" do
@@ -115,6 +119,47 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlugTest do
     assert conn.resp_body =~ "# Localized content"
     assert get_resp_header(conn, "content-language") == []
     assert get_resp_header(conn, "link") == []
+    assert get_resp_header(conn, "cloudflare-cdn-cache-control") == ["no-store"]
+  end
+
+  test "HTML responses preserve the existing CDN cache policy" do
+    conn =
+      :get
+      |> Plug.Test.conn("/cache")
+      |> put_req_header("accept", "text/html")
+      |> MarkdownNegotiationPlug.call([])
+      |> put_resp_content_type("text/html")
+      |> put_resp_header("cloudflare-cdn-cache-control", "public, max-age=60")
+      |> send_resp(200, "Original HTML")
+
+    assert conn.resp_body == "Original HTML"
+    assert get_resp_header(conn, "cloudflare-cdn-cache-control") == ["public, max-age=60"]
+  end
+
+  test "unconverted responses do not receive the Markdown CDN policy" do
+    conn =
+      :get
+      |> Plug.Test.conn("/blog/example")
+      |> put_req_header("accept", "text/markdown")
+      |> MarkdownNegotiationPlug.call([])
+      |> put_resp_content_type("application/json")
+      |> send_resp(200, ~s({"ok":true}))
+
+    assert conn.resp_body == ~s({"ok":true})
+    assert get_resp_header(conn, "cloudflare-cdn-cache-control") == []
+  end
+
+  test "HEAD Markdown responses also bypass the CDN cache" do
+    conn =
+      :head
+      |> Plug.Test.conn("/cache")
+      |> put_req_header("accept", "text/markdown")
+      |> MarkdownNegotiationPlug.call([])
+      |> put_resp_content_type("text/html")
+      |> send_resp(200, "Original HTML")
+
+    assert get_resp_header(conn, "content-type") == ["text/markdown; charset=utf-8"]
+    assert get_resp_header(conn, "cloudflare-cdn-cache-control") == ["no-store"]
   end
 
   test "POST responses are not negotiated" do
@@ -145,7 +190,15 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlugTest do
     assert [token_estimate] = get_resp_header(conn, "x-markdown-tokens")
     assert String.to_integer(token_estimate) > 0
     assert body == expected_markdown
+    assert get_resp_header(conn, "cloudflare-cdn-cache-control") == ["no-store"]
     refute body =~ "<html"
+  end
+
+  test "docs HTML responses retain their existing CDN behavior" do
+    conn = get(build_conn(), ~p"/en/docs/guides/install-tuist")
+
+    assert get_resp_header(conn, "content-type") == ["text/html; charset=utf-8"]
+    assert get_resp_header(conn, "cloudflare-cdn-cache-control") == []
   end
 
   test "explicit docs markdown route returns markdown content type" do
@@ -156,13 +209,14 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlugTest do
     assert [token_estimate] = get_resp_header(conn, "x-markdown-tokens")
     assert String.to_integer(token_estimate) > 0
     assert body =~ "# Install Tuist"
+    assert get_resp_header(conn, "cloudflare-cdn-cache-control") == []
   end
 
   defp negotiated_response(path, accept, status, body) do
     :get
     |> Plug.Test.conn(path)
     |> put_req_header("accept", accept)
-    |> MarkdownNegotiationPlug.call(cdn_cache: false)
+    |> MarkdownNegotiationPlug.call([])
     |> put_resp_content_type("text/html")
     |> send_resp(status, body)
   end

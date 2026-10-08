@@ -217,7 +217,7 @@ defmodule TuistWeb.Router do
 
   pipeline :browser_marketing_page do
     plug :put_request_kind, "marketing"
-    plug MarkdownNegotiationPlug, cdn_cache: false
+    plug MarkdownNegotiationPlug
     plug :accepts, ["html"]
   end
 

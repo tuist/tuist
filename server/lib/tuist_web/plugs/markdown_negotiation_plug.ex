@@ -17,19 +17,11 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
 
   def init(opts), do: opts
 
-  def call(%Plug.Conn{method: method} = conn, opts) when method in ["GET", "HEAD"] do
+  def call(%Plug.Conn{method: method} = conn, _opts) when method in ["GET", "HEAD"] do
     conn
     |> put_private(@markdown_request_private_key, build_request_state(conn))
     |> maybe_rewrite_accept_header()
-    |> register_before_send(fn conn ->
-      conn = negotiate_response(conn)
-
-      # Cloudflare does not generally partition its cache by Vary: Accept.
-      # Explicit Markdown URLs can be cached without varying representations.
-      if Keyword.get(opts, :cdn_cache, true),
-        do: conn,
-        else: put_resp_header(conn, "cloudflare-cdn-cache-control", "no-store")
-    end)
+    |> register_before_send(&negotiate_response/1)
   end
 
   def call(conn, _opts), do: conn
@@ -128,7 +120,11 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
             do: put_resp_header(conn, "content-language", "en"),
             else: conn
 
-        MarkdownResponse.prepare(conn, markdown)
+        # Cloudflare does not generally partition its cache by Vary: Accept.
+        # Never cache Markdown under an HTML URL; leave HTML caching unchanged.
+        conn
+        |> MarkdownResponse.prepare(markdown)
+        |> put_resp_header("cloudflare-cdn-cache-control", "no-store")
 
       :error ->
         conn
