@@ -281,8 +281,9 @@ jobs:
           TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-server-floor
   test:
     name: Test
-    # Keep the 4 vCPU / 16 GB shape for the tests and their database services.
-    runs-on: tuist-linux-large
+    # Shards download the compiled build from Build Test Shards, so they fit the
+    # default shape and stay out of the large pool's queue.
+    runs-on: tuist-linux
     timeout-minutes: 30
     needs: test-build
     permissions:
@@ -328,7 +329,7 @@ jobs:
     name: Test (oldest supported ClickHouse)
     # Keep exercising the release declared by Tuist.ClickHouseVersions, including
     # every migration, rather than testing only against the newer hosted release.
-    runs-on: tuist-linux-large
+    runs-on: tuist-linux
     timeout-minutes: 30
     needs: test-build
     permissions:
