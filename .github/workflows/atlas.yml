@@ -95,14 +95,15 @@ jobs:
         env:
           ONCE_CACHE_PROVIDER: ${{ steps.once-auth.outcome == 'success' && 'tuist' || 'local' }}
 
-      # Once persists compiler warnings as a build output, so this also
-      # catches warnings replayed from a cached compilation.
+      # Once persists the compiler's stderr as a build output, so this also
+      # catches warnings replayed from a cached compilation. Lines from mise's
+      # tool shims land there too and are not compiler warnings.
       - name: Fail on compiler warnings
         working-directory: .
         run: |
-          warnings=.once/out/atlas/mix_application_test/mix-project-warnings.log
-          if [ -s "$warnings" ]; then
-            cat "$warnings"
+          warnings=$(grep -v -E '^(mise |hint: .*mise)' .once/out/atlas/mix_application_test/mix-project-warnings.log || true)
+          if [ -n "$warnings" ]; then
+            echo "$warnings"
             exit 1
           fi
 
