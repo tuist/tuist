@@ -161,6 +161,97 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
       end
     end
 
+    test "uses the API proxy for conversion and the internal host for browser setup and installation", %{conn: conn} do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      client_url = "https://github.internal.example.com"
+      api_url = "https://proxy.example.com/api/v3"
+      state_token = VCS.generate_github_state_token(account.id, client_url, "ios", api_url)
+
+      start_conn = get(conn, ~p"/integrations/github/manifest/start", %{"state" => state_token})
+      assert response(start_conn, 200) =~ "#{client_url}/organizations/ios/settings/apps/new"
+      refute response(start_conn, 200) =~ api_url
+      assert [csp] = get_resp_header(start_conn, "content-security-policy")
+      assert csp =~ "form-action 'self' #{client_url}"
+      refute csp =~ "proxy.example.com"
+
+      expect(SSRFGuard, :pin, fn url ->
+        assert url == "#{api_url}/app-manifests/code/conversions"
+        {:ok, "https://198.51.100.10/api/v3/app-manifests/code/conversions", "proxy.example.com"}
+      end)
+
+      expect(SSRFGuard, :connect_options, fn "proxy.example.com" -> [hostname: "proxy.example.com"] end)
+
+      expect(Req, :post, fn opts ->
+        assert opts[:url] == "https://198.51.100.10/api/v3/app-manifests/code/conversions"
+        assert opts[:connect_options] == [hostname: "proxy.example.com"]
+        assert opts[:body] == ""
+
+        {:ok,
+         %Req.Response{
+           status: 201,
+           body: %{
+             "id" => 42,
+             "slug" => "tuist",
+             "client_id" => "client-id",
+             "client_secret" => "client-secret",
+             "pem" => "pem",
+             "webhook_secret" => "webhook-secret"
+           }
+         }}
+      end)
+
+      callback_conn =
+        get(recycle(start_conn), ~p"/integrations/github/manifest/callback", %{"code" => "code", "state" => state_token})
+
+      install_url = redirected_to(callback_conn)
+      assert install_url =~ "#{client_url}/apps/tuist/installations/new?state="
+      install_state = install_url |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query() |> Map.fetch!("state")
+
+      setup_conn =
+        get(recycle(callback_conn), ~p"/integrations/github/setup", %{
+          "installation_id" => "123",
+          "state" => install_state
+        })
+
+      assert redirected_to(setup_conn) == "/#{account.name}/settings/integrations"
+
+      assert {:ok, installation} = VCS.get_github_app_installation_for_account(account.id)
+      assert installation.client_url == client_url
+      assert installation.api_url == api_url
+      assert installation.installation_id == "123"
+      assert installation.webhook_secret == "webhook-secret"
+    end
+
+    test "an API override does not bypass private-IP checks", %{conn: conn} do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      api_url = "https://proxy.internal.example.com/api/v3"
+      token = VCS.generate_github_state_token(account.id, "https://github.internal.example.com", nil, api_url)
+
+      expect(SSRFGuard, :pin, fn url ->
+        assert url == "#{api_url}/app-manifests/code/conversions"
+        {:error, :private_ip_resolved}
+      end)
+
+      reject(&Req.post/1)
+
+      assert_raise BadRequestError, ~r/#{Regex.escape(api_url)}.*non-public IP/s, fn ->
+        get(conn, ~p"/integrations/github/manifest/callback", %{"code" => "code", "state" => token})
+      end
+
+      assert {:error, :not_found} = VCS.get_github_app_installation_for_account(account.id)
+    end
+
+    test "reports the API proxy when its DNS cannot be resolved", %{conn: conn} do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      api_url = "https://proxy.example.com/api/v3"
+      token = VCS.generate_github_state_token(account.id, "https://github.internal.example.com", nil, api_url)
+      expect(SSRFGuard, :pin, fn _ -> {:error, :dns_failure} end)
+
+      assert_raise BadRequestError, ~r/could not resolve #{Regex.escape(api_url)}/, fn ->
+        get(conn, ~p"/integrations/github/manifest/callback", %{"code" => "code", "state" => token})
+      end
+    end
+
     test "surfaces a private-IP SSRF block as a self-host hint", %{conn: conn} do
       account = AccountsFixtures.user_fixture(preload: [:account]).account
       ghes_url = "https://github.internal.example.com"

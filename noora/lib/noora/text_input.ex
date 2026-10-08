@@ -75,7 +75,7 @@ defmodule Noora.TextInput do
 
   attr(:disabled, :boolean, default: false, doc: "Whether the input is disabled.")
 
-  attr(:rest, :global, include: ~w(autocomplete))
+  attr(:rest, :global, include: ~w(autocomplete readonly))
 
   slot(:prefix,
     required: false,
@@ -147,7 +147,7 @@ defmodule Noora.TextInput do
         >
           <.tooltip id={"#{@id}-hint"} title={@suffix_hint}>
             <:trigger :let={attrs}>
-              <span {attrs}><.alert_circle /></span>
+              <span {attrs} tabindex="0"><.alert_circle /></span>
             </:trigger>
           </.tooltip>
         </div>

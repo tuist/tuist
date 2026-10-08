@@ -15,6 +15,18 @@ defmodule TuistWeb.Helpers.VCSLinksTest do
     }
   end
 
+  test "browser links keep the canonical hostname when an API proxy is configured" do
+    project = project_with_connection("https://github.internal.example.com")
+    project = put_in(project, [:vcs_connection, :github_app_installation, :api_url], "https://proxy.example.com/api/v3")
+
+    assert VCSLinks.pull_request_url(project, "refs/pull/42/head") ==
+             "https://github.internal.example.com/org/repo/pull/42"
+
+    html = render_component(&VCSLinks.commit_link/1, %{project: project, commit_sha: "abc123"})
+    assert html =~ ~s(href="https://github.internal.example.com/org/repo/commit/abc123")
+    refute html =~ "proxy.example.com"
+  end
+
   describe "commit_link/1" do
     test "links to github.com when the installation targets github.com" do
       assigns = %{project: project_with_connection("https://github.com"), commit_sha: "abc123"}
