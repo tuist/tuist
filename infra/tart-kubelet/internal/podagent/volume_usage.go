@@ -22,9 +22,13 @@ const (
 	usageReportMaxAge = 24 * time.Hour
 )
 
-// The server will never accept this report: its execution binding cannot
-// arrive (410) or the report is invalid (422).
-var errUsageRejected = errors.New("volume usage report rejected")
+var (
+	// The server will never accept this report: its execution binding cannot
+	// arrive (410) or the report is invalid (422).
+	errUsageRejected = errors.New("volume usage report rejected")
+	// The job's execution binding has not reached the server yet (425).
+	errUsagePending = errors.New("volume usage execution pending")
+)
 
 type volumeUsage struct {
 	PodName           string `json:"pod_name"`
@@ -155,8 +159,15 @@ func (w *ConvergeWorker) reportUsage(ctx context.Context) {
 		sent++
 		path := filepath.Join(dir, entry.Name())
 		err := source.reportUsage(ctx, data)
-		if err != nil && !errors.Is(err, errUsageRejected) && !usageReportExpired(data, now) {
-			log.FromContext(ctx).Error(err, "report volume usage", "report", entry.Name())
+		// Only the server's verdict expires a report. Local failures such as an
+		// unknown endpoint keep it queued, bounded by the queue cap.
+		pending := errors.Is(err, errUsagePending)
+		if err != nil && !errors.Is(err, errUsageRejected) && (!pending || !usageReportExpired(data, now)) {
+			if pending {
+				log.FromContext(ctx).V(1).Info("volume usage execution pending", "report", entry.Name())
+			} else {
+				log.FromContext(ctx).Error(err, "report volume usage", "report", entry.Name())
+			}
 			retry := now.Add(usageRetryDelay)
 			_ = os.Chtimes(path, retry, retry)
 			continue
@@ -211,6 +222,8 @@ func (s *ServerPrefetch) reportUsage(ctx context.Context, data []byte) error {
 		return nil
 	case http.StatusGone, http.StatusUnprocessableEntity:
 		return fmt.Errorf("%w: HTTP %d", errUsageRejected, resp.StatusCode)
+	case http.StatusTooEarly:
+		return fmt.Errorf("%w: HTTP %d", errUsagePending, resp.StatusCode)
 	default:
 		return fmt.Errorf("report volume usage: HTTP %d", resp.StatusCode)
 	}

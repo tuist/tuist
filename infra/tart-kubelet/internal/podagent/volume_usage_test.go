@@ -81,6 +81,7 @@ func TestVolumeUsageDropsReportsTheServerWillNeverAccept(t *testing.T) {
 		{"execution pending", http.StatusTooEarly, time.Now(), false},
 		{"server unavailable", http.StatusServiceUnavailable, time.Now(), false},
 		{"pending past the max age", http.StatusTooEarly, time.Now().Add(-usageReportMaxAge - time.Minute), true},
+		{"server unavailable past the max age", http.StatusServiceUnavailable, time.Now().Add(-usageReportMaxAge - time.Minute), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -112,6 +113,21 @@ func TestVolumeUsageDropsReportsTheServerWillNeverAccept(t *testing.T) {
 				t.Fatal("retry not deferred")
 			}
 		})
+	}
+}
+
+func TestVolumeUsageKeepsReportsBlockedByLocalFailures(t *testing.T) {
+	root := t.TempDir()
+	warm := true
+	usage := &volumeUsage{AttachedAt: time.Now().Add(-usageReportMaxAge - time.Hour).UTC().Format(time.RFC3339), CapacityBytes: 1, Warm: &warm}
+	entry := &Entry{PodName: "pod", PodUID: "uid", Volume: VolumeAttachment{VolumeName: "tuist-cache"}}
+	worker := NewConvergeWorker(&VolumeManager{Root: root, CapGiB: 28}, false, &ServerPrefetch{})
+	if err := worker.queueUsage(entry, usage, VolumeOutcomeDiscarded); err != nil {
+		t.Fatal(err)
+	}
+	worker.reportUsage(context.Background())
+	if _, err := os.Stat(filepath.Join(root, "usage-reports", "uid.json")); err != nil {
+		t.Fatal("report waiting for an unknown endpoint was dropped", err)
 	}
 }
 
