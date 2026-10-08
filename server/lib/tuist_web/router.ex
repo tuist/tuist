@@ -350,6 +350,7 @@ defmodule TuistWeb.Router do
     get "/robots.txt", RobotsTxtController, :show, metadata: %{robots_txt: false}
 
     get "/llms.txt", LlmsTxtController, :show, metadata: @marketing_route_metadata
+    get "/llms-full.txt", LlmsTxtController, :full, metadata: @docs_route_metadata
   end
 
   scope "/", TuistWeb do
