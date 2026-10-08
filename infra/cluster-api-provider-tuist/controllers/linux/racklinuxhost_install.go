@@ -154,11 +154,6 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 			setProvisioningState(host, infrav1.RackLinuxHostRegistering, "waiting for another edge of the site to serve the install, or for the stick", now)
 			return 0, nil
 		}
-	case "storage":
-		conditions.MarkFalse(host, InstalledCondition, "NoStorageLayout", clusterv1.ConditionSeverityWarning,
-			"the storage role's disk layout is not implemented, so no install is published for %s", host.Spec.Hostname)
-		setProvisioningState(host, infrav1.RackLinuxHostRegistering, "the storage role has no install", now)
-		return 0, nil
 	}
 
 	if inst == nil || inst.Generation != generation || renewDue(host, inst, now) || !r.installServed(ctx, inst) {

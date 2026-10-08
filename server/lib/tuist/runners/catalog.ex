@@ -301,16 +301,36 @@ defmodule Tuist.Runners.Catalog do
   end
 
   @doc """
-  Platform a fleet name belongs to, by the same prefixes
-  `fleet_name_prefixes/1` documents. `nil` for unrecognized names.
+  Platform a fleet name belongs to: a site pool's declared platform
+  (`fleet_site/1`), else by the same prefixes `fleet_name_prefixes/1`
+  documents. `nil` for unrecognized names.
   """
   def fleet_platform(fleet_name) when is_binary(fleet_name) do
-    Enum.find(@platforms, fn platform ->
-      Enum.any?(fleet_name_prefixes(platform), &String.starts_with?(fleet_name, &1))
-    end)
+    case Map.fetch(Tuist.Environment.runners_site_pools(), fleet_name) do
+      {:ok, %{platform: platform}} ->
+        platform
+
+      :error ->
+        Enum.find(@platforms, fn platform ->
+          Enum.any?(fleet_name_prefixes(platform), &String.starts_with?(fleet_name, &1))
+        end)
+    end
   end
 
   def fleet_platform(_), do: nil
+
+  @doc """
+  The site a fleet is racked at (`TUIST_RUNNERS_SITE_POOLS`), or `nil` for a
+  fleet that is not at one. A site's fleets take its runner-cache region.
+  """
+  def fleet_site(fleet_name) when is_binary(fleet_name) do
+    case Map.fetch(Tuist.Environment.runners_site_pools(), fleet_name) do
+      {:ok, %{site: site}} -> site
+      :error -> nil
+    end
+  end
+
+  def fleet_site(_), do: nil
 
   @doc """
   Resolves the resources represented by a fleet name.

@@ -672,7 +672,7 @@ msgstr ""
 msgid "Account ID"
 msgstr ""
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:89
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:90
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:23
 #: lib/tuist_web/live/ops_account_kura_placement_live.ex:19
 #: lib/tuist_web/live/ops_account_kura_sizing_live.ex:19
@@ -1039,7 +1039,7 @@ msgstr ""
 msgid "Open Source"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:57
+#: lib/tuist_web/live/integrations_live.html.heex:79
 #: lib/tuist_web/live/ops_account_helpers.ex:12
 #, elixir-autogen, elixir-format
 msgid "Organization"
@@ -1264,7 +1264,7 @@ msgstr ""
 msgid "Vietnam"
 msgstr ""
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:312
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:325
 #, elixir-autogen, elixir-format
 msgid "Could not complete the GitHub App registration."
 msgstr ""
@@ -1274,16 +1274,16 @@ msgstr ""
 msgid "GitHub Enterprise Server installations must go through the App registration flow first."
 msgstr ""
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:100
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:121
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:101
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:122
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise Server is only available on the Enterprise plan."
 msgstr ""
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:67
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:86
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:111
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:127
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:87
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:112
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:128
 #, elixir-autogen, elixir-format
 msgid "Invalid manifest registration request."
 msgstr ""
@@ -1298,39 +1298,29 @@ msgstr ""
 msgid "Missing manifest registration state."
 msgstr ""
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:93
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:94
 #, elixir-autogen, elixir-format
 msgid "This account already has a GitHub app installation. Uninstall it before registering a new one."
 msgstr ""
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:298
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:311
 #, elixir-autogen, elixir-format
 msgid "%{url} resolves to a non-public IP address, so Tuist refuses to connect to it. Either expose the GitHub Enterprise Server API on a public address (allowlisting Tuist's egress IPs is enough), or self-host Tuist inside your network."
 msgstr ""
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:358
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:378
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise Server rejected the manifest with HTTP %{status}. The registration code is no longer usable — start the flow again from the integrations page."
 msgstr ""
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:352
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:372
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise Server returned 404 when converting the manifest. The temporary registration code may have expired (it's valid for one hour) — start the flow again from the integrations page."
 msgstr ""
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:365
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:385
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise Server returned HTTP %{status} when converting the manifest. Check the server logs for the request body and retry."
-msgstr ""
-
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:327
-#, elixir-autogen, elixir-format
-msgid "Tuist could not reach %{url}. Confirm the instance is reachable from the public internet, or self-host Tuist if it's internal-only."
-msgstr ""
-
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:305
-#, elixir-autogen, elixir-format
-msgid "Tuist could not resolve %{url}. Double-check the GitHub Enterprise Server URL is correct and publicly resolvable."
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:539
@@ -2911,6 +2901,16 @@ msgstr ""
 #: lib/tuist_web/components/layout_components.ex:48
 #, elixir-autogen, elixir-format
 msgid "%{page} for %{project} on Tuist. Explore the project's build, test, and cache insights."
+msgstr ""
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:347
+#, elixir-autogen, elixir-format
+msgid "Tuist could not reach %{url}. Confirm the GitHub Enterprise API URL is reachable from Tuist, or self-host Tuist if it's internal-only."
+msgstr ""
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:318
+#, elixir-autogen, elixir-format
+msgid "Tuist could not resolve %{url}. Double-check the GitHub Enterprise API URL is correct and publicly resolvable."
 msgstr ""
 
 #: lib/tuist_web/live/ops_account_live.ex:694

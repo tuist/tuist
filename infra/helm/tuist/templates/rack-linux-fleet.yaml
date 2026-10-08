@@ -6,7 +6,9 @@ Rack-owned Linux machines: one RackLinuxHost per box, rendered from
 `kubectl get rlc` lists once the box's install stick has announced it. The
 operator keeps a CAPI Machine for each host, which makes it a node. A role's
 labels and taints come from `rackLinuxFleet.roles.<role>` and reach the Node at
-its first registration.
+its first registration. A host with an `address` on the site's machines segment
+also labels its Node `tuist.dev/pn-ipv4` with it: the address the segment's
+clients reach a host-network gateway on.
 */ -}}
 {{- range $host := .Values.rackLinuxFleet.hosts }}
 {{- $uuid := lower (required "each rackLinuxFleet.hosts entry needs the machine's uuid" $host.uuid) }}
@@ -17,6 +19,10 @@ its first registration.
 {{- $role := required (printf "rackLinuxFleet.hosts[%s].role is required" $hostname) $host.role }}
 {{- $roleConfig := get $.Values.rackLinuxFleet.roles $role | default dict }}
 {{- $tags := $host.tailnetTags | default $roleConfig.tailnetTags | default $.Values.rackLinuxFleet.tailnetTags }}
+{{- $nodeLabels := deepCopy ($roleConfig.nodeLabels | default dict) }}
+{{- with $host.address }}
+{{- $_ := set $nodeLabels "tuist.dev/pn-ipv4" . }}
+{{- end }}
 {{- if empty $tags }}
 {{- fail (printf "rackLinuxFleet.hosts[%s].tailnetTags (or its role's, or rackLinuxFleet.tailnetTags) is required: a device is only this host when it carries them" $hostname) }}
 {{- end }}
@@ -49,9 +55,9 @@ spec:
   {{- with $host.bootMAC }}
   bootMAC: {{ lower . | quote }}
   {{- end }}
-  {{- if or $roleConfig.nodeLabels $roleConfig.nodeTaints }}
+  {{- if or $nodeLabels $roleConfig.nodeTaints }}
   node:
-    {{- with $roleConfig.nodeLabels }}
+    {{- with $nodeLabels }}
     labels:
       {{- toYaml . | nindent 6 }}
     {{- end }}

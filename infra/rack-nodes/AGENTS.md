@@ -346,16 +346,51 @@ A tailnet admin opens the login URL it prints.
 
 ## Roles
 
-`edge` and `services` install with Ubuntu's `direct` layout. `storage` is refused
-until its layout is designed: a node that serves cache volumes needs `/boot`, a
-capped `/` and a separate XFS `/data` with project quotas, fixed at install time
-(see `controllers/linux/linux_cloudinit.go` and the `baremetal:prep-*` tasks for
-the shape the rented fleets use).
+`edge` and `services` install with Ubuntu's `direct` layout. `storage` lays out
+its largest disk for cache volumes, the shape the rented cache fleets take
+(`controllers/linux/linux_cloudinit.go`, `internal/ovh`, `internal/scaleway`):
+
+| Partition | Size | Filesystem | Mount |
+|---|---|---|---|
+| 1 | 1 GiB | FAT32 | `/boot/efi` |
+| 2 | 2 GiB | ext4 | `/boot` |
+| 3 | 64 GiB | ext4 | `/` |
+| 4 | the rest | XFS, `prjquota` | `/data` |
+
+A cache volume is a local-path directory with an XFS project quota, and XFS
+takes `prjquota` only when it mounts, so `/data` carries it in fstab from the
+install. The install also bind-mounts `/data/kubelet` onto `/var/lib/kubelet`,
+`/data/containerd` onto `/var/lib/containerd` and `/data/local-path-provisioner`
+onto `/opt/local-path-provisioner`, so images and volumes land on `/data` from
+the node's first boot. `/` stays ext4 because a stick finds the install it made
+by mounting the ext4 partitions. Changing the layout is a reinstall.
 
 Every rack Linux node runs the local CNI and carries `cilium.io/no-schedule=true`,
 because the rack's networks at home sit inside staging's pod CIDR. A storage node
 that serves pods through Services needs the cluster's CNI, which is a
 `RackLinuxMachine` change to make once the rack's networks no longer overlap.
+
+### Pods on a rack node
+
+A pod off the host network sits on the node's bridge (`10.254.254.0/24`), which
+is its default gateway and masquerades it behind the node, so it reaches what
+the node reaches: the internet, the rack's segments and the tailnet. It reaches
+no cluster Service, no cluster DNS and no pod on another node, and nothing in
+the cluster reaches it.
+
+- **The API server.** The node translates the kubernetes Service's ClusterIP
+  to the API server it joined through (`/etc/tuist/kubernetes-service.nft`,
+  which the node agent loads on every apply), so an in-cluster client on the
+  node, host network or not, reaches the API at the address it is given.
+- **Names.** A pod that needs them sets its own nameservers. Kura's
+  `nodeLocalNetwork` instances use Tailscale's `100.100.100.100`, which
+  answers tailnet names and fails others over, then public resolvers.
+- **Telemetry.** `alloy-rack` (`infra/helm/k8s-monitoring`) on each rack node
+  ships its pods' logs and scrapes its node-local Kura pods, and pushes both to
+  the Alloy receiver at its tailnet name. Kura exports its traces there too.
+- **Being reached.** A pod the cluster has to read from is reached through the
+  API server: the Kura controller samples node-local pods through a
+  port-forward, which goes through the kubelet.
 
 ## Production
 

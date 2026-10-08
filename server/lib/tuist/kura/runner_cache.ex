@@ -87,6 +87,8 @@ defmodule Tuist.Kura.RunnerCache do
   end
 
   defp reconcile_region(%Regions{id: region_id} = region, account_ids) do
+    account_ids = admitted_account_ids(region, account_ids)
+
     # Tear down first so an account that flips runners off frees its node
     # even when no image tag is configured to provision new ones.
     region
@@ -125,6 +127,16 @@ defmodule Tuist.Kura.RunnerCache do
   # into `TUIST_KURA_AVAILABLE_REGIONS`.
   defp runner_cache_regions do
     Enum.filter(Regions.available(), &Regions.private?/1)
+  end
+
+  # A site's region serves only the pools racked there, so it holds nodes for
+  # the accounts enabled on the site cache flag rather than for every account
+  # with runners. An account the flag drops has its node torn down.
+  defp admitted_account_ids(%Regions{} = region, account_ids) do
+    case Regions.site(region) do
+      nil -> account_ids
+      _site -> MapSet.filter(account_ids, &FeatureFlags.runner_site_cache_enabled?(%Account{id: &1}))
+    end
   end
 
   # Platforms a region's nodes serve. Private regions always declare

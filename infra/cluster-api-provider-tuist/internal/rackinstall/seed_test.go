@@ -1,6 +1,7 @@
 package rackinstall
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -150,9 +151,84 @@ func TestUserDataCommandsAreValidShell(t *testing.T) {
 	}
 }
 
+func TestUserDataGivesAStorageNodeAQuotaedDataFilesystem(t *testing.T) {
+	s := edgeSeed()
+	s.Host, s.Role = "ber1-store-a", "storage"
+	out, err := UserData(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var seed struct {
+		Autoinstall struct {
+			Storage struct {
+				Layout *struct{ Name string }
+				Config []map[string]any
+			}
+			LateCommands []string `json:"late-commands"`
+		}
+	}
+	if err := yaml.Unmarshal([]byte(out), &seed); err != nil {
+		t.Fatalf("user-data is not YAML: %v", err)
+	}
+	storage := seed.Autoinstall.Storage
+	if storage.Layout != nil {
+		t.Fatalf("a storage node is laid out explicitly, not with %q", storage.Layout.Name)
+	}
+	byID := map[string]map[string]any{}
+	for _, action := range storage.Config {
+		byID[fmt.Sprint(action["id"])] = action
+	}
+	mounts := map[string]map[string]any{}
+	for _, action := range storage.Config {
+		if action["type"] != "mount" {
+			continue
+		}
+		format := byID[fmt.Sprint(action["device"])]
+		mounts[fmt.Sprint(action["path"])] = map[string]any{
+			"fstype":    format["fstype"],
+			"options":   action["options"],
+			"partition": byID[fmt.Sprint(format["volume"])],
+		}
+	}
+	for path, fstype := range map[string]string{"/boot/efi": "fat32", "/boot": "ext4", "/": "ext4", "/data": "xfs"} {
+		if mounts[path] == nil || mounts[path]["fstype"] != fstype {
+			t.Errorf("%s is %v, want %s", path, mounts[path], fstype)
+		}
+	}
+	if !strings.Contains(fmt.Sprint(mounts["/data"]["options"]), "prjquota") {
+		t.Errorf("/data is mounted with %v; cache volumes need project quotas", mounts["/data"]["options"])
+	}
+	if size := mounts["/"]["partition"].(map[string]any)["size"]; size != "64G" {
+		t.Errorf("/ is %v, want it capped at 64G", size)
+	}
+	if size := mounts["/data"]["partition"].(map[string]any)["size"]; fmt.Sprint(size) != "-1" {
+		t.Errorf("/data is %v, want the rest of the disk", size)
+	}
+	late := strings.Join(seed.Autoinstall.LateCommands, "\n")
+	for _, bind := range []string{
+		"/data/kubelet /var/lib/kubelet none bind,nofail 0 0",
+		"/data/containerd /var/lib/containerd none bind,nofail 0 0",
+		"/data/local-path-provisioner /opt/local-path-provisioner none bind,nofail 0 0",
+	} {
+		if !strings.Contains(late, bind) {
+			t.Errorf("late-commands lack the fstab line %q", bind)
+		}
+	}
+	if sh, err := exec.LookPath("sh"); err == nil {
+		for i, command := range seed.Autoinstall.LateCommands {
+			path := filepath.Join(t.TempDir(), "command.sh")
+			if err := os.WriteFile(path, []byte(command), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if out, err := exec.Command(sh, "-n", path).CombinedOutput(); err != nil {
+				t.Errorf("late-command %d: %v\n%s\n%s", i, err, out, command)
+			}
+		}
+	}
+}
+
 func TestUserDataRefusesWhatItCannotInstall(t *testing.T) {
 	for name, mutate := range map[string]func(*Seed){
-		"storage role":      func(s *Seed) { s.Role = "storage" },
 		"unknown role":      func(s *Seed) { s.Role = "db" },
 		"no tags":           func(s *Seed) { s.TailnetTags = nil },
 		"client secret":     func(s *Seed) { s.TailnetKey = "tskey-client-oops" },

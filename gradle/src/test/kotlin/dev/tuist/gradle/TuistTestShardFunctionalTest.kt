@@ -73,7 +73,51 @@ class TuistTestShardFunctionalTest {
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":app:test")?.outcome, result.output)
         assertEquals(setOf("com.example.FooTest"), executedSuites("app"))
+        assertEquals(null, result.task(":lib:test"), result.output)
+    }
+
+    @Test
+    fun `does not compile the tests of projects without suites in the shard`() {
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest")))
+
+        val result = runShard(0, "test")
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:compileTestJava")?.outcome, result.output)
+        assertEquals(null, result.task(":lib:compileTestJava"), result.output)
+        assertEquals(null, result.task(":lib:test"), result.output)
+    }
+
+    @Test
+    fun `runs nothing when the requested test task's project has no suites in the shard`() {
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest")))
+
+        val result = runShard(0, ":lib:test")
+
+        assertEquals(null, result.task(":lib:test"), result.output)
+        assertEquals(null, result.task(":lib:compileTestJava"), result.output)
+    }
+
+    @Test
+    fun `skips the tests of projects without suites in the shard with configuration on demand`() {
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest")))
+
+        val result = runShard(0, "test", "--configure-on-demand")
+
+        assertEquals(setOf("com.example.FooTest"), executedSuites("app"))
         assertEquals(TaskOutcome.SKIPPED, result.task(":lib:test")?.outcome, result.output)
+        assertEquals(emptySet(), executedSuites("lib"))
+    }
+
+    @Test
+    fun `does not compile the tests of projects without suites in the shard when reusing the configuration cache`() {
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest")))
+
+        runShard(0, "clean", "test", "--configuration-cache")
+        val reused = runShard(0, "clean", "test", "--configuration-cache")
+
+        assertTrue(reused.output.contains("Reusing configuration cache."), reused.output)
+        assertTrue(reused.task(":app:test") != null, reused.output)
+        assertEquals(null, reused.task(":lib:compileTestJava"), reused.output)
     }
 
     @Test
@@ -133,6 +177,7 @@ class TuistTestShardFunctionalTest {
         assertEquals(setOf("com.example.BarTest"), executedSuites("app"))
         assertEquals(TaskOutcome.SUCCESS, result.task(":lib:test")?.outcome, result.output)
         assertEquals(setOf("com.example.LibTest"), executedSuites("lib"))
+        assertEquals(TaskOutcome.SUCCESS, result.task(":lib:compileTestJava")?.outcome, result.output)
     }
 
     @Test

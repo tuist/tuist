@@ -37,8 +37,8 @@ defmodule Atlas.SupportInbox.Agents.ClassifierAgent do
   alias Atlas.LLMs.Runner
   alias Atlas.Support
 
-  @categories ~w(support invoice vendor_notice shipping publish registration ar spam other)
-  @urgencies ~w(none low normal high)
+  @categories ~w(support invoice vendor_notice shipping publish registration ar spam other)a
+  @urgencies ~w(none low normal high)a
 
   @body_char_limit 4_000
 
@@ -188,9 +188,9 @@ defmodule Atlas.SupportInbox.Agents.ClassifierAgent do
       type: "object",
       required: ["category", "action_needed", "urgency", "confidence", "reason"],
       properties: %{
-        category: %{type: "string", enum: @categories},
+        category: %{type: "string", enum: Enum.map(@categories, &Atom.to_string/1)},
         action_needed: %{type: "boolean"},
-        urgency: %{type: "string", enum: @urgencies},
+        urgency: %{type: "string", enum: Enum.map(@urgencies, &Atom.to_string/1)},
         confidence: %{type: "number", minimum: 0.0, maximum: 1.0},
         reason: %{type: "string", maxLength: 400}
       }
@@ -198,6 +198,8 @@ defmodule Atlas.SupportInbox.Agents.ClassifierAgent do
   end
 
   defp normalize({:ok, result}) when is_map(result) do
+    result = Map.new(result, fn {key, value} -> {to_string(key), value} end)
+
     with {:ok, category} <- fetch_enum(result, "category", @categories),
          {:ok, urgency} <- fetch_enum(result, "urgency", @urgencies),
          {:ok, action_needed} <- fetch_boolean(result, "action_needed"),
@@ -205,9 +207,9 @@ defmodule Atlas.SupportInbox.Agents.ClassifierAgent do
          {:ok, reason} <- fetch_reason(result) do
       {:ok,
        %{
-         category: String.to_existing_atom(category),
+         category: category,
          action_needed: action_needed,
-         urgency: String.to_existing_atom(urgency),
+         urgency: urgency,
          confidence: confidence,
          reason: reason
        }}
@@ -220,7 +222,10 @@ defmodule Atlas.SupportInbox.Agents.ClassifierAgent do
   defp fetch_enum(map, key, allowed) do
     case Map.get(map, key) do
       value when is_binary(value) ->
-        if value in allowed, do: {:ok, value}, else: {:error, {:invalid_enum, key, value}}
+        case Enum.find(allowed, &(Atom.to_string(&1) == value)) do
+          nil -> {:error, {:invalid_enum, key, value}}
+          value -> {:ok, value}
+        end
 
       _other ->
         {:error, {:missing_field, key}}

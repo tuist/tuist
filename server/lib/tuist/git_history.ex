@@ -727,6 +727,21 @@ defmodule Tuist.GitHistory do
     move_deltas(moved)
   end
 
+  @doc """
+  Copies the commits' current places onto their coverage rows, under the
+  repository's ref lock: an advance that moved one of them either committed
+  before (and is read here) or runs after, when the row exists for it to sync.
+  """
+  def sync_coverage_places(repository_id, shas) do
+    {:ok, _result} =
+      Repo.transaction(fn ->
+        lock_refs(repository_id)
+        sync_coverage(repository_id, shas)
+      end)
+
+    :ok
+  end
+
   defp sync_coverage(_repository_id, []), do: :ok
 
   defp sync_coverage(repository_id, shas) do
