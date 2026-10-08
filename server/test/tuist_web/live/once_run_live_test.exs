@@ -44,6 +44,18 @@ defmodule TuistWeb.OnceRunLiveTest do
              target_execution_id: "named-target",
              capability: "build",
              identifier: "diagnostic-identifier",
+             presentation: %Once.Events.V1.ActionPresentation{
+               package: %Once.Events.V1.ActionPackage{ecosystem: "custom", name: "library", version: "1.2"},
+               platforms: [
+                 %Once.Events.V1.ActionPlatform{
+                   scheme: "custom",
+                   id: "native-target",
+                   label: "Target",
+                   usage: "build-tool"
+                 }
+               ],
+               context: [%Once.Events.V1.ActionContext{key: "custom.mode", value: "release", label: "<b>Release</b>"}]
+             },
              display_name: "Compile main.c",
              source_files: ["src/main.c", "include/api.h"],
              result: :TARGET_RESULT_SUCCEEDED
@@ -62,6 +74,17 @@ defmodule TuistWeb.OnceRunLiveTest do
     {:ok, cache_view, _} = live(conn, path <> "/cache?cache_search=Compile+main.c")
     assert has_element?(cache_view, "#once-cache-table", "Compile main.c")
     assert has_element?(cache_view, "#once-cache-table", "src/main.c")
+
+    for {action_view, table} <- [{view, "#once-actions-table"}, {cache_view, "#once-cache-table"}] do
+      refute has_element?(action_view, "#{table} th", "Source files")
+      assert has_element?(action_view, "#{table} [data-action-badges]", "1.2")
+      assert has_element?(action_view, "#{table} [data-action-badges]", "Build tool · Target")
+      assert has_element?(action_view, "#{table} summary", "+1")
+      assert has_element?(action_view, "#{table} details[phx-mounted]", "native-target")
+      assert has_element?(action_view, "#{table} [data-action-badges]", "library 1.2")
+      assert has_element?(action_view, "#{table} details", "custom.mode: release")
+      refute has_element?(action_view, "#{table} [data-once-action] b")
+    end
   end
 
   test "source links use the connected repository at the recorded revision", %{
@@ -202,7 +225,7 @@ defmodule TuistWeb.OnceRunLiveTest do
       assert has_element?(view, "[data-source-files]", "2,997 more files")
       assert has_element?(view, "[data-source-files]", "src/file-1.c")
       refute has_element?(view, "[data-source-files]", "src/file-3000.c")
-      labels = view |> render() |> Floki.parse_fragment!() |> Floki.find("[data-source-files] [data-part=label]")
+      labels = view |> render() |> Floki.parse_fragment!() |> Floki.find("[data-source-files] [title]")
       assert Enum.count(labels, &(Floki.text(&1) != "—")) == 3
     end
 

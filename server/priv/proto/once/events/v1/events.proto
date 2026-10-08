@@ -330,6 +330,37 @@ message TargetRetried {
   string reason = 4;
 }
 
+// Ecosystem-owned context. Omission retains legacy labels and source paths.
+message ActionPresentation {
+  ActionPackage package = 1;
+  repeated ActionPlatform platforms = 2;
+  repeated ActionContext context = 3;
+}
+
+message ActionPackage {
+  string ecosystem = 1;
+  string name = 2;
+  string version = 3;
+  string revision = 4;
+  string digest = 5;
+  // workspace, registry, git, path, or a future producer-owned origin.
+  string origin = 6;
+}
+
+message ActionPlatform {
+  string scheme = 1;
+  string id = 2;
+  string label = 3;
+  // product or build-tool. This is not execution-worker placement.
+  string usage = 4;
+}
+
+message ActionContext {
+  string key = 1;
+  string value = 2;
+  string label = 3;
+}
+
 // Exactly one declared action outcome. Identity within a run is the tuple
 // (target_execution_id, capability, action_index). The index is zero-based
 // declaration order, never completion order; identifier is a diagnostic label.
@@ -381,6 +412,8 @@ message ActionCompleted {
   // Empty means legacy metadata. A nonempty length mismatch is invalid for
   // linking: consumers must show every path without a repository link.
   repeated SourceFileStatus source_file_statuses = 17;
+  // Optional bounded presentation data. Never action identity or cache inputs.
+  ActionPresentation presentation = 18;
 }
 
 // Presentation only: these values must not affect action or cache identity.

@@ -66,6 +66,13 @@ defmodule Tuist.OnceEventsTest do
       target_execution_id: "app",
       capability: "build",
       identifier: "diagnostic:compile",
+      presentation: %Once.Events.V1.ActionPresentation{
+        package: %Once.Events.V1.ActionPackage{ecosystem: "custom", name: "library", version: "1.2", origin: "registry"},
+        platforms: [
+          %Once.Events.V1.ActionPlatform{scheme: "custom", id: "native-target", label: "Target", usage: "build-tool"}
+        ],
+        context: [%Once.Events.V1.ActionContext{key: "custom.mode", value: "release", label: "Release"}]
+      },
       display_name: "Compile main.c",
       source_files: ["src/main.c", "include/api.h"],
       source_file_statuses: [:SOURCE_FILE_STATUS_COMMITTED, :SOURCE_FILE_STATUS_NOT_COMMITTED],
@@ -75,11 +82,32 @@ defmodule Tuist.OnceEventsTest do
 
     decoded = action |> ActionCompleted.encode() |> ActionCompleted.decode()
     project(run, decoded)
-    project(run, %{decoded | display_name: "A different label", source_files: [], source_file_statuses: []})
+
+    project(run, %{
+      decoded
+      | display_name: "A different label",
+        source_files: [],
+        source_file_statuses: [],
+        presentation: nil
+    })
 
     assert [stored] = OnceEvents.list_actions(run)
     assert stored.identifier == "diagnostic:compile"
     assert stored.display_name == "Compile main.c"
+    assert stored.presentation["package"]["version"] == "1.2"
+    assert stored.presentation["platforms"] |> hd() |> Map.get("usage") == "build-tool"
+    assert [%{presentation: metadata}] = OnceEvents.list_cache_events(run, view: "actions")
+    assert metadata == stored.presentation
+    assert [_] = OnceEvents.list_actions(run, search: "native-target")
+    assert [_] = OnceEvents.list_actions(run, search: "library")
+    assert [_] = OnceEvents.list_actions(run, search: "custom.mode")
+    assert [_] = OnceEvents.list_cache_events(run, view: "actions", search: "release")
+
+    for field_name <- ["version", "scheme", "origin", "usage", "product"] do
+      assert [] == OnceEvents.list_actions(run, search: field_name)
+      assert [] == OnceEvents.list_cache_events(run, view: "actions", search: field_name)
+    end
+
     assert stored.source_files == ["src/main.c", "include/api.h"]
     assert stored.source_file_statuses == [1, 2]
     assert %{total_actions: 1, cached_actions: 1} = OnceEvents.get_run(run.project_id, run.run_id)

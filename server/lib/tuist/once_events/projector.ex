@@ -21,6 +21,7 @@ defmodule Tuist.OnceEvents.Projector do
   alias Once.Events.V1.TestSuiteCompleted
   alias Once.Events.V1.TestSuiteStarted
   alias Tuist.OnceEvents
+  alias Tuist.OnceEvents.Presentation
   alias Tuist.OnceEvents.TestReportIngestor
 
   @doc """
@@ -221,6 +222,7 @@ defmodule Tuist.OnceEvents.Projector do
       action_index: action.action_index || 0,
       identifier: nil_if_empty(action.identifier),
       display_name: nil_if_empty(action.display_name),
+      presentation: Presentation.normalize(action.presentation),
       source_files: action.source_files || [],
       source_file_statuses: Enum.map(action.source_file_statuses || [], &source_file_status/1),
       result: target_result(action.result),

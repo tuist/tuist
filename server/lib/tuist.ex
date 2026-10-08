@@ -112,6 +112,7 @@ defmodule Tuist do
       OnceEvents.CacheAnalytics,
       OnceEvents.Run,
       OnceEvents.Action,
+      OnceEvents.Presentation,
       OnceEvents.TestCaseRun,
       OnceEvents.TestSuiteRun,
       ReapiCache,

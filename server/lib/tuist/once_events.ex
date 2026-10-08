@@ -1137,7 +1137,25 @@ defmodule Tuist.OnceEvents do
       query,
       [a],
       ilike(a.target_execution_id, ^pattern) or ilike(a.identifier, ^pattern) or ilike(a.display_name, ^pattern) or
-        fragment("EXISTS (SELECT 1 FROM unnest(?) AS source_file WHERE source_file ILIKE ?)", a.source_files, ^pattern)
+        fragment("EXISTS (SELECT 1 FROM unnest(?) AS source_file WHERE source_file ILIKE ?)", a.source_files, ^pattern) or
+        fragment(
+          "EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE(NULLIF(?->'package', 'null'::jsonb), '{}'::jsonb)) AS package WHERE package.key IN ('ecosystem', 'name', 'version', 'revision', 'digest') AND package.value ILIKE ?)",
+          a.presentation,
+          ^pattern
+        ) or
+        fragment(
+          "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(?->'platforms', '[]'::jsonb)) AS platform WHERE platform->>'id' ILIKE ? OR platform->>'label' ILIKE ?)",
+          a.presentation,
+          ^pattern,
+          ^pattern
+        ) or
+        fragment(
+          "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(?->'context', '[]'::jsonb)) AS context WHERE context->>'key' ILIKE ? OR context->>'value' ILIKE ? OR context->>'label' ILIKE ?)",
+          a.presentation,
+          ^pattern,
+          ^pattern,
+          ^pattern
+        )
     )
   end
 
@@ -1186,6 +1204,7 @@ defmodule Tuist.OnceEvents do
       action_display_name: action.display_name,
       source_files: action.source_files,
       source_file_statuses: action.source_file_statuses,
+      presentation: action.presentation,
       outcome: if(action.was_cached, do: "hit", else: "miss"),
       duration_ms: action.duration_ms || 0,
       observed_at: action.finished_at || action.started_at,

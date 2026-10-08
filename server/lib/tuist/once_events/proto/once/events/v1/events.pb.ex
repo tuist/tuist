@@ -659,6 +659,46 @@ defmodule Once.Events.V1.TargetRetried do
   field :reason, 4, type: :string
 end
 
+defmodule Once.Events.V1.ActionPresentation do
+  @moduledoc false
+  use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
+
+  field :package, 1, type: Once.Events.V1.ActionPackage
+  field :platforms, 2, repeated: true, type: Once.Events.V1.ActionPlatform
+  field :context, 3, repeated: true, type: Once.Events.V1.ActionContext
+end
+
+defmodule Once.Events.V1.ActionPackage do
+  @moduledoc false
+  use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
+
+  field :ecosystem, 1, type: :string
+  field :name, 2, type: :string
+  field :version, 3, type: :string
+  field :revision, 4, type: :string
+  field :digest, 5, type: :string
+  field :origin, 6, type: :string
+end
+
+defmodule Once.Events.V1.ActionPlatform do
+  @moduledoc false
+  use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
+
+  field :scheme, 1, type: :string
+  field :id, 2, type: :string
+  field :label, 3, type: :string
+  field :usage, 4, type: :string
+end
+
+defmodule Once.Events.V1.ActionContext do
+  @moduledoc false
+  use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
+
+  field :key, 1, type: :string
+  field :value, 2, type: :string
+  field :label, 3, type: :string
+end
+
 defmodule Once.Events.V1.ActionCompleted do
   @moduledoc false
   use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
@@ -685,6 +725,8 @@ defmodule Once.Events.V1.ActionCompleted do
     type: Once.Events.V1.SourceFileStatus,
     json_name: "sourceFileStatuses",
     enum: true
+
+  field :presentation, 18, type: Once.Events.V1.ActionPresentation
 end
 
 defmodule Once.Events.V1.ActionAttemptStarted do

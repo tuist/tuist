@@ -26,6 +26,8 @@ This area owns LiveView pages and components for the web UI.
 
 - Test-run and test-case-run details share a responsive four-column metadata grid across build systems. Render command and parent-run links with `TestLabels.test_run_label/2` so Mix and Bazel runs without a scheme still have meaningful labels. The Tests overview shows unranked cases without invented duration statistics when no cases have enough samples to rank; only an actually empty project gets the onboarding state.
 
+- Once Actions and Cache action tables share `action_cell/1`: readable label, at most two neutral light-fill badges, muted source previews, and keyboard-accessible Details for target/native metadata identities. Sources no longer use a separate column. Keep all paths searchable and retain `action_source_files/1` commitment/linkability rules; metadata must not affect status colors or be inferred from labels. Build-tool platforms are visibly distinct from product platforms and never imply worker placement.
+
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.
 - Frontend assets are in `server/assets`.
