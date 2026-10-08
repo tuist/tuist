@@ -11,9 +11,9 @@
   & [data-part="cache-summary-section"] > .tuist-widget,
   & [data-part="latency-widgets"] > .tuist-widget,
   & [data-part="throughput-widgets"] > .tuist-widget {
-    min-height: unset;
-    padding: var(--noora-spacing-6);
     gap: var(--noora-spacing-4);
+    padding: var(--noora-spacing-6);
+    min-height: unset;
   }
 
   /* Reuse the Bazel cache breakdown layout, with compact value-only widgets. */
