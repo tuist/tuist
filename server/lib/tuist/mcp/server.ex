@@ -27,6 +27,8 @@ defmodule Tuist.MCP.Server do
     Tools.CreateOrganization,
     Tools.CreateProject,
     Tools.AddOrganizationMember,
+    Tools.InviteOrganizationMember,
+    Tools.CancelOrganizationInvitation,
     Tools.ListRunnerJobs,
     Tools.GetRunnerJob,
     Tools.ListRunnerJobSteps,
@@ -129,7 +131,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.34.1",
+      version: "1.35.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),
