@@ -6,6 +6,9 @@ public struct TestAction: Equatable, Codable, Sendable {
 
     public var testPlans: [TestPlan]?
     public var targets: [TestableTarget]
+    /// Queries matching the targets to test. They are resolved against the whole graph, and the matched targets are
+    /// appended to `targets` before the scheme is generated.
+    public var targetQueries: [TestableTargetQuery]
     public var arguments: Arguments?
     public var configurationName: String
     public var attachDebugger: Bool
@@ -39,10 +42,12 @@ public struct TestAction: Equatable, Codable, Sendable {
         preferredScreenCaptureFormat: ScreenCaptureFormat? = nil,
         testPlans: [TestPlan]? = nil,
         skippedTests: [String]? = nil,
-        customLLDBInitFile: AbsolutePath? = nil
+        customLLDBInitFile: AbsolutePath? = nil,
+        targetQueries: [TestableTargetQuery] = []
     ) {
         self.testPlans = testPlans
         self.targets = targets
+        self.targetQueries = targetQueries
         self.arguments = arguments
         self.configurationName = configurationName
         self.attachDebugger = attachDebugger
@@ -80,7 +85,8 @@ public struct TestAction: Equatable, Codable, Sendable {
             preferredScreenCaptureFormat: ScreenCaptureFormat? = nil,
             testPlans: [TestPlan]? = nil,
             skippedTests: [String]? = nil,
-            customLLDBInitFile: AbsolutePath? = nil
+            customLLDBInitFile: AbsolutePath? = nil,
+            targetQueries: [TestableTargetQuery] = []
         ) -> TestAction {
             TestAction(
                 targets: targets,
@@ -98,7 +104,8 @@ public struct TestAction: Equatable, Codable, Sendable {
                 preferredScreenCaptureFormat: preferredScreenCaptureFormat,
                 testPlans: testPlans,
                 skippedTests: skippedTests,
-                customLLDBInitFile: customLLDBInitFile
+                customLLDBInitFile: customLLDBInitFile,
+                targetQueries: targetQueries
             )
         }
     #endif

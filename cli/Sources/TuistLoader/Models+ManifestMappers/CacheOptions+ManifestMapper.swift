@@ -132,6 +132,7 @@ extension TuistConfig.TargetQuery {
         switch manifest {
         case let .named(name): return .named(name)
         case let .tagged(tag): return .tagged(tag)
+        case let .matching(pattern): return .matching(pattern: pattern)
         }
     }
 }
