@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Path
 import Testing
 import TSCUtility
 import TuistEnvironment
@@ -404,6 +405,161 @@ struct GitControllerTests {
 
         #expect(gitInfo.baseBranch == "develop")
         #expect(gitInfo.pullRequestNumber == nil)
+    }
+
+    @Test func teamCityBuildParameters_parse_reads_javas_properties_format() {
+        let properties = TeamCityBuildParameters.parse(
+            """
+            #Thu Oct 08 10:00:00 UTC 2026
+              ! another comment
+            vcsroot.url=https\\://github.example.com/org/repo.git
+            path=C\\:\\\\agent\\\\temp\\\\config.properties
+            with\\=equals\\:colon = value
+            spaced  key  value
+            continued=first \\
+                second
+            escaped.backslash=ends\\\\
+            unicode=caf\\u00E9 \\uD83D\\uDE00
+            empty=
+            """
+        )
+
+        #expect(properties["vcsroot.url"] == "https://github.example.com/org/repo.git")
+        #expect(properties["path"] == "C:\\agent\\temp\\config.properties")
+        #expect(properties["with=equals:colon"] == "value")
+        #expect(properties["spaced"] == "key  value")
+        #expect(properties["continued"] == "first second")
+        #expect(properties["escaped.backslash"] == "ends\\")
+        #expect(properties["unicode"] == "café 😀")
+        #expect(properties["empty"] == "")
+        #expect(properties.count == 8)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_builds_a_github_pull_request() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(
+            at: path,
+            configuration: [
+                "teamcity.build.branch=pull/42",
+                "teamcity.build.vcs.branch.Bumble_Ios=refs/pull/42/head",
+                "teamcity.pullRequest.number=42",
+                "teamcity.pullRequest.source.branch=refs/heads/feature",
+                "teamcity.pullRequest.target.branch=refs/heads/master",
+            ]
+        )
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD"], output: "pr-head-sha\n")
+        // The head merged the target branch in: its second parent is not the commit the build is for.
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD^2"], output: "master-sha\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "origin")
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "remote", "get-url", "origin"],
+            output: "https://github.example.com/org/repo.git"
+        )
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == "refs/pull/42/head")
+        #expect(gitInfo.branch == "feature")
+        #expect(gitInfo.sha == "pr-head-sha")
+        #expect(gitInfo.baseBranch == "master")
+        #expect(gitInfo.pullRequestNumber == 42)
+        #expect(gitInfo.remoteURLOrigin == "https://github.example.com/org/repo.git")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_builds_a_pull_request_from_a_fork() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(
+            at: path,
+            configuration: [
+                "teamcity.build.branch=pull/42",
+                "teamcity.pullRequest.number=42",
+                "teamcity.pullRequest.target.branch=master",
+            ]
+        )
+        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse"])
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == "refs/pull/42/head")
+        #expect(gitInfo.branch == nil, "a fork's branch is not one of the repository's")
+        #expect(gitInfo.pullRequestNumber == 42)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_builds_a_branch_without_a_checkout() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(
+            at: path,
+            build: ["build.vcs.number=master-sha"],
+            configuration: [
+                "teamcity.build.branch=<default>",
+                "teamcity.build.vcs.branch.Bumble_Ios=refs/heads/master",
+                "vcsroot.Bumble_Ios.url=https\\://github.example.com/org/repo.git",
+            ]
+        )
+        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse"])
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == "refs/heads/master")
+        #expect(gitInfo.branch == "master")
+        #expect(gitInfo.sha == "master-sha")
+        #expect(gitInfo.remoteURLOrigin == "https://github.example.com/org/repo.git")
+        #expect(gitInfo.baseBranch == nil)
+        #expect(gitInfo.pullRequestNumber == nil)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_ignores_teamcity_properties_outside_teamcity() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(at: path, configuration: ["teamcity.pullRequest.number=42"])
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables["TEAMCITY_VERSION"] = nil
+        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse"])
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == nil)
+        #expect(gitInfo.pullRequestNumber == nil)
+    }
+
+    /// Writes the properties files a TeamCity agent writes for a build, in the format it writes
+    /// them in, and points the environment at them.
+    private func mockTeamCity(at path: AbsolutePath, build: [String] = [], configuration: [String]) async throws {
+        let buildProperties = path.appending(component: "build.properties")
+        let configurationProperties = path.appending(component: "config.properties")
+        let escapedConfigurationPath = configurationProperties.pathString.replacingOccurrences(of: ":", with: "\\:")
+        try await FileSystem().writeText(
+            (["#TeamCity build properties", "teamcity.configuration.properties.file=\(escapedConfigurationPath)"] + build)
+                .joined(separator: "\n"),
+            at: buildProperties
+        )
+        try await FileSystem().writeText(
+            (["#TeamCity configuration parameters"] + configuration).joined(separator: "\n"),
+            at: configurationProperties
+        )
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "TEAMCITY_VERSION": "2025.07 (build 197242)",
+            "TEAMCITY_BUILD_PROPERTIES_FILE": buildProperties.pathString,
+            "BUILD_NUMBER": "1234",
+        ]
     }
 
     @Test func parseCommits_reads_sha_parents_and_time() {

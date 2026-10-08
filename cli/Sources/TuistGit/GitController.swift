@@ -309,6 +309,7 @@ public struct GitController: GitControlling {
 
     public func gitInfo(workingDirectory: AbsolutePath) async throws -> GitInfo {
         let environment = environment.variables
+        let teamCity = await TeamCityBuildParameters.read(environment: environment)
 
         // Ref
         let gitRef: String?
@@ -328,7 +329,7 @@ public struct GitController: GitControlling {
         {
             gitRef = "refs/pull/\(pullRequestID)/merge"
         } else {
-            gitRef = nil
+            gitRef = teamCity?.ref
         }
 
         // The base branch and pull request number, from the CI provider only: a checkout does not
@@ -337,13 +338,16 @@ public struct GitController: GitControlling {
             .compactMap { environment[$0] }
             .first { !$0.isEmpty }
             .map { $0.hasPrefix("refs/heads/") ? String($0.dropFirst("refs/heads/".count)) : $0 }
+            ?? teamCity?.targetBranch
         let pullRequestNumber = Self.pullRequestNumber(ref: gitRef, environment: environment)
+            ?? teamCity?.pullRequestNumber
 
         // Branch
         let ciBranch = Self.branchEnvironmentVariables
             .compactMap { environment[$0] }
             .first { !$0.isEmpty }
             ?? Self.githubBranch(environment: environment)
+            ?? teamCity?.branch
 
         let branchName: String?
         if let ciBranch {
@@ -371,8 +375,8 @@ public struct GitController: GitControlling {
             return GitInfo(
                 ref: gitRef,
                 branch: branchName,
-                sha: nil,
-                remoteURLOrigin: nil,
+                sha: teamCity?.commitSHA,
+                remoteURLOrigin: teamCity?.remoteURL,
                 baseBranch: baseBranch,
                 pullRequestNumber: pullRequestNumber
             )
@@ -381,9 +385,10 @@ public struct GitController: GitControlling {
         // SHA — if CI checked out a PR merge ref (e.g. refs/pull/N/merge),
         // HEAD is an ephemeral merge commit. Use the second parent (the actual
         // PR branch tip) instead, since the merge commit doesn't exist on the remote.
+        // A `refs/pull/N/head` checkout (TeamCity's for GitHub) is the tip itself.
         let commitSHA: String?
         if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
-            let isPullRequestMergeRef = gitRef?.hasPrefix("refs/pull/") == true
+            let isPullRequestMergeRef = gitRef?.hasPrefix("refs/pull/") == true && gitRef?.hasSuffix("/merge") == true
             if isPullRequestMergeRef,
                let secondParent = try? await capture(
                    command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
