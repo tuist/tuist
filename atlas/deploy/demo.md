@@ -87,7 +87,9 @@ mix precommit test/atlas/demo/config_test.exs test/atlas_web/live/demo_live_test
 ```
 
 The release test provisions and removes its own local PostgreSQL instance; it
-never uses an existing database or managed cluster. It needs PostgreSQL binaries,
-curl, and Python. Integration tests include a process-scoped telemetry probe for
+never uses an existing database or managed cluster. It verifies reader startup
+and refuses production database names, empty or non-demo datasets, database-owner
+credentials, column-level or inherited write privileges, and integration credentials.
+It needs PostgreSQL binaries, curl, and Python. Integration tests include a process-scoped telemetry probe for
 unexpected writes during curated page loads and interactions, plus rejected
 upstream HTTP calls.
