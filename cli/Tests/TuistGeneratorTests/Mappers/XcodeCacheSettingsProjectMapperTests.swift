@@ -192,6 +192,7 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] == nil)
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == nil)
         #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == nil)
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES"] == nil)
     }
 
     @Test(.inTemporaryDirectory, .withMockedXcodeController)
@@ -248,6 +249,9 @@ struct XcodeCacheSettingsProjectMapperTests {
             baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"]
                 == .string(Environment.current.casProxySocketPathString())
         )
+        // With a remote service, the build system queries the cache for every local
+        // miss; detached, those queries overlap instead of waiting for an execution lane.
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES"] == .string("YES"))
 
         // The account/project is delivered to the plugin as a compiler option so
         // it reaches every frontend, including Xcode ⌘B builds.
@@ -289,6 +293,7 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == nil)
         #expect(baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] == nil)
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES"] == nil)
         #expect(baseSettings["OTHER_SWIFT_FLAGS"] == nil)
     }
 

@@ -434,12 +434,15 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
                 COMPILATION_CACHE_ENABLE_PLUGIN=YES
                 COMPILATION_CACHE_PLUGIN_PATH=\(pluginPath)
                 COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(proxySocketPath)
+                COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES=YES
                 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
                 OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=\(fullHandle)\(prefixMapping)
 
                 `COMPILATION_CACHE_REMOTE_SERVICE_PATH` is what lets C, Objective-C and precompiled modules be shared too. Without it only Swift is shared, and a machine with a cold cache recompiles the rest.
 
-                `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH` and `COMPILATION_CACHE_REMOTE_SERVICE_PATH` are not directly exposed by Xcode; add them as user-defined build settings.\
+                `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` lets the remote cache lookups for those compilations run at the same time instead of a few at a time.
+
+                `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` are not directly exposed by Xcode; add them as user-defined build settings.\
                 \(missingPluginNote)
                 """
             )
