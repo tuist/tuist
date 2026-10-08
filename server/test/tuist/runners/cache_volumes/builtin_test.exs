@@ -121,7 +121,7 @@ defmodule Tuist.Runners.CacheVolumes.BuiltinTest do
         vcpus: 2,
         memory_gb: 8,
         billing_multiplier: 10_000,
-        started_at: DateTime.add(now, -7200)
+        started_at: DateTime.add(now, -90_000)
       })
 
     params = %{params | "pod_name" => "idle-pod", "pod_uid" => "uid-idle"}
@@ -130,7 +130,7 @@ defmodule Tuist.Runners.CacheVolumes.BuiltinTest do
     session = Repo.update!(Ecto.Changeset.change(session, ended_at: DateTime.add(now, -60)))
     assert {:error, :pending} = Builtin.report("mac-node", params)
 
-    Repo.update!(Ecto.Changeset.change(session, ended_at: DateTime.add(now, -3601)))
+    Repo.update!(Ecto.Changeset.change(session, ended_at: DateTime.add(now, -86_401)))
     assert {:error, :unbound} = Builtin.report("mac-node", params)
     assert {:error, :unbound} = Builtin.report("mac-node", %{params | "pod_name" => "unknown-pod"})
   end

@@ -10,9 +10,10 @@ defmodule Tuist.Runners.CacheVolumes.Builtin do
   alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.WorkflowJob
 
-  # A GitHub `completed` delivery can still bind a session shortly after its pod
-  # is gone. Past this, a closed session without a binding never executed a job.
-  @binding_grace_seconds 3600
+  # A redelivered GitHub `workflow_job` webhook can still bind a closed session,
+  # and redelivery keeps retrying for as long as our endpoint is failing. Match
+  # the host's 24-hour report age cap rather than guessing at outage length.
+  @binding_grace_seconds 86_400
 
   # Only the authenticated host calls this after finalizing its private branch.
   # The durable execution binding supplies account, repository and job identity.
