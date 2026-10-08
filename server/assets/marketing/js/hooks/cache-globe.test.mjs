@@ -8,6 +8,20 @@ const source = readFileSync(new URL("./cache-globe.js", import.meta.url), "utf8"
   "globalThis.hook =",
 );
 
+// A node for the odometer: dataset, inline style, children and text.
+function node() {
+  const style = {};
+  return {
+    dataset: {},
+    children: [],
+    textContent: "",
+    style: { setProperty: (name, value) => (style[name] = value), getPropertyValue: (name) => style[name] ?? "" },
+    appendChild(child) {
+      this.children.push(child);
+    },
+  };
+}
+
 function fixture(lang = "en") {
   const rendered = {};
   const events = [];
@@ -29,7 +43,7 @@ function fixture(lang = "en") {
     performance: { now: () => now },
     setInterval: () => 0,
     matchMedia: () => ({ matches: false, addEventListener() {} }),
-    document: { documentElement: { lang } },
+    document: { documentElement: { lang }, createElement: () => node() },
     CustomEvent: class {
       constructor(type, options) {
         this.type = type;
@@ -41,9 +55,9 @@ function fixture(lang = "en") {
   const hook = Object.assign(Object.create(context.hook), {
     snapshot: {
       downloads: 1200,
-      bytes: 1024,
+      bytes: 1024000,
       recent_downloads: 12,
-      recent_bytes: 3000,
+      recent_bytes: 3000000,
       updated_at: "2026-10-05T12:00:00Z",
       observed_at: "2026-10-05T11:59:00Z",
       status: "available",
@@ -222,27 +236,27 @@ test("mounted illustration seeds the canvas immediately and stays stable through
   assert.equal(hook.snapshot.origins.length, 0);
 });
 
-test("byte totals retain individual bytes instead of rounding to TB, in each locale", () => {
+test("byte totals show whole kilobytes instead of rounding to TB, in each locale", () => {
   for (const lang of ["en", "de", "fr", "ar"]) {
     const { hook, rendered } = fixture(lang);
-    hook.snapshot.bytes = 8400000000001;
+    hook.snapshot.bytes = 8400000000999;
     hook.updateSnapshot();
     assert.equal(
       rendered.bytes,
       new Intl.NumberFormat(lang, {
         style: "unit",
-        unit: "byte",
-        unitDisplay: "long",
+        unit: "kilobyte",
+        unitDisplay: "short",
         maximumFractionDigits: 0,
-      }).format(8400000000001),
+      }).format(8400000000),
     );
     assert.equal(hook.formatBytes(null), "—");
     assert.equal(
-      hook.formatBytes(0),
+      hook.formatBytes(999),
       new Intl.NumberFormat(lang, {
         style: "unit",
-        unit: "byte",
-        unitDisplay: "long",
+        unit: "kilobyte",
+        unitDisplay: "short",
         maximumFractionDigits: 0,
       }).format(0),
     );
@@ -260,17 +274,17 @@ test("bytes and active regional counts advance each second at their own measured
   hook.updateSnapshot();
   advanceClock(1000);
   hook.advance();
-  assert.equal(rendered.bytes, "1,034 bytes");
+  assert.equal(rendered.bytes, "1,034 kB");
   assert.equal(rendered["eu-west"], "202");
   assert.equal(rendered["us-west"], "1,000");
   hook.updateSnapshot();
-  assert.equal(rendered.bytes, "1,034 bytes");
+  assert.equal(rendered.bytes, "1,034 kB");
   assert.equal(rendered["eu-west"], "202");
 
-  hook.snapshot.bytes = 2000;
+  hook.snapshot.bytes = 2000000;
   hook.snapshot.regions[1].downloads = 500;
   hook.updateSnapshot();
-  assert.equal(rendered.bytes, "2,000 bytes");
+  assert.equal(rendered.bytes, "2,000 kB");
   assert.equal(rendered["eu-west"], "500");
 });
 
@@ -280,7 +294,7 @@ test("bytes and regions reset on a new UTC day, with no extrapolation of unavail
   hook.updateSnapshot();
   advanceClock(60000);
   hook.advance();
-  assert.equal(rendered.bytes, "1,624 bytes");
+  assert.equal(rendered.bytes, "1,624 kB");
   assert.equal(rendered["eu-west"], "202");
 
   hook.snapshot.updated_at = "2026-10-06T00:00:30Z";
@@ -293,7 +307,7 @@ test("bytes and regions reset on a new UTC day, with no extrapolation of unavail
     recent_downloads: 0,
   }));
   hook.updateSnapshot();
-  assert.equal(rendered.bytes, "0 bytes");
+  assert.equal(rendered.bytes, "0 kB");
   assert.equal(rendered["eu-west"], "0");
   assert.equal(hook.byteLive.rate, 0);
 
@@ -330,7 +344,7 @@ test("all counters freeze at midnight until the new day's snapshot arrives", () 
   advanceClock(1000);
   hook.advance();
   assert.equal(rendered.counter, 1200);
-  assert.equal(rendered.bytes, "1,024 bytes");
+  assert.equal(rendered.bytes, "1,024 kB");
   assert.equal(rendered["eu-west"], "200");
 });
 
@@ -341,7 +355,7 @@ test("old snapshots without recent bytes keep the full measured total without es
   hook.updateSnapshot();
   advanceClock(1000);
   hook.advance();
-  assert.equal(rendered.bytes, "1,024 bytes");
+  assert.equal(rendered.bytes, "1,024 kB");
   assert.equal(hook.byteLive, null);
 });
 
@@ -370,7 +384,7 @@ test("extrapolation freezes for offline, unavailable, stale, quiet and previous-
     advanceClock(60000);
     hook.advance();
     assert.equal(rendered.counter, 1200);
-    assert.equal(rendered.bytes, "1,024 bytes");
+    assert.equal(rendered.bytes, "1,024 kB");
     assert.equal(rendered["eu-west"], "200");
   }
 });
@@ -790,4 +804,60 @@ test("offline, unavailable, waiting, stale and idle states stop replay, while re
     assert.equal(latestOrigins(events).length, 0);
     hook.snapshot = before;
   }
+});
+
+// The real odometer on a fake figure element: reels are the digit columns'
+// first children, and snaps are recorded instead of forcing a layout.
+function odometer() {
+  const { hook } = fixture();
+  const snaps = [];
+  const figure = Object.assign(node(), {
+    replaceChildren(...columns) {
+      figure.children = columns;
+    },
+    querySelectorAll: () =>
+      figure.children.filter((column) => "digit" in column.dataset).map((column) => column.children[0]),
+    getBoundingClientRect() {},
+  });
+  const roller = Object.assign(Object.create(Object.getPrototypeOf(hook)), {
+    snapReel(reel, index) {
+      snaps.push(index);
+      reel.style.setProperty("--i", String(index));
+    },
+  });
+  const show = (text) => {
+    roller.setReel(figure, text);
+    return figure.querySelectorAll().map((reel) => Number(reel.style.getPropertyValue("--i")));
+  };
+  return { show, snaps, figure };
+}
+
+test("a rising figure rolls every changed digit forward, so 9 to 0 is one notch on rather than nine back", () => {
+  const { show, snaps } = odometer();
+  assert.deepEqual(show("199"), [1, 9, 9]);
+  assert.deepEqual(show("200"), [2, 10, 10]);
+  assert.deepEqual(show("209"), [2, 10, 19]);
+  assert.deepEqual(show("210"), [2, 11, 10]);
+  assert.deepEqual(snaps, [9]);
+});
+
+test("a falling figure rolls every changed digit back, including 0 to 9", () => {
+  const { show, snaps } = odometer();
+  assert.deepEqual(show("210"), [2, 1, 0]);
+  assert.deepEqual(show("209"), [2, 0, 9]);
+  assert.deepEqual(show("199"), [1, 9, 9]);
+  assert.deepEqual(show("099"), [0, 9, 9]);
+  assert.deepEqual(show("098"), [0, 9, 8]);
+  assert.deepEqual(snaps, [10, 10]);
+});
+
+test("a figure that gains a digit rebuilds its columns and rolls the new ones in from zero", () => {
+  const { show, figure } = odometer();
+  show("999");
+  assert.equal(figure.dataset.shape, "###");
+  assert.deepEqual(show("1,000"), [1, 0, 0, 0]);
+  assert.equal(figure.dataset.shape, "#,###");
+  assert.equal(figure.children[1].textContent, ",");
+  assert.deepEqual(show("1,000 kB"), [1, 0, 0, 0]);
+  assert.deepEqual(show("1,010 kB"), [1, 0, 1, 0]);
 });
