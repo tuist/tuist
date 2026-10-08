@@ -273,6 +273,7 @@
         empty={ready? && @cache_events.result.uploads.total_size == 0}
       />
       <TuistWeb.Components.BuildHealth.cache_widget
+        trend_label={@analytics_trend_label}
         health={@build_health}
         selected={@analytics_selected_widget == "cache_work_avoided"}
       />

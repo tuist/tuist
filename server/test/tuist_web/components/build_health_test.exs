@@ -38,6 +38,31 @@ defmodule TuistWeb.Components.BuildHealthTest do
     assert zero =~ "not elapsed build time saved"
   end
 
+  test "task time comparison preserves missing and zero baselines with neutral styling" do
+    for {current, previous, expected} <- [
+          {200, 100, "+100.0%"},
+          {50, 100, "-50.0%"},
+          {0, 100, "-100.0%"},
+          {200, nil, "No comparison available"},
+          {200, 0, "+200ms"},
+          {0, 0, "No change"}
+        ] do
+      html =
+        render_component(&BuildHealth.cache_widget/1,
+          health:
+            AsyncResult.ok(%{
+              totals: %{"cache_work_avoided" => current},
+              previous_totals: %{"cache_work_avoided" => previous}
+            }),
+          trend_label: "since last period"
+        )
+
+      assert html =~ expected
+      assert html =~ ~s(data-color="neutral")
+      if is_nil(previous), do: refute(html =~ "since last period"), else: assert(html =~ "since last period")
+    end
+  end
+
   test "task time chart preserves gaps and recorded zero estimates" do
     health =
       AsyncResult.ok(%{
@@ -60,13 +85,16 @@ defmodule TuistWeb.Components.BuildHealthTest do
     refute missing =~ "gradle-task-time-saved-chart"
   end
 
-  test "failure details show classification and explanation without a hover interaction" do
+  test "failure details explain classification through a focusable Noora info hint" do
     for category <- ["verification", "infrastructure_tooling", "unknown"] do
       html = render_component(&BuildHealth.category_detail/1, category: category)
       assert html =~ "tuist-failure-classification"
       assert html =~ "recorded build data"
       assert html =~ BuildHealth.category_label(category)
-      refute html =~ "noora-tooltip"
+      assert html =~ "noora-tooltip"
+      assert html =~ "About failure category"
+      assert html =~ "<button"
+      refute html =~ "<p>"
     end
 
     for category <- [nil, ""] do

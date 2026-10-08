@@ -73,3 +73,5 @@ This directory contains ExUnit tests for the Tuist Server.
 - Native failure-category listing coverage checks project isolation, filtering before pagination, ascending and descending ordering, tied Xcode cursors, historical compiler/task evidence, and empty categories for non-failures. Keep native and Grafana categories aligned.
 
 - Verify that detail classification matches listing/Grafana evidence and is project scoped, while default run tables omit category columns and retain filters. Cumulative task-time widgets use one label with no repeated caption. The standard Grafana dashboard tests keep total failures separate and pair each cache value with its coverage.
+
+- Cumulative task-time comparisons cover positive, zero and missing previous estimates with neutral styling, matching environment filters and custom range boundaries. Failure-category hints must be focusable and use the shared Noora tooltip interaction.

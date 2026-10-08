@@ -2035,23 +2035,24 @@ msgstr ""
 msgid "mix compile"
 msgstr ""
 
-#: lib/tuist_web/components/build_health.ex:174
+#: lib/tuist_web/components/build_health.ex:222
 #, elixir-autogen, elixir-format
 msgid "Infrastructure / tooling"
 msgstr ""
 
-#: lib/tuist_web/components/build_health.ex:175
+#: lib/tuist_web/components/build_health.ex:223
 #, elixir-autogen, elixir-format
 msgid "Unclassified"
 msgstr ""
 
-#: lib/tuist_web/components/build_health.ex:173
+#: lib/tuist_web/components/build_health.ex:221
 #, elixir-autogen, elixir-format
 msgid "Verification"
 msgstr ""
 
-#: lib/tuist_web/components/build_health.ex:132
 #: lib/tuist_web/components/build_health.ex:164
+#: lib/tuist_web/components/build_health.ex:167
+#: lib/tuist_web/components/build_health.ex:212
 #: lib/tuist_web/live/bazel_invocations_live.ex:505
 #: lib/tuist_web/live/bazel_invocations_live.ex:515
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:29
@@ -2063,17 +2064,22 @@ msgstr ""
 msgid "Failure category"
 msgstr ""
 
-#: lib/tuist_web/components/build_health.ex:154
+#: lib/tuist_web/components/build_health.ex:202
 #, elixir-autogen, elixir-format
 msgid "The recorded build data does not contain enough evidence for Tuist to classify this failure as verification or infrastructure and tooling."
 msgstr ""
 
-#: lib/tuist_web/components/build_health.ex:147
+#: lib/tuist_web/components/build_health.ex:175
 #, elixir-autogen, elixir-format
-msgid "Tuist classifies failures using recorded build data. Infrastructure and tooling includes configuration, dependency resolution and execution infrastructure errors."
+msgid "About failure category"
 msgstr ""
 
-#: lib/tuist_web/components/build_health.ex:140
+#: lib/tuist_web/components/build_health.ex:195
 #, elixir-autogen, elixir-format
-msgid "Tuist classifies failures using recorded build data. Verification includes compilation, test, lint and check errors."
+msgid "Inferred from recorded build data. Infrastructure and tooling covers configuration, dependency resolution, and execution infrastructure failures."
+msgstr ""
+
+#: lib/tuist_web/components/build_health.ex:188
+#, elixir-autogen, elixir-format
+msgid "Inferred from recorded build data. Verification covers compilation, test, lint, and check failures."
 msgstr ""

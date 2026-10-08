@@ -7,10 +7,23 @@
   font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
 
   & [data-part="heading"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-4);
     font-weight: var(--noora-font-weight-medium);
   }
 
-  & p {
-    margin: 0;
+  & button {
+    display: flex;
+    cursor: pointer;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: inherit;
+  }
+
+  & button svg {
+    width: 16px;
+    height: 16px;
   }
 }

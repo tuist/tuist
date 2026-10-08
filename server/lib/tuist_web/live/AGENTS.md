@@ -105,7 +105,7 @@ This area owns LiveView pages and components for the web UI.
 - For analytics, distinguish initial loading from refresh: `assign_async` retains successful results by default. Use the shared readiness state rather than hiding content whenever `.loading` is set, and handle failure before retained success. Query reuse keys contain only analytics inputs; preserve relative date boundaries across table-only patches and allow failed requests to retry. Derive chart selection from current assigns at render time so an in-flight request cannot restore an outdated selection.
 
 
-- Keep failure categories out of default build overview and Build Runs tables. Retain category filtering and saved category sorting before pagination. Build details show the shared classification with a visible explanation beside recorded failure information; successful, cancelled and unfinished builds omit it. `BuildHealth` shares category labels, detail presentation, filters, and the Gradle cumulative task-time widget/chart. Preserve missing versus zero estimates.
+- Keep failure categories out of default build overview and Build Runs tables. Retain category filtering and saved category sorting before pagination. Build details show the shared classification with a focusable Noora info hint beside the category heading; successful, cancelled and unfinished builds omit it. `BuildHealth` shares category labels, detail presentation, filters, and the Gradle cumulative task-time widget/chart. Preserve missing versus zero estimates.
 
 - Gradle Cumulative task time saved belongs in the existing Cache Analytics card as a fourth selectable widget with its own chart. Use one title without a repeating caption in the widget and build details; tooltips explain that this is estimated cumulative task time, not elapsed build time saved. Keep async failures independent of existing cache metrics and preserve missing versus recorded zero.
 
@@ -116,3 +116,5 @@ This area owns LiveView pages and components for the web UI.
 
 - Reuse RunnersLive.platform_label/1 for translated platform names in the volume
   inventory and details. Refresh English Gettext templates after UI string edits.
+
+- Gradle cache savings query the immediately preceding equal-duration range with identical filters for a neutral comparison. Keep missing previous reports distinct from recorded zero; zero baselines use absolute change without division.

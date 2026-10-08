@@ -88,4 +88,4 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 
 - Gradle build details use a responsive four-column metadata grid, with requested tasks occupying the first column and the cache estimate aligned below Java Version in the second column, using the shared duration styling.
 
-- Gradle savings uses a single Cumulative task time saved title without a subtitle. Failure classification is displayed with a visible explanation in details, styled by the shared build-health component stylesheet; keep it out of default run tables.
+- Gradle savings uses a single Cumulative task time saved title without a subtitle. Failure classification is displayed with an accessible Noora info hint in details, styled by the shared build-health component stylesheet; keep it out of default run tables.

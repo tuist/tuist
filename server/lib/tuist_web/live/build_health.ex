@@ -58,6 +58,17 @@ defmodule TuistWeb.BuildHealth do
   end
 
   defp query_health(project_id, opts, :cache) do
-    BuildMetrics.query(project_id, Keyword.put(opts, :view, "series"))
+    current = BuildMetrics.query(project_id, Keyword.put(opts, :view, "series"))
+    start_at = Keyword.fetch!(opts, :start_datetime)
+    duration = DateTime.diff(Keyword.fetch!(opts, :end_datetime), start_at, :microsecond)
+
+    previous_opts =
+      opts
+      |> Keyword.put(:start_datetime, DateTime.add(start_at, -duration, :microsecond))
+      |> Keyword.put(:end_datetime, start_at)
+      |> Keyword.put(:view, "total")
+
+    previous = BuildMetrics.query(project_id, previous_opts)
+    Map.put(current, :previous_totals, previous.totals)
   end
 end

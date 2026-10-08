@@ -11,7 +11,20 @@ defmodule TuistWeb.Components.BuildHealth do
   attr :health, :any, required: true
   attr :selected, :boolean, default: false
 
+  attr :trend_label, :string, default: nil
+
   def cache_widget(assigns) do
+    trend =
+      if assigns.health.ok? do
+        current = assigns.health.result.totals["cache_work_avoided"]
+        previous = Map.get(assigns.health.result, :previous_totals, %{})["cache_work_avoided"]
+        cache_trend(current, previous)
+      else
+        {nil, nil}
+      end
+
+    assigns = assign(assigns, :trend, trend)
+
     ~H"""
     <.widget
       id="cache-work-avoided"
@@ -34,12 +47,30 @@ defmodule TuistWeb.Components.BuildHealth do
       }
       empty={@health.ok? && is_nil(@health.result.totals["cache_work_avoided"])}
       empty_label={dgettext("dashboard_gradle", "Not reported")}
+      trend_value={elem(@trend, 0)}
+      trend_value_label={elem(@trend, 1)}
+      trend_type={:neutral}
+      trend_label={
+        if @health.ok? &&
+             !is_nil(Map.get(@health.result, :previous_totals, %{})["cache_work_avoided"]),
+           do: @trend_label
+      }
       phx_click="select_widget"
       phx_value_widget="cache_work_avoided"
       selected={@selected}
     />
     """
   end
+
+  defp cache_trend(nil, _previous), do: {nil, nil}
+  defp cache_trend(_current, nil), do: {0, dgettext("dashboard_gradle", "No comparison available")}
+  defp cache_trend(0, 0), do: {0, nil}
+
+  defp cache_trend(current, 0) do
+    {1, "+" <> DateFormatter.format_duration_from_milliseconds(current)}
+  end
+
+  defp cache_trend(current, previous), do: {(current - previous) / previous * 100, nil}
 
   attr :health, :any, required: true
 
@@ -129,9 +160,26 @@ defmodule TuistWeb.Components.BuildHealth do
       :if={@category in ["verification", "infrastructure_tooling", "unknown"]}
       class="tuist-failure-classification"
     >
-      <span data-part="heading">{dgettext("dashboard_builds", "Failure category")}</span>
+      <div data-part="heading">
+        <span>{dgettext("dashboard_builds", "Failure category")}</span>
+        <.tooltip
+          id="build-failure-category-hint"
+          title={dgettext("dashboard_builds", "Failure category")}
+          description={category_description(@category)}
+          size="large"
+        >
+          <:trigger :let={attrs}>
+            <button
+              {attrs}
+              type="button"
+              aria-label={dgettext("dashboard_builds", "About failure category")}
+            >
+              <.alert_circle />
+            </button>
+          </:trigger>
+        </.tooltip>
+      </div>
       <.badge label={category_label(@category)} color="neutral" style="light-fill" />
-      <p>{category_description(@category)}</p>
     </div>
     """
   end
@@ -139,14 +187,14 @@ defmodule TuistWeb.Components.BuildHealth do
   defp category_description("verification") do
     dgettext(
       "dashboard_builds",
-      "Tuist classifies failures using recorded build data. Verification includes compilation, test, lint and check errors."
+      "Inferred from recorded build data. Verification covers compilation, test, lint, and check failures."
     )
   end
 
   defp category_description("infrastructure_tooling") do
     dgettext(
       "dashboard_builds",
-      "Tuist classifies failures using recorded build data. Infrastructure and tooling includes configuration, dependency resolution and execution infrastructure errors."
+      "Inferred from recorded build data. Infrastructure and tooling covers configuration, dependency resolution, and execution infrastructure failures."
     )
   end
 
