@@ -99,7 +99,6 @@ defmodule TuistWeb.Widget do
   )
 
   attr(:value, :any, default: nil, doc: "The value of the widget.")
-  attr(:value_caption, :string, default: nil, doc: "Optional context displayed beneath the value.")
 
   attr(:trend_value, :integer,
     required: false,
@@ -216,7 +215,6 @@ defmodule TuistWeb.Widget do
         <span data-part="value">{if is_number(@value) and abs(@value) >= 10_000,
           do: TuistWeb.CldrHelpers.format_number(@value),
           else: @value}</span>
-        <span :if={@value_caption} data-part="value-caption">{@value_caption}</span>
         <div :if={@trend_value} data-part="trend">
           <.trend_badge
             trend_value={@trend_value}

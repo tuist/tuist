@@ -70,3 +70,5 @@ This directory contains ExUnit tests for the Tuist Server.
 - Native build-health regression coverage checks database source dimensions, Xcode overview scheme/environment wiring, Gradle cache environment/coverage wiring, and missing versus zero detail estimates. Component tests check category labels, source-specific navigation and loading/failure states.
 
 - Native failure-category listing coverage checks project isolation, filtering before pagination, ascending and descending ordering, tied Xcode cursors, historical compiler/task evidence, and empty categories for non-failures. Keep native and Grafana categories aligned.
+
+- Verify that detail classification matches listing/Grafana evidence and is project scoped, while default run tables omit category columns and retain filters. Cumulative task-time widgets use one label with no repeated caption. The standard Grafana dashboard tests keep total failures separate and pair each cache value with its coverage.

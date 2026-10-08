@@ -103,17 +103,6 @@
               status="warning"
             />
           </:col>
-          <:col
-            :let={build}
-            label={dgettext("dashboard_builds", "Failure category")}
-            patch={TuistWeb.GradleBuildRunsLive.column_patch_sort(assigns, "failure-category")}
-            sort_order={@build_runs_sort_by == "failure-category" && @build_runs_sort_order}
-          >
-            <TuistWeb.Components.BuildHealth.category_cell
-              category={build.failure_category}
-              id={"gradle_build_runs_live-#{build.id}"}
-            />
-          </:col>
           <:col :let={build} label={dgettext("dashboard_gradle", "Branch")}>
             <.text_cell
               icon="git_branch"

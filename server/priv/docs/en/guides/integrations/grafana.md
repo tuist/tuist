@@ -23,7 +23,7 @@ The tables list readable labels and their query identifiers. Build-health querie
 | Failed builds | `failed_builds` | Builds that failed. |
 | Cancelled builds | `cancelled_builds` | Builds recorded as cancelled. See [build-system differences](#build-systems). |
 | Build success rate | `success_rate` | Successful ÷ (successful + failed), as a percentage. |
-| Builds needing attention | `builds_needing_attention` | Failed or slow builds, counted once per build. |
+| Failed or slow builds | `builds_needing_attention` | Failed or slow builds, counted once per build. |
 
 ### Build and test durations
 
@@ -41,8 +41,8 @@ Test duration metrics use the test runs recorded in Tuist. The slow-build thresh
 
 | Metric | Identifier | What it measures |
 | --- | --- | --- |
-| Estimated task time saved (Gradle) | `cache_work_avoided` | Sum of estimated task execution time avoided by cache hits. |
-| Builds reporting estimated work avoided | `cache_work_avoided_samples` | Builds with a complete estimate. |
+| Cumulative task time saved (Gradle) | `cache_work_avoided` | Sum of estimated task execution time avoided by cache hits. |
+| Builds reporting cumulative task time | `cache_work_avoided_samples` | Builds with a complete estimate. |
 | Reported cache time saved | `cache_time_saved` | Sum of reported elapsed savings. |
 | Builds reporting cache time saved | `cache_time_saved_samples` | Builds with a valid savings value. |
 
@@ -61,18 +61,18 @@ These identifiers are values of the query's `queryType` field.
 | Table | Query type | Contents |
 | --- | --- | --- |
 | Health by workload | `buildWorkloads` | Build count, success rate, median and 90th percentile duration. |
-| Failure reasons | `buildFailureReasons` | All failures and counts by failure category. |
+| Failure categories | `buildFailureReasons` | All failures and counts by failure category. |
 | Recent failed builds | `buildRecentFailures` | Latest 100 failures, with links to Tuist. |
 
 Recent failures include start time, duration, user, branch, and requested tasks. Failure categories are `verification`, `infrastructure_tooling`, and `unknown`.
 
 Workload summaries and branch/workload value lists return up to 1000 values. Build-health variable queries use the last 90 days; legacy Gradle variable queries keep their existing history window. Bazel shows the build user reported by the tool. Other integrations show the account associated with the reporting credential. Historical Bazel and Once runs, and Once runs reported with project credentials, appear as Unknown when no user was recorded.
 
-Tuist’s build tables also show failure categories. On the Build Runs page, use the Failure category column to sort runs, or the filter menu to show a category. Successful and cancelled builds have no failure category. For Gradle, the cache insights page includes an Estimated task time saved widget and chart in the Analytics card. Each build’s details show its recorded estimate. Hover over a failure category badge, or focus it with the keyboard, to see how Tuist classified the failure.
+Use the Failure category filter on Build Runs to find matching failures. The category and its explanation appear in build details alongside the recorded failure information; default overview and Build Runs tables keep their existing columns. Successful, cancelled and unfinished builds have no failure category. Gradle’s Cache Analytics card and build details show Cumulative task time saved; the tooltip explains the estimate and the effect of parallel tasks.
 
 ## Standard dashboard {#what-you-can-query}
 
-Import [the build-health dashboard](https://github.com/tuist/tuist/blob/main/grafana-datasource/src/dashboards/build-health.json), then select your data source and project. It includes build count, success rate, median and 90th percentile durations, the slow-build threshold, builds needing attention, reported cache savings, estimated cache work avoided for Gradle, and the three failure and workload tables. Add panels for other available metrics as needed.
+Import [the build-health dashboard](https://github.com/tuist/tuist/blob/main/grafana-datasource/src/dashboards/build-health.json), then select your data source and project. It includes build count, success rate, median and 90th percentile durations, the slow-build threshold, a neutral failed-or-slow build count, grouped cache savings and reporting coverage, and the three failure and workload tables. Add panels for other available metrics as needed. The automatic slow threshold is the selected period’s own 90th percentile; builds above it do not necessarily indicate a regression. Set a fixed threshold for duration-target alerts. Cache panels prioritize Gradle’s automatic cumulative task-time estimate beside its coverage, followed by explicitly reported elapsed savings beside their own coverage.
 
 ## Build systems {#build-systems}
 
@@ -101,7 +101,7 @@ Gradle configuration-phase failures, including errors in build scripts, are grou
 
 Explicit `tuist.failure_category` metadata overrides automatic classification. Otherwise, infrastructure evidence takes precedence over verification when both occur in a build. A failed arbitrary script is not assumed to be a compiler or test failure. Historical reports can use evidence that Tuist already stores, but new reporter fields do not backfill missing information. Automatic reporter metadata uses available space within the existing 20-entry custom metadata limit.
 
-The standard failure chart includes an `all` row. The legacy `gradleFailureReasons` query retains its original three category rows.
+The `buildFailureReasons` response retains its `all` row for compatibility. The standard dashboard filters that total out of the Failure categories chart and shows total failures separately. The legacy `gradleFailureReasons` query retains its original three category rows.
 
 ## Query options {#query-options}
 

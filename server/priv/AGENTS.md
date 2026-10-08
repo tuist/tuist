@@ -82,3 +82,5 @@ This directory contains database migrations and other private assets.
   after platform-aware server rollout. Its rollback requires macOS allocations
   disabled, jobs drained and macOS data/metadata reclaimed before recreating the
   legacy index. Do not roll back to pre-platform server images after enablement.
+
+- The Grafana guide distinguishes the neutral percentile-based failed-or-slow metric from explicit duration targets, documents paired cache savings/coverage, and points native failure classification to build details and category filters rather than default table columns.

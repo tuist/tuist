@@ -358,7 +358,6 @@ defmodule TuistWeb.OnceRunsLiveTest do
     assert table_headers(view) == [
              "Run",
              "Status",
-             "Failure category",
              "Branch",
              "Commit SHA",
              "Ran by",

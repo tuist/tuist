@@ -85,7 +85,7 @@ msgstr ""
 #: lib/tuist_web/components/runs/ran_by_badge.ex:42
 #: lib/tuist_web/components/runs/ran_by_badge.ex:63
 #: lib/tuist_web/components/runs/ran_by_badge.ex:90
-#: lib/tuist_web/live/once_runs_live.ex:920
+#: lib/tuist_web/live/once_runs_live.ex:908
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr ""
@@ -213,7 +213,7 @@ msgstr ""
 msgid "Next"
 msgstr ""
 
-#: lib/tuist_web/components/widget.ex:152
+#: lib/tuist_web/components/widget.ex:151
 #, elixir-autogen, elixir-format
 msgid "No data yet"
 msgstr ""

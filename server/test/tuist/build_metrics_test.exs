@@ -28,6 +28,39 @@ defmodule Tuist.BuildMetricsTest do
 
   defp listing("once", project, params), do: Analytics.list_invocations(project.id, params, failure_category: true)
 
+  test "detail categories match listing classifications and remain project scoped", %{start_at: start_at} do
+    for system <- ~w(gradle xcode bazel once) do
+      project = ProjectsFixtures.project_fixture(build_system: String.to_existing_atom(system))
+      other = ProjectsFixtures.project_fixture(build_system: String.to_existing_atom(system))
+
+      build(system, project, start_at,
+        status: "failure",
+        exit_status: 1,
+        exit_code: 1,
+        failed_test_cases: 1,
+        custom_values: %{"tuist.detected_failure_category" => "verification"}
+      )
+
+      build(system, project, DateTime.add(start_at, 1), status: "success", exit_status: 0)
+      {rows, _} = listing(system, project, %{filters: [%{field: :project_id, op: :==, value: project.id}], page_size: 10})
+      assert length(rows) == 2
+
+      for row <- rows do
+        id =
+          case system do
+            "bazel" -> row.invocation_id
+            "once" -> row.invocation_id
+            _ -> row.id
+          end
+
+        assert BuildMetrics.failure_category(project.id, system, id) ==
+                 if(row.failure_category == "", do: nil, else: row.failure_category)
+
+        assert BuildMetrics.failure_category(other.id, system, id) == nil
+      end
+    end
+  end
+
   test "native category sorting and filtering cover the full cohort before pagination", %{start_at: start_at} do
     for system <- ~w(gradle xcode bazel once) do
       project = ProjectsFixtures.project_fixture(build_system: String.to_existing_atom(system))

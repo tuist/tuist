@@ -76,6 +76,7 @@ defmodule TuistWeb.GradleBuildLive do
     socket
     |> assign(:cache_work_avoided, Tuist.BuildMetrics.cache_work_avoided(build))
     |> assign(:build, build)
+    |> assign(:failure_category, Tuist.BuildMetrics.failure_category(build.project_id, "gradle", build.id))
     |> assign(:test_run, test_run)
     |> assign(:build_started_at, build_started_at)
     |> assign(:from_cache, from_cache)

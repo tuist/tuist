@@ -914,12 +914,6 @@
             status="error"
           />
         </:col>
-        <:col :let={build} label={dgettext("dashboard_builds", "Failure category")}>
-          <TuistWeb.Components.BuildHealth.category_cell
-            category={build.failure_category}
-            id={"xcode_builds_live-#{build.id}"}
-          />
-        </:col>
         <:col :let={build} label={dgettext("dashboard_builds", "Xcode version")}>
           <.text_cell label={
             if(build.xcode_version == "",

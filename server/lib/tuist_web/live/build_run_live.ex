@@ -78,6 +78,7 @@ defmodule TuistWeb.BuildRunLive do
     socket =
       socket
       |> assign(:run, run)
+      |> assign(:failure_category, Tuist.BuildMetrics.failure_category(run.project_id, "xcode", run.id))
       |> assign(:timeline, AsyncResult.loading())
       |> assign(:timeline_version, 0)
       |> assign(:machine_metrics, run.machine_metrics)
@@ -245,6 +246,7 @@ defmodule TuistWeb.BuildRunLive do
       {:noreply,
        socket
        |> assign(:run, run)
+       |> assign(:failure_category, Tuist.BuildMetrics.failure_category(run.project_id, "xcode", run.id))
        |> assign(:machine_metrics, run.machine_metrics)
        |> assign_build_data(run)
        |> TuistWeb.BuildTimelineLoader.select_tab(socket.assigns.selected_tab, run)
@@ -544,6 +546,10 @@ defmodule TuistWeb.BuildRunLive do
     {:noreply,
      socket
      |> assign(:run, refreshed_run)
+     |> assign(
+       :failure_category,
+       Tuist.BuildMetrics.failure_category(refreshed_run.project_id, "xcode", refreshed_run.id)
+     )
      |> assign(:machine_metrics, refreshed_run.machine_metrics)
      |> assign_build_data(refreshed_run)
      |> TuistWeb.BuildTimelineLoader.select_tab(socket.assigns.selected_tab, refreshed_run)

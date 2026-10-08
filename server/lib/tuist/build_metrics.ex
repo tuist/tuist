@@ -180,6 +180,19 @@ defmodule Tuist.BuildMetrics do
     end
   end
 
+  def failure_category(project_id, build_system, build_id) do
+    {source, params} = source(project_id, build_system: build_system, view: "listing", build_id: build_id)
+    id = if build_system == "once", do: "id::text", else: "id"
+
+    sql =
+      "SELECT failure_category FROM (#{source}) AS builds WHERE status = 'failure' AND #{id} = {build_id:String} LIMIT 1"
+
+    case execute(sql, params) do
+      {:ok, %{rows: [[category]]}} -> category
+      {:ok, %{rows: []}} -> nil
+    end
+  end
+
   defp failure_category_sql(system, opts) do
     evidence = failure_evidence_sql(system, opts)
 
@@ -201,6 +214,7 @@ defmodule Tuist.BuildMetrics do
       """
       toString(id) IN (SELECT toString(gradle_build_id) FROM gradle_tasks
         WHERE project_id = {project_id:Int64} AND outcome = 'failed'
+          #{evidence_build_id(opts, "gradle_build_id")}
           AND gradle_build_id IN (SELECT id FROM gradle_builds WHERE project_id = {project_id:Int64} AND status = 'failure')
           #{evidence_period(opts)}
           AND match(task_type, '(^|[.])(Test|Checkstyle|Pmd|CodeNarc|AndroidLint[^.]*|Lint[^.]*|JavaCompile|GroovyCompile|ScalaCompile|KotlinCompile|KotlinJvmCompile|KotlinNativeCompile|SwiftCompile|CppCompile|CCompile|LinkExecutable|LinkSharedLibrary)(_Decorated)?$'))
@@ -217,6 +231,7 @@ defmodule Tuist.BuildMetrics do
       """
       toString(id) IN (SELECT toString(build_run_id) FROM build_issues
         WHERE type = 'error'
+          #{evidence_build_id(opts, "build_run_id")}
           AND step_type IN ('c_compilation', 'swift_compilation', 'swift_aggregated_compilation',
             'linker', 'compile_assets_catalog', 'compile_storyboard', 'xib_compilation',
             'precompile_bridging_header', 'merge_swift_module', 'link_storyboards')
@@ -230,6 +245,10 @@ defmodule Tuist.BuildMetrics do
   end
 
   defp failure_evidence_sql("bazel", _opts), do: "command IN ('test', 'coverage') AND exit_code = 3"
+
+  defp evidence_build_id(opts, field) do
+    if Keyword.has_key?(opts, :build_id), do: "AND toString(#{field}) = {build_id:String}", else: ""
+  end
 
   defp evidence_period(opts) do
     if Keyword.get(opts, :view) == "listing",

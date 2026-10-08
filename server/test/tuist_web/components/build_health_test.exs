@@ -32,6 +32,8 @@ defmodule TuistWeb.Components.BuildHealthTest do
       )
 
     refute zero =~ "Not reported"
+    assert zero =~ "Cumulative task time saved"
+    refute zero =~ "value-caption"
     assert zero =~ "0ms"
     assert zero =~ "not elapsed build time saved"
   end
@@ -48,7 +50,7 @@ defmodule TuistWeb.Components.BuildHealthTest do
     assert html =~ "gradle-task-time-saved-chart"
     options = html |> Floki.parse_fragment!() |> Floki.find("[data-part=data]") |> Floki.text() |> JSON.decode!()
     assert Enum.map(hd(options["series"])["data"], &List.last/1) == [nil, 0]
-    assert html =~ "Estimated task time saved"
+    assert html =~ "Cumulative task time saved"
     refute html =~ "No task time estimates reported"
 
     missing =
@@ -58,12 +60,17 @@ defmodule TuistWeb.Components.BuildHealthTest do
     refute missing =~ "gradle-task-time-saved-chart"
   end
 
-  test "failure category badges explain the classification and are keyboard focusable" do
+  test "failure details show classification and explanation without a hover interaction" do
     for category <- ["verification", "infrastructure_tooling", "unknown"] do
-      html = render_component(&BuildHealth.category_cell/1, category: category, id: "build-123")
-      assert html =~ "build-123-failure-category"
-      assert html =~ "tabindex=\"0\""
+      html = render_component(&BuildHealth.category_detail/1, category: category)
+      assert html =~ "tuist-failure-classification"
       assert html =~ "recorded build data"
+      assert html =~ BuildHealth.category_label(category)
+      refute html =~ "noora-tooltip"
+    end
+
+    for category <- [nil, ""] do
+      refute render_component(&BuildHealth.category_detail/1, category: category) =~ "Failure category"
     end
   end
 

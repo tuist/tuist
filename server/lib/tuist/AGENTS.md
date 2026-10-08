@@ -164,3 +164,5 @@ Generic build-health dimension lists read the last 90 days and cap output at 100
 - Build metrics also power native build-health cards. Source-specific overview dimensions are bound in `BuildMetrics` before aggregation; estimates use the same bounded metadata validation in native build details and Grafana.
 
 - Native build listings opt into the virtual failure-category column from `BuildMetrics`. Use the shared classifier before database filtering, sorting and pagination, scope evidence to the selected project, and leave stored records and legacy listing defaults unchanged.
+
+- BuildMetrics.failure_category looks up one failed build in the authorized project using the same classifier as listing filters and Grafana. Detail evidence reads restrict Gradle tasks and Xcode issues to the requested build identifier. Nonfailed and missing records have no detail category.

@@ -100,17 +100,6 @@
               status="warning"
             />
           </:col>
-          <:col
-            :let={build_run}
-            label={dgettext("dashboard_builds", "Failure category")}
-            patch={TuistWeb.XcodeBuildRunsLive.column_patch_sort(assigns, "failure-category")}
-            sort_order={@build_runs_sort_by == "failure-category" && @build_runs_sort_order}
-          >
-            <TuistWeb.Components.BuildHealth.category_cell
-              category={build_run.failure_category}
-              id={"xcode_build_runs_live-#{build_run.id}"}
-            />
-          </:col>
           <:col :let={build_run} label={dgettext("dashboard_builds", "Branch")}>
             <.text_cell
               icon="git_branch"

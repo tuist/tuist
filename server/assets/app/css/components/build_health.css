@@ -1,0 +1,16 @@
+.tuist-failure-classification {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--noora-spacing-4);
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+  & [data-part="heading"] {
+    font-weight: var(--noora-font-weight-medium);
+  }
+
+  & p {
+    margin: 0;
+  }
+}

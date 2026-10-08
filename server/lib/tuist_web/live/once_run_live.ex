@@ -38,6 +38,7 @@ defmodule TuistWeb.OnceRunLive do
         {:ok,
          assign(socket,
            run: run,
+           failure_category: Tuist.BuildMetrics.failure_category(project.id, "once", run.run_id),
            available_filters: define_filters(),
            cache: OnceEvents.cache_summary(run),
            # Filled by `load_cache/1` when the Cache tab is the one shown.
@@ -180,6 +181,10 @@ defmodule TuistWeb.OnceRunLive do
     {:noreply,
      socket
      |> assign(:run, run || socket.assigns.run)
+     |> assign(
+       :failure_category,
+       Tuist.BuildMetrics.failure_category(socket.assigns.selected_project.id, "once", socket.assigns.run.run_id)
+     )
      |> assign(:refresh_scheduled?, false)
      |> load_tab()}
   end
@@ -364,6 +369,7 @@ defmodule TuistWeb.OnceRunLive do
                 </div>
               </div>
             </div>
+            <TuistWeb.Components.BuildHealth.category_detail category={@failure_category} />
           </.card_section>
         </.card>
 

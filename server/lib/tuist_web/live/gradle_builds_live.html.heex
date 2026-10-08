@@ -725,12 +725,6 @@
             status="warning"
           />
         </:col>
-        <:col :let={build} label={dgettext("dashboard_builds", "Failure category")}>
-          <TuistWeb.Components.BuildHealth.category_cell
-            category={build.failure_category}
-            id={"gradle_builds_live-#{build.id}"}
-          />
-        </:col>
         <:col :let={build} label={dgettext("dashboard_gradle", "Built by")}>
           <.gradle_build_ran_by_badge_cell build={build} />
         </:col>

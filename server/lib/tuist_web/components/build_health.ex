@@ -15,9 +15,8 @@ defmodule TuistWeb.Components.BuildHealth do
     ~H"""
     <.widget
       id="cache-work-avoided"
-      title={dgettext("dashboard_gradle", "Estimated task time saved")}
+      title={dgettext("dashboard_gradle", "Cumulative task time saved")}
       legend_color="p90"
-      value_caption={dgettext("dashboard_gradle", "Cumulative task time")}
       description={
         dgettext(
           "dashboard_gradle",
@@ -79,7 +78,7 @@ defmodule TuistWeb.Components.BuildHealth do
           }
           series={[
             %{
-              name: dgettext("dashboard_gradle", "Estimated task time saved"),
+              name: dgettext("dashboard_gradle", "Cumulative task time saved"),
               data:
                 Enum.zip_with(
                   @health.result.dates,
@@ -122,28 +121,18 @@ defmodule TuistWeb.Components.BuildHealth do
     """
   end
 
-  attr :category, :string, required: true
-  attr :id, :string, required: true
+  attr :category, :string, default: nil
 
-  def category_cell(assigns) do
+  def category_detail(assigns) do
     ~H"""
-    <.tooltip
+    <div
       :if={@category in ["verification", "infrastructure_tooling", "unknown"]}
-      id={@id <> "-failure-category"}
-      size="large"
-      title={dgettext("dashboard_builds", "Failure category")}
-      description={category_description(@category)}
+      class="tuist-failure-classification"
     >
-      <:trigger :let={attrs}>
-        <span {attrs} tabindex="0">
-          <.badge_cell label={category_label(@category)} color="neutral" style="light-fill" />
-        </span>
-      </:trigger>
-    </.tooltip>
-    <.text_cell
-      :if={@category not in ["verification", "infrastructure_tooling", "unknown"]}
-      label="—"
-    />
+      <span data-part="heading">{dgettext("dashboard_builds", "Failure category")}</span>
+      <.badge label={category_label(@category)} color="neutral" style="light-fill" />
+      <p>{category_description(@category)}</p>
+    </div>
     """
   end
 

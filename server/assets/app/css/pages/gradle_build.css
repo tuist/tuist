@@ -4,11 +4,6 @@
   gap: var(--noora-spacing-6);
   padding: var(--noora-spacing-7) var(--noora-spacing-5);
 
-  & [data-part="value-caption"] {
-    color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-  }
-
   & [data-part="custom-metadata-section"] > [data-part="custom-metadata-label"] {
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
