@@ -165,8 +165,6 @@ defmodule Tuist.Tests.Coverage.Reported do
       project: project,
       repository_id: repository_id,
       sha: sha,
-      # Read once: carrying and explaining the gaps both walk the ancestors' runs.
-      ancestry: if(repository_id in [nil, 0], do: [], else: ancestry || ancestor_runs(project.id, repository_id, sha)),
       run_ids: run_ids,
       hits: hits,
       observed: observed,
@@ -174,7 +172,15 @@ defmodule Tuist.Tests.Coverage.Reported do
       excluded: ExcludedPaths.compile(excluded)
     }
 
-    {carried_tests, carried_lines, sources, reasons} = carried(context, skipped)
+    {context, {carried_tests, carried_lines, sources, reasons}} =
+      if changes_tracked_files?(context) do
+        {Map.put(context, :ancestry, []), {[], %{}, %{}, Map.new(skipped, &{&1.test_case_id, :tracked_file_changed})}}
+      else
+        # Read once: carrying and explaining the gaps both walk the ancestors' runs.
+        ancestry = if(repository_id in [nil, 0], do: [], else: ancestry || ancestor_runs(project.id, repository_id, sha))
+        context = Map.put(context, :ancestry, ancestry)
+        {context, carried(context, skipped)}
+      end
 
     {files, gap_files, file_reasons} =
       observed
@@ -191,6 +197,23 @@ defmodule Tuist.Tests.Coverage.Reported do
     files
     |> result(kind, skipped, carried_tests, {gap_files, test_reasons ++ file_reasons}, shas)
     |> Map.put(:carried_lines, carried_lines)
+  end
+
+  # A commit that changes a tracked file itself carries nothing: every
+  # ancestor's evidence predates the change, so it is decided before any of
+  # it is read. Only an ancestor from before a change this commit undoes
+  # would still qualify, which is not worth carrying for. Without either
+  # listing, each source is checked as usual.
+  defp changes_tracked_files?(%{repository_id: repository_id}) when repository_id in [nil, 0], do: false
+
+  defp changes_tracked_files?(context) do
+    with now when now != :unknown <- tracked(context, context.sha),
+         parent when is_binary(parent) <- GitHistory.first_parent(context.repository_id, context.sha),
+         before when before != :unknown <- tracked(context, parent) do
+      before != now
+    else
+      _ -> false
+    end
   end
 
   # Why each skipped test that was not carried is a gap: the check its

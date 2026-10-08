@@ -1005,6 +1005,62 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{kind: "reported", carried_tests_count: 1} = Reported.compute(project, "head")
   end
 
+  test "a commit that changes a tracked file carries nothing without reading any evidence", %{
+    project: project,
+    account: account
+  } do
+    track_default_files()
+
+    # The head undoes the base's change, so the root's evidence would match
+    # it again; it is not carried for.
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("root", [], -1),
+      CoverageFixtures.commit("base", ["root"], 0)
+    ])
+
+    base_run(project, account, sha: "root")
+    head_run(project, account, head_files())
+
+    repository_id = CoverageFixtures.repository_id(account)
+    listing = fn blob -> [%{path: "Package.resolved", git_blob_id: blob, mode: 0o100644}] end
+    GitHistory.record_listing(repository_id, "root", listing.("one"), files_count: 1)
+    GitHistory.record_listing(repository_id, "base", listing.("two"), files_count: 1)
+    GitHistory.record_listing(repository_id, "head", listing.("one"), files_count: 1)
+
+    test_pid = self()
+
+    stub(GitHistory, :ancestors, fn repository_id, sha ->
+      send(test_pid, :window_walk)
+      call_original(GitHistory, :ancestors, [repository_id, sha])
+    end)
+
+    assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:tracked_file_changed]
+    refute_received :window_walk
+  end
+
+  test "without the first parent's listing, each source is checked for changed tracked files", %{
+    project: project,
+    account: account
+  } do
+    track_default_files()
+
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("root", [], -1),
+      CoverageFixtures.commit("base", ["root"], 0)
+    ])
+
+    base_run(project, account, sha: "root")
+    head_run(project, account, head_files())
+
+    repository_id = CoverageFixtures.repository_id(account)
+    listing = [%{path: "Package.resolved", git_blob_id: "one", mode: 0o100644}]
+    GitHistory.record_listing(repository_id, "root", listing, files_count: 1)
+    GitHistory.record_listing(repository_id, "head", listing, files_count: 1)
+
+    assert %{kind: "reported", carried_tests_count: 1, carried_from: ["root"]} = Reported.compute(project, "head")
+  end
+
   test "without the head's listing, whether a tracked file changed is unknown and nothing is carried", %{
     project: project,
     account: account
