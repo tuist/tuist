@@ -8,6 +8,7 @@ defmodule TuistWeb.OnceRunLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Helpers.VCSLinks, only: [source_file_link: 1]
   import TuistWeb.Widget
 
   alias Noora.Filter
@@ -19,7 +20,7 @@ defmodule TuistWeb.OnceRunLive do
   @refresh_interval_ms 1_000
 
   def mount(%{"once_run_id" => run_id}, _session, socket) do
-    project = socket.assigns.selected_project
+    project = Tuist.Repo.preload(socket.assigns.selected_project, vcs_connection: :github_app_installation)
 
     case OnceEvents.get_run(project.id, run_id) do
       nil ->
@@ -37,6 +38,7 @@ defmodule TuistWeb.OnceRunLive do
 
         {:ok,
          assign(socket,
+           selected_project: project,
            run: run,
            available_filters: define_filters(),
            cache: OnceEvents.cache_summary(run),
@@ -262,6 +264,7 @@ defmodule TuistWeb.OnceRunLive do
       </.tab_menu_horizontal>
       <.once_cache_tab
         :if={@live_action == :cache}
+        project={@selected_project}
         run={@run}
         cache={@cache}
         cache_detail_metrics={@cache_detail_metrics}
@@ -379,7 +382,7 @@ defmodule TuistWeb.OnceRunLive do
                   type="search"
                   id="once-actions-search"
                   name="search"
-                  placeholder={dgettext("dashboard_projects", "Search actions or targets...")}
+                  placeholder={dgettext("dashboard_projects", "Search actions, targets or files...")}
                   show_suffix={false}
                   value={@search}
                   phx-debounce="200"
@@ -406,6 +409,17 @@ defmodule TuistWeb.OnceRunLive do
                   <.text_and_description_cell
                     label={action_label(action)}
                     description={action.target_execution_id}
+                  />
+                </:col>
+                <:col
+                  :let={action}
+                  :if={Enum.any?(@actions, &(&1.source_files != []))}
+                  label={dgettext("dashboard_projects", "Source files")}
+                >
+                  <.action_source_files
+                    files={action.source_files}
+                    project={@selected_project}
+                    run={@run}
                   />
                 </:col>
                 <:col
@@ -486,6 +500,7 @@ defmodule TuistWeb.OnceRunLive do
     """
   end
 
+  attr :project, :map, required: true
   attr :run, :map, required: true
   attr :cache, :map, required: true
   attr :cache_detail_metrics, :map, required: true
@@ -789,6 +804,16 @@ defmodule TuistWeb.OnceRunLive do
             </:col>
             <:col
               :let={event}
+              :if={
+                @selected_cache_view == "actions" and
+                  Enum.any?(@cache_events, &(&1.source_files != []))
+              }
+              label={dgettext("dashboard_projects", "Source files")}
+            >
+              <.action_source_files files={event.source_files} project={@project} run={@run} />
+            </:col>
+            <:col
+              :let={event}
               :if={@selected_cache_view == "content-objects"}
               label={dgettext("dashboard_projects", "Key")}
             >
@@ -875,6 +900,8 @@ defmodule TuistWeb.OnceRunLive do
     query = URI.encode_query(%{"cache_view" => view, "cache_search" => search})
     path <> "/cache?" <> query
   end
+
+  defp event_action_label(%{action_display_name: name}) when is_binary(name) and name != "", do: name
 
   defp event_action_label(%{action_identifier: identifier}) when is_binary(identifier) and identifier != "" do
     action_mnemonic(identifier)
@@ -1268,6 +1295,36 @@ defmodule TuistWeb.OnceRunLive do
   defp action_status_variant(%{result: "failed"}), do: "error"
   defp action_status_variant(_), do: "in_progress"
 
+  attr :files, :list, required: true
+  attr :project, :map, required: true
+  attr :run, :map, required: true
+
+  defp action_source_files(assigns) do
+    assigns =
+      assigns
+      |> assign(:preview, Enum.take(assigns.files, 3))
+      |> assign(:remaining_count, max(length(assigns.files) - 3, 0))
+
+    ~H"""
+    <div data-part="cell" data-type="text" data-source-files>
+      <span :if={@preview == []} data-part="label">—</span>
+      <span :for={file <- @preview} data-part="label" title={file}>
+        <.source_file_link project={@project} path={file} commit_sha={@run.git_rev} />
+      </span>
+      <span :if={@remaining_count > 0} data-part="sublabel">
+        {dngettext(
+          "dashboard_projects",
+          "%{display_count} more file",
+          "%{display_count} more files",
+          @remaining_count,
+          display_count: format_number(@remaining_count)
+        )}
+      </span>
+    </div>
+    """
+  end
+
+  defp action_label(%{display_name: name}) when is_binary(name) and name != "", do: name
   defp action_label(%{identifier: identifier}) when is_binary(identifier) and identifier != "", do: identifier
 
   defp action_label(%{action_index: index}) do
