@@ -42,7 +42,7 @@ defmodule TuistWeb.API.Schemas.Project do
       build_system: %Schema{
         type: :string,
         description:
-          "The build system used by the project, such as xcode, gradle, bazel, or once. New values can be added without notice, so clients must accept values they don't recognize.",
+          "The build system used by the project, such as xcode, gradle, bazel, once, or mix. New values can be added without notice, so clients must accept values they don't recognize.",
         example: "xcode"
       }
     }
