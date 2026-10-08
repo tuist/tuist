@@ -51,8 +51,8 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether Xcode code coverage is ingested, processed and shown for the given
-  account. Canary and production require an explicit `:xcode_coverage`
+  Whether code coverage (Xcode's and Mix's) is ingested, processed and shown
+  for the given account. Canary and production require an explicit `:xcode_coverage`
   FunWithFlags toggle for the account while the feature is in early access, so
   its data model and API can still change. Development, test, and staging
   default to enabled.

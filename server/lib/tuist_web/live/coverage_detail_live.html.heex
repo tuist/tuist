@@ -62,7 +62,7 @@
     <.tab_menu_horizontal_item
       :for={tab <- tabs(@subject)}
       selected={@tab == tab}
-      label={tab_label(tab)}
+      label={tab_label(@selected_project, tab)}
       patch={
         "?#{@uri.query |> Query.put("tab", tab) |> Query.drop("page") |> Query.drop("after") |> Query.drop("before")}"
       }
@@ -140,7 +140,7 @@
     <%!-- Targets --%>
     <.card
       :if={@tab == "targets"}
-      title={dgettext("dashboard_tests", "Targets")}
+      title={coverage_targets_label(@selected_project)}
       icon="stack_2"
       data-part="targets-card"
     >
@@ -166,14 +166,14 @@
             id="coverage-targets-sort-by"
             data-positioning-strategy="fixed"
             label={
-              Enum.find_value(target_sorts(), fn {value, label} ->
+              Enum.find_value(target_sorts(@selected_project), fn {value, label} ->
                 if value == @targets_sort_by, do: label
               end)
             }
             secondary_text={dgettext("dashboard_tests", "Sort by:")}
           >
             <.dropdown_item
-              :for={{value, label} <- target_sorts()}
+              :for={{value, label} <- target_sorts(@selected_project)}
               value={value}
               label={label}
               patch={
@@ -199,7 +199,7 @@
           <.table id="coverage-targets-table" rows={@target_rows}>
             <:col
               :let={target}
-              label={dgettext("dashboard_tests", "Target")}
+              label={coverage_target_label(@selected_project)}
               patch={@targets_sort_by == "name" && targets_sort_patch(assigns, "name")}
               sort_order={@targets_sort_by == "name" && @targets_sort_order}
             >

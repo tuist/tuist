@@ -22,6 +22,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   use GenServer
 
   alias TuistEx.Analytics.Contract
+  alias TuistEx.Analytics.Coverage
   alias TuistEx.Analytics.Env
   alias TuistEx.Analytics.HTTP
   alias TuistEx.Analytics.Isolated
@@ -88,7 +89,11 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
           File.write!(path, :erlang.term_to_binary(read_collected(path) ++ tests))
 
         {:defer, owner} ->
-          payload = build_payload(tests, duration_ms, state.ran_at, state.opts)
+          payload =
+            tests
+            |> build_payload(duration_ms, state.ran_at, state.opts)
+            |> put_coverage_snapshot(state.opts)
+
           send(owner, {@deferred, {payload, state.opts, state.aborted?}})
 
         :submit ->
@@ -105,6 +110,19 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   end
 
   def handle_cast(_message, state), do: {:noreply, state}
+
+  # Every test has run by now, and `cover` still holds this suite's counters:
+  # Mix turns them into its own report, and an umbrella restarts `cover` for
+  # its next application, only after the formatters are done. The owner turns
+  # the snapshot into the run's coverage before sending it.
+  defp put_coverage_snapshot(payload, opts) do
+    with true <- Keyword.get(opts, :coverage, false),
+         snapshot when is_list(snapshot) <- Coverage.snapshot() do
+      Map.put(payload, :coverage_snapshot, snapshot)
+    else
+      _ -> payload
+    end
+  end
 
   @doc """
   Sends a test run. A failure is reported through the shell and never raised.
