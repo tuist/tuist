@@ -29,29 +29,8 @@ defmodule Tuist.OnceEvents.Projector do
   outcome (including a benign skip); the transport signals REJECTED_INVALID
   when it cannot even parse the frame.
   """
-  def project(%RunEvent{payload: {:run_started, %RunStarted{} = started}} = ev, project_id, run_id) do
-    OnceEvents.upsert_run(%{
-      run_id: run_id,
-      project_id: project_id,
-      once_version: started.once_version,
-      protocol_version: started.protocol_version,
-      host_class: started.host_class,
-      is_ci: started.is_ci,
-      git_rev: started.git_rev,
-      git_branch: started.git_branch,
-      git_dirty: started.git_dirty,
-      argv_normalized: argv_to_map(started.argv_normalized),
-      argv_hash_key_id: started.argv_hash_key_id,
-      safe_literal_allowlist_version: started.safe_literal_allowlist_version,
-      cwd_relative: started.cwd_relative,
-      env_fingerprint: started.env_fingerprint,
-      command_display: render_argv(started.argv_normalized),
-      kind: infer_kind(started),
-      started_at: from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
-    })
-
-    :ok
-  end
+  def project(%RunEvent{payload: {:run_started, %RunStarted{}}} = event, project_id, run_id),
+    do: project(event, project_id, run_id, nil)
 
   def project(%RunEvent{payload: {:action_completed, %ActionCompleted{} = action}} = ev, project_id, run_id) do
     with %{} = run <- OnceEvents.get_run(project_id, run_id) do
@@ -214,6 +193,33 @@ defmodule Tuist.OnceEvents.Projector do
   end
 
   def project(_other, _project_id, _run_id), do: :ok
+
+  def project(%RunEvent{payload: {:run_started, %RunStarted{} = started}} = ev, project_id, run_id, account_id) do
+    OnceEvents.upsert_run(%{
+      run_id: run_id,
+      project_id: project_id,
+      account_id: account_id,
+      once_version: started.once_version,
+      protocol_version: started.protocol_version,
+      host_class: started.host_class,
+      is_ci: started.is_ci,
+      git_rev: started.git_rev,
+      git_branch: started.git_branch,
+      git_dirty: started.git_dirty,
+      argv_normalized: argv_to_map(started.argv_normalized),
+      argv_hash_key_id: started.argv_hash_key_id,
+      safe_literal_allowlist_version: started.safe_literal_allowlist_version,
+      cwd_relative: started.cwd_relative,
+      env_fingerprint: started.env_fingerprint,
+      command_display: render_argv(started.argv_normalized),
+      kind: infer_kind(started),
+      started_at: from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
+    })
+
+    :ok
+  end
+
+  def project(event, project_id, run_id, _account_id), do: project(event, project_id, run_id)
 
   defp action_attrs(%ActionCompleted{} = action, %RunEvent{} = ev) do
     %{

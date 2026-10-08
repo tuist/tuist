@@ -264,7 +264,7 @@ jobs:
       - name: Prefetch CLDR locale data
         run: mise/tasks/cldr/prefetch-locale-data.sh
       - name: Authenticate with Tuist
-        run: mix 'do' deps.compile tuist_ex + tuist.login
+        run: mix tuist.login
       - name: Build and plan current ClickHouse shards
         id: current
         run: |

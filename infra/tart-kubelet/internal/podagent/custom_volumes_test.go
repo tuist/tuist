@@ -165,6 +165,32 @@ func TestCustomAdmissionGuardHonorsCancellation(t *testing.T) {
 	}
 }
 
+func TestCustomColdAdmissionBesideBuiltinOnM2(t *testing.T) {
+	m, be := m2L(t)
+	be.perMaster = 29 * gib
+	seedMaster(t, m, "3")
+	m.reserved = map[string]bool{"running-builtin": true}
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
+	slot := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111"}}
+	finish, err := c.reserve(context.Background(), slot)
+	if err != nil {
+		t.Fatalf("20 GB cold volume fits beside a 30 GiB builtin reservation and 29 GiB master: %v", err)
+	}
+	if got := c.reservedBytes(); got != customCapacity {
+		t.Fatalf("cold creation reserved %d bytes", got)
+	}
+	other := slot
+	other.ID = "22222222-2222-4222-8222-222222222222"
+	if _, err := c.reserve(context.Background(), other); !errors.Is(err, cachevolumes.ErrCapacity) {
+		t.Fatalf("concurrent allocation ignored reservation: %v", err)
+	}
+	finish(false)
+	slot.BaseGeneration = 1
+	if _, err := c.reserve(context.Background(), slot); !errors.Is(err, cachevolumes.ErrCapacity) {
+		t.Fatalf("restore ignored archive headroom: %v", err)
+	}
+}
+
 func TestConvergenceReservesSpaceBesideCustomVolumes(t *testing.T) {
 	m, _ := m2L(t)
 	m.CustomReserved = func() uint64 { return 40 * gib }
@@ -462,7 +488,7 @@ func TestCustomReservationRefreshPreservesConcurrentAdmission(t *testing.T) {
 	if err := <-finished; err != nil {
 		t.Fatal(err)
 	}
-	if got := c.reservedBytes(); got != 2*customCapacity {
+	if got := c.reservedBytes(); got != customCapacity {
 		t.Fatal("lost in-flight reservation", got)
 	}
 	releaseReservation(false)

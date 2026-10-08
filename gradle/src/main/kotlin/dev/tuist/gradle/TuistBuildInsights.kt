@@ -182,6 +182,14 @@ abstract class TuistBuildInsightsService :
     override fun finished(buildOperation: BuildOperationDescriptor, finishEvent: OperationFinishEvent) {
         try {
             executionTelemetry.finished(buildOperation, finishEvent)
+        } catch (error: LinkageError) {
+            executionTelemetry.cacheSavings.markIncomplete()
+            logger.debug("Tuist: Task telemetry is unavailable on this Gradle version", error)
+        } catch (error: Exception) {
+            executionTelemetry.cacheSavings.markIncomplete()
+            logger.debug("Tuist: Could not capture task telemetry", error)
+        }
+        try {
             recordConfigurationOperation(buildOperation.details, finishEvent)
             recordConfigurationCacheMetadata(finishEvent.result, finishEvent)
             recordArtifactTransform(buildOperation.details, finishEvent)
@@ -336,7 +344,7 @@ abstract class TuistBuildInsightsService :
         val report = buildReport(
             id = buildId,
             taskOutcomes = tasks,
-            buildFailed = false,
+            buildFailed = executionTelemetry.failures.buildFailed,
             totalDurationMs = totalDurationMs,
             startedAt = formatTimestamp(reportStartedAt),
             gradleVersion = parameters.gradleVersion.orNull,
@@ -344,10 +352,10 @@ abstract class TuistBuildInsightsService :
             requestedTasks = executionTelemetry.requestedTasks.ifEmpty { parameters.requestedTasks.getOrElse(emptyList()) }.toList(),
             ciDetector = ciDetector,
             gitInfoProvider = reportGitInfoProvider(),
-            customMetadata = buildCustomMetadata(
+            customMetadata = executionTelemetry.cacheSavings.metadata(executionTelemetry.failures.metadata(buildCustomMetadata(
                 configuredTags = parameters.customTags.get(),
                 configuredValues = parameters.customValues.get()
-            ),
+            ))),
             machineMetrics = machineMetrics,
             configurationCache = configurationCacheReport(),
             configurationOperations = configuration,

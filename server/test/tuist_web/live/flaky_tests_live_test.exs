@@ -89,6 +89,69 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       refute has_element?(lv, "#flaky-tests-table", "testSecondFlaky")
     end
 
+    for field <- [:suite_name, :module_name],
+        {operator, value, expected_names} <- [
+          {"==", "CoordinatorTests", ["testExact"]},
+          {"=~", "coordinator", ["testExact", "testExtended"]},
+          {"!=~", "coordinator", ["testOther"]}
+        ] do
+      @field field
+      @operator operator
+      @value value
+      @expected_names expected_names
+
+      test "filters #{@field} with #{@operator}", %{
+        conn: conn,
+        organization: organization,
+        project: project
+      } do
+        for {name, value} <- [
+              {"testExact", "CoordinatorTests"},
+              {"testExtended", "CoordinatorTestsExtended"},
+              {"testOther", "OtherTests"}
+            ] do
+          create_flaky_test_case(project, name, [{@field, value}])
+        end
+
+        RunsFixtures.optimize_test_case_runs()
+
+        query =
+          URI.encode_query(%{
+            "filter_#{@field}_op" => @operator,
+            "filter_#{@field}_val" => @value
+          })
+
+        {:ok, lv, _html} =
+          live(conn, "/#{organization.account.name}/#{project.name}/tests/flaky-tests?#{query}")
+
+        for name <- ["testExact", "testExtended", "testOther"] do
+          assert has_element?(lv, "#flaky-tests-table", name) == name in @expected_names
+        end
+      end
+    end
+
+    for field <- [:suite_name, :module_name] do
+      @field field
+
+      test "searches by #{@field} through the search box", %{
+        conn: conn,
+        organization: organization,
+        project: project
+      } do
+        create_flaky_test_case(project, "testMatching", [{@field, "BackendViewsCoordinatorTests"}])
+        create_flaky_test_case(project, "testOther", [{@field, "LaunchRedirectCoordinatorTests"}])
+        RunsFixtures.optimize_test_case_runs()
+
+        {:ok, lv, _html} =
+          live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
+
+        render_change(lv, "search-flaky-tests", %{"search" => "backendviewscoordinator"})
+
+        assert has_element?(lv, "#flaky-tests-table", "testMatching")
+        refute has_element?(lv, "#flaky-tests-table", "testOther")
+      end
+    end
+
     test "supports sorting via URL params", %{
       conn: conn,
       organization: organization,
@@ -194,7 +257,13 @@ defmodule TuistWeb.FlakyTestsLiveTest do
   end
 
   defp create_flaky_test_case(project, name, opts) do
-    test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: name, is_flaky: true)
+    test_case =
+      RunsFixtures.test_case_fixture(
+        Keyword.merge(
+          [project_id: project.id, name: name, is_flaky: true],
+          Keyword.take(opts, [:suite_name, :module_name])
+        )
+      )
 
     IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 

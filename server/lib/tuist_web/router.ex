@@ -871,6 +871,8 @@ defmodule TuistWeb.Router do
           get "/", BuildsController, :index
 
           scope "/metrics" do
+            get "/health", MetricsController, :build_health
+            get "/health/dimensions/:dimension/values", MetricsController, :build_health_dimension_values
             get "/duration", MetricsController, :build_duration
             get "/dimensions/:dimension/values", MetricsController, :build_dimension_values
           end
@@ -902,6 +904,8 @@ defmodule TuistWeb.Router do
         end
 
         scope "/gradle" do
+          get "/builds/metrics", MetricsController, :gradle_metrics
+          get "/builds/metrics/dimensions/:dimension/values", MetricsController, :gradle_dimension_values
           post "/builds", GradleController, :create_build
           get "/builds", GradleController, :list_builds
           get "/builds/:build_id", GradleController, :get_build
@@ -1375,6 +1379,8 @@ defmodule TuistWeb.Router do
     get "/runners/runs/:workflow_run_id/jobs/:workflow_job_id/logs/download",
         RunnerJobLogsController,
         :download
+
+    get "/runners/by-runner/:runner_name", RunnerJobRedirectController, :show
 
     live_session :public_account,
       layout: {TuistWeb.Layouts, :account},

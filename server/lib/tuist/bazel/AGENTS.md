@@ -76,3 +76,5 @@ does not expose a second Build Event Service listener.
 - Native resource counters use explicit Bazel series keys (`system cpu`, `system memory`, and `system network up/down (Mbps)`); ignore additional metadata keys and unknown series. Count targets by project and target, consistent with the other timeline sources.
 
 - Timeline availability follows the published profile version and existing step rows or genuine machine samples, and requires a published profile. Retained BEP summaries remain available to API/MCP clients but never expose a dashboard Timeline by themselves. Staging states alone never imply timeline availability. The processor requires write access to `bazel_profile_uploads` in both release-time grants and the CNPG fallback SQL; exercise profile success and rejection with the deployed restricted role.
+
+- Native build listings opt into the virtual failure-category column from `BuildMetrics`. Use the shared classifier before database filtering, sorting and pagination, scope evidence to the selected project, and leave stored records and legacy listing defaults unchanged.

@@ -50,9 +50,13 @@ defmodule TuistWeb.GradleCacheLive do
       |> assign(:has_builds?, has_builds?)
       |> assign(:current_params, params)
       |> assign_analytics(params)
+      |> assign_cache_savings(has_builds?)
       |> assign_recent_builds(params)
     }
   end
+
+  defp assign_cache_savings(socket, true), do: TuistWeb.BuildHealth.assign_health(socket, :cache)
+  defp assign_cache_savings(socket, false), do: assign(socket, :build_health, nil)
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
@@ -64,7 +68,7 @@ defmodule TuistWeb.GradleCacheLive do
       |> assign(:uri, uri)
       |> push_event("replace-url", %{url: "?" <> query})
 
-    if socket.assigns.hit_rate_analytics.ok? do
+    if widget != "cache_work_avoided" && socket.assigns.hit_rate_analytics.ok? do
       chart_data =
         analytics_chart_data(
           widget,

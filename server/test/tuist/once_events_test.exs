@@ -428,6 +428,25 @@ defmodule Tuist.OnceEventsTest do
       assert ack.dashboard_url =~ "/#{project.account.name}/#{project.name}/once/runs/"
     end
 
+    test "a new run records its authenticated actor and replay cannot replace it", %{
+      project: project,
+      member: member,
+      handle: handle
+    } do
+      run_id = UUIDv7.generate()
+
+      event = %RunEvent{
+        epoch_ms: System.system_time(:millisecond),
+        payload: {:run_started, %RunStarted{once_version: "0.60.0"}}
+      }
+
+      batch = %RunEventBatch{run_id: run_id, batch_id: "actor", seq_from: 1, events: [event]}
+      RunEventService.publish_run_events([batch], user_stream(member, %{"once-project-id" => handle}))
+      assert OnceEvents.get_run(project.id, run_id).account_id == member.account.id
+      Projector.project(event, project.id, run_id, nil)
+      assert OnceEvents.get_run(project.id, run_id).account_id == member.account.id
+    end
+
     test "publishing without naming a project is rejected", %{member: member, run: run} do
       error =
         assert_raise GRPC.RPCError, fn ->
