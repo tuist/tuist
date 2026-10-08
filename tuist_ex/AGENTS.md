@@ -55,7 +55,12 @@ first compiler in the list has no known start and is not reported.
 monitor and network and disk throughput (bytes per second) from the
 machine-wide counters in `IOCounters`: `/proc` on Linux, `netstat` and `ioreg`
 on macOS, since Erlang has no direct binding for those. Always pass `-n` to
-`netstat`; without it the command resolves names and can take seconds. It shares the Tuist credential
+`netstat`; without it the command resolves names and can take seconds.
+While Mix compiles dependencies it prunes the OTP code paths, even for
+applications that are already running, and `Application.ensure_all_started/1`
+does not restore them. Put every OTP application used from a task back on the
+path with `Mix.ensure_application!/1` before starting it (`:inets` and `:ssl`
+in `TuistEx.HTTP`, `:os_mon` in `MachineMetrics`). It shares the Tuist credential
 file and uses the command line tool's refresh lock path. Server ingestion and
 dashboard presentation belong in `server/`.
 
