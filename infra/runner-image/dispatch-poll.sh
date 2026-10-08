@@ -2038,6 +2038,12 @@ HOOK
         fi
         echo "$(date -u +%FT%TZ) dispatch-poll: buildkite agent exited ${agent_rc}"
       else
+      # The runner prints `.setup_info` as groups in the job's "Set up job"
+      # step; the server's group links the job to its Tuist dashboard page.
+      # Best-effort: a missing or unwritable file only drops the link.
+      if "${JQ}" -e '.setup_info | type == "array"' /tmp/dispatch.json >/dev/null 2>&1; then
+        "${JQ}" '.setup_info' /tmp/dispatch.json >.setup_info 2>/dev/null || rm -f .setup_info
+      fi
       ./run.sh --jitconfig "${jit}" --disableupdate &
       runner_pid=$!
       if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then

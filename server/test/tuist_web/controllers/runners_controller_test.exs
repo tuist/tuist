@@ -137,6 +137,9 @@ defmodule TuistWeb.RunnersControllerTest do
       assert body["owner"] == account.name
       assert body["workflow_job_id"] == 4242
       refute Map.has_key?(body, "cache_endpoint_url")
+
+      assert [%{"group" => "Tuist Runner", "detail" => detail}] = body["setup_info"]
+      assert detail =~ "/#{account.name}/runners/by-runner/pod-1"
     end
 
     test "returns a Buildkite acquisition token instead of a JIT config", %{conn: conn} do
@@ -177,6 +180,7 @@ defmodule TuistWeb.RunnersControllerTest do
       # The poll script selects the agent to launch on which credential
       # key is present, so the two must never appear together.
       refute Map.has_key?(body, "encoded_jit_config")
+      refute Map.has_key?(body, "setup_info")
     end
 
     test "routes cache_endpoint_url by fleet platform and cluster-network reachability", %{conn: conn} do
