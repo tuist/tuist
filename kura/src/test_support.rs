@@ -43,6 +43,7 @@ where
 {
     let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
     let mut config = Config {
+        serving_authority: None,
         port: 0,
         internal_port: 7443,
         tenant_id: "test-tenant".into(),

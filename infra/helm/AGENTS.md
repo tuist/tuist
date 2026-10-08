@@ -84,6 +84,10 @@ This node covers Helm assets under `infra/helm/`.
   Receiving Bazel build events alone does not enable analytics delivery.
 
 ## Related Context
+- Experimental Kura serving-authority flag defaults off. The additive CRD,
+  per-instance ConfigMap-read role, sticky runtime/controller rollback floor and
+  quarantined-volume reaper exclusion belong together; see
+  [`../kura-controller/serving-authority.md`](../kura-controller/serving-authority.md).
 - Parent infra context: `infra/AGENTS.md`
 - Noora Storybook chart: `infra/helm/noora-storybook/AGENTS.md`
 - Slack chart: `infra/helm/slack/AGENTS.md`

@@ -2433,7 +2433,7 @@ func legacyPeerServiceForTest(instance *kurav1alpha1.KuraInstance, host string) 
 	}}
 }
 
-func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
+func TestKuraInstanceReconcileStaleStoragePreservesOldVolume(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
@@ -2451,6 +2451,7 @@ func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
 			Finalizers: []string{KuraInstanceFinalizer},
 		},
 		Spec: kurav1alpha1.KuraInstanceSpec{
+			ServingMode:      servingMode,
 			AccountHandle:    "tuist",
 			TenantID:         "tuist",
 			Region:           "eu",
@@ -2498,13 +2499,13 @@ func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: pv.Name}, updatedPV); err != nil {
 		t.Fatal(err)
 	}
-	if got := updatedPV.Spec.PersistentVolumeReclaimPolicy; got != corev1.PersistentVolumeReclaimDelete {
-		t.Fatalf("expected stale data PV to be reclaimed with Delete before recreation, got %q", got)
+	if got := updatedPV.Spec.PersistentVolumeReclaimPolicy; got != corev1.PersistentVolumeReclaimRetain {
+		t.Fatalf("expected stale data PV retained, got %q", got)
 	}
 	leftover := &corev1.PersistentVolumeClaim{}
 	err := reconciler.Get(ctx, types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, leftover)
-	if !apierrors.IsNotFound(err) {
-		t.Fatalf("expected stale data PVC to be deleted, got err=%v", err)
+	if err != nil {
+		t.Fatalf("expected stale data PVC to survive, got err=%v", err)
 	}
 }
 
@@ -3751,6 +3752,106 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 			t.Fatalf("a pending PVC on the desired storage class is not stale, got reason %q", reason)
 		}
 	})
+}
+
+func TestReconcileFencedStaleDataStorage(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	const (
+		instanceName = "kura-acme-scw-fr-par"
+		namespace    = "kura"
+	)
+	pvcName := "data-" + instanceName + "-0"
+
+	newInstance := func() *kurav1alpha1.KuraInstance {
+		return &kurav1alpha1.KuraInstance{
+			ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace},
+			Spec: kurav1alpha1.KuraInstanceSpec{
+				ServingMode:      servingMode,
+				Replicas:         ptr(int32(1)),
+				StorageClassName: "scw-local-nvme",
+			},
+		}
+	}
+	newSTS := func() *appsv1.StatefulSet {
+		return &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}
+	}
+	boundPVC := func(storageClass, volumeName string) *corev1.PersistentVolumeClaim {
+		sc := storageClass
+		return &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace},
+			Spec:       corev1.PersistentVolumeClaimSpec{StorageClassName: &sc, VolumeName: volumeName},
+			Status:     corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound},
+		}
+	}
+	pvPinnedTo := func(name, hostname string) *corev1.PersistentVolume {
+		return &corev1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Spec: corev1.PersistentVolumeSpec{NodeAffinity: &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{
+				NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key: corev1.LabelHostname, Operator: corev1.NodeSelectorOpIn, Values: []string{hostname},
+				}}}},
+			}}},
+		}
+	}
+
+	exists := func(t *testing.T, c interface {
+		Get(context.Context, types.NamespacedName, client.Object, ...client.GetOption) error
+	}, obj client.Object) bool {
+		t.Helper()
+		err := c.Get(context.Background(), types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, obj)
+		if err == nil {
+			return true
+		}
+		if apierrors.IsNotFound(err) {
+			return false
+		}
+		t.Fatalf("unexpected get error: %v", err)
+		return false
+	}
+
+	t.Run("holds on storage class drift", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(newInstance(), newSTS(), boundPVC("scw-bssd", "pv-old")).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+		inProgress, err := r.reconcileStaleDataStorage(context.Background(), newInstance())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected recreate in progress for storage-class drift")
+		}
+		if !exists(t, c, &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}) {
+			t.Fatal("expected StatefulSet retained")
+		}
+		if !exists(t, c, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace}}) {
+			t.Fatal("expected data PVC retained")
+		}
+	})
+
+	t.Run("holds on node-orphaned volume", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			newInstance(), newSTS(), boundPVC("scw-local-nvme", "pv-1"), pvPinnedTo("pv-1", "dead-node"),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+		inProgress, err := r.reconcileStaleDataStorage(context.Background(), newInstance())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected recreate in progress for a volume pinned to a missing node")
+		}
+		if !exists(t, c, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace}}) {
+			t.Fatal("expected data PVC retained")
+		}
+	})
+
 }
 
 func TestRuntimeStatusDecodesTheBackfillWireContract(t *testing.T) {
