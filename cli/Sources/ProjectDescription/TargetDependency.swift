@@ -47,6 +47,9 @@ public enum SDKType: String, Codable, Hashable, Sendable {
 
 /// A target dependency.
 public enum TargetDependency: Codable, Hashable, Sendable {
+    /// How to consume a native Swift package product declared with `TargetDependency.package`.
+    /// Xcode resolves native package linkage. Packages integrated through `TargetDependency.external`
+    /// instead become Tuist-generated targets whose product types describe their linkage.
     public enum PackageType: Codable, Hashable, Sendable {
         /// A runtime package type represents a standard package whose sources are linked at runtime.
         /// For example importing the framework and consuming from dependent targets.

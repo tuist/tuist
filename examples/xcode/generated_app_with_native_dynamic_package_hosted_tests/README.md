@@ -19,6 +19,18 @@ identical singleton instances from the dynamic, static, automatic-static, and
 promoted-automatic modules.
 This catches duplicate static runtime state, not merely a successful build.
 
+## Choosing the package integration
+
+This fixture uses `.package(product:)`, where Xcode resolves and builds the
+package. Tuist needs an explicit dynamic-linkage hint to distinguish shared
+products that hosted tests must link from static products supplied by their host.
+
+With packages declared in `Tuist/Package.swift` and consumed through
+`.external(name:)`, Tuist resolves the packages with `tuist install` and generates
+their targets. Their static/dynamic product types are already represented in
+Tuist's graph, so these native-package hints are unnecessary. Use that integration
+when you want Tuist to own package target generation and linkage configuration.
+
 ## Dynamic-linkage hints
 
 Native package references are opaque to Tuist. Use `.runtimeDynamic` when a
@@ -31,10 +43,11 @@ also be explicitly embedded:
 ```
 
 These hints preserve the product's link reference in hosted tests. They do not
-change the library type in `Package.swift` or force Xcode to build an automatic
-product dynamically. Do not apply them to a product that actually builds
-statically. In a declaration shared by static feature targets, the hint propagates
-to their final linking consumers.
+change the declared library type in `Package.swift` or pass a linkage override to
+Xcode. Xcode still decides the build type, including promotion of automatic
+products. Do not apply them to a product that actually builds statically. In a
+declaration shared by static feature targets, the hint propagates to their final
+linking consumers.
 
 Existing `.runtime` and `.runtimeEmbedded` declarations retain their behavior.
 The new enum cases require updates to helper code that switches exhaustively over
