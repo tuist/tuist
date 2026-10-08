@@ -17,11 +17,11 @@ export const buildMetrics = [
   { label: '90th percentile build duration', value: 'p90' },
   { label: '99th percentile build duration', value: 'p99' },
   { label: 'Slow-build threshold', value: 'slow_build_threshold' },
-  { label: 'Builds needing attention', value: 'builds_needing_attention' },
-  { label: 'Estimated cache work avoided (Gradle)', value: 'cache_work_avoided' },
-  { label: 'Builds reporting estimated cache work avoided', value: 'cache_work_avoided_samples' },
-  { label: 'Reported cache time saved', value: 'cache_time_saved' },
-  { label: 'Builds reporting cache time saved', value: 'cache_time_saved_samples' },
+  { label: 'Failed or slow builds', value: 'builds_needing_attention' },
+  { label: 'Cumulative task time saved (Gradle)', value: 'cache_work_avoided' },
+  { label: 'Builds reporting cumulative task time', value: 'cache_work_avoided_samples' },
+  { label: 'Reported elapsed time saved', value: 'cache_time_saved' },
+  { label: 'Builds reporting elapsed savings', value: 'cache_time_saved_samples' },
 ];
 
 export function BuildHealthQueryOptions({

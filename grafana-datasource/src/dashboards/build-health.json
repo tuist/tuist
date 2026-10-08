@@ -1,13 +1,10 @@
 {
   "uid": "tuist-build-health",
   "title": "Tuist Build Health",
-  "tags": [
-    "tuist",
-    "builds"
-  ],
+  "tags": ["tuist", "builds"],
   "description": "Success rate excludes cancelled builds. Attention is failure or duration above the 90th percentile of builds in the selected date range. Cache savings require reported metadata; see reporting coverage. Unknown failures are retained.",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "time": {
     "from": "now-7d",
     "to": "now"
@@ -136,9 +133,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -185,9 +180,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -234,9 +227,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -283,19 +274,18 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
         "colorMode": "value",
         "graphMode": "none"
-      }
+      },
+      "description": "The selected period\u2019s 90th percentile by default. Set slowBuildThresholdMs in the query to use a fixed duration limit; use that limit for actionable alerts."
     },
     {
-      "id": 5,
-      "title": "Cache time saved (reported)",
+      "id": 16,
+      "title": "Failed builds",
       "type": "stat",
       "gridPos": {
         "x": 16,
@@ -315,14 +305,14 @@
           "workload": "$workload",
           "refId": "A",
           "queryType": "buildHealth",
-          "metric": "cache_time_saved",
+          "metric": "failed_builds",
           "resultMode": "total"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "noValue": "Not reported",
-          "unit": "ms",
+          "noValue": "No data",
+          "unit": "short",
           "color": {
             "mode": "fixed",
             "fixedColor": "green"
@@ -332,20 +322,18 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
         "colorMode": "value",
         "graphMode": "none"
       },
-      "description": "Sum of reported elapsed cache savings. Missing observations remain unknown; compare reporting coverage below."
+      "description": "Total failures, shown separately from the category breakdown."
     },
     {
       "id": 6,
-      "title": "Builds needing attention",
+      "title": "Failed or slow builds",
       "type": "stat",
       "gridPos": {
         "x": 20,
@@ -374,18 +362,15 @@
           "noValue": "No data",
           "unit": "short",
           "color": {
-            "mode": "thresholds"
+            "mode": "fixed",
+            "fixedColor": "text"
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "text",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
               }
             ]
           }
@@ -394,15 +379,14 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
-        "colorMode": "value",
+        "colorMode": "none",
         "graphMode": "none"
-      }
+      },
+      "description": "Failed builds or builds above the selected period\u2019s 90th percentile, counted once per build. This describes the selected distribution, not a regression or a breached target. Set a fixed slow-build threshold in the query for a duration target."
     },
     {
       "id": 7,
@@ -488,7 +472,7 @@
     },
     {
       "id": 8,
-      "title": "Why builds failed",
+      "title": "Failure categories",
       "type": "barchart",
       "gridPos": {
         "x": 12,
@@ -542,7 +526,28 @@
           "mode": "single",
           "sort": "none"
         }
-      }
+      },
+      "description": "Mutually exclusive classifications of failed builds. Total failed builds is shown separately above. These categories are not concrete root causes.",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "all",
+            "filters": [
+              {
+                "fieldName": "Failure category",
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "All failures"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "id": 9,
@@ -758,62 +763,13 @@
       }
     },
     {
-      "id": 12,
-      "title": "Builds reporting cache time saved",
+      "id": 14,
+      "title": "Cumulative task time saved",
       "type": "stat",
       "gridPos": {
         "x": 0,
         "y": 28,
-        "w": 8,
-        "h": 4
-      },
-      "datasource": {
-        "type": "tuist-metrics-datasource",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "projectHandle": "$project",
-          "environment": "$environment",
-          "gitBranch": "$branch",
-          "workload": "$workload",
-          "refId": "A",
-          "queryType": "buildHealth",
-          "metric": "cache_time_saved_samples",
-          "resultMode": "total"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "No data",
-          "unit": "short",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "green"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "value",
-        "graphMode": "none"
-      }
-    },
-    {
-      "id": 14,
-      "title": "Estimated cache work avoided (Gradle)",
-      "type": "stat",
-      "gridPos": {
-        "x": 8,
-        "y": 28,
-        "w": 8,
+        "w": 6,
         "h": 4
       },
       "datasource": {
@@ -845,25 +801,23 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
         "colorMode": "value",
         "graphMode": "none"
       },
-      "description": "Cumulative cached task execution time avoided, minus cache restoration time. This estimate is not elapsed build time saved. Gradle only; unavailable timings are not reported."
+      "description": "Gradle-only automatic estimate of task execution time avoided by cache hits, minus restoration time. Parallel tasks can overlap; this does not measure elapsed build time saved. Missing or incomplete timings remain unreported."
     },
     {
       "id": 15,
-      "title": "Builds reporting estimated cache work avoided",
+      "title": "Builds reporting cumulative task time",
       "type": "stat",
       "gridPos": {
-        "x": 16,
+        "x": 6,
         "y": 28,
-        "w": 8,
+        "w": 6,
         "h": 4
       },
       "datasource": {
@@ -895,16 +849,110 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
         "colorMode": "value",
         "graphMode": "none"
       },
-      "description": "Cumulative cached task execution time avoided, minus cache restoration time. This estimate is not elapsed build time saved. Gradle only; unavailable timings are not reported."
+      "description": "Number of builds with an automatic Gradle task-time estimate, including recorded zero. Compare with total builds to assess coverage."
+    },
+    {
+      "id": 5,
+      "title": "Reported elapsed time saved",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 28,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "tuist-metrics-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "$workload",
+          "refId": "A",
+          "queryType": "buildHealth",
+          "metric": "cache_time_saved",
+          "resultMode": "total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Not reported",
+          "unit": "ms",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "description": "Sum of explicitly reported elapsed cache savings. This is separate from cumulative task time. Missing observations remain unknown; reporting coverage is shown beside this value."
+    },
+    {
+      "id": 12,
+      "title": "Builds reporting elapsed savings",
+      "type": "stat",
+      "gridPos": {
+        "x": 18,
+        "y": 28,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "tuist-metrics-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "$workload",
+          "refId": "A",
+          "queryType": "buildHealth",
+          "metric": "cache_time_saved_samples",
+          "resultMode": "total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No data",
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "description": "Number of builds with explicitly supplied elapsed-savings metadata, including recorded zero. Compare with total builds to assess coverage."
     }
   ]
 }

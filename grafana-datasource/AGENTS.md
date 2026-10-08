@@ -85,3 +85,5 @@ only — they are intentionally not part of the generated CLI client.
 - Keep Grafana documentation organized around metric tables, with build-system differences, query options, and setup in separate sections.
 
 Backend health queries reject unresolved dashboard variables in alert filters and normalize the All sentinel before querying. Automatic Gradle cache estimates use separate generic metrics; legacy Gradle responses retain their original metric keys.
+
+- The standard dashboard labels automatic percentile counts Failed or slow builds and renders them neutrally; explicit duration targets remain configurable. Show total failures separately and filter the compatibility all row out of the Failure categories chart. Group the Gradle Cumulative task time saved estimate beside its coverage, then reported elapsed savings beside their own coverage. Preserve metric keys, query frames and the legacy dashboard.
