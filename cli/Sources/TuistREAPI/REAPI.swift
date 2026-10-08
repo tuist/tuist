@@ -130,6 +130,9 @@ public struct REAPIBlobUpload: Sendable {
 
 public protocol REAPICacheStoring: Sendable {
     func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult?
+    /// Whether the cache still stores the action. Unlike a read, the lookup does not extend the lifetime of the
+    /// entry or of the blobs it references.
+    func containsActionResult(for digest: REAPI.Digest) async throws -> Bool
     func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws
     func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> REAPIBlobUpload
     func downloadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest>

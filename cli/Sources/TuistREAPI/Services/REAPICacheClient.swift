@@ -96,11 +96,14 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         }
     }
 
-    private func metadata() async throws -> Metadata {
+    private func metadata(presenceLookup: Bool = false) async throws -> Metadata {
         var result = Metadata()
         result.addString("Bearer \(try await token())", forKey: "authorization")
         result.addString(accountHandle, forKey: "x-tuist-account-handle")
         result.addString("module", forKey: "x-tuist-artifact-kind")
+        if presenceLookup {
+            result.addString("presence", forKey: "x-tuist-lookup")
+        }
         return result
     }
 
@@ -260,6 +263,14 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     }
 
     public func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult? {
+        try await actionResult(for: digest, presenceLookup: false)
+    }
+
+    public func containsActionResult(for digest: REAPI.Digest) async throws -> Bool {
+        try await actionResult(for: digest, presenceLookup: true) != nil
+    }
+
+    private func actionResult(for digest: REAPI.Digest, presenceLookup: Bool) async throws -> REAPI.ActionResult? {
         try REAPI.validate(digest)
         do {
             return try await retry {
@@ -269,7 +280,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                             $0.instanceName = instanceName
                             $0.actionDigest = digest
                             $0.digestFunction = .sha256
-                        }, metadata: try await metadata(), options: options
+                        }, metadata: try await metadata(presenceLookup: presenceLookup), options: options
                     )
                 }
             }

@@ -505,7 +505,8 @@ struct BinaryCacheStorageTests {
         #expect(await remote.actions == actions)
         for (variant, fingerprint) in fingerprints {
             let action = try BinaryCacheAction(name: target.name, variant: variant, fingerprint: fingerprint)
-            #expect(await remote.queries[action.digest] == 1)
+            #expect(await remote.queries[action.digest] == nil)
+            #expect(await remote.presenceQueries[action.digest] == 1)
         }
     }
 
@@ -568,6 +569,7 @@ actor MemoryREAPICache: REAPICacheStoring {
     var uploads: [REAPI.Digest: Int] = [:]
     var downloads: [REAPI.Digest: Int] = [:]
     var queries: [REAPI.Digest: Int] = [:]
+    var presenceQueries: [REAPI.Digest: Int] = [:]
     var maximumActiveLookups = 0
     private var activeLookups = 0
     private var delayed = false
@@ -589,6 +591,11 @@ actor MemoryREAPICache: REAPICacheStoring {
         defer { activeLookups -= 1 }
         if delayed { try await Task.sleep(for: .milliseconds(2)) }
         return actions[digest]
+    }
+
+    func containsActionResult(for digest: REAPI.Digest) async throws -> Bool {
+        presenceQueries[digest, default: 0] += 1
+        return actions[digest] != nil
     }
 
     func uploadAvailableBlobs(_ incoming: [REAPI.Digest: URL]) async throws -> REAPIBlobUpload {
@@ -625,6 +632,10 @@ private struct GatedREAPICache: REAPICacheStoring {
 
     func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult? {
         try await remote.actionResult(for: digest)
+    }
+
+    func containsActionResult(for digest: REAPI.Digest) async throws -> Bool {
+        try await remote.containsActionResult(for: digest)
     }
 
     func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws {
