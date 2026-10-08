@@ -4,6 +4,7 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
 
 ## Responsibilities
 - HTTP routing, controllers, and API surface.
+- Marketing landing-page URLs negotiate authored English decision guides with `Accept: text/markdown`; `/marketing-markdown[/<page>]` offers discoverable, header-free access. Legal wording is preserved and `/marketing-markdown/source/<page>` exposes original statements where guides replace company-page copy. Keep these routes ahead of dynamic account/project scopes, with marketing robots metadata and on-premise forwarding. Public project Markdown requires a separate authorized data-snapshot design, not static marketing overrides.
 - LiveView components for the UI and marketing site.
 - Controllers and LiveViews choose their Open Graph image template and variables. The shared image route only verifies
   the signed variables, renders on a cache miss, and serves the content-addressed object.

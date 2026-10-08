@@ -762,17 +762,25 @@ defmodule Tuist.Bundles do
         :download_size -> {bundle.download_size, baseline.download_size}
       end
 
-    if is_nil(current_size) || is_nil(baseline_size) || baseline_size == 0 do
+    if is_nil(current_size) || is_nil(baseline_size) do
       :ok
     else
-      deviation = (current_size - baseline_size) / baseline_size * 100
+      growth = current_size - baseline_size
 
-      if deviation > threshold.deviation_percentage do
+      if threshold_exceeded?(threshold, growth, baseline_size) do
+        deviation = if baseline_size == 0, do: nil, else: growth / baseline_size * 100
         {:violated, threshold, %{current_size: current_size, baseline_size: baseline_size, deviation: deviation}}
       else
         :ok
       end
     end
+  end
+
+  defp threshold_exceeded?(%{deviation_bytes: bytes}, growth, _baseline_size) when is_integer(bytes), do: growth > bytes
+  defp threshold_exceeded?(_threshold, _growth, 0), do: false
+
+  defp threshold_exceeded?(%{deviation_percentage: percentage}, growth, baseline_size) do
+    growth / baseline_size * 100 > percentage
   end
 
   def list_bundle_size_approvers(%Project{} = project) do

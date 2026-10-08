@@ -325,6 +325,40 @@ subjects:
     name: {{ $name }}
     namespace: {{ .Release.Namespace }}
 ---
+# Read on the single default/kubernetes Service, whose ClusterIP a rack node
+# translates to the API server (discoverKubernetesService), so in-cluster
+# clients on the node reach the API at the address they are given.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-kubernetes-service
+  namespace: default
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+rules:
+  - apiGroups: [""]
+    resources: [services]
+    resourceNames: [kubernetes]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-kubernetes-service
+  namespace: default
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-kubernetes-service
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -421,6 +455,9 @@ spec:
             - --rackhost-fleet-name={{ include "tuist.rackFleetName" . }}
             - --rackhost-cluster-name={{ include "tuist.componentName" (dict "root" . "component" "capi") }}
             - --rackhost-bootstrap-secret-name={{ include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
+            {{- with .Values.rackFleet.vmCacheGatewayCIDRs }}
+            - --rackhost-vm-cache-gateway-cidrs={{ join "," . }}
+            {{- end }}
             {{- if .Values.rackFleet.cardRootKey.enabled }}
             - --rack-card-root-secret={{ .Values.rackFleet.cardRootKey.secretName | default "rack-card-root" }}
             {{- end }}

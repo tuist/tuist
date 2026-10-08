@@ -4,6 +4,9 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+UI evidence for pull request discussions lives in `screenshots/`. Capture the
+actual UI with demo data and link images using immutable commit URLs.
+
 The app's device-build job generates with `--configuration Release` to match its
 Release archive. Default Debug binary-cache hits cannot be optimized by the
 archive's Release setting and make the bundle-size check depend on cache warmth.
@@ -56,6 +59,10 @@ The optional `custom_cache_apfs` staging smoke input runs the candidate shared
 cache lifecycle and real APFS tests in a staging macOS runner. It validates native
 filesystem behavior, not a deployed host/mailbox/server rollout. Keep that
 limitation explicit when reporting smoke results.
+`macos-cache-volumes-smoke.yml` exercises the deployed action, guest APFS mount
+and teardown/publication path on main. Run seed, then verify with the same key
+after publication; fail then verify checks that failed-job writes are discarded.
+Require the symlink/APFS mount and warm hit so a cold fallback cannot pass.
 ## Bazel and Mix cache volumes
 
 Kura's `.bazelrc` configures repository downloads and disk action caching under

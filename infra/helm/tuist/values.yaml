@@ -173,6 +173,8 @@ pdcAgent:
       memory: 1Gi
 
 kuraController:
+  servingAuthority:
+    enabled: false
   privateReplication:
     enabled: false
   enabled: false
@@ -1623,6 +1625,11 @@ rackFleet:
   # and list both routers of an HA pair. A host can override it with its own
   # `sshIngressAllowCIDRs`.
   sshIngressAllowCIDRs: []
+
+  # The rack's runner-cache gateways, as IPv4 CIDRs, which a rack host's Tart
+  # VMs may reach on TCP 443 through the VM egress firewall. Every other
+  # private destination stays blocked. Empty passes none.
+  vmCacheGatewayCIDRs: []
 
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl

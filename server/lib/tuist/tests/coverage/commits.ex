@@ -116,6 +116,13 @@ defmodule Tuist.Tests.Coverage.Commits do
     # Outside the commit's lock: advancing a ref takes the repository's.
     if row do
       advance_refs(project, sha, runs)
+
+      # The place was read before the row existed, so an advance that moved
+      # the commit in between (its child's fold advancing the branch through
+      # it) synced no row, and this commit's own advance, observed earlier
+      # than that one or finding the branch already holds it, moves nothing.
+      if row.git_repository_id > 0, do: GitHistory.sync_coverage_places(row.git_repository_id, [sha])
+
       summary = summary(project.id, sha)
       if Deltas.complete?(summary), do: Deltas.enqueue(project.id, sha)
       summary

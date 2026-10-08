@@ -28,6 +28,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/connrotation"
 	ctrl "sigs.k8s.io/controller-runtime"
 	cache "sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -259,6 +260,14 @@ func main() {
 	//   4. ~/.kube/config
 	cfg := ctrl.GetConfigOrDie()
 
+	// Every API client dials through one rotating dialer so the lease
+	// heartbeat can drop all connections when the API server stops
+	// answering, the way kubelet does. Otherwise a silently dead HTTP/2
+	// connection keeps every request hanging until client-go's 45s
+	// health check gives up.
+	dialer := connrotation.NewDialer((&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext)
+	cfg.Dial = dialer.DialContext
+
 	// Narrow the cache: we only ever care about Pods scheduled to this
 	// Node and the Node object itself. Cluster-wide watches on a node-
 	// embedded agent are wasteful; this keeps memory + apiserver load
@@ -486,6 +495,24 @@ func main() {
 		},
 	}); err != nil {
 		setupLog.Error(err, "add node maintainer")
+		os.Exit(1)
+	}
+
+	// The lease gets its own client, so its requests never queue behind
+	// the manager's on a shared connection or rate limiter.
+	leaseClient, err := client.New(cfg, client.Options{Scheme: scheme})
+	if err != nil {
+		setupLog.Error(err, "create node lease client")
+		os.Exit(1)
+	}
+	if err := mgr.Add(&nodeagent.LeaseHeartbeat{
+		Client:             leaseClient,
+		NodeName:           nodeName,
+		Interval:           nodeagent.DefaultLeaseRenewInterval,
+		Timeout:            nodeagent.DefaultLeaseRenewalTimeout,
+		OnTransportFailure: dialer.CloseAll,
+	}); err != nil {
+		setupLog.Error(err, "add node lease heartbeat")
 		os.Exit(1)
 	}
 

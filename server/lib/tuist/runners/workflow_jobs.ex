@@ -518,6 +518,36 @@ defmodule Tuist.Runners.WorkflowJobs do
   def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :ok
 
   @doc """
+  The job that ran on `runner_name` within `account_id`.
+
+  GitHub assigns a queued job to any label-eligible runner, so the job a
+  runner was minted for is not necessarily the one it ran. The
+  `in_progress` webhook records the binding as `executed_workflow_job_id`
+  on the minting row (see `record_execution/3`); until it arrives, the
+  minting row is the best guess.
+  """
+  def get_executed_by_runner_name(account_id, runner_name)
+      when is_integer(account_id) and is_binary(runner_name) and runner_name != "" do
+    rows =
+      Repo.all(
+        from(j in WorkflowJob,
+          where: j.account_id == ^account_id and j.runner_name == ^runner_name,
+          order_by: [desc: j.updated_at]
+        )
+      )
+
+    workflow_job_id =
+      Enum.find_value(rows, & &1.executed_workflow_job_id) || Enum.find_value(rows, & &1.workflow_job_id)
+
+    case workflow_job_id && Repo.get_by(WorkflowJob, account_id: account_id, workflow_job_id: workflow_job_id) do
+      %WorkflowJob{} = row -> {:ok, row}
+      _ -> {:error, :not_found}
+    end
+  end
+
+  def get_executed_by_runner_name(_account_id, _runner_name), do: {:error, :not_found}
+
+  @doc """
   Postgres twin of `Tuist.Runners.Jobs.pick_queued_top_k/5`, returning
   the same candidate map shape in the same deterministic
   `(enqueued_at ASC, workflow_job_id ASC)` order. `enqueued_floor`

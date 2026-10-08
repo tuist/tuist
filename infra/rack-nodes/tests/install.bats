@@ -120,10 +120,15 @@ render() {
   done
 }
 
-@test "the storage layout is refused until it is designed" {
+@test "a storage node gets a quotaed XFS /data and keeps its kubelet and images there" {
   run render "$(jq -c '.role = "storage"' <<<"$HOST_JSON")"
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"storage layout is not implemented"* ]]
+  [ "$status" -eq 0 ]
+  seed="$BATS_TEST_TMPDIR/seed/user-data"
+  [ "$(yq -r '.autoinstall.storage.config[] | select(.type == "mount" and .path == "/data") | .options' "$seed")" = defaults,prjquota ]
+  [ "$(yq -r '.autoinstall.storage.config[] | select(.id == "data-fs") | .fstype' "$seed")" = xfs ]
+  late="$(yq -r '.autoinstall.late-commands[]' "$seed")"
+  [[ "$late" == *"/data/kubelet /var/lib/kubelet none bind,nofail 0 0"* ]]
+  [[ "$late" == *"/data/containerd /var/lib/containerd none bind,nofail 0 0"* ]]
 }
 
 @test "a file that is not an auth key is refused" {

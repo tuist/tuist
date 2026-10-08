@@ -194,6 +194,10 @@ public struct GraphLoader: GraphLoading {
                 return try loadPackage(fromPath: path, productName: product, type: .plugin)
             case .runtimeEmbedded:
                 return try loadPackage(fromPath: path, productName: product, type: .runtimeEmbedded)
+            case .runtimeDynamic:
+                return try loadPackage(fromPath: path, productName: product, type: .runtimeDynamic)
+            case .runtimeDynamicEmbedded:
+                return try loadPackage(fromPath: path, productName: product, type: .runtimeDynamicEmbedded)
             }
 
         case .xctest:

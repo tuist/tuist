@@ -1488,3 +1488,47 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Server name does not match."
 msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Demo"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Docs"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:47
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:84
+#, elixir-autogen, elixir-format
+msgid "Explore Atlas"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:64
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:90
+#, elixir-autogen, elixir-format
+msgid "Finance"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:19
+#, elixir-autogen, elixir-format
+msgid "Fictional data. Read-only."
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:36
+#, elixir-autogen, elixir-format
+msgid "Self-host Atlas"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:58
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:89
+#, elixir-autogen, elixir-format
+msgid "Tasks"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:70
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:91
+#, elixir-autogen, elixir-format
+msgid "Vendor costs"
+msgstr ""

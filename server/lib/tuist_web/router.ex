@@ -269,6 +269,13 @@ defmodule TuistWeb.Router do
     plug :fetch_current_user
   end
 
+  pipeline :marketing_markdown do
+    plug :put_request_kind, "marketing"
+    plug :enable_robot_indexing
+    plug :mark_public_marketing_page
+    plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
+  end
+
   pipeline :browser_marketing_feed do
     plug :put_request_kind, "marketing_feed"
     plug :accepts, ["xml"]
@@ -351,6 +358,7 @@ defmodule TuistWeb.Router do
     get "/robots.txt", RobotsTxtController, :show, metadata: %{robots_txt: false}
 
     get "/llms.txt", LlmsTxtController, :show, metadata: @marketing_route_metadata
+    get "/llms-full.txt", LlmsTxtController, :full, metadata: @docs_route_metadata
   end
 
   scope "/", TuistWeb do
@@ -360,6 +368,14 @@ defmodule TuistWeb.Router do
   end
 
   # Marketing
+
+  scope "/", TuistWeb do
+    pipe_through [:marketing_markdown]
+
+    get "/marketing-markdown", MarketingMarkdownController, :show, metadata: @marketing_route_metadata
+    get "/marketing-markdown/source/*path", MarketingMarkdownController, :source, metadata: @marketing_route_metadata
+    get "/marketing-markdown/*path", MarketingMarkdownController, :show, metadata: @marketing_route_metadata
+  end
 
   scope "/" do
     pipe_through [:browser_marketing_feed]
@@ -1360,6 +1376,8 @@ defmodule TuistWeb.Router do
     get "/runners/runs/:workflow_run_id/jobs/:workflow_job_id/logs/download",
         RunnerJobLogsController,
         :download
+
+    get "/runners/by-runner/:runner_name", RunnerJobRedirectController, :show
 
     live_session :public_account,
       layout: {TuistWeb.Layouts, :account},

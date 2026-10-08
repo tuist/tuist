@@ -1,6 +1,7 @@
 package linux
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -158,7 +159,11 @@ func TestRackNodeConfigDropsTheManagementPortWithoutABootMAC(t *testing.T) {
 			t.Fatal("wrote a management port configuration without a MAC to match")
 		}
 	}
-	if len(cfg.Absent) != 1 || cfg.Absent[0].Path != "/etc/systemd/network/10-tuist-management.network" || cfg.Absent[0].Group != "network" {
+	removed := false
+	for _, f := range cfg.Absent {
+		removed = removed || (f.Path == "/etc/systemd/network/10-tuist-management.network" && f.Group == "network")
+	}
+	if !removed {
 		t.Fatalf("absent %+v; a host whose boot MAC was removed keeps its management port configuration", cfg.Absent)
 	}
 }
@@ -169,5 +174,81 @@ func TestRackNodeConfigDropsTheManagementPortWithoutABootMAC(t *testing.T) {
 func TestRackNodeConfigWritesTheAPIServerThePodsOnTheNodeUse(t *testing.T) {
 	if f := configFile(t, rackNodeConfig(edgeConvergeOptions()), "/etc/tuist/kubernetes-api"); f.Content != "https://api.example:6443\n" {
 		t.Fatalf("API server file %+v", f)
+	}
+}
+
+// A pod on a rack node that is not on the host network reaches anything past
+// its node's bridge, such as a public resolver or the server, only through a
+// default route the CNI gives it.
+func TestRackLocalCNIGivesPodsADefaultRouteThroughTheBridge(t *testing.T) {
+	var config struct {
+		Plugins []struct {
+			Type      string `json:"type"`
+			IsGateway bool   `json:"isGateway"`
+			IPMasq    bool   `json:"ipMasq"`
+			IPAM      struct {
+				Routes []struct {
+					Dst string `json:"dst"`
+				} `json:"routes"`
+			} `json:"ipam"`
+		} `json:"plugins"`
+	}
+	if err := json.Unmarshal([]byte(rackLocalCNIConfig()), &config); err != nil {
+		t.Fatalf("the CNI config is not JSON: %v", err)
+	}
+	bridge := config.Plugins[0]
+	if bridge.Type != "bridge" || !bridge.IsGateway || !bridge.IPMasq {
+		t.Fatalf("plugin %+v, want the masquerading gateway bridge", bridge)
+	}
+	if len(bridge.IPAM.Routes) != 1 || bridge.IPAM.Routes[0].Dst != "0.0.0.0/0" {
+		t.Fatalf("routes %+v, want a default route", bridge.IPAM.Routes)
+	}
+}
+
+// A pod on a rack node gets the cluster's in-cluster API address
+// (KUBERNETES_SERVICE_HOST, the kubernetes Service), which no Service routing
+// reaches there. The node translates it to the API server it joined through.
+func TestRackNodeConfigRoutesTheKubernetesServiceToTheAPIServer(t *testing.T) {
+	o := edgeConvergeOptions()
+	o.KubernetesAPI = "https://49.12.18.71:443"
+	o.KubernetesServiceIP = "10.128.0.1"
+	cfg := rackNodeConfig(o)
+
+	rules := configFile(t, cfg, rackKubernetesServicePath).Content
+	for _, want := range []string{
+		"delete table ip tuist_kubernetes_service",
+		"type nat hook prerouting priority dstnat",
+		"type nat hook output priority dstnat",
+		"ip daddr 10.128.0.1 tcp dport 443 dnat to 49.12.18.71:443",
+	} {
+		if !strings.Contains(rules, want) {
+			t.Errorf("the rules lack %q:\n%s", want, rules)
+		}
+	}
+	if len(cfg.Nftables) != 1 || cfg.Nftables[0] != rackKubernetesServicePath {
+		t.Fatalf("nftables %v, want the rules loaded", cfg.Nftables)
+	}
+}
+
+func TestRackNodeConfigLeavesTheKubernetesServiceAloneWithoutAnAddressToTranslateTo(t *testing.T) {
+	for name, o := range map[string]rackConvergeOptions{
+		"no service address": func() rackConvergeOptions {
+			o := edgeConvergeOptions()
+			o.KubernetesAPI = "https://49.12.18.71:443"
+			return o
+		}(),
+		"an API server hostname": func() rackConvergeOptions { o := edgeConvergeOptions(); o.KubernetesServiceIP = "10.128.0.1"; return o }(),
+	} {
+		cfg := rackNodeConfig(o)
+		if len(cfg.Nftables) != 0 {
+			t.Errorf("%s: loads %v", name, cfg.Nftables)
+		}
+		removed := false
+		for _, f := range cfg.Absent {
+			removed = removed || f.Path == rackKubernetesServicePath
+		}
+		if !removed {
+			t.Errorf("%s: leaves an earlier rules file in place", name)
+		}
 	}
 }

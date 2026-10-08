@@ -14,6 +14,13 @@ Do not add README entries for internal operational details such as env var names
 - Public documentation emits `x-tuist-public: 1`, matching the zone-wide Cloudflare public-page rate limits in `infra/flux/cloudflare-config/`. Verified crawlers receive a request ceiling; other clients receive managed challenges above the same threshold. This header is classification, not an origin-side rate limiter. Self-hosted operators need equivalent edge protection.
 - Signed-out root visits redirect to `/docs`; authenticated root visits retain the overview dashboard. Other application routes still require sign-in. Public docs neither fetch users nor start a LiveView session.
 
+## Public read-only demo
+
+- The isolated demo uses the same release with `ATLAS_DEMO_MODE=true`, a dedicated `atlas_demo` PostgreSQL database, independent application keys, and a SELECT-only serving role. It never selects production versus demo data by hostname.
+- The curated anonymous dashboard covers accounts, tasks, finance/vendor costs, and notes; `/` and the compatibility `/demo` entry point redirect directly to Accounts, without a welcome screen. The endpoint and LiveView guards deny unreviewed paths/events, including writes and external integrations. Demo startup excludes workers, browser pools, connector bootstrap, and self-monitoring.
+- Demo templates inherit Noora typography from `data-part="demo-layout"`, use Noora navigation buttons, and provide a narrow-screen navigation bar. A compact `Demo` badge in the right-hand navbar replaces a full-width banner; its focusable tooltip explains that data is fictional and read-only. Curated pages omit write controls and unreviewed destinations; notes render as documents rather than editable forms. Keep this presentation layer separate from the HTTP/LiveView/database mutation barriers, and verify production-release screenshots as well as rendered-HTML tests.
+- Dataset, runtime validation, and permission checks live in [`lib/atlas/demo/AGENTS.md`](lib/atlas/demo/AGENTS.md). Deployment preparation is documented in `deploy/demo.md`, with standalone `infra/helm/atlas/values-demo.yaml` and a DNS/PostgreSQL-only egress policy. Do not reuse development seeds or production Secrets.
+
 ## First administrator
 
 - An operator can grant the first administrator access after that user signs in: `ATLAS_BOOTSTRAP_ADMIN_EMAIL=person@example.org bin/bootstrap-admin` in a release, or `ATLAS_BOOTSTRAP_ADMIN_EMAIL=person@example.org mix run --no-start -e 'Atlas.Release.bootstrap_admin()'` in a source checkout. Run migrations first. This command starts only the repository dependencies, not the web server or background workers.
@@ -80,8 +87,8 @@ Do not add README entries for internal operational details such as env var names
 
 ## Model relay and support classification
 
-- When a provider requires streaming, preserve non-success response statuses and bodies from the streamed request. Only decode successful responses as streamed completions, so billing and credential failures remain distinguishable from transport failures.
-- Support classification failures must still notify `#support`. Persist and log a bounded explanation based on the failure status; never inspect the raw error into a support reason or log, because it can contain the full request and inbound email body.
+- When a provider requires streaming, preserve non-success response statuses and bodies from the streamed request. Only decode successful responses as streamed completions, so billing and credential failures remain distinguishable from transport failures. Assemble tool-call deltas by index, concatenating function-name and argument fragments and preserving the initial id/type. Remove stream-only indexes from the completed calls. Dropping these fragments makes native agents fail with `:no_result_submitted` even when the model requested tools.
+- Support classification failures must still notify `#support`. Persist and log a bounded explanation based on the failure status; never inspect the raw error into a support reason or log, because it can contain the full request and inbound email body. Condukt returns atom-keyed results when schema property keys are atoms; classifier normalization must accept these as well as string-keyed results. Keep allowed category/urgency atoms explicit and map validated strings against that finite set, rather than assuming `String.to_existing_atom/1` can find atoms created by some other module.
 
 ## Tasks
 

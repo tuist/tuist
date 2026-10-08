@@ -70,10 +70,10 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
   defp volume(account), do: hd(CacheVolumes.list(account.id).volumes)
 
-  test "legacy Linux allocation conflict target still works during rolling deploys", %{job: job} do
+  test "Linux allocation remains idempotent with the platform conflict target", %{job: job} do
     {:ok, use} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     volume = Repo.get!(Volume, Repo.get!(Usage, use.id).volume_id)
-    fields = [:account_id, :provider, :provider_instance, :scope_id, :key, :architecture, :uid]
+    fields = [:account_id, :provider, :provider_instance, :scope_id, :key, :platform, :architecture, :uid]
 
     row =
       volume
@@ -88,21 +88,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
     job: job,
     account: account
   } do
-    # Simulate the later enablement migration in transaction-local tables, so
-    # concurrent tests and the pre-enable database retain the legacy index.
-    for table <- ~w(runner_cache_volumes runner_cache_volume_uses runner_cache_volume_measurements) do
-      Repo.query!("CREATE TEMP TABLE #{table} (LIKE public.#{table} INCLUDING ALL) ON COMMIT DROP")
-    end
-
-    for [index] <-
-          Repo.query!("""
-          SELECT indexrelid::regclass::text FROM pg_index
-          WHERE indrelid = 'pg_temp.runner_cache_volumes'::regclass
-            AND indisunique AND indnkeyatts = 7
-          """).rows do
-      Repo.query!("DROP INDEX #{index}")
-    end
-
     {:ok, linux} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     builtin = VolumeHeads.reserved_tuist_cache()
     assert {:ok, _} = VolumeHeads.bump_head(account.id, "node", String.duplicate("a", 40), 0, builtin)

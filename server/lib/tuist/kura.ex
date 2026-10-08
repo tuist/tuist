@@ -1307,7 +1307,9 @@ defmodule Tuist.Kura do
 
   @doc """
   In-cluster Kura URL a runner-as-a-service build on a fleet of the
-  given platform should use, or `nil` when nothing serves it.
+  given platform should use, or `nil` when nothing serves it. A fleet
+  racked at a site (`Catalog.fleet_site/1`) takes only that site's private
+  regions; any other fleet takes only private regions with no site.
 
   Two tiers, best first: the account's active private (runner-cache)
   node in a region serving the platform, else the in-cluster Service
@@ -1321,7 +1323,9 @@ defmodule Tuist.Kura do
   Whether the fleet can reach in-cluster URLs at all is the caller's
   gate (`Catalog.fleet_on_cluster_network?/1`).
   """
-  def runner_cache_endpoint_url(%Account{} = account, platform) when platform in [:linux, :macos] do
+  def runner_cache_endpoint_url(account, platform, site \\ nil)
+
+  def runner_cache_endpoint_url(%Account{} = account, platform, site) when platform in [:linux, :macos] do
     # A runner build resolving its cache endpoint is cache demand for the
     # account just as a developer machine's resolution is, and it is recorded
     # at the same boundary. The account's service-region instance is what the
@@ -1329,12 +1333,12 @@ defmodule Tuist.Kura do
     # a separate identity rule (`Tuist.Kura.RunnerCache`).
     Demand.record(account.id)
 
-    private_runner_cache_url(account, platform) || public_in_cluster_runner_cache_url(account, platform)
+    private_runner_cache_url(account, platform, site) || public_in_cluster_runner_cache_url(account, platform)
   end
 
-  def runner_cache_endpoint_url(%Account{}, _platform), do: nil
+  def runner_cache_endpoint_url(%Account{}, _platform, _site), do: nil
 
-  defp private_runner_cache_url(%Account{id: account_id}, platform) do
+  defp private_runner_cache_url(%Account{id: account_id}, platform, site) do
     # `available/0`, not `all/0`: if a private region is dropped from
     # `TUIST_KURA_AVAILABLE_REGIONS` the controller stops reconciling
     # it, and gating here too means dispatch stops handing out the now
@@ -1342,7 +1346,9 @@ defmodule Tuist.Kura do
     # instead of routing jobs to an endpoint that no longer exists.
     private_region_ids =
       Regions.available()
-      |> Enum.filter(&(Regions.private?(&1) and Regions.serves_runner_platform?(&1, platform)))
+      |> Enum.filter(
+        &(Regions.private?(&1) and Regions.serves_runner_platform?(&1, platform) and Regions.site(&1) == site)
+      )
       |> Enum.map(& &1.id)
 
     if private_region_ids == [] do

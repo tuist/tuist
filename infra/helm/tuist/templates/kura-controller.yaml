@@ -71,8 +71,11 @@ rules:
     resources: [statefulsets, deployments, daemonsets]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
-    resources: [services, configmaps, secrets]
+    resources: [services, configmaps, secrets, serviceaccounts]
     verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: [roles, rolebindings]
+    verbs: [get, list, watch, create, update, patch]
   - apiGroups: ["externaldns.k8s.io"]
     resources: [dnsendpoints]
     verbs: [get, list, watch, create, update, patch, delete]
@@ -82,6 +85,12 @@ rules:
     # the previous image. Ready pods remain under the StatefulSet's ordinary
     # ordered rollout.
     verbs: [get, list, watch, delete]
+  # Pods of instances with spec.nodeLocalNetwork sit on a pod network the
+  # controller cannot route to, so their /status/rollout is read through the
+  # API server's port-forward, upgraded over SPDY (POST).
+  - apiGroups: [""]
+    resources: [pods/portforward]
+    verbs: [create]
   - apiGroups: ["discovery.k8s.io"]
     resources: [endpointslices]
     verbs: [get, list, watch]
@@ -330,6 +339,10 @@ spec:
       {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 6 }}
   template:
     metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port-name: metrics
+        prometheus.io/path: /metrics
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 8 }}
     spec:
@@ -348,6 +361,7 @@ spec:
           imagePullPolicy: {{ .Values.kuraController.image.pullPolicy }}
           args:
             - --leader-elect=true
+            - --serving-authority={{ .Values.kuraController.servingAuthority.enabled }}
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --watch-namespace={{ $namespace }}
