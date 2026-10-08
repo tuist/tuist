@@ -837,21 +837,31 @@ struct CommandEnvironmentVariableTests {
     @Test(.withMockedEnvironment()) func organizationInviteCommandUsesEnvVars() throws {
         setVariable(.organizationInviteOrganizationName, value: "InviteOrganization")
         setVariable(.organizationInviteEmail, value: "email@example.com")
+        setVariable(.organizationInviteRole, value: "viewer")
         setVariable(.organizationInvitePath, value: "/path/to/invite")
 
         let commandWithEnvVars = try OrganizationInviteCommand.parse([])
         #expect(commandWithEnvVars.organizationName == "InviteOrganization")
         #expect(commandWithEnvVars.email == "email@example.com")
+        #expect(commandWithEnvVars.role == .viewer)
         #expect(commandWithEnvVars.path == "/path/to/invite")
 
         let commandWithArgs = try OrganizationInviteCommand.parse([
             "NewInviteOrganization",
             "newemail@example.com",
+            "--role", "admin",
             "--path", "/new/invite/path",
         ])
         #expect(commandWithArgs.organizationName == "NewInviteOrganization")
         #expect(commandWithArgs.email == "newemail@example.com")
+        #expect(commandWithArgs.role == .admin)
         #expect(commandWithArgs.path == "/new/invite/path")
+    }
+
+    @Test(.withMockedEnvironment()) func organizationInviteCommandRejectsUnknownRoles() throws {
+        #expect(throws: (any Error).self) {
+            try OrganizationInviteCommand.parse(["InviteOrganization", "email@example.com", "--role", "owner"])
+        }
     }
 
     @Test(.withMockedEnvironment()) func organizationShowCommandUsesEnvVars() throws {
