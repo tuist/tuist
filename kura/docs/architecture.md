@@ -2,6 +2,17 @@
 
 This document explains how Kura works, starting from a very high level and going deeper as you read on. Skim the first sections for an overview; read further for the runtime, replication, and rollout details.
 
+Managed instances can opt into `PositiveFenceV1` serving authority. A dedicated
+thread observes Kubernetes CAS grants bound to immutable identities; public
+middleware and store commits carry epoch permits. Peer replication stays enabled
+on standbys. Expired primaries retain an unclean-volume marker, preventing a
+restarted stale store from rejoining peers. Named planned handover freezes both
+retained corpora, verifies every retained record, persists matching receipts and
+positively revokes the old writer. Crash promotion requires external fence
+evidence and accepts an unreplicated tail. See the
+[authority and recovery runbook](../../infra/kura-controller/serving-authority.md)
+for limitations, activation and rollback.
+
 Optional provider-aware replication keeps canonical peer identities and persisted
 watermarks separate from transport endpoints. Membership status advertises the
 provider and a deployment-verified private routing domain. All pull requests

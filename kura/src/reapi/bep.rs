@@ -583,69 +583,85 @@ impl PublishBuildEvent for BuildEventService {
         let service = self.clone();
         let (sender, receiver) = mpsc::channel(64);
 
-        tokio::spawn(async move {
-            let mut invocation_id = None;
-            loop {
-                let request = match requests.message().await {
-                    Ok(Some(request)) => request,
-                    Ok(None) => break,
-                    Err(error) => {
-                        let _ = sender.send(Err(error)).await;
-                        break;
-                    }
-                };
-
-                let Some(event) = request.ordered_build_event else {
-                    let _ = sender
-                        .send(Err(Status::invalid_argument(
-                            "ordered_build_event is required",
-                        )))
-                        .await;
-                    break;
-                };
-
-                let response = PublishBuildToolEventStreamResponse {
-                    stream_id: event.stream_id.clone(),
-                    sequence_number: event.sequence_number,
-                };
-                if let Some(event_invocation_id) = event
-                    .stream_id
-                    .as_ref()
-                    .map(|stream_id| stream_id.invocation_id.as_str())
-                    .filter(|invocation_id| !invocation_id.is_empty())
-                {
-                    let event_invocation_id =
-                        truncate_wire_string(event_invocation_id, MAX_INVOCATION_ID_BYTES);
-                    if invocation_id
-                        .as_ref()
-                        .is_some_and(|invocation_id| invocation_id != &event_invocation_id)
-                    {
+        let serving_permit = crate::serving_authority::current_permit();
+        tokio::spawn(crate::serving_authority::scope(
+            serving_permit.clone(),
+            async move {
+                let mut invocation_id = None;
+                loop {
+                    if serving_permit.as_ref().is_some_and(|p| p.check().is_err()) {
                         let _ = sender
-                            .send(Err(Status::invalid_argument(
-                                "stream_id.invocation_id must remain constant within a stream",
-                            )))
+                            .send(Err(Status::unavailable("serving grant expired")))
                             .await;
                         break;
                     }
-                    invocation_id = Some(event_invocation_id);
+                    let request = match requests.message().await {
+                        Ok(Some(request)) => request,
+                        Ok(None) => break,
+                        Err(error) => {
+                            let _ = sender.send(Err(error)).await;
+                            break;
+                        }
+                    };
+
+                    let Some(event) = request.ordered_build_event else {
+                        let _ = sender
+                            .send(Err(Status::invalid_argument(
+                                "ordered_build_event is required",
+                            )))
+                            .await;
+                        break;
+                    };
+
+                    let response = PublishBuildToolEventStreamResponse {
+                        stream_id: event.stream_id.clone(),
+                        sequence_number: event.sequence_number,
+                    };
+                    if let Some(event_invocation_id) = event
+                        .stream_id
+                        .as_ref()
+                        .map(|stream_id| stream_id.invocation_id.as_str())
+                        .filter(|invocation_id| !invocation_id.is_empty())
+                    {
+                        let event_invocation_id =
+                            truncate_wire_string(event_invocation_id, MAX_INVOCATION_ID_BYTES);
+                        if invocation_id
+                            .as_ref()
+                            .is_some_and(|invocation_id| invocation_id != &event_invocation_id)
+                        {
+                            let _ = sender
+                                .send(Err(Status::invalid_argument(
+                                    "stream_id.invocation_id must remain constant within a stream",
+                                )))
+                                .await;
+                            break;
+                        }
+                        invocation_id = Some(event_invocation_id);
+                    }
+                    service
+                        .process_event(&account_handle, &project_handle, event)
+                        .await;
+
+                    if serving_permit.as_ref().is_some_and(|p| p.check().is_err()) {
+                        let _ = sender
+                            .send(Err(Status::unavailable("serving grant expired")))
+                            .await;
+                        break;
+                    }
+                    if sender.send(Ok(response)).await.is_err() {
+                        break;
+                    }
                 }
+
                 service
-                    .process_event(&account_handle, &project_handle, event)
+                    .finalize_finished_invocation(
+                        &account_handle,
+                        &project_handle,
+                        invocation_id.as_deref(),
+                    )
                     .await;
-
-                if sender.send(Ok(response)).await.is_err() {
-                    break;
-                }
-            }
-
-            service
-                .finalize_finished_invocation(
-                    &account_handle,
-                    &project_handle,
-                    invocation_id.as_deref(),
-                )
-                .await;
-        });
+            },
+        ));
 
         Ok(Response::new(Box::pin(ReceiverStream::new(receiver))))
     }

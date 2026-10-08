@@ -228,7 +228,9 @@ before promoting it, then against the production runner profile.
 3. The `poller` init container runs `dispatch-poll.sh`, exchanging
    the projected SA token for a JIT config (200 with the JIT when
    a queue row is claimed, 204 while idle), then stages the JIT
-   and exits. The `runner` main container starts, runs the GitHub
+   (plus `<jit>.setup-info`, the "Set up job" group linking the job
+   to its dashboard page, which `run-job.sh` copies to the runner's
+   `.setup_info`) and exits. The `runner` main container starts, runs the GitHub
    Actions runner single-shot under that JIT (no token), and
    exits. The runner-container exit is what kubelet observes for
    billing + reaping; the rest is identical to the macOS path

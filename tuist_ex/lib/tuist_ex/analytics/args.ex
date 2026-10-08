@@ -72,6 +72,11 @@ defmodule TuistEx.Analytics.Args do
 
   defp split(["--" | rest], names, options, forwarded), do: split(rest, names, options, forwarded)
 
+  # Mix tasks can be run with non-string arguments, such as the keyword list
+  # `mix app.config` receives from other tasks and passes on to `compile`.
+  defp split([arg | rest], names, options, forwarded) when not is_binary(arg),
+    do: split(rest, names, options, [arg | forwarded])
+
   defp split([arg | rest], names, options, forwarded) do
     case String.split(arg, "=", parts: 2) do
       [flag, value] when is_map_key(names, flag) ->

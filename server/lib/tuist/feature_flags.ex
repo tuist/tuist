@@ -3,6 +3,11 @@ defmodule Tuist.FeatureFlags do
 
   alias Tuist.Environment
 
+  @doc "Default-off account opt-in to managed positive-fence serving authority."
+  def kura_positive_fence_enabled?(account) do
+    FunWithFlags.enabled?(:kura_positive_fence, for: account)
+  end
+
   @doc """
   Whether the account may advertise and receive its managed stable cache
   hostname. Canary is automatically enabled. Every other environment requires

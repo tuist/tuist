@@ -1380,6 +1380,8 @@ defmodule TuistWeb.Router do
         RunnerJobLogsController,
         :download
 
+    get "/runners/by-runner/:runner_name", RunnerJobRedirectController, :show
+
     live_session :public_account,
       layout: {TuistWeb.Layouts, :account},
       session: {TuistWeb.RemoteIp, :live_session, []},

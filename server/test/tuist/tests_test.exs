@@ -6838,6 +6838,54 @@ defmodule Tuist.TestsTest do
   end
 
   describe "list_flaky_test_cases/2" do
+    test "combines identity filters and search before paginating and counting" do
+      project = ProjectsFixtures.project_fixture()
+
+      for {name, suite_name, module_name} <- [
+            {"selectedFirst", "CoordinatorTests", "AppTests"},
+            {"selectedSecond", "CoordinatorTests", "AppTests"},
+            {"selectedOtherSuite", "OtherTests", "AppTests"},
+            {"selectedOtherModule", "CoordinatorTests", "OtherModule"},
+            {"excludedBySearch", "CoordinatorTests", "AppTests"}
+          ] do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: name,
+            suite_name: suite_name,
+            module_name: module_name
+          )
+
+        IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+        RunsFixtures.test_case_event_fixture(
+          project_id: project.id,
+          test_case_id: test_case.id,
+          event_type: "marked_flaky",
+          inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+        )
+      end
+
+      for {name, page} <- [{"selectedFirst", 1}, {"selectedSecond", 2}] do
+        {results, meta} =
+          Tests.list_flaky_test_cases(project.id, %{
+            filters: [
+              %{field: "suite_name", op: :==, value: "CoordinatorTests"},
+              %{field: "module_name", op: :==, value: "AppTests"},
+              %{field: :name, op: :ilike_and, value: "selected"}
+            ],
+            order_by: [:name],
+            order_directions: [:asc],
+            page_size: 1,
+            page: page
+          })
+
+        assert Enum.map(results, & &1.name) == [name]
+        assert meta.total_count == 2
+        assert meta.total_pages == 2
+      end
+    end
+
     test "returns empty list when no flaky test cases exist" do
       project = ProjectsFixtures.project_fixture()
 

@@ -1336,6 +1336,14 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  The lifecycle row of the job that ran on `runner_name` within
+  `account_id`. See `Tuist.Runners.WorkflowJobs.get_executed_by_runner_name/2`.
+  """
+  def get_executed_by_runner_name(account_id, runner_name) do
+    WorkflowJobs.get_executed_by_runner_name(account_id, runner_name)
+  end
+
+  @doc """
   Lists lifecycle rows in `status = 'queued'` whose
   `enqueued_at` falls in `[enqueued_after, enqueued_before)` —
   candidates for the "queued but never reconciled" recovery path that
