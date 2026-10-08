@@ -130,6 +130,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   branch skips the idle watchdog entirely — an acquisition token names
   one job UUID, so there is no window in which a registered agent waits
   to be handed work, which is the whole hazard that watchdog bounds.
+  For a GitHub job it writes the response's `setup_info` to the
+  runner's `.setup_info`, which the runner prints in the job's "Set up
+  job" step as a "Tuist Runner" group linking to the job's dashboard
+  page (`/<account>/runners/by-runner/<runner name>`, resolved
+  server-side because GitHub picks the job after the file is read).
   Captures
   the rc and `sudo shutdown -h now`s the VM via an `EXIT` trap so
   `tart run` returns and tart-kubelet flips the Pod to

@@ -835,15 +835,20 @@ defmodule Tuist.OnceEvents do
 
     direction = if Keyword.get(opts, :sort_order) == "desc", do: :desc_nulls_last, else: :asc_nulls_last
 
+    sort_value =
+      if sort_field == :identifier,
+        do: dynamic([a], coalesce(fragment("NULLIF(?, '')", a.display_name), a.identifier)),
+        else: dynamic([a], field(a, ^sort_field))
+
     run
     |> actions_query(opts)
-    |> order_by([a], [
-      {^direction, field(a, ^sort_field)},
+    |> order_by(^[{direction, sort_value}])
+    |> order_by([a],
       asc: a.target_execution_id,
       asc: a.capability,
       asc: a.action_index,
       asc: a.id
-    ])
+    )
     |> limit(^Keyword.get(opts, :limit, 50))
     |> offset(^Keyword.get(opts, :offset, 0))
     |> Repo.all()
@@ -861,8 +866,7 @@ defmodule Tuist.OnceEvents do
       if search == "" do
         query
       else
-        pattern = "%" <> String.replace(search, ~r/[\\%_]/, fn char -> "\\" <> char end) <> "%"
-        where(query, [a], ilike(a.identifier, ^pattern) or ilike(a.target_execution_id, ^pattern))
+        maybe_filter_action_search(query, search)
       end
 
     Enum.reduce(Keyword.get(opts, :filters, []), query, &filter_actions/2)
@@ -1128,7 +1132,13 @@ defmodule Tuist.OnceEvents do
 
   defp maybe_filter_action_search(query, search) do
     pattern = "%" <> String.replace(search, ~r/[\\%_]/, fn char -> "\\" <> char end) <> "%"
-    where(query, [a], ilike(a.target_execution_id, ^pattern) or ilike(a.identifier, ^pattern))
+
+    where(
+      query,
+      [a],
+      ilike(a.target_execution_id, ^pattern) or ilike(a.identifier, ^pattern) or ilike(a.display_name, ^pattern) or
+        fragment("EXISTS (SELECT 1 FROM unnest(?) AS source_file WHERE source_file ILIKE ?)", a.source_files, ^pattern)
+    )
   end
 
   # An action is either a cache hit or a miss. "stored" and "reused" describe
@@ -1142,11 +1152,23 @@ defmodule Tuist.OnceEvents do
     direction = if sort_order == "asc", do: :asc_nulls_last, else: :desc_nulls_last
 
     case sort_by do
-      "action" -> order_by(query, [a], [{^direction, a.identifier}, {:asc, a.id}])
-      "outcome" -> order_by(query, [a], [{^direction, a.was_cached}, {:asc, a.id}])
-      "target" -> order_by(query, [a], [{^direction, a.target_execution_id}, {:asc, a.id}])
-      "latency" -> order_by(query, [a], [{^direction, a.duration_ms}, {:asc, a.id}])
-      _ -> order_by(query, [a], [{^direction, a.finished_at}, {:asc, a.id}])
+      "action" ->
+        order_by(query, [a], [
+          {^direction, coalesce(fragment("NULLIF(?, '')", a.display_name), a.identifier)},
+          {:asc, a.id}
+        ])
+
+      "outcome" ->
+        order_by(query, [a], [{^direction, a.was_cached}, {:asc, a.id}])
+
+      "target" ->
+        order_by(query, [a], [{^direction, a.target_execution_id}, {:asc, a.id}])
+
+      "latency" ->
+        order_by(query, [a], [{^direction, a.duration_ms}, {:asc, a.id}])
+
+      _ ->
+        order_by(query, [a], [{^direction, a.finished_at}, {:asc, a.id}])
     end
   end
 
@@ -1161,6 +1183,8 @@ defmodule Tuist.OnceEvents do
       id: action.id,
       target_execution_id: action.target_execution_id,
       action_identifier: action.identifier,
+      action_display_name: action.display_name,
+      source_files: action.source_files,
       outcome: if(action.was_cached, do: "hit", else: "miss"),
       duration_ms: action.duration_ms || 0,
       observed_at: action.finished_at || action.started_at,

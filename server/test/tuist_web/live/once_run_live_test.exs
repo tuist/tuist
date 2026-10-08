@@ -6,8 +6,11 @@ defmodule TuistWeb.OnceRunLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Once.Events.V1.ActionCompleted
+  alias Once.Events.V1.RunEvent
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Projector
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup %{project: project, organization: organization} do
     project = project |> Ecto.Changeset.change(build_system: :once) |> Tuist.Repo.update!()
@@ -25,6 +28,142 @@ defmodule TuistWeb.OnceRunLiveTest do
     end
 
     %{run: run, path: "/#{organization.account.name}/#{project.name}/once/runs/#{run.run_id}"}
+  end
+
+  test "display names and source files appear in both action views with legacy fallbacks", %{
+    conn: conn,
+    path: path,
+    run: run
+  } do
+    Projector.project(
+      %RunEvent{
+        epoch_ms: 1_789_405_000_000,
+        payload:
+          {:action_completed,
+           %ActionCompleted{
+             target_execution_id: "named-target",
+             capability: "build",
+             identifier: "diagnostic-identifier",
+             display_name: "Compile main.c",
+             source_files: ["src/main.c", "include/api.h"],
+             result: :TARGET_RESULT_SUCCEEDED
+           }}
+      },
+      run.project_id,
+      run.run_id
+    )
+
+    {:ok, view, _} = live(conn, path)
+    assert has_element?(view, "#once-actions-table", "Compile main.c")
+    assert has_element?(view, "#once-actions-table", "compiler-0")
+    assert has_element?(view, "#once-actions-table", "src/main.c")
+    assert has_element?(view, "#once-actions-table", "include/api.h")
+
+    {:ok, cache_view, _} = live(conn, path <> "/cache?cache_search=Compile+main.c")
+    assert has_element?(cache_view, "#once-cache-table", "Compile main.c")
+    assert has_element?(cache_view, "#once-cache-table", "src/main.c")
+  end
+
+  test "source links use the connected repository at the recorded revision", %{
+    conn: conn,
+    organization: organization
+  } do
+    project =
+      ProjectsFixtures.project_fixture(
+        account_id: organization.account.id,
+        build_system: :once,
+        vcs_connection: [repository_full_handle: "org/repository"]
+      )
+
+    {:ok, run} =
+      OnceEvents.upsert_run(%{project_id: project.id, run_id: UUIDv7.generate(), git_rev: "abc123"})
+
+    {:ok, _} =
+      OnceEvents.ingest_action(run, %{
+        target_execution_id: "app",
+        capability: "build",
+        action_index: 0,
+        display_name: "Compile main.c",
+        source_files: ["src/main.c", "../outside.c", "/tmp/host.c"],
+        result: "succeeded",
+        started_at: DateTime.utc_now(),
+        finished_at: DateTime.utc_now()
+      })
+
+    conn = Plug.Conn.assign(conn, :selected_project, project)
+    path = "/#{organization.account.name}/#{project.name}/once/runs/#{run.run_id}"
+    {:ok, view, _} = live(conn, path)
+
+    assert has_element?(view, ~s(#once-actions-table a[href="https://github.com/org/repository/blob/abc123/src/main.c"]))
+    refute has_element?(view, ~s(#once-actions-table a[href*="outside.c"]))
+    refute has_element?(view, ~s(#once-actions-table a[href*="/tmp/host.c"]))
+
+    {:ok, cache_view, _} = live(conn, path <> "/cache")
+
+    assert has_element?(
+             cache_view,
+             ~s(#once-cache-table a[href="https://github.com/org/repository/blob/abc123/src/main.c"])
+           )
+
+    run |> Ecto.Changeset.change(git_rev: nil) |> Tuist.Repo.update!()
+    {:ok, view, _} = live(conn, path)
+    assert has_element?(view, "#once-actions-table", "src/main.c")
+    refute has_element?(view, ~s(#once-actions-table a[href*="/blob/"]))
+  end
+
+  test "large source lists have a bounded preview and all recorded paths remain searchable", %{
+    conn: conn,
+    path: path,
+    run: run
+  } do
+    files = Enum.map(1..3000, &"src/file-#{&1}.c")
+
+    Projector.project(
+      %RunEvent{
+        epoch_ms: 1_789_405_000_000,
+        payload:
+          {:action_completed,
+           %ActionCompleted{
+             target_execution_id: "large-source-target",
+             capability: "build",
+             display_name: "Compile large module",
+             source_files: files,
+             result: :TARGET_RESULT_SUCCEEDED
+           }}
+      },
+      run.project_id,
+      run.run_id
+    )
+
+    assert [%{source_files: ^files}] = OnceEvents.list_actions(run, search: "src/file-3000.c")
+
+    for suffix <- ["?search=src%2Ffile-3000.c", "/cache?cache_search=src%2Ffile-3000.c"] do
+      {:ok, view, _} = live(conn, path <> suffix)
+      assert has_element?(view, "[data-source-files]", "2,997 more files")
+      assert has_element?(view, "[data-source-files]", "src/file-1.c")
+      refute has_element?(view, "[data-source-files]", "src/file-3000.c")
+      labels = view |> render() |> Floki.parse_fragment!() |> Floki.find("[data-source-files] [data-part=label]")
+      assert Enum.count(labels, &(Floki.text(&1) != "—")) == 3
+    end
+
+    [action] = OnceEvents.list_actions(run, search: "src/file-3000.c")
+    action |> Ecto.Changeset.change(source_files: Enum.take(files, 4)) |> Tuist.Repo.update!()
+
+    for suffix <- ["?search=src%2Ffile-4.c", "/cache?cache_search=src%2Ffile-4.c"] do
+      {:ok, view, _} = live(conn, path <> suffix)
+      assert has_element?(view, "[data-source-files]", "1 more file")
+      refute has_element?(view, "[data-source-files]", "1 more files")
+    end
+  end
+
+  test "actions without presentation metadata retain the original table", %{conn: conn, path: path} do
+    {:ok, view, _} = live(conn, path)
+    assert has_element?(view, "#once-actions-table", "compiler-0")
+    refute has_element?(view, "#once-actions-table th", "Source files")
+
+    {:ok, cache_view, _} = live(conn, path <> "/cache")
+    assert has_element?(cache_view, "#once-cache-table", "Compiler")
+    refute has_element?(cache_view, "#once-cache-table th", "Source files")
   end
 
   test "an expired run reads as interrupted rather than running", %{conn: conn, path: path, run: run} do
@@ -166,11 +305,11 @@ defmodule TuistWeb.OnceRunLiveTest do
 
   defp action(run, index) do
     Projector.project(
-      %Once.Events.V1.RunEvent{
+      %RunEvent{
         epoch_ms: 1_789_405_000_000,
         payload:
           {:action_completed,
-           %Once.Events.V1.ActionCompleted{
+           %ActionCompleted{
              target_execution_id: "target-#{index}",
              capability: "build",
              action_index: 0,

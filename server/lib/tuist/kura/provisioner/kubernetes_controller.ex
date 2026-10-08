@@ -13,6 +13,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.EgressLimits
@@ -368,7 +369,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       self_hosted_peers(account, region, entitlements),
       entitlements,
       effective_egress(account, region, entitlements)
-    ) <> endpoint_identity_revision(account)
+    ) <> endpoint_identity_revision(account) <> serving_revision(account)
   end
 
   @doc "The base manifest revision, independent of dynamic per-account inputs."
@@ -417,7 +418,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     egress = effective_egress(account, region, entitlements)
 
     revision =
-      manifest_revision_string(region, claim, external_peers, entitlements, egress) <> endpoint_identity_revision(account)
+      manifest_revision_string(region, claim, external_peers, entitlements, egress) <>
+        endpoint_identity_revision(account) <>
+        serving_revision(account)
 
     annotations = %{@manifest_revision_annotation => revision}
 
@@ -439,6 +442,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         %{
           "accountHandle" => account_handle,
           "tenantID" => account_handle,
+          "servingMode" => if(FeatureFlags.kura_positive_fence_enabled?(account), do: "PositiveFenceV1"),
           "region" => region.id,
           "image" => "ghcr.io/tuist/kura:#{image_tag}",
           # Only the steady-state (`:none`) server publishes the account's
@@ -501,6 +505,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       |> Enum.sort()
 
     if hosts == [], do: nil, else: hosts
+  end
+
+  defp serving_revision(account) do
+    if FeatureFlags.kura_positive_fence_enabled?(account), do: "+positive-fence-v1", else: ""
   end
 
   defp endpoint_identity_revision(account) do

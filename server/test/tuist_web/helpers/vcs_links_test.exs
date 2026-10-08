@@ -109,6 +109,56 @@ defmodule TuistWeb.Helpers.VCSLinksTest do
       html = render_component(&VCSLinks.source_file_link/1, assigns)
 
       assert html =~ ~s(href="https://github.example.com/org/repo/blob/abc123/Sources/App/main.swift")
+      assert html =~ ~s(class="noora-link-button")
+      assert html =~ ~s(data-variant="primary")
+      assert html =~ ~s(data-underline)
+      assert html =~ ~s(rel="noopener noreferrer")
+    end
+
+    test "encodes repository filenames and supports hidden directories" do
+      assigns = %{
+        project: project_with_connection("https://github.com"),
+        path: ".github/source files/café #1?.swift",
+        commit_sha: "abc123"
+      }
+
+      html = render_component(&VCSLinks.source_file_link/1, assigns)
+
+      assert html =~ ~s(href="https://github.com/org/repo/blob/abc123/.github/source%20files/caf%C3%A9%20%231%3F.swift")
+      assert html =~ "café #1?.swift"
+    end
+
+    test "untrusted source paths cannot escape the recorded repository" do
+      for path <- [
+            "../outside.c",
+            "src/../../outside.c",
+            "/tmp/main.c",
+            "C:/main.c",
+            "src\\\\main.c",
+            "src/./main.c",
+            "src//main.c",
+            "src/main\n.c"
+          ] do
+        html =
+          render_component(&VCSLinks.source_file_link/1, %{
+            project: project_with_connection("https://github.com"),
+            path: path,
+            commit_sha: "abc123"
+          })
+
+        refute html =~ "href="
+      end
+    end
+
+    test "percent-encoded traversal remains a literal filename" do
+      html =
+        render_component(&VCSLinks.source_file_link/1, %{
+          project: project_with_connection("https://github.com"),
+          path: "%2e%2e/source.c",
+          commit_sha: "abc123"
+        })
+
+      assert html =~ ~s(/blob/abc123/%252e%252e/source.c)
     end
 
     test "falls back to the supplied branch when a commit is unavailable" do
