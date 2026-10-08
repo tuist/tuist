@@ -48,27 +48,30 @@ defmodule TuistWeb.BuildsLive do
   def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
     params = Query.query_params(uri)
 
-    cond do
-      Project.bazel_project?(project) ->
-        TuistWeb.BazelBuildsLive.handle_params(params, uri, socket)
+    {:noreply, socket} =
+      cond do
+        Project.bazel_project?(project) ->
+          TuistWeb.BazelBuildsLive.handle_params(params, uri, socket)
 
-      Project.gradle_project?(project) ->
-        {:noreply,
-         socket
-         |> TuistWeb.GradleBuildsLive.assign_handle_params(params)
-         |> TuistWeb.GradleBuildsLive.assign_configuration_insights_options(params)
-         |> TuistWeb.GradleBuildsLive.assign_configuration_insights()}
+        Project.gradle_project?(project) ->
+          {:noreply,
+           socket
+           |> TuistWeb.GradleBuildsLive.assign_handle_params(params)
+           |> TuistWeb.GradleBuildsLive.assign_configuration_insights_options(params)
+           |> TuistWeb.GradleBuildsLive.assign_configuration_insights()}
 
-      Project.mix_project?(project) ->
-        {:noreply,
-         socket
-         |> TuistWeb.MixBuildsLive.assign_handle_params(params)
-         |> TuistWeb.MixBuildsLive.assign_configuration_insights_options(params)
-         |> TuistWeb.MixBuildsLive.assign_configuration_insights()}
+        Project.mix_project?(project) ->
+          {:noreply,
+           socket
+           |> TuistWeb.MixBuildsLive.assign_handle_params(params)
+           |> TuistWeb.MixBuildsLive.assign_configuration_insights_options(params)
+           |> TuistWeb.MixBuildsLive.assign_configuration_insights()}
 
-      true ->
-        {:noreply, TuistWeb.XcodeBuildsLive.assign_handle_params(socket, params)}
-    end
+        true ->
+          {:noreply, TuistWeb.XcodeBuildsLive.assign_handle_params(socket, params)}
+      end
+
+    {:noreply, socket}
   end
 
   def handle_info(_event, socket) do

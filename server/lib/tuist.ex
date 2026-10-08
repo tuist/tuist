@@ -90,6 +90,8 @@ defmodule Tuist do
       Kura.RegisteredEndpoint,
       Gradle,
       Gradle.Analytics,
+      Gradle.Metrics,
+      BuildMetrics,
       Gradle.TaskAnalytics,
       Gradle.Build,
       Gradle.Timeline,

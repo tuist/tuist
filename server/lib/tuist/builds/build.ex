@@ -27,6 +27,7 @@ defmodule Tuist.Builds.Build do
   @derive {
     Flop.Schema,
     filterable: [
+      :failure_category,
       :project_id,
       :scheme,
       :configuration,
@@ -42,11 +43,12 @@ defmodule Tuist.Builds.Build do
       :custom_tags,
       :inserted_at
     ],
-    sortable: [:inserted_at, :duration]
+    sortable: [:failure_category, :id, :inserted_at, :duration]
   }
 
   @primary_key {:id, Ch, type: "UUID", autogenerate: false}
   schema "build_runs" do
+    field :failure_category, :string, virtual: true, default: ""
     field :duration, Ch, type: "Int32"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
@@ -179,7 +181,7 @@ defmodule Tuist.Builds.Build do
   def to_buffer_map(%__MODULE__{} = build) do
     build
     |> Map.from_struct()
-    |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
+    |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets, :failure_category])
     |> Map.update(:id, UUIDv7.generate(), fn id -> id || UUIDv7.generate() end)
     |> Map.update(:inserted_at, NaiveDateTime.utc_now(), fn
       nil -> NaiveDateTime.utc_now()

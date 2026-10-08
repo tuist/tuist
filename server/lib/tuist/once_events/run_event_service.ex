@@ -20,6 +20,8 @@ defmodule Tuist.OnceEvents.RunEventService do
   alias Once.Events.V1.RunEventAck
   alias Once.Events.V1.RunFinalization
   alias Once.Events.V1.ServerCapabilities
+  alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.User
   alias Tuist.Authentication
   alias Tuist.Authorization
   alias Tuist.Environment
@@ -95,12 +97,16 @@ defmodule Tuist.OnceEvents.RunEventService do
   # member or a deactivated user from writing until the client disconnects, as
   # the per-request HTTP API would not allow.
   def publish_run_events(request_stream, stream) do
-    project = require_project!(stream, :publish_run_events, :admission)
+    {project, account_id} =
+      case resolve_identity(stream, nil) do
+        {:ok, project, account_id} -> {project, account_id}
+        {:error, reason} -> refuse!(:publish_run_events, :admission, reason)
+      end
 
     _last_check =
       Enum.reduce(request_stream, now_ms(), fn batch, checked_at ->
         checked_at = reauthenticate!(stream, project, checked_at)
-        ack = handle_batch(batch, project)
+        ack = handle_batch(batch, project, account_id)
         GRPC.Server.send_reply(stream, ack)
         checked_at
       end)
@@ -124,7 +130,7 @@ defmodule Tuist.OnceEvents.RunEventService do
 
   defp now_ms, do: System.monotonic_time(:millisecond)
 
-  defp handle_batch(batch, project) do
+  defp handle_batch(batch, project, account_id) do
     # An empty batch carries `gap_advances` instead of events, and its
     # `seq_from` is one past the last dropped sequence, so the arithmetic
     # below lands on that sequence and lets the client retire the lost
@@ -133,7 +139,7 @@ defmodule Tuist.OnceEvents.RunEventService do
     stored_seq = OnceEvents.acked_seq(project.id, batch.run_id)
     batch_last_seq = batch.seq_from + length(batch.events) - 1
 
-    case project_events(batch, project) do
+    case project_events(batch, project, account_id) do
       :ok ->
         {:ok, committed_seq} =
           OnceEvents.observe_acked_seq(project.id, batch.run_id, max(stored_seq, batch_last_seq))
@@ -177,9 +183,9 @@ defmodule Tuist.OnceEvents.RunEventService do
     }
   end
 
-  defp project_events(batch, project) do
+  defp project_events(batch, project, account_id) do
     Enum.reduce_while(batch.events, :ok, fn event, _acc ->
-      case project_event(event, project.id, batch.run_id) do
+      case project_event(event, project.id, batch.run_id, account_id) do
         :ok ->
           {:cont, :ok}
 
@@ -198,8 +204,8 @@ defmodule Tuist.OnceEvents.RunEventService do
   # The projector reaches Ecto, which raises rather than returning a tagged
   # tuple. This is the transport boundary, so an unexpected crash is turned
   # into a retryable ack instead of taking the stream (and the run) down.
-  defp project_event(event, project_id, run_id) do
-    Projector.project(event, project_id, run_id)
+  defp project_event(event, project_id, run_id, account_id) do
+    Projector.project(event, project_id, run_id, account_id)
     :ok
   rescue
     error -> {:error, error}
@@ -268,6 +274,17 @@ defmodule Tuist.OnceEvents.RunEventService do
   end
 
   defp resolve_project(stream, hint_project_id) do
+    case resolve_identity(stream, hint_project_id) do
+      {:ok, project, _account_id} -> {:ok, project}
+      error -> error
+    end
+  end
+
+  defp actor_account_id(%User{account: account}), do: account.id
+  defp actor_account_id(%AuthenticatedAccount{account: account}), do: account.id
+  defp actor_account_id(_subject), do: nil
+
+  defp resolve_identity(stream, hint_project_id) do
     headers =
       try do
         GRPC.Stream.get_headers(stream) || %{}
@@ -277,7 +294,10 @@ defmodule Tuist.OnceEvents.RunEventService do
 
     with token when is_binary(token) <- extract_bearer(headers),
          subject when not is_nil(subject) <- authenticated_subject(token) do
-      project_for(subject, present(hint_project_id) || present(header_value(headers, @project_header)))
+      case project_for(subject, present(hint_project_id) || present(header_value(headers, @project_header))) do
+        {:ok, project} -> {:ok, project, actor_account_id(subject)}
+        error -> error
+      end
     else
       _ -> {:error, "missing or invalid bearer"}
     end

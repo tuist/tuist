@@ -538,6 +538,7 @@ defmodule Tuist.Docs.Sidebar do
               }
             ]
           },
+          %Item{label: "Grafana", slug: "/en/guides/integrations/grafana"},
           %Item{label: "Slack", slug: "/en/guides/integrations/slack"},
           %Item{label: "Webhooks", slug: "/en/guides/integrations/webhooks"},
           %Item{

@@ -3,6 +3,7 @@
 This directory contains the core business logic and domain modules for the server.
 
 ## Responsibilities
+- `Tuist.BuildMetrics` normalizes Bazel, Once, Gradle and Xcode build records into one Grafana health contract. Keep aggregation in each database, apply project/range filters before aggregation, exclude processing/unfinished records, retain missing evidence as null or unknown, and preserve source-specific public run identifiers for links. Once has no elapsed cache-savings report.
 - `Tests.list_flaky_test_cases/3` applies the same identity filters to the rows and pagination count. Preserve Flop operators for suite/module filters; the search box matches test names, suite/class names, and module names. Time and environment filters scope flaky-run statistics without excluding currently flagged tests.
 - `Projects.projects_by_full_handles/1` is the batch lookup for signed analytics ingestion. Resolve current and retained account handles through `account_handle_reservations` to the owning account ID so queued events and Kura storage-tenant fallbacks survive renames. This is attribution, not authorization.
 - Metric automations accept a one-time `trigger_config.apply_actions_to_existing_matches` request on create/update. A fresh request starts a baseline generation even when the condition is unchanged. Baselines recheck matches in bounded batches and serialize publication per alert with a session advisory lock. Each action runs outside a row-lock transaction, between a short preflight check and a durable checkpoint; edits may cancel the remaining work while an authorized action finishes. Clear the request on completion. Silent publication deduplication tokens include the sorted test ID set so changed payloads on retry are not dropped. Read-only match counts enumerate bounded pages and share the baseline metric, trusted-branch validation, and current-state eligibility logic. Condition edits require a fresh opt-in. Omitting the request preserves pending work; explicit false cancels remaining actions. Baseline attempt generations invalidate stale workers; nullable `event_generation` separately scopes recovery history (falling back to `baseline_generation` for existing rows), so opt-ins and cancellations retain active recovery events. Returned action errors are logged and checkpointed without publishing a successful trigger, allowing the baseline and subsequent evaluation to progress.
@@ -156,3 +157,13 @@ This directory contains the core business logic and domain modules for the serve
   [`infra/runners-controller/cache-volumes.md`](../../../infra/runners-controller/cache-volumes.md).
   Schema/lifecycle rules: [`runners/cache_volumes/AGENTS.md`](runners/cache_volumes/AGENTS.md).
 - Once run event projection and action identity: [once_events/AGENTS.md](once_events/AGENTS.md).
+
+- Build-health classification shares verification/infrastructure_tooling/unknown across toolchains. Explicit category metadata overrides detected evidence. Only generic failure queries include the all-failures row; legacy Gradle rows remain unchanged. Xcode issue lookups must first restrict build identifiers by authorized project and time range.
+
+Generic build-health dimension lists read the last 90 days and cap output at 1000 values. The legacy Gradle compatibility entry point retains its existing history window. Bazel infrastructure exit codes take precedence over detected verification; explicit customer category overrides still win.
+
+- Build metrics also power native build-health cards. Source-specific overview dimensions are bound in `BuildMetrics` before aggregation; estimates use the same bounded metadata validation in native build details and Grafana.
+
+- Native build listings opt into the virtual failure-category column from `BuildMetrics`. Use the shared classifier before database filtering, sorting and pagination, scope evidence to the selected project, and leave stored records and legacy listing defaults unchanged.
+
+- BuildMetrics.failure_category looks up one failed build in the authorized project using the same classifier as listing filters and Grafana. Detail evidence reads restrict Gradle tasks and Xcode issues to the requested build identifier. Nonfailed and missing records have no detail category.
