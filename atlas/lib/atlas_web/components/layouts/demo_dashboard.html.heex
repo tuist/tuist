@@ -1,4 +1,4 @@
-<main class="layout">
+<main class="layout" data-part="demo-layout">
   <header class="headerbar">
     <div data-part="left-section">
       <.link navigate={~p"/demo"} class="headerbar__brand">
@@ -7,11 +7,17 @@
       </.link>
     </div>
     <div data-part="right-section">
-      <.link href="https://atlas.tuist.dev/docs/self-hosting">{gettext("Self-host Atlas")}</.link>
+      <.button
+        id="demo-self-host-link"
+        href="https://atlas.tuist.dev/docs/self-hosting"
+        label={gettext("Self-host Atlas")}
+        variant="secondary"
+        size="small"
+      />
     </div>
   </header>
   <.line_divider />
-  <section class="layout__main">
+  <section class="layout__main" data-part="demo-main">
     <.sidebar>
       <.sidebar_group
         id="sidebar-demo"
@@ -58,14 +64,50 @@
       </.sidebar_group>
     </.sidebar>
     <div data-part="demo-content">
+      <nav data-part="demo-navigation" aria-label={gettext("Explore Atlas")}>
+        <.link
+          :for={
+            {label, path} <- [
+              {gettext("Start here"), ~p"/demo"},
+              {gettext("Accounts"), ~p"/commercial/sales/accounts"},
+              {gettext("Tasks"), ~p"/tasks"},
+              {gettext("Finance"), ~p"/commercial/finance"},
+              {gettext("Vendor costs"), ~p"/commercial/finance/vendors"},
+              {gettext("Notes"), ~p"/library/notes"}
+            ]
+          }
+          navigate={path}
+          data-selected={
+            to_string(
+              @current_path == path or
+                (path in ["/commercial/sales/accounts", "/library/notes"] and
+                   String.starts_with?(@current_path, path <> "/"))
+            )
+          }
+          aria-current={
+            if @current_path == path or
+                 (path in ["/commercial/sales/accounts", "/library/notes"] and
+                    String.starts_with?(@current_path, path <> "/")),
+               do: "page"
+          }
+        >
+          {label}
+        </.link>
+      </nav>
       <aside id="demo-banner" data-part="demo-banner">
-        <strong>{gettext("Read-only demo")}</strong>
-        <span>
+        <.badge label={gettext("Read-only demo")} color="information" />
+        <span data-part="demo-banner-description">
           {gettext(
             "All data is fictional. Browse, search, and filter; changes and integrations are disabled."
           )}
         </span>
-        <.link href="https://atlas.tuist.dev/docs">{gettext("Read the docs")}</.link>
+        <.button
+          id="demo-banner-docs-link"
+          href="https://atlas.tuist.dev/docs"
+          label={gettext("Read the docs")}
+          variant="secondary"
+          size="small"
+        />
       </aside>
       <div data-part="demo-page">{@inner_content}</div>
     </div>

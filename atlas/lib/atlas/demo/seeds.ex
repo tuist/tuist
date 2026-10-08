@@ -55,6 +55,7 @@ defmodule Atlas.Demo.Seeds do
             description: "Fictional #{name} account for the Atlas demo.",
             currency: "EUR",
             current_value: Decimal.new(value),
+            contacts_count: 1,
             hosting: "cloud",
             plan_tier: "enterprise",
             next_renewal_date: Date.add(today, 45),

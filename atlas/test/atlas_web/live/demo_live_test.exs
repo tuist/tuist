@@ -119,6 +119,28 @@ defmodule AtlasWeb.DemoLiveTest do
     end
   end
 
+  test "curated pages render browsing controls without write affordances", %{conn: conn} do
+    Seeds.run!()
+    account = Repo.get_by!(Account, account_key: "atlas-demo:helio")
+    note = Repo.one!(from(n in Note, where: n.title == "Northstar operating principles"))
+
+    for {path, browsing_control, write_controls} <- [
+          {"/commercial/sales/accounts", "#accounts-search-form", "#new-account-button, #new-account-form"},
+          {"/commercial/sales/accounts/#{account.id}", "#account-contacts-list",
+           "#account-actions-dropdown, #edit-account-button, #refresh-overview-summary-button, #contact-form, #edit-billing-form, #term-form, #timeline-note-form, [data-part='contact-action'], [data-part='term-actions-cell']"},
+          {"/tasks", "#tasks-search-form", "#add-task-button, #task-form, [id^='task-actions-']"},
+          {"/library/notes", "#notes-search-form", "#notes-new-button"},
+          {"/library/notes/#{note.id}", "#note-preview", "#note-form, #note-content, #note-save-button"}
+        ] do
+      {:ok, view, _html} = live(conn, path)
+      assert has_element?(view, browsing_control)
+      refute has_element?(view, write_controls)
+      refute has_element?(view, "form[phx-submit]:not([phx-submit='search'])")
+    end
+
+    assert account.contacts_count == 1
+  end
+
   test "account search works but forged mutations do not", %{conn: conn} do
     Seeds.run!()
     account = Repo.get_by!(Account, account_key: "atlas-demo:helio")

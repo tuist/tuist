@@ -1288,6 +1288,7 @@ defmodule AtlasWeb.AccountLive do
             </:footer>
           </.modal>
           <.dropdown
+            :if={!Demo.enabled?()}
             id="account-actions-dropdown"
             icon_only
             size="medium"
@@ -1444,7 +1445,7 @@ defmodule AtlasWeb.AccountLive do
         data-part="overview-card"
         style={overview_card_style(@account)}
       >
-        <:actions>
+        <:actions :if={!Demo.enabled?()}>
           <div data-part="overview-card-actions">
             <.button
               id="refresh-overview-summary-button"
@@ -1881,7 +1882,12 @@ defmodule AtlasWeb.AccountLive do
         </.card_section>
       </.card>
 
-      <.card title={gettext("Feature usage")} icon="trending_up" data-part="feature-usage-card">
+      <.card
+        :if={!Demo.enabled?()}
+        title={gettext("Feature usage")}
+        icon="trending_up"
+        data-part="feature-usage-card"
+      >
         <.card_section :if={not @feature_usage_view.tracked?} data-part="feature-usage-empty">
           {gettext(
             "This account is not linked to a Tuist handle yet, so feature usage is not tracked."
@@ -1941,6 +1947,7 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card
+        :if={!Demo.enabled?()}
         title={gettext("Feature interest")}
         icon="message_circle"
         data-part="feature-interest-card"
@@ -2041,7 +2048,12 @@ defmodule AtlasWeb.AccountLive do
         </.card_section>
       </.card>
 
-      <.card title={gettext("Evaluations")} icon="checkup_list" data-part="account-pocs-card">
+      <.card
+        :if={!Demo.enabled?()}
+        title={gettext("Evaluations")}
+        icon="checkup_list"
+        data-part="account-pocs-card"
+      >
         <.card_section data-part="account-pocs-section">
           <.table
             :if={@pocs != []}
@@ -2077,7 +2089,7 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card
-        :if={@account.documents != []}
+        :if={!Demo.enabled?() and @account.documents != []}
         title={gettext("Documents")}
         icon="file"
         data-part="documents-card"
@@ -2100,7 +2112,7 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card title={gettext("Contacts")} icon="users" data-part="contacts-card">
-        <:actions>
+        <:actions :if={!Demo.enabled?()}>
           <div data-part="contacts-card-actions">
             <.button
               id="add-contact-button"
@@ -2262,7 +2274,7 @@ defmodule AtlasWeb.AccountLive do
                 </p>
               </div>
 
-              <div data-part="contact-action">
+              <div :if={!Demo.enabled?()} data-part="contact-action">
                 <.button
                   id={"contact-history-button-#{contact.id}"}
                   label={gettext("History")}
@@ -2296,7 +2308,7 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card title={gettext("Billing & Address")} icon="building" data-part="billing-card">
-        <:actions>
+        <:actions :if={!Demo.enabled?()}>
           <.modal
             id="edit-billing-modal"
             title={gettext("Billing & Address")}
@@ -2536,7 +2548,7 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card title={gettext("Contract Terms")} icon="file" data-part="terms-card">
-        <:actions>
+        <:actions :if={!Demo.enabled?()}>
           <div data-part="terms-card-actions">
             <.button
               id="add-term-button"
@@ -2762,7 +2774,7 @@ defmodule AtlasWeb.AccountLive do
             <:col :let={term} label={gettext("PO")}>
               <.text_cell label={term.po_number || "-"} />
             </:col>
-            <:col :let={term} label="">
+            <:col :let={term} :if={!Demo.enabled?()} label="">
               <.button_cell>
                 <:button>
                   <div data-part="term-actions-cell">
@@ -2938,6 +2950,7 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card
+        :if={!Demo.enabled?()}
         title={gettext("Account nudges")}
         icon="bell"
         data-part="account-nudges-card"
@@ -3726,7 +3739,7 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card title={gettext("Timeline")} icon="timeline_event" data-part="timeline-card">
-        <:actions>
+        <:actions :if={!Demo.enabled?()}>
           <.button
             :if={@account.events != []}
             id="record-feature-interest-button"
@@ -3739,6 +3752,7 @@ defmodule AtlasWeb.AccountLive do
         </:actions>
         <.card_section data-part="timeline-section">
           <.form
+            :if={!Demo.enabled?()}
             id="timeline-note-form"
             for={@note_form}
             phx-submit="add_note"

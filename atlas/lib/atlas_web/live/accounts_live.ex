@@ -10,6 +10,7 @@ defmodule AtlasWeb.AccountsLive do
   alias Atlas.Accounts.Amounts
   alias Atlas.Accounts.DealStage
   alias Atlas.Accounts.Query
+  alias Atlas.Demo
   alias AtlasWeb.Utilities.Query, as: WebQuery
   alias Noora.Filter
 
@@ -63,7 +64,7 @@ defmodule AtlasWeb.AccountsLive do
           </p>
         </div>
 
-        <div data-part="header-actions">
+        <div :if={!Demo.enabled?()} data-part="header-actions">
           <.modal
             id="new-account-modal"
             title={gettext("Create account")}
