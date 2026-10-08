@@ -48,8 +48,7 @@ defmodule TuistWeb.Utilities.LlmsTxt do
   ]
 
   @optional_pages [
-    {"/llms-full.txt",
-     "The full English documentation, including the CLI reference, in a single Markdown document."},
+    {"/llms-full.txt", "The full English documentation, including the CLI reference, in a single Markdown document."},
     {"/blog", "Long-form engineering writing on build systems, caching, and developer infrastructure."},
     {"/changelog", "Every user-facing change, newest first."},
     {"/newsletter", "Tuist Digest, product updates and perspectives from the team."},

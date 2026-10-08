@@ -103,17 +103,22 @@ defmodule TuistWeb.LlmsTxtControllerTest do
         [
           %{slug: "/en/cli/zzz", title: "Last command", markdown: "Last command source."},
           %{slug: "/es/cli/aaa", title: "Excluded command", markdown: "Excluded source."},
-          %{slug: "/en/cli/aaa", title: "First command", markdown: "First command source."}
+          %{
+            slug: "/en/cli/aaa",
+            title: "First command",
+            markdown: "First command source.\n\nSource: [upstream](https://example.com/source)"
+          }
         ]
       end)
 
       body = conn |> get("/llms-full.txt") |> response(200)
       assert body =~ "First command source."
+      assert body =~ "Source: [upstream](https://example.com/source)"
       assert body =~ "Last command source."
       refute body =~ "Excluded source."
       refute body =~ "/es/docs-markdown/"
 
-      source_urls = Regex.scan(~r/^Source: (.+)$/m, body, capture: :all_but_first)
+      source_urls = Regex.scan(~r/^# [^\n]+\n\nSource: (https?:\/\/\S+)\n\n/m, body, capture: :all_but_first)
       assert source_urls == Enum.sort(source_urls)
       assert source_urls == Enum.uniq(source_urls)
       assert body =~ "\n\n---\n\n"
