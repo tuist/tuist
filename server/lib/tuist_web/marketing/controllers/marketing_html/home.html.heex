@@ -1020,10 +1020,12 @@
     <section data-part="cta" aria-labelledby="cta-title">
       <span data-part="eyebrow">{dgettext("marketing", "What are you waiting for?")}</span>
       <h2 id="cta-title">{dgettext("marketing", "Supercharge your development")}</h2>
+      <TuistWeb.Marketing.Components.SetupPrompt.setup_prompt id="cta-setup-prompt" />
       <div data-part="actions" role="group" aria-labelledby="cta-title">
         <.button
           href={localized_href("https://tuist.dev/en/docs/")}
-          label={dgettext("marketing", "Get started")}
+          variant="secondary"
+          label={dgettext("marketing", "Documentation")}
         />
         <.button
           href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"

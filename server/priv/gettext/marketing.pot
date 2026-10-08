@@ -2793,3 +2793,28 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Cache downloads served today, including repeated and partial requests. Counters are estimated between reports using recent activity. Totals reset at midnight UTC."
 msgstr ""
+
+#: lib/tuist_web/marketing/components/setup_prompt.ex:15
+#, elixir-autogen, elixir-format
+msgid "Copied! Paste it into your coding agent."
+msgstr ""
+
+#: lib/tuist_web/marketing/components/setup_prompt.ex:17
+#, elixir-autogen, elixir-format
+msgid "Couldn't copy. Select the prompt and copy it manually."
+msgstr ""
+
+#: lib/tuist_web/marketing/components/setup_prompt.ex:21
+#, elixir-autogen, elixir-format
+msgid "Copy and paste this prompt into your coding agent."
+msgstr ""
+
+#: lib/tuist_web/marketing/components/setup_prompt.ex:25
+#, elixir-autogen, elixir-format
+msgid "Connect my project to Tuist (https://tuist.dev)"
+msgstr ""
+
+#: lib/tuist_web/marketing/components/setup_prompt.ex:29
+#, elixir-autogen, elixir-format
+msgid "Copy prompt"
+msgstr ""

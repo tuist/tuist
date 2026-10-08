@@ -3086,10 +3086,60 @@
       text-align: center;
     }
 
+    & > [data-part="setup-prompt"] {
+      margin-top: var(--noora-spacing-7);
+      width: 100%;
+      max-width: 640px;
+
+      & > [data-part="instructions"] {
+        margin: 0 0 var(--noora-spacing-5);
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        text-align: center;
+      }
+
+      & > [data-part="prompt-row"] {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-5);
+        border: 1px solid var(--marketing-stroke-default);
+        border-radius: var(--noora-radius-6);
+        padding: var(--noora-spacing-5);
+
+        & > [data-part="prompt"] {
+          flex: 1;
+          min-width: 0;
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+          user-select: text;
+          overflow-wrap: anywhere;
+        }
+
+        & > [data-part="copy"] {
+          flex-shrink: 0;
+        }
+
+        @media (max-width: 480px) {
+          flex-direction: column;
+          align-items: stretch;
+        }
+      }
+
+      & > [data-part="status"] {
+        margin: var(--noora-spacing-4) 0 0;
+        min-height: 2lh;
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        text-align: center;
+      }
+    }
+
     & > [data-part="actions"] {
       display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
       gap: var(--noora-spacing-4);
-      margin-top: var(--noora-spacing-9);
+      margin-top: var(--noora-spacing-5);
     }
   }
 }

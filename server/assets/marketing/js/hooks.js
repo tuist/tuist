@@ -47,6 +47,7 @@ import { NewsletterForm } from "./hooks/newsletter-form.js";
 import { NewsletterIssuesSort } from "./hooks/newsletter-issues-sort.js";
 import { CacheGlobe } from "./hooks/cache-globe.js";
 import { SplitFlap } from "./hooks/split-flap.js";
+import { SetupPrompt } from "./hooks/setup-prompt.js";
 
 const Hooks = {
   GoogleOneTap,
@@ -98,6 +99,7 @@ const Hooks = {
   NewsletterIssuesSort,
   CacheGlobe,
   SplitFlap,
+  SetupPrompt,
 };
 
 export { Hooks };
