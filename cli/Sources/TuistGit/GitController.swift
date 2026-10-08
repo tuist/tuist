@@ -250,6 +250,13 @@ public struct GitController: GitControlling {
         "teamcity.pullRequest.number",
     ]
 
+    /// The commit a provider built, for those that check a pull request out at its tip, where
+    /// HEAD^2 is not the pull request's commit when the tip is a merge.
+    private static let commitSHAEnvironmentVariables = [
+        // TeamCity (a single VCS root)
+        "build.vcs.number",
+    ]
+
     private static let baseBranchEnvironmentVariables = [
         // GitHub Actions
         "GITHUB_BASE_REF",
@@ -389,7 +396,12 @@ public struct GitController: GitControlling {
         // HEAD is an ephemeral merge commit. Use the second parent (the actual
         // PR branch tip) instead, since the merge commit doesn't exist on the remote.
         let commitSHA: String?
-        if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
+        if let ciCommitSHA = Self.commitSHAEnvironmentVariables
+            .compactMap({ environment[$0] })
+            .first(where: { !$0.isEmpty })
+        {
+            commitSHA = ciCommitSHA
+        } else if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
             let isPullRequestMergeRef = gitRef?.hasPrefix("refs/pull/") == true
             if isPullRequestMergeRef,
                let secondParent = try? await capture(

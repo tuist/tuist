@@ -15,10 +15,17 @@ enum CIBuildParameters {
               let buildProperties = await properties(at: buildPropertiesPath, fileSystem: fileSystem)
         else { return [:] }
 
-        guard let configurationPropertiesPath = buildProperties["teamcity.configuration.properties.file"],
-              let configurationProperties = await properties(at: configurationPropertiesPath, fileSystem: fileSystem)
-        else { return buildProperties }
-        return buildProperties.merging(configurationProperties) { buildValue, _ in buildValue }
+        var parameters = buildProperties
+        if let configurationPropertiesPath = buildProperties["teamcity.configuration.properties.file"],
+           let configurationProperties = await properties(at: configurationPropertiesPath, fileSystem: fileSystem)
+        {
+            parameters.merge(configurationProperties) { buildValue, _ in buildValue }
+        }
+        // TeamCity calls the default branch `<default>` when no branch specification names it.
+        if parameters["teamcity.build.branch"] == "<default>" {
+            parameters["teamcity.build.branch"] = nil
+        }
+        return parameters
     }
 
     private static func properties(at path: String, fileSystem: FileSysteming) async -> [String: String]? {

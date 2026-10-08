@@ -477,14 +477,59 @@ struct GitControllerTests {
         #expect(gitInfo.baseBranch == nil)
     }
 
+    /// Without a branch specification naming it, TeamCity calls the default branch `<default>`.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_builds_the_default_branch_without_a_name() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(at: path, configuration: ["teamcity.build.branch=<default>"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD"], output: "master-sha\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "branch", "--show-current"], output: "master\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "")
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.branch == "master")
+    }
+
+    /// TeamCity checks a GitHub pull request out at `refs/pull/<n>/head`, its tip, and reports it
+    /// as the build's revision. When the tip merged the target branch in, HEAD^2 is not the tip.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_builds_a_pull_request_whose_tip_is_a_merge() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(
+            at: path,
+            build: ["build.vcs.number=pr-tip-sha"],
+            configuration: ["teamcity.pullRequest.number=42"]
+        )
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD"], output: "pr-tip-sha\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD^2"], output: "master-sha\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "branch", "--show-current"], output: "\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "")
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.sha == "pr-tip-sha")
+    }
+
     /// Writes the properties files a TeamCity agent writes for a build, in the format it writes
     /// them in, and points the environment at them.
-    private func mockTeamCity(at path: AbsolutePath, configuration: [String]) async throws {
+    private func mockTeamCity(at path: AbsolutePath, build: [String] = [], configuration: [String]) async throws {
         let buildProperties = path.appending(component: "build.properties")
         let configurationProperties = path.appending(component: "config.properties")
         let escapedConfigurationPath = configurationProperties.pathString.replacingOccurrences(of: ":", with: "\\:")
         try await FileSystem().writeText(
-            "#TeamCity build properties\nteamcity.configuration.properties.file=\(escapedConfigurationPath)",
+            (["#TeamCity build properties", "teamcity.configuration.properties.file=\(escapedConfigurationPath)"] + build)
+                .joined(separator: "\n"),
             at: buildProperties
         )
         try await FileSystem().writeText(
