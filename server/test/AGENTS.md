@@ -4,6 +4,7 @@ This directory contains ExUnit tests for the Tuist Server.
 
 ## Testing Guidelines
 - Search-indexing coverage verifies crawlable public project HTML, noindex for sensitive routes and failures, query-free canonical URLs, and bounded public-only project sitemaps. Keep private-project authorization unchanged.
+- Public overview coverage exercises populated initial HTML and sharing metadata for all five build systems, tracking-variant cache reuse, HTTP/LiveView challenge scope, and warmed public-to-private authorization. Cache tests use isolated processes or unique project IDs; never clear the shared overview cache in async test setup. Exercise actual eight-widget cold-page recovery for multiple projects, assert retained worker slots and strict loader concurrency, and reject backend calls when unverified visitors apply UI filters or mount with selected-run parameters.
 - Tests are `async: true` by default; avoid global state and make architectural changes to support concurrency.
 - Tests run with a clean database.
 - Successful Mix compile-reporter ingestion fixtures must include a profiled file; idle compiles intentionally emit no report. Error diagnostics still report without profiled files.
