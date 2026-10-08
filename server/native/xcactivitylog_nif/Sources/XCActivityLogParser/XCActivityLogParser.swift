@@ -359,7 +359,7 @@ public struct XCActivityLogParser: Sendable {
         var keyStatuses = [String: (taskType: String, hasQuery: Bool, hasMaterialize: Bool, hasUpload: Bool, isMiss: Bool)]()
         var keyDescriptions = [String: String]()
         var keyNodeIDs = [String: Set<String>]()
-        var localCacheHitNoteKeys = [String: String]()
+        var noteOnlyStepNotes = [[CacheNote]]()
 
         for step in buildSteps {
             guard step.title.contains("Swift caching") || step.title.contains("Clang caching") else { continue }
@@ -388,15 +388,12 @@ public struct XCActivityLogParser: Sendable {
 
         for step in buildSteps {
             guard let notes = step.notes else { continue }
-            for note in notes {
-                if let key = extractCacheKeyFromNote(note.title) {
-                    keyDescriptions[key] = step.title
-                    if note.title.range(of: "cache found for key:", options: .caseInsensitive) != nil {
-                        localCacheHitNoteKeys[key] = taskType(forLocalCacheHitNote: note.title)
-                    }
-                }
+            let cacheNotes = notes.compactMap { cacheNote($0.title) }
+            for note in cacheNotes {
+                keyDescriptions[note.key] = step.title
             }
-            let cacheKey = extractCacheKey(from: step.title) ?? notes.compactMap({ extractCacheKeyFromNote($0.title) }).first
+            if !cacheNotes.isEmpty { noteOnlyStepNotes.append(cacheNotes) }
+            let cacheKey = extractCacheKey(from: step.title) ?? cacheNotes.first?.key
             guard let ck = cacheKey else { continue }
             for note in notes {
                 if let nodeID = extractNodeIDFromNote(note.title) {
@@ -446,21 +443,26 @@ public struct XCActivityLogParser: Sendable {
             )
         }
 
-        // A compilation replayed straight out of the local CAS runs no caching step at
-        // all. The only trace it leaves is a `local cache found for key:` note on the
-        // compile step, so without this pass those keys are dropped from the task
-        // counts and the build reads as a much colder cache than it was.
-        let noteOnlyTasks = localCacheHitNoteKeys.compactMap { key, taskType -> CacheableTask? in
-            guard keyStatuses[key] == nil else { return nil }
-            return CacheableTask(
-                type: taskType,
-                status: "hit_local",
-                key: key,
+        // A compilation served by, or missing from, a local-only CAS runs no caching step
+        // at all. Its only trace is the hit or miss notes on the compile step. Xcode counts
+        // the compile job once, although a batch-mode Swift job names one key per file it
+        // replays, so each step becomes a single task under its first key.
+        var noteOnlyKeys = Set<String>()
+        var noteOnlyTasks = [CacheableTask]()
+        for stepNotes in noteOnlyStepNotes {
+            let keys = stepNotes.map(\.key)
+            guard keys.allSatisfy({ keyStatuses[$0] == nil && !noteOnlyKeys.contains($0) }) else { continue }
+            noteOnlyKeys.formUnion(keys)
+            let note = stepNotes[0]
+            noteOnlyTasks.append(CacheableTask(
+                type: note.taskType,
+                status: stepNotes.contains(where: \.isMiss) ? "miss" : "hit_local",
+                key: note.key,
                 read_duration: nil,
                 write_duration: nil,
-                description: descriptions[key],
-                cas_output_node_ids: Array(nodeIDs[key] ?? [])
-            )
+                description: descriptions[note.key],
+                cas_output_node_ids: Array(nodeIDs[note.key] ?? [])
+            ))
         }
 
         return stepTasks + noteOnlyTasks
@@ -552,17 +554,29 @@ public struct XCActivityLogParser: Sendable {
         return nil
     }
 
-    // Xcode 27's clang compile steps name their key in `replayed cache hit: 0~…`
-    // or `cache miss: 0~…` rather than the Swift `local cache … for key:` notes.
-    private func extractCacheKeyFromNote(_ noteTitle: String) -> String? {
-        let pattern = "(?i)(?:local cache found for key:|local cache miss for key:|replayed cache hit:|^cache miss:)\\s+(0~[A-Za-z0-9+/_=-]+)"
-        return extractWithPattern(pattern, from: noteTitle)
+    private struct CacheNote {
+        let key: String
+        let taskType: String
+        let isMiss: Bool
     }
 
-    // swift-frontend capitalises the note. clang emits it lower-case, including the
-    // explicit module compiles that produce pcms.
-    private func taskType(forLocalCacheHitNote noteTitle: String) -> String {
-        noteTitle.contains("Local cache found for key:") ? "swift" : "clang"
+    // Xcode 27's clang compile steps name their key in `replayed cache hit: 0~…`
+    // or `cache miss: 0~…` rather than the `local cache … for key:` notes.
+    // swift-frontend capitalises `Local cache`. clang emits it lower-case, including
+    // the explicit module compiles that produce pcms.
+    private func cacheNote(_ noteTitle: String) -> CacheNote? {
+        let pattern = "(?i)(local cache found for key:|local cache miss for key:|replayed cache hit:|^cache miss:)\\s+(0~[A-Za-z0-9+/_=-]+)"
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: noteTitle, range: NSRange(noteTitle.startIndex..., in: noteTitle)),
+              let kindRange = Range(match.range(at: 1), in: noteTitle),
+              let keyRange = Range(match.range(at: 2), in: noteTitle)
+        else { return nil }
+        let kind = noteTitle[kindRange]
+        return CacheNote(
+            key: String(noteTitle[keyRange]),
+            taskType: kind.hasPrefix("Local cache") ? "swift" : "clang",
+            isMiss: kind.lowercased().contains("miss")
+        )
     }
 
     private func extractNodeIDFromNote(_ noteTitle: String) -> String? {

@@ -6,12 +6,18 @@ defmodule Atlas.MCP.Tools.GetSentEmailTest do
   alias Atlas.MCP.Tools.GetSentEmail
 
   test "returns a sent email with its body" do
-    delivery = insert_delivery!(%{metadata: %{"body_markdown" => "Your price changes next month."}})
+    delivery =
+      insert_delivery!(%{
+        cc_emails: ["cto@acme.example"],
+        metadata: %{"body_markdown" => "Your price changes next month."}
+      })
 
     assert {:ok, %{email: email}} = execute_tool(GetSentEmail, executive_mcp_conn(), %{"id" => delivery.id})
 
     assert email.id == delivery.id
     assert email.kind == "direct"
+    assert email.to_emails == [delivery.recipient_email]
+    assert email.cc_emails == ["cto@acme.example"]
     assert email.body_markdown == "Your price changes next month."
   end
 

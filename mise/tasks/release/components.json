@@ -1,6 +1,14 @@
 {
   "components": [
     {
+      "name": "tuist-ex",
+      "tag_prefix": "tuist-ex@",
+      "tag_regex": "^tuist-ex@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "tuist_ex/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["tuist_ex/**/*"]
+    },
+    {
       "name": "cli",
       "tag_prefix": "",
       "tag_regex": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
@@ -12,7 +20,6 @@
         "cas-plugin/**/*",
         "server/native/xcresult_nif/Sources/XCResultParser/**/*",
         "mise/tasks/cli/**/*",
-        "mise/tasks/release/components.json",
         ".github/workflows/cli-release.yml",
         ".github/workflows/cli-build-publish.yml",
         ".github/workflows/cli-rc.yml",
@@ -61,7 +68,6 @@
         "tuist_common/**/*",
         "noora/**/*",
         "mise/tasks/server/**/*",
-        "mise/tasks/release/components.json",
         ".github/workflows/server-release.yml",
         ".github/workflows/server-rc.yml",
         ".github/workflows/server-promote.yml",
@@ -87,7 +93,8 @@
         "infra/helm/atlas/**/*",
         "infra/k8s/atlas/**/*",
         "mise/tasks/release/components.json",
-        ".github/workflows/atlas-release.yml"
+        ".github/workflows/atlas-release.yml",
+        ".github/workflows/atlas-deployment-validation.yml"
       ]
     },
     {
@@ -99,7 +106,6 @@
       "include_paths": [
         "kura/**/*",
         "mise/tasks/kura/**/*",
-        "mise/tasks/release/components.json",
         ".github/workflows/kura-release.yml",
         ".github/workflows/kura-rc.yml",
         ".github/workflows/kura-promote.yml",
@@ -121,6 +127,18 @@
       "cliff_config": "skills/cliff.toml",
       "initial_version": "0.1.0",
       "include_paths": ["skills/**/*"]
+    },
+    {
+      "name": "cache-volume",
+      "tag_prefix": "cache-volume@",
+      "tag_regex": "^cache-volume@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "ci/cache-volume/cliff.toml",
+      "initial_version": "1.0.0",
+      "include_paths": [
+        ".github/actions/cache-volume/**/*",
+        "ci/cache-volume/**/*",
+        ".github/workflows/cache-volume-action.yml"
+      ]
     },
     {
       "name": "noora",
@@ -148,7 +166,8 @@
         "infra/cluster-api-provider-tuist/**/*",
         "infra/macos-host-bootstrap/**/*",
         "infra/macos-log-shipper/**/*",
-        "infra/tart-kubelet/**/*"
+        "infra/tart-kubelet/**/*",
+        "infra/runner-cache/**/*"
       ]
     },
     {
@@ -171,7 +190,7 @@
       "tag_regex": "^runner-image@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "infra/runner-image/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["infra/runner-image/**/*"]
+      "include_paths": ["infra/runner-image/**/*", "infra/linux-runner-image/cmd/tuist-cache-volume/**/*", ".github/actions/build-runner-image-binaries/**/*"]
     },
     {
       "name": "linux-runner-image",
@@ -187,7 +206,7 @@
       "tag_regex": "^runners-controller@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "infra/runners-controller/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["infra/runners-controller/**/*"]
+      "include_paths": ["infra/runners-controller/**/*", "infra/runner-cache/**/*"]
     },
     {
       "name": "hetzner-robot-controller",

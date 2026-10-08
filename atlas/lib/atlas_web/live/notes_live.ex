@@ -5,6 +5,7 @@ defmodule AtlasWeb.NotesLive do
   import AtlasWeb.CoreComponents, only: []
   import Noora.Filter
 
+  alias Atlas.Demo
   alias Atlas.Notes
   alias Atlas.Notes.Note
   alias Noora.Filter
@@ -142,7 +143,10 @@ defmodule AtlasWeb.NotesLive do
   end
 
   def render(%{live_action: :index} = assigns), do: render_index(assigns)
-  def render(assigns), do: render_editor(assigns)
+
+  def render(assigns) do
+    if Demo.enabled?(), do: render_read_only_note(assigns), else: render_editor(assigns)
+  end
 
   defp render_index(assigns) do
     ~H"""
@@ -154,7 +158,12 @@ defmodule AtlasWeb.NotesLive do
             {gettext("Shared Markdown notes, indexed for quick retrieval by people and agents.")}
           </p>
         </div>
-        <.button id="notes-new-button" label={gettext("New note")} navigate={~p"/library/notes/new"}>
+        <.button
+          :if={!Demo.enabled?()}
+          id="notes-new-button"
+          label={gettext("New note")}
+          navigate={~p"/library/notes/new"}
+        >
           <:icon_left><.icon name="plus" /></:icon_left>
         </.button>
       </div>
@@ -222,7 +231,7 @@ defmodule AtlasWeb.NotesLive do
                   <.text_and_description_cell
                     label={note.title}
                     description={excerpt(note.content)}
-                    truncate={false}
+                    truncate={Demo.enabled?()}
                   />
                 </:col>
                 <:col :let={{_id, note}} label={gettext("Updated")}>
@@ -233,6 +242,26 @@ defmodule AtlasWeb.NotesLive do
           </div>
         </.card_section>
       </.card>
+    </div>
+    """
+  end
+
+  defp render_read_only_note(assigns) do
+    ~H"""
+    <div id="note-editor" data-part="note-reader">
+      <div data-part="header">
+        <div data-part="text">
+          <.link navigate={~p"/library/notes"} data-part="back-link">{gettext("Notes")}</.link>
+          <h1 data-part="title">{@note.title}</h1>
+        </div>
+      </div>
+      <section data-part="pane">
+        <AtlasWeb.Markdown.content
+          id="note-preview"
+          body={@note.content}
+          data-part="note-body"
+        />
+      </section>
     </div>
     """
   end

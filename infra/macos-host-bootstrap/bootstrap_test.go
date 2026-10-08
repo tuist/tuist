@@ -496,6 +496,84 @@ func TestHostConfigHash_IndependentOfPerHostFields(t *testing.T) {
 	}
 }
 
+// The hash is stamped on Machine status, which the read-only tier can read,
+// and SHA-256 is cheap to brute-force. No credential may reach what it
+// digests, and rotating one must not move it.
+func TestHostConfigHash_KeepsCredentialsOutOfTheHashedMaterial(t *testing.T) {
+	fleet := Config{
+		TartKubeletBinary:    []byte("kubelet-v1"),
+		TailscaleBinaries:    []byte("ts-v1"),
+		LogShipperBinary:     []byte("shipper"),
+		LogShipURL:           "http://receiver:3100/loki/api/v1/push",
+		TailscaleTags:        []string{"tag:tuist-macmini"},
+		VMKuraEgressCIDR:     "10.96.0.0/12",
+		SSHIngressAllowCIDRs: []string{"10.0.0.0/8"},
+	}
+	credentials := func(suffix string) PerHost {
+		return PerHost{
+			UserPassword:     "sudo-password-" + suffix,
+			SSHPrivateKey:    []byte("ssh-private-key-" + suffix),
+			Kubeconfig:       "kubeconfig-token-" + suffix,
+			TailscaleAuthKey: "tskey-auth-" + suffix,
+			TailscaleState:   []byte("tailscaled-state-" + suffix),
+			GHActionsRunner: &GHActionsRunnerConfig{
+				GHOrg:                     "tuist",
+				GHRunnerRegistrationToken: "runner-registration-token-" + suffix,
+			},
+		}
+	}
+
+	first := fleet.WithPerHost(credentials("first"))
+	rotated := fleet.WithPerHost(credentials("rotated"))
+	if HostConfigHash(first) != HostConfigHash(fleet) || HostConfigHash(rotated) != HostConfigHash(fleet) {
+		t.Fatal("HostConfigHash must not depend on per-host credentials")
+	}
+
+	material := hostConfigMaterial(first)
+	for _, secret := range []string{
+		"sudo-password-first",
+		"ssh-private-key-first",
+		"kubeconfig-token-first",
+		"tskey-auth-first",
+		"tailscaled-state-first",
+		"runner-registration-token-first",
+	} {
+		if strings.Contains(material, secret) {
+			t.Errorf("hashed material contains the credential %q", secret)
+		}
+	}
+}
+
+// A render that fails is folded in as the inputs it rejected, not as the
+// error's text: the hashed material is built from Config values alone, so
+// nothing an error message carries can reach the digest on Machine status.
+func TestHostConfigHash_FoldsARenderFailureAsItsInputs(t *testing.T) {
+	for name, broken := range map[string]Config{
+		"firewall":          {VMKuraEgressCIDR: "10.96.0.0/99"},
+		"ssh-ingress-guard": {SSHIngressAllowCIDRs: []string{"10.0.0.0/99"}},
+		"cache-gateway":     {VMCacheGatewayCIDRs: []string{"10.0.0.0/99"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			material := hostConfigMaterial(broken)
+			if strings.Contains(material, "not an IPv4") {
+				t.Fatalf("hashed material carries the render error's text:\n%q", material)
+			}
+			if !strings.Contains(material, "10.0.0.0/99") && !strings.Contains(material, "10.96.0.0/99") {
+				t.Fatalf("hashed material must carry the rejected input:\n%q", material)
+			}
+		})
+	}
+
+	// A second broken value is still a different config, so it must still
+	// lift a FailedHostConfigHash pinned on the first.
+	if HostConfigHash(Config{VMKuraEgressCIDR: "10.96.0.0/99"}) == HostConfigHash(Config{VMKuraEgressCIDR: "10.96.0.0/98"}) {
+		t.Fatal("two different rejected firewall inputs must hash differently")
+	}
+	if HostConfigHash(Config{SSHIngressAllowCIDRs: []string{"10.0.0.0/99"}}) == HostConfigHash(Config{SSHIngressAllowCIDRs: []string{"10.0.0.0/98"}}) {
+		t.Fatal("two different rejected ssh ingress inputs must hash differently")
+	}
+}
+
 func TestHostConfigHash_ChangesWhenFleetConfigChanges(t *testing.T) {
 	base := Config{
 		TartKubeletBinary: []byte("kubelet-v1"),
@@ -679,7 +757,7 @@ func TestRenderSSHIngressGuardScript_PassesVMEgress(t *testing.T) {
 	}
 	for _, want := range []string{
 		"table <vm_ssh_sources> persist { 192.168.64.0/22 }",
-		"pass in quick proto tcp from <vm_ssh_sources> to any port 22 keep state",
+		"pass in quick proto tcp from <vm_ssh_sources> to any port 22 flags any keep state",
 		"block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22",
 	} {
 		if !strings.Contains(s, want) {
@@ -696,6 +774,117 @@ func TestRenderSSHIngressGuardScript_PassesVMEgress(t *testing.T) {
 	if vmPass < strings.Index(s, "block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22") {
 		t.Error("VM pass renders before the VM→VM block; a VM could reach the host's :22")
 	}
+}
+
+// A VM that dials the host's en0, LAN or tailnet address on :22 is delivered to
+// the same launchd listener as one that dials the bridge, so blocking the vmnet
+// range alone still lets a customer workload flood the host's backlog. Verified
+// on ber1-proto-01: from inside a runner VM, the host's LAN and tailnet
+// addresses accepted :22 until a `to self` block was loaded. The dynamic
+// `(self)` form loaded cleanly there and blocked nothing, because xnu has no
+// interface groups and leaves its table empty.
+func TestRenderSSHIngressGuardScript_DeniesVMsEveryHostAddress(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	const selfBlock = "block drop in quick proto tcp from <vm_ssh_sources> to self port 22"
+	if !strings.Contains(s, selfBlock) {
+		t.Fatalf("renderSSHIngressGuardScript missing %q", selfBlock)
+	}
+	if strings.Index(s, "pass in quick proto tcp from <vm_ssh_sources> to any port 22") < strings.Index(s, selfBlock) {
+		t.Error("VM pass renders before the host-address block; a VM reaches the host's :22 through its en0, LAN or tailnet address")
+	}
+
+	anchor := sshGuardAnchor(t, s)
+	for _, line := range strings.Split(anchor, "\n") {
+		if !strings.HasPrefix(line, "#") && strings.Contains(line, "(self)") {
+			t.Errorf("rule uses the dynamic (self), which macOS pf resolves to an empty table: %q", line)
+		}
+	}
+
+	// pfctl expands the static form to one rule per host address, and every
+	// host has loopback, so a parsed anchor without it means `self` was not
+	// expanded.
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	if !strings.Contains(parsed, "from <vm_ssh_sources> to 127.0.0.1 port = 22") {
+		t.Errorf("pfctl did not expand self to the host's addresses\n%s", parsed)
+	}
+}
+
+// On a fresh host pf is enabled under the bootstrap's own SSH session, so that
+// session reaches the guard with no state. With pf's default `flags S/SA` only a
+// SYN creates state, and the session's next packet falls through to the block.
+func TestRenderSSHIngressGuardScript_PassesAdmitEstablishedSessions(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{SSHIngressAllowCIDRs: []string{"203.0.113.7/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := sshGuardAnchor(t, s)
+
+	assertPassesUseFlagsAny := func(source, rules string) {
+		t.Helper()
+		passes := 0
+		for _, line := range strings.Split(rules, "\n") {
+			if !strings.HasPrefix(line, "pass ") {
+				continue
+			}
+			passes++
+			if !strings.Contains(line, " flags any ") {
+				t.Errorf("%s: pass rule only admits new connections: %q", source, line)
+			}
+		}
+		if passes == 0 {
+			t.Fatalf("%s: no pass rules in\n%s", source, rules)
+		}
+	}
+	assertPassesUseFlagsAny("rendered anchor", anchor)
+
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	assertPassesUseFlagsAny("pfctl", parsed)
+}
+
+// sshGuardAnchor returns the pf anchor the guard script writes, with the
+// session source filled in the way the host shell does.
+func sshGuardAnchor(t *testing.T, script string) string {
+	t.Helper()
+	const open = "<<PFCONF\n"
+	start := strings.Index(script, open)
+	if start < 0 {
+		t.Fatalf("no PFCONF heredoc in rendered script\n%s", script)
+	}
+	anchor := script[start+len(open):]
+	end := strings.Index(anchor, "\nPFCONF\n")
+	if end < 0 {
+		t.Fatalf("unterminated PFCONF heredoc\n%s", script)
+	}
+	return strings.ReplaceAll(anchor[:end+1], "${SESSION_ENTRY}", ", 198.51.100.9")
+}
+
+// pfctlParse runs the anchor through `pfctl -n -v`, which parses without
+// loading and prints the rules as pf expands them. ok is false where pfctl is
+// not available, i.e. anywhere but macOS.
+func pfctlParse(t *testing.T, anchor string) (parsed string, ok bool) {
+	t.Helper()
+	pfctl, err := exec.LookPath("pfctl")
+	if err != nil {
+		return "", false
+	}
+	file := filepath.Join(t.TempDir(), "tuist.sshguard")
+	if err := os.WriteFile(file, []byte(anchor), 0o600); err != nil {
+		t.Fatalf("write anchor: %v", err)
+	}
+	out, err := exec.Command(pfctl, "-n", "-v", "-f", file).Output()
+	if err != nil {
+		t.Fatalf("pfctl rejects the anchor: %v\n%s", err, anchor)
+	}
+	return string(out), true
 }
 
 // A malformed allow CIDR must fail closed rather than render a creative
@@ -1234,12 +1423,12 @@ func TestUpdateTartKubelet_AppliesEveryHashedStep(t *testing.T) {
 }
 
 // hashedPartNames returns the `name` field of every element of the
-// `[]struct{ name, script string }` table HostConfigHash iterates.
+// `[]struct{ name, script string }` table hostConfigMaterial iterates.
 func hashedPartNames(t *testing.T, file *ast.File) []string {
 	t.Helper()
 
 	var names []string
-	ast.Inspect(findFunc(t, file, "HostConfigHash"), func(n ast.Node) bool {
+	ast.Inspect(findFunc(t, file, "hostConfigMaterial"), func(n ast.Node) bool {
 		lit, ok := n.(*ast.CompositeLit)
 		if !ok {
 			return true
@@ -1416,5 +1605,55 @@ func TestAutoLoginScriptNeedsNoDeveloperTools(t *testing.T) {
 		if strings.Contains(script, forbidden) {
 			t.Errorf("auto-login script runs %q, which needs Xcode Command Line Tools that a rack host does not have", forbidden)
 		}
+	}
+}
+
+func TestRenderVMEgressFirewallScript_PassesRackCacheGatewaysOn443(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{
+		VMKuraEgressCIDR:    "10.128.0.0/12",
+		VMCacheGatewayCIDRs: []string{"10.10.0.11/32", "10.10.0.12/32"},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	block := strings.Index(script, "block drop out quick from <vm_sources> to <blocked_dst>")
+	for _, want := range []string{
+		"pass out quick proto tcp from <vm_sources> to 10.10.0.11/32 port 443 keep state",
+		"pass out quick proto tcp from <vm_sources> to 10.10.0.12/32 port 443 keep state",
+	} {
+		pass := strings.Index(script, want)
+		if pass < 0 {
+			t.Fatalf("missing %q in rendered script\n%s", want, script)
+		}
+		if block < 0 || pass > block {
+			t.Fatalf("%q must render before the blocked_dst drop (first quick match wins)\n%s", want, script)
+		}
+	}
+}
+
+func TestRenderVMEgressFirewallScript_NoCacheGatewayPassWhenUnset(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMKuraEgressCIDR: "10.128.0.0/12", VMCachePNCIDR: "172.16.0.0/22"})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if strings.Contains(script, "port 443") || strings.Contains(script, "gateway carve-out") {
+		t.Fatalf("a fleet without cache gateways must not pass 443\n%s", script)
+	}
+}
+
+func TestRenderVMEgressFirewallScript_RejectsMalformedCacheGatewayCIDR(t *testing.T) {
+	for _, bad := range []string{"10.10.0.11", "10.10.0.11/33", "fd00::1/128", "10.10.0.11/32 port 22"} {
+		if _, err := renderVMEgressFirewallScript(Config{VMCacheGatewayCIDRs: []string{bad}}); err == nil {
+			t.Fatalf("expected %q to be rejected", bad)
+		}
+	}
+}
+
+func TestHostConfigHash_ChangesWithVMCacheGatewayCIDRs(t *testing.T) {
+	base := Config{VMKuraEgressCIDR: "10.128.0.0/12"}
+	gateway := base
+	gateway.VMCacheGatewayCIDRs = []string{"10.10.0.11/32"}
+	if HostConfigHash(base) == HostConfigHash(gateway) {
+		t.Fatal("HostConfigHash must change when the cache gateway CIDRs change, or existing hosts never get the pass rule")
 	}
 }

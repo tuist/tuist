@@ -49,6 +49,8 @@ defmodule Tuist.SCIM do
 
   @groups %{@group_admins => :admin, @group_users => :user, @group_viewers => :viewer}
 
+  @role_precedence [:admin, :user, :viewer]
+
   ## Tokens
 
   @doc """
@@ -247,7 +249,7 @@ defmodule Tuist.SCIM do
 
   defp apply_provision(organization, email, role, active) do
     {user, provenance} =
-      case provisionable_user(email) do
+      case provisionable_user(email, organization) do
         {:ok, %User{} = u, p} -> {u, p}
         {:error, reason} -> Repo.rollback(reason)
       end
@@ -301,7 +303,7 @@ defmodule Tuist.SCIM do
     |> Oban.insert!()
   end
 
-  defp provisionable_user(email, opts \\ []) do
+  defp provisionable_user(email, %Organization{} = organization, opts \\ []) do
     retry_after_email_taken = Keyword.get(opts, :retry_after_email_taken, true)
 
     case Accounts.get_user_by_email(email) do
@@ -309,12 +311,17 @@ defmodule Tuist.SCIM do
         {:ok, user, :existing}
 
       {:error, :not_found} ->
-        case Accounts.create_user(email, confirmed_at: default_confirmed_at()) do
+        # Recorded so the organization's identity provider can link the
+        # account it created without a verified login email domain.
+        case Accounts.create_user(email,
+               confirmed_at: default_confirmed_at(),
+               provisioned_by_organization_id: organization.id
+             ) do
           {:ok, user} ->
             {:ok, user, :created}
 
           {:error, :email_taken} when retry_after_email_taken ->
-            provisionable_user(email, retry_after_email_taken: false)
+            provisionable_user(email, organization, retry_after_email_taken: false)
 
           {:error, :email_taken} ->
             {:error, :email_taken}
@@ -460,7 +467,7 @@ defmodule Tuist.SCIM do
   defp put_patch_attr("replace", "username", value, acc) when is_binary(value), do: Map.put(acc, :user_name, value)
 
   defp put_patch_attr(op, "roles", value, acc) when op in ["add", "replace"] do
-    case extract_role(value) do
+    case most_privileged_role(value) do
       nil -> acc
       role -> Map.put(acc, :role, role)
     end
@@ -468,11 +475,32 @@ defmodule Tuist.SCIM do
 
   defp put_patch_attr(_op, _path, _value, acc), do: acc
 
-  defp extract_role(value) when is_binary(value), do: value |> unwrap_app_role_assignment() |> normalize_role_string()
-  defp extract_role([%{"value" => v} | _]) when is_binary(v), do: extract_role(v)
-  defp extract_role([v | _]) when is_binary(v), do: extract_role(v)
-  defp extract_role(%{"value" => v}) when is_binary(v), do: extract_role(v)
-  defp extract_role(_), do: nil
+  @doc """
+  Resolves a SCIM `roles` attribute to a single organization role.
+
+  Identity providers can send every app role a user holds, and Tuist's roles
+  nest, so the most privileged recognized value wins. Values this server does
+  not recognize are ignored, and a value naming no recognized role resolves to
+  `nil`.
+  """
+  def most_privileged_role(value) do
+    recognized = value |> role_values() |> MapSet.new()
+
+    Enum.find(@role_precedence, &MapSet.member?(recognized, &1))
+  end
+
+  defp role_values(values) when is_list(values), do: Enum.flat_map(values, &role_values/1)
+
+  defp role_values(%{"value" => value}) when is_binary(value), do: role_values(value)
+
+  defp role_values(value) when is_binary(value) do
+    case value |> unwrap_app_role_assignment() |> normalize_role_string() do
+      nil -> []
+      role -> [role]
+    end
+  end
+
+  defp role_values(_), do: []
 
   defp unwrap_app_role_assignment(value) do
     case JSON.decode(value) do

@@ -200,6 +200,8 @@
       </.card_section>
     </.card>
 
+    <.job_volumes volumes={@volumes} account_name={@selected_account.name} />
+
     <.card
       :if={@linked_build_runs != [] or @linked_test_runs != []}
       title={dgettext("dashboard_runners", "Insights")}
@@ -419,6 +421,7 @@
         <div :if={@steps == []} data-part="steps-empty">
           {dgettext("dashboard_runners", "Steps will appear here once the job finishes.")}
         </div>
+        <% job_step_window = TuistWeb.RunnerJobLive.step_window(@steps) %>
         <div
           :for={step <- @steps}
           id={"runner-step-#{step.number}"}
@@ -522,18 +525,30 @@
                 </div>
               </div>
             </div>
+            <% step_bar_offset =
+              TuistWeb.RunnerJobLive.step_bar_offset_percent(step, job_step_window) %>
+            <% step_bar_width =
+              TuistWeb.RunnerJobLive.step_bar_width_percent(step, job_step_window) %>
+            <div data-part="step-timeline" aria-hidden="true">
+              <span data-part="step-timeline-cap"></span>
+              <span data-part="step-timeline-track">
+                <span
+                  :if={step_bar_offset && step_bar_width}
+                  data-part="step-timeline-bar"
+                  data-kind={to_string(step_kind)}
+                  style={"--step-offset: #{step_bar_offset}; --step-width: #{step_bar_width};"}
+                ></span>
+              </span>
+              <span data-part="step-timeline-cap"></span>
+            </div>
+            <span data-part="step-duration">
+              <%= if step_duration do %>
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration,
+                  fractional_seconds: false
+                )}
+              <% end %>
+            </span>
             <div data-part="step-meta">
-              <.badge
-                :if={step_duration}
-                label={
-                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration,
-                    fractional_seconds: false
-                  )
-                }
-                color="neutral"
-                style="light-fill"
-                size="large"
-              />
               <span data-part="step-chevron">
                 <.chevron_up :if={expanded} />
                 <.chevron_down :if={!expanded} />

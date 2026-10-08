@@ -2374,6 +2374,30 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "create_user/1" do
+    test "suffixes reserved email-derived handles and retries collisions" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      for {local, handle} <- [
+            {"ci.canary", "ci-canary"},
+            {"jane-staging", "jane-staging"},
+            {"TEAM_CANARY", "team-canary"}
+          ] do
+        assert {:ok, first} = Accounts.create_user("#{local}@first.example.com", password: valid_user_password())
+        assert first.account.name == handle <> "1"
+        assert {:ok, second} = Accounts.create_user("#{local}@second.example.com", password: valid_user_password())
+        assert second.account.name == handle <> "2"
+      end
+    end
+
+    test "still rejects an explicitly requested reserved handle" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      assert {:error, errors} =
+               Accounts.create_user(unique_user_email(), handle: "ci-canary", password: valid_user_password())
+
+      assert errors[:name] == ["must not end in -staging or -canary"]
+    end
+
     test "drops the hyphens a handle derived from the email would start or end with" do
       stub(Environment, :tuist_hosted?, fn -> false end)
       unique = TuistTestSupport.Utilities.unique_integer()
@@ -4605,6 +4629,30 @@ defmodule Tuist.AccountsTest do
       assert Accounts.sso_automatic_enrollment_allowed?(organization, "person@unrelated.example")
       assert Accounts.sso_new_user_enrollment_allowed?(organization, "person@unrelated.example", false)
       refute Accounts.sso_identity_linking_allowed?(organization, "person@unrelated.example")
+    end
+
+    test "keeps a legacy organization's enrollment unchanged while its login domain is unverified" do
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :oauth2,
+          sso_organization_id: "https://login.vendor.example",
+          sso_automatic_enrollment: true,
+          sso_legacy_email_domain_fallback: true,
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token",
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret",
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        )
+
+      assert Accounts.sso_automatic_enrollment_allowed?(organization, "person@example.com")
+      assert Accounts.sso_new_user_enrollment_allowed?(organization, "person@example.com", false)
+      assert Accounts.sso_automatic_enrollment_allowed?(organization, "person@unrelated.example")
+      assert Accounts.sso_new_user_enrollment_allowed?(organization, "person@unrelated.example", false)
+
+      refute Accounts.sso_identity_linking_allowed?(organization, "person@example.com")
     end
 
     test "allows identity linking through a verified domain when automatic enrollment is disabled" do

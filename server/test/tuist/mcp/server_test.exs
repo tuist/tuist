@@ -34,6 +34,12 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_runner_job_logs" in tool_names
       assert "list_runner_workflows" in tool_names
       assert "list_runner_profiles" in tool_names
+      assert "list_runner_volumes" in tool_names
+      assert "get_runner_volume" in tool_names
+      assert "list_runner_volume_jobs" in tool_names
+      assert "list_runner_job_volumes" in tool_names
+      assert "get_runner_volume_analytics" in tool_names
+      assert "clear_runner_volume" in tool_names
       assert "list_webhook_endpoints" in tool_names
       assert "get_webhook_endpoint" in tool_names
       assert "list_webhook_delivery_attempts" in tool_names
@@ -84,16 +90,31 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.31.2"
-      assert server.instructions =~ "agent_auth.skill"
-      assert server.instructions =~ "identity-assertion exchange"
-      assert server.instructions =~ "enter the code on the Tuist page"
-      assert server.instructions =~ "explicitly ask the user to confirm the email address"
+      assert server.version == "1.34.1"
 
       assert server.instructions =~
-               "The `get_gradle_integration_guide` and `get_bazel_integration_guide` tools provide the Gradle, Android, and Bazel integration workflows"
+               "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."
 
-      assert server.instructions =~ "Gradle and Bazel require separate `tuist auth whoami --url` authentication"
+      assert server.instructions =~ "Never invent credentials."
+      refute server.instructions =~ "auth_md"
+      refute server.instructions =~ "agent_auth.skill"
+      refute server.instructions =~ "anonymous registration"
+      refute server.instructions =~ "identity-assertion exchange"
+      refute server.instructions =~ "six-digit code"
+      refute server.instructions =~ "confirm the email address"
+
+      assert server.instructions =~
+               "Model Context Protocol authentication only authorizes Tuist tools; it does not authenticate local command-line tools or build-system integrations."
+
+      assert server.instructions =~
+               "Verify the outcome of requested changes through the relevant Tuist tools before reporting success."
+
+      refute server.instructions =~ "get_gradle_integration_guide"
+      refute server.instructions =~ "get_bazel_integration_guide"
+      refute server.instructions =~ "list_accounts"
+      refute server.instructions =~ "tuist auth whoami"
+      refute server.instructions =~ "Gradle"
+      refute server.instructions =~ "Bazel"
     end
 
     test "offers search_tuist only on the Tuist-hosted installation" do
@@ -207,7 +228,9 @@ defmodule Tuist.MCP.ServerTest do
       stub(Environment, :codebase_search_enabled?, fn -> false end)
       instructions = Server.server().instructions
       refute instructions =~ "Use the relevant Tuist tool"
-      assert instructions =~ "agent_auth.skill"
+      assert instructions =~ "OAuth 2.0 with dynamic client registration"
+      refute instructions =~ "auth_md"
+      refute instructions =~ "agent_auth.skill"
     end
 
     test "tool descriptions state their capability without steering tool selection" do

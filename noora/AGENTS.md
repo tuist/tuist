@@ -33,6 +33,7 @@ Web component metadata and documentation are generated from `components/*.json` 
 Do not bootstrap the npm package from a local machine. The first automated release reads a granular access token with permission to publish under the `@tuist` scope from `op://tuist/NPM_TOKEN/password` using `OP_SERVICE_ACCOUNT_TOKEN`. After the package exists, configure its trusted publisher for the `tuist/tuist` repository and `noora-release.yml` workflow, allow `npm publish`, verify a release, revoke the long-lived token, and remove its 1Password item.
 
 ## Conventions
+- Phoenix text inputs forward the native `readonly` attribute so canonical values can remain selectable without being editable. Their suffix-help tooltip triggers are keyboard-focusable.
 - Icon transition hooks restore their visual state after LiveView patches, including patches that leave the watched ancestor's state unchanged.
 - Phoenix table disclosure buttons support an optional `row_toggle` JS callback for server-managed lazy loading. Callers then own `expanded_rows`; tables without a callback retain client-side expansion.
 
@@ -46,4 +47,5 @@ Do not bootstrap the npm package from a local machine. The first automated relea
   the viewport. Keep offscreen updates and destruction safe, and register resize
   listeners once per hook lifetime rather than once per render.
 
+- Chart tooltips take `dateFormat: "day" | "week" | "month"` to title a point by the calendar period it stands for (its date is the period's start, formatted in UTC; a week reads as a range), besides `"minute"` and `"hour"`.
 - Charts humanize plain numeric tooltip values and value-axis labels from 10,000 upward using `formatNumber` (K/M/B/T, up to one decimal). Explicit unit formatters and category/time axes retain their formats; series values remain numeric.

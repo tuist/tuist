@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import Testing
 import TSCUtility
 import TuistLoader
 import XcodeGraph
@@ -112,6 +113,19 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
 
         // Then
         XCTAssertContainsElementOfType(got, LastUpgradeVersionWorkspaceMapper.self)
+    }
+}
+
+struct WorkspaceMapperFactoryXcodeCacheTests {
+    @Test func default_containsTheXcodeCachePrefixMappingMapper() {
+        // Given
+        let subject = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: []))
+
+        // When
+        let got = subject.default(tuist: .default)
+
+        // Then
+        #expect(got.contains { $0 is XcodeCachePrefixMappingWorkspaceMapper })
     }
 }
 

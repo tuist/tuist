@@ -25,7 +25,13 @@ on:
     paths:
       - infra/rack-switch-fleet/**
       - infra/rack-switch-prep/**
+      - infra/rack-nodes/**
+      - infra/cluster-api-provider-tuist/internal/rackinstall/**
+      - infra/cluster-api-provider-tuist/cmd/rack-seed/**
+      - infra/helm/tuist/values-managed-*.yaml
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
+      - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackpdus.yaml
+      - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackatses.yaml
       - infra/helm/omada/**
       - infra/helm/rack-edge/sites/**
       - mise/tasks/rack/**
@@ -35,7 +41,13 @@ on:
     paths:
       - infra/rack-switch-fleet/**
       - infra/rack-switch-prep/**
+      - infra/rack-nodes/**
+      - infra/cluster-api-provider-tuist/internal/rackinstall/**
+      - infra/cluster-api-provider-tuist/cmd/rack-seed/**
+      - infra/helm/tuist/values-managed-*.yaml
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
+      - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackpdus.yaml
+      - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackatses.yaml
       - infra/helm/omada/**
       - infra/helm/rack-edge/sites/**
       - mise/tasks/rack/**
@@ -81,6 +93,15 @@ jobs:
       - name: Test the console bring-up
         run: mise run rack:prep-test
 
+      # The stick renders its seed with the operator's Go renderer.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/cluster-api-provider-tuist/go.mod
+          cache-dependency-path: infra/cluster-api-provider-tuist/go.sum
+
+      - name: Test the rack node installs
+        run: mise run rack:nodes-test
+
       # The Omada wrapper is an evaluation and is not deployed by any workflow,
       # so nothing else would notice it going stale.
       - name: The Omada chart still renders
@@ -97,7 +118,8 @@ jobs:
           set -euo pipefail
           command -v shellcheck >/dev/null || (sudo apt-get update && sudo apt-get install -y shellcheck)
           # From inside the directory, so the sourced libraries resolve.
-          (cd infra/rack-switch-fleet && shellcheck -x fleet.sh ztp.sh edge-join.sh omada.sh lib/*.sh)
+          (cd infra/rack-switch-fleet && shellcheck -x fleet.sh ztp.sh omada.sh lib/*.sh)
+          (cd infra/rack-nodes && shellcheck -x *.sh)
           shellcheck mise/tasks/rack/*.sh
 
       # A hash in git history cannot be removed without rewriting it, and every
@@ -123,7 +145,7 @@ jobs:
   # what it observed, from a machine that can reach the switches, which CI
   # cannot.
   objects:
-    name: RackSwitch objects into the rack's cluster
+    name: RackSwitch, RackPDU and RackATS objects into the rack's cluster
     needs: checks
     if: github.repository == 'tuist/tuist' && github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -155,7 +177,9 @@ jobs:
           # server-deployment.yml applies the same file. Applying it here too
           # means the objects never race the first server deploy after it lands.
           kubectl apply -f infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
-          kubectl wait --for condition=established --timeout=60s crd/rackswitches.tuist.dev
+          kubectl apply -f infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackpdus.yaml
+          kubectl apply -f infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackatses.yaml
+          kubectl wait --for condition=established --timeout=60s crd/rackswitches.tuist.dev crd/rackpdus.infrastructure.cluster.x-k8s.io crd/rackatses.infrastructure.cluster.x-k8s.io
           for site in infra/rack-switch-fleet/sites/*.json; do
             name="$(basename "$site" .json)"
             namespace="$(jq -r '.kubernetes.namespace // empty' "$site")"

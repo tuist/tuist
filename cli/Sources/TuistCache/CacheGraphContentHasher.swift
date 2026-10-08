@@ -89,9 +89,12 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
         }
 
         let version = versionFetcher.version()
+        // Xcode releases can ship the same compiler with different SDKs, and binaries built against one
+        // SDK don't import under another, so the Xcode build is hashed next to the compiler version.
         let additionalStrings = [
             resolvedConfiguration,
             try await SwiftVersionProvider.current.swiftlangVersion(),
+            try await XcodeController.current.selectedBuildVersion(),
             version.rawValue,
         ]
         var hashes = try await graphContentHasher.contentHashes(

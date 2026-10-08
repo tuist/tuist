@@ -9,6 +9,7 @@ defmodule TuistWeb.ProjectAutomationLive do
   alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Automations
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.ProjectAutomationsLive
 
   @history_page_size 5
@@ -37,7 +38,8 @@ defmodule TuistWeb.ProjectAutomationLive do
        |> assign(
          :head_title,
          "#{automation.name} · #{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist"
-       )}
+       )
+       |> assign(OpenGraph.og_image_assigns("settings"))}
     else
       _ ->
         raise TuistWeb.Errors.NotFoundError,

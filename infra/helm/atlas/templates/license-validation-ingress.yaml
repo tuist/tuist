@@ -1,4 +1,4 @@
-{{- if .Values.ingress.licenseValidationRateLimit.enabled }}
+{{- if and .Values.ingress.enabled .Values.ingress.licenseValidationRateLimit.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

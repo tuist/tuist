@@ -83,7 +83,7 @@ defmodule AtlasWeb.POCLive.Form do
           <p>Capture the POC scope. Structured fields populate the public brief.</p>
         </div>
       </div>
-      <.card icon="target" title="Details">
+      <.card icon="checkup_list" title="Details">
         <.card_section>
           <.form for={@form} id="poc-form-form" phx-change="validate" phx-submit="save">
             <.text_input
@@ -93,59 +93,63 @@ defmodule AtlasWeb.POCLive.Form do
             />
             <div data-part="select-field">
               <span>Account</span>
-              <select name="poc[account_id]" id="poc-account-id">
-                <option value="">Select account</option>
-                <option
+              <.select
+                id="poc-account-id"
+                name={@form[:account_id].name}
+                value={to_string(@form[:account_id].value)}
+                label="Select account"
+              >
+                <:item
                   :for={account <- @accounts}
                   value={account.id}
-                  selected={@form[:account_id].value == account.id}
-                >
-                  {account.name}
-                </option>
-              </select>
+                  label={account.name}
+                />
+              </.select>
             </div>
             <div data-part="select-field">
               <span>Status</span>
-              <select name="poc[status]" id="poc-status">
-                <option
+              <.select
+                id="poc-status"
+                name={@form[:status].name}
+                value={to_string(@form[:status].value)}
+                label="Select status"
+              >
+                <:item
                   :for={status <- @status_options}
                   value={status}
-                  selected={@form[:status].value == status}
-                >
-                  {humanize(status)}
-                </option>
-              </select>
+                  label={humanize(status)}
+                />
+              </.select>
             </div>
             <div data-part="select-field">
               <span>Hosting</span>
-              <select name="poc[hosting]" id="poc-hosting">
-                <option
+              <.select
+                id="poc-hosting"
+                name={@form[:hosting].name}
+                value={to_string(@form[:hosting].value)}
+                label="Select hosting"
+              >
+                <:item
                   :for={hosting <- @hosting_options}
                   value={hosting}
-                  selected={@form[:hosting].value == hosting}
-                >
-                  {humanize(hosting)}
-                </option>
-              </select>
+                  label={humanize(hosting)}
+                />
+              </.select>
             </div>
-            <div data-part="date-field">
-              <label for="poc-starts-on">Starts on</label>
-              <input
-                type="date"
-                id="poc-starts-on"
-                name="poc[starts_on]"
-                value={@form[:starts_on].value}
-              />
-            </div>
-            <div data-part="date-field">
-              <label for="poc-ends-on">Ends on</label>
-              <input
-                type="date"
-                id="poc-ends-on"
-                name="poc[ends_on]"
-                value={@form[:ends_on].value}
-              />
-            </div>
+            <.text_input
+              id="poc-starts-on"
+              field={@form[:starts_on]}
+              input_type="date"
+              label="Starts on"
+              show_suffix={false}
+            />
+            <.text_input
+              id="poc-ends-on"
+              field={@form[:ends_on]}
+              input_type="date"
+              label="Ends on"
+              show_suffix={false}
+            />
             <.text_area
               field={@form[:summary]}
               label="Summary"

@@ -21,8 +21,8 @@ private let timeoutSeconds = 600
 private let coverageTimeoutSeconds = 300
 
 /// Seconds a cancelled parse is given to unwind before the caller gives up on
-/// it. Cancellation reaches the `xcresulttool`/`sips` child through Command's
-/// `continuation.onTermination`, which terminates the process; a child that
+/// it. Cancellation reaches the `xcresulttool`/`sips` child through the task
+/// that owns the subprocess; a child that
 /// ignores it would otherwise hold this thread for the life of the BEAM.
 private let cancellationGraceSeconds = 30
 
@@ -44,7 +44,15 @@ public func parseXCResult(
         do {
             var parsed = try await parse(path: path, rootDir: rootDir, timeout: timeoutSeconds)
             do {
-                parsed.coverage = try await parseCoverage(path: path, timeout: coverageTimeoutSeconds)
+                // Streamed beside the bundle rather than returned as a term: a large bundle's
+                // per-line counts would not fit the BEAM comfortably, and the processor reads
+                // the file back in chunks.
+                let output = "\(rootDir)/tuist_coverage.ndjson"
+                if let summary = try await parseCoverage(path: path, into: output, timeout: coverageTimeoutSeconds) {
+                    parsed.coveragePath = output
+                    parsed.coveragePartial = summary.partial
+                    parsed.coverageFileCount = summary.fileCount
+                }
             } catch {
                 parsed.coverageError = error.localizedDescription
             }
@@ -101,7 +109,7 @@ public func parseXCResult(
 /// Losing the race cancels the winner's sibling, and the group cannot return
 /// until every child has been awaited, so a timed-out parse is torn down
 /// before the caller sees the error rather than left running with a
-/// `CommandRunner` process-limiter permit and a temp directory the worker is
+/// process-limiter permit and a temp directory the worker is
 /// about to delete.
 private func parse(path: String, rootDir: String, timeout: Int) async throws -> TestSummary {
     let xcresultPath = try AbsolutePath(validating: path)
@@ -135,12 +143,13 @@ private func parse(path: String, rootDir: String, timeout: Int) async throws -> 
 }
 
 /// Reads the coverage against its own deadline, the same way ``parse`` does.
-private func parseCoverage(path: String, timeout: Int) async throws -> XcodeCoverageReport? {
+private func parseCoverage(path: String, into output: String, timeout: Int) async throws -> XcodeCoverageSummary? {
     let xcresultPath = try AbsolutePath(validating: path)
+    let outputPath = try AbsolutePath(validating: output)
 
-    return try await withThrowingTaskGroup(of: XcodeCoverageReport?.self) { group in
+    return try await withThrowingTaskGroup(of: XcodeCoverageSummary?.self) { group in
         group.addTask {
-            try await XCResultParser().parseCoverage(path: xcresultPath)
+            try await XCResultParser().parseCoverage(path: xcresultPath, into: outputPath)
         }
         group.addTask {
             try await Task.sleep(for: .seconds(timeout))

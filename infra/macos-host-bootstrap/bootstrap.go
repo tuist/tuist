@@ -137,6 +137,12 @@ type Config struct {
 	// the credential hasn't been provisioned yet.
 	TailscaleAuthKey string
 
+	// TailscaleState is tailscaled's state file, restored before the daemon starts
+	// on a host that has none. A rack host erased and installed again carries it
+	// over, so it rejoins the tailnet as the device it was instead of as a new one
+	// that gets a suffixed name next to the old record.
+	TailscaleState []byte
+
 	// TailscaleTags are the Tailscale ACL tags advertised on this
 	// node at `tailscale up` time. Drives which ACL groups can dial
 	// it — e.g. `tag:tuist-macmini-xcresult` is reachable from the
@@ -218,6 +224,14 @@ type Config struct {
 	// management (the firewall pass rule still applies if the CIDR
 	// is set, for hosts configured out-of-band).
 	VMCachePNVLAN uint32
+
+	// VMCacheGatewayCIDRs are the addresses of the rack's runner-cache
+	// gateways, which VMs may reach on TCP 443 through the VM egress
+	// firewall. A rack gateway sits on the segment the host itself is on,
+	// so the traffic leaves on the default route and the VM NAT's general
+	// leg translates it. Only the rack fleet sets it. Each entry must parse
+	// as an IPv4 CIDR; bootstrap fails closed otherwise.
+	VMCacheGatewayCIDRs []string
 
 	// SSHIngressAllowCIDRs are the source ranges, beyond the tailnet
 	// and loopback, that may reach the host's :22. Everything else is
@@ -349,6 +363,15 @@ type Config struct {
 	// to a network MITM (kubeconfig + tart-kubelet binary injection).
 	KnownHostFingerprint string
 
+	// ExpectedSerial, when set, is the hardware serial the host must report
+	// before anything is pushed to it, and before its host key is pinned. A
+	// host we own is dialled at an address its inventory records, and an
+	// address answered by the wrong box (a swapped tray, a lease another box
+	// still holds) would otherwise be bootstrapped under this host's name and
+	// providerID, with its key pinned as this host's. Rented hosts leave it
+	// empty: their provider hands out the address with the box.
+	ExpectedSerial string
+
 	// GHActionsRunner, when non-nil, installs a GitHub Actions
 	// self-hosted runner agent on the host as the final step of
 	// bootstrap, after tart-kubelet is up. Used for the bare-metal
@@ -392,7 +415,10 @@ type Config struct {
 	// golden clones need. Sized at provisioning as what the disk leaves
 	// after golden images, the max concurrent pod clones, and OS headroom.
 	// 0 (default) leaves cache volumes off: every VM boots on the cold path.
-	RunnerCacheVolumeGiB int
+	RunnerCacheVolumeGiB      int
+	CustomCacheURL            string
+	CustomCacheNamespace      string
+	CustomCacheServiceAccount string
 
 	// CacheVolumeMasterCapGiB is the provisioned cap of each per-account
 	// master image, passed to tart-kubelet's --cache-volume-cap-gib. The
@@ -438,6 +464,12 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		return "", err
 	}
 	defer client.Close()
+
+	// No fingerprint on this path: the key belongs to whichever box answered,
+	// and pinning it would refuse the right one when it takes the address.
+	if err := verifyHostSerial(ctx, client, cfg.ExpectedSerial); err != nil {
+		return "", err
+	}
 
 	if err := EnablePasswordlessSudo(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
 		return hk.Observed(), fmt.Errorf("passwordless sudo: %w", err)
@@ -678,9 +710,11 @@ type PerHost struct {
 	ProviderID           string
 	Kubeconfig           string
 	TailscaleAuthKey     string
+	TailscaleState       []byte
 	VNCRelayHost         string
 	VMCachePNVLAN        uint32
 	KnownHostFingerprint string
+	ExpectedSerial       string
 	NodeLabels           map[string]string
 	GHActionsRunner      *GHActionsRunnerConfig
 	// DisableVMGC is a per-host role signal (builder hosts set it); the
@@ -703,9 +737,11 @@ func (c Config) WithPerHost(p PerHost) Config {
 	c.ProviderID = p.ProviderID
 	c.Kubeconfig = p.Kubeconfig
 	c.TailscaleAuthKey = p.TailscaleAuthKey
+	c.TailscaleState = p.TailscaleState
 	c.VNCRelayHost = p.VNCRelayHost
 	c.VMCachePNVLAN = p.VMCachePNVLAN
 	c.KnownHostFingerprint = p.KnownHostFingerprint
+	c.ExpectedSerial = p.ExpectedSerial
 	c.NodeLabels = p.NodeLabels
 	c.GHActionsRunner = p.GHActionsRunner
 	c.DisableVMGC = p.DisableVMGC
@@ -733,6 +769,14 @@ func (c Config) WithPerHost(p PerHost) Config {
 // empty per-host substitution is well-formed; none slice or index a value
 // that must be non-empty.
 func HostConfigHash(cfg Config) string {
+	return sha256Hex([]byte(hostConfigMaterial(cfg)))
+}
+
+// hostConfigMaterial is what HostConfigHash digests. The digest lands in
+// Machine status, which the read-only tier can see, so this must hold no
+// secret: the per-host credentials are stripped below and nothing else
+// carries one.
+func hostConfigMaterial(cfg Config) string {
 	// Strip per-host / volatile fields so the fingerprint is fleet-wide.
 	// Fleet-config fields (CIDRs, tags, accept-routes, host CPU/mem/pods)
 	// and the embedded binaries are kept. Stripping is an empty overlay
@@ -745,17 +789,17 @@ func HostConfigHash(cfg Config) string {
 	// (a) Rendered scripts, concatenated in a fixed order. A
 	// label prefixes each so two scripts can't alias into one
 	// another's bytes and hide a change.
+	// A malformed canonical CIDR can't render a script. Fold the inputs the
+	// renderer rejected instead, so the hash stays deterministic and
+	// distinct rather than panicking. The error's text is left out: the
+	// material is built from Config values only.
 	firewall, err := renderVMEgressFirewallScript(cfg)
 	if err != nil {
-		// A malformed canonical CIDR can't render a script. Fold the
-		// error text in instead so the hash stays deterministic and
-		// distinct rather than panicking — the operator already
-		// validates these inputs before they reach a host.
-		firewall = "ERROR:" + err.Error()
+		firewall = fmt.Sprintf("ERROR:%q", append([]string{cfg.VMKuraEgressCIDR, cfg.VMClusterDNSIP, cfg.VMCachePNCIDR}, cfg.VMCacheGatewayCIDRs...))
 	}
 	sshGuard, err := renderSSHIngressGuardScript(cfg)
 	if err != nil {
-		sshGuard = "ERROR:" + err.Error()
+		sshGuard = fmt.Sprintf("ERROR:%q", cfg.SSHIngressAllowCIDRs)
 	}
 	for _, part := range []struct{ name, script string }{
 		{"firewall", firewall},
@@ -809,7 +853,7 @@ func HostConfigHash(cfg Config) string {
 		b.WriteByte('\x00')
 	}
 
-	return sha256Hex([]byte(b.String()))
+	return b.String()
 }
 
 // SetHostname makes the macOS hostname match the CR name, so
@@ -1099,6 +1143,9 @@ func renderLaunchdPlist(cfg Config) string {
 	runnerCacheArg := ""
 	if cfg.RunnerCacheVolumeGiB > 0 {
 		runnerCacheArg = fmt.Sprintf("\n    <string>--runner-cache-root=%s</string>", runnerCacheMountPoint)
+		if cfg.CustomCacheURL != "" {
+			runnerCacheArg += fmt.Sprintf("\n    <string>--custom-cache-url=%s</string>\n    <string>--custom-cache-namespace=%s</string>\n    <string>--custom-cache-service-account=%s</string>", xmlEscape(cfg.CustomCacheURL), xmlEscape(cfg.CustomCacheNamespace), xmlEscape(cfg.CustomCacheServiceAccount))
+		}
 		if cfg.CacheVolumeMasterCapGiB > 0 {
 			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cap-gib=%d</string>", cfg.CacheVolumeMasterCapGiB)
 		}
@@ -1645,6 +1692,9 @@ sudo chmod 0755 /usr/local/bin/tart
 // chart typo from producing an unparseable — or worse, creative —
 // ruleset).
 //
+// A rack host also passes cfg.VMCacheGatewayCIDRs on 443: the rack's cache
+// gateways on its own segment, translated by the VM NAT's default-route leg.
+//
 // The carve-out needs a second half: NAT. vmnet's built-in NAT only
 // translates VM egress toward the default-route interface, so
 // packets the host forwards into the tailscale utun keep their
@@ -1674,7 +1724,7 @@ func installVMEgressFirewall(ctx context.Context, client *ssh.Client, cfg Config
 	if err := RunCommand(ctx, client, script); err != nil {
 		return err
 	}
-	if cfg.VMKuraEgressCIDR == "" && cfg.VMCachePNCIDR == "" {
+	if cfg.VMKuraEgressCIDR == "" && cfg.VMCachePNCIDR == "" && len(cfg.VMCacheGatewayCIDRs) == 0 {
 		return nil
 	}
 	return RunCommand(ctx, client, renderVMNATScript(cfg))
@@ -1729,6 +1779,21 @@ pass out quick proto tcp from <vm_sources> to %s port 4000 keep state
 # tenant check is the per-account boundary.
 pass out quick proto tcp from <vm_sources> to %s port 30000:32767 keep state
 `, cfg.VMCachePNCIDR)
+	}
+
+	if len(cfg.VMCacheGatewayCIDRs) > 0 {
+		carveOut += `
+# Rack runner-cache gateway carve-out: VMs dial the rack's Kura gateways
+# over HTTPS on the segment the host sits on. Kura's app-layer JWT
+# tenant check is the per-account boundary.
+`
+		for _, cidr := range cfg.VMCacheGatewayCIDRs {
+			ip, _, err := net.ParseCIDR(cidr)
+			if err != nil || ip.To4() == nil {
+				return "", fmt.Errorf("vm cache gateway cidr %q is not an IPv4 CIDR: %v", cidr, err)
+			}
+			carveOut += fmt.Sprintf("pass out quick proto tcp from <vm_sources> to %s port 443 keep state\n", cidr)
+		}
 	}
 
 	script := `set -euo pipefail
@@ -1852,8 +1917,9 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.p
 // renderVMNATScript builds the VM->cache NAT helper + its launchd
 // supervisor. Only the configured carve-out CIDRs vary; the derived
 // interface is resolved at runtime on the host. Folded into the host
-// config hash. Callers gate this on at least one of VMKuraEgressCIDR /
-// VMCachePNCIDR being set, matching installVMEgressFirewall.
+// config hash. Callers gate this on at least one of VMKuraEgressCIDR,
+// VMCachePNCIDR or VMCacheGatewayCIDRs being set, matching
+// installVMEgressFirewall.
 func renderVMNATScript(cfg Config) string {
 	return fmt.Sprintf(`set -euo pipefail
 sudo tee /usr/local/bin/tuist-pf-vmnat >/dev/null <<'VMNAT'
@@ -2182,8 +2248,31 @@ sudo chmod 0600 /etc/tuist/tailscale-auth-key`
 	if err := RunCommandWithStdin(ctx, client, keyScript, strings.NewReader(cfg.TailscaleAuthKey)); err != nil {
 		return fmt.Errorf("stage tailscale auth key: %w", err)
 	}
+	if len(cfg.TailscaleState) > 0 {
+		if err := RunCommandWithStdin(ctx, client, renderTailscaleStateRestoreScript(tailscaleStatePath), bytes.NewReader(cfg.TailscaleState)); err != nil {
+			return fmt.Errorf("restore tailscale state: %w", err)
+		}
+	}
 
 	return RunCommandWithStdin(ctx, client, renderTailscaleScript(cfg), bytes.NewReader(cfg.TailscaleBinaries))
+}
+
+// tailscaleStatePath is where the launchd job renderTailscaleScript writes
+// points tailscaled's --state.
+const tailscaleStatePath = "/var/lib/tailscale/tailscaled.state"
+
+// renderTailscaleStateRestoreScript writes the state from stdin only when the
+// host has none, so a host that is already on the tailnet keeps its own.
+func renderTailscaleStateRestoreScript(path string) string {
+	return fmt.Sprintf(`set -eu
+if sudo test -s %[1]s; then
+  cat >/dev/null
+  exit 0
+fi
+sudo mkdir -p "$(dirname %[1]s)"
+sudo tee %[1]s >/dev/null
+sudo chmod 0600 %[1]s
+`, shellQuote(path))
 }
 
 // validateTailscaleCredential rejects a config the host could only fail on.
@@ -2622,8 +2711,18 @@ func installSSHIngressGuard(ctx context.Context, client *ssh.Client, cfg Config)
 // rather than a refusal. The `tuist.runners` anchor cannot compensate:
 // its VM rules are all `out`, and `com.apple/*` is evaluated ahead of
 // anything appended to the end of /etc/pf.conf. So the VM sources get an
-// explicit pass, preceded by a block that still denies them the host's
-// and a sibling's :22.
+// explicit pass, preceded by blocks that still deny them a sibling's :22
+// and every one of the host's own addresses.
+//
+// The vmnet range alone is not enough for the host. A VM that dials the
+// host's en0, LAN or tailnet address is routed to the host itself and
+// delivered to the same *:22 listener, so the flood the guard exists to
+// stop could come from a customer workload. The host block uses pf's
+// static `self`, which pfctl expands to the host's addresses on every
+// load; the 60s re-arm reloads the file, so a new address is covered
+// within a minute. The dynamic `(self)` form looks like the better fit
+// and is not: xnu has no interface groups, so it resolves to the `ALL`
+// kif, whose table stays empty. It loads cleanly and matches nothing.
 //
 // The live session's own source address is folded into the table on the
 // host at render time, so a roll can never sever the connection
@@ -2680,23 +2779,31 @@ sudo tee /etc/pf.anchors/tuist.sshguard >/dev/null <<PFCONF
 # path at once.
 #
 # pf is first-match-wins across 'quick' rules, so the pass lines
-# MUST stay above the block.
+# MUST stay above the block. They use 'flags any' so a session that
+# was already open when pf was enabled gets state instead of hitting
+# the block; the default 'flags S/SA' only admits a new SYN.
 
 table <ssh_allowed> persist { 100.64.0.0/10${SESSION_ENTRY}%s }
 table <vm_ssh_sources> persist { 192.168.64.0/22 }
 
 # The reachability watchdog probes 127.0.0.1:22 every minute; a
 # blocked loopback reads as a permanent wedge to it.
-pass in quick on lo0 proto tcp to any port 22 keep state
-pass in quick proto tcp from <ssh_allowed> to any port 22 keep state
+pass in quick on lo0 proto tcp to any port 22 flags any keep state
+pass in quick proto tcp from <ssh_allowed> to any port 22 flags any keep state
 
 # A Tart VM's egress arrives inbound on the vmnet bridge before it is
 # routed and NAT'd out, so the catch-all block below also swallows every
 # SSH the customer workload makes. The guard protects the host's own
 # listener, not the workload's outbound reach: VMs keep :22 to the
-# internet, but not to the host or a sibling VM.
+# internet, but not to a sibling VM or to any of the host's addresses.
+# A VM that dials the host's LAN, public or tailnet address reaches the
+# same listener as one that dials the bridge. 'self' is expanded on
+# every load, and the re-arm reloads this file every minute, so a new
+# host address is covered within a minute. The dynamic '(self)' form
+# resolves to an empty table on macOS and would match nothing.
 block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22
-pass in quick proto tcp from <vm_ssh_sources> to any port 22 keep state
+block drop in quick proto tcp from <vm_ssh_sources> to self port 22
+pass in quick proto tcp from <vm_ssh_sources> to any port 22 flags any keep state
 
 block drop in quick proto tcp to any port 22
 PFCONF
@@ -2708,7 +2815,9 @@ sudo tee /usr/local/bin/tuist-pf-sshguard >/dev/null <<'SSHGUARD'
 # anchor file is the source of truth, so this needs no SSH session and
 # re-converges after a reboot or an external ruleset flush. pfctl swaps
 # anchor contents atomically, so re-running is cheap and never leaves a
-# window with no rules.
+# window with no rules. Every run re-expands 'self' in the VM block to
+# the host's current addresses, so it must reload even when the file is
+# unchanged.
 set -u
 [ -f /etc/pf.anchors/tuist.sshguard ] || exit 0
 pfctl -a "com.apple/tuist.sshguard" -f /etc/pf.anchors/tuist.sshguard
@@ -3064,6 +3173,17 @@ func RunCommand(ctx context.Context, client *ssh.Client, cmd string) error {
 // once and never mutated, so concurrent reconciles can share the same
 // backing slice safely.
 func RunCommandWithStdin(ctx context.Context, client *ssh.Client, cmd string, stdin io.Reader) error {
+	return runCommand(ctx, client, cmd, stdin, nil)
+}
+
+// RunCommandOutput is RunCommandWithStdin returning the command's stdout.
+func RunCommandOutput(ctx context.Context, client *ssh.Client, cmd string, stdin io.Reader) (string, error) {
+	var stdout bytes.Buffer
+	err := runCommand(ctx, client, cmd, stdin, &stdout)
+	return stdout.String(), err
+}
+
+func runCommand(ctx context.Context, client *ssh.Client, cmd string, stdin io.Reader, stdout io.Writer) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
@@ -3072,6 +3192,9 @@ func RunCommandWithStdin(ctx context.Context, client *ssh.Client, cmd string, st
 
 	if stdin != nil {
 		session.Stdin = stdin
+	}
+	if stdout != nil {
+		session.Stdout = stdout
 	}
 
 	var stderr bytes.Buffer

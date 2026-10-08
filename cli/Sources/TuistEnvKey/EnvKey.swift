@@ -418,6 +418,12 @@ public enum EnvKey: String, CaseIterable {
     case cacheRunShowPath = "TUIST_CACHE_RUN_SHOW_PATH"
     case cacheRunShowJson = "TUIST_CACHE_RUN_SHOW_JSON"
 
+    // COVERAGE COMPLETE
+    case coverageCompletePath = "TUIST_COVERAGE_COMPLETE_PATH"
+    case coverageCompleteFullHandle = "TUIST_COVERAGE_COMPLETE_FULL_HANDLE"
+    case coverageCompleteCommit = "TUIST_COVERAGE_COMPLETE_COMMIT"
+    case coverageCompleteJSON = "TUIST_COVERAGE_COMPLETE_JSON"
+
     // ORGANIZATION UPDATE MEMBER
 
     case organizationUpdateMemberOrganizationName = "TUIST_ORGANIZATION_UPDATE_MEMBER_ORGANIZATION_NAME"

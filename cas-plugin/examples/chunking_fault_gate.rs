@@ -1,6 +1,9 @@
 //! Loopback-only fault gate for Kura's compiler ShellSpec tests.
 //! All storage and reconstruction stay in real Kura. ShellSpec controls the
 //! interruption or namespace deletion while requests are held at this gate.
+//! The `delay-lookups=<ms>` mode holds every action lookup for that long, as a
+//! distant cache would, and appends its start and end (Unix microseconds) to
+//! `lookups` in the control directory.
 
 use bazel_remote_apis::build::bazel::remote::execution::v2 as api;
 use std::{
@@ -10,7 +13,7 @@ use std::{
     path::PathBuf,
     pin::Pin,
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tonic::{transport::Channel, Request, Response, Status};
 
@@ -20,6 +23,7 @@ struct Gate {
     directory: PathBuf,
     chunks: Arc<Mutex<HashSet<String>>>,
     log: Arc<Mutex<std::fs::File>>,
+    lookups: Arc<Mutex<std::fs::File>>,
 }
 
 impl Gate {
@@ -32,6 +36,22 @@ impl Gate {
 
     fn event(&self, name: &str) {
         writeln!(self.log.lock().unwrap(), "{name}").unwrap();
+    }
+
+    fn lookup_delay(&self) -> Option<Duration> {
+        let millis = self.mode().strip_prefix("delay-lookups=")?.parse().ok()?;
+        Some(Duration::from_millis(millis))
+    }
+
+    fn record_lookup(&self, start: SystemTime) {
+        let micros = |time: SystemTime| time.duration_since(UNIX_EPOCH).unwrap().as_micros();
+        writeln!(
+            self.lookups.lock().unwrap(),
+            "{} {}",
+            micros(start),
+            micros(SystemTime::now())
+        )
+        .unwrap();
     }
 
     fn storage(
@@ -63,10 +83,15 @@ impl api::action_cache_server::ActionCache for Gate {
         &self,
         request: Request<api::GetActionResultRequest>,
     ) -> Result<Response<api::ActionResult>, Status> {
+        let start = SystemTime::now();
+        if let Some(delay) = self.lookup_delay() {
+            tokio::time::sleep(delay).await;
+        }
         let response = api::action_cache_client::ActionCacheClient::new(self.upstream.clone())
             .max_decoding_message_size(64 * 1024 * 1024)
             .get_action_result(request)
             .await;
+        self.record_lookup(start);
         if response.is_ok() {
             self.event("action-hit");
         }
@@ -212,6 +237,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .create(true)
                     .append(true)
                     .open(directory.join("events"))?,
+            )),
+            lookups: Arc::new(Mutex::new(
+                OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(directory.join("lookups"))?,
             )),
             directory: directory.clone(),
             chunks: Arc::new(Mutex::new(HashSet::new())),

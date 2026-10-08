@@ -165,6 +165,8 @@ jobs:
       !cancelled() &&
       !contains(needs.*.result, 'failure') &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    env:
+      MISE_LOCKED: 1
     steps:
       - uses: actions/checkout@v4
       - name: Skip Xcode Macro Fingerprint Validation
@@ -177,8 +179,13 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
+      # Only the CLI, locked: a full install on a cold cache writes checksums
+      # into mise.lock, and the run's coverage, reported from a dirty checkout,
+      # is left out of the commit (see coverage.yml).
       - uses: ./.github/actions/mise
         with:
+          install_args: "tuist"
+          cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
@@ -243,7 +250,7 @@ jobs:
         run: |
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "app/Project.swift"
       - name: Generate TuistApp
-        run: mise x -- tuist generate TuistApp
+        run: mise x -- tuist generate TuistApp --configuration Release
       - name: Bundle iOS app
         if: |
           github.event_name == 'push' ||

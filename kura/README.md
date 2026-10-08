@@ -4,6 +4,11 @@
 
 # Kura
 
+Managed positive-fence serving is experimental and default off. See the
+[serving authority and recovery runbook](../infra/kura-controller/serving-authority.md)
+for activation, named handover, asynchronous crash-loss semantics and the
+controller/runtime rollback floor. Lease expiry alone never promotes a writer.
+
 `Kura` is a Rust server for building low-latency cache meshes for tenants, handling distributed cache traffic for binary artifacts and metadata.
 
 > [!NOTE]
@@ -140,7 +145,7 @@ Account renames preserve the storage and peer tenant. Regional client endpoints 
 
 For those HTTP cache routes, `tenant_id` is always required and `namespace_id` is optional. When `namespace_id` is present, the request is namespace-scoped. When it is omitted, the request is tenant-scoped and Kura stores it under an internal empty namespace key. REAPI requests carry their namespace explicitly through the gRPC `instance_name`/`resource_name`, and may declare the account with the `x-kura-tenant-id` metadata header (the gRPC analog of the `tenant_id` query param above).
 
-Kura extends the REAPI ActionCache with a wildcard form of the standard `GetActionResult.inline_output_files` hint: a literal `"*"` entry asks Kura to inline the contents of **every** output file the response budget affords (the per-request REAPI materialization budget, 8–64MB depending on the node's memory limits). It exists for clients whose output-file paths are digests unknown before the response — the Xcode CAS plugin — collapsing the action lookup and the blob fetch into one round-trip. Semantics: wildcard-matched files inline best-effort (a file the budget cannot afford stays un-inlined and the client falls back to `BatchReadBlobs`); explicitly listed paths keep the standard hard `RESOURCE_EXHAUSTED` error on budget exhaustion; servers without the extension match no literal `"*"` path and inline nothing, so mixed client/server versions interoperate unchanged. Note the trade-off: inlining happens before the server can know which blobs the client already holds, so every inlined byte counts as metered download egress even when a warm client discards it. Optional files skipped because of materialization limits increment `kura_reapi_inline_fallbacks_total_total` per file. They do not increment `kura_capacity_sheds_total_total{kind="reapi_materialization"}` or the `reapi_materialization_rejected` memory action; those retain required-read rejection accounting. Client size-hint skips and missing blobs are not capacity fallbacks. Older replicas still include optional fallbacks in shedding until upgraded.
+Kura extends the REAPI ActionCache with a wildcard form of the standard `GetActionResult.inline_output_files` hint: a literal `"*"` entry asks Kura to inline the contents of **every** output file the response budget affords (the per-request REAPI materialization budget, up to 64MB depending on the node's memory limits). It exists for clients whose output-file paths are digests unknown before the response — the Xcode CAS plugin — collapsing the action lookup and the blob fetch into one round-trip. Semantics: wildcard-matched files inline best-effort (a file the budget cannot afford stays un-inlined and the client falls back to `BatchReadBlobs`); explicitly listed paths keep the standard hard `RESOURCE_EXHAUSTED` error on budget exhaustion; servers without the extension match no literal `"*"` path and inline nothing, so mixed client/server versions interoperate unchanged. Note the trade-off: inlining happens before the server can know which blobs the client already holds, so every inlined byte counts as metered download egress even when a warm client discards it. Optional files skipped because of materialization limits increment `kura_reapi_inline_fallbacks_total_total` per file. They do not increment `kura_capacity_sheds_total_total` or the `reapi_materialization_rejected` memory action; those retain required-read rejection accounting, under `kind="reapi_materialization"` when the response memory pool refused the read and `kind="reapi_request_budget"` when the request asked for more than one response may carry. Client size-hint skips and missing blobs are not capacity fallbacks. Older replicas still include optional fallbacks in shedding until upgraded.
 
 Kura also exposes compatibility endpoints that are not a primary focus today:
 
@@ -194,7 +199,7 @@ curl \
 Kura splits storage into two planes:
 
 - 🪨 RocksDB stores metadata, keyvalue payloads, multipart state, tombstones, segment lifecycle state, and the replication arrival feed.
-- 📦 Segment files store large immutable binary artifacts for the hot path. The segment ring's capacity derives from the data-dir filesystem size (or `KURA_CAS_CAPACITY_BYTES`), and rotating in a new segment evicts the oldest one once the budget is reached.
+- 📦 Segment files store large immutable binary artifacts for the hot path. The segment ring's capacity derives from the data-dir filesystem size (or `KURA_CAS_CAPACITY_BYTES`), and rotating in a new segment evicts the oldest one once the budget is reached. Quota pressure can reduce the effective ring: rotation requests supervised background cleanup and refuses allocation until enough space is available. Cleanup preserves the active writer, pending writes/promotions, and the five-segment minimum. Backfill uses effective capacity; storage snapshots retain the configured budget for claim sizing. Pressure events are separately attributed and cannot justify automatic claim resizing.
 
 Replication is leaderless and eventually consistent, and every node pulls (see `docs/replication-design.md`):
 
@@ -245,9 +250,10 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | No | `—` |
 | `KURA_TMP_DIR_MAX_BYTES` | Process-wide byte budget shared by every temporary writer before requests receive backpressure. A request body reserves its `Content-Length` up front, or is charged for the bytes as they land when it declares none; reservations remain held until the staged file is moved or unlinked. | Yes | `8589934592` |
 | `KURA_DATA_DIR` | Persistent directory for metadata state and segment files. | No | `—` |
-| `KURA_CAS_CAPACITY_BYTES` | Artifact-body budget for the CAS segment ring. Rounded down to whole 512 MiB segments and capped at 80% of the `KURA_DATA_DIR` filesystem so segment rotation can never run the disk full. | Yes | 50% of the `KURA_DATA_DIR` filesystem (legacy 5-segment ring when the filesystem size cannot be determined) |
+| `KURA_CAS_CAPACITY_BYTES` | Artifact-body budget for the CAS segment ring. Rounded down to whole 512 MiB segments and capped at 80% of the `KURA_DATA_DIR` filesystem. Actual free-space pressure may lower the effective ring to preserve rotation and metadata headroom; the minimum ring remains five segments. | Yes | 50% of the `KURA_DATA_DIR` filesystem (legacy 5-segment ring when the filesystem size cannot be determined) |
 | `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | No | `—` |
 | `KURA_PEER_GATEWAY_URL` | Optional regional gateway URL advertised to peers discovered through global discovery. Use this when remote regions must replicate through a stable region-level endpoint rather than pod-local DNS. | Yes | `KURA_NODE_URL` |
+| `KURA_PEER_TOPOLOGY` | Optional JSON requiring all of `provider`, `private_network` and `private_url` when enabled; provider-only configuration is rejected. Requires peer mTLS. Same-domain peers use private transport only. Different same-provider domains require reciprocal `canonical_networks` allowlists of exact remote IDs to use canonical mTLS; failed private routes never fall back publicly. Unknown legacy peers retain HTTPS compatibility. See [private replication rollout](../infra/kura-controller/private-replication.md). | Yes | disabled |
 | `KURA_PEERS` | Static seed peer list. Immutable for the process lifetime, so it should carry only platform-stable peers (enrollment seeds it with the managed regions' public peer gateways); volatile self-hosted membership flows through the mesh heartbeat instead. | Yes | empty |
 | `KURA_MESH_PEERS_SYNC` | When `true` on a non-enrolled (managed) node, fetches the account's dynamic peer list from `{KURA_CONTROL_PLANE_URL}/_internal/kura/mesh/peers` at boot and on cadence, using the control-plane client credentials. Serving is gated on the first successful fetch, so a pod booting blind never accepts writes without enqueuing replication for peers it cannot see. | Yes | `false` |
 | `KURA_DISCOVERY_DNS_NAME` | DNS name to probe for automatic peer discovery. | Yes | disabled |
@@ -322,7 +328,7 @@ A pass talks to a peer over three internal endpoints, and the pull links add a f
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /_internal/backfill/entries` | Lists the peer's index newest-first as `{record_kind, record_id, version_ms, size}` rows (`size` is absent for namespace tombstones). The requester pages with `?after=<cursor>&limit=<rows>`, passing back the page's `next_after`, and stops at its own window bound. Answers `503 index_building` while the peer is still indexing. With `order=asc` the same route serves the forward region read: ascending from `from_version_ms` (inclusive) toward newest, never past the peer's `now − KURA_SYNC_REGION_SETTLE_MS`, filtered to `origin_region` when given, and long-polling up to `wait` seconds while caught up. The page's `next_after` is returned whenever the scan moved, full page or not, so a caught-up requester keeps continuing from it; a page with neither entries nor cursor is the caught-up signal. Every page carries `now`, the serving node's wall clock, from which the requester derives `kura_peer_clock_skew_seconds` (an older peer omits it). `from_version_ms`, `origin_region` and `wait` are rejected without `order=asc`. |
+| `GET /_internal/backfill/entries` | Lists the peer's index newest-first as `{record_kind, record_id, version_ms, size}` rows (`size` is absent for namespace tombstones). The requester pages with `?after=<cursor>&limit=<rows>`, passing back the page's `next_after`, and stops at its own window bound. Answers `503 index_building` while the peer is still indexing. With `order=asc` the same route serves the forward region read: ascending from `from_version_ms` (inclusive) toward newest, never past the peer's `now − KURA_SYNC_REGION_SETTLE_MS`, filtered to `origin_region` when given, and long-polling up to `wait` seconds while caught up. The page's `next_after` is returned whenever the scan moved, full page or not, so a caught-up requester keeps continuing from it; a page with neither entries nor cursor is the caught-up signal. Every page carries `now`, the serving node's wall clock, from which the requester derives `kura_peer_clock_skew_seconds` (an older peer omits it). `from_version_ms`, `origin_region` and `wait` are rejected without `order=asc`. All three backfill routes take an optional `peer` (the requester's node URL): when it names a sibling registered on this node's arrival feed, the request marks that sibling as seen, so a backward pass that outlasts `KURA_SYNC_FEED_STALE_PEER_SECS` does not switch the feed off under it. Unregistered peers are ignored. |
 | `GET /_internal/sync/forward` | The arrival feed a same-region sibling reads forward. The requester names itself (`peer`, its node URL, which keys the consumer cursor used for trimming and the drain gate) and its `region` (checked: the feed is intra-region only), and may pass `limit` and `wait`. Four cases: without `after`, returns `{incarnation, head, floor, watermarks, now}` — the snapshot a bootstrapping sibling takes before its backward pass, which also switches the feed on; with `after={incarnation}:{seq}` at or above the floor, returns `{incarnation, entries, next, head, now}` with the rows above the cursor (`seq`, `kind`, `record_id`, `version_ms`, `size`, `arrived_at_ms`), blocking up to `wait` seconds when nothing is above it; `410 Gone` with `{error: "floor", incarnation, floor, head}` when the cursor is below the retained range (rows were dropped, or the feed is off); the same `410` with `error: "incarnation"` when the cursor names a store that no longer exists, or `error: "ahead"` when it is above the head (a crash lost a tail the sibling had already consumed). Every `410` sends the sibling back through snapshot, backward pass, forward. |
 | `POST /_internal/backfill/bodies` | Takes the tuples the requester decided it is missing and answers one length-prefixed frame per requested tuple, in request order. A frame is `Present` (header, manifest meta, then the body), `Absent` (the row is gone), or `FetchIndividually` (the body does not fit the batch). Batches are composed against `KURA_BACKFILL_BATCH_BYTES` and are bounded by a 32 MiB response ceiling both sides compile in. |
 | `GET /_internal/backfill/artifacts/{artifact_id}` | One entry, framed exactly like a bodies frame. Used for entries above the batch threshold and for `FetchIndividually` bounces. |
@@ -380,6 +386,29 @@ KURA_OTEL_DEPLOYMENT_ENVIRONMENT=production \
 
 Set `KURA_SENTRY_DSN` to also forward panics and `tracing::error!` events to Sentry. Kura uses `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` as the Sentry environment, so set it to values such as `production`, `staging`, or `canary` when separating events by deployment. In the standalone Helm chart, inject the DSN via `extraEnv` or `extraEnvFrom`. In controller-managed Tuist deployments, set `kuraController.telemetry.deploymentEnvironment` and sync the DSN into `kura-shared-secrets` with `kuraController.sentry.externalSecret`.
 `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` accepts either an OTLP HTTP signal path such as `http://otel-collector:4318/v1/traces` or an OTLP gRPC root endpoint such as `http://otel-collector:4317`.
+
+### Upload admission and sizing
+
+`memory_pressure_state=0` does not guarantee upload admission: the byte budget bounds admitted work independently of measured memory use. Concurrent writers can fill it without an OOM or a pressure transition.
+
+HTTP upload staging can wait up to 30 seconds **before** owning its reservation. ByteStream Write already owns a decode reservation when the blob size becomes known, so staging growth remains nonblocking. Waiting while holding part of the shared pool can deadlock competing writers and stall shared HTTP/2 flow control. Decode and staging refusals return `RESOURCE_EXHAUSTED` with a standard `google.rpc.RetryInfo` detail recommending a randomized delay of 1–10 seconds. Clients that do not understand the detail retain the same status and message; clients must restart a rejected write from byte zero. The hint adds no queue or payload reservation and does not lift the memory ceiling.
+
+For Tuist's 1 MiB ByteStream messages, a large upload reserves approximately **34 MiB**: twice the 16 MiB staging window, plus twice the largest encoded message (protobuf overhead adds a small amount). Smaller uploads reserve less; other clients can send larger messages and incur larger decode charges. Plan for the sum of concurrent uploads across **all** warm jobs reaching a pod, not the total artifact size:
+
+```text
+upload reservation demand ≈ concurrent warms × uploads per warm × 34 MiB
+pod limit lower bound ≈ upload reservation demand / 0.25
+```
+
+The second estimate applies to default 60%/85% watermarks without a limiting memory floor, and is an upload-only lower bound, not a production guarantee. Leave headroom in the transient pool for reads, batch decoding, materialization, and peer work, and validate CPU, disk throughput/capacity, and egress under sustained mixed load too.
+
+- Three warms × eight uploads need approximately 816 MiB of reservations. Dividing by 25% gives roughly 3.2 GiB; a **4 GiB** pod is a reasonable starting point with additional margin.
+- On a **1 GiB** pod the default gap is approximately 256 MiB. Three warms × two uploads need approximately 204 MiB, so `TUIST_CACHE_CONCURRENCY_LIMIT=2` is a useful starting point when increasing memory is not desirable. This is not a guarantee if other traffic consumes the remaining capacity.
+- With `KURA_MEMORY_FLOOR_BYTES`, inspect the base and elastic capacities instead of assuming the full 25% is always available. Elastic borrowing stops above normal pressure; queued HTTP uploads use the base pool. Increasing only the ceiling need not increase guaranteed admission capacity.
+
+Prefer reducing client concurrency or increasing pod memory before overriding `KURA_MEMORY_SOFT_LIMIT_BYTES` / `KURA_MEMORY_HARD_LIMIT_BYTES`. Lowering the soft watermark sheds optional work earlier; raising the hard watermark reduces the safety reserve beneath the container limit. Neither creates physical memory. Use explicit watermarks only after measuring the application's baseline and mixed-load peaks.
+
+Watch `kura_memory_transient_{capacity,reserved}_bytes`, `kura_memory_elastic_transient_{capacity,reserved}_bytes`, pressure state, and `kura_memory_actions_total_total{action="bytestream_staging_admission_rejected"}` / `grpc_write_decode_admission_rejected`, together with `kura_capacity_sheds_total_total`. Short bursts can be absorbed by bounded client retries, including against older Kura versions without RetryInfo. Persistent refusals mean the offered concurrency exceeds capacity or requests exceed an individual budget; longer retries alone do not fix that.
 
 ## 📊 Observability
 
@@ -540,6 +569,8 @@ POST {KURA_CONTROL_PLANE_URL}/_internal/kura/usage
 Usage delivery allows up to 3 seconds for connection setup, including DNS, within
 a 5-second total request deadline covering setup, upload, and response.
 
+ByteStream writes do not retain resumable partial uploads across requests. An interrupted upload must restart at offset zero. `QueryWriteStatus` still reports completed artifacts, but returns `UNIMPLEMENTED` when no completed blob is available, allowing clients such as Bazel to fall back to a full restart instead of treating `NOT_FOUND` as a terminal upload failure. Ordinary missing-blob reads and CAS existence checks retain their existing behavior. A Write whose blob the node already stores is read to completion without staging, decoding, storing, or billing it, and is answered exactly as a full write; it is counted as `kura_artifact_writes_total{result="already_present"}`. A restarted upload of a blob that landed meanwhile therefore costs its wire bytes but no disk or CPU. If the blob is evicted while such a write streams, Kura answers `UNAVAILABLE` and the client restarts the upload. The [Bazel upload recovery fixture](test/e2e/bytestream-recovery/README.md) exercises both paths with the real uploader.
+
 Both surfaces are metered: the HTTP cache path records rollups with `protocol = "http"`, and the REAPI (gRPC) path — `ByteStream` read/write, CAS `BatchReadBlobs`/`BatchUpdateBlobs`, and ActionCache `GetActionResult` (including inlined stdout/stderr/output files) / `UpdateActionResult` — records them with `protocol = "grpc"` and `artifact_kind = "reapi"`, so Bazel and other REAPI clients count toward the same usage surface.
 
 The hot path increments bounded in-memory counters keyed by tenant, namespace, node, region, traffic plane, direction, operation, protocol, artifact kind, and fixed time window. Closed windows are persisted to a dedicated RocksDB usage outbox, then delivered in bounded batches with HTTP Basic client credentials. Delivery is at least once; the control plane deduplicates by deterministic `event_id`.
@@ -601,22 +632,52 @@ helm lint ops/helm/kura
 helm template kura ops/helm/kura --namespace kura
 ```
 
-Enable `grpcIngress` when the Bazel Remote Execution API should be reachable outside the cluster. It renders a separate ingress so you can attach controller-specific gRPC annotations without changing the HTTP API ingress. It routes to the service's `http` port, which serves gRPC alongside the HTTP API. When the ingress controller keeps a pool of upstream connections (ingress-nginx does by default), set `service.gatewayGrpcPort`: Kura then binds a gRPC-only port (`KURA_GATEWAY_GRPC_PORT`) and the ingress routes to the service's `grpc` port instead, so gRPC and HTTP connections to a pod are never pooled together:
+Enable `grpcIngress` when the Remote Execution API should be reachable outside the cluster. The Tuist CLI uses it for the module cache and Bazel, and it dials gRPC on the same host and port as the HTTP cache endpoint, so give `grpcIngress` the same host as `ingress` and route the gRPC service paths to it. It renders a separate ingress so you can attach controller-specific gRPC annotations without changing the HTTP API ingress. It routes to the service's `http` port, which serves gRPC alongside the HTTP API. When the ingress controller keeps a pool of upstream connections (ingress-nginx does by default), set `service.gatewayGrpcPort`: Kura then binds a gRPC-only port (`KURA_GATEWAY_GRPC_PORT`) and the ingress routes to the service's `grpc` port instead, so gRPC and HTTP connections to a pod are never pooled together. With ingress-nginx, only the HTTP ingress declares TLS for the shared host:
 
 ```yaml
 service:
   gatewayGrpcPort: 4001
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: kura.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - kura.example.com
+      secretName: kura-tls
 
 grpcIngress:
   enabled: true
   className: nginx
   annotations:
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
   hosts:
-    - host: kura-grpc.example.com
+    - host: kura.example.com
       paths:
-        - path: /
-          pathType: Prefix
+        - path: /build\.bazel\.remote\.execution\.v2\.
+          pathType: ImplementationSpecific
+        - path: /google\.bytestream\.
+          pathType: ImplementationSpecific
+        - path: /build\.bazel\.remote\.asset\.v1\.
+          pathType: ImplementationSpecific
+        - path: /google\.devtools\.build\.v1\.
+          pathType: ImplementationSpecific
 ```
 
 Install it on a generic cluster:

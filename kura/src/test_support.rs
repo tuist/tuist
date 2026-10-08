@@ -43,6 +43,7 @@ where
 {
     let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
     let mut config = Config {
+        serving_authority: None,
         port: 0,
         internal_port: 7443,
         tenant_id: "test-tenant".into(),
@@ -53,6 +54,7 @@ where
         cas_capacity_bytes: None,
         node_url: "http://127.0.0.1:7443".into(),
         peer_gateway_url: None,
+        peer_topology: None,
         peers: vec!["http://127.0.0.1:7443".into()],
         discovery_dns_name: None,
         global_discovery_dns_name: None,

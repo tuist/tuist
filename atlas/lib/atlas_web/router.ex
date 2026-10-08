@@ -8,6 +8,7 @@ defmodule AtlasWeb.Router do
   alias Atlas.MCP.Transport.StreamableHTTP
   alias AtlasWeb.Plugs.AdminAuth
   alias AtlasWeb.Plugs.AllowSupportChatEmbedding
+  alias AtlasWeb.Plugs.DocsMarkdownNegotiation
   alias AtlasWeb.Plugs.FetchCurrentUser
   alias AtlasWeb.Plugs.InferenceAuthentication
   alias AtlasWeb.Plugs.MCPAuth
@@ -22,6 +23,37 @@ defmodule AtlasWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug FetchCurrentUser
+  end
+
+  pipeline :docs do
+    plug DocsMarkdownNegotiation
+    plug :accepts, ["html"]
+    plug :put_root_layout, html: {AtlasWeb.DocsHTML, :root}
+    plug :put_secure_browser_headers
+    plug :mark_public_docs
+  end
+
+  pipeline :docs_markdown do
+    plug :put_secure_browser_headers
+    plug :mark_public_docs
+  end
+
+  scope "/docs-markdown", AtlasWeb do
+    pipe_through :docs_markdown
+    get "/", DocsController, :markdown
+    get "/*path", DocsController, :markdown
+  end
+
+  defp mark_public_docs(conn, _opts) do
+    conn
+    |> put_resp_header("x-tuist-public", "1")
+    |> put_resp_header("x-robots-tag", "index, follow")
+  end
+
+  scope "/docs", AtlasWeb do
+    pipe_through :docs
+    get "/", DocsController, :show
+    get "/*path", DocsController, :show
   end
 
   pipeline :require_auth do
@@ -90,6 +122,8 @@ defmodule AtlasWeb.Router do
     get "/models", InferenceController, :models
     post "/chat/completions", InferenceController, :chat_completions
     post "/embeddings", InferenceController, :embeddings
+    post "/systemone", InferenceController, :decisions
+    post "/decisions", InferenceController, :decisions
   end
 
   scope "/api", AtlasWeb do
@@ -209,6 +243,8 @@ defmodule AtlasWeb.Router do
       on_mount: [{AtlasWeb.LayoutLive, :default}],
       layout: {AtlasWeb.Layouts, :dashboard} do
       live "/", OverviewLive, :index
+      live "/demo", DemoLive, :index
+      live "/tasks", TasksLive, :index
       live "/commercial/sales", SalesLive, :index
       live "/commercial/sales/accounts", AccountsLive, :index
       live "/commercial/sales/accounts/:id", AccountLive, :show
@@ -333,7 +369,6 @@ defmodule AtlasWeb.Router do
     # move.
     get "/mcps/:server_name/authorize", MCPOAuthController, :authorize
     get "/mcps/:server_name/callback", MCPOAuthController, :callback
-    get "/mcps/:server_name/operator-grant", MCPOAuthController, :operator_grant
     get "/slack/install", SlackInstallController, :new
     get "/slack/install/callback", SlackInstallController, :callback
     delete "/logout", AuthController, :delete

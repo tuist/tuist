@@ -32,8 +32,11 @@ assignment upstream if persistence fails.
 - Parse GitLab's per-line UTC timestamp, hexadecimal stream ID and continuation
   flag before section markers. Keep ANSI colors for the shared log renderer,
   but remove erase-line controls used around section boundaries.
-- Shared account cache volumes/signing grants are withheld until GitLab job
-  trust can be established independently of overridable CI variables.
+- Shared macOS account cache volumes/signing grants remain withheld. Opt-in
+  Linux directory volumes use `../cache_volumes/identity.ex`: verify GET /job
+  against the assignment, then list the exact branch to establish default-branch
+  eligibility. Job token API responses, never CI variables, supply authority.
+  Branch listing returns arrays; preserve the existing response size/SSRF bounds.
 - GitLab's `cache:` keyword is backed by `Cache` through
   `RunnerJobCacheController` (`/runners/jobs/cache/*`): a presigned download
   URL, and a multipart upload whose parts are presigned one at a time, so

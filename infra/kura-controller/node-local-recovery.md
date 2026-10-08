@@ -52,7 +52,10 @@ delete a pod or discard its volume based solely on a missed heartbeat.
    `spec.updateStrategy` and temporarily use `OnDelete`. This pauses rolling
    updates, not node-loss eviction or replacement of already missing pods.
    The controller image-change deletion path also respects `OnDelete` and
-   positive rolling partitions; it must not bypass an incident pause.
+   positive rolling partitions; it must not bypass an incident pause. A
+   StatefulSet annotated `kura.tuist.dev/resize-rollout-hold` is already on
+   `OnDelete` for a data volume resize, and the controller lifts it once every
+   replica is Ready. Remove the annotation to keep it as an incident pause.
 3. Compare an unauthenticated `/ready` request to the control-plane Service by
    normal hostname, absolute hostname, and its current ClusterIP. Preserve the
    initial mesh gate: bypassing it would let a process serve with an incomplete

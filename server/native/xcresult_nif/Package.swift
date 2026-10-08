@@ -18,7 +18,6 @@ let package = Package(
     dependencies: [
         .package(id: "tuist.Path", from: "0.3.8"),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.2")),
-        .package(id: "tuist.Command", from: "0.14.9"),
         .package(id: "kolos65.Mockable", from: "0.3.0"),
     ],
     targets: [
@@ -27,7 +26,6 @@ let package = Package(
             dependencies: [
                 .product(name: "Path", package: "tuist.Path"),
                 .product(name: "FileSystem", package: "tuist.FileSystem"),
-                .product(name: "Command", package: "tuist.Command"),
                 .product(name: "Mockable", package: "kolos65.Mockable"),
             ],
             swiftSettings: [
@@ -45,7 +43,6 @@ let package = Package(
             name: "XCResultParserTests",
             dependencies: [
                 "XCResultParser",
-                .product(name: "Command", package: "tuist.Command"),
             ],
             resources: [.copy("../Fixtures")]
         ),

@@ -168,6 +168,7 @@ const CGROUP_V1_UNLIMITED_THRESHOLD_BYTES: u64 = 1 << 53;
 
 #[derive(Clone, Debug)]
 pub struct Config {
+    pub serving_authority: Option<crate::serving_authority::AuthorityConfig>,
     /// Plaintext port for the co-hosted HTTP cache API + h2c REAPI gRPC service,
     /// dispatching each request to the right subsystem by path. When `public_tls`
     /// is set the same surface is also served over TLS on `https_port`.
@@ -183,6 +184,7 @@ pub struct Config {
     pub cas_capacity_bytes: Option<u64>,
     pub node_url: String,
     pub peer_gateway_url: Option<String>,
+    pub peer_topology: Option<crate::peer_topology::PeerTopology>,
     pub peers: Vec<String>,
     pub discovery_dns_name: Option<String>,
     pub global_discovery_dns_name: Option<String>,
@@ -759,6 +761,13 @@ impl Config {
         let peer_gateway_url = lookup(KURA_PEER_GATEWAY_URL)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
+        let peer_topology =
+            optional_parsed_value(&mut lookup, "KURA_PEER_TOPOLOGY", &mut invalid, |value| {
+                let topology: crate::peer_topology::PeerTopology =
+                    serde_json::from_str(value).map_err(|e| format!("KURA_PEER_TOPOLOGY: {e}"))?;
+                topology.validate()?;
+                Ok(topology)
+            });
         let peers: Vec<String> = lookup(KURA_PEERS)
             .map(|value| {
                 value
@@ -1923,6 +1932,10 @@ impl Config {
             }
         }
 
+        if peer_topology.is_some() && peer_tls.is_none() {
+            invalid.push("KURA_PEER_TOPOLOGY requires peer mTLS".into());
+        }
+
         // Fit the anon caches to the floor before the config is sealed. This runs
         // last because it has to see the final values, operator overrides
         // included: the orchestrator pins all four on managed instances, and
@@ -1982,6 +1995,7 @@ impl Config {
         }
 
         Ok(Self {
+            serving_authority: crate::serving_authority::AuthorityConfig::from_env()?,
             port: port.expect("port should be present when configuration is valid"),
             internal_port: internal_port
                 .expect("internal_port should be present when configuration is valid"),
@@ -1993,6 +2007,7 @@ impl Config {
             cas_capacity_bytes,
             node_url: node_url.expect("node_url should be present when configuration is valid"),
             peer_gateway_url,
+            peer_topology,
             peers,
             discovery_dns_name,
             global_discovery_dns_name,
@@ -3417,6 +3432,42 @@ mod tests {
         assert_eq!(
             config.peer_gateway_url.as_deref(),
             Some("http://peer.kura.example.com:7443")
+        );
+    }
+
+    #[test]
+    fn peer_topology_is_opt_in_and_requires_mtls() {
+        assert!(config_from(&[]).unwrap().peer_topology.is_none());
+        assert!(
+            config_from(&[("KURA_PEER_TOPOLOGY", r#"{"provider":"ovh"}"#)])
+                .unwrap_err()
+                .contains("requires both private_network and private_url")
+        );
+        let topology = r#"{"provider":"ovh","private_network":"vrack-1","private_url":"https://node.private:7443"}"#;
+        assert!(
+            config_from(&[("KURA_PEER_TOPOLOGY", topology)])
+                .unwrap_err()
+                .contains("requires peer mTLS")
+        );
+        let config = config_from(&[
+            ("KURA_PEER_TOPOLOGY", topology),
+            (KURA_NODE_URL, "https://node.private:7443"),
+            (KURA_PEERS, "https://other.private:7443"),
+            (KURA_INTERNAL_TLS_CA_CERT_PATH, "/ca.pem"),
+            (KURA_INTERNAL_TLS_CERT_PATH, "/cert.pem"),
+            (KURA_INTERNAL_TLS_KEY_PATH, "/key.pem"),
+        ])
+        .unwrap();
+        assert_eq!(
+            config.peer_topology.unwrap().private_network.as_deref(),
+            Some("vrack-1")
+        );
+        assert!(
+            config_from(&[(
+                "KURA_PEER_TOPOLOGY",
+                r#"{"provider":"ovh","private_url":"http://public"}"#
+            )])
+            .is_err()
         );
     }
 

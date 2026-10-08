@@ -1,5 +1,5 @@
-# Runs one GitHub Actions job on a Mac mini we own, in the BER1 rack, to prove
-# the machine is a working CI runner and not merely a registered Node.
+# Runs GitHub Actions jobs on the Mac minis we own, in the BER1 rack, to prove
+# the machines are working CI runners and not merely registered Nodes.
 #
 # `runs-on` targets the `tuist-ber1-smoke` dispatch label. That label reaches
 # the STAGING Tuist server's webhook handler, which matches it to the rack pool
@@ -7,12 +7,26 @@
 # Production receives the same webhook, has no pool with this label, and ignores
 # it.
 #
-# Manual dispatch only. There is one prototype box behind a home subnet router,
-# so this must never sit in a repository's automatic path.
+# Manual dispatch only: the rack sits behind a home subnet router, so this must
+# never sit in a repository's automatic path.
+#
+# `load_minutes` above 0 also runs one load job per guest slot: every vCPU
+# hashes for that long, and each job prints its throughput once a minute. A
+# flush-stacked tray that throttles shows as throughput falling over the run,
+# worst in the middle unit, which the per-job runner name maps to a host.
 name: BER1 Smoke
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      load_minutes:
+        description: Minutes of full CPU load per guest slot (0 runs only the smoke job)
+        required: false
+        default: "0"
+      slots:
+        description: Guest slots to load (the rack's hosts x 2)
+        required: false
+        default: "6"
 
 permissions:
   contents: read
@@ -40,3 +54,93 @@ jobs:
           python3 -c "print(sum(i*i for i in range(1_000_000)))" > /tmp/sum.txt
           test "$(cat /tmp/sum.txt)" = "333332833333500000"
           echo "computed and verified on rack hardware"
+
+  # The rack's own cache: dispatch hands a rack job the ber1-runners endpoint,
+  # the gateway on ber1-store-a on the machines segment. The job resolves it
+  # to the storage node, reads /up over TLS, and round-trips a blob with a
+  # token minted from its GitHub OIDC identity.
+  cache:
+    name: Pull from the rack's cache
+    runs-on: tuist-ber1-smoke
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TUIST_URL: https://staging.tuist.dev
+      RACK_CACHE_ADDRESS: 10.10.0.11
+    steps:
+      - name: The dispatched endpoint is the rack's cache
+        run: |
+          set -euo pipefail
+          endpoint="${TUIST_CACHE_ENDPOINT:-}"
+          [ -n "$endpoint" ] || { echo "::error::dispatch handed this job no cache endpoint"; exit 1; }
+          host="${endpoint#https://}"; host="${host%%/*}"
+          echo "TUIST_CACHE_ENDPOINT=$endpoint"
+          resolved="$(dscacheutil -q host -a name "$host" | awk '/^ip_address:/{print $2; exit}')"
+          echo "$host resolves to $resolved"
+          [ "$resolved" = "$RACK_CACHE_ADDRESS" ] || { echo "::error::$host is not the rack's storage node ($RACK_CACHE_ADDRESS)"; exit 1; }
+          code="$(curl -sS -m 10 -o /tmp/up -w '%{http_code}' "${endpoint%/}/up")"
+          echo "GET /up -> HTTP $code"
+          [ "$code" = 200 ] || { echo "::error::/up returned $code"; exit 1; }
+      - name: Round-trip a blob through it
+        run: |
+          set -euo pipefail
+          endpoint="${TUIST_CACHE_ENDPOINT%/}"
+          oidc="$(curl -sS -m 10 -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=tuist" | sed -n 's/.*"value":"\([^"]*\)".*/\1/p')"
+          token="$(curl -sS -m 10 -X POST -H 'content-type: application/json' -d "{\"token\":\"$oidc\"}" "$TUIST_URL/api/auth/oidc/token" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')"
+          [ -n "$token" ] || { echo "::error::staging minted no token for this repository's OIDC identity"; exit 1; }
+          key="ber1-smoke-$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d -)"
+          query="tenant_id=tuist&namespace_id=tuist"
+          head -c 1048576 /dev/urandom > /tmp/blob
+          code="$(curl -sS -m 30 -o /tmp/put -w '%{http_code}' -X POST -H "Authorization: Bearer $token" -H 'content-type: application/octet-stream' --data-binary @/tmp/blob "$endpoint/api/cache/cas/$key?$query")"
+          echo "POST /api/cache/cas/$key -> HTTP $code"; cat /tmp/put; echo
+          case "$code" in 2*) ;; *) echo "::error::write returned $code"; exit 1;; esac
+          code="$(curl -sS -m 30 -o /tmp/got -w '%{http_code}' -H "Authorization: Bearer $token" "$endpoint/api/cache/cas/$key?$query")"
+          echo "GET /api/cache/cas/$key -> HTTP $code"
+          [ "$code" = 200 ] || { echo "::error::read returned $code"; exit 1; }
+          cmp /tmp/blob /tmp/got
+          echo "read back the 1 MiB blob byte for byte from $endpoint"
+
+  slots:
+    name: Plan load slots
+    if: inputs.load_minutes != '0'
+    runs-on: ubuntu-latest
+    outputs:
+      slots: ${{ steps.plan.outputs.slots }}
+    steps:
+      - id: plan
+        run: echo "slots=$(seq 1 "$SLOTS" | jq -cs .)" >> "$GITHUB_OUTPUT"
+        env:
+          SLOTS: ${{ inputs.slots }}
+
+  load:
+    name: Load slot ${{ matrix.slot }}
+    needs: slots
+    runs-on: tuist-ber1-smoke
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        slot: ${{ fromJSON(needs.slots.outputs.slots) }}
+    steps:
+      - name: Hash on every vCPU and report throughput per minute
+        env:
+          LOAD_MINUTES: ${{ inputs.load_minutes }}
+        run: |
+          set -euo pipefail
+          cpus=$(sysctl -n hw.ncpu)
+          echo "runner=$RUNNER_NAME cpus=$cpus chip=$(system_profiler SPHardwareDataType | awk -F': ' '/Chip/{print $2}')"
+          work=$(mktemp -d)
+          for i in $(seq 1 "$cpus"); do
+            ( while :; do head -c 268435456 /dev/zero | openssl dgst -sha256 >/dev/null; echo >> "$work/w$i"; done ) &
+          done
+          total() { cat "$work"/w* 2>/dev/null | wc -l | tr -d ' '; }
+          previous=0
+          for minute in $(seq 1 "$LOAD_MINUTES"); do
+            sleep 60
+            now=$(total)
+            echo "minute=$minute runner=$RUNNER_NAME gib_per_min=$(( (now - previous) / 4 )) chunks=$((now - previous))"
+            previous=$now
+          done
+          kill $(jobs -p) 2>/dev/null || true

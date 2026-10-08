@@ -27,7 +27,7 @@ defmodule Tuist.Storage.LegacyBuildArtifactRetentionTest do
            body: %{
              contents: [
                %{key: expired_legacy_key, last_modified: DateTime.add(DateTime.utc_now(), -31, :day)},
-               %{key: recent_legacy_key, last_modified: DateTime.add(DateTime.utc_now(), -29, :day)},
+               %{key: recent_legacy_key, last_modified: DateTime.add(DateTime.utc_now(), -6, :day)},
                %{key: current_build_key, last_modified: DateTime.add(DateTime.utc_now(), -31, :day)},
                %{key: run_artifact_key, last_modified: DateTime.add(DateTime.utc_now(), -31, :day)}
              ],
@@ -70,7 +70,7 @@ defmodule Tuist.Storage.LegacyBuildArtifactRetentionTest do
       assert LegacyBuildArtifactRetention.delete_expired(retention_days: 60) == {:ok, nil}
     end
 
-    test "deletes legacy build artifacts older than 30 days for paid and free accounts" do
+    test "deletes legacy build artifacts past the plan window for paid and free accounts" do
       pro_key = "pro-account/app/builds/0123456789abcdef0123456789abcdef/App"
       air_key = "air-account/app/builds/fedcba9876543210fedcba9876543210/App"
 
@@ -125,7 +125,7 @@ defmodule Tuist.Storage.LegacyBuildArtifactRetentionTest do
       assert LegacyBuildArtifactRetention.delete_expired() == {:ok, nil}
     end
 
-    test "deletes orphaned legacy build artifacts older than 30 days" do
+    test "deletes orphaned legacy build artifacts older than the Air window" do
       expired_orphan_key = "deleted-account/app/builds/0123456789abcdef0123456789abcdef/App"
       recent_orphan_key = "deleted-account/app/builds/fedcba9876543210fedcba9876543210/App"
       current_build_key = "deleted-account/app/builds/018fb6aa-c19d-7829-8ed3-934375dfba53/build.zip"
@@ -139,7 +139,7 @@ defmodule Tuist.Storage.LegacyBuildArtifactRetentionTest do
            body: %{
              contents: [
                %{key: expired_orphan_key, last_modified: DateTime.add(DateTime.utc_now(), -31, :day)},
-               %{key: recent_orphan_key, last_modified: DateTime.add(DateTime.utc_now(), -29, :day)},
+               %{key: recent_orphan_key, last_modified: DateTime.add(DateTime.utc_now(), -6, :day)},
                %{key: current_build_key, last_modified: DateTime.add(DateTime.utc_now(), -31, :day)}
              ],
              is_truncated: false

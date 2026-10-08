@@ -29,6 +29,10 @@ on:
         description: Run only the Gradle container cache check
         type: boolean
         default: false
+      stable_cache_dns:
+        description: With gradle_cache, validate the spec95 public stable endpoint using the temporary staging fixture token
+        type: boolean
+        default: false
       runner_label:
         description: Runner profile for the Gradle cache check
         type: string
@@ -167,7 +171,7 @@ jobs:
       contents: read
       id-token: write
     runs-on: ${{ inputs.runner_label }}
-    timeout-minutes: 15
+    timeout-minutes: ${{ inputs.stable_cache_dns && 30 || 15 }}
     container:
       image: eclipse-temurin:21-jdk-jammy
     defaults:
@@ -179,18 +183,27 @@ jobs:
       MISE_GITHUB_TOKEN: ${{ github.token }}
       MISE_GITHUB_ATTESTATIONS: 0
       MISE_LOCKED: 1
+      TUIST_TOKEN: ${{ inputs.stable_cache_dns && secrets.SPEC95_STAGING_CACHE_TOKEN || '' }}
     steps:
+      - name: Validate stable DNS fixture scope
+        if: ${{ inputs.stable_cache_dns }}
+        run: |
+          set -euo pipefail
+          test "$TUIST_URL" = https://staging.tuist.dev
+          test "$SMOKE_PROJECT" = kura-spec95-e2e/probe
+          : "${TUIST_TOKEN:?Temporary staging fixture token is missing}"
       - name: Verify runner endpoint reaches the job container
+        if: ${{ !inputs.stable_cache_dns }}
         run: |
           set -euo pipefail
           : "${TUIST_CACHE_ENDPOINT:?Runner cache endpoint was not forwarded to the container}"
           curl --fail --silent --show-error --connect-timeout 5 --max-time 15 \
             "${TUIST_CACHE_ENDPOINT%/}/up"
 
-      - name: Install git for the fixture repository
+      - name: Install fixture tools
         run: |
           apt-get update -qq
-          apt-get install -y --no-install-recommends git
+          apt-get install -y --no-install-recommends git jq
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise
         with:
@@ -198,9 +211,14 @@ jobs:
           cache: "false"
           working_directory: .
       - name: Authenticate with Tuist
+        if: ${{ !inputs.stable_cache_dns }}
         run: tuist auth login
       - name: Verify a remote upload followed by a remote hit
+        if: ${{ !inputs.stable_cache_dns }}
         run: bash infra/linux-runner-image/gradle-cache-smoke.sh
+      - name: Soak the public stable cache endpoint
+        if: ${{ inputs.stable_cache_dns }}
+        run: bash infra/cache-dns/staging-ci-smoke.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:

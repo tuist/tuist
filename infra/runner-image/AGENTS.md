@@ -50,17 +50,36 @@ each one with a check that asserts the behaviour rather than the
 ingredient — every gap so far was found by a release failing, not
 by the image build.
 
-TCC looked like one of those gaps and was not. Scripted Finder
-automation here fails as `AppleEvent timed out (-1712)`, which
-reads as a missing `kTCCServiceAppleEvents` approval, and this
-template used to seed one. It changed nothing: seeding the
-approval into the session user's database and reading the row
-back still left every send timing out, because these VMs have no
-Finder that answers rather than one that refuses. Do not re-add
-it. The DMG step that surfaced this no longer drives Finder at
-all (`app/dmg-settings.py`), and if something else needs a GUI
-app here, the question to answer first is whether the auto-login
-session materialises, not whether it is authorised.
+TCC is one of those gaps. Scripted Finder automation (`create-dmg`,
+anything driving Finder through `osascript`) needs a standing
+`kTCCServiceAppleEvents` approval, or the first send waits on a
+consent prompt nobody can answer and fails as `AppleEvent timed out
+(-1712)`. `dispatch-poll.sh` (`approve_finder_automation`) writes it
+at boot. Three details decide whether a row matches, and earlier
+attempts got each one wrong:
+
+- **Database.** Only the session user's
+  `~/Library/Application Support/com.apple.TCC/TCC.db` is consulted.
+  A row in the system database is ignored. The user database only
+  exists once `runner` has logged in, which is why this runs at boot
+  and not in the Packer template.
+- **Client.** TCC charges the event to the responsible process, not
+  to `osascript`. For GitHub jobs that is
+  `/Users/runner/actions-runner/bin/Runner.Listener`. The Buildkite
+  and GitLab agents are started directly by `dispatch-poll.sh`, so
+  theirs is expected to be its `/bin/bash`. `log stream --predicate
+  'subsystem == "com.apple.TCC"'` names it (`Prompting for access to
+  indirect object Finder by …`).
+- **Target.** `indirect_object_code_identity` must hold Finder's
+  code requirement. A row with it NULL is ignored.
+
+The write itself races tccd, which is still writing the database
+right after login. Without a busy timeout, `sqlite3` failed with
+`database is locked` on some boots and the job then hit
+`-1712` (prompt shown) or `-1743` (immediate deny). The guest logs
+`Finder automation approved` or `WARNING could not approve …`; for VMs
+whose log tail reaches Loki, search the `tuist-macos-tart-kubelet`
+`runner log` lines for it.
 
 The sanity checks at the end of the Packer template run as `sudo
 -u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
@@ -111,6 +130,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   branch skips the idle watchdog entirely — an acquisition token names
   one job UUID, so there is no window in which a registered agent waits
   to be handed work, which is the whole hazard that watchdog bounds.
+  For a GitHub job it writes the response's `setup_info` to the
+  runner's `.setup_info`, which the runner prints in the job's "Set up
+  job" step as a "Tuist Runner" group linking to the job's dashboard
+  page (`/<account>/runners/by-runner/<runner name>`, resolved
+  server-side because GitHub picks the job after the file is read).
   Captures
   the rc and `sudo shutdown -h now`s the VM via an `EXIT` trap so
   `tart run` returns and tart-kubelet flips the Pod to
@@ -553,14 +577,18 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["27.2-beta", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
+["27.2-beta", "27.1-rc", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
 
 Beta entries follow the `<major>.<minor>-beta` shape (matching the
 mirror + base image tags `xcode-xips:27.2-beta`,
 `macos-tahoe-xcode:27-2-beta`), so `runs-on: tuist-macos-27-2-beta`
 resolves to a runner pool sized by
-`runnersFleet.xcodeOverrides["27.2-beta"]`.
+`runnersFleet.xcodeOverrides["27.2-beta"]`. Release candidates use
+`rc` (`27.1 Release Candidate` → `27.1-rc`), which is also the
+channel a later `Release Candidate 2` moves. The longer
+`release-candidate` would push the 12 vCPU shape pool's
+`tuist.dev/runner-pool` label past Kubernetes' 63-character limit.
 
 The file lives under `infra/runner-image/**`, so editing it triggers
 a runner-image release. Adding a profile builds only that profile;
@@ -746,3 +774,14 @@ semantics; this doc is just about the VM image.
 `/opt/tuist/tuist-gitlab-runner` executes a server-acquired GitLab job with the upstream shell executor. Its source is in `infra/linux-runner-image/gitlab-runner/` and the shared `build-runner-image-binaries` action builds its darwin/arm64 binary for Packer. Dispatch stages the assignment as private JSON and reuses the normal VM lifecycle. Reusable GitLab runner tokens never enter the VM.
 
 - GitLab parsing uses `/opt/homebrew/bin/jq`, checked before acquisition independently of launchd PATH. Stage assignments in a private `mktemp` file and atomically rename only after successful parsing; failures remove temporary credentials and terminate the claimed runner.
+
+- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
+  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
+  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+
+- `stage_volume_usage` records actual mounted APFS used/capacity bytes, initial
+  size, mount time/duration and host-staged warm/cold source. Stage once at attach
+  and again before detach; never estimate sparse-image filesystem usage from the
+  image file's host size. The host adds scope/outcome and authenticates reporting.
+- Failed custom-volume detach must emit a warning that publication is skipped;
+  preserve the job's exit status and never force-detach a publishable image.

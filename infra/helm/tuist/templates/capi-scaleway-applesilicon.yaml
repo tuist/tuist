@@ -45,13 +45,15 @@ rules:
       - scalewayelasticmetalmachinetemplates
       - ovhdedicatedmachines
       - ovhdedicatedmachinetemplates
-      - dediboxmachines
-      - dediboxmachinetemplates
       - vultrmachines
       - vultrmachinetemplates
       - rackapplesiliconmachines
-      - rackapplesiliconmachinetemplates
       - rackhosts
+      - rackpdus
+      - rackatses
+      - racklinuxhosts
+      - racklinuxmachines
+      - racklinuxcandidates
       - failoverips
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
@@ -63,22 +65,44 @@ rules:
       - scalewayelasticmetalmachines/finalizers
       - ovhdedicatedmachines/status
       - ovhdedicatedmachines/finalizers
-      - dediboxmachines/status
-      - dediboxmachines/finalizers
       - vultrmachines/status
       - vultrmachines/finalizers
       - rackapplesiliconmachines/status
       - rackapplesiliconmachines/finalizers
-      # rackhosts/status carries the claim. It is the only status in this
-      # provider written by a DIFFERENT object's reconciler, and it is written
-      # with Update rather than a merge patch so the apiserver's
-      # resourceVersion check makes the claim atomic.
+      # The machine reconciler quarantines a host it gave up bootstrapping.
       - rackhosts/status
+      # The RackPDU and RackATS controllers hold a deleted PDU or transfer
+      # switch with a finalizer until its egress Service is gone.
+      - rackpdus/status
+      - rackpdus/finalizers
+      - rackatses/status
+      - rackatses/finalizers
+      - racklinuxhosts/status
+      # The RackLinuxHost controller holds a deleted host with a finalizer
+      # until it retired the host's Machine, tailnet devices and console key,
+      # and owns the Machine it keeps for the host.
+      - racklinuxhosts/finalizers
+      - racklinuxmachines/status
+      - racklinuxmachines/finalizers
+      # Which host declares each machine a rack boot server listed.
+      - racklinuxcandidates/status
       - failoverips/status
     verbs: [get, update, patch]
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines, machinesets, machinedeployments, clusters]
     verbs: [get, list, watch]
+  # The RackLinuxHost and RackHost controllers keep one Machine per rack host,
+  # and delete it when the host is retired (Linux) or parked or remediated
+  # (Mac). An OS update patches cluster.x-k8s.io/skip-remediation onto a rack
+  # Mac's Machine for the length of its install.
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: [machines]
+    verbs: [create, update, patch, delete]
+  # A rack Linux host's rename has its Machine forget the Node it joined
+  # under before, so CAPI records, drains and deletes the one it joins as.
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: [machines/status]
+    verbs: [get, update, patch]
   # The SASC reconciler marks the parent Cluster's
   # ControlPlaneInitialized condition True (externally-managed
   # control plane: Mac minis join an existing Hetzner cluster, so
@@ -99,7 +123,7 @@ rules:
     # (so CAPI links Machine<->Node) and the dynamic tuist.dev/pn-ipv4 label.
     verbs: [get, list, watch, patch, delete]
   - apiGroups: [""]
-    # The Linux machine reconcilers (OVH/Dedibox) advertise the box's egress
+    # The Linux machine reconcilers (OVH) advertise the box's egress
     # budget as the node's tuist.dev/egress-mbps extended-resource capacity, which
     # lives on the status subresource.
     resources: [nodes/status]
@@ -172,6 +196,12 @@ rules:
     # read on the single ConfigMap by name.
     resources: [configmaps]
     resourceNames: [cluster-info]
+    verbs: [get]
+  - apiGroups: ["apps"]
+    # The rack Linux kind refuses to join a node while the Cilium agent would
+    # schedule onto it.
+    resources: [daemonsets]
+    resourceNames: [cilium]
     verbs: [get]
 {{- if .Values.macosFleet.tailscaleEgress.enabled }}
 ---
@@ -295,6 +325,40 @@ subjects:
     name: {{ $name }}
     namespace: {{ .Release.Namespace }}
 ---
+# Read on the single default/kubernetes Service, whose ClusterIP a rack node
+# translates to the API server (discoverKubernetesService), so in-cluster
+# clients on the node reach the API at the address they are given.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-kubernetes-service
+  namespace: default
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+rules:
+  - apiGroups: [""]
+    resources: [services]
+    resourceNames: [kubernetes]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-kubernetes-service
+  namespace: default
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-kubernetes-service
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -355,6 +419,49 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --secrets-namespace={{ .Release.Namespace }}
+            {{- if .Values.capi.vultrPrivateNetwork.enabled }}
+            - --vultr-private-network-config={{ include "tuist.componentName" (dict "root" . "component" "vultr-private-network") }}
+            {{- end }}
+            {{- if .Values.capi.ovhPrivateNetwork.enabled }}
+            - --ovh-private-network-config={{ include "tuist.componentName" (dict "root" . "component" "ovh-private-network") }}
+            {{- end }}
+            {{- if and .Values.rackLinuxFleet.enabled .Values.rackLinuxFleet.tailscale.externalSecret.enabled }}
+            - --rack-linux-tailscale-secret-name={{ include "tuist.rackLinuxFleetName" . }}-tailscale
+            {{- end }}
+            {{- if .Values.rackLinuxFleet.enabled }}
+            - --rack-linux-fleet-name={{ include "tuist.rackLinuxFleetName" . }}
+            - --rack-linux-cluster-name={{ include "tuist.componentName" (dict "root" . "component" "capi") }}
+            - --rack-linux-bootstrap-secret-name={{ include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
+            {{- if .Values.rackLinuxFleet.boot.enabled }}
+            - --rack-linux-install-server-url=http://{{ .Values.rackLinuxFleet.boot.address }}:{{ .Values.rackLinuxFleet.boot.httpPort }}
+            {{- range .Values.rackLinuxFleet.authorizedKeys }}
+            - {{ printf "--rack-linux-authorized-key=%s" . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.rackLinuxFleet.amt.provisioningExternalSecret.enabled }}
+            - --rack-linux-amt-provisioning-secret-name={{ include "tuist.rackLinuxFleetName" . }}-amt-provisioning
+            {{- range .Values.rackLinuxFleet.amt.products }}
+            - {{ printf "--rack-linux-amt-product=%s" . | quote }}
+            {{- end }}
+            {{- with .Values.rackLinuxFleet.amt.addressRange }}
+            - --rack-linux-amt-address-range={{ . }}
+            {{- end }}
+            {{- with .Values.rackLinuxFleet.amt.gateway }}
+            - --rack-linux-amt-gateway={{ . }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.rackFleet.enabled }}
+            - --rackhost-fleet-name={{ include "tuist.rackFleetName" . }}
+            - --rackhost-cluster-name={{ include "tuist.componentName" (dict "root" . "component" "capi") }}
+            - --rackhost-bootstrap-secret-name={{ include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
+            {{- with .Values.rackFleet.vmCacheGatewayCIDRs }}
+            - --rackhost-vm-cache-gateway-cidrs={{ join "," . }}
+            {{- end }}
+            {{- if .Values.rackFleet.cardRootKey.enabled }}
+            - --rack-card-root-secret={{ .Values.rackFleet.cardRootKey.secretName | default "rack-card-root" }}
+            {{- end }}
+            {{- end }}
             {{- with .Values.macosFleet.apiServerURL }}
             - --api-server-url={{ . }}
             {{- end }}
@@ -390,6 +497,11 @@ spec:
             - --cache-volume-cas-gib={{ . }}
             {{- end }}
             {{- end }}
+            {{- end }}
+            {{- if .Values.runnersFleet.customCacheVolumes.enabled }}
+            - --custom-cache-url={{ .Values.server.appUrl }}/api/internal/runners/cache-volumes
+            - --custom-cache-namespace={{ .Values.runnersFleet.namespace | default "tuist-runners" }}
+            - --custom-cache-service-account={{ include "tuist.componentName" (dict "root" . "component" "runner-cache-volumes") }}
             {{- end }}
             {{- if .Values.macosFleet.tailscale.enabled }}
             # Tailscale + node_exporter artifact paths. Both are
@@ -502,6 +614,7 @@ spec:
             - --tailscale-egress-proxy-group={{ .Values.macosFleet.tailscaleEgress.proxyGroup }}
             - --tailscale-egress-namespace={{ .Values.macosFleet.tailscaleEgress.namespace }}
             - --tailscale-egress-magicdns-suffix={{ required "macosFleet.tailscaleEgress.magicDNSSuffix is required when tailscaleEgress.enabled" .Values.macosFleet.tailscaleEgress.magicDNSSuffix }}
+            - --tailscale-egress-proxy-tags={{ required "macosFleet.tailscaleEgress.proxyTags is required when tailscaleEgress.enabled" .Values.macosFleet.tailscaleEgress.proxyTags }}
             {{- end }}
             {{- if .Values.macosFleet.adoptPoolPrefix }}
             # Orphan-reclaim sweep + delete-path pool-prefix fallback.
@@ -538,23 +651,6 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.macosFleet.scaleway.secretName | default $name }}
                   key: project-id
-            {{- if .Values.dediboxFleet.enabled }}
-            # Dedibox uses a SEPARATE default-project Scaleway IAM key (every
-            # Dedibox in the org lives in the default project, so this one key
-            # serves all envs and the per-fleet tag does the scoping). The
-            # reconciler sends secret-key as X-Auth-Token over raw HTTP. Its
-            # presence also gates the reconciler on (cmd/manager/main.go).
-            - name: DEDIBOX_SCW_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.dediboxFleet.scaleway.secretName | default (include "tuist.componentName" (dict "root" . "component" "dedibox")) }}
-                  key: secret-key
-            - name: DEDIBOX_SCW_PROJECT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.dediboxFleet.scaleway.secretName | default (include "tuist.componentName" (dict "root" . "component" "dedibox")) }}
-                  key: project-id
-            {{- end }}
             {{- if $ovhAny }}
             # OVH dedicated-server reconciler creds. The OVH SDK reads these from
             # the env; OVH_ENDPOINT (ovh-eu/ovh-ca/...) is non-secret config, the

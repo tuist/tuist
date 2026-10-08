@@ -7,6 +7,7 @@ defmodule TuistWeb.DocsLiveTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
+  alias TuistWeb.Helpers.OpenGraph
 
   setup do
     stub(Req, :get, fn _url, _opts ->
@@ -34,6 +35,74 @@ defmodule TuistWeb.DocsLiveTest do
                ~s(a#docs-cache-card[href="/en/docs/guides/features/cache"]),
                "Cache"
              )
+    end
+
+    test "labels the test cards Selection, Flakiness, and Insights", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/en/docs")
+      {:ok, document} = Floki.parse_document(html)
+
+      titles =
+        document
+        |> Floki.find(~s(#tests + p + [data-part="feature-cards"] [data-part="title"]))
+        |> Enum.map(&Floki.text/1)
+
+      assert titles == ["Selection", "Flakiness", "Insights"]
+    end
+
+    test "keeps the markdown overview's test card labels aligned", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/en/docs")
+      {:ok, document} = Floki.parse_document(html)
+      markdown = document |> Floki.find("#docs-page-markdown") |> Floki.text()
+
+      assert markdown =~ "[Selection](/en/docs/guides/features/selective-testing)"
+      assert markdown =~ "[Flakiness](/en/docs/guides/features/test-insights/flaky-tests)"
+      assert markdown =~ "[Insights](/en/docs/guides/features/test-insights)"
+    end
+
+    test "shows the supported build systems on every feature card", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/en/docs")
+      {:ok, document} = Floki.parse_document(html)
+
+      supported_systems =
+        document
+        |> Floki.find(~s([data-part="feature-card"]))
+        |> Map.new(fn card ->
+          {card |> Floki.attribute("href") |> List.first(),
+           Floki.attribute(card, ~s([data-part="supported-icon"]), "title")}
+        end)
+
+      assert supported_systems == %{
+               "/en/docs/guides/features/cache" => ~w(apple gradle bazel),
+               "/en/docs/guides/features/build-insights" => ~w(apple gradle bazel elixir),
+               "/en/docs/guides/features/selective-testing" => ~w(apple),
+               "/en/docs/guides/features/test-insights/flaky-tests" => ~w(apple gradle bazel elixir),
+               "/en/docs/guides/features/test-insights" => ~w(apple gradle bazel elixir),
+               "/en/docs/guides/features/previews" => ~w(apple android),
+               "/en/docs/guides/features/runners" => ~w(apple gradle bazel elixir)
+             }
+
+      assert length(Floki.find(document, ~s([data-part="supported-icon"][title="elixir"] svg))) ==
+               4
+    end
+
+    test "introduces compute with runners and colocated cache infrastructure", %{conn: conn} do
+      {:ok, lv, html} = live(conn, ~p"/en/docs")
+
+      assert has_element?(lv, "h2#compute", "Compute")
+      assert has_element?(lv, ~s(#docs-toc a[href="#compute"]), "Compute")
+
+      assert has_element?(
+               lv,
+               ~s(a[data-part="feature-card"][href="/en/docs/guides/features/runners"]),
+               "cache infrastructure colocated next to compute for the best results"
+             )
+
+      {:ok, document} = Floki.parse_document(html)
+      markdown = document |> Floki.find("#docs-page-markdown") |> Floki.text()
+
+      assert markdown =~ "## Compute"
+      assert markdown =~ "[Runners](/en/docs/guides/features/runners)"
+      assert markdown =~ "cache infrastructure colocated next to compute for the best results"
     end
 
     test "positions Tuist as build infrastructure for Xcode, Gradle, and Bazel", %{conn: conn} do
@@ -84,19 +153,50 @@ defmodule TuistWeb.DocsLiveTest do
     end
   end
 
+  describe "redirected docs URLs reached without an HTTP request" do
+    test "navigates to the new page on a live patch to a moved page", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs/guides/install-tuist")
+
+      assert {:error, {:live_redirect, %{to: "/en/docs/guides/features/bundle-insights?tab=size"}}} =
+               render_patch(lv, "/en/docs/guides/features/bundle-size?tab=size")
+    end
+
+    test "navigates to the new page when a connected mount lands on a moved page", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs/guides/install-tuist")
+
+      assert {:error, {:live_redirect, %{to: "/en/docs/guides/features/bundle-insights"}}} =
+               live_redirect(lv, to: "/en/docs/guides/features/bundle-size")
+    end
+
+    test "redirects externally when the moved page lives on another site", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs/guides/install-tuist")
+
+      assert {:error, {:redirect, %{to: "https://projectdescription.tuist.dev/documentation/projectdescription"}}} =
+               render_patch(lv, "/en/docs/references/project-description")
+    end
+
+    test "still raises not found for pages without a redirect", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs/guides/install-tuist")
+      Process.flag(:trap_exit, true)
+
+      assert {{%TuistWeb.Errors.NotFoundError{}, _stacktrace}, _call} =
+               catch_exit(render_patch(lv, "/en/docs/guides/does-not-exist"))
+    end
+  end
+
   describe "docs pages" do
     test "puts the page-owned template variables in a signed image URL", %{conn: conn} do
       {:ok, _live_view, html} = live(conn, ~p"/en/docs/guides/install-tuist")
       {:ok, document} = Floki.parse_document(html)
       [image] = Floki.attribute(document, "meta[property='og:image']", "content")
       uri = URI.parse(image)
-      params = URI.decode_query(uri.query)
+      %{"token" => token} = URI.decode_query(uri.query)
 
       assert uri.path =~ ~r|\A/open-graph-images/[0-9a-f]{64}\.jpg\z|
+      assert {:ok, params} = OpenGraph.verify_image_token(token)
       assert params["template"] == "docs"
       assert params["title"] == "Install Tuist"
       assert params["category"] == "Guides"
-      assert is_binary(params["signature"])
     end
 
     test "marks the page up as a TechArticle alongside its breadcrumbs", %{conn: conn} do

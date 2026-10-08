@@ -35,3 +35,7 @@ Running a job on the fleet takes three changes: connect GitHub, point `runs-on` 
    > To use another Xcode version, <.localized_link href="/guides/features/runners/profiles#creating-a-profile">create or choose a profile</.localized_link> with that version and update `runs-on`, for example `runs-on: tuist-xcode-26-4`. `xcodebuild`, `xcrun`, and `swift` will then use the profile's selected Xcode without any additional setup in the workflow.
 
 4. **Push and watch.** The job is queued, claimed by a runner, and streamed back to the **Runners** section of your Tuist dashboard, where you can follow its logs, steps, and machine metrics.
+
+## Cache volumes {#cache-volumes}
+
+Persist dependency directories between Linux jobs with <.localized_link href="/guides/features/runners/cache-volumes#github-actions">cache volumes</.localized_link>. Attach the volume before installing dependencies.

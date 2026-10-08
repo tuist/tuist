@@ -34,3 +34,7 @@ Tuist watches the self-hosted queues in your Buildkite cluster and runs the jobs
 Pausing dispatch on a Buildkite queue stops Tuist from taking new jobs from it. Jobs already running are unaffected.
 
 Disconnecting the cluster on the Buildkite card under **Settings → Integrations** stops Tuist watching it entirely.
+
+## Cache volumes {#cache-volumes}
+
+Persist dependency directories between Linux jobs with <.localized_link href="/guides/features/runners/cache-volumes#buildkite">cache volumes</.localized_link>. Attach the volume before installing dependencies.

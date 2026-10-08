@@ -8,9 +8,11 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias Tuist.FeatureFlags
   alias Tuist.GitHub.Releases
   alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.Changelog
   alias Tuist.Marketing.Newsletter
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Marketing.Localization
 
   @iphone_user_agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
 
@@ -63,6 +65,22 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "Tuist · Build infrastructure for productive teams"
       assert length(Regex.scan(~r|<h1[\s>]|, html)) == 1
     end
+
+    test "links the get started CTA to the docs", %{conn: conn} do
+      html = conn |> get("/") |> html_response(200)
+      document = Floki.parse_document!(html)
+
+      assert Floki.attribute(document, ~s([data-part="cta"] a[data-variant="primary"]), "href") ==
+               ["https://tuist.dev/en/docs/"]
+    end
+
+    test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
+      assert_error_sent 406, fn ->
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get("/")
+      end
+    end
   end
 
   describe "GET /blog/:year/:month/:day/:slug" do
@@ -76,6 +94,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert [author] = Regex.run(~r|article:author" content="([^"]*)"|, html, capture: :all_but_first)
       assert author =~ ~r|\Ahttps://|
       assert html =~ ~s(<meta property="twitter:url" content="#{Tuist.Environment.app_url(path: post.slug)}">)
+    end
+
+    test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
+      post = List.first(Blog.get_posts())
+
+      assert_error_sent 406, fn ->
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get(post.slug)
+      end
     end
   end
 
@@ -102,6 +130,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Folded into the tests page; their URLs redirect and are not advertised.
       for path <- ["/flaky-tests", "/test-insights"] do
         refute xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+      end
+    end
+
+    test "includes individual changelog entries", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+      entry = List.first(Changelog.get_entries())
+
+      for locale <- Localization.all_locales() do
+        path = Localization.localized_href("/changelog/#{entry.id}", locale)
+        assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
       end
     end
 
@@ -342,7 +380,10 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       end)
 
       # When
-      conn = post(conn, ~p"/newsletter", %{"email" => email})
+      conn =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/newsletter", %{"email" => email})
 
       # Then
       assert json_response(conn, 200) == %{
@@ -593,6 +634,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "POST /newsletter/verify" do
+    test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
+      reject(&Email.add_to_newsletter_list/1)
+
+      assert_error_sent 406, fn ->
+        conn
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/newsletter/verify", %{"token" => signed_newsletter_token("test@example.com")})
+      end
+    end
+
     test "subscribes email with a valid token", %{conn: conn} do
       # Given
       email = "test@example.com"

@@ -2,16 +2,29 @@ defmodule AtlasWeb.Plugs.RequireAuth do
   import Phoenix.Controller
   import Plug.Conn
 
+  alias Atlas.Demo
   alias Atlas.Users
 
   def init(opts), do: opts
 
-  def call(conn, _opts) do
+  def call(conn, opts) do
+    if Demo.enabled?() do
+      if conn.request_path in ["/", "/demo"] do
+        conn |> redirect(to: "/commercial/sales/accounts") |> halt()
+      else
+        assign(conn, :current_user, Demo.user())
+      end
+    else
+      authenticate(conn, opts)
+    end
+  end
+
+  defp authenticate(conn, _opts) do
     case get_session(conn, :user_id) do
       nil ->
         conn
         |> store_return_to()
-        |> redirect(to: "/login")
+        |> redirect(to: if(conn.request_path == "/", do: "/docs", else: "/login"))
         |> halt()
 
       user_id ->
@@ -20,7 +33,7 @@ defmodule AtlasWeb.Plugs.RequireAuth do
             conn
             |> configure_session(drop: true)
             |> store_return_to()
-            |> redirect(to: "/login")
+            |> redirect(to: if(conn.request_path == "/", do: "/docs", else: "/login"))
             |> halt()
 
           user ->

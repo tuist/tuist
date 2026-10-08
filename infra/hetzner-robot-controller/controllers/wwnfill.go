@@ -38,23 +38,33 @@ import (
 // promotion for CRs we own
 // (`app.kubernetes.io/managed-by=hetzner-robot-controller`).
 //
-// Selection of disks: every WWN-bearing entry in
-// `spec.status.hardwareDetails.storage`, so the array matches the
-// machine rather than an assumption about it.
+// Selection of disks: the same-size group in
+// `spec.status.hardwareDetails.storage` holding the most capacity,
+// so the array matches the machine rather than an assumption about
+// it.
 //
 // It used to take the first two, which was right for as long as
-// every box we ordered was an AX-class pair. It stops being right
-// the moment a four-disk box arrives: the host would install
-// across two of its disks and silently leave the other two out of
-// the array, and the partition layout is fixed at install, so the
-// only way back is a reinstall. The RAID level is chosen
-// separately, per cluster, by `statefulRaidLevel`.
+// every box we ordered was an AX-class pair, and then every disk,
+// which is right only when they match. installimage hands the set
+// to mdadm, which sizes every member to the smallest, so a box
+// with two 1.92 TB disks beside two 7.68 TB ones installs as if
+// all four were 1.92: 3.84 TB usable out of 19.2 TB of flash. The
+// partition layout is fixed at install, so the only way back is a
+// reinstall.
 //
-// This changes nothing for a two-disk host, which is every
-// Hetzner bare-metal host we run today. If the operator wants a
-// topology that is not "all the disks", set `rootDeviceHints`
-// manually before the first rescue boot — once the field is
-// non-empty this reconciler stops touching it (Patch is no-op).
+// Capacity, not disk count, picks the group: four small disks can
+// outnumber the pair the machine was bought for while holding
+// less. A group too small to mirror is skipped, so a lone large
+// disk loses to a smaller pair. The RAID level is chosen
+// separately, per cluster, by `statefulRaidLevel`, and has to
+// agree: a two-disk selection cannot install at level 10.
+//
+// This changes nothing for a host whose disks are all one size,
+// which is every Hetzner bare-metal host we ran before the
+// AX102-4. If the operator wants a topology that is not "the
+// biggest matching set", set `rootDeviceHints` manually before the
+// first rescue boot. Once the field is non-empty this reconciler
+// stops touching it (Patch is no-op).
 type WWNFillReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
@@ -98,7 +108,7 @@ func (r *WWNFillReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	wwns := extractWWNs(storage)
+	wwns := selectArrayWWNs(storage)
 	if len(wwns) < 2 {
 		// Need at least two disks for RAID 1. Single-disk hosts
 		// would need a different reconcile path (set
@@ -139,14 +149,21 @@ func hintsPopulated(obj *unstructured.Unstructured) bool {
 	return false
 }
 
-// extractWWNs pulls `wwn` strings from each storage entry. Skips
-// entries without a WWN (rare — caph only populates entries it
-// could read), and de-duplicates while preserving order in case
-// caph ever lists the same disk twice (which would be a caph
+// arrayDisk is one storage row reduced to what the array cares
+// about: which disk it is, and how much it would contribute.
+type arrayDisk struct {
+	wwn  string
+	size int64
+}
+
+// disksFromStorage parses caph's `hardwareDetails.storage` rows.
+// Skips entries without a WWN (rare — caph only populates entries
+// it could read), and de-duplicates while preserving scan order in
+// case caph ever lists the same disk twice (which would be a caph
 // bug, but cheap to defend against).
-func extractWWNs(storage []interface{}) []string {
+func disksFromStorage(storage []interface{}) []arrayDisk {
 	seen := map[string]struct{}{}
-	out := []string{}
+	out := []arrayDisk{}
 	for _, raw := range storage {
 		m, ok := raw.(map[string]interface{})
 		if !ok {
@@ -160,9 +177,90 @@ func extractWWNs(storage []interface{}) []string {
 			continue
 		}
 		seen[wwn] = struct{}{}
-		out = append(out, wwn)
+		out = append(out, arrayDisk{wwn: wwn, size: sizeBytes(m)})
 	}
 	return out
+}
+
+// sizeBytes reads a storage row's size. Unstructured decoding
+// gives int64 from the API server and may give float64 from JSON,
+// so both are accepted. A row without one reports 0, which groups
+// every such row together and reproduces the old "span everything"
+// behaviour for a host that reports no sizes at all.
+func sizeBytes(entry map[string]interface{}) int64 {
+	switch v := entry["sizeBytes"].(type) {
+	case int64:
+		return v
+	case float64:
+		return int64(v)
+	}
+	return 0
+}
+
+// extractWWNs is disksFromStorage reduced to the WWNs, in scan
+// order.
+func extractWWNs(storage []interface{}) []string {
+	disks := disksFromStorage(storage)
+	out := make([]string, 0, len(disks))
+	for _, d := range disks {
+		out = append(out, d.wwn)
+	}
+	return out
+}
+
+// selectArrayWWNs chooses which disks the root array should span:
+// the same-size group that holds the most capacity.
+//
+// Spanning every disk is right only when they match. installimage
+// hands the whole set to mdadm, which sizes every member to the
+// smallest, so a box with two 1.92 TB disks beside two 7.68 TB
+// ones installs as if all four were 1.92: 3.84 TB usable out of
+// 19.2 TB of flash, and the layout is fixed at install.
+//
+// Capacity rather than disk count decides, because four small
+// disks can outnumber the pair the machine was bought for while
+// holding less. Groups too small to mirror are skipped, so a lone
+// large disk loses to a smaller pair. If nothing can be mirrored
+// (every disk a different size, or a single disk) the whole set is
+// returned and the caller's own guard decides.
+//
+// The RAID level is chosen separately, per cluster, by
+// `statefulRaidLevel`, and has to agree with what this returns: a
+// two-disk selection cannot install at level 10.
+func selectArrayWWNs(storage []interface{}) []string {
+	disks := disksFromStorage(storage)
+
+	type group struct {
+		size  int64
+		wwns  []string
+		first int
+	}
+	bySize := map[int64]*group{}
+	order := []int64{}
+	for i, d := range disks {
+		g, ok := bySize[d.size]
+		if !ok {
+			g = &group{size: d.size, first: i}
+			bySize[d.size] = g
+			order = append(order, d.size)
+		}
+		g.wwns = append(g.wwns, d.wwn)
+	}
+
+	var best *group
+	for _, size := range order {
+		g := bySize[size]
+		if len(g.wwns) < 2 {
+			continue
+		}
+		if best == nil || g.size*int64(len(g.wwns)) > best.size*int64(len(best.wwns)) {
+			best = g
+		}
+	}
+	if best == nil {
+		return extractWWNs(storage)
+	}
+	return best.wwns
 }
 
 // SetupWithManager wires the reconciler. The watch is filtered to

@@ -127,7 +127,14 @@ async fn run_with_config(
 ) -> Result<(), String> {
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
     metrics.record_node_geo(&node_location);
-    let runtime = RuntimeState::new();
+    crate::serving_authority::AuthorityConfig::validate_volume(
+        &config.data_dir,
+        config.serving_authority.as_ref(),
+    )?;
+    let runtime = match &config.serving_authority {
+        Some(authority) => RuntimeState::with_authority(authority.start(&config.data_dir)?),
+        None => RuntimeState::new(),
+    };
     let mut bootstrap = Bootstrap::start(
         SocketAddr::from((Ipv4Addr::UNSPECIFIED, config.port)),
         metrics.clone(),
@@ -361,12 +368,17 @@ async fn initialize_and_serve(
     spawn_snapshot_task(state.clone());
     spawn_memory_pressure_tasks(state.clone());
     spawn_runtime_metrics_task(state.clone());
+    state.runtime.authority.bind_store(state.store.clone());
+    crate::handover::spawn(state.clone());
     spawn_multipart_janitor_task(state.clone());
     spawn_cache_reverse_refs_backfill_task(state.clone());
     spawn_action_cache_expiry_task(state.clone());
     spawn_backfill_index_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_segment_promotion_task(state.clone());
+    spawn_supervised("segment_reclamation", state.clone(), |state| async move {
+        state.store.run_segment_reclamation_worker().await;
+    });
 
     // When the node enrolled on boot, keep its peer certificate fresh in-process
     // so a short leaf does not require a restart, and prove mesh-membership

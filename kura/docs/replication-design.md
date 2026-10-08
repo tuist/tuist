@@ -338,9 +338,13 @@ The structure the sibling reads is a **bounded change feed**, not a live index:
   first `{head}` request, which switches it on and returns the head in the
   same operation — activation and snapshot are one event, so there is no
   window in which rows go unwritten between a sibling's snapshot and its
-  forward read. It stays on while the peer list names a sibling, and turns
-  off, dropping its rows, once no sibling has been listed for longer than
-  the mesh's stale-peer window. A region of one therefore carries no feed at
+  forward read. It stays on while its sibling keeps asking — forward reads
+  and, during a bootstrap, the backward pass's backfill requests, which carry
+  the sibling's node URL as `peer` — and turns off, dropping its rows, once
+  the sibling has been silent for longer than the mesh's stale-peer window.
+  Counting the backward pass matters because it can outlast that window, and
+  a feed switched off under it answers the pass's first forward read with a
+  `410` that sends the sibling back through another bootstrap. A region of one therefore carries no feed at
   all. Activation is persisted (`sync/meta/enabled`), so a restart brings the
   feed back as it was instead of silently switching it off under a sibling
   still reading forward; deactivation after the stale window clears it and
@@ -355,7 +359,10 @@ The structure the sibling reads is a **bounded change feed**, not a live index:
 - **Capped from above, dropping oldest.** If the sibling is absent or slow the
   feed reaches its cap and the oldest rows go, exactly as the segment ring drops
   its oldest content. **Writes are never blocked** — which is the whole failure
-  mode the outbox's depth cap produces today. The default cap is **1,000,000
+  mode the outbox's depth cap produces today. The cap trims in batches like the
+  consumer trim: the feed overshoots it by one trim batch before dropping back,
+  since a range delete per write under a pinned cap stacks nested tombstones
+  that RocksDB fragments quadratically on read, flush and WAL replay. The default cap is **1,000,000
   rows** (about 100 MB at the feed's ~98 B a row, ~80 MB on disk); the sizing
   rule is that it must hold the writes that land during the longest backward
   pass the sibling can need, which is what keeps the recovery below from
@@ -1040,7 +1047,8 @@ names below are the shipped ones.
 - `kura_sync_forward_cursor_lag_entries{peer}` and `_seconds{peer}` — how far
   the sibling is behind. On loopback this should sit near zero; sustained lag is
   the early warning for a flip landing on a cold replica.
-- `kura_sync_forward_index_entries` — arrival-feed depth, bounded by the cap.
+- `kura_sync_forward_index_entries` — arrival-feed depth, bounded by the cap
+  plus one trim batch.
 - `kura_sync_forward_index_dropped_total` — **drop-oldest events.** Non-zero
   means a sibling fell off the retained range and will need a backward pass. On
   loopback this should be approximately never, so it is an alert, not a gauge to
@@ -1064,8 +1072,13 @@ names below are the shipped ones.
 - `kura_region_sync_last_success_age_seconds{region}` — time since the last
   successful forward read from that region, empty reads included. The primary
   inter-region health signal (§2.2).
-- `kura_region_watermark_age_seconds{region}` — lag, meaningful while the
-  remote region is writing; not a health signal on its own.
+- `kura_region_watermark_age_seconds{region}` — age of the newest applied
+  version; it grows while the remote region is idle, so it is not lag.
+- `kura_region_sync_lag_seconds{region}` — replication lag in origin
+  version time: the newest version the remote gateway lists for its region
+  (`newest_version_ms` on each ascending page) minus the newest applied here.
+  Zero when caught up, including while the remote region is idle. Only the
+  gateway reports it, so read it by region.
 - `kura_region_sync_last_cycle_duration_seconds`, `_entries_listed_total`,
   `_bytes_fetched_total{region}` — cost and progress per cycle.
 - `kura_peer_clock_skew_seconds{peer}` — peer `now` minus local `now` from

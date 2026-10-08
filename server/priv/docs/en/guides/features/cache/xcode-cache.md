@@ -50,11 +50,12 @@ COMPILATION_CACHE_ENABLE_CACHING = YES
 COMPILATION_CACHE_ENABLE_PLUGIN = YES
 COMPILATION_CACHE_PLUGIN_PATH = $HOME/.local/state/tuist/libtuist_cas_plugin.dylib
 COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/cas-proxy.sock
+COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES = YES
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 OTHER_SWIFT_FLAGS = $(inherited) -cas-plugin-option tuist-instance=your-org/your-project
 ```
 
-Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, and `COMPILATION_CACHE_REMOTE_SERVICE_PATH` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI.
+Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, `COMPILATION_CACHE_REMOTE_SERVICE_PATH`, and `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI.
 
 > [!NOTE]
 > **Plugin Path**
@@ -71,6 +72,11 @@ Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, an
 >
 > It is easy to read this setting as "where the cache service lives" and treat it as optional. It is also the switch that decides whether C, Objective-C, precompiled modules and precompiled headers are shared at all: the build system only runs its caching for those when a remote cache service is configured. Leave it out and you still get Swift compilations shared, but every C/Objective-C file and every module is recompiled on any machine that has not built the project before.
 
+> [!NOTE]
+> **Concurrent cache lookups**
+>
+> `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` runs the remote cache lookups the build system makes for each compilation alongside the rest of the build, instead of a few at a time on the build's execution lanes. Builds that miss or restore many compilations from a distant cache finish sooner.
+
 You can also specify these settings when running `xcodebuild` by adding the following flags, such as:
 
 ```
@@ -79,6 +85,7 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_PLUGIN=YES \
     COMPILATION_CACHE_PLUGIN_PATH=$HOME/.local/state/tuist/libtuist_cas_plugin.dylib \
     COMPILATION_CACHE_REMOTE_SERVICE_PATH=$HOME/.local/state/tuist/cas-proxy.sock \
+    COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES=YES \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
     'OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=your-org/your-project'
 ```
@@ -87,6 +94,21 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 > **Prefix mapping on Xcode 27 and later**
 >
 > On Xcode 27 and later, `tuist setup cache` also prints `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`. They make compilation cache keys independent of where the project and `DerivedData` live. Add them as user-defined build settings. Enabling them changes every cache key, so the next build populates the cache again. `tuist generate` sets them for you when `enableCaching` is on.
+>
+> The compiler also writes the mapped paths into the code coverage data, and Xcode can't resolve them, so a coverage report would leave out every source compiled with prefix mapping. The printed settings, along with the `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*` ones, turn prefix mapping off in builds that gather code coverage. `tuist generate` does the same. Those builds still use the compilation cache, but their cache keys depend on the project and `DerivedData` paths.
+>
+> When you pass these settings to `xcodebuild` on the command line, single-quote the values that contain `$(...)`, as with `OTHER_SWIFT_FLAGS` above. Otherwise the shell expands them to empty strings and prefix mapping is turned off:
+>
+> ```
+> xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
+>     'SWIFT_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))' \
+>     SWIFT_ENABLE_PROJECT_PREFIX_MAPPING=YES \
+>     'CLANG_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))' \
+>     CLANG_ENABLE_PROJECT_PREFIX_MAPPING=YES \
+>     TUIST_PREFIX_MAPPING_FOR_COVERAGE_=YES \
+>     TUIST_PREFIX_MAPPING_FOR_COVERAGE_NO=YES \
+>     TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES=NO
+> ```
 
 > [!NOTE]
 > **Generated Projects**
@@ -178,7 +200,7 @@ Compilation cache settings aren't part of <.localized_link href="/guides/feature
 > [!NOTE]
 > **Prefix mapping settings are hashed**
 >
-> On Xcode 27 and later, `enableCaching: true` also sets `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`. These settings are part of module cache hashes, so on Xcode 27 and later, turning `enableCaching` on or off changes your targets' hashes.
+> On Xcode 27 and later, `enableCaching: true` also sets `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`, and the `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*` settings. These settings are part of module cache hashes, so on Xcode 27 and later, turning `enableCaching` on or off changes your targets' hashes.
 
 ### Reusing parts of large outputs {#reusing-parts-of-large-outputs}
 

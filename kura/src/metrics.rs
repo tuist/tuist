@@ -61,6 +61,7 @@ pub struct MetricsInner {
     // being written an artifact can be shed under size pressure. The claim
     // sizing signal, mirrored to the control plane through the usage batch.
     segment_shed_age_seconds: Histogram,
+    disk_pressure_reclaimed_bytes: Counter,
     capacity_eviction_reports_dropped: Counter,
     // Action-cache entries removed by the eviction cascade (an evicted blob
     // taking its referencing entries with it). A healthy nonzero rate is the
@@ -120,6 +121,7 @@ pub struct MetricsInner {
     sync_pull_links: Family<SyncLinkLabels, Gauge>,
     region_sync_last_success_age_seconds: Family<SyncRegionLabels, Gauge>,
     region_watermark_age_seconds: Family<SyncRegionLabels, Gauge>,
+    region_sync_lag_seconds: Family<SyncRegionLabels, Gauge>,
     region_listing_bound_lag_seconds: Gauge,
     region_sync_entries_listed: Family<SyncRegionLabels, Counter>,
     region_sync_bytes_fetched: Family<SyncRegionLabels, Counter>,
@@ -559,8 +561,12 @@ pub mod shed_kind {
     // query operators are told to reach for first.
     pub const REAPI_WRITE_DECODE: &str = "reapi_write_decode";
     pub const REAPI_MATERIALIZATION: &str = "reapi_materialization";
+    // One request asking for more response bytes than a single response may
+    // carry at normal memory pressure. It sheds on an idle pool, so it stays
+    // apart from `REAPI_MATERIALIZATION`, which means the pool was full.
+    pub const REAPI_REQUEST_BUDGET: &str = "reapi_request_budget";
 
-    pub const ALL: [&str; 8] = [
+    pub const ALL: [&str; 9] = [
         RESPONSE_STREAM,
         MULTIPART_UPLOADS,
         MULTIPART_STORAGE,
@@ -569,6 +575,7 @@ pub mod shed_kind {
         MEMORY_PRESSURE_WRITE,
         REAPI_WRITE_DECODE,
         REAPI_MATERIALIZATION,
+        REAPI_REQUEST_BUDGET,
     ];
 }
 
@@ -623,6 +630,7 @@ impl Metrics {
         // One hour up to 30 days: below the first bucket the ring is churning
         // artifacts it just stored; the top buckets distinguish rings holding
         // days of history, which is what per-plan retention floors care about.
+        let disk_pressure_reclaimed_bytes = Counter::default();
         let segment_shed_age_seconds = Histogram::new([
             3_600.0,
             21_600.0,
@@ -694,6 +702,7 @@ impl Metrics {
         let sync_pull_links = Family::<SyncLinkLabels, Gauge>::default();
         let region_sync_last_success_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
         let region_watermark_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
+        let region_sync_lag_seconds = Family::<SyncRegionLabels, Gauge>::default();
         let region_listing_bound_lag_seconds = Gauge::default();
         let region_sync_entries_listed = Family::<SyncRegionLabels, Counter>::default();
         let region_sync_bytes_fetched = Family::<SyncRegionLabels, Counter>::default();
@@ -1062,6 +1071,11 @@ impl Metrics {
             segment_evicted_artifacts.clone(),
         );
         registry.register(
+            "kura_disk_pressure_reclaimed_bytes_total",
+            "Segment bytes unlinked by quota pressure reclamation",
+            disk_pressure_reclaimed_bytes.clone(),
+        );
+        registry.register(
             "kura_segment_shed_age_seconds",
             "Age of the youngest content in a segment evicted by ring rotation, i.e. how soon after being written an artifact can be shed under size pressure",
             segment_shed_age_seconds.clone(),
@@ -1290,6 +1304,11 @@ impl Metrics {
             "kura_region_watermark_age_seconds",
             "Age of the region watermark, by origin region",
             region_watermark_age_seconds.clone(),
+        );
+        registry.register(
+            "kura_region_sync_lag_seconds",
+            "Seconds between the newest version the remote gateway lists for its region and the newest version applied from it, by origin region",
+            region_sync_lag_seconds.clone(),
         );
         registry.register(
             "kura_region_listing_bound_lag_seconds",
@@ -1900,6 +1919,7 @@ impl Metrics {
                 segment_refresh_duration,
                 segment_evicted_artifacts,
                 segment_shed_age_seconds,
+                disk_pressure_reclaimed_bytes,
                 capacity_eviction_reports_dropped,
                 replication_requests,
                 replication_request_duration,
@@ -1947,6 +1967,7 @@ impl Metrics {
                 sync_pull_links,
                 region_sync_last_success_age_seconds,
                 region_watermark_age_seconds,
+                region_sync_lag_seconds,
                 region_listing_bound_lag_seconds,
                 region_sync_entries_listed,
                 region_sync_bytes_fetched,
@@ -2369,6 +2390,10 @@ impl Metrics {
             .inc_by(artifacts);
     }
 
+    pub fn record_disk_pressure_reclamation(&self, bytes: u64) {
+        self.disk_pressure_reclaimed_bytes.inc_by(bytes);
+    }
+
     pub fn record_segment_shed_age(&self, seconds: f64) {
         self.segment_shed_age_seconds.observe(seconds);
     }
@@ -2618,15 +2643,22 @@ impl Metrics {
     }
 
     pub fn record_manifest_cache_lookup(&self, result: &str) {
+        self.record_manifest_cache_lookups(result, 1);
+    }
+
+    pub fn record_manifest_cache_lookups(&self, result: &str, count: u64) {
+        if count == 0 {
+            return;
+        }
         if result == "hit" {
-            self.hot_read.manifest_hits.inc();
+            self.hot_read.manifest_hits.inc_by(count);
             return;
         }
         self.manifest_cache_lookups
             .get_or_create(&ManifestCacheLookupLabels {
                 result: result.to_owned(),
             })
-            .inc();
+            .inc_by(count);
     }
 
     pub fn record_manifest_cache_admission(&self, result: &str) {
@@ -2724,6 +2756,14 @@ impl Metrics {
             .set(seconds as i64);
     }
 
+    pub fn set_region_sync_lag(&self, region: &str, seconds: u64) {
+        self.region_sync_lag_seconds
+            .get_or_create(&SyncRegionLabels {
+                region: region.to_owned(),
+            })
+            .set(seconds as i64);
+    }
+
     pub fn set_region_listing_bound_lag(&self, seconds: u64) {
         self.region_listing_bound_lag_seconds.set(seconds as i64);
     }
@@ -2734,6 +2774,7 @@ impl Metrics {
         };
         self.region_sync_last_success_age_seconds.remove(&labels);
         self.region_watermark_age_seconds.remove(&labels);
+        self.region_sync_lag_seconds.remove(&labels);
         self.region_sync_last_cycle_duration_seconds.remove(&labels);
     }
 

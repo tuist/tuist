@@ -127,7 +127,7 @@ defmodule Atlas.MCP.ServerTest do
       assert instructions =~ "list_contract_templates"
       assert instructions =~ "get_contract_template"
       assert instructions =~ "Never create a substitute document from scratch"
-      assert instructions =~ "embedded resource"
+      assert instructions =~ "signed `download_url`"
       assert instructions =~ "current request over pasted conversation context"
     end
 
@@ -253,7 +253,7 @@ defmodule Atlas.MCP.ServerTest do
   test "hides audit tools from MCP sessions without admin scope" do
     conn = %{assigns: %{current_user: %User{}}}
 
-    stub(Users, :has_scope?, fn %User{}, "admin:read" -> false end)
+    stub(Users, :has_scope?, fn %User{}, scope when scope in ["admin:read", "admin:write"] -> false end)
     expect(Proxy, :list_hoisted_tools, fn ^conn -> [] end)
 
     response =
@@ -277,12 +277,18 @@ defmodule Atlas.MCP.ServerTest do
     refute Enum.any?(tools, &(&1["name"] == "confirm_tax_certificate_delivery"))
     refute Enum.any?(tools, &(&1["name"] == "list_account_letters"))
     refute Enum.any?(tools, &(&1["name"] == "check_letter_delivery"))
+    refute Enum.any?(tools, &(&1["name"] == "create_mcp_server"))
+    refute Enum.any?(tools, &(&1["name"] == "delete_mcp_server"))
   end
 
   test "shows audit tools to MCP sessions with admin scope" do
     conn = %{assigns: %{current_user: %User{}}}
 
-    stub(Users, :has_scope?, fn %User{}, "admin:read" -> true end)
+    stub(Users, :has_scope?, fn
+      %User{}, "admin:read" -> true
+      %User{}, "admin:write" -> false
+    end)
+
     expect(Proxy, :list_hoisted_tools, fn ^conn -> [] end)
 
     response =
@@ -306,6 +312,21 @@ defmodule Atlas.MCP.ServerTest do
     assert Enum.any?(tools, &(&1["name"] == "confirm_tax_certificate_delivery"))
     assert Enum.any?(tools, &(&1["name"] == "list_account_letters"))
     assert Enum.any?(tools, &(&1["name"] == "check_letter_delivery"))
+    refute Enum.any?(tools, &(&1["name"] == "create_mcp_server"))
+    refute Enum.any?(tools, &(&1["name"] == "delete_mcp_server"))
+  end
+
+  test "shows server management tools only with administrator write access" do
+    conn = %{assigns: %{current_user: %User{}}}
+
+    stub(Users, :has_scope?, fn %User{}, scope when scope in ["admin:read", "admin:write"] -> true end)
+    expect(Proxy, :list_hoisted_tools, fn ^conn -> [] end)
+
+    response = Server.handle_message(conn, %{"jsonrpc" => "2.0", "id" => 1, "method" => "tools/list"})
+    tools = response["result"]["tools"]
+
+    assert Enum.any?(tools, &(&1["name"] == "create_mcp_server"))
+    assert Enum.any?(tools, &(&1["name"] == "delete_mcp_server"))
   end
 
   test "returns a controlled tool error for scalar arguments" do

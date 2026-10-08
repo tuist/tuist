@@ -1,0 +1,117 @@
+<main class="layout" data-part="demo-layout">
+  <header class="headerbar">
+    <div data-part="left-section">
+      <.link navigate={~p"/commercial/sales/accounts"} class="headerbar__brand">
+        <img src={~p"/images/tuist-logo.svg"} alt="Atlas" data-part="logo" />
+        <span class="headerbar__title">Atlas</span>
+      </.link>
+    </div>
+    <div data-part="right-section">
+      <.link_button
+        id="demo-docs-link"
+        href="https://atlas.tuist.dev/docs"
+        label={gettext("Docs")}
+        variant="secondary"
+        size="small"
+      />
+      <.tooltip
+        id="demo-badge"
+        title={gettext("Fictional data. Read-only.")}
+        placement="bottom-end"
+      >
+        <:trigger :let={attrs}>
+          <.badge
+            label={gettext("Demo")}
+            color="information"
+            style="light-fill"
+            size="large"
+            tabindex="0"
+            {attrs}
+          />
+        </:trigger>
+      </.tooltip>
+      <.button
+        id="demo-self-host-link"
+        href="https://atlas.tuist.dev/docs/self-hosting"
+        label={gettext("Self-host Atlas")}
+        variant="secondary"
+        size="small"
+      />
+    </div>
+  </header>
+  <.line_divider />
+  <section class="layout__main" data-part="demo-main">
+    <.sidebar>
+      <.sidebar_group
+        id="sidebar-demo"
+        label={gettext("Explore Atlas")}
+        icon="chart_dots"
+        collapsible={false}
+      >
+        <.sidebar_item
+          label={gettext("Accounts")}
+          icon="building"
+          navigate={~p"/commercial/sales/accounts"}
+          selected={String.starts_with?(@current_path, "/commercial/sales/accounts")}
+        />
+        <.sidebar_item
+          label={gettext("Tasks")}
+          icon="circle_check"
+          navigate={~p"/tasks"}
+          selected={@current_path == "/tasks"}
+        />
+        <.sidebar_item
+          label={gettext("Finance")}
+          icon="chart_donut_4"
+          navigate={~p"/commercial/finance"}
+          selected={@current_path == "/commercial/finance"}
+        />
+        <.sidebar_item
+          label={gettext("Vendor costs")}
+          icon="building"
+          navigate={~p"/commercial/finance/vendors"}
+          selected={@current_path == "/commercial/finance/vendors"}
+        />
+        <.sidebar_item
+          label={gettext("Notes")}
+          icon="file_text"
+          navigate={~p"/library/notes"}
+          selected={String.starts_with?(@current_path, "/library/notes")}
+        />
+      </.sidebar_group>
+    </.sidebar>
+    <div data-part="demo-content">
+      <nav data-part="demo-navigation" aria-label={gettext("Explore Atlas")}>
+        <.link
+          :for={
+            {label, path} <- [
+              {gettext("Accounts"), ~p"/commercial/sales/accounts"},
+              {gettext("Tasks"), ~p"/tasks"},
+              {gettext("Finance"), ~p"/commercial/finance"},
+              {gettext("Vendor costs"), ~p"/commercial/finance/vendors"},
+              {gettext("Notes"), ~p"/library/notes"}
+            ]
+          }
+          navigate={path}
+          data-selected={
+            to_string(
+              @current_path == path or
+                (path in ["/commercial/sales/accounts", "/library/notes"] and
+                   String.starts_with?(@current_path, path <> "/"))
+            )
+          }
+          aria-current={
+            if @current_path == path or
+                 (path in ["/commercial/sales/accounts", "/library/notes"] and
+                    String.starts_with?(@current_path, path <> "/")),
+               do: "page"
+          }
+        >
+          {label}
+        </.link>
+      </nav>
+      <div data-part="demo-page">{@inner_content}</div>
+    </div>
+  </section>
+  <.flash_group flash={@flash} />
+</main>

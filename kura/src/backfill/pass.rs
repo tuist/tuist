@@ -553,19 +553,26 @@ async fn fetch_listing_page(
     let mut attempt = 0_u32;
     loop {
         let mut url = format!(
-            "{}/_internal/backfill/entries?limit={}",
-            context.peer, context.tuning.page_limit
+            "{}/_internal/backfill/entries?limit={}&peer={}",
+            context.peer,
+            context.tuning.page_limit,
+            url_encode(&context.state.config.node_url)
         );
         if let Some(after) = after {
             url.push_str("&after=");
             url.push_str(&url_encode(after));
         }
         let started = Instant::now();
-        let response = cancellable(context, context.state.client().get(&url).send())
-            .await?
-            .map_err(|error| {
-                PassAbort::Hard(format!("backfill entries request failed: {error:?}"))
-            })?;
+        let response = cancellable(
+            context,
+            context
+                .state
+                .peer_request(reqwest::Method::GET, context.peer, &url)
+                .map_err(PassAbort::Hard)?
+                .send(),
+        )
+        .await?
+        .map_err(|error| PassAbort::Hard(format!("backfill entries request failed: {error:?}")))?;
         match classify_backfill_response(response, "backfill entries")
             .await
             .map_err(PassAbort::Hard)?
@@ -832,7 +839,11 @@ async fn send_bodies_request(
     };
     let body = serde_json::to_vec(&request)
         .map_err(|error| PassAbort::Hard(format!("failed to encode bodies request: {error}")))?;
-    let url = format!("{}/_internal/backfill/bodies", context.peer);
+    let url = format!(
+        "{}/_internal/backfill/bodies?peer={}",
+        context.peer,
+        url_encode(&context.state.config.node_url)
+    );
     let mut attempt = 0_u32;
     loop {
         let started = Instant::now();
@@ -840,8 +851,8 @@ async fn send_bodies_request(
             context,
             context
                 .state
-                .client()
-                .post(&url)
+                .peer_request(reqwest::Method::POST, context.peer, &url)
+                .map_err(PassAbort::Hard)?
                 .header(reqwest::header::CONTENT_TYPE, "application/json")
                 .body(body.clone())
                 .send(),
@@ -1357,18 +1368,24 @@ async fn fetch_individual(context: &PassContext<'_>, key: &ClaimKey) -> Result<(
     context.guard.mark_in_flight(key);
     context.update_stats(|stats| stats.individual_fetches += 1);
     let url = format!(
-        "{}/_internal/backfill/artifacts/{}",
+        "{}/_internal/backfill/artifacts/{}?peer={}",
         context.peer,
-        url_encode(&key.record_id)
+        url_encode(&key.record_id),
+        url_encode(&context.state.config.node_url)
     );
     let mut attempt = 0_u32;
     loop {
         let started = Instant::now();
-        let response = cancellable(context, context.state.client().get(&url).send())
-            .await?
-            .map_err(|error| {
-                PassAbort::Hard(format!("backfill artifact request failed: {error:?}"))
-            })?;
+        let response = cancellable(
+            context,
+            context
+                .state
+                .peer_request(reqwest::Method::GET, context.peer, &url)
+                .map_err(PassAbort::Hard)?
+                .send(),
+        )
+        .await?
+        .map_err(|error| PassAbort::Hard(format!("backfill artifact request failed: {error:?}")))?;
         // Unlike the listing/bodies routes, a 404 here is the record being
         // gone, not a pre-AB peer: the pass only reaches this endpoint after
         // the same peer served backfill listings.
@@ -1895,6 +1912,32 @@ mod tests {
             );
             sleep(Duration::from_millis(50)).await;
         }
+    }
+
+    #[tokio::test]
+    async fn a_pass_keeps_its_feed_registration_on_the_peer_live() {
+        let peer = test_context(|_| {}).await;
+        seed_segmented(&peer, "seg-a", b"segment-body-a", 1_000).await;
+        build_index(&peer);
+        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+        let local = test_context(|_| {}).await;
+        // Registered by the sibling link's snapshot under the requester's
+        // node URL, which is the key a pass has to refresh.
+        let feed = peer.state.store.sync_feed().clone();
+        feed.note_consumer_snapshot(&local.state.config.node_url, 0);
+        let registered_at = feed.consumers()[0].1.seen_at;
+        tokio::time::sleep(Duration::from_millis(5)).await;
+
+        let (outcome, _) = run_pass(&local, &peer_url, tuning()).await;
+
+        assert!(matches!(outcome, BackfillPassOutcome::Completed { .. }));
+        let (key, consumer) = feed.consumers().remove(0);
+        assert_eq!(key, local.state.config.node_url);
+        assert!(
+            consumer.seen_at > registered_at,
+            "the pass refreshed its registration"
+        );
+        assert!(consumer.pinned);
     }
 
     #[tokio::test]
@@ -2613,12 +2656,28 @@ mod tests {
     async fn index_building_peer_is_retried_without_failing_the_pass() {
         let peer = test_context(|_| {}).await;
         seed_inline(&peer, "inl-a", b"inline-body", 900).await;
-        // No index build yet: the listing endpoint answers 503 index_building
-        // until the delayed build lands.
-        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+        // Observe an actual retryable response before building the index; a
+        // timer can elapse while the local store is still initializing.
+        let index_building = Arc::new(tokio::sync::Notify::new());
+        let observed = index_building.clone();
+        let app = router(peer.state.clone()).layer(middleware::from_fn(
+            move |request: Request, next: Next| {
+                let observed = observed.clone();
+                async move {
+                    let response = next.run(request).await;
+                    if response.status() == StatusCode::SERVICE_UNAVAILABLE {
+                        observed.notify_one();
+                    }
+                    response
+                }
+            },
+        ));
+        let (peer_url, _server) = spawn_server(app).await;
         let peer_state = peer.state.clone();
         let builder = tokio::spawn(async move {
-            sleep(Duration::from_millis(150)).await;
+            tokio::time::timeout(Duration::from_secs(30), index_building.notified())
+                .await
+                .expect("listing should produce an index-building response");
             peer_state
                 .store
                 .run_backfill_index_build()

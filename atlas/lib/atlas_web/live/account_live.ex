@@ -16,7 +16,9 @@ defmodule AtlasWeb.AccountLive do
   alias Atlas.Accounts.DealStage
   alias Atlas.Accounts.Outcome
   alias Atlas.Accounts.OutcomeProposal
+  alias Atlas.Accounts.POCs
   alias Atlas.Audit
+  alias Atlas.Demo
   alias Atlas.Letters
   alias Atlas.LLMs
   alias Atlas.Nudges
@@ -59,11 +61,19 @@ defmodule AtlasWeb.AccountLive do
          |> assign(:outcome_proposals_error, nil)
          |> assign_favicon(account)
          |> assign_account(account)
-         |> allow_upload(:signed_tax_certificate_request,
-           accept: ~w(.pdf),
-           max_entries: 1,
-           max_file_size: 50_000_000
-         )}
+         |> configure_uploads()}
+    end
+  end
+
+  defp configure_uploads(socket) do
+    if Demo.enabled?() do
+      socket
+    else
+      allow_upload(socket, :signed_tax_certificate_request,
+        accept: ~w(.pdf),
+        max_entries: 1,
+        max_file_size: 50_000_000
+      )
     end
   end
 
@@ -1278,6 +1288,7 @@ defmodule AtlasWeb.AccountLive do
             </:footer>
           </.modal>
           <.dropdown
+            :if={!Demo.enabled?()}
             id="account-actions-dropdown"
             icon_only
             size="medium"
@@ -1356,6 +1367,7 @@ defmodule AtlasWeb.AccountLive do
                   <:icon_left><.download /></:icon_left>
                 </.button>
                 <.modal
+                  :if={!Demo.enabled?()}
                   id={signed_tax_certificate_upload_modal_id(letter.id)}
                   title={gettext("Upload signed request")}
                   description={gettext("Attach the signed request to start delivery preparation.")}
@@ -1433,7 +1445,7 @@ defmodule AtlasWeb.AccountLive do
         data-part="overview-card"
         style={overview_card_style(@account)}
       >
-        <:actions>
+        <:actions :if={!Demo.enabled?()}>
           <div data-part="overview-card-actions">
             <.button
               id="refresh-overview-summary-button"
@@ -1870,7 +1882,12 @@ defmodule AtlasWeb.AccountLive do
         </.card_section>
       </.card>
 
-      <.card title={gettext("Feature usage")} icon="trending_up" data-part="feature-usage-card">
+      <.card
+        :if={!Demo.enabled?()}
+        title={gettext("Feature usage")}
+        icon="trending_up"
+        data-part="feature-usage-card"
+      >
         <.card_section :if={not @feature_usage_view.tracked?} data-part="feature-usage-empty">
           {gettext(
             "This account is not linked to a Tuist handle yet, so feature usage is not tracked."
@@ -1930,6 +1947,7 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card
+        :if={!Demo.enabled?()}
         title={gettext("Feature interest")}
         icon="message_circle"
         data-part="feature-interest-card"
@@ -2031,7 +2049,47 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card
-        :if={@account.documents != []}
+        :if={!Demo.enabled?()}
+        title={gettext("Evaluations")}
+        icon="checkup_list"
+        data-part="account-pocs-card"
+      >
+        <.card_section data-part="account-pocs-section">
+          <.table
+            :if={@pocs != []}
+            id="account-pocs-table"
+            rows={@pocs}
+            row_key={fn poc -> "account-poc-#{poc.id}" end}
+            row_navigate={fn poc -> ~p"/commercial/sales/pocs/#{poc.id}" end}
+          >
+            <:col :let={poc} label={gettext("Evaluation")}>
+              <.text_cell label={poc.title} />
+            </:col>
+            <:col :let={poc} label={gettext("Status")}>
+              <.badge_cell
+                label={Phoenix.Naming.humanize(poc.status)}
+                color={evaluation_status_color(poc.status)}
+                style="light-fill"
+              />
+            </:col>
+            <:col :let={poc} label={gettext("Hosting")}>
+              <.text_cell label={Phoenix.Naming.humanize(poc.hosting)} />
+            </:col>
+            <:col :let={poc} label={gettext("Started")}>
+              <.text_cell label={format_date(poc.starts_on)} />
+            </:col>
+          </.table>
+          <.account_empty_state
+            :if={@pocs == []}
+            id="account-pocs-empty"
+            title={gettext("No evaluations yet")}
+            subtitle={gettext("Evaluations for this account will appear here.")}
+          />
+        </.card_section>
+      </.card>
+
+      <.card
+        :if={!Demo.enabled?() and @account.documents != []}
         title={gettext("Documents")}
         icon="file"
         data-part="documents-card"
@@ -2054,7 +2112,7 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card title={gettext("Contacts")} icon="users" data-part="contacts-card">
-        <:actions>
+        <:actions :if={!Demo.enabled?()}>
           <div data-part="contacts-card-actions">
             <.button
               id="add-contact-button"
@@ -2216,7 +2274,7 @@ defmodule AtlasWeb.AccountLive do
                 </p>
               </div>
 
-              <div data-part="contact-action">
+              <div :if={!Demo.enabled?()} data-part="contact-action">
                 <.button
                   id={"contact-history-button-#{contact.id}"}
                   label={gettext("History")}
@@ -2250,7 +2308,7 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card title={gettext("Billing & Address")} icon="building" data-part="billing-card">
-        <:actions>
+        <:actions :if={!Demo.enabled?()}>
           <.modal
             id="edit-billing-modal"
             title={gettext("Billing & Address")}
@@ -2490,7 +2548,7 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card title={gettext("Contract Terms")} icon="file" data-part="terms-card">
-        <:actions>
+        <:actions :if={!Demo.enabled?()}>
           <div data-part="terms-card-actions">
             <.button
               id="add-term-button"
@@ -2716,7 +2774,7 @@ defmodule AtlasWeb.AccountLive do
             <:col :let={term} label={gettext("PO")}>
               <.text_cell label={term.po_number || "-"} />
             </:col>
-            <:col :let={term} label="">
+            <:col :let={term} :if={!Demo.enabled?()} label="">
               <.button_cell>
                 <:button>
                   <div data-part="term-actions-cell">
@@ -2892,6 +2950,7 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card
+        :if={!Demo.enabled?()}
         title={gettext("Account nudges")}
         icon="bell"
         data-part="account-nudges-card"
@@ -3680,7 +3739,7 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card title={gettext("Timeline")} icon="timeline_event" data-part="timeline-card">
-        <:actions>
+        <:actions :if={!Demo.enabled?()}>
           <.button
             :if={@account.events != []}
             id="record-feature-interest-button"
@@ -3693,6 +3752,7 @@ defmodule AtlasWeb.AccountLive do
         </:actions>
         <.card_section data-part="timeline-section">
           <.form
+            :if={!Demo.enabled?()}
             id="timeline-note-form"
             for={@note_form}
             phx-submit="add_note"
@@ -4154,6 +4214,7 @@ defmodule AtlasWeb.AccountLive do
     |> assign(:account, account)
     |> assign(:ready_to_sign_tax_certificate_requests, ready_to_sign_tax_certificate_requests(account))
     |> assign(:feature_interests, Accounts.list_feature_interests_for_account(account))
+    |> assign(:pocs, POCs.list_pocs(account_id: account.id))
     |> assign(:nudges, Nudges.list_nudges(account, limit: 20))
     |> clear_feature_interest_modal()
     |> clear_feature_interest_notes_modal()
@@ -4175,6 +4236,11 @@ defmodule AtlasWeb.AccountLive do
     |> assign_tax_certificate_request_form(account)
     |> assign(:signed_tax_certificate_upload_form, to_form(%{}, as: "signed_tax_certificate"))
   end
+
+  defp evaluation_status_color("active"), do: "information"
+  defp evaluation_status_color("closed_won"), do: "success"
+  defp evaluation_status_color("closed_lost"), do: "destructive"
+  defp evaluation_status_color(_status), do: "neutral"
 
   defp slack_threads_for(account) do
     account.events

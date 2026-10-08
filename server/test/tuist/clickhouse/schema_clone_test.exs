@@ -135,6 +135,28 @@ defmodule Tuist.ClickHouse.SchemaCloneTest do
     end
   end
 
+  describe "in_source_order/2" do
+    test "adds a run of new adjacent columns front to back, so each one's predecessor exists" do
+      positions = ["id", "base_branch", "merge_base_sha", "is_pull_request", "pull_request_number", "git_dirty"]
+      # The drift lists missing columns alphabetically.
+      missing = ["git_dirty Bool", "is_pull_request Bool", "merge_base_sha String", "pull_request_number UInt32"]
+
+      ordered = SchemaClone.in_source_order(missing, positions)
+
+      assert ordered == ["merge_base_sha String", "is_pull_request Bool", "pull_request_number UInt32", "git_dirty Bool"]
+
+      assert ordered
+             |> Enum.map(&SchemaClone.add_column_statement("tuist", "test_runs", &1, positions))
+             |> Enum.map(fn statement ->
+               statement |> String.split(" AFTER ") |> List.last()
+             end) == ["`base_branch`", "`merge_base_sha`", "`is_pull_request`", "`pull_request_number`"]
+    end
+
+    test "keeps a column the source no longer lists, last" do
+      assert SchemaClone.in_source_order(["gone String", "b UInt8"], ["a", "b"]) == ["b UInt8", "gone String"]
+    end
+  end
+
   describe "add_column_statement/4" do
     @positions ~w(id name inserted_at)
 
@@ -156,6 +178,23 @@ defmodule Tuist.ClickHouse.SchemaCloneTest do
       statement = SchemaClone.add_column_statement("tuist", "t", "labels Map(String, String)", ["a", "labels"])
 
       assert statement =~ "`labels` Map(String, String) AFTER `a`"
+    end
+
+    test "keeps the source's default and codec, so rows already there read the same value" do
+      clauses = %{
+        "build_system" => SchemaClone.column_clause("DEFAULT", "'xcode'", ""),
+        "inserted_at" => SchemaClone.column_clause("DEFAULT", "now64()", "CODEC(Delta(8), ZSTD(1))")
+      }
+
+      positions = ["id", "build_system", "inserted_at"]
+
+      assert SchemaClone.add_column_statement("tuist", "t", "build_system LowCardinality(String)", positions, clauses) ==
+               "ALTER TABLE `tuist`.`t` ADD COLUMN IF NOT EXISTS `build_system` LowCardinality(String) DEFAULT 'xcode' AFTER `id`"
+
+      assert SchemaClone.add_column_statement("tuist", "t", "inserted_at DateTime64(6)", positions, clauses) ==
+               "ALTER TABLE `tuist`.`t` ADD COLUMN IF NOT EXISTS `inserted_at` DateTime64(6) DEFAULT now64() CODEC(Delta(8), ZSTD(1)) AFTER `build_system`"
+
+      assert SchemaClone.column_clause("", "", "") == ""
     end
 
     test "quotes the table and column, so a name that needs it still works" do

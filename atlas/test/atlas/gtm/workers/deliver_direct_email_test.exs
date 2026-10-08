@@ -54,6 +54,19 @@ defmodule Atlas.GTM.Workers.DeliverDirectEmailTest do
     end)
   end
 
+  test "delivers one email with the CC addresses copied" do
+    delivery = queue!(Map.put(@attrs, "cc_emails", ["cto@acme.example", "ops@acme.example"]))
+
+    assert :ok = perform_job(DeliverDirectEmail, %{"delivery_id" => delivery.id})
+
+    assert_email_sent(fn email ->
+      assert email.to == [{"Riley", "recipient@example.com"}]
+      assert email.cc == [{"", "cto@acme.example"}, {"", "ops@acme.example"}]
+    end)
+
+    refute_email_sent()
+  end
+
   test "delivers to a recipient who unsubscribed from every audience" do
     audience = insert_audience!()
 

@@ -3,9 +3,13 @@
 This directory contains database migrations and other private assets.
 
 ## Responsibilities
+- REAPI module-cache upload concurrency and admission retry settings are documented in `docs/en/guides/features/cache/module-cache.md`; keep them aligned with `cli/Sources/TuistREAPI` and Kura's upload sizing guidance.
+- Runner cache-volume usage belongs in `docs/en/guides/features/runners/cache-volumes.md`, linked from the runners overview and provider guides. Keep Docker-specific guidance in the Docker page. The docs sidebar is maintained in `lib/tuist/docs_sidebar.ex`.
 - PostgreSQL migrations: `server/priv/repo/migrations`
+- GitHub Enterprise split-host/proxy setup is documented in `docs/en/guides/integrations/gitforge/github.md`. The nullable installation `api_url` is transport metadata; it does not replace canonical `client_url`, webhook identity, or existing project connections. Its migration uses `20261007160000`; the prototype `20261006110000` collided with main's absolute bundle-threshold migration. Reconcile any locally applied prototype history against the actual columns before migrating.
 - ClickHouse migrations: `server/priv/ingest_repo/migrations`
 - Marketing changelog entries: `server/priv/marketing/changelog`
+- Purpose-written agent marketing guides: `server/priv/marketing/agents`, see `marketing/agents/AGENTS.md` for content, discovery, and CDN rollout constraints.
 - All served raster images under `priv/static` are checked by
   `mise run marketing:image-budget` (requires ImageMagick).
   Signup artwork is WebP at twice its rendered width; keep replacements within
@@ -17,13 +21,20 @@ This directory contains database migrations and other private assets.
   1200px wide while retaining their aspect ratio.
 
 ## Demo Data
+- Runner job steps use weighted durations that sum to the job duration, reserving at least one second for each remaining step in the seeded jobs.
 - Gradle build seeds populate requested tasks from their generated task list, preferring assemble entry points. Keep build metadata consistent with the tasks shown in analytics.
+- Coverage seeds give `tuist/tuist` a commit graph in `git_repositories` (a month of `main`, a merged branch with its merge commit, and an open pull request), a file listing per commit, runs carrying coverage for two schemes, and the published `coverage_commits`. They start from a clean graph on every run, so the trend is never two seedings deep, and they deliberately leave one commit unmeasured, one measured by a single scheme and the newest ones unsignalled, so the history shows a gap, a commit off the trend and a commit still waiting for its completion signal.
 - The standard `repo/seeds.exs` creates `tuist/xcode-comparison` and `tuist/bazel-comparison` with matching test histories, including healthy, flaky, muted, and skipped cases. Keep their scenarios aligned for visual comparison; rerunning seeds preserves existing comparison runs.
 
 ## Guardrails
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
+- REAPI cache output hints default to empty strings for historical rows and older Kura nodes. Append physical ClickHouse columns in schema order; these identifiers correlate profile descriptions and are never repository source links.
 - Migration filename versions must be unique within each repository. Check for collisions against main when adding migrations, and update explicit test file references if renaming a migration.
+- Runner cache migrations create indexes concurrently with DDL transactions and
+  migration locks disabled; verify both forward migration and rollback.
+- Runner cache size measurements reference uses and cascade with their retention;
+  historical observations must not be overwritten by subsequent agent reports.
 - Declare table engines in new ClickHouse migrations through
   `Tuist.IngestRepo.Migration.engine/1`, as in
   `engine: Migration.engine("ReplacingMergeTree(inserted_at)")`, never as a
@@ -53,6 +64,19 @@ This directory contains database migrations and other private assets.
 
 - Automation `event_generation` is nullable and falls back to `baseline_generation` for historical rows. It preserves recovery history across one-time action requests and cancellation; condition changes advance both generations. Keep attempt revision checks separate from event queries.
 
+- Cache-volume image publication adds nullable digests and published generation,
+  plus a base HEAD generation defaulting to zero. This is separate from the
+  invalidation epoch; schema rollback follows local-image fleet cleanup.
+  Its version is `20260924130000`; the prototype `20260923120000` collided with
+  main's account cache-meter migration. Prototype databases need their migration
+  history reconciled before either migration runs; verify the corresponding
+  columns instead of assuming which migration the old version represents.
+
 - Kura identity backfill is forward-only: audit historical provisioner references and reservation collisions before deployment. Unknown/conflicting references abort; never guess a live volume namespace. See `kura/docs/account-renames.md` at repository root.
 
 - Kura client URL expiry is separate from handle ownership: `client_url_expires_at` is set to 90 days when a name is retired, cleared on rename-back, and never deletes its reservation. Historical names with unknown rename dates get 90 days from the expiry migration. Both migrations are forward-only.
+- The platform expansion initially retains the legacy seven-column unique
+  index. `20261007150000_enable_macos_cache_volumes.exs` removes it concurrently
+  after platform-aware server rollout. Its rollback requires macOS allocations
+  disabled, jobs drained and macOS data/metadata reclaimed before recreating the
+  legacy index. Do not roll back to pre-platform server images after enablement.

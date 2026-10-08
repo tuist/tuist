@@ -8,12 +8,21 @@ image:
   pullPolicy: IfNotPresent
 
 # The site whose edge node this runs on: its files under sites/<site>/, and
-# the tuist.dev/rack-edge=<site> label and taint rack:edge-join gives the node.
+# the tuist.dev/rack-edge=<site> label and taint the node registers with
+# (rackLinuxFleet.roles.edge in the tuist chart).
 site: ""
 
 # Seconds between re-applying the management path, which puts back an address,
 # route or nft table something else removed.
 reapplySeconds: 300
+
+# Seconds between re-advertising the edge's tailnet routes. Only the edge that
+# holds the edge address advertises the power devices' /32s, so after a
+# failover (a deploy restarts both edges) the cluster has no path to the PDUs
+# and transfer switches, and so no remote power, until the new master's next
+# pass. At the management path's 300 that was measured at five minutes on
+# 2026-10-05. An unchanged `tailscale set` is a no-op through the local socket.
+routesReapplySeconds: 15
 
 resources:
   requests:

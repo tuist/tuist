@@ -11,10 +11,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StableEndpoint
 
   setup :set_mimic_from_context
 
   setup do
+    stub(Tuist.FeatureFlags, :kura_positive_fence_enabled?, fn _account -> false end)
+    stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> false end)
+
     stub(Identity, :endpoint_migration_enabled?, fn _account -> false end)
     stub(Identity, :endpoint_migration_paused?, fn _account -> false end)
     stub(Identity, :endpoint_handle, &Identity.tenant_id/1)
@@ -32,7 +36,101 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     :ok
   end
 
+  describe "sync_stable_endpoint/3" do
+    setup do
+      stub(StableEndpoint, :observe, fn _region, _name, _instance -> :ok end)
+      stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> true end)
+      :ok
+    end
+
+    test "disabled rollout leaves instances without stable fields untouched" do
+      stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> false end)
+      server = %Server{account: %Account{name: "acme"}, region: "eu-west", provisioner_node_ref: "instance"}
+      expect(Client, :get_kura_instance, fn "kura", "instance", [timeout: 3_000] -> {:ok, %{"spec" => %{}}} end)
+      reject(&Client.patch/3)
+      assert :ok = KubernetesController.sync_stable_endpoint(server, Regions.get("eu-west"), [])
+    end
+
+    test "patches only stable intent with an optimistic concurrency guard" do
+      stub(Tuist.Environment, :env, fn -> :prod end)
+
+      region = Regions.get("eu-west")
+
+      server = %Server{
+        account: %Account{name: "acme"},
+        region: region.id,
+        status: :active,
+        move_phase: :none,
+        provisioner_node_ref: "instance"
+      }
+
+      instance = %{"metadata" => %{"resourceVersion" => "42", "generation" => 1}, "spec" => %{"image" => "unchanged"}}
+      expect(Client, :get_kura_instance, fn "kura", "instance", [timeout: 3_000] -> {:ok, instance} end)
+
+      expect(Client, :patch, fn "/apis/kura.tuist.dev/v1alpha1/namespaces/kura/kurainstances/instance",
+                                [guard | changes],
+                                [] ->
+        assert guard == %{"op" => "test", "path" => "/metadata/resourceVersion", "value" => "42"}
+
+        assert Map.new(changes, &{&1["path"], &1["value"]}) == %{
+                 "/spec/stableHost" => "acme.cache.tuist.dev",
+                 "/spec/stableAdvertise" => true,
+                 "/spec/stableAWSRegion" => "eu-west-3"
+               }
+
+        {:ok, instance}
+      end)
+
+      assert {:ok, _} = KubernetesController.sync_stable_endpoint(server, region, [region.id])
+    end
+
+    test "explicitly withdraws advertisement when draining without removing rendering" do
+      stub(Tuist.Environment, :env, fn -> :prod end)
+
+      region = Regions.get("eu-west")
+
+      server = %Server{
+        account: %Account{name: "acme"},
+        region: region.id,
+        status: :drain_pending,
+        move_phase: :none,
+        provisioner_node_ref: "instance"
+      }
+
+      instance = %{
+        "metadata" => %{"resourceVersion" => "42", "generation" => 1},
+        "spec" => %{
+          "stableHost" => "acme.cache.tuist.dev",
+          "stableAdvertise" => true,
+          "stableAWSRegion" => "eu-west-3"
+        }
+      }
+
+      expect(Client, :get_kura_instance, fn "kura", "instance", [timeout: 3_000] -> {:ok, instance} end)
+
+      expect(Client, :patch, fn _, [_guard, operation], [] ->
+        assert operation == %{"op" => "add", "path" => "/spec/stableAdvertise", "value" => false}
+        {:ok, instance}
+      end)
+
+      assert {:ok, _} = KubernetesController.sync_stable_endpoint(server, region, [region.id])
+    end
+  end
+
   describe "manifest/6" do
+    test "positive fencing is opt-in and changes the manifest revision" do
+      account = %{name: "tuist"}
+      before = KubernetesController.manifest("test", "candidate", account, eu_region(), %Server{})
+      refute Map.has_key?(before["spec"], "servingMode")
+      stub(Tuist.FeatureFlags, :kura_positive_fence_enabled?, fn ^account -> true end)
+      after_manifest = KubernetesController.manifest("test", "candidate", account, eu_region(), %Server{})
+      assert after_manifest["spec"]["servingMode"] == "PositiveFenceV1"
+      revision = "tuist.dev/kura-manifest-revision"
+
+      assert after_manifest["metadata"]["annotations"][revision] ==
+               before["metadata"]["annotations"][revision] <> "+positive-fence-v1"
+    end
+
     test "renders a KuraInstance without a per-account compute spec" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
@@ -277,13 +375,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         {spec["memoryFloorMib"], spec["memoryCeilingMib"], spec["memoryCeilingBinPacked"], spec["cpuCeilingMilli"]}
       end
 
-      # The floor is the standing reservation, so the tier that gets the larger
-      # one is the tier that pays for a guarantee. The ceiling — how large a
-      # burst Kura admits before shedding — moves with it. The CPU ceiling is
+      # The floor is the standing reservation and descends with the tier. The
+      # ceiling — how large a burst Kura admits before shedding — is shared by
+      # the paid tiers. The CPU ceiling is
       # the same grant for the other compressible resource; its floor is absent
       # because the controller observes that per instance.
       assert profile.(:enterprise) == {1024, 4096, true, 4000}
-      assert profile.(:pro) == {512, 3072, true, 2000}
+      assert profile.(:pro) == {512, 4096, true, 4000}
       assert profile.(:air) == {256, 768, true, 1000}
     end
 
@@ -1538,7 +1636,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert Enum.uniq([air, pro, enterprise]) == [air, pro, enterprise]
       assert String.contains?(air, "+mem256-768")
-      assert String.contains?(pro, "+mem512-3072")
+      assert String.contains?(pro, "+mem512-4096")
       assert String.contains?(enterprise, "+mem1024-4096")
     end
 
@@ -2069,6 +2167,85 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert KubernetesController.internal_url("tuist", region, "actual-ref") ==
                "http://actual-ref.kura.svc.cluster.local:4000"
+    end
+
+    test "places the BER1 rack's cache on its storage node, off the cluster network" do
+      stub(Tuist.Environment, :env, fn -> :stag end)
+      stub(Tuist.Environment, :app_url, fn -> "https://staging.tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_node_local_otlp_traces_endpoint, fn ->
+        "http://tuist-alloy-receiver-staging.taild6d7bb.ts.net:4318/v1/traces"
+      end)
+
+      region = Regions.get("ber1-runners")
+      account = %Account{id: 1, name: "tuist", subscriptions: []}
+      spec = KubernetesController.manifest("kura-tuist-ber1", "0.5.2", account, region, %Server{})["spec"]
+
+      assert spec["replicas"] == 1
+      refute Map.has_key?(spec, "mesh")
+      assert spec["privateHost"] == "tuist-ber1-runners-staging.kura.tuist.dev"
+      assert spec["ingressClassName"] == "kura-ber1-runners"
+      assert spec["clientCIDRs"] == ["10.10.0.0/24"]
+      assert spec["nodeSelector"] == %{"node.cluster.x-k8s.io/pool" => "rack-storage-ber1"}
+
+      assert spec["tolerations"] == [
+               %{"key" => "tuist.dev/rack-storage", "operator" => "Exists", "effect" => "NoSchedule"}
+             ]
+
+      # Tailscale's resolver answers the tailnet and fails anything else over
+      # to the public resolvers.
+      assert spec["nodeLocalNetwork"] == %{"nameservers" => ["100.100.100.100", "1.1.1.1", "8.8.8.8"]}
+
+      # The pod reaches no Service: the server and analytics through the
+      # public URL, and traces to the collector at its tailnet name.
+      env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_CONTROL_PLANE_URL"] == "https://staging.tuist.dev"
+      assert env["KURA_AUTH_TUIST_URL"] == "https://staging.tuist.dev"
+      assert env["KURA_ANALYTICS_SERVER_URL"] == "https://staging.tuist.dev"
+
+      assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] ==
+               "http://tuist-alloy-receiver-staging.taild6d7bb.ts.net:4318/v1/traces"
+    end
+
+    test "turns traces off for a node-local instance in an environment with no collector to reach" do
+      stub(Tuist.Environment, :app_url, fn -> "https://staging.tuist.dev" end)
+      stub(Tuist.Environment, :kura_node_local_otlp_traces_endpoint, fn -> nil end)
+      region = Regions.get("ber1-runners")
+      account = %Account{id: 1, name: "tuist", subscriptions: []}
+      spec = KubernetesController.manifest("kura-tuist-ber1", "0.5.2", account, region, %Server{})["spec"]
+
+      env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == ""
+    end
+
+    test "keeps cluster-routed private regions on the cluster network" do
+      stub(Tuist.Environment, :env, fn -> :prod end)
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      region = Regions.get("scw-fr-par-runners")
+      account = %Account{id: 1, name: "tuist", subscriptions: []}
+      spec = KubernetesController.manifest("kura-tuist-scw-fr-par", "0.5.2", account, region, %Server{})["spec"]
+
+      refute Map.has_key?(spec, "nodeLocalNetwork")
+      assert spec["mesh"]
+      names = Enum.map(spec["extraEnv"], & &1["name"])
+      refute "KURA_ANALYTICS_SERVER_URL" in names
+      refute "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" in names
+    end
+
+    test "reapplies a node-local instance when its nameservers change" do
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+      region = Regions.get("ber1-runners")
+      server = %Server{account: %Account{id: 1, name: "tuist"}}
+      revision = KubernetesController.manifest_revision(server, region)
+
+      changed = %{
+        region
+        | provisioner_config: Map.put(region.provisioner_config, :node_local_network, %{nameservers: ["9.9.9.9"]})
+      }
+
+      refute KubernetesController.manifest_revision(server, changed) == revision
     end
 
     test "reapplies existing private instances when their replica count or entrance changes" do

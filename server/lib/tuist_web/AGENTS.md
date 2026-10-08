@@ -4,6 +4,7 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
 
 ## Responsibilities
 - HTTP routing, controllers, and API surface.
+- Marketing landing-page URLs negotiate authored English decision guides with `Accept: text/markdown`; `/marketing-markdown[/<page>]` offers discoverable, header-free access. Legal wording is preserved and `/marketing-markdown/source/<page>` exposes original statements where guides replace company-page copy. Keep these routes ahead of dynamic account/project scopes, with marketing robots metadata and on-premise forwarding. Public project Markdown requires a separate authorized data-snapshot design, not static marketing overrides.
 - LiveView components for the UI and marketing site.
 - Controllers and LiveViews choose their Open Graph image template and variables. The shared image route only verifies
   the signed variables, renders on a cache miss, and serves the content-addressed object.
@@ -14,6 +15,9 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
 - For public `GET` routes that should appear in `robots.txt` Content-Usage, define that configuration in the router with `metadata: %{robots_txt: [train_ai: true, search: true]}`.
 - Routes without `:robots_txt` metadata default to `Disallow` entries derived from the router.
 - If a route should not contribute any `robots.txt` entry, opt it out explicitly with `metadata: %{robots_txt: false}`.
+
+## Search Indexing
+- Informational public-project LiveViews opt in with `public_project: true, robots_txt: false` metadata. Visibility and authorization still decide whether a response can be indexed; do not opt settings, connection flows, or raw downloads into indexing.
 
 ## Browser Telemetry
 - `BrowserTelemetry.Enrichment` adds reserved measurement context using route metadata and gateway-observed authentication. Browser URL/session/navigation fields remain untrusted; never equate authentication or metadata completeness with humanity.

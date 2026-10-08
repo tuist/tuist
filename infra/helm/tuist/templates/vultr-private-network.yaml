@@ -1,0 +1,40 @@
+{{- if and .Values.capi.enabled .Values.capi.vultrPrivateNetwork.enabled }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "vultr-private-network") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "vultr-private-network") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+data:
+  regions.json: {{ .Values.capi.vultrPrivateNetwork.regions | toJson | quote }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [{{ $name | quote }}, {{ printf "%s-state" $name | quote }}]
+    verbs: [get, update]
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon") }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

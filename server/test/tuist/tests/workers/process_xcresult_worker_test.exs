@@ -128,6 +128,36 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     }
   end
 
+  @tag :tmp_dir
+  test "hands the streamed coverage to the run and removes the file afterwards", %{tmp_dir: tmp_dir} do
+    project = ProjectsFixtures.project_fixture()
+    coverage_path = Path.join(tmp_dir, "coverage.ndjson")
+    File.write!(coverage_path, "")
+
+    parsed =
+      Map.merge(parsed_data(), %{"coverage_path" => coverage_path, "coverage_partial" => true})
+
+    expect_local_parse(parsed)
+
+    expect(Tuist.Tests, :create_test, fn attrs ->
+      assert attrs.xcode_coverage == %{path: coverage_path, partial: true}
+      assert File.exists?(coverage_path)
+      {:ok, %{id: attrs.id}}
+    end)
+
+    assert :ok =
+             perform_job(ProcessXcresultWorker, %{
+               "test_run_id" => UUIDv7.generate(),
+               "storage_key" => "key",
+               "project_id" => project.id,
+               "account_handle" => "acc",
+               "project_handle" => "proj",
+               "account_id" => project.account_id
+             })
+
+    refute File.exists?(coverage_path)
+  end
+
   defp expect_local_parse(parsed) do
     expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
     expect(XCResultProcessor, :process_local, fn _path, _opts -> {:ok, parsed} end)

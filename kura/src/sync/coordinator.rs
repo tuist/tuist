@@ -117,6 +117,9 @@ pub struct LinkStatus {
     /// was spent (ready-but-cold, as the backfill cycle already allows).
     pub settled: bool,
     pub last_success: Option<Instant>,
+    /// Region links: the lag measured at the last answer from the remote
+    /// gateway (D-37).
+    pub lag_seconds: Option<u64>,
     /// Replica links: rows between our cursor and the sibling's head.
     pub lag_entries: u64,
     /// Replica links: how far this link lets the serving listing go (D-24).
@@ -236,6 +239,7 @@ impl SyncCoordinator {
         let published = app.published_roles.load();
         let roles = derive_roles(&RoleInputs {
             own_url: &app.config.node_url,
+            own_topology: app.config.peer_topology.as_ref(),
             own_region: &app.config.region,
             own_serving: app.runtime.is_serving(),
             own_draining: app.runtime.is_draining(),
@@ -317,6 +321,19 @@ impl SyncCoordinator {
                 .map_or(u64::MAX / 2, |at| at.elapsed().as_secs());
             app.metrics
                 .set_region_sync_last_success_age(&status.region, age);
+            // A link that cannot reach the remote gateway has no fresh sample:
+            // count the silence beyond one long-poll on top of the last one,
+            // rather than let the last reading (often zero) stand.
+            if status.phase == LinkPhase::Retrying
+                && let (Some(lag), Some(last_success)) = (status.lag_seconds, status.last_success)
+            {
+                let silence = last_success
+                    .elapsed()
+                    .as_secs()
+                    .saturating_sub(app.config.sync_long_poll_secs);
+                app.metrics
+                    .set_region_sync_lag(&status.region, lag.saturating_add(silence));
+            }
             if let Ok(Some(watermark)) = app.store.sync_watermark(&status.region) {
                 app.metrics.set_region_watermark_age(
                     &status.region,
@@ -519,6 +536,7 @@ fn spawn_link(
         phase: LinkPhase::Bootstrapping,
         settled: false,
         last_success: None,
+        lag_seconds: None,
         lag_entries: 0,
         frontier: LinkFrontier::Pending,
         unsupported: false,

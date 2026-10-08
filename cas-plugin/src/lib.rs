@@ -10,8 +10,11 @@
 //! precompiled modules and headers through whichever CAS plugin is configured.
 //! Without it, only Swift compilations are shared.
 //!
-//! Interception is therefore not keyed on the `globally` flag: the clang lane
-//! sets it and the Swift path does not, and both are ours to serve.
+//! With that option the build system asks every key twice: a local-only lookup
+//! (`globally = false`) on its scheduling thread, then a key query
+//! (`globally = true`) that runs alongside the rest of the build. Only the key
+//! query reaches the remote, so no lookup holds up task scheduling. A CAS
+//! created without the option reads through to the remote on every lookup.
 
 pub mod analytics;
 pub mod endpoint;
@@ -304,6 +307,10 @@ struct CasState {
     upload: bool,
     // See `resolve_upload_in_background`.
     upload_in_background: bool,
+    // Set when the build system passes `remote-service-path`: it then follows
+    // every local miss with a key query of its own (`globally = true`), off its
+    // scheduling thread, so a local-only lookup answers from the local store.
+    build_system_queries_remote: bool,
     // (key -> value digest) associations served FROM the remote by this
     // process, so the client's end-of-job re-puts of replayed results skip
     // the publish path entirely (see actioncache_put_remote).
@@ -587,6 +594,7 @@ pub unsafe extern "C" fn llcas_cas_create(
         proxy_instance,
         upload: resolve_upload(state),
         upload_in_background,
+        build_system_queries_remote: option_value(state, "remote-service-path").is_some(),
         created_at: std::time::Instant::now(),
         cas_dir,
         published: Mutex::new(std::collections::HashSet::new()),
@@ -1193,6 +1201,9 @@ unsafe fn actioncache_get_impl(
     let result = verified_local_get(state, key_digest, globally, p_value, error);
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
         return result;
+    }
+    if !globally && state.build_system_queries_remote {
+        return LLCAS_LOOKUP_RESULT_NOTFOUND;
     }
 
     let _demand_guard = DemandWaitGuard { state, started: std::time::Instant::now() };

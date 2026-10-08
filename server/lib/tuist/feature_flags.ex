@@ -3,6 +3,22 @@ defmodule Tuist.FeatureFlags do
 
   alias Tuist.Environment
 
+  @doc "Default-off account opt-in to managed positive-fence serving authority."
+  def kura_positive_fence_enabled?(account) do
+    FunWithFlags.enabled?(:kura_positive_fence, for: account)
+  end
+
+  @doc """
+  Whether the account may advertise and receive its managed stable cache
+  hostname. Canary is automatically enabled. Every other environment requires
+  the `:kura_stable_hostname` flag for the account or for everyone. The same
+  flag controls advertising intent and URL hand-out; readiness still gates
+  publication and endpoint selection.
+  """
+  def kura_stable_hostname_enabled?(account) do
+    Environment.env() == :can or FunWithFlags.enabled?(:kura_stable_hostname, for: account)
+  end
+
   @doc """
   Whether the Runners dashboard (and its sub-pages) should be visible
   for the given account. Canary and production require an explicit
@@ -23,6 +39,16 @@ defmodule Tuist.FeatureFlags do
   end
 
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
+
+  @doc """
+  Whether the account gets a node in the runner-cache region of each site its
+  runners are racked at (`Tuist.Kura.Regions.site/1`). A site's region serves
+  only that site's pools, so it holds nodes for the accounts the
+  `:runner_site_cache` flag enables, in every environment.
+  """
+  def runner_site_cache_enabled?(account) do
+    FunWithFlags.enabled?(:runner_site_cache, for: account)
+  end
 
   @doc """
   Whether Xcode code coverage is ingested, processed and shown for the given

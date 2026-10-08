@@ -2,7 +2,7 @@
 {
   "title": "Get started",
   "titleTemplate": ":title · Get started · Guides · Tuist",
-  "description": "Pick the Tuist path that matches how your app is built today: Xcode, generated Xcode projects, Gradle, or Bazel."
+  "description": "Pick the Tuist path that matches how your app is built today: Xcode, generated Xcode projects, Gradle, Elixir, or Bazel."
 }
 ---
 # Get started {#get-started}
@@ -27,10 +27,16 @@ Connect a Gradle project to Tuist's remote cache, build insights, and test insig
 
 <.localized_link href="/guides/get-started/gradle-project">Start with a Gradle project →</.localized_link>
 
+## Elixir project {#elixir-project}
+
+Connect an Elixir project to Tuist's build insights, test insights, flaky test detection, and test sharding through the `tuist_ex` Hex package.
+
+<.localized_link href="/guides/get-started/elixir-project">Start with an Elixir project →</.localized_link>
+
 ## Bazel project {#bazel-project}
 
 Point a Bazel workspace at Tuist's Remote Execution API cache and Build Event Service to share cache hits and insights across your team and CI.
 
 <.localized_link href="/guides/get-started/bazel-project">Start with a Bazel project →</.localized_link>
 
-Before any of these, <.localized_link href="/guides/install-tuist">install the Tuist command-line interface</.localized_link>.
+Before any of these, <.localized_link href="/guides/install-tuist">install the Tuist command-line interface</.localized_link>. Elixir projects are the exception: the Hex package is all they need.

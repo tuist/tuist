@@ -13,6 +13,7 @@ defmodule TuistWeb.BuildRunLiveTest do
   alias Tuist.Runners.JobSteps
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
 
@@ -41,6 +42,8 @@ defmodule TuistWeb.BuildRunLiveTest do
     organization: organization,
     project: project
   } do
+    stub(Tuist.Storage, :object_exists?, fn _, _ -> false end)
+
     event = %{
       event_id: 1,
       title: "Compile <App>.swift",
@@ -58,7 +61,7 @@ defmodule TuistWeb.BuildRunLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}")
     refute has_element?(lv, "#build-timeline")
     lv |> element("a", "Timeline") |> render_click()
-    render_async(lv)
+    render_async(lv, 2_000)
     assert has_element?(lv, "#build-timeline[phx-hook=BuildTimeline]")
     assert has_element?(lv, ".noora-card", "Build Timeline")
     assert has_element?(lv, ".noora-text-input [data-control=search]")
@@ -96,11 +99,11 @@ defmodule TuistWeb.BuildRunLiveTest do
       search: ""
     })
 
-    render_async(lv)
+    render_async(lv, 2_000)
     assert_push_event(lv, "timeline-step", %{request_id: 22, step: %{event_id: 1}})
 
     render_hook(lv, "load-timeline-log", %{"event_id" => 1, "request_id" => 1, "build_run_id" => Ecto.UUID.generate()})
-    render_async(lv)
+    render_async(lv, 2_000)
 
     assert_push_event(lv, "timeline-log", %{
       request_id: 1,
@@ -115,7 +118,7 @@ defmodule TuistWeb.BuildRunLiveTest do
       ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=timeline&latency-percentile=p90"
     )
 
-    render_async(lv)
+    render_async(lv, 2_000)
     assert has_element?(lv, "#build-timeline[data-version='#{version}']")
   end
 
@@ -367,6 +370,24 @@ defmodule TuistWeb.BuildRunLiveTest do
 
     # Then
     assert has_element?(lv, "h1", "App")
+  end
+
+  test "links the build run to its pull request", %{conn: conn, organization: organization} do
+    project =
+      ProjectsFixtures.project_fixture(
+        account_id: organization.account.id,
+        vcs_connection: [repository_full_handle: "tuist/tuist", provider: :github]
+      )
+
+    {:ok, build_run} = RunsFixtures.build_fixture(project_id: project.id, git_ref: "refs/pull/23958/merge")
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+
+    assert has_element?(
+             lv,
+             ~s(a[data-part="pull-request-button"][href="https://github.com/tuist/tuist/pull/23958"]),
+             "PR #23958"
+           )
   end
 
   test "shows download button when build run has result bundle", %{

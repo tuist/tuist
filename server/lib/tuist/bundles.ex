@@ -264,10 +264,7 @@ defmodule Tuist.Bundles do
           path: a.path,
           size: a.size,
           shasum: a.shasum,
-          artifact_id: a.artifact_id,
-          bundle_id: a.bundle_id,
-          inserted_at: a.inserted_at,
-          updated_at: a.updated_at
+          artifact_id: a.artifact_id
         }
       )
       |> ClickHouseRepo.all()
@@ -353,13 +350,13 @@ defmodule Tuist.Bundles do
 
   def install_size_deviation(%Bundle{} = bundle) do
     project = Repo.preload(bundle, :project).project
-    last_bundle = last_project_bundle(project, git_branch: project.default_branch, bundle: bundle)
+    install_size_deviation(bundle, last_project_bundle(project, git_branch: project.default_branch, bundle: bundle))
+  end
 
-    if is_nil(last_bundle) do
-      0.0
-    else
-      bundle.install_size / last_bundle.install_size - 1
-    end
+  def install_size_deviation(%Bundle{}, nil), do: 0.0
+
+  def install_size_deviation(%Bundle{} = bundle, %Bundle{} = last_bundle) do
+    bundle.install_size / last_bundle.install_size - 1
   end
 
   def distinct_project_app_bundles(%Project{} = project) do
@@ -742,17 +739,25 @@ defmodule Tuist.Bundles do
         :download_size -> {bundle.download_size, baseline.download_size}
       end
 
-    if is_nil(current_size) || is_nil(baseline_size) || baseline_size == 0 do
+    if is_nil(current_size) || is_nil(baseline_size) do
       :ok
     else
-      deviation = (current_size - baseline_size) / baseline_size * 100
+      growth = current_size - baseline_size
 
-      if deviation > threshold.deviation_percentage do
+      if threshold_exceeded?(threshold, growth, baseline_size) do
+        deviation = if baseline_size == 0, do: nil, else: growth / baseline_size * 100
         {:violated, threshold, %{current_size: current_size, baseline_size: baseline_size, deviation: deviation}}
       else
         :ok
       end
     end
+  end
+
+  defp threshold_exceeded?(%{deviation_bytes: bytes}, growth, _baseline_size) when is_integer(bytes), do: growth > bytes
+  defp threshold_exceeded?(_threshold, _growth, 0), do: false
+
+  defp threshold_exceeded?(%{deviation_percentage: percentage}, growth, baseline_size) do
+    growth / baseline_size * 100 > percentage
   end
 
   def list_bundle_size_approvers(%Project{} = project) do

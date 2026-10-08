@@ -7,6 +7,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
 
   alias Tuist.Bundles
   alias Tuist.Bundles.Bundle
+  alias Tuist.Bundles.BundleThreshold
   alias Tuist.Environment
   alias Tuist.GitHub.Client
   alias Tuist.Projects
@@ -87,8 +88,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
   end
 
   defp resolve_head_sha(project, bundle, fallback_sha) do
-    with "refs/pull/" <> rest <- bundle.git_ref,
-         {pr_number, _} <- Integer.parse(rest),
+    with pr_number when is_integer(pr_number) <- VCS.pull_request_number_from_git_ref(bundle.git_ref),
          {:ok, %{"head" => %{"sha" => head_sha}}} <-
            Client.get_pull_request(%{
              repository_full_handle: project.vcs_connection.repository_full_handle,
@@ -168,14 +168,21 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
         :download_size -> "Download size"
       end
 
+    change =
+      if is_integer(threshold.deviation_bytes) do
+        "+#{BundleThreshold.megabytes(current_size - baseline_size)} MB"
+      else
+        "+#{Float.round(deviation, 2)}%"
+      end
+
     summary = """
     Bundle size threshold **#{threshold.name}** was exceeded.
 
     | Metric | Baseline | Current | Change |
     |--------|----------|---------|--------|
-    | #{metric_label} | #{ByteFormatter.format_bytes(baseline_size)} | #{ByteFormatter.format_bytes(current_size)} | +#{Float.round(deviation, 2)}% |
+    | #{metric_label} | #{format_size(baseline_size, threshold)} | #{format_size(current_size, threshold)} | #{change} |
 
-    **Threshold:** #{threshold.deviation_percentage}% on `#{threshold.baseline_branch}`#{if threshold.bundle_name, do: " (bundle: #{threshold.bundle_name})", else: ""}
+    **Threshold:** #{BundleThreshold.limit_label(threshold)} on `#{threshold.baseline_branch}`#{if threshold.bundle_name, do: " (bundle: #{threshold.bundle_name})", else: ""}
 
     [View bundle details](#{bundle_url})
     """
@@ -186,6 +193,9 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
        summary: String.trim(summary)
      }}
   end
+
+  defp format_size(size, %{deviation_bytes: bytes}) when is_integer(bytes), do: "#{BundleThreshold.megabytes(size)} MB"
+  defp format_size(size, _threshold), do: ByteFormatter.format_bytes(size)
 
   defp cancel_competing_jobs(current_job_id, args) do
     worker = inspect(__MODULE__, structs: false)

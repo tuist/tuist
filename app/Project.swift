@@ -14,8 +14,8 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
         .project(target: "TuistXcodeBuildProducts", path: "../"),
         .project(target: "TuistAndroid", path: "../"),
         .project(target: "TuistLogging", path: "../"),
+        .project(target: "TuistProcess", path: "../"),
         .project(target: "XcodeGraph", path: "../"),
-        .external(name: "Command"),
         .external(name: "Sparkle"),
         .external(name: "FileSystem"),
         .external(name: "Mockable"),
@@ -286,6 +286,7 @@ let project = Project(
                 .target(name: "TuistApp"),
                 .project(target: "TuistTesting", path: "../"),
                 .project(target: "TuistConstants", path: "../"),
+                .external(name: "TestCoverageAttribution"),
             ]
         ),
     ],

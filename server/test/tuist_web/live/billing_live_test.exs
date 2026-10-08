@@ -14,6 +14,7 @@ defmodule TuistWeb.BillingLiveTest do
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
 
   setup %{conn: conn} = context do
     user = AccountsFixtures.user_fixture()
@@ -94,6 +95,49 @@ defmodule TuistWeb.BillingLiveTest do
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
       assert has_element?(lv, "[data-part='next-charge-date']", "charged /per month")
+    end
+  end
+
+  describe "when a subscription payment failed" do
+    test "keeps the plan and asks to pay the open invoice while the payment is retried", %{
+      conn: conn,
+      account: account
+    } do
+      # Given
+      stub(Billing, :get_current_active_subscription, fn _ ->
+        %{
+          plan: :pro,
+          status: "past_due",
+          default_payment_method: "payment_method_id",
+          trial_end: nil,
+          subscription_id: "subscription_id"
+        }
+      end)
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      # Then
+      assert has_element?(lv, "#billing-payment-issue", "Your plan stays active while the payment is retried.")
+      assert has_element?(lv, "#billing-payment-issue a[href='/#{account.name}/billing/pay']", "Pay open invoice")
+    end
+
+    test "says the plan is limited until the unpaid invoice is paid", %{conn: conn, account: account} do
+      # Given
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, status: "unpaid")
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      # Then
+      assert has_element?(lv, "#billing-payment-issue", "limited to the free tier")
+      assert has_element?(lv, "#billing-payment-issue a[href='/#{account.name}/billing/pay']", "Pay open invoice")
+    end
+
+    test "shows nothing for an account in good standing", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      refute has_element?(lv, "#billing-payment-issue")
     end
   end
 
@@ -411,6 +455,7 @@ defmodule TuistWeb.BillingLiveTest do
           available: Money.new(300_000, :USD),
           granted: Money.new(750_000, :USD),
           granted_minutes: 10_000,
+          period_minutes: 10_000,
           expires_at: ~U[2026-09-01 00:00:00Z],
           grants: []
         }
@@ -426,6 +471,32 @@ defmodule TuistWeb.BillingLiveTest do
       # Nothing here may move as credit is spent.
       refute html =~ "3000.00"
       refute html =~ "left."
+    end
+
+    test "raises the ceiling by what a pool has left this period, not by the whole term", %{
+      conn: conn,
+      account: account
+    } do
+      # A pool bought for a year would otherwise read as a year of minutes
+      # available in every single month.
+      runner_session_fixture(account, 40)
+
+      stub(Prepaid, :balance, fn _account ->
+        %{
+          available: Money.new(300_000, :USD),
+          granted: Money.new(1_500_000, :USD),
+          granted_minutes: 200_000,
+          period_minutes: 40_000,
+          expires_at: ~U[2027-10-05 00:00:00Z],
+          grants: []
+        }
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      html = render(lv)
+      assert html =~ "100 free runner minutes plus 40K prepaid"
+      refute html =~ "200K"
     end
   end
 
@@ -557,6 +628,7 @@ defmodule TuistWeb.BillingLiveTest do
           available: Money.new(750_000, :USD),
           granted: Money.new(750_000, :USD),
           granted_minutes: 10_000,
+          period_minutes: 10_000,
           expires_at: ~U[2027-08-20 00:00:00Z],
           grants: []
         }

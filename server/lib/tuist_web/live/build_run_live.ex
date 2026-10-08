@@ -12,6 +12,7 @@ defmodule TuistWeb.BuildRunLive do
   import TuistWeb.Runs.CIContextCard
   import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.ProjectWithTags
+  import TuistWeb.Runs.PullRequestButton
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -27,6 +28,7 @@ defmodule TuistWeb.BuildRunLive do
   alias Tuist.Tests
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.RunnerJobLive
   alias TuistWeb.RunnerWorkflowsLive
   alias TuistWeb.Utilities.Query
@@ -98,6 +100,13 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:expanded_target_names, MapSet.new())
       |> assign(:task_cas_outputs_map, %{})
       |> assign_build_data(run)
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: if(run.scheme == "", do: dgettext("dashboard_builds", "Build Run"), else: run.scheme),
+          subtitle: Enum.join(Enum.reject([run.configuration, run.git_branch], &(&1 in [nil, ""])), " · "),
+          badge: run.status |> to_string() |> String.capitalize()
+        )
+      )
 
     {:ok, socket}
   end

@@ -1,5 +1,22 @@
 # Kura control plane
 
+- `kura_positive_fence` is default off and changes both `servingMode` and the
+  manifest revision. Controller activation is sticky: disabling the account
+  flag cannot remove the serving rollback floor or restore legacy selection.
+  See [serving authority](../../../../../infra/kura-controller/serving-authority.md).
+
+- Storage sizing counts `disk_pressure` events as eviction activity to block occupancy shrink, but excludes their bytes from turnover and invalidates all retention ages for the affected account-region-day. Keep snapshots reporting configured ring budgets; runtime pressure caps belong to backfill, not the resize denominator.
+
+- Region location metadata follows the active fleet's physical datacenter:
+  production EU-West is OVH Gravelines (`FR-HDF`); the Paris Mac runner cache
+  remains `FR-IDF`. Keep physical OTel location separate from stable region IDs,
+  pool/storage identifiers, and Route53 latency-region mappings.
+
+- Every managed public host-network region needs a distinct Route53 `aws_region`
+  mapping. Stable-enabled retirement requires a supported, fresh stable-ready
+  survivor; unsupported destinations must never allow the last advertiser to
+  drain. Cover moves and multi-region hand-out when extending the catalog.
+
 - `Identity` separates permanent `accounts.kura_tenant_id` from the current account name. Use the permanent identity for storage, workload names and selectors, peer endpoint hostnames, peer CA lookup and enrollment. Use the current name for client hostnames and authorization grants.
 - Account rename changes client hostnames and their manifest revision only after the separate per-account `kura_account_endpoint_migration` flag is enabled (default off in all environments, including already-renamed accounts). While paused, preserve live CR client fields during image/resource applies, fail closed on observation errors, retain published public URLs and emit no redirects; do not guess the live host from the original tenant. Unrenamed accounts still reconcile ordinary template changes. Toggling off freezes deployed routing instead of reverting it. Keep the rendered StatefulSet, peer identity and volume claims unchanged. Retain unexpired historical client hostnames in `clientHostAliases`; `Identity.client_handles/1` filters per-name 90-day deadlines while `Identity.handles/1` preserves identity and attribution for the account lifetime. With migration enabled, deadline expiry changes the manifest revision so the ordinary tick withdraws DNS/ingress/TLS aliases. A pause defers withdrawal without extending deadlines. Publish the new endpoint through existing activation readiness checks; only activated public URLs can be redirect targets. Mesh responses refresh current handle and all authorization aliases even while endpoint migration is paused.
 - Keep retired handles reserved in `account_handle_reservations`; telemetry resolves those bindings to the immutable account ID. Signed cache/Bazel analytics use `Projects.projects_by_full_handles/1`, which also resolves reservations; old runtime fallbacks and queued events must remain attributable. Do not resolve an old storage tenant through current account names.

@@ -1,6 +1,6 @@
 name: Kura Canary Release
 
-# Every Kura-touching commit to main publishes a canary prerelease
+# Every Kura change on main publishes a canary prerelease
 # (kura@X.Y.0-canary.N). Canaries are the bleeding edge: marked as a GitHub
 # prerelease, never moved to "Latest", and never push :latest on GHCR, so
 # self-hosted operators pinning `ghcr.io/tuist/kura:<semver>` or `:latest`
@@ -12,22 +12,13 @@ name: Kura Canary Release
 # Canary always targets the next unreleased minor: once an RC line is cut,
 # main's canary advances to the following minor.
 #
-# NOTE: this workflow is orthogonal to server-production-deployment.yml.
-# The hosted server's deploy tail resolves the Kura runtime image tag from
-# git at deploy time (server-deployment.yml resolves `kura@` semvers), so
-# it continues to pick up the most recent stable Kura release automatically.
+# server-production-deployment.yml calls this workflow when kura/ changed,
+# before its deploy cascade, because hosted environments run the newest
+# canary in the deployed commit (server-deployment.yml). Publishing inside
+# that serialized run guarantees the canary exists before the deploy
+# resolves it. The RC/stable train only serves self-hosted operators.
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - kura/**
-      - mise/tasks/kura/**
-      - mise/tasks/release/components.json
-      - .github/workflows/kura-release.yml
-      - .github/workflows/kura-rc.yml
-      - .github/workflows/kura-promote.yml
-      - .github/workflows/kura-build-publish.yml
+  workflow_call:
 
 permissions:
   contents: write
@@ -37,12 +28,13 @@ permissions:
   id-token: write
 
 concurrency:
-  # Serialize all Kura publishing (canaries, RCs, promotions) through one
-  # ref-independent group. They all derive the next version from the tag set
-  # and create tags, so they must never run concurrently. Queue rather than
-  # cancel so each release publishes atomically. kura-rc.yml and
-  # kura-promote.yml share this group.
-  group: kura-publish
+  # Canaries get their own group so the deploy cascade never queues behind a
+  # multi-hour RC or promote build. Canary, RC and stable tags are disjoint
+  # (-canary.N, -rc.N, X.Y.Z), so they cannot collide. The only overlap: a
+  # canary resolved while an RC line is being cut keeps the previous minor,
+  # and the next canary moves on. Queue rather than cancel so each canary
+  # publishes atomically.
+  group: kura-canary-publish
   cancel-in-progress: false
 
 env:

@@ -174,10 +174,11 @@ fn main() {
     let grpc_url = std::env::var("TUIST_CAS_REMOTE_GRPC_URL").unwrap_or_default();
     let tokens = TokenProvider::from_env();
     // Resolve the upstream via the shared `upstream_path()` so the proxy gets the
-    // same `xcode-select` fallback as the plugin. The proxy is launched by
-    // launchd/`tuist cache-proxy` with no DEVELOPER_DIR, so without this it would
-    // fall back to the hardcoded `/Applications/Xcode.app` and fail to load
-    // Apple's plugin on any versioned Xcode install (every resolve then misses).
+    // same `xcode-select` fallback as the plugin. `tuist setup cache` hands the
+    // launchd proxy the Xcode it resolved as DEVELOPER_DIR, but a proxy started
+    // any other way may have none, so without this it would fall back to the
+    // hardcoded `/Applications/Xcode.app` and fail to load Apple's plugin on any
+    // versioned Xcode install (every resolve then misses).
     let upstream_plugin = tuist_cas_plugin::upstream_path();
     let registry_path = std::env::var("TUIST_CAS_PROXY_REGISTRY")
         .unwrap_or_else(|_| format!("{socket_path}.registry"));
@@ -238,6 +239,14 @@ fn main() {
         if !stats.is_empty() {
             tuist_cas_plugin::log_line(&format!("proxy stats: {stats}"));
         }
+    });
+
+    // Store work that has not returned is reported from a thread of its own:
+    // the maintenance loop above does store work itself, and could be the
+    // thing that is stuck.
+    std::thread::spawn(move || loop {
+        std::thread::sleep(tuist_cas_plugin::proxy::STORE_STALL_CHECK_INTERVAL);
+        proxy.report_stalled_store_work();
     });
 
     // Endpoint resolution on a tick of its own, shorter than the sweep's: a
