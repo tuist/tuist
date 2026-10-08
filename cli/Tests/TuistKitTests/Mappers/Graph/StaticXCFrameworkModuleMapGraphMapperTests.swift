@@ -2725,6 +2725,37 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_removeOtherSwiftDuplicates_preservesCASPluginOptions() {
+        // Given
+        let settings: SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": .array(
+                [
+                    "$(inherited)",
+                    "-cas-plugin-option", "tuist-instance=tuist/tuist",
+                    "-cas-plugin-option", "tuist-upload=false",
+                    "-cas-plugin-option", "tuist-instance=tuist/tuist",
+                ]
+            ),
+        ]
+
+        // When
+        let got = settings.removeOtherSwiftFlagsDuplicates()
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                "OTHER_SWIFT_FLAGS": .array(
+                    [
+                        "$(inherited)",
+                        "-cas-plugin-option", "tuist-instance=tuist/tuist",
+                        "-cas-plugin-option", "tuist-upload=false",
+                    ]
+                ),
+            ]
+        )
+    }
+
     func test_removeOtherSwiftDuplicates_when_conditioned_key() {
         // Given
         let settings: SettingsDictionary = [

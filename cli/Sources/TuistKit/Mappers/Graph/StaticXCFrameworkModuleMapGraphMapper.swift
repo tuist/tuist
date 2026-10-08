@@ -821,7 +821,8 @@ extension String {
         starts(with: "-X") ||
             self == "-I" ||
             self == "-enable-upcoming-feature" ||
-            self == "-enable-experimental-feature"
+            self == "-enable-experimental-feature" ||
+            self == "-cas-plugin-option"
     }
 
     fileprivate func resolvingSrcRootPath(
