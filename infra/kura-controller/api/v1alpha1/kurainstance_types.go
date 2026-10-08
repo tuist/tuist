@@ -416,6 +416,8 @@ type ReplicaRecoveryRequest struct {
 }
 
 type ReplicaRecoveryStatus struct {
+	// TargetPodUID records the exact original or unscheduled replacement pod to delete.
+	TargetPodUID      string                 `json:"targetPodUID,omitempty"`
 	SourceIncarnation string                 `json:"sourceIncarnation"`
 	Request           ReplicaRecoveryRequest `json:"request"`
 	Phase             string                 `json:"phase"`

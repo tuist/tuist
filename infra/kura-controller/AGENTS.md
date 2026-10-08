@@ -5,7 +5,11 @@ This module contains the Kubernetes controller that reconciles Kura account endp
 ## Scope
 - Opt-in phase-one serving/recovery: [serving-authority.md](serving-authority.md).
   Durable CAS epochs and positive fencing own activated instances. Missing-node
-  detection never resets an entire StatefulSet. Persist immutable recovery
+  detection never resets an activated StatefulSet. Legacy instances keep their
+  existing automatic stale-storage recreation, including colocated host loss.
+  Missing authority probes never renew or revoke a still-valid grant; expiry
+  or explicit refusal requires fencing. Validate recovery before reserving the
+  rebuild slot, and journal a PodGC replacement UID before deleting it. Persist immutable recovery
   identities, retain the healthy sibling, quarantine the failed PV, and preserve
   `OnDelete`/rollback-floor holds across every maintenance path.
 

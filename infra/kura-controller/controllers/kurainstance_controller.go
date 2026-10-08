@@ -3767,16 +3767,65 @@ func (r *KuraInstanceReconciler) reclaimDataVolumes(ctx context.Context, instanc
 	return nil
 }
 
-// reconcileStaleDataStorage holds unsafe automatic recovery. A missing Node is
-// not evidence of permanent loss, and storage-class drift is not authorization
-// to erase a cache. Explicit recovery uses the one-replica journal instead.
+// Activated instances require explicit fenced recovery. Legacy instances retain
+// their automatic stale-storage recreation until they opt into serving authority.
 func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
 	reason, err := r.staleDataStorageReason(ctx, instance)
 	if err != nil || reason == "" {
 		return false, err
 	}
-	log.FromContext(ctx).Info("holding Kura storage recovery; explicit fenced replica recovery required", "reason", reason)
-	return true, r.holdRecoveryRollout(ctx, instance)
+	if fencedServing(instance) {
+		log.FromContext(ctx).Info("holding Kura storage recovery; explicit fenced replica recovery required", "reason", reason)
+		return true, r.holdRecoveryRollout(ctx, instance)
+	}
+	log.FromContext(ctx).Info("recreating Kura StatefulSet for stale data storage", "reason", reason)
+
+	// Reap the backing volumes rather than strand them: the default
+	// hcloud-volumes StorageClass retains the Hetzner volume when its PVC is
+	// deleted, so flip each bound PV to Delete first. This must run BEFORE the
+	// StatefulSet delete: whenDeleted: Delete owner-references the PVCs to the
+	// StatefulSet, so a foreground delete can garbage-collect the PVCs (and
+	// release their PVs under Retain) before reclaimDataVolumes lists them,
+	// which would strand exactly the volumes this is meant to reclaim. Flipping
+	// while the PVCs are still Bound guarantees the CSI driver deletes the
+	// Hetzner volume once the PVC is removed.
+	if err := r.reclaimDataVolumes(ctx, instance); err != nil {
+		return false, err
+	}
+	// Delete the StatefulSet so it stops backing the stale PVCs, then the PVCs
+	// themselves, then the pods that hold them. All three deletions are
+	// idempotent; staleDataStorageReason keeps returning a reason (so the caller
+	// keeps requeuing) until the objects are gone, which is what stops the
+	// recreated StatefulSet from adopting them.
+	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
+	if err := r.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil && !apierrors.IsNotFound(err) {
+		return false, err
+	}
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		pvc := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("data-%s-%d", instance.Name, ordinal),
+			Namespace: instance.Namespace,
+		}}
+		if err := r.Delete(ctx, pvc); err != nil && !apierrors.IsNotFound(err) {
+			return false, err
+		}
+		// The pod as well, rather than trusting the foreground delete above to
+		// collect it. A pod this StatefulSet no longer owns is not a dependent,
+		// so nothing cascades to it -- and one whose ownership was stripped by
+		// the resize path's Orphan re-template is exactly the pod most likely to
+		// be standing here. It holds the claim open through the pvc-protection
+		// finalizer, so leaving it running leaves a PVC that can never finish
+		// terminating, and above that a reason that can never clear. This path
+		// is taking the instance down by design; the pod is going either way.
+		pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%d", instance.Name, ordinal),
+			Namespace: instance.Namespace,
+		}}
+		if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 // statefulSetAbsent reports whether the instance's StatefulSet is gone or on its

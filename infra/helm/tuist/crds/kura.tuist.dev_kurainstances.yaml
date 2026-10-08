@@ -355,6 +355,8 @@ spec:
                     sourceUID:
                       type: string
                       minLength: 1
+                    targetPodUID:
+                      type: string
                     sourceIncarnation:
                       type: string
                       minLength: 1

@@ -3,6 +3,9 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"testing"
+	"time"
+
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,8 +15,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"testing"
-	"time"
 )
 
 func authorityFixture(t *testing.T) (*ServingAuthorityReconciler, *kurav1alpha1.KuraInstance, map[string]runtimeStatus) {
@@ -56,6 +57,8 @@ func TestAuthorityNeverPromotesOnTimeoutAndRequiresExactPositiveFence(t *testing
 		t.Fatal(grant)
 	}
 	delete(statuses, "test-0")
+	grant.ExpiresMS = time.Now().UnixMilli() + 1000
+	writeAuthorityGrant(t, r, grant)
 	grant = authorityStep(t, r)
 	if grant.Phase != "Fencing" {
 		t.Fatal(grant)
@@ -165,5 +168,94 @@ func TestHandoverDeadlineAbortsWithoutChangingEpoch(t *testing.T) {
 	next := authorityStep(t, r)
 	if next.Epoch != 1 || next.Phase != "Serving" || next.Handover != nil || next.LastHandover != "timeout" {
 		t.Fatal(next)
+	}
+}
+
+func writeAuthorityGrant(t *testing.T, r *ServingAuthorityReconciler, grant servingGrant) {
+	t.Helper()
+	cm := &corev1.ConfigMap{}
+	if err := r.Get(context.Background(), types.NamespacedName{Name: "test-serving", Namespace: "test"}, cm); err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(grant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cm.Data["grant"] = string(data)
+	if err := r.Update(context.Background(), cm); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAuthorityObservationGapDoesNotRevokeOrRenewValidGrant(t *testing.T) {
+	for _, phase := range []string{"Serving", "Quiescing"} {
+		for _, gap := range []string{"probe", "readiness"} {
+			t.Run(phase+"/"+gap, func(t *testing.T) {
+				r, _, statuses := authorityFixture(t)
+				grant := authorityStep(t, r)
+				grant.Phase = phase
+				if phase == "Quiescing" {
+					grant.Handover = &handoverIntent{ID: "handover", Destination: statuses["test-1"].ServingAuthority.Identity, DeadlineMS: time.Now().UnixMilli() + 300000}
+				}
+				// Renewal is due, but an unobserved holder must not receive an extension.
+				grant.ExpiresMS = time.Now().UnixMilli() + 9000
+				writeAuthorityGrant(t, r, grant)
+				sample := statuses["test-0"]
+				pod := &corev1.Pod{}
+				if err := r.Get(context.Background(), types.NamespacedName{Name: "test-0", Namespace: "test"}, pod); err != nil {
+					t.Fatal(err)
+				}
+				if gap == "probe" {
+					delete(statuses, "test-0")
+				} else {
+					pod.Status.Conditions[0].Status = corev1.ConditionFalse
+					if err := r.Status().Update(context.Background(), pod); err != nil {
+						t.Fatal(err)
+					}
+				}
+				next := authorityStep(t, r)
+				if next.Phase != phase || next.Epoch != grant.Epoch || next.ExpiresMS != grant.ExpiresMS {
+					t.Fatalf("observation gap changed valid grant: %+v", next)
+				}
+				statuses["test-0"] = sample
+				pod.Status.Conditions[0].Status = corev1.ConditionTrue
+				if err := r.Status().Update(context.Background(), pod); err != nil {
+					t.Fatal(err)
+				}
+				next = authorityStep(t, r)
+				if next.Phase != phase || next.Epoch != grant.Epoch || next.Holder != grant.Holder || next.ExpiresMS <= grant.ExpiresMS {
+					t.Fatalf("same holder did not resume renewal: %+v", next)
+				}
+				delete(statuses, "test-0")
+				next.ExpiresMS = time.Now().UnixMilli() + 1000
+				writeAuthorityGrant(t, r, next)
+				next = authorityStep(t, r)
+				if next.Phase != "Fencing" || next.Epoch != grant.Epoch || next.Holder != grant.Holder {
+					t.Fatalf("expiry did not fence original holder: %+v", next)
+				}
+			})
+		}
+	}
+}
+
+func TestAuthorityExplicitRefusalFencesWithoutWaitingForExpiry(t *testing.T) {
+	for _, phase := range []string{"Serving", "Quiescing"} {
+		t.Run(phase, func(t *testing.T) {
+			r, _, statuses := authorityFixture(t)
+			grant := authorityStep(t, r)
+			grant.Phase = phase
+			if phase == "Quiescing" {
+				grant.Handover = &handoverIntent{ID: "handover"}
+			}
+			writeAuthorityGrant(t, r, grant)
+			sample := statuses["test-0"]
+			sample.ServingAuthority.Observed = &grant
+			sample.ServingAuthority.Valid = false
+			statuses["test-0"] = sample
+			next := authorityStep(t, r)
+			if next.Phase != "Fencing" || next.Epoch != grant.Epoch {
+				t.Fatalf("explicit refusal ignored: %+v", next)
+			}
+		})
 	}
 }

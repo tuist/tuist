@@ -95,14 +95,8 @@ func (r *KuraInstanceReconciler) reconcileReplicaRecovery(ctx context.Context, i
 	if source == nil {
 		return true, nil
 	}
-	if err := r.acquireRecoverySlot(ctx, instance, request.ID); err != nil {
-		return true, err
-	}
 	if progress != nil && progress.Phase != "Verified" && (progress.SourcePod != source.Name || progress.SourceUID != string(source.UID) || progress.SourceIncarnation != samples[source.Name].ServingAuthority.Identity.Incarnation) {
 		return true, fmt.Errorf("recovery source incarnation changed; explicit investigation required")
-	}
-	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
-		return true, err
 	}
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvcName := "data-" + request.PodName
@@ -126,21 +120,29 @@ func (r *KuraInstanceReconciler) reconcileReplicaRecovery(ctx context.Context, i
 			return true, fmt.Errorf("recovery volume must be pinned exclusively to the declared fenced host")
 		}
 		target := &corev1.Pod{}
-		if err := r.Get(ctx, types.NamespacedName{Name: request.PodName, Namespace: instance.Namespace}, target); err != nil {
-			return true, err
+		targetErr := r.Get(ctx, types.NamespacedName{Name: request.PodName, Namespace: instance.Namespace}, target)
+		if targetErr != nil && !apierrors.IsNotFound(targetErr) {
+			return true, targetErr
 		}
-		if string(target.UID) != request.PodUID || target.Spec.NodeName != request.HostName {
-			return true, fmt.Errorf("recovery pod identity mismatch")
+		if targetErr == nil {
+			if err := r.validateRecoveryPod(ctx, instance, target, request, pvcName); err != nil {
+				return true, err
+			}
 		}
-		if target.Name == primary {
+		if request.PodName == primary {
 			return true, fmt.Errorf("fence and promote the survivor before rebuilding the old primary")
 		}
-		progress = &kurav1alpha1.ReplicaRecoveryStatus{Request: *request, Phase: "Quarantining", SourcePod: source.Name, SourceUID: string(source.UID), PVCName: pvcName, PVName: pv.Name, StartedAt: time.Now().UTC().Format(time.RFC3339)}
+		progress = &kurav1alpha1.ReplicaRecoveryStatus{TargetPodUID: string(target.UID), Request: *request, Phase: "Quarantining", SourcePod: source.Name, SourceUID: string(source.UID), PVCName: pvcName, PVName: pv.Name, StartedAt: time.Now().UTC().Format(time.RFC3339)}
 		progress.SourceIncarnation = samples[source.Name].ServingAuthority.Identity.Incarnation
-		if err := r.reconcileStatefulSet(ctx, instance); err != nil {
-			return true, err
-		}
 		return true, r.saveReplicaRecovery(ctx, instance, progress)
+	}
+	// Persist the validated journal before reserving capacity. Invalid requests
+	// and failed initial status writes cannot strand the namespace rebuild slot.
+	if err := r.acquireRecoverySlot(ctx, instance, request.ID); err != nil {
+		return true, err
+	}
+	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+		return true, err
 	}
 	next := *progress
 	switch progress.Phase {
@@ -177,7 +179,20 @@ func (r *KuraInstanceReconciler) reconcileReplicaRecovery(ctx context.Context, i
 		if err != nil && !apierrors.IsNotFound(err) {
 			return true, err
 		}
-		if err == nil && string(target.UID) == request.PodUID {
+		if err == nil {
+			expectedUID := progress.TargetPodUID
+			if expectedUID == "" {
+				expectedUID = request.PodUID // Journals created before replacement tracking.
+			}
+			if err := r.validateRecoveryPod(ctx, instance, target, request, progress.PVCName); err != nil {
+				return true, err
+			}
+			if string(target.UID) != expectedUID {
+				// PodGC may replace the pod after the journal was written. Persist
+				// that exact unscheduled identity before any delete on the next pass.
+				next.TargetPodUID = string(target.UID)
+				return true, r.saveReplicaRecovery(ctx, instance, &next)
+			}
 			// Force deletion is permitted only by the persisted positive fence declaration.
 			options := recoveryDeleteOptions(target)
 			options.GracePeriodSeconds = ptr(int64(0))
@@ -211,6 +226,32 @@ func (r *KuraInstanceReconciler) reconcileReplicaRecovery(ctx context.Context, i
 		return true, fmt.Errorf("unknown replica recovery phase %q", progress.Phase)
 	}
 	return true, r.saveReplicaRecovery(ctx, instance, &next)
+}
+
+// A replacement created after PodGC is safe to remove only while unscheduled,
+// owned by this StatefulSet, and still mounting the old ordinal's claim. The
+// request retains the original fenced pod identity; status tracks deletion.
+func (r *KuraInstanceReconciler) validateRecoveryPod(ctx context.Context, instance *kurav1alpha1.KuraInstance, pod *corev1.Pod, request *kurav1alpha1.ReplicaRecoveryRequest, pvcName string) error {
+	if string(pod.UID) == request.PodUID && pod.Spec.NodeName == request.HostName {
+		return nil
+	}
+	if pod.Spec.NodeName != "" || pod.Status.Phase != corev1.PodPending {
+		return fmt.Errorf("recovery pod identity mismatch")
+	}
+	sts := &appsv1.StatefulSet{}
+	if err := r.Get(ctx, client.ObjectKeyFromObject(instance), sts); err != nil {
+		return err
+	}
+	owner := metav1.GetControllerOf(pod)
+	if owner == nil || owner.Kind != "StatefulSet" || owner.Name != instance.Name || owner.UID != sts.UID || sts.UID == "" {
+		return fmt.Errorf("recovery replacement is not owned by the instance StatefulSet")
+	}
+	for _, volume := range pod.Spec.Volumes {
+		if volume.Name == "data" && volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName == pvcName {
+			return nil
+		}
+	}
+	return fmt.Errorf("recovery replacement does not mount the declared claim")
 }
 
 // One namespace-wide rebuild is deliberately stricter than per-host limits.

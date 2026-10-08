@@ -202,7 +202,7 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		grant = servingGrant{Epoch: 1, Holder: holder, PodName: candidate, Phase: "Serving", ExpiresMS: now + 15000, Reason: "Initial fenced activation"}
 	case "Serving":
 		sourceReport := samples[grant.PodName].ServingAuthority
-		if sourceReport.Observed != nil && sourceReport.Observed.Epoch == grant.Epoch && !sourceReport.Valid {
+		if sourceReport.Identity == grant.Holder && sourceReport.Observed != nil && sourceReport.Observed.Epoch == grant.Epoch && !sourceReport.Valid {
 			grant.Phase, grant.Reason = "Fencing", "Holder reports expired or refused authority; positive fencing required"
 			break
 		}
@@ -223,6 +223,9 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 				return result, nil
 			}
 			grant.ExpiresMS = now + 15000
+		} else if now < grant.ExpiresMS-2000 {
+			// Missing observations do not revoke a still-valid grant or renew it.
+			return result, nil
 		} else {
 			grant.Phase, grant.Reason = "Fencing", "Holder unavailable or expired; positive fencing required; asynchronous tail may be lost"
 		}
@@ -231,9 +234,14 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			return result, fmt.Errorf("missing handover intent")
 		}
 		source, fresh := samples[grant.PodName]
-		if !fresh || source.ServingAuthority.Identity != grant.Holder || now >= grant.ExpiresMS-2000 {
+		report := source.ServingAuthority
+		refused := fresh && report.Identity == grant.Holder && report.Observed != nil && report.Observed.Epoch == grant.Epoch && !report.Valid
+		if refused || now >= grant.ExpiresMS-2000 {
 			grant.Phase, grant.Reason = "Fencing", "Source lost during handover; positive fencing required"
 			break
+		}
+		if holder, ready := holders[grant.PodName]; !fresh || !ready || holder != grant.Holder {
+			return result, nil
 		}
 		if now >= grant.Handover.DeadlineMS {
 			grant.LastHandover, grant.Handover, grant.Phase, grant.Reason = grant.Handover.ID, nil, "Serving", "Handover preparation timed out; retained old primary"

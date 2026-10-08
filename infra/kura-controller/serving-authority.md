@@ -4,7 +4,10 @@ This is the opt-in phase-one boundary of Atlas spec 98. The default is still
 `ColocatedLegacy`. Enable the controller's `--serving-authority` and set only a
 qualified instance's `spec.servingMode` to `PositiveFenceV1`. The server's
 default-off `kura_positive_fence` account flag renders that intent and a manifest
-revision suffix. No managed environment enables instances automatically.
+revision suffix. No managed environment enables instances automatically. Legacy instances keep
+the existing automatic whole-StatefulSet/claim recreation for stale storage,
+including colocated host loss; preserving a healthy sibling through explicit
+fenced recovery applies only after activation.
 
 ## Authority and failure contract
 
@@ -22,7 +25,11 @@ A separate reconciliation queue renews 15-second grants. The runtime polls with
 a one-second request timeout on a dedicated OS thread. It checks wall-clock and
 monotonic deadlines with a two-second safety allowance. Admission and metadata
 publication are checked separately, including detached blocking commits and
-success acknowledgments on existing HTTP/2 and gRPC channels.
+success acknowledgments on existing HTTP/2 and gRPC channels. A missed status
+probe or readiness flap leaves a still-valid grant unchanged, without extending
+it, during both serving and handover preparation. Renewal resumes only when the
+same holder is observed healthy before the two-second safety boundary. Expiry
+or an explicit refusal from that holder requires positive fencing.
 
 There is **no automatic promotion on lease expiry** and no 30-second partition
 RTO claim. Arbitrary OS/disk pauses inside publication cannot be proven bounded.
@@ -78,7 +85,19 @@ failed PV `Retain` and `kura.tuist.dev/recovery-quarantine`, deletes only the
 recorded claim and pod with UID/resource-version preconditions, then waits for a
 new bound claim and a ready, bootstrapped replacement on a third host. The
 healthy sibling, its claim and its volume are never reset. Missing-node and
-storage-class drift detection only holds rollout for investigation.
+storage-class drift detection only holds rollout for investigation on activated
+instances (including instances with a sticky rollback floor).
+
+If PodGC has removed the failed pod, recovery accepts its absence or an
+unscheduled Pending replacement owned by the same StatefulSet and mounting the
+declared claim. The original PVC/PV/host identities must still match. The journal
+keeps the original fenced pod UID and separately records the exact replacement
+UID before deletion, including replacements created while recovery is running.
+A scheduled replacement or different claim/owner is rejected.
+
+Validation and journal persistence precede acquisition of the rebuild slot, so
+invalid requests do not block corrected requests with new IDs. An in-flight
+journal remains immutable; withdrawing it does not authorize another rebuild.
 
 One non-expiring namespace-wide Lease serializes all rebuilds, deliberately
 stricter than separate source/destination host limits. Controller restart retains
