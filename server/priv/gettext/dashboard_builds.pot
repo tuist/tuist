@@ -835,7 +835,7 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:980
+#: lib/tuist_web/live/bazel_invocation_live.ex:981
 #: lib/tuist_web/live/build_run_live.ex:1234
 #: lib/tuist_web/live/build_run_live.html.heex:260
 #: lib/tuist_web/live/build_run_live.html.heex:602
