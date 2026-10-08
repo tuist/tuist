@@ -722,6 +722,31 @@ k8s-monitoring:
         }
       }
 
+      // The same sampling for the HAProxy gateways, whose access lines are
+      // HAProxy's HTTP log format: the status follows the timers.
+      stage.match {
+        selector = "{service_name=~\"kura-.*-haproxy\"}"
+
+        stage.regex {
+          expression = "^\\S+ \\[[^]]+\\] \\S+ \\S+ \\S+ (?P<response_status>[0-9]{3}) "
+        }
+
+        stage.labels {
+          values = {
+            tmp_response_status = "response_status",
+          }
+        }
+      }
+
+      stage.match {
+        selector = "{service_name=~\"kura-.*-haproxy\", tmp_response_status=~\"2[0-9]{2}|404\"}"
+
+        stage.sampling {
+          rate = 0.01
+          drop_counter_reason = "kura_ingress_request_sampling"
+        }
+      }
+
       stage.label_drop {
         values = ["tmp_response_status"]
       }
@@ -2009,6 +2034,81 @@ k8s-monitoring:
           rule {
             source_labels = ["__name__"]
             regex = "nginx_ingress_controller_requests|up|scrape_samples_scraped"
+            action = "keep"
+          }
+        }
+
+        // Regional Kura HAProxy gateways (`kura-<region>-haproxy`), replacing
+        // the nginx ones above region by region. Each Kura instance owns two
+        // backends, `kura_<instance>-haproxy_http` and
+        // `kura_<instance>-haproxy_grpc-h2`. Kept to the response counters and
+        // the count of servers passing their /ready check, which is the
+        // gateway's own view of whether an instance can serve.
+        discovery.kubernetes "tuist_kura_haproxy" {
+          role = "pod"
+          namespaces {
+            names = ["platform"]
+          }
+          selectors {
+            role = "pod"
+            label = "tuist.dev/kura-haproxy-gateway=true"
+          }
+        }
+
+        discovery.relabel "tuist_kura_haproxy" {
+          targets = discovery.kubernetes.tuist_kura_haproxy.targets
+          rule {
+            source_labels = ["__meta_kubernetes_pod_phase"]
+            regex = "Running"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_port_name"]
+            regex = "stat"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_ip"]
+            target_label = "__address__"
+            replacement = "$1:1024"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label = "node"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            regex = "kura-(.+)-haproxy"
+            target_label = "kura_gateway"
+            replacement = "$1"
+          }
+        }
+
+        prometheus.scrape "tuist_kura_haproxy" {
+          targets = discovery.relabel.tuist_kura_haproxy.output
+          forward_to = [prometheus.relabel.tuist_kura_haproxy.receiver]
+          job_name = "kura-haproxy"
+          scrape_interval = "60s"
+          scrape_timeout = "10s"
+
+          clustering {
+            enabled = true
+          }
+        }
+
+        prometheus.relabel "tuist_kura_haproxy" {
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          rule {
+            source_labels = ["__name__"]
+            regex = "haproxy_backend_http_responses_total|haproxy_backend_active_servers|haproxy_frontend_http_responses_total|up|scrape_samples_scraped"
             action = "keep"
           }
         }

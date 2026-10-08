@@ -297,6 +297,7 @@ defmodule Tuist.Kura.Regions do
       node_pool: "kura-ca-east",
       storage_class: "scw-local-nvme",
       gateway: :host_network,
+      haproxy_gateway: true,
       replicas: 2,
       # Egress governance on the shared box (SYS-1 ~1 Gbit/s NIC): the
       # enterprise per-tenant floor (uniform across regions) is bin-packed as the
@@ -388,6 +389,7 @@ defmodule Tuist.Kura.Regions do
       node_pool: "kura-sa-west",
       storage_class: "scw-local-nvme",
       gateway: :host_network,
+      haproxy_gateway: true,
       replicas: 2,
       # Egress governance on the shared box. Unlike the OVH and Dedibox regions,
       # which buy unmetered public bandwidth, this plan meters a 10 TB/month
@@ -997,6 +999,7 @@ defmodule Tuist.Kura.Regions do
         grpc_public_host_template: String.replace(@managed_region_grpc_public_host_template, "{env_suffix}", host_suffix),
         peer_public_host_template: String.replace(@managed_region_peer_public_host_template, "{env_suffix}", host_suffix),
         ingress_class_name: spec.ingress_class_name,
+        haproxy_ingress_class_name: haproxy_ingress_class_name(spec),
         storage_class: Map.get(spec, :storage_class, @managed_region_storage_class),
         gateway: Map.get(spec, :gateway, :hetzner),
         # The region's public peer failover IP (bare-metal regions only): the
@@ -1053,6 +1056,13 @@ defmodule Tuist.Kura.Regions do
     }
   end
 
+  # A region serves through its HAProxy gateway once `haproxy_gateway` is set.
+  # The platform chart must already run the region's `kura-<region>-haproxy`
+  # gateway, and the region keeps its nginx Ingresses until the chart moves
+  # :443 to HAProxy.
+  defp haproxy_ingress_class_name(%{haproxy_gateway: true, ingress_class_name: class}), do: class <> "-haproxy"
+  defp haproxy_ingress_class_name(_spec), do: nil
+
   # Burst ceiling: a Cilium bandwidth-manager egress cap so one tenant pod
   # can't monopolize the shared box NIC. Set on every region that declares an
   # `egress_burst_mbps`; empty on the Hetzner cloud regions, whose NIC is not
@@ -1105,6 +1115,7 @@ defmodule Tuist.Kura.Regions do
             do: "{account_handle}-{cluster_id}-runners#{managed_region_host_suffix()}.kura.tuist.dev"
           ),
         ingress_class_name: Map.get(spec, :ingress_class_name),
+        haproxy_ingress_class_name: haproxy_ingress_class_name(spec),
         client_cidrs: Map.get(spec, :client_cidrs, []),
         pod_annotations: egress_bandwidth_pod_annotations(spec),
         egress_burst_mbps: Map.get(spec, :egress_burst_mbps),

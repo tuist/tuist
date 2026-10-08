@@ -449,6 +449,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(endpoint_handle, region)),
           "clientHostAliases" => if(owns_public_endpoints?(server), do: client_host_aliases(account, region)),
           "ingressClassName" => ingress_class_name(region),
+          "haproxyIngressClassName" => haproxy_ingress_class_name(region),
           "publicHostNetwork" => public_host_network?(region),
           "peerTLSSecretName" => peer_tls_secret_name(region),
           "mesh" => mesh_enabled?(region),
@@ -549,6 +550,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp ingress_class_name(_region), do: nil
 
+  defp haproxy_ingress_class_name(%Regions{provisioner_config: %{haproxy_ingress_class_name: class}})
+       when is_binary(class) and class != "", do: class
+
+  defp haproxy_ingress_class_name(_region), do: nil
+
   defp peer_tls_secret_name(%Regions{provisioner_config: %{peer_tls_secret_name: secret_name}})
        when is_binary(secret_name) and secret_name != "", do: secret_name
 
@@ -647,7 +653,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       cpu_revision_suffix(entitlements) <>
       memory_revision_suffix(region, entitlements) <>
       claim_revision_suffix(claim) <>
-      egress_revision_suffix(egress) <> private_endpoint_revision_suffix(region)
+      egress_revision_suffix(egress) <>
+      private_endpoint_revision_suffix(region) <>
+      haproxy_gateway_revision_suffix(region)
+  end
+
+  # Re-applies live instances when a region joins or leaves its HAProxy gateway.
+  defp haproxy_gateway_revision_suffix(region) do
+    if haproxy_ingress_class_name(region), do: "+haproxy-gw", else: ""
   end
 
   # Reapply existing private instances when replicas or their entrance changes.

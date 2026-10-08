@@ -3958,6 +3958,43 @@ a brief rollout, deliberate scale-to-zero, missing telemetry, other namespaces,
 and absent cluster labels. External probe coverage and live historical-query
 validation are still deployment checks, not consequences of those unit tests.
 
+### Kura HAProxy gateway has no healthy server for an instance
+
+**Not created yet.** Create it when the first region serves `:443` from its
+`kura-<region>-haproxy` gateway (see
+[`../platform/README.md`](../platform/README.md#haproxy-kura-gateways)).
+
+A region served by HAProxy keeps routing to its primary when the control plane
+marks the pod NotReady, because HAProxy decides with its own `/ready` checks.
+For those regions the rule above fires during a control-plane partition while
+the gateway still serves, so it describes Kubernetes' view and not the
+customer's. This rule is the gateway's view: the instance's HTTP backend has no
+server passing its check.
+
+```promql
+min by (cluster, kura_gateway, proxy) (
+  haproxy_backend_active_servers{job="kura-haproxy", proxy=~"kura_.+-haproxy_http"}
+) == 0
+```
+
+- Pending period: **2 minutes**; severity: **critical**; `affected_service=Cache`.
+- Route it the same way as the rule above.
+- The metrics leave the box through the same link a partition cuts, so a
+  partitioned region shows as no data. Keep the rule's no-data state visible
+  rather than mapping it to normal.
+
+The gateway's server-error ratio replaces the nginx one per region:
+
+```promql
+sum by (cluster, kura_gateway) (rate(haproxy_backend_http_responses_total{job="kura-haproxy", code="5xx"}[5m]))
+/
+sum by (cluster, kura_gateway) (rate(haproxy_backend_http_responses_total{job="kura-haproxy"}[5m]))
+> 0.05
+```
+
+Access logs are under `{service_name=~"kura-.*-haproxy"}` with 2xx and 404 lines
+sampled at 1%, as for the nginx gateways.
+
 ### Kura instance below its replica count
 
 Catches a per-account Kura StatefulSet serving on fewer ready replicas than it

@@ -25,6 +25,12 @@ type KuraInstanceSpec struct {
 	// See https://github.com/tuist/tuist/issues/11390.
 	GRPCPublicHost   string `json:"grpcPublicHost,omitempty"`
 	IngressClassName string `json:"ingressClassName,omitempty"`
+	// HAProxyIngressClassName routes the client plane through the region's
+	// HAProxy gateway in addition to IngressClassName. The controller renders
+	// an HAProxy Ingress pair onto a Service that publishes the primary even
+	// when Kubernetes marks it NotReady, and HAProxy decides with its own
+	// /ready checks. See reconcileHAProxyGateway.
+	HAProxyIngressClassName string `json:"haproxyIngressClassName,omitempty"`
 
 	// PublicHostNetwork marks a region whose customer gateway is a host-network
 	// DaemonSet (bare-metal regions, which have no cloud LoadBalancer) rather
