@@ -59,6 +59,14 @@ Stopped guests reserve no extra growth while publication retries. A short shared
 lock records admission before creation; downloads and image creation run outside
 it. Live reservations are recovered from the durable journal after restart.
 
+Cold creation reserves one 20 GB image. Restoration and prefetch retain the
+40 GB budget for the archive and expanded image. Applying that restore budget
+to cold creation incorrectly rejects an empty custom volume on an 80 GiB host
+with a 30 GiB built-in reservation and roughly 29 GiB of resident cache data,
+even though a 20 GB image fits. Both the backend's eviction/admission check and
+the host's in-flight reservation use the cold budget. Genuine capacity pressure
+still falls back, and warm restoration still requires its larger budget.
+
 GitHub Actions, Buildkite and GitLab use the same installed client. macOS
 supports native commands and GitLab's shell executor. GitHub container jobs and
 Docker actions require Linux. A separately managed Docker VM does not inherit

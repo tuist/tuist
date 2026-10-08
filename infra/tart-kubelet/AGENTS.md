@@ -34,6 +34,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
 - Custom admission locks cover reservation only, never remote downloads or image
   creation. Count remaining growth for running VMs and recover it from journals.
   Background master prefetch is single-slot, bounded, reserved and joined at stop.
+  Reserve 20 GB for cold image creation and 40 GB for restoration/prefetch; a
+  cold request has no archive to budget beside its image.
 - Expose mailboxes while the filesystem is mounted, independently of worker
   readiness. Create pod directories before owner records and serialize owner GC.
 - Publication/reclamation runs independently of bounded per-pod mailbox workers.

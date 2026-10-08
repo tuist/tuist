@@ -45,6 +45,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - APFS admission records a reservation under the built-in lock, then releases it
   before downloads or formatting. Reserve remaining growth only for running VMs;
   retain journal recovery and bounded, separately reserved prefetch work.
+  Cold creation needs one image's capacity; restoration and prefetch also need
+  the archive budget. Keep the backend check and host reservation consistent.
 - Per-pod cleanup errors must not prevent cleanup of other fenced pods.
 - Pod cleanup checks external writer fences outside the global allocation lock,
   then rechecks the durable lease under that lock before removing a mailbox.
