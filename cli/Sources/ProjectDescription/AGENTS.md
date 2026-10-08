@@ -12,6 +12,7 @@ This module provides manifest-facing types used to describe projects, targets, a
 
 ## Invariants
 - Manifest types are `Codable`/`Equatable` and designed to be stable across versions.
+- Native package dependencies may use `runtimeDynamic` or `runtimeDynamicEmbedded` as explicit linkage hints for hosted tests. These do not change SwiftPM product linkage; existing `runtime` and `runtimeEmbedded` declarations retain their behavior.
 - `Project` maps 1:1 to `Project.swift` manifests and includes targets, schemes, settings, and packages.
 
 ## Related Context
