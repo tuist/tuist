@@ -16,6 +16,7 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -27,7 +28,8 @@ class TuistTestShardFunctionalTest {
 
     private lateinit var server: MockWebServer
     private val cacheEntries = ConcurrentHashMap<String, ByteArray>()
-    private val shardSuites = ConcurrentHashMap<Int, Map<String, List<String>>>()
+    private val shards = ConcurrentHashMap<Int, Map<String, Any>>()
+    private val shardRequestPluginVersions = CopyOnWriteArrayList<String?>()
 
     @BeforeEach
     fun setUp() {
@@ -44,17 +46,10 @@ class TuistTestShardFunctionalTest {
                     path.startsWith("/api/cache/gradle/") ->
                         cacheEntries[path]?.let { MockResponse().setBody(Buffer().write(it)) }
                             ?: MockResponse().setResponseCode(404)
-                    shardIndex != null ->
-                        MockResponse().setResponseCode(200).setBody(
-                            Gson().toJson(
-                                mapOf(
-                                    "download_url" to "",
-                                    "modules" to shardSuites.getValue(shardIndex.toInt()).keys.toList(),
-                                    "shard_plan_id" to UUID.randomUUID().toString(),
-                                    "suites" to shardSuites.getValue(shardIndex.toInt())
-                                )
-                            )
-                        )
+                    shardIndex != null -> {
+                        shardRequestPluginVersions.add(request.getHeader(PluginVersion.HEADER_NAME))
+                        MockResponse().setResponseCode(200).setBody(Gson().toJson(shards.getValue(shardIndex.toInt())))
+                    }
                     path.endsWith("/gradle/builds") ->
                         MockResponse().setResponseCode(201).setBody("""{"id":"build"}""")
                     else -> MockResponse().setResponseCode(200).setBody("{}")
@@ -72,19 +67,63 @@ class TuistTestShardFunctionalTest {
 
     @Test
     fun `runs only the suites assigned to the shard in each project`() {
-        shardSuites[0] = mapOf(":app" to listOf("com.example.FooTest"))
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest")))
 
         val result = runShard(0, "test")
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":app:test")?.outcome, result.output)
         assertEquals(setOf("com.example.FooTest"), executedSuites("app"))
+        assertEquals(null, result.task(":lib:test"), result.output)
+    }
+
+    @Test
+    fun `does not compile the tests of projects without suites in the shard`() {
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest")))
+
+        val result = runShard(0, "test")
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:compileTestJava")?.outcome, result.output)
+        assertEquals(null, result.task(":lib:compileTestJava"), result.output)
+        assertEquals(null, result.task(":lib:test"), result.output)
+    }
+
+    @Test
+    fun `runs nothing when the requested test task's project has no suites in the shard`() {
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest")))
+
+        val result = runShard(0, ":lib:test")
+
+        assertEquals(null, result.task(":lib:test"), result.output)
+        assertEquals(null, result.task(":lib:compileTestJava"), result.output)
+    }
+
+    @Test
+    fun `skips the tests of projects without suites in the shard with configuration on demand`() {
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest")))
+
+        val result = runShard(0, "test", "--configure-on-demand")
+
+        assertEquals(setOf("com.example.FooTest"), executedSuites("app"))
         assertEquals(TaskOutcome.SKIPPED, result.task(":lib:test")?.outcome, result.output)
+        assertEquals(emptySet(), executedSuites("lib"))
+    }
+
+    @Test
+    fun `does not compile the tests of projects without suites in the shard when reusing the configuration cache`() {
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest")))
+
+        runShard(0, "clean", "test", "--configuration-cache")
+        val reused = runShard(0, "clean", "test", "--configuration-cache")
+
+        assertTrue(reused.output.contains("Reusing configuration cache."), reused.output)
+        assertTrue(reused.task(":app:test") != null, reused.output)
+        assertEquals(null, reused.task(":lib:compileTestJava"), reused.output)
     }
 
     @Test
     fun `does not reuse another shard's test results from the build cache`() {
-        shardSuites[0] = mapOf(":app" to listOf("com.example.FooTest"), ":lib" to listOf("com.example.LibTest"))
-        shardSuites[1] = mapOf(":app" to listOf("com.example.BarTest"))
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest"), ":lib" to listOf("com.example.LibTest")))
+        shards[1] = assigned(mapOf(":app" to listOf("com.example.BarTest")))
 
         val first = runShard(0, "test")
         assertEquals(TaskOutcome.SUCCESS, first.task(":app:test")?.outcome, first.output)
@@ -97,7 +136,7 @@ class TuistTestShardFunctionalTest {
 
     @Test
     fun `does not reuse a shard's test results in a build without sharding`() {
-        shardSuites[0] = mapOf(":app" to listOf("com.example.FooTest"))
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest")))
 
         runShard(0, "test")
         val unsharded = run(emptyMap(), "clean", ":app:test")
@@ -109,7 +148,7 @@ class TuistTestShardFunctionalTest {
 
     @Test
     fun `reuses a shard's own test results from the build cache`() {
-        shardSuites[0] = mapOf(":app" to listOf("com.example.FooTest"))
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest")))
 
         runShard(0, "test")
         val rerun = runShard(0, "clean", "test")
@@ -117,6 +156,114 @@ class TuistTestShardFunctionalTest {
         assertEquals(TaskOutcome.FROM_CACHE, rerun.task(":app:test")?.outcome, rerun.output)
         assertTrue(rerun.output.contains("Tuist: Test sharding active"), rerun.output)
     }
+
+    @Test
+    fun `sends the plugin version the server enables the catch-all final shard for`() {
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest")))
+
+        runShard(0, "test")
+
+        assertEquals(listOf(PluginVersion.current), shardRequestPluginVersions)
+        assertTrue(PluginVersion.current != null)
+    }
+
+    @Test
+    fun `catch-all shard runs every suite outside the other shards, including suites missing from history`() {
+        shards[1] = catchAll(":app/com.example.FooTest")
+
+        val result = runShard(1, "test")
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:test")?.outcome, result.output)
+        assertEquals(setOf("com.example.BarTest"), executedSuites("app"))
+        assertEquals(TaskOutcome.SUCCESS, result.task(":lib:test")?.outcome, result.output)
+        assertEquals(setOf("com.example.LibTest"), executedSuites("lib"))
+        assertEquals(TaskOutcome.SUCCESS, result.task(":lib:compileTestJava")?.outcome, result.output)
+    }
+
+    @Test
+    fun `catch-all shard of a plan without history runs every suite`() {
+        shards[0] = catchAll()
+
+        runShard(0, "test")
+
+        assertEquals(setOf("com.example.FooTest", "com.example.BarTest"), executedSuites("app"))
+        assertEquals(setOf("com.example.LibTest"), executedSuites("lib"))
+    }
+
+    @Test
+    fun `catch-all shard does not reuse another shard's test results from the build cache`() {
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest")))
+        shards[1] = catchAll(":app/com.example.FooTest")
+
+        runShard(0, "test")
+        val catchAll = runShard(1, "clean", "test")
+
+        assertEquals(TaskOutcome.SUCCESS, catchAll.task(":app:test")?.outcome, catchAll.output)
+        assertEquals(setOf("com.example.BarTest"), executedSuites("app"))
+    }
+
+    @Test
+    fun `runs a nested class on the shard its outer class is assigned to`() {
+        writeNestedTestClass()
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.OuterTest")))
+
+        runShard(0, "test")
+
+        assertEquals(setOf("com.example.OuterTest", "com.example.OuterTest\$Inner"), executedSuites("app"))
+    }
+
+    @Test
+    fun `catch-all shard excludes the nested classes of a suite assigned to another shard`() {
+        writeNestedTestClass()
+        shards[1] = catchAll(":app/com.example.OuterTest")
+
+        runShard(1, "test")
+
+        assertEquals(setOf("com.example.FooTest", "com.example.BarTest"), executedSuites("app"))
+    }
+
+    private fun writeNestedTestClass() {
+        val source = File(projectDir, "app/src/test/java/com/example/OuterTest.java")
+        source.writeText(
+            """
+            package com.example;
+
+            import org.junit.jupiter.api.Nested;
+            import org.junit.jupiter.api.Test;
+
+            public class OuterTest {
+                @Test
+                public void passes() {
+                }
+
+                @Nested
+                class Inner {
+                    @Test
+                    public void passes() {
+                    }
+                }
+            }
+            """.trimIndent()
+        )
+    }
+
+    private fun assigned(suites: Map<String, List<String>>): Map<String, Any> =
+        mapOf(
+            "download_urls" to emptyList<String>(),
+            "modules" to suites.keys.toList(),
+            "shard_plan_id" to UUID.randomUUID().toString(),
+            "suites" to suites,
+            "skip" to emptyList<String>()
+        )
+
+    private fun catchAll(vararg skip: String): Map<String, Any> =
+        mapOf(
+            "download_urls" to emptyList<String>(),
+            "modules" to emptyList<String>(),
+            "shard_plan_id" to UUID.randomUUID().toString(),
+            "suites" to emptyMap<String, List<String>>(),
+            "skip" to skip.toList()
+        )
 
     private fun executedSuites(project: String): Set<String> =
         File(projectDir, "$project/build/test-results/test").listFiles().orEmpty()

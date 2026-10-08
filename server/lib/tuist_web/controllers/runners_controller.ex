@@ -44,6 +44,7 @@ defmodule TuistWeb.RunnersController do
           workflow_job_id,
           on_cluster_network,
           fleet_platform,
+          Map.get(dispatched, :fleet_site),
           Map.get(dispatched, :cache_signing_grant),
           Map.get(dispatched, :volume_head)
         )
@@ -339,16 +340,17 @@ defmodule TuistWeb.RunnersController do
   #     in by `serve_claim`: can this fleet's runtime resolve and route
   #     `*.svc.cluster.local` at all (Linux kata Pods always; macOS
   #     Tart VMs only in environments that wired the tailnet route).
-  #   * locality — the fleet's platform, which
-  #     `runner_cache_endpoint_url/2` matches against the private
-  #     region's `runner_platforms`, so a node co-located with one
-  #     fleet never serves a fleet on the wrong side of a WAN.
+  #   * locality — the fleet's platform and site, which
+  #     `runner_cache_endpoint_url/3` matches against the private
+  #     region's `runner_platforms` and `site`, so a node co-located with
+  #     one fleet never serves a fleet on the wrong side of a WAN.
   defp dispatch_response(
          credential,
          account,
          workflow_job_id,
          fleet_on_cluster_network,
          fleet_platform,
+         fleet_site,
          cache_signing_grant,
          volume_head
        ) do
@@ -373,7 +375,7 @@ defmodule TuistWeb.RunnersController do
     with true <- fleet_on_cluster_network,
          true <- fleet_platform in [:linux, :macos],
          url when is_binary(url) and url != "" <-
-           Tuist.Kura.runner_cache_endpoint_url(account, fleet_platform) do
+           Tuist.Kura.runner_cache_endpoint_url(account, fleet_platform, fleet_site) do
       Map.put(base, :cache_endpoint_url, url)
     else
       _ -> base

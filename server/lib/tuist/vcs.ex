@@ -117,6 +117,9 @@ defmodule Tuist.VCS do
   Convenience overload that returns the API base URL for an installation.
   Raises if the input is not a recognised installation struct/map.
   """
+  def installation_api_url(%{client_url: client_url, api_url: api_url})
+      when is_binary(client_url) and is_binary(api_url) and api_url != "", do: api_url
+
   def installation_api_url(%GitHubAppInstallation{client_url: client_url}), do: api_url(:github, client_url)
 
   def installation_api_url(%{client_url: client_url}) when is_binary(client_url), do: api_url(:github, client_url)
@@ -158,6 +161,85 @@ defmodule Tuist.VCS do
   end
 
   def validate_client_url(_), do: {:error, :invalid_url}
+
+  @doc """
+  Validates an optional REST API base URL, including any proxy path prefix.
+  Empty values use the API derived from the browser URL. Credentials, query
+  strings, and fragments are rejected; DNS and public-IP checks run at request
+  time, just as they do for installations without an override.
+  """
+  def validate_api_url(url) when url in [nil, ""], do: {:ok, nil}
+
+  def validate_api_url(url) when is_binary(url) do
+    case String.trim(url) do
+      "" ->
+        {:ok, nil}
+
+      trimmed ->
+        with {:ok, normalized} <- validate_client_url(trimmed),
+             %URI{host: host, userinfo: nil, query: nil, fragment: nil} <- URI.parse(normalized),
+             false <- public_github_host?(host) do
+          {:ok, normalized}
+        else
+          _ -> {:error, :invalid_url}
+        end
+    end
+  end
+
+  def validate_api_url(_), do: {:error, :invalid_url}
+
+  defp public_github_host?(host) do
+    host = host |> String.downcase() |> String.trim_trailing(".")
+    host == "github.com" or String.ends_with?(host, ".github.com")
+  end
+
+  @doc """
+  Rebases an API pagination link onto the configured transport endpoint.
+  GitHub Enterprise can emit its canonical browser host in Link headers.
+  Only the configured API or canonical API origin and path prefix are accepted.
+  """
+  def github_api_request_url(url, client_url, api_url) do
+    request = URI.parse(url)
+    transport = URI.parse(api_url)
+    canonical = URI.parse(api_url(:github, client_url))
+
+    cond do
+      api_url_under_base?(request, transport) ->
+        {:ok, url}
+
+      api_url_under_base?(request, canonical) ->
+        suffix = String.replace_prefix(request.path, canonical.path || "", "")
+        {:ok, URI.to_string(%{transport | path: (transport.path || "") <> suffix, query: request.query})}
+
+      true ->
+        {:error, "GitHub API pagination URL does not match the configured instance"}
+    end
+  end
+
+  defp api_url_under_base?(%URI{userinfo: nil, fragment: nil, path: path, host: host} = request, base)
+       when is_binary(path) and is_binary(host) do
+    same_api_origin?(request, base) and safe_api_path?(path) and api_path_under_base?(path, base.path || "")
+  end
+
+  defp api_url_under_base?(_, _), do: false
+
+  defp same_api_origin?(request, base) do
+    request.scheme == base.scheme and String.downcase(request.host) == String.downcase(base.host) and
+      request.port == base.port
+  end
+
+  defp api_path_under_base?(path, prefix), do: path == prefix or String.starts_with?(path, prefix <> "/")
+
+  defp safe_api_path?(path) do
+    if Regex.match?(~r/%(?![0-9A-Fa-f]{2})/, path) do
+      false
+    else
+      path
+      |> URI.decode()
+      |> String.split(["/", "\\"])
+      |> Enum.all?(&(&1 not in [".", ".."]))
+    end
+  end
 
   @doc """
   Returns the GitHub App credentials Tuist should use to act on behalf of
@@ -206,7 +288,7 @@ defmodule Tuist.VCS do
   @doc """
   Returns the distinct GitHub Apps Tuist should act as for App-level
   operations (e.g. webhook delivery log introspection). Each item is
-  `%{credentials, api_url}`.
+  `%{credentials, api_url, client_url}`.
 
   Includes the globally-configured github.com App when the env-var
   credentials are present, plus any per-installation Apps registered
@@ -216,7 +298,7 @@ defmodule Tuist.VCS do
   def list_github_apps do
     global =
       case github_app_credentials() do
-        %{} = creds -> [%{credentials: creds, api_url: api_url(:github, nil)}]
+        %{} = creds -> [%{credentials: creds, api_url: api_url(:github, nil), client_url: default_client_url()}]
         _ -> []
       end
 
@@ -227,8 +309,11 @@ defmodule Tuist.VCS do
       |> Enum.uniq_by(fn i -> {i.app_id, i.client_url} end)
       |> Enum.map(fn installation ->
         case github_app_credentials(installation) do
-          %{} = creds -> %{credentials: creds, api_url: installation_api_url(installation)}
-          _ -> nil
+          %{} = creds ->
+            %{credentials: creds, api_url: installation_api_url(installation), client_url: installation.client_url}
+
+          _ ->
+            nil
         end
       end)
       |> Enum.reject(&is_nil/1)
@@ -1444,6 +1529,18 @@ defmodule Tuist.VCS do
     do: [__MODULE__, :webhook_installations, installation_id || "_", app_id || "_"]
 
   @doc """
+  Updates only an Enterprise installation's API transport endpoint. Changing
+  it leaves App credentials, canonical identity, and project connections intact.
+  Token and repository cache keys include the installation row and effective
+  endpoint. Cached webhook installation lookups refresh within one minute.
+  """
+  def update_github_app_api_url(%GitHubAppInstallation{} = installation, api_url) do
+    installation
+    |> GitHubAppInstallation.changeset(%{api_url: api_url})
+    |> Repo.update()
+  end
+
+  @doc """
   Updates a GitHub app installation.
   """
   def update_github_app_installation(%GitHubAppInstallation{} = github_app_installation, attrs) do
@@ -1498,7 +1595,7 @@ defmodule Tuist.VCS do
   """
   def get_github_app_installation_repositories(%GitHubAppInstallation{} = installation) do
     KeyValueStore.get_or_update(
-      [__MODULE__, "repositories", installation_api_url(installation), installation.installation_id],
+      [__MODULE__, "repositories", installation.id, installation_api_url(installation), installation.installation_id],
       [ttl: to_timeout(minute: 15)],
       fn ->
         # This can take long for organizations with a lot of repositories.
@@ -1544,7 +1641,9 @@ defmodule Tuist.VCS do
 
   Accepts an optional `:client_url` to target a self-hosted GitHub Enterprise Server instance,
   defaulting to https://github.com. Accepts an optional `:github_app_owner`
-  to register the manifest-owned App under a GitHub organization.
+  to register the manifest-owned App under a GitHub organization. An optional
+  `:api_url` overrides the REST API base URL for GHES server-side calls without
+  changing browser navigation or the canonical GitHub instance identity.
 
   For github.com, returns the direct installation URL of the
   globally-configured Tuist App. For a GHES `client_url`, returns an
@@ -1557,7 +1656,8 @@ defmodule Tuist.VCS do
   def get_github_app_installation_url(%Account{id: account_id}, opts \\ []) do
     client_url = normalize_client_url(Keyword.get(opts, :client_url))
     github_app_owner = normalize_github_app_owner(Keyword.get(opts, :github_app_owner))
-    state_token = generate_github_state_token(account_id, client_url, github_app_owner)
+    api_url = if client_url != default_client_url(), do: Keyword.get(opts, :api_url)
+    state_token = generate_github_state_token(account_id, client_url, github_app_owner, api_url)
 
     if client_url == default_client_url() do
       app_name = Environment.github_app_name()
@@ -1590,23 +1690,18 @@ defmodule Tuist.VCS do
   client URL. The token round-trips through GitHub's installation flow so we
   know which GitHub instance the resulting installation belongs to.
   """
-  def generate_github_state_token(account_id, client_url \\ default_client_url(), github_app_owner \\ nil) do
-    Phoenix.Token.sign(
-      TuistWeb.Endpoint,
-      "github_state",
-      {
-        account_id,
-        normalize_client_url(client_url),
-        normalize_github_app_owner(github_app_owner)
-      }
-    )
+  def generate_github_state_token(account_id, client_url \\ default_client_url(), github_app_owner \\ nil, api_url \\ nil) do
+    api_url = if is_binary(api_url), do: String.trim(api_url), else: api_url
+    payload = {account_id, normalize_client_url(client_url), normalize_github_app_owner(github_app_owner)}
+    payload = if api_url in [nil, ""], do: payload, else: Tuple.insert_at(payload, 3, api_url)
+    Phoenix.Token.sign(TuistWeb.Endpoint, "github_state", payload)
   end
 
   @doc """
   Verifies the state token. Returns
-  `{:ok, %{account_id: id, client_url: url, github_app_owner: owner}}` on
+  `{:ok, %{account_id: id, client_url: url, github_app_owner: owner, api_url: api_url}}` on
   success, `{:error, reason}` otherwise. Tokens generated before client_url or
-  github_app_owner were introduced are accepted with the available defaults.
+  github_app_owner or api_url were introduced are accepted with the available defaults.
   """
   def verify_github_state_token(token) do
     # 90 days
@@ -1618,33 +1713,38 @@ defmodule Tuist.VCS do
            token,
            max_age: token_max_age_seconds
          ) do
-      {:ok, {account_id, client_url, github_app_owner}}
-      when is_integer(account_id) and is_binary(client_url) ->
-        {:ok,
-         %{
-           account_id: account_id,
-           client_url: normalize_client_url(client_url),
-           github_app_owner: normalize_github_app_owner(github_app_owner)
-         }}
-
-      {:ok, {account_id, client_url}} when is_integer(account_id) and is_binary(client_url) ->
-        {:ok,
-         %{
-           account_id: account_id,
-           client_url: normalize_client_url(client_url),
-           github_app_owner: nil
-         }}
-
-      {:ok, account_id} when is_integer(account_id) ->
-        {:ok, %{account_id: account_id, client_url: default_client_url(), github_app_owner: nil}}
-
-      {:ok, _} ->
-        {:error, :invalid}
+      {:ok, payload} ->
+        decode_github_state(payload)
 
       {:error, _reason} = error ->
         error
     end
   end
+
+  defp decode_github_state({account_id, client_url, owner, api_url})
+       when is_integer(account_id) and is_binary(client_url) and (is_nil(owner) or is_binary(owner)) do
+    case validate_api_url(api_url) do
+      {:ok, normalized_api_url} ->
+        {:ok,
+         %{
+           account_id: account_id,
+           client_url: normalize_client_url(client_url),
+           github_app_owner: normalize_github_app_owner(owner),
+           api_url: normalized_api_url
+         }}
+
+      {:error, _} ->
+        {:error, :invalid}
+    end
+  end
+
+  defp decode_github_state({account_id, client_url, owner}), do: decode_github_state({account_id, client_url, owner, nil})
+  defp decode_github_state({account_id, client_url}), do: decode_github_state({account_id, client_url, nil, nil})
+
+  defp decode_github_state(account_id) when is_integer(account_id),
+    do: decode_github_state({account_id, default_client_url(), nil, nil})
+
+  defp decode_github_state(_), do: {:error, :invalid}
 
   def update_check_run(params), do: Client.update_check_run(params)
 end

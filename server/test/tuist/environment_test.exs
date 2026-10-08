@@ -3,6 +3,20 @@ defmodule Tuist.EnvironmentTest do
 
   alias Tuist.Environment
 
+  describe "parse_runners_site_pools/1" do
+    test "reads each pool's site and platform" do
+      assert Environment.parse_runners_site_pools("tuist-runner-pool-ber1=ber1:macos, pool-x=ams1:linux") == %{
+               "tuist-runner-pool-ber1" => %{site: "ber1", platform: :macos},
+               "pool-x" => %{site: "ams1", platform: :linux}
+             }
+    end
+
+    test "leaves out entries it cannot read rather than guessing" do
+      assert Environment.parse_runners_site_pools("") == %{}
+      assert Environment.parse_runners_site_pools("pool=ber1:windows,pool-y=ber1,=ber1:macos,pool-z=:macos") == %{}
+    end
+  end
+
   describe "atlas_token_issuer/1" do
     test "has no default, so Atlas tokens do not verify until it is configured" do
       assert Environment.atlas_token_issuer(%{}) == nil
