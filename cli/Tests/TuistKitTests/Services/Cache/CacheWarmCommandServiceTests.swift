@@ -218,6 +218,21 @@
                 .called(0)
         }
 
+        @Test(.inTemporaryDirectory) func run_doesNotRepublishLocalHits_whenGenerateOnly() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let path = temporaryDirectory.appending(components: "Binaries", "Fixtures.bundle")
+
+            try await run(
+                noUpload: false,
+                fetched: [CacheItem(name: "Fixtures", hash: "fixtures-hash", source: .local, cacheCategory: .binaries): path],
+                generateOnly: true
+            )
+
+            verify(cacheStorage)
+                .republish(.any, cacheCategory: .any)
+                .called(0)
+        }
+
         @Test(.inTemporaryDirectory) func run_fails_listing_the_targets_that_failed_to_upload() async throws {
             let failure = CacheUploadFailure(
                 item: CacheStorableItem(name: "Fixtures", hash: "fixtures-hash"),
@@ -577,7 +592,8 @@
             fingerprints: [String: String] = [:],
             targetProduct: Product = .bundle,
             projectSettings: Settings = .test(),
-            fetched: [CacheItem: AbsolutePath] = [:]
+            fetched: [CacheItem: AbsolutePath] = [:],
+            generateOnly: Bool = false
         ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let resolvedConfiguration = configuration ?? "Debug"
@@ -665,7 +681,7 @@
                 configuration: configuration,
                 targetsToBinaryCache: [],
                 externalOnly: false,
-                generateOnly: false,
+                generateOnly: generateOnly,
                 noUpload: noUpload,
                 cacheProfile: nil,
                 scratchDirectory: scratchDirectory?.pathString

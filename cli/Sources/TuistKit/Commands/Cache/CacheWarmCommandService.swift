@@ -224,7 +224,7 @@ import XcodeGraph
             )
             let cacheableTargets = hashedGraph.targetsToBuild
 
-            if !noUpload {
+            if !noUpload, !generateOnly {
                 try await cacheStorage.republish(hashedGraph.localHits, cacheCategory: .binaries)
             }
 
