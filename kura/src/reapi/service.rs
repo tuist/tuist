@@ -446,6 +446,26 @@ impl ReapiService {
         context: Option<&Arc<ReapiCacheAnalyticsContext>>,
         observation: ReapiCacheObservation<'_>,
     ) {
+        self.enqueue_reapi_cache_event(context, observation, None);
+    }
+
+    fn record_reapi_cache_event_with_output(
+        &self,
+        metadata: &tonic::metadata::MetadataMap,
+        namespace_id: &str,
+        observation: ReapiCacheObservation<'_>,
+        result: &reapi::ActionResult,
+    ) {
+        let context = self.reapi_cache_event_context(metadata, namespace_id);
+        self.enqueue_reapi_cache_event(context.as_ref(), observation, Some(result));
+    }
+
+    fn enqueue_reapi_cache_event(
+        &self,
+        context: Option<&Arc<ReapiCacheAnalyticsContext>>,
+        observation: ReapiCacheObservation<'_>,
+        result: Option<&reapi::ActionResult>,
+    ) {
         let (Some(analytics), Some(context)) = (self.state.analytics.as_ref(), context) else {
             return;
         };
@@ -456,6 +476,7 @@ impl ReapiService {
             operation: observation.operation,
             outcome: observation.outcome,
             action_digest: observation.digest.to_owned(),
+            output_path: result.map(action_result_output_path).unwrap_or_default(),
             size: observation.size,
             duration_us: observation
                 .duration
@@ -2060,7 +2081,7 @@ impl ActionCache for ReapiService {
         // Book usage only after the response is fully built (headers applied),
         // matching the other handlers' success-arm convention.
         self.record_reapi_download(request.metadata(), namespace_id, served_bytes);
-        self.record_reapi_cache_event(
+        self.record_reapi_cache_event_with_output(
             request.metadata(),
             namespace_id,
             ReapiCacheObservation {
@@ -2070,6 +2091,7 @@ impl ActionCache for ReapiService {
                 size: served_bytes,
                 duration: analytics_started_at.elapsed(),
             },
+            response.get_ref(),
         );
         Ok(response)
     }
@@ -2172,7 +2194,7 @@ impl ActionCache for ReapiService {
         // and bills nothing.
         if applied {
             self.record_reapi_upload(&metadata, namespace_id, manifest.size);
-            self.record_reapi_cache_event(
+            self.record_reapi_cache_event_with_output(
                 &metadata,
                 namespace_id,
                 ReapiCacheObservation {
@@ -2182,6 +2204,7 @@ impl ActionCache for ReapiService {
                     size: manifest.size,
                     duration: analytics_started_at.elapsed(),
                 },
+                response.get_ref(),
             );
         }
         Ok(response)
@@ -4582,6 +4605,24 @@ fn reapi_usage_artifact_kind(metadata: &tonic::metadata::MetadataMap) -> &'stati
     }
 }
 
+// One bounded output identifier is sufficient for optional profile correlation.
+// Never scan or clone all outputs on the cache-serving path.
+fn action_result_output_path(result: &reapi::ActionResult) -> String {
+    result
+        .output_files
+        .first()
+        .map(|file| &file.path)
+        .or_else(|| {
+            result
+                .output_directories
+                .first()
+                .map(|directory| &directory.path)
+        })
+        .filter(|path| path.len() <= 1024)
+        .cloned()
+        .unwrap_or_default()
+}
+
 #[derive(Default)]
 struct ReapiRequestMetadata {
     client_kind: String,
@@ -6283,6 +6324,7 @@ mod tests {
             operation: "cas",
             outcome: "hit",
             action_digest: "digest-a".into(),
+            output_path: String::new(),
             size: 1,
             duration_us: 2_000,
             observed_at_ms: 3,
@@ -6293,6 +6335,7 @@ mod tests {
             operation: "cas",
             outcome: "miss",
             action_digest: "digest-b".into(),
+            output_path: String::new(),
             size: 0,
             duration_us: 4_000,
             observed_at_ms: 5,
@@ -6302,6 +6345,36 @@ mod tests {
         assert_eq!(first.context.account_handle, "acme");
         assert_eq!(first.context.project_handle, "ios");
         assert_eq!(first.context.invocation_id, "invocation-1");
+        let legacy = serde_json::to_value(&first).unwrap();
+        assert!(legacy.get("output_path").is_none());
+        let mut enriched = first.clone();
+        enriched.operation = "action_cache";
+        enriched.output_path = "bazel-out/bin/main.o".into();
+        let enriched = serde_json::to_value(&enriched).unwrap();
+        assert_eq!(enriched["output_path"], "bazel-out/bin/main.o");
+        assert_eq!(enriched["event_id"], legacy["event_id"]);
+    }
+
+    #[test]
+    fn action_result_output_identifier_is_bounded_and_optional() {
+        let mut result = reapi::ActionResult::default();
+        assert_eq!(action_result_output_path(&result), "");
+        result.output_files.push(reapi::OutputFile {
+            path: "bazel-out/bin/main.o".into(),
+            ..Default::default()
+        });
+        assert_eq!(action_result_output_path(&result), "bazel-out/bin/main.o");
+        result.output_files[0].path = "x".repeat(1025);
+        assert_eq!(action_result_output_path(&result), "");
+        result.output_files.clear();
+        result.output_directories.push(reapi::OutputDirectory {
+            path: "bazel-out/bin/resources".into(),
+            ..Default::default()
+        });
+        assert_eq!(
+            action_result_output_path(&result),
+            "bazel-out/bin/resources"
+        );
     }
 
     #[test]
@@ -6354,6 +6427,7 @@ mod tests {
                         operation: "cas",
                         outcome: "hit",
                         action_digest: digest.to_owned(),
+                        output_path: String::new(),
                         size: 4_096,
                         duration_us: 1_000,
                         observed_at_ms: 1,
