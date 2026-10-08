@@ -563,15 +563,14 @@ defmodule Tuist.Tests.Coverage.Reported do
       )
 
     tests = Map.new(skipped, &{Evidence.test_scope_id(&1.module_name, &1.suite_name, &1.name), &1})
-    rows = evidence_rows(context.project.id, Map.keys(tests), Map.keys(source_runs), "test")
 
     chosen =
-      rows
-      |> Enum.group_by(& &1.scope_id)
-      |> Map.new(fn {scope_id, scope_rows} ->
-        run_id = scope_rows |> Enum.map(& &1.test_run_id) |> Enum.uniq() |> Enum.min_by(&source_rank(source_runs[&1]))
-        {scope_id, %{run_id: run_id, rows: Enum.filter(scope_rows, &(&1.test_run_id == run_id))}}
-      end)
+      nearest_evidence(
+        context.project.id,
+        evidence_runs(context.project.id, Map.keys(tests), Map.keys(source_runs), "test"),
+        source_runs,
+        "test"
+      )
 
     passed = passed(context.project.id, tests, chosen)
     suites = suite_rows(context.project.id, tests, chosen)
@@ -637,22 +636,21 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   defp carry_targets(acc, context, {by_module, hits}, source_runs, {tracked_now, validity}, modules) do
     project_id = context.project.id
-    rows = evidence_rows(project_id, modules, Map.keys(source_runs), "target")
+    held = evidence_runs(project_id, modules, Map.keys(source_runs), "target")
 
     same_hash =
       project_id
-      |> target_hashes(rows |> Enum.map(& &1.test_run_id) |> Enum.uniq())
+      |> target_hashes(held |> Enum.map(&elem(&1, 1)) |> Enum.uniq())
       |> Enum.filter(&(&1.hash == hits[&1.name]))
       |> MapSet.new(&{&1.test_run_id, &1.name})
 
     chosen =
-      rows
-      |> Enum.filter(&MapSet.member?(same_hash, {&1.test_run_id, &1.scope_id}))
-      |> Enum.group_by(& &1.scope_id)
-      |> Map.new(fn {module, module_rows} ->
-        run_id = module_rows |> Enum.map(& &1.test_run_id) |> Enum.uniq() |> Enum.min_by(&source_rank(source_runs[&1]))
-        {module, %{run_id: run_id, rows: Enum.filter(module_rows, &(&1.test_run_id == run_id))}}
-      end)
+      nearest_evidence(
+        project_id,
+        Enum.filter(held, fn {module, run_id} -> MapSet.member?(same_hash, {run_id, module}) end),
+        source_runs,
+        "target"
+      )
 
     failed = failed_targets(project_id, chosen)
     files = source_files(project_id, chosen |> Map.values() |> Enum.map(& &1.run_id) |> Enum.uniq())
@@ -746,6 +744,45 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   defp to_datetime(%DateTime{} = datetime), do: datetime
   defp to_datetime(%NaiveDateTime{} = datetime), do: DateTime.from_naive!(datetime, "Etc/UTC")
+
+  # Which of the given runs hold evidence for each of the given scopes, as
+  # `{scope_id, test_run_id}`, without reading its lines.
+  defp evidence_runs(_project_id, [], _run_ids, _kind), do: []
+  defp evidence_runs(_project_id, _scope_ids, [], _kind), do: []
+
+  defp evidence_runs(project_id, scope_ids, run_ids, kind) do
+    for runs <- Enum.chunk_every(run_ids, @run_id_chunk),
+        chunk <- Coverage.id_chunks(scope_ids, length(runs)),
+        held <-
+          ClickHouseRepo.all(
+            from(f in CoverageFile,
+              where:
+                f.project_id == ^project_id and f.scope_kind == ^kind and f.scope_id in ^chunk and
+                  f.test_run_id in ^runs,
+              distinct: true,
+              select: {f.scope_id, f.test_run_id}
+            )
+          ),
+        do: held
+  end
+
+  # Each scope's evidence from the nearest of the runs holding it, with lines
+  # read only for that run: reading every ancestor run's lines to keep one
+  # run's per scope exhausted the server's memory on large suites.
+  defp nearest_evidence(project_id, held, source_runs, kind) do
+    nearest =
+      held
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+      |> Map.new(fn {scope_id, run_ids} -> {scope_id, Enum.min_by(run_ids, &source_rank(source_runs[&1]))} end)
+
+    rows =
+      nearest
+      |> Enum.group_by(&elem(&1, 1), &elem(&1, 0))
+      |> Enum.flat_map(fn {run_id, scope_ids} -> evidence_rows(project_id, scope_ids, [run_id], kind) end)
+      |> Enum.group_by(& &1.scope_id)
+
+    Map.new(nearest, fn {scope_id, run_id} -> {scope_id, %{run_id: run_id, rows: Map.get(rows, scope_id, [])}} end)
+  end
 
   # Evidence rows of the given scopes in the given runs, each shard's latest
   # report only.

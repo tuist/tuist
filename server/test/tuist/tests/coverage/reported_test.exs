@@ -60,7 +60,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
         file("Tests/AppTests.swift", [1, 1], is_test: true)
       ],
       %{
-        git_commit_sha: "base",
+        git_commit_sha: Keyword.get(opts, :sha, "base"),
         scheme: Keyword.get(opts, :scheme, "App"),
         test_modules:
           modules([
@@ -211,6 +211,37 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "measured", covered_lines: 5, executable_lines: 7, skipped_tests_count: 0} =
              Reported.compute(project, "base")
+  end
+
+  test "carries a skipped test's lines from the nearest ancestor run that holds its evidence", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("root", [], -1),
+      CoverageFixtures.commit("base", ["root"], 0)
+    ])
+
+    root = base_run(project, account, sha: "root", trim_lines: [1, 2, 4])
+    base_run(project, account)
+    head_run(project, account, head_files())
+
+    test_pid = self()
+
+    report = fn rows ->
+      for %{scope_id: _, line_numbers: _, test_run_id: run_id} <- rows, do: send(test_pid, {:evidence_lines, run_id})
+      rows
+    end
+
+    stub(ClickHouseRepo, :all, fn query -> report.(call_original(ClickHouseRepo, :all, [query])) end)
+    stub(ClickHouseRepo, :all, fn query, opts -> report.(call_original(ClickHouseRepo, :all, [query, opts])) end)
+
+    assert %{kind: "reported", covered_lines: 5, carried_tests_count: 1, carried_from: ["base"]} =
+             Reported.compute(project, "head")
+
+    assert_received {:evidence_lines, _run_id}
+    root_id = root.id
+    refute_received {:evidence_lines, ^root_id}
   end
 
   test "carries the tests of a scheme selective testing skipped whole", %{project: project, account: account} do
