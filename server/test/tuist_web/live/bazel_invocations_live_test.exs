@@ -5,6 +5,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Bazel
+  alias Tuist.Bazel.Profile
   alias Tuist.IngestRepo
   alias Tuist.ReapiCache
   alias Tuist.ReapiCache.CacheEvent
@@ -89,7 +90,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     refute has_element?(lv, "[data-part=tabs] a", "Timeline")
 
     assert :ok =
-             Bazel.Profile.ingest(
+             Profile.ingest(
                project,
                "no-timeline",
                :zlib.gzip(
@@ -135,7 +136,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     ])
 
     assert :ok =
-             Bazel.Profile.ingest(
+             Profile.ingest(
                project,
                "timeline",
                :zlib.gzip(
@@ -587,6 +588,54 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     |> render_change(%{"search" => "no-match"})
 
     assert has_element?(live_view, "#bazel-invocation-cache-events-table", "No matching cache requests")
+  end
+
+  test "cache actions prefer profile descriptions while retaining legacy mnemonic search", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    finished_at = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+    Bazel.create_invocations([invocation_attributes(project, "NAMED-CACHE", "build", finished_at)])
+    event = project |> cache_event_attributes("NAMED-CACHE") |> Map.put(:output_path, "bazel-out/bin/App/main.o")
+    ReapiCache.create_cache_events([event])
+
+    :ok =
+      Profile.ingest(
+        project,
+        "NAMED-CACHE",
+        :zlib.gzip(
+          JSON.encode!(%{
+            otherData: %{build_id: "NAMED-CACHE"},
+            traceEvents: [
+              %{
+                ph: "X",
+                name: "Compile Sources/App.swift",
+                ts: 0,
+                dur: 1000,
+                args: %{out: "bazel-out/bin/App/main.o", target: "//App:App", mnemonic: "SwiftCompile"}
+              }
+            ]
+          })
+        )
+      )
+
+    {:ok, view, _} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/invocations/NAMED-CACHE?tab=cache&cache-sort-by=action&cache-sort-order=asc"
+      )
+
+    assert has_element?(view, "#bazel-invocation-cache-events-table", "Compile Sources/App.swift")
+    refute has_element?(view, "#bazel-invocation-cache-events-table a[href*='/blob/']")
+
+    for search <- ["Sources/App.swift", "SwiftCompile"] do
+      view |> element("#bazel-invocation-cache-search-form") |> render_change(%{"search" => search})
+      assert has_element?(view, "#bazel-invocation-cache-events-table", "Compile Sources/App.swift")
+    end
+
+    view |> element("#bazel-invocation-cache-search-form") |> render_change(%{"search" => "no-match"})
+    assert has_element?(view, "#bazel-invocation-cache-events-table", "No matching cache requests")
   end
 
   test "uses the standard empty state when an invocation has no cache requests", %{

@@ -758,8 +758,8 @@ defmodule TuistWeb.BazelInvocationLive do
             [cache_operation_flop_filter(selected_cache_view)] ++
               cache_text_flop_filters(params["cache-filter"], selected_cache_view) ++
               Filter.Operations.convert_filters_to_flop(active_cache_filters),
-          order_by: [cache_sort_field(cache_sort_by)],
-          order_directions: [sort_direction(cache_sort_order)],
+          order_by: [cache_sort_field(cache_sort_by), :id],
+          order_directions: [sort_direction(cache_sort_order), :asc],
           page: parse_page(params["page"]),
           page_size: @cache_page_size
         },
@@ -779,7 +779,7 @@ defmodule TuistWeb.BazelInvocationLive do
   defp cache_text_flop_filters(nil, _selected_cache_view), do: []
   defp cache_text_flop_filters("", _selected_cache_view), do: []
   defp cache_text_flop_filters(search, "content-objects"), do: [%{field: :action_digest, op: :=~, value: search}]
-  defp cache_text_flop_filters(search, _selected_cache_view), do: [%{field: :action_mnemonic, op: :=~, value: search}]
+  defp cache_text_flop_filters(search, _selected_cache_view), do: [%{field: :action_search, op: :=~, value: search}]
 
   defp cache_requests_empty_state?(cache_events, cache_filter, active_cache_filters) do
     Enum.empty?(cache_events) and cache_filter == "" and Enum.empty?(active_cache_filters)
@@ -806,6 +806,7 @@ defmodule TuistWeb.BazelInvocationLive do
   defp cache_hit_rate(%{hit_rate: nil}), do: "0%"
   defp cache_hit_rate(cache), do: "#{cache.hit_rate}%"
 
+  defp cache_event_action(%{action_display_name: name}) when is_binary(name) and name != "", do: name
   defp cache_event_action(%{action_mnemonic: ""}), do: dgettext("dashboard_projects", "Action cache lookup")
   defp cache_event_action(event), do: event.action_mnemonic
   defp cache_target_label(""), do: dgettext("dashboard_projects", "Unknown")
@@ -957,7 +958,7 @@ defmodule TuistWeb.BazelInvocationLive do
 
   defp cache_sort_field("target"), do: :target_label
   defp cache_sort_field("outcome"), do: :outcome
-  defp cache_sort_field("action"), do: :action_mnemonic
+  defp cache_sort_field("action"), do: :action_display_name
   defp cache_sort_field("store"), do: :operation
   defp cache_sort_field("digest"), do: :action_digest
   defp cache_sort_field("latency"), do: :duration_ms

@@ -29,6 +29,7 @@ This directory contains database migrations and other private assets.
 ## Guardrails
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
+- REAPI cache output hints default to empty strings for historical rows and older Kura nodes. Append physical ClickHouse columns in schema order; these identifiers correlate profile descriptions and are never repository source links.
 - Migration filename versions must be unique within each repository. Check for collisions against main when adding migrations, and update explicit test file references if renaming a migration.
 - Runner cache migrations create indexes concurrently with DDL transactions and
   migration locks disabled; verify both forward migration and rollback.

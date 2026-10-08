@@ -11,10 +11,13 @@ defmodule Tuist.ReapiCache.CacheEvent do
       :invocation_id,
       :action_digest,
       :action_mnemonic,
+      :action_display_name,
+      :action_search,
       :target_label,
       :inserted_at
     ],
     sortable: [
+      :id,
       :observed_at,
       :inserted_at,
       :size,
@@ -24,6 +27,7 @@ defmodule Tuist.ReapiCache.CacheEvent do
       :outcome,
       :action_digest,
       :action_mnemonic,
+      :action_display_name,
       :target_label
     ],
     default_order: %{order_by: [:inserted_at], order_directions: [:desc]}
@@ -53,5 +57,8 @@ defmodule Tuist.ReapiCache.CacheEvent do
     # field declared mid-schema shifts every value after it into the
     # wrong column.
     field :duration_us, Ch, type: "UInt64"
+    field :output_path, Ch, type: "String"
+    field :action_display_name, :string, virtual: true
+    field :action_search, :string, virtual: true
   end
 end
