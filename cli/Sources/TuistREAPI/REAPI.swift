@@ -90,6 +90,7 @@ public enum REAPICall: String, Sendable {
     case updateActionResult = "/build.bazel.remote.execution.v2.ActionCache/UpdateActionResult"
     case findMissingBlobs = "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs"
     case batchUpdateBlobs = "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs"
+    case spliceBlob = "/build.bazel.remote.execution.v2.ContentAddressableStorage/SpliceBlob"
     case byteStreamWrite = "/google.bytestream.ByteStream/Write"
 
     var service: String {

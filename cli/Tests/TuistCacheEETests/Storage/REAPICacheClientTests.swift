@@ -302,6 +302,192 @@ struct REAPICacheClientTests {
         }
     }
 
+    /// A ByteStream write is only answered once its last byte arrives, so on a slow link it outlives the response
+    /// timeout of proxies such as CDNs. Splicing keeps every request to the size of a batch.
+    @Test(.inTemporaryDirectory) func splicesLargeBlobsFromBatchedChunksInsteadOfStreamingThem() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state, splices: true), WireBytes(state: state),
+            WireCapabilities(
+                streamCompression: true, maximumBatchBytes: 2 * 1024 * 1024, splicingAverageChunkBytes: 512 * 1024
+            ),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            try await client.validateCapabilities()
+            let original = Data.splitMix(count: 6 * 1024 * 1024, seed: 1)
+            let edited = original.prefix(3 * 1024 * 1024) + Data("an edit".utf8) + original.suffix(from: 3 * 1024 * 1024)
+            var uploadedBytes: [Int] = []
+            for (name, data) in [("original", original), ("edited", edited)] {
+                let source = directory.appending(component: name).url
+                try data.write(to: source)
+                let digest = REAPI.digest(data)
+                let before = await state.updateBytes
+                let upload = try await client.uploadAvailableBlobs([digest: source])
+                #expect(upload.available == [digest])
+                #expect(await state.blobs[digest] == data)
+                uploadedBytes.append(await state.updateBytes - before)
+            }
+            #expect(uploadedBytes[0] == original.count)
+            // Content-defined boundaries realign after the edit, so the chunks around it are the only new ones.
+            #expect(uploadedBytes[1] < edited.count / 3)
+            #expect(await state.splices == 2)
+            #expect(await state.writeAttempts == 0)
+            #expect(await state.largestBatch <= 2 * 1024 * 1024)
+
+            // Like Kura, the cache does not serve a chunked blob through a compressed ByteStream read.
+            let restored = directory.appending(component: "restored").url
+            let digest = REAPI.digest(edited)
+            #expect(try await client.downloadAvailableBlobs([digest: restored]) { _ in } == [digest])
+            #expect(try Data(contentsOf: restored) == edited)
+            #expect(await state.splitCalls == 1)
+            #expect(await state.readOffsets[digest] == nil)
+            let streamed = directory.appending(component: "streamed").url
+            try await client.downloadBlob(digest, to: streamed)
+            #expect(try Data(contentsOf: streamed) == edited)
+            #expect(await state.readOffsets[digest] == [0, 0])
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func streamsLargeBlobsTheCacheStoresWhole() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state, splices: true), WireBytes(state: state),
+            WireCapabilities(
+                streamCompression: true, maximumBatchBytes: 2 * 1024 * 1024, splicingAverageChunkBytes: 512 * 1024
+            ),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            try await client.validateCapabilities()
+            let data = Data.splitMix(count: 3 * 1024 * 1024, seed: 6)
+            let digest = REAPI.digest(data)
+            await state.put(data, digest: digest)
+            let destination = directory.appending(component: "blob").url
+            #expect(try await client.downloadAvailableBlobs([digest: destination]) { _ in } == [digest])
+            #expect(try Data(contentsOf: destination) == data)
+            #expect(await state.splitCalls == 1)
+            #expect(await state.compressedReads == 1)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func uploadsAChunkAgainWhenTheCacheEvictsItBeforeTheSplice() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state, splices: true), WireBytes(state: state),
+            WireCapabilities(maximumBatchBytes: 2 * 1024 * 1024, splicingAverageChunkBytes: 512 * 1024),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            try await client.validateCapabilities()
+            let data = Data.splitMix(count: 5 * 1024 * 1024, seed: 2)
+            let source = directory.appending(component: "blob").url
+            try data.write(to: source)
+            let digest = REAPI.digest(data)
+            await state.evictAChunkBeforeTheNextSplice()
+            let upload = try await client.uploadAvailableBlobs([digest: source])
+            #expect(upload.available == [digest])
+            #expect(upload.failures.isEmpty)
+            #expect(await state.blobs[digest] == data)
+            #expect(await state.splices == 2)
+            #expect(await state.writeAttempts == 0)
+        }
+    }
+
+    /// An ingress that does not route `SpliceBlob` answers `unimplemented` even though the cache advertises splicing.
+    @Test(.inTemporaryDirectory) func uploadsWholeBlobsWhenSplicingIsNotServed() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state), WireBytes(state: state),
+            WireCapabilities(maximumBatchBytes: 2 * 1024 * 1024, splicingAverageChunkBytes: 512 * 1024),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            try await client.validateCapabilities()
+            for seed in [UInt64(3), 4] {
+                let data = Data.splitMix(count: 3 * 1024 * 1024, seed: seed)
+                let source = directory.appending(component: "\(seed)").url
+                try data.write(to: source)
+                let digest = REAPI.digest(data)
+                #expect(try await client.uploadAvailableBlobs([digest: source]).available == [digest])
+                #expect(await state.blobs[digest] == data)
+            }
+            #expect(await state.writeAttempts == 2)
+            // Only the first upload sent chunks before learning that splicing is not served.
+            #expect(await state.updateBytes == 3 * 1024 * 1024)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func streamsLargeBlobsWhenTheServerChunksWithOtherParameters() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state, splices: true), WireBytes(state: state),
+            WireCapabilities(maximumBatchBytes: 2 * 1024 * 1024, splicingAverageChunkBytes: 256 * 1024),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            try await client.validateCapabilities()
+            let data = Data.splitMix(count: 3 * 1024 * 1024, seed: 5)
+            let source = directory.appending(component: "blob").url
+            try data.write(to: source)
+            let digest = REAPI.digest(data)
+            #expect(try await client.uploadAvailableBlobs([digest: source]).available == [digest])
+            #expect(await state.writeAttempts == 1)
+            #expect(await state.splices == 0)
+            #expect(await state.updateCalls == 0)
+        }
+    }
+
     @Test(.inTemporaryDirectory, arguments: [false, true])
     func negotiatesCompressedTransfers(batchCompression: Bool) async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
@@ -1446,8 +1632,35 @@ private actor WireCache {
     private var updateSteps: [UpdateStep] = []
     func planUpdates(_ steps: [UpdateStep]) { updateSteps = steps }
     func nextUpdateStep() -> UpdateStep? { updateSteps.isEmpty ? nil : updateSteps.removeFirst() }
+    var updateBytes = 0
+    var splices = 0
+    var splitCalls = 0
+    /// The chunks each spliced blob was assembled from, which `SplitBlob` describes.
+    var recipes: [REAPI.Digest: [REAPI.Digest]] = [:]
+    func splice(_ data: Data, digest: REAPI.Digest, chunks: [REAPI.Digest]) {
+        put(data, digest: digest)
+        recipes[digest] = chunks
+    }
+
+    func recipe(of digest: REAPI.Digest) -> [REAPI.Digest]? {
+        splitCalls += 1
+        return recipes[digest]
+    }
+
+    private var evictsBeforeSplice = false
+    /// Drops the first chunk of the next splice, the way the cache evicts a chunk between its upload and the splice.
+    func evictAChunkBeforeTheNextSplice() { evictsBeforeSplice = true }
+    func beginSplice(chunks: [REAPI.Digest]) {
+        splices += 1
+        if evictsBeforeSplice, let chunk = chunks.first {
+            evictsBeforeSplice = false
+            blobs[chunk] = nil
+        }
+    }
+
     func beginUpdate(bytes: Int) throws {
         updateCalls += 1
+        updateBytes += bytes
         largestBatch = max(largestBatch, bytes)
         if failUpdate { failUpdate = false; throw RPCError(code: .unavailable, message: "Injected transient failure") }
     }
@@ -1526,6 +1739,48 @@ private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorag
     var uploadDelay: Duration = .zero
     /// Like Kura before it served the empty blob: reported present by convention, but never stored.
     var reportsEmptyBlobWithoutStoringIt = false
+    var splices = false
+
+    func spliceBlob(
+        request: Build_Bazel_Remote_Execution_V2_SpliceBlobRequest,
+        context _: ServerContext
+    ) async throws -> Build_Bazel_Remote_Execution_V2_SpliceBlobResponse {
+        guard splices else { throw RPCError(code: .unimplemented, message: "SpliceBlob is not enabled") }
+        #expect(request.instanceName == "project")
+        #expect(request.digestFunction == .sha256)
+        #expect(request.chunkingFunction == .fastCdc2020)
+        await state.beginSplice(chunks: request.chunkDigests)
+        let blobs = await state.blobs
+        var data = Data()
+        for chunk in request.chunkDigests {
+            #expect(chunk.sizeBytes <= 2 * 1024 * 1024)
+            guard let bytes = blobs[chunk] else {
+                throw RPCError(code: .notFound, message: "one or more blob chunks are missing")
+            }
+            data.append(bytes)
+        }
+        guard REAPI.digest(data) == request.blobDigest else {
+            throw RPCError(code: .invalidArgument, message: "chunk contents do not match the declared blob digest")
+        }
+        await state.splice(data, digest: request.blobDigest, chunks: request.chunkDigests)
+        return .with { $0.blobDigest = request.blobDigest }
+    }
+
+    func splitBlob(
+        request: Build_Bazel_Remote_Execution_V2_SplitBlobRequest,
+        context _: ServerContext
+    ) async throws -> Build_Bazel_Remote_Execution_V2_SplitBlobResponse {
+        guard splices else { throw RPCError(code: .unimplemented, message: "SplitBlob is not served") }
+        #expect(request.instanceName == "project")
+        guard let chunks = await state.recipe(of: request.blobDigest) else {
+            throw RPCError(code: .notFound, message: "blob has no chunk recipe")
+        }
+        return .with {
+            $0.chunkDigests = chunks
+            $0.chunkingFunction = .fastCdc2020
+        }
+    }
+
     func batchUpdateBlobs(
         request: Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest,
         context _: ServerContext
@@ -1642,6 +1897,9 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
         // resumed range is a new zstd stream over the remaining bytes, as Kura serves it.
         var data = blob.suffix(from: Int(request.readOffset))
         if request.resourceName.contains("/compressed-blobs/zstd/") {
+            if await state.recipes[digest] != nil {
+                throw RPCError(code: .unimplemented, message: "compressed reads of chunked blobs are not supported")
+            }
             data = try REAPICompression.compress(Data(data))[...]
             await state.recordCompressedRead()
         }
@@ -1714,6 +1972,8 @@ private struct WireCapabilities: Build_Bazel_Remote_Execution_V2_Capabilities.Si
     var streamCompression = false
     var batchCompression = false
     var maximumBatchBytes: Int64 = 32 * 1024
+    /// The FastCDC average chunk size the server splices with, or `nil` when it does not advertise splicing.
+    var splicingAverageChunkBytes: UInt64?
     func getCapabilities(
         request _: Build_Bazel_Remote_Execution_V2_GetCapabilitiesRequest,
         context _: ServerContext
@@ -1723,6 +1983,11 @@ private struct WireCapabilities: Build_Bazel_Remote_Execution_V2_Capabilities.Si
             $0.cacheCapabilities.maxBatchTotalSizeBytes = maximumBatchBytes
             $0.cacheCapabilities.supportedCompressors = streamCompression ? [.zstd] : []
             $0.cacheCapabilities.supportedBatchUpdateCompressors = batchCompression ? [.zstd] : []
+            if let splicingAverageChunkBytes {
+                $0.cacheCapabilities.splitBlobSupport = true
+                $0.cacheCapabilities.spliceBlobSupport = true
+                $0.cacheCapabilities.fastCdc2020Params = .with { $0.avgChunkSizeBytes = splicingAverageChunkBytes }
+            }
         }
     }
 }

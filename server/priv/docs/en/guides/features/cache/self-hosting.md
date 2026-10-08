@@ -158,7 +158,17 @@ gRPC target groups need an HTTPS listener. On that listener:
 
 ### CDNs {#load-balancers-cdns}
 
-A CDN in front of a node must support gRPC, must not cap request body size, and must not block the gRPC paths in its firewall rules. On Cloudflare, turn on gRPC in the zone's network settings. If your CDN cannot meet these requirements, give clients a hostname that bypasses it, for example a DNS-only record.
+A CDN in front of a node must support gRPC and must not block the gRPC paths in its firewall rules. The CLI uploads large module cache artifacts in chunks of at most 2 MiB and has the node assemble them, so no module cache request needs a large body or a long upload. This requires `KURA_REAPI_BLOB_CHUNKING_ENABLED`, which is on by default. Bazel uploads each output in a single request, so for Bazel the CDN must also allow large request bodies and uploads that take as long as your largest outputs need on your slowest link. If your CDN cannot meet these requirements, give clients a hostname that bypasses it, for example a DNS-only record.
+
+#### Cloudflare {#load-balancers-cloudflare}
+
+Module caching works through a proxied Cloudflare hostname on any plan. In the zone:
+
+1. Under **Network**, turn on **gRPC**.
+2. Under **SSL/TLS**, set the encryption mode to **Full** or **Full (strict)**. Cloudflare connects to the origin on port 443, so the origin must serve TLS there and offer HTTP/2 through ALPN.
+3. Make sure no WAF custom rule or managed rule blocks the gRPC paths listed above.
+
+Cloudflare ends a request when the origin has not started responding after about two minutes. A Bazel upload is answered only once its last byte arrives, so on Cloudflare, Bazel uploads that take longer than that fail.
 
 ## Connect nodes to Tuist {#connect-nodes-to-tuist}
 
