@@ -428,6 +428,7 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// fast-forward only if HEAD is still at this generation — so a job that built
 	// on a stale master cannot clobber a newer HEAD.
 	writeBaseGeneration(entry.VolumeStatusDir, baseGeneration)
+	_ = os.WriteFile(filepath.Join(entry.VolumeStatusDir, "cache-source"), []byte(source), 0644)
 	// Drop the host-written materialization marker so a kubelet restart can tell
 	// this (materialized) branch from an idle VM's boot-created empty cache dir.
 	r.Volumes.MarkMaterialized(entry.Volume)
@@ -933,11 +934,22 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 	// one image below — no separate CAS finalize. A compile-only job still
 	// persists its CAS because its growth flips the inventory digest (via the CAS
 	// size line) → dirty → the whole image promotes.
+	usage := readVolumeUsage(entry.VolumeStatusDir)
+	if usage != nil && uint64(usage.CapacityBytes) > r.Volumes.capBytes() {
+		usage = nil
+	}
 	outcome, err := r.Volumes.Finalize(entry.Volume, actualAccount, succeeded, dirty)
 	if err != nil {
 		log.Log.WithName("volume").Error(err, "finalize cache volume", "vm", entry.VMName, "account", actualAccount)
 	}
 	RecordVolumeOutcome(string(outcome))
+	if err == nil && actualAccount != "" && actualAccount == entry.Volume.SourceAccount {
+		if _, statErr := os.Stat(entry.Volume.BranchPath); os.IsNotExist(statErr) {
+			if reportErr := r.Converge.queueUsage(entry, usage, outcome); reportErr != nil {
+				log.Log.WithName("volume").Error(reportErr, "queue volume usage", "vm", entry.VMName)
+			}
+		}
+	}
 	// Record how long the guest's HEAD upload blocked teardown (and thus slot
 	// reclaim), if it uploaded — the signal for keeping the volume sized so the
 	// folded-in CAS doesn't make uploads slow.

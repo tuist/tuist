@@ -66,6 +66,14 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert length(Regex.scan(~r|<h1[\s>]|, html)) == 1
     end
 
+    test "links the get started CTA to the docs", %{conn: conn} do
+      html = conn |> get("/") |> html_response(200)
+      document = Floki.parse_document!(html)
+
+      assert Floki.attribute(document, ~s([data-part="cta"] a[data-variant="primary"]), "href") ==
+               ["https://tuist.dev/en/docs/"]
+    end
+
     test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
       assert_error_sent 406, fn ->
         conn

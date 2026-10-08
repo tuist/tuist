@@ -32,6 +32,14 @@ defmodule Mix.Tasks.Tuist.Test do
   tests, using the uploaded build instead of compiling when there is one, and
   reports them as part of a single test run.
 
+  Use `--prepare-only` to download a shard's build without starting the
+  application or running tests. This lets database setup run in a separate
+  process. Then use `--no-download` to run the shard against that prepared
+  build. Both options require a shard index.
+
+  `--scheme LABEL` names an execution variant in analytics, such as a database
+  version. Variants with different labels are not compared as flaky reruns.
+
   ## Retrying failed tests
 
   ExUnit runs every test once, so a test that fails intermittently looks the
@@ -70,19 +78,24 @@ defmodule Mix.Tasks.Tuist.Test do
 
   defp run_in_test_env(args) do
     {options, test_args} = split_args(args)
+    validate_shard_options(options, Shards.index(options))
     warn_if_formatter_override(test_args)
 
     case System.get_env(@retry_results, "") do
       "" ->
         case shard(options, test_args) do
           {options, test_args} ->
-            case retries_for(options, test_args) do
-              0 ->
-                configure(options)
-                run_test(test_args)
+            if options[:prepare_only] do
+              :ok
+            else
+              case retries_for(options, test_args) do
+                0 ->
+                  configure(options)
+                  run_test(test_args)
 
-              retries ->
-                run_with_retries(options, test_args, retries)
+                retries ->
+                  run_with_retries(options, test_args, retries)
+              end
             end
 
           :nothing_to_run ->
@@ -135,11 +148,27 @@ defmodule Mix.Tasks.Tuist.Test do
         # such as `--include a --include b` mean something.
         {test_args, files} = Shards.restrict(test_args, files)
 
-        if files == [] do
+        if files == [] and options[:prepare_only] != true do
           Mix.shell().info("Tuist: shard #{index} of #{reference} has no tests to run.")
           :nothing_to_run
         else
-          prebuilt = download_build_args(shard, index)
+          prebuilt =
+            if options[:no_download] do
+              app = Mix.Project.config()[:app]
+
+              app_file =
+                Path.join([Mix.Project.build_path(), "lib", to_string(app), "ebin", "#{app}.app"])
+
+              if !File.regular?(app_file),
+                do: Mix.raise("No prepared build found. Run mix tuist.test --prepare-only first.")
+
+              ["--no-compile", "--no-deps-check"]
+            else
+              download_build_args(shard, index)
+            end
+
+          if options[:prepare_only] == true and prebuilt == [],
+            do: Mix.raise("Shard #{index} has no uploaded build to prepare.")
 
           Mix.shell().info(
             "Tuist: shard #{index} of #{reference}, #{Shards.count(length(files), "test file")}" <>
@@ -372,6 +401,7 @@ defmodule Mix.Tasks.Tuist.Test do
   @own_switches [
     url: :string,
     project: :string,
+    scheme: :string,
     retries: :integer,
     shard_index: :integer,
     shard_reference: :string
@@ -381,7 +411,31 @@ defmodule Mix.Tasks.Tuist.Test do
   Splits the task's own options from the arguments meant for `mix test`.
   A `--` separator is accepted for compatibility and dropped.
   """
-  def split_args(args), do: Args.split(args, @own_switches)
+  def split_args(args) do
+    {options, forwarded} = Args.split(args, @own_switches)
+
+    Enum.reduce(
+      [prepare_only: "--prepare-only", no_download: "--no-download"],
+      {options, forwarded},
+      fn
+        {key, flag}, {options, forwarded} ->
+          if flag in forwarded,
+            do: {Keyword.put(options, key, true), Enum.reject(forwarded, &(&1 == flag))},
+            else: {options, forwarded}
+      end
+    )
+  end
+
+  @doc false
+  def validate_shard_options(options, index) do
+    if (options[:prepare_only] == true or options[:no_download] == true) and is_nil(index),
+      do: Mix.raise("--prepare-only and --no-download require a shard index.")
+
+    if options[:prepare_only] == true and options[:no_download] == true,
+      do: Mix.raise("--prepare-only and --no-download cannot be combined.")
+
+    :ok
+  end
 
   @doc """
   The formatters to run with: the ones already configured, and Tuist's.

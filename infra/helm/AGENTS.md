@@ -13,9 +13,12 @@ This node covers Helm assets under `infra/helm/`.
 
 - `capi.vultrPrivateNetwork` declares regional networks; the CAPI controller owns
   provider IDs and creation intent in a retained `-state` ConfigMap. Keep that
-  state out of Helm-owned data. Production qualifies Chicago only; Santiago is
-  VPC-only until separately qualified. Multiple qualified domains require a
-  tested explicit cross-domain runtime policy. Self-hosted defaults stay off.
+  state out of Helm-owned data. Production enables Chicago and Santiago; Santiago
+  has one host, so physical host-pair validation is still required when a second
+  host arrives. Reciprocal `canonicalPeers` region names
+  approve canonical mTLS between exact VPC IDs resolved by the controller. Stage
+  this policy on existing runtimes before qualifying another region; same-VPC
+  traffic remains private-only. Self-hosted defaults stay off.
 
 - `capi.ovhPrivateNetwork` declares the environment's provisioned vRack and
   reserved CIDR. `kuraController.privateReplication` consumes Node route
@@ -116,6 +119,13 @@ This node covers Helm assets under `infra/helm/`.
   agent image from the matching controller release through normal deployment.
   Keep `tuist/values-ci.yaml` supplied with a controller image tag so static
   production rendering exercises the cache-volume agent's shared-tag fallback.
+
+- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
+  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
+  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+  Canary and production enable them fleet-wide after the platform-index
+  enablement migration. Self-hosting and staging stay off by default; staging's
+  40 GiB cache quota cannot fit the built-in reservation and custom admission floor.
 - Cache-volume agents expose phase/source/result telemetry on a separate port
   9091. Allow scraping only from `observability`, retain the series in staging,
   and keep runner acquisition on 8090 under its existing pod selector.

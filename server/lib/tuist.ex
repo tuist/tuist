@@ -140,6 +140,7 @@ defmodule Tuist do
       Tests.Enumeration,
       Tests.Coverage,
       Tests.Coverage.Commits,
+      Tests.Coverage.Deltas,
       Tests.Coverage.Evidence,
       Tests.Coverage.ExcludedPaths,
       Tests.Coverage.History,
@@ -265,6 +266,7 @@ defmodule Tuist do
       # rows live in ClickHouse (`runner_jobs`).
       Runners,
       Runners.CacheVolumes,
+      Runners.CacheVolumes.Builtin,
       Runners.CacheVolumes.Query,
       Runners.CacheVolumes.Schemas,
       Runners.Analytics,

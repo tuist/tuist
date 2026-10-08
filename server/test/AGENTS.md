@@ -6,6 +6,9 @@ This directory contains ExUnit tests for the Tuist Server.
 - Search-indexing coverage verifies crawlable public project HTML, noindex for sensitive routes and failures, query-free canonical URLs, and bounded public-only project sitemaps. Keep private-project authorization unchanged.
 - Tests are `async: true` by default; avoid global state and make architectural changes to support concurrency.
 - Tests run with a clean database.
+- GitHub Enterprise API-override coverage spans signed-state compatibility, schema validation, proxy token/comment/App-JWT requests, canonical pagination rebasing, SSRF/redirect guards (including runner-log archive hops), tenant-isolated caches, browser links, and account-scoped edits that preserve installations and project connections.
+- Successful Mix compile-reporter ingestion fixtures must include a profiled file; idle compiles intentionally emit no report. Error diagnostics still report without profiled files.
+- Open Graph regressions cover published legacy URLs, stable marketing/docs tokens, project-token expiry, handle reuse, visibility rechecks (including 304s and transient images), project-only retention, and exclusion of restricted automation configuration.
 - Analytics loading regressions cover partial results, retained successful content during refresh, explicit failures and filter recovery. Distinguish recorded zero values from absent observations. Use date ranges whose comparison period is also supported by ClickHouse, and give real asynchronous queries an explicit timeout. When adopting shared analytics cards, update page tests to assert the shared failure state and successful recovery; keep separate coverage for optional-result failures that must leave required content visible.
 - Audit-event assertions should compare contents without assuming chronological order from second-precision timestamps or UUIDv7 IDs generated in the same millisecond.
 - Never modify System environment variables in tests (shared state).
@@ -41,6 +44,8 @@ This directory contains ExUnit tests for the Tuist Server.
   history, retry deduplication, deletion acknowledgements and cascading retention.
   Controller coverage must distinguish orphan deletion instructions from the
   final `forget` acknowledgement for an authenticated deleted-state report.
+  Platform isolation must use the real migrated schema, including the removal
+  of the legacy identity index; do not simulate enablement with shadow tables.
 - Kura unused-instance lifecycle tests must cover the shorter Air window and tracking grace, unchanged Pro window, snapshot coverage across midnight provisioning/rollup delays, sparse or missing full-day telemetry, replica counts, capped per-day sample contributions, and the reset after returning from archive.
 
 - Stable cache hostname regressions cover environment collisions, distinct AWS metro tags, private exclusion, all-region readiness, stale generations/timestamps, account opt-in, flag withdrawal, demotion, and drain intent. Staging and production require the same account/global `kura_stable_hostname` opt-in for both intent and hand-out; canary enables automatically. Do not reintroduce server environment rollout toggles or account allowlists. Readiness must survive a reader's empty process-local cache through the shared PostgreSQL projection, and archival/cold return must clear that projection. Controller tests separately exercise gateway/provider publication gates and withdrawal through failures and restart.

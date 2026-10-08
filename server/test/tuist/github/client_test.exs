@@ -334,6 +334,114 @@ defmodule Tuist.GitHub.ClientTest do
     end
   end
 
+  describe "GitHub Enterprise API proxies" do
+    test "posts comments through the persisted proxy instead of the browser host" do
+      installation = %Tuist.VCS.GitHubAppInstallation{
+        installation_id: "123",
+        client_url: "https://github.internal.example.com",
+        api_url: "https://proxy.example.com/api/v3"
+      }
+
+      expect(App, :get_installation_token, fn ^installation, _ -> {:ok, %{token: "proxy-token"}} end)
+
+      expect(SSRFGuard, :pin, fn url ->
+        assert url == "#{installation.api_url}/repos/tuist/tuist/issues/1/comments"
+        {:ok, "https://198.51.100.10/api/v3/repos/tuist/tuist/issues/1/comments", "proxy.example.com"}
+      end)
+
+      expect(SSRFGuard, :connect_options, fn "proxy.example.com" -> [hostname: "proxy.example.com"] end)
+
+      expect(Req, :post, fn opts ->
+        assert opts[:url] == "https://198.51.100.10/api/v3/repos/tuist/tuist/issues/1/comments"
+        assert opts[:redirect] == false
+        assert opts[:connect_options] == [hostname: "proxy.example.com"]
+        assert {"Authorization", "token proxy-token"} in opts[:headers]
+        {:ok, %Req.Response{status: 201}}
+      end)
+
+      assert :ok =
+               Client.create_comment(%{
+                 repository_full_handle: "tuist/tuist",
+                 issue_id: 1,
+                 body: "comment",
+                 installation: installation
+               })
+    end
+
+    test "does not send authenticated requests to a private proxy IP" do
+      installation = %{
+        installation_id: "123",
+        client_url: "https://github.internal.example.com",
+        api_url: "https://proxy.example.com/api/v3"
+      }
+
+      expect(SSRFGuard, :pin, fn url ->
+        assert url == "#{installation.api_url}/repos/tuist/tuist/issues/1/comments"
+        {:error, :private_ip_resolved}
+      end)
+
+      reject(&Req.post/1)
+
+      assert {:error, message} =
+               Client.create_comment(%{
+                 repository_full_handle: "tuist/tuist",
+                 issue_id: 1,
+                 body: "comment",
+                 installation: installation
+               })
+
+      assert message =~ "SSRF"
+    end
+  end
+
+  describe "API proxy repository pagination" do
+    test "follows canonical Link headers through the proxy with its path prefix" do
+      installation = %{
+        installation_id: "123",
+        client_url: "https://github.internal.example.com",
+        api_url: "https://proxy.example.com/ghe/api/v3"
+      }
+
+      expect(SSRFGuard, :pin, 2, fn url ->
+        assert String.starts_with?(url, installation.api_url)
+        {:ok, String.replace(url, "proxy.example.com", "198.51.100.10"), "proxy.example.com"}
+      end)
+
+      stub(SSRFGuard, :connect_options, fn _ -> [] end)
+
+      expect(Req, :get, 2, fn opts ->
+        assert opts[:redirect] == false
+
+        next =
+          if String.contains?(opts[:url], "page=2"),
+            do: nil,
+            else: "#{installation.client_url}/api/v3/installation/repositories?page=2"
+
+        headers = if next, do: %{"link" => ["<#{next}>; rel=\"next\""]}, else: %{}
+        {:ok, %Req.Response{status: 200, body: %{"repositories" => []}, headers: headers}}
+      end)
+
+      assert {:ok, %{meta: %{next_url: next}}} = Client.list_installation_repositories(installation)
+      assert {:ok, %{meta: %{next_url: nil}}} = Client.list_installation_repositories(installation, next_url: next)
+    end
+
+    test "refuses an unrelated pagination origin before minting or sending credentials" do
+      installation = %{
+        installation_id: "123",
+        client_url: "https://github.internal.example.com",
+        api_url: "https://proxy.example.com/api/v3"
+      }
+
+      reject(&App.get_installation_token/2)
+      reject(&Req.get/1)
+
+      assert {:error, _} =
+               Client.list_installation_repositories(installation,
+                 next_url: "https://attacker.example/api/v3/installation/repositories"
+               )
+    end
+  end
+
   describe "update_comment/1" do
     test "updates comment" do
       # Given
@@ -851,8 +959,17 @@ defmodule Tuist.GitHub.ClientTest do
         {:ok, "ghes-jwt"}
       end)
 
+      expect(SSRFGuard, :pin, fn url ->
+        assert url == "https://ghes.example.com/api/v3/app/hook/deliveries?per_page=100"
+        {:ok, "https://198.51.100.10/api/v3/app/hook/deliveries?per_page=100", "ghes.example.com"}
+      end)
+
+      stub(SSRFGuard, :connect_options, fn _ -> [hostname: "ghes.example.com"] end)
+
       expect(Req, :get, fn opts ->
-        assert opts[:url] == "https://ghes.example.com/api/v3/app/hook/deliveries?per_page=100"
+        assert opts[:url] == "https://198.51.100.10/api/v3/app/hook/deliveries?per_page=100"
+        assert opts[:redirect] == false
+        refute Keyword.has_key?(opts, :finch)
         assert {"Authorization", "Bearer ghes-jwt"} in opts[:headers]
 
         {:ok, %Req.Response{status: 200, headers: %{}, body: []}}
@@ -863,6 +980,35 @@ defmodule Tuist.GitHub.ClientTest do
                  credentials: ghes_creds,
                  api_url: "https://ghes.example.com/api/v3"
                )
+    end
+
+    test "rebases canonical webhook pagination onto a proxy path prefix" do
+      expect(SSRFGuard, :pin, fn url ->
+        assert url == "https://proxy.example.com/ghe/api/v3/app/hook/deliveries?cursor=next"
+        {:ok, "https://198.51.100.10/ghe/api/v3/app/hook/deliveries?cursor=next", "proxy.example.com"}
+      end)
+
+      stub(SSRFGuard, :connect_options, fn _ -> [] end)
+
+      expect(Req, :get, fn opts ->
+        assert opts[:redirect] == false
+        {:ok, %Req.Response{status: 200, body: [], headers: %{}}}
+      end)
+
+      assert {:ok, _} =
+               Client.list_app_hook_deliveries(
+                 client_url: "https://github.internal.example.com",
+                 api_url: "https://proxy.example.com/ghe/api/v3",
+                 next_url: "https://github.internal.example.com/api/v3/app/hook/deliveries?cursor=next"
+               )
+    end
+
+    test "pins App-level endpoints on every call, refusing private IPs" do
+      expect(SSRFGuard, :pin, 2, fn _ -> {:error, :private_ip_resolved} end)
+      reject(&Req.get/1)
+      reject(&Req.post/1)
+      assert {:error, _} = Client.list_app_hook_deliveries(api_url: "https://proxy.example.com/api/v3")
+      assert {:error, _} = Client.redeliver_app_hook_delivery(1, api_url: "https://proxy.example.com/api/v3")
     end
 
     test "surfaces the Link rel=\"next\" cursor for caller-driven pagination" do
@@ -941,8 +1087,17 @@ defmodule Tuist.GitHub.ClientTest do
         {:ok, "ghes-jwt"}
       end)
 
+      expect(SSRFGuard, :pin, fn url ->
+        assert url == "https://ghes.example.com/api/v3/app/hook/deliveries/777/attempts"
+        {:ok, "https://198.51.100.10/api/v3/app/hook/deliveries/777/attempts", "ghes.example.com"}
+      end)
+
+      stub(SSRFGuard, :connect_options, fn _ -> [hostname: "ghes.example.com"] end)
+
       expect(Req, :post, fn opts ->
-        assert opts[:url] == "https://ghes.example.com/api/v3/app/hook/deliveries/777/attempts"
+        assert opts[:url] == "https://198.51.100.10/api/v3/app/hook/deliveries/777/attempts"
+        assert opts[:redirect] == false
+        refute Keyword.has_key?(opts, :finch)
         assert {"Authorization", "Bearer ghes-jwt"} in opts[:headers]
 
         {:ok, %Req.Response{status: 202, body: %{}}}

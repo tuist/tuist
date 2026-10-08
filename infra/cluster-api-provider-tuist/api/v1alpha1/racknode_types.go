@@ -32,6 +32,11 @@ type RackNodeConfig struct {
 	// +optional
 	Sysctl []RackNodeSysctl `json:"sysctl,omitempty"`
 
+	// Nftables files are loaded with `nft -f` on every apply. Each recreates
+	// a table of its own, so loading it again undoes whatever flushed it.
+	// +optional
+	Nftables []string `json:"nftables,omitempty"`
+
 	// Containerd is installed, and its configuration is its default with the
 	// systemd cgroup driver.
 	Containerd RackNodeContainerd `json:"containerd"`

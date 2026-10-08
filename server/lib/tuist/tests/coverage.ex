@@ -450,17 +450,32 @@ defmodule Tuist.Tests.Coverage do
     runs: ["coverage_runs"]
   }
 
+  @commit_retention_tables ["coverage_file_deltas", "coverage_commit_targets"]
+
   @doc """
   Sets each coverage table's time-to-live to the configured retention (see
   `Tuist.Environment.coverage_retention_days/1`) and returns the days applied
-  per table. The tables get it at creation; this re-applies it after the
-  configuration changed.
+  per table: the detail by when it was inserted, and the commits' file
+  deltas and targets with the commit totals, by when the commit was made
+  (`Tuist.Environment.coverage_commit_retention_days/1`). The tables get it
+  at creation; this re-applies it after the configuration changed.
   """
   def apply_retention do
-    for {kind, days} <- Environment.coverage_retention_days(), table <- Map.fetch!(@retention_tables, kind) do
-      IngestRepo.query!("ALTER TABLE #{table} MODIFY TTL toDateTime(inserted_at) + INTERVAL #{days} DAY")
-      {table, days}
-    end
+    detail =
+      for {kind, days} <- Environment.coverage_retention_days(), table <- Map.fetch!(@retention_tables, kind) do
+        IngestRepo.query!("ALTER TABLE #{table} MODIFY TTL toDateTime(inserted_at) + INTERVAL #{days} DAY")
+        {table, days}
+      end
+
+    days = Environment.coverage_commit_retention_days().commits
+
+    commits =
+      for table <- @commit_retention_tables do
+        IngestRepo.query!("ALTER TABLE #{table} MODIFY TTL toDateTime(committed_at) + INTERVAL #{days} DAY")
+        {table, days}
+      end
+
+    detail ++ commits
   end
 
   def percentage(_covered, 0), do: 0.0

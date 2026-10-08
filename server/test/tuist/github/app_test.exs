@@ -7,6 +7,7 @@ defmodule Tuist.GitHub.AppTest do
   alias Tuist.KeyValueStore
   alias Tuist.OAuth2.SSRFGuard
   alias Tuist.VCS
+  alias Tuist.VCS.GitHubAppInstallation
 
   @creds %{
     app_name: "tuist",
@@ -147,6 +148,78 @@ defmodule Tuist.GitHub.AppTest do
 
       # Then
       assert {:ok, %{token: ^token}} = result
+    end
+
+    test "uses a persisted API override for installation tokens and their cache key" do
+      installation = %GitHubAppInstallation{
+        id: "proxy-installation",
+        installation_id: "12345",
+        client_url: "https://github.internal.example.com",
+        api_url: "https://proxy.example.com/api/v3"
+      }
+
+      expect(KeyValueStore, :get_or_update, fn key, _opts, fetch ->
+        assert key == [
+                 App,
+                 "installation_token",
+                 "installation:#{installation.id}",
+                 installation.api_url,
+                 installation.installation_id
+               ]
+
+        fetch.()
+      end)
+
+      expect(SSRFGuard, :pin, fn url ->
+        assert url == "#{installation.api_url}/app/installations/12345/access_tokens"
+        {:ok, "https://198.51.100.10/api/v3/app/installations/12345/access_tokens", "proxy.example.com"}
+      end)
+
+      expect(SSRFGuard, :connect_options, fn "proxy.example.com" -> [hostname: "proxy.example.com"] end)
+
+      expect(Req, :post, fn opts ->
+        assert opts[:connect_options] == [hostname: "proxy.example.com"]
+        assert opts[:url] == "https://198.51.100.10/api/v3/app/installations/12345/access_tokens"
+        assert opts[:redirect] == false
+        {:ok, %Req.Response{status: 201, body: %{"token" => "proxy-token", "expires_at" => "2024-04-30T11:20:30Z"}}}
+      end)
+
+      assert {:ok, %{token: "proxy-token"}} = App.get_installation_token(installation)
+    end
+
+    test "never shares tokens between rows using the same endpoint and upstream installation ID" do
+      first = %GitHubAppInstallation{
+        id: "first",
+        client_url: "https://github.internal.example.com",
+        api_url: "https://proxy.example.com/api/v3",
+        installation_id: "123"
+      }
+
+      second = %{first | id: "second"}
+
+      expect(KeyValueStore, :get_or_update, 2, fn key, _opts, _fetch ->
+        send(self(), {:token_key, key})
+        {:ok, %{token: "token"}}
+      end)
+
+      assert {:ok, _} = App.get_installation_token(first)
+      assert {:ok, _} = App.get_installation_token(second)
+      assert_received {:token_key, first_key}
+      assert_received {:token_key, second_key}
+      refute first_key == second_key
+    end
+
+    test "rejects a persisted API override that resolves to a private IP" do
+      installation = %GitHubAppInstallation{
+        installation_id: "12345",
+        client_url: "https://github.internal.example.com",
+        api_url: "https://proxy.example.com/api/v3"
+      }
+
+      expect(SSRFGuard, :pin, fn _ -> {:error, :private_ip_resolved} end)
+      reject(&Req.post/1)
+      assert {:error, message} = App.get_installation_token(installation)
+      assert message =~ "SSRF"
     end
 
     test "rejects requests to GitHub Enterprise hosts that resolve to private IPs" do

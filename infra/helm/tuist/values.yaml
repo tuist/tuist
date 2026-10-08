@@ -1435,6 +1435,9 @@ capi:
   enabled: true
   vultrPrivateNetwork:
     enabled: false
+    # Per region: description, cidr, qualified, canonicalPeers (region names).
+    # Reciprocal approvals permit canonical mTLS between resolved VPC IDs.
+    # Upgrade existing runtimes before qualifying an additional region.
     regions: {}
   ovhPrivateNetwork:
     enabled: false
@@ -1620,6 +1623,11 @@ rackFleet:
   # and list both routers of an HA pair. A host can override it with its own
   # `sshIngressAllowCIDRs`.
   sshIngressAllowCIDRs: []
+
+  # The rack's runner-cache gateways, as IPv4 CIDRs, which a rack host's Tart
+  # VMs may reach on TCP 443 through the VM egress firewall. Every other
+  # private destination stays blocked. Empty passes none.
+  vmCacheGatewayCIDRs: []
 
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl
@@ -2209,6 +2217,8 @@ macosFleet:
 # default-deny NetworkPolicy + GitHub-only egress limits a
 # compromised runner's reachability into the cluster.
 runnersFleet:
+  customCacheVolumes:
+    enabled: false
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every macOS pool (a per-pool
   # or per-xcodeOverride `idleTimeoutSeconds` wins). Bounds how long a

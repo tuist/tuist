@@ -551,6 +551,7 @@ func TestHostConfigHash_FoldsARenderFailureAsItsInputs(t *testing.T) {
 	for name, broken := range map[string]Config{
 		"firewall":          {VMKuraEgressCIDR: "10.96.0.0/99"},
 		"ssh-ingress-guard": {SSHIngressAllowCIDRs: []string{"10.0.0.0/99"}},
+		"cache-gateway":     {VMCacheGatewayCIDRs: []string{"10.0.0.0/99"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			material := hostConfigMaterial(broken)
@@ -1602,5 +1603,55 @@ func TestAutoLoginScriptNeedsNoDeveloperTools(t *testing.T) {
 		if strings.Contains(script, forbidden) {
 			t.Errorf("auto-login script runs %q, which needs Xcode Command Line Tools that a rack host does not have", forbidden)
 		}
+	}
+}
+
+func TestRenderVMEgressFirewallScript_PassesRackCacheGatewaysOn443(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{
+		VMKuraEgressCIDR:    "10.128.0.0/12",
+		VMCacheGatewayCIDRs: []string{"10.10.0.11/32", "10.10.0.12/32"},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	block := strings.Index(script, "block drop out quick from <vm_sources> to <blocked_dst>")
+	for _, want := range []string{
+		"pass out quick proto tcp from <vm_sources> to 10.10.0.11/32 port 443 keep state",
+		"pass out quick proto tcp from <vm_sources> to 10.10.0.12/32 port 443 keep state",
+	} {
+		pass := strings.Index(script, want)
+		if pass < 0 {
+			t.Fatalf("missing %q in rendered script\n%s", want, script)
+		}
+		if block < 0 || pass > block {
+			t.Fatalf("%q must render before the blocked_dst drop (first quick match wins)\n%s", want, script)
+		}
+	}
+}
+
+func TestRenderVMEgressFirewallScript_NoCacheGatewayPassWhenUnset(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMKuraEgressCIDR: "10.128.0.0/12", VMCachePNCIDR: "172.16.0.0/22"})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if strings.Contains(script, "port 443") || strings.Contains(script, "gateway carve-out") {
+		t.Fatalf("a fleet without cache gateways must not pass 443\n%s", script)
+	}
+}
+
+func TestRenderVMEgressFirewallScript_RejectsMalformedCacheGatewayCIDR(t *testing.T) {
+	for _, bad := range []string{"10.10.0.11", "10.10.0.11/33", "fd00::1/128", "10.10.0.11/32 port 22"} {
+		if _, err := renderVMEgressFirewallScript(Config{VMCacheGatewayCIDRs: []string{bad}}); err == nil {
+			t.Fatalf("expected %q to be rejected", bad)
+		}
+	}
+}
+
+func TestHostConfigHash_ChangesWithVMCacheGatewayCIDRs(t *testing.T) {
+	base := Config{VMKuraEgressCIDR: "10.128.0.0/12"}
+	gateway := base
+	gateway.VMCacheGatewayCIDRs = []string{"10.10.0.11/32"}
+	if HostConfigHash(base) == HostConfigHash(gateway) {
+		t.Fatal("HostConfigHash must change when the cache gateway CIDRs change, or existing hosts never get the pass rule")
 	}
 }

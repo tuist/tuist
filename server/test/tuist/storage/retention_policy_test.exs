@@ -78,14 +78,14 @@ defmodule Tuist.Storage.RetentionPolicyTest do
       assert RetentionPolicy.retention_days(:preview_icon, :enterprise) == 30
     end
 
-    test "returns short build and run artifact retention for all plans" do
-      assert RetentionPolicy.retention_days(:build_archive, :air) == 30
-      assert RetentionPolicy.retention_days(:build_archive, :open_source) == 30
+    test "returns plan-based build and run artifact retention" do
+      assert RetentionPolicy.retention_days(:build_archive, :air) == 7
+      assert RetentionPolicy.retention_days(:build_archive, :open_source) == 7
       assert RetentionPolicy.retention_days(:build_archive, :pro) == 30
       assert RetentionPolicy.retention_days(:build_archive, :enterprise) == 30
 
-      assert RetentionPolicy.retention_days(:run_session, :air) == 30
-      assert RetentionPolicy.retention_days(:run_session, :open_source) == 30
+      assert RetentionPolicy.retention_days(:run_session, :air) == 7
+      assert RetentionPolicy.retention_days(:run_session, :open_source) == 7
       assert RetentionPolicy.retention_days(:run_session, :pro) == 30
       assert RetentionPolicy.retention_days(:run_session, :enterprise) == 30
     end

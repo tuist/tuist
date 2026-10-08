@@ -60,7 +60,7 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
 
     reporter = reporter([])
     CompileReporter.record(reporter, :elixir, {:ok, []})
-    :ok = CompileReporter.finish(reporter)
+    :ok = CompileReporter.finish(reporter, [%{path: "lib/demo.ex", compile_duration_ms: 1}])
 
     assert conn |> post_report(user, project) |> json_response(:created)
 
@@ -188,7 +188,7 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
 
     send(reporter, {:machine_metric, MachineMetrics.sample(fn -> 1_700_000_000.0 end)})
     CompileReporter.record(reporter, :elixir, {:ok, []})
-    :ok = CompileReporter.finish(reporter)
+    :ok = CompileReporter.finish(reporter, [%{path: "lib/demo.ex", compile_duration_ms: 1}])
 
     assert %{status: 201} = post_report(conn, user, project)
 

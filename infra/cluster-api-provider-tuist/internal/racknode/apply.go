@@ -165,6 +165,11 @@ func Apply(ctx context.Context, h Host, req Request, opts Options) (Result, erro
 			return a.res, err
 		}
 	}
+	for _, path := range cfg.Nftables {
+		if _, err := h.Run(ctx, nil, "nft", "-f", path); err != nil {
+			return a.res, err
+		}
+	}
 	if a.dirty["network"] {
 		if _, err := h.Run(ctx, nil, "networkctl", "reload"); err != nil {
 			return a.res, err
