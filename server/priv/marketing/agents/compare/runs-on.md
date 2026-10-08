@@ -1,10 +1,12 @@
 # Tuist and RunsOn: development infrastructure or GitHub Actions in your AWS account?
 
-Choose Tuist when the priority is understanding and reducing supported build and test work across environments. Keep supported existing machines and add [Tuist caching and insights](/marketing-markdown), or review [Enterprise self-hosting](/en/docs-markdown/guides/server/self-host/server) when a private deployment is required.
+Choose Tuist when the priority is understanding and reducing supported build and test work across environments. Optimize the project first, then its execution environment. Keep supported existing machines and add [Tuist caching and insights](/marketing-markdown), or review [Enterprise self-hosting](/en/docs-markdown/guides/server/self-host/server) when a private deployment is required.
 
 ## What overlaps
 
 [RunsOn](https://runs-on.com/docs/) manages ephemeral GitHub Actions runners in the customer's AWS account. Its [Magic Cache](https://runs-on.com/docs/performance/caching/) changes the Actions cache backend to S3 in that account, while preserving compatible workflow cache actions. It is not just a cheaper machine without caching.
+
+Its [pricing](https://runs-on.com/pricing/) separates an annual license, tiered by runner volume, from infrastructure billed directly by AWS. RunsOn states it does not add per-minute markup; do not categorize that license as a runtime-metered fee.
 
 Its [platform documentation](https://runs-on.com/docs/runners/platforms/) currently covers Linux, Windows, and GPU workloads and explicitly says **macOS is not yet supported**. This limitation matters for Xcode workflows; verify it again before procurement rather than assuming every EC2-backed runner manager supports EC2 Mac.
 
@@ -19,7 +21,7 @@ Its [platform documentation](https://runs-on.com/docs/runners/platforms/) curren
 
 ## Choose Tuist when
 
-You want an improvement layer that does not require choosing AWS or changing CI, or need compatible local/agent reuse and toolchain-specific evidence. You have Apple development workflows that need Xcode integration as well as supported Android, Bazel, or Elixir insights. Engineers can inspect and contribute to Tuist's [public implementation](https://github.com/tuist/tuist), subject to component terms.
+You want an improvement layer that does not require choosing AWS or changing CI, or need compatible local/agent reuse and toolchain-specific evidence. Your Gradle, Bazel, Elixir, or Xcode workflows need the feature-specific integrations Tuist supports; Xcode jobs still require Macs. Engineers can inspect and contribute to Tuist's [public implementation](https://github.com/tuist/tuist), subject to component terms.
 
 ## First experiment
 
@@ -27,7 +29,7 @@ Verify data residency and producer/reader authentication, then pilot a [supporte
 
 ## Sources and review
 
-Sources checked on **2026-10-08**: [RunsOn documentation](https://runs-on.com/docs/), [Magic Cache](https://runs-on.com/docs/performance/caching/), [platform support](https://runs-on.com/docs/runners/platforms/), and [Tuist self-hosting](/en/docs-markdown/guides/server/self-host/server). This comparison is written by Tuist and evaluates infrastructure ownership separately from build acceleration.
+Sources checked on **2026-10-08**: [RunsOn documentation](https://runs-on.com/docs/), [Magic Cache](https://runs-on.com/docs/performance/caching/), [platform support](https://runs-on.com/docs/runners/platforms/), [license and AWS billing](https://runs-on.com/pricing/), and [Tuist self-hosting](/en/docs-markdown/guides/server/self-host/server). This comparison is written by Tuist and evaluates infrastructure ownership separately from build acceleration.
 
 ## Limitations
 

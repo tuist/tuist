@@ -14,9 +14,11 @@ Compare the same commit, toolchain version, build configuration, and machine sha
 | Swift package resolution dominates | Git checkout and dependency-resolution time | The [Swift package registry](/en/docs-markdown/guides/features/package-registries/swift) can replace Git-based retrieval for supported packages. |
 | CI is slow but the same build is fast locally | Queueing, machine shape, cold state, and cache locality | [Compute](/marketing-markdown/compute) is an optional managed-runner choice, not a cache prerequisite. |
 
-## Reduce work, then improve execution
+## Project first, environment second
 
-Tuist records different evidence for different toolchains: Xcode build steps, targets, files, and cache tasks; Gradle task outcomes, configuration and transform timings; Bazel invocation metrics, profile intervals, and critical-path diagnostics; and Elixir compilation data. Start with the [Build Insights integration](/en/docs-markdown/guides/features/build-insights) matching the project.
+Improve the dependency graph, task inputs, and expensive operations first, reuse compatible outputs, then optimize machines and locality for the remaining work. This applies to Gradle tasks, Bazel actions, Elixir compilation, and Xcode builds; the applicable intervention differs by toolchain.
+
+Tuist records different evidence for different toolchains: Gradle task outcomes, configuration and transform timings; Bazel invocation metrics, profile intervals, and critical-path diagnostics; Elixir compilation data; and Xcode build steps, targets, files, and cache tasks. Start with the [Build Insights integration](/en/docs-markdown/guides/features/build-insights) matching the project.
 
 Use that evidence to decide whether to split a highly connected module, correct an unnecessarily invalidated task, improve a script, or introduce caching. Insights do not automatically rewrite the build graph.
 

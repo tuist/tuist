@@ -1,12 +1,12 @@
 # Tuist and CircleCI: toolchain improvement or CI orchestration and test acceleration?
 
-Choose Tuist when you want supported caching and build/test investigation across developer, CI, and agent environments without replacing the orchestrator. Start with [Tuist Tests](/marketing-markdown/tests) or a supported cache to make the existing workflow more observable and reduce repeated work.
+Choose Tuist when you want supported caching and build/test investigation across developer, CI, and agent environments without replacing the orchestrator. Optimize the project first, then its execution environment. Start with [Tuist Tests](/marketing-markdown/tests) or a supported cache to make the existing workflow more observable and reduce repeated work.
 
 ## What overlaps
 
-CircleCI's [Test Insights](https://circleci.com/docs/guides/insights/insights-tests/index.md) identifies slow, failing, and flaky tests. Its [dynamic test splitting](https://circleci.com/docs/guides/test/use-dynamic-test-splitting/index.md) distributes test work across ready parallel nodes rather than only assigning a static split upfront.
+CircleCI's [Test Insights](https://circleci.com/docs/guides/insights/insights-tests/index.md) identifies slow, failing, and flaky tests. The cited feature supports **OAuth organizations**, not organizations with a `circleci/<UID>` slug; verify the organization's integration before expecting that dashboard. Its [dynamic test splitting](https://circleci.com/docs/guides/test/use-dynamic-test-splitting/index.md) distributes test work across ready parallel nodes rather than only assigning a static split upfront.
 
-Its [MCP overview](https://circleci.com/docs/guides/toolkit/circleci-mcp-overview/index.md) documents hosted, CLI, and documentation integrations for assistants. Compare available records, execution controls, and toolchain requirements; do not claim that CircleCI is merely a runner without insights or AI access.
+Its [MCP overview](https://circleci.com/docs/guides/toolkit/circleci-mcp-overview/index.md) documents hosted and CLI-integrated MCP servers for assistants; the older local `npx` server is deprecated. Compare available records, execution controls, and toolchain requirements; do not claim that CircleCI is merely a runner without insights or AI access.
 
 ## Compare orchestration and evidence
 

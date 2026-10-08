@@ -14,7 +14,9 @@ Measure the entire test job: test compilation, simulator or service startup, exe
 | Retries dominate the job | Inconsistent outcomes and their cause | Investigate [flaky tests](/marketing-markdown/solutions/flaky-tests) instead of adding more shards. |
 | Compilation dominates, not test execution | Repeated build outputs and misses | Use the matching [build cache](/marketing-markdown/cache). Caching compilation is not test-result selection. |
 
-## Remove work versus distribute work
+## Project first, environment second
+
+Investigate slow fixtures, shared state, retries, and unnecessary execution before adding parallel capacity. Gradle and Elixir suites can then use supported Tuist sharding; Bazel has test insights but not Tuist sharding today. Improving the tests and distributing them are separate steps.
 
 Selective testing operates at **test-target granularity**, using project-graph hashes and prior successful runs. It requires Tuist-generated Xcode projects and `tuist test`. It is not line-level test impact analysis and is not available for ordinary Xcode, Gradle, Bazel, or Elixir projects.
 

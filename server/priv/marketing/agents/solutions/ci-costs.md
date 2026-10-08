@@ -15,6 +15,12 @@ Compare equivalent periods and separate more activity from a more expensive job.
 | Larger machines cost more without proportional gains | Job duration multiplied by the actual shape rate | Right-size execution after identifying serial or non-compute bottlenecks. |
 | Cache charges are growing | Requests, downloaded bytes, and time saved per workload | Compare the cost of reuse with rebuilding; use the live [pricing table](/pricing). |
 
+## Project first, environment second
+
+Improve task inputs, dependency boundaries, and costly retries before buying more execution capacity. For Gradle and Bazel, test compatible output reuse; for Elixir, investigate reported compilation and tests because Tuist has no remote build cache there. Keep Xcode-specific selection requirements separate from those integrations.
+
+The [comparison billing table](/marketing-markdown/compare#billing-and-incentives) cites minute-, resource-, credit-, and build-based charges and their exceptions. Reducing work does not necessarily reduce a fixed subscription or per-build charge. Tuist also meters feature usage; include its charges rather than assuming all interests or savings automatically align.
+
 ## Evaluate total cost, not just runtime
 
 For a representative workload, calculate:

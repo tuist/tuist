@@ -1,6 +1,6 @@
 # Tuist and Codemagic: development infrastructure or managed app delivery?
 
-Choose Tuist when you want build and test evidence and compatible cached outputs across developers, CI, and agents without replacing your CI platform. Adopt [Xcode Cache](/en/docs-markdown/guides/features/cache/xcode-cache) for supported projects and use Tuist insights to connect CI behavior with the local development loop.
+Choose Tuist when you want build and test evidence and compatible cached outputs across developers, CI, and agents without replacing your CI platform. Optimize the project first, then its execution environment. For Xcode workflows, adopt [Xcode Cache](/en/docs-markdown/guides/features/cache/xcode-cache) for supported projects and use Tuist insights to connect CI behavior with the local development loop.
 
 ## What overlaps
 

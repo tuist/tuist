@@ -1,6 +1,6 @@
 # Tuist Cache
 
-Share build outputs across developer machines, CI, and coding-agent environments so compatible outputs can be reused rather than compiled again elsewhere.
+Optimize the project first, then its execution environment: remove unnecessary work, then share compatible build outputs across developer machines, CI, and coding-agent environments. Tuist Cache reuses supported Gradle task outputs, Bazel action outputs, and Xcode build outputs without requiring a runner migration.
 
 ## Problem
 

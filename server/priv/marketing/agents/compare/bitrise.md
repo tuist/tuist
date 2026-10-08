@@ -1,10 +1,12 @@
 # Tuist and Bitrise: compare the development workflow, not just CI
 
-Choose Tuist when you want separately adoptable, toolchain-aware caching and insights with a public implementation and authorized project data for agents. Keep the current CI workflow and bring compatible build outputs and recorded toolchain evidence to developers and agents through a [supported integration](/en/docs-markdown/guides/get-started).
+Choose Tuist when you want separately adoptable, toolchain-aware caching and insights with a public implementation and authorized project data for agents. Optimize the project first, then its execution environment. Keep the current CI workflow and bring compatible build outputs and recorded toolchain evidence to developers and agents through a [supported integration](/en/docs-markdown/guides/get-started).
 
 ## What overlaps
 
 Bitrise's [Build Cache](https://bitrise.io/platform/build-cache) supports Gradle, Bazel, Xcode, and React Native build outputs. It explicitly supports other CI providers and local development, with local usage subject to plan terms. The currently cited page lists local invocations under Enterprise+; verify the applicable plan rather than assuming local use is included everywhere. Its page also describes cache analytics and AI-assisted invocation comparisons. It would be wrong to say Bitrise caching requires Bitrise CI or only accelerates CI.
+
+The Build Cache page also documents Bazel remote execution, which executes actions on remote workers rather than merely reusing cached outputs. Tuist's Bazel cache does not provide remote execution.
 
 Bitrise also publishes [build and test Insights](https://bitrise.io/platform/bitrise-insights) and an [MCP integration](https://docs.bitrise.io/en/bitrise-platform/ai/bitrise-mcp). Agent access and insights are not unique to Tuist. Compare the actual data, integration requirements, and workflows rather than whether a product advertises AI.
 

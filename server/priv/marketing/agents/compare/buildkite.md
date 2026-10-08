@@ -1,10 +1,10 @@
 # Tuist and Buildkite: a development improvement layer or a CI and Test Engine platform?
 
-Choose Tuist when its supported toolchain integrations, compatible cache reuse, and build/test evidence improve your existing development loop. Add [Tuist caching or tests](/marketing-markdown) to the current pipeline and connect CI work with compatible developer builds and authorized agent investigations.
+Choose Tuist when its supported toolchain integrations, compatible cache reuse, and build/test evidence improve your existing development loop. Optimize the project first, then its execution environment. Add [Tuist caching or tests](/marketing-markdown) to the current pipeline and connect CI work with compatible developer builds and authorized agent investigations.
 
 ## What overlaps
 
-Buildkite documents [hosted macOS agents](https://buildkite.com/docs/agent/buildkite-hosted/macos.md), [Test Engine splitting with bktec](https://buildkite.com/docs/pipelines/speed-up-builds-with-bktec.md), and [flaky-test detection and quarantine](https://buildkite.com/docs/pipelines/reduce-flaky-tests.md).
+Buildkite documents [hosted macOS agents](https://buildkite.com/docs/agent/buildkite-hosted/macos.md), available on **Pro or Enterprise** plans, as well as [Test Engine splitting with bktec](https://buildkite.com/docs/pipelines/speed-up-builds-with-bktec.md) and [flaky-test detection and quarantine](https://buildkite.com/docs/pipelines/reduce-flaky-tests.md).
 
 Its [coding-agent guide](https://buildkite.com/docs/pipelines/getting-started-with-coding-agents.md) describes MCP, skills, and Markdown documentation for working with Pipelines, Test Engine, and Package Registries. Do not imply that hosted Apple machines, test acceleration, or agent-ready workflows are exclusive to Tuist.
 

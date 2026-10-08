@@ -1,12 +1,12 @@
 # Tuist and Depot: compare cache integrations as well as compute
 
-Choose Tuist for toolchain-specific build and test evidence, public implementation, and supported local/CI/agent integrations. In particular, [Tuist Xcode Cache](/en/docs-markdown/guides/features/cache/xcode-cache) connects compatible developer builds to the same remote cache as CI, without requiring a runner migration.
+Choose Tuist for toolchain-specific build and test evidence, public implementation, and supported local/CI/agent integrations. Optimize the project first, then its execution environment. In particular, [Tuist Xcode Cache](/en/docs-markdown/guides/features/cache/xcode-cache) connects compatible developer builds to the same remote cache as CI, without requiring a runner migration.
 
 ## What overlaps
 
 [Depot Cache](https://depot.dev/docs/cache/overview.md) is usable from local development and other CI providers, with integrations for several build systems. Its [GitHub Actions runners](https://depot.dev/docs/github-actions/overview) integrate caching into the execution environment.
 
-Its [Xcode integration](https://depot.dev/docs/cache/integrations/xcode.md) documents Xcode 26+ compilation caching and automatic configuration on Depot runners. That page specifically says **Xcode compilation caching on local workstations is not supported yet**. Treat that as an Xcode-specific, date-sensitive limitation, not a claim that Depot's other remote caches are CI-only.
+Its [Xcode integration](https://depot.dev/docs/cache/integrations/xcode.md) documents Xcode 26+ compilation caching and automatic configuration on Depot runners. That page specifically says **Xcode compilation caching on local workstations is not supported yet**. It also states that a job-defined `XCODE_XCCONFIG_FILE` prevents automatic runner configuration, so check which settings actually reach the build. Treat that as an Xcode-specific, date-sensitive limitation, not a claim that Depot's other remote caches are CI-only.
 
 ## Compare the supported integration
 

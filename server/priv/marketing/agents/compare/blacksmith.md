@@ -1,10 +1,10 @@
 # Tuist and Blacksmith: toolchain evidence or integrated GitHub Actions acceleration?
 
-Choose Tuist when you need supported build and test investigation and compatible cache reuse beyond one runner fleet. Combine [Build Insights](/en/docs-markdown/guides/features/build-insights), test evidence, and authorized agent access to explain the toolchain work behind a slow job, without moving CI.
+Choose Tuist when you need supported build and test investigation and compatible cache reuse beyond one runner fleet. Optimize the project first, then its execution environment. Combine [Build Insights](/en/docs-markdown/guides/features/build-insights), test evidence, and authorized agent access to explain the toolchain work behind a slow job, without moving CI.
 
 ## What overlaps
 
-Blacksmith documents [Bazel build caching](https://docs.blacksmith.sh/blacksmith-caching/bazel-build-caching.md), [Test Analytics](https://docs.blacksmith.sh/blacksmith-observability/test-analytics.md), and [CI Analytics](https://docs.blacksmith.sh/blacksmith-observability/dashboard.md). Its Bazel cache reuses action outputs across jobs, including cacheable tests. Its test analytics detects JUnit files and also parses supported test output from logs on a best-effort basis.
+Blacksmith documents [Bazel build caching](https://docs.blacksmith.sh/blacksmith-caching/bazel-build-caching.md), [Test Analytics](https://docs.blacksmith.sh/blacksmith-observability/test-analytics.md), and [CI Analytics](https://docs.blacksmith.sh/blacksmith-observability/dashboard.md). Its Bazel cache reuses action outputs across jobs, including cacheable tests. Its test analytics detects JUnit files and also parses supported test output from logs on a best-effort basis. JUnit results take precedence when both are present; structured output is recommended for reliable collection.
 
 These are real overlapping capabilities. Tuist's case should rest on the environments, integrations, and diagnostic records you need, not a claim that Blacksmith cannot cache build outputs or show tests.
 

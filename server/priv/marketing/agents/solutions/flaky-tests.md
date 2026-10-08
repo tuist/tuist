@@ -13,6 +13,10 @@ A test that fails and passes on the same code is a useful flakiness signal, not 
 | The same flaky test repeatedly blocks merges | Failure frequency, owner, and repair plan | Quarantine where supported, with a clear condition for restoring the test. |
 | A failure is consistent after a change | Reproducibility and regression evidence | Treat it as a possible regression, not an automatic flake. |
 
+## Project first, environment second
+
+Use the project's failure history to repair shared state, timing assumptions, and unreliable dependencies before scaling its execution environment. Check runner conditions when evidence points there, but do not treat a faster machine as a fix for an unexplained flake. Supported Gradle, Bazel, Elixir, and Xcode reporting can ground that investigation without moving CI.
+
 ## Contain failures without losing accountability
 
 [Tuist Tests](/marketing-markdown/tests) separates detection from quarantine. A **muted** test still runs but its failure does not fail the run. A **skipped** test does not execute and supplies no fresh result. Neither fixes the underlying defect.

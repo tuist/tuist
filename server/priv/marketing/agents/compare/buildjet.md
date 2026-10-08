@@ -1,10 +1,10 @@
 # Tuist and BuildJet: toolchain-keyed outputs or an Actions cache alternative?
 
-Choose Tuist when you need compatible build-output reuse and build/test investigation across supported developer, CI, and agent environments. [Tuist Cache](/marketing-markdown/cache) uses supported build-system integrations to avoid repeated compilation or task execution, rather than only restoring a workflow-chosen directory.
+Choose Tuist when you need compatible build-output reuse and build/test investigation across supported developer, CI, and agent environments. Optimize the project first, then its execution environment. [Tuist Cache](/marketing-markdown/cache) uses supported build-system integrations to avoid repeated compilation or task execution, rather than only restoring a workflow-chosen directory.
 
 ## What overlaps
 
-BuildJet's [cache guide](https://buildjet.com/for-github-actions/docs/guides/migrating-to-buildjet-cache) explicitly supports official, self-hosted, and BuildJet runners. It replaces the Actions cache interface and includes examples for dependency and build directories. Its [hardware documentation](https://buildjet.com/for-github-actions/docs/runners/hardware) describes the runner offering separately.
+BuildJet's [cache guide](https://buildjet.com/for-github-actions/docs/guides/migrating-to-buildjet-cache) explicitly supports official, self-hosted, and BuildJet runners. It replaces the Actions cache interface and includes examples for dependency and build directories. Its [hardware documentation](https://buildjet.com/for-github-actions/docs/runners/hardware) describes Linux runners on AMD and ARM hardware separately. Do not infer macOS availability from an Actions-compatible cache.
 
 An Actions directory cache can contain build outputs, but that does not make its matching and transfer mechanism equivalent to a remote build-system cache. Compare the keys, granularity, and environments, not whether both products use the word “cache.”
 

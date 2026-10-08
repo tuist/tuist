@@ -1,10 +1,10 @@
 # Tuist and Ubicloud: development evidence or open cloud infrastructure?
 
-Choose Tuist when you need supported build-output caching, toolchain insights, and agent investigation without selecting a new execution environment. Its [public implementation](https://github.com/tuist/tuist) lets engineers inspect the integrations that reuse compatible outputs across developers, CI, and agents.
+Choose Tuist when you need supported build-output caching, toolchain insights, and agent investigation without selecting a new execution environment. Optimize the project first, then its execution environment. Its [public implementation](https://github.com/tuist/tuist) lets engineers inspect the integrations that reuse compatible outputs across developers, CI, and agents.
 
 ## What overlaps
 
-[Ubicloud's public repository](https://github.com/ubicloud/ubicloud) describes an open-source cloud control plane and deployment on bare-metal infrastructure. Its [GitHub Actions quickstart](https://www.ubicloud.com/docs/github-actions-integration/quickstart.md) offers managed runners, while [Ubicloud Cache](https://www.ubicloud.com/docs/github-actions-integration/ubicloud-cache.md) accelerates the Actions cache protocol.
+[Ubicloud's public repository](https://github.com/ubicloud/ubicloud) describes an open-source cloud control plane and deployment on bare-metal infrastructure; the [repository license](https://github.com/ubicloud/ubicloud/blob/main/LICENSE) is AGPL-3.0. Public source and permissive licensing are different questions. Its [GitHub Actions quickstart](https://www.ubicloud.com/docs/github-actions-integration/quickstart.md) offers managed runners, while [Ubicloud Cache](https://www.ubicloud.com/docs/github-actions-integration/ubicloud-cache.md) accelerates the Actions cache protocol.
 
 The current cache documentation recommends **Transparent Cache**, preserving existing `actions/cache` and compatible setup actions. Older replacement cache actions are deprecated.
 
@@ -27,7 +27,7 @@ Keep the current workflow and enable a [supported Tuist build-output cache](/mar
 
 ## Sources and review
 
-Sources checked on **2026-10-08**: [Ubicloud repository](https://github.com/ubicloud/ubicloud), [runner quickstart](https://www.ubicloud.com/docs/github-actions-integration/quickstart.md), [Transparent Cache and deprecated actions](https://www.ubicloud.com/docs/github-actions-integration/ubicloud-cache.md), and [Tuist Cache](/marketing-markdown/cache). This comparison is written by Tuist and explicitly acknowledges Ubicloud's open-source implementation.
+Sources checked on **2026-10-08**: [Ubicloud repository](https://github.com/ubicloud/ubicloud), [AGPL-3.0 license](https://github.com/ubicloud/ubicloud/blob/main/LICENSE), [runner quickstart](https://www.ubicloud.com/docs/github-actions-integration/quickstart.md), [Transparent Cache and deprecated actions](https://www.ubicloud.com/docs/github-actions-integration/ubicloud-cache.md), and [Tuist Cache](/marketing-markdown/cache). This comparison is written by Tuist and explicitly acknowledges Ubicloud's open-source implementation.
 
 ## Limitations
 

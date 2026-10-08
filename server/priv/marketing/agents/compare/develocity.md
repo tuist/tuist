@@ -1,6 +1,6 @@
 # Tuist and Develocity: compare the exact build and test mechanisms
 
-Choose Tuist when its Xcode, Gradle, Bazel, and Elixir integrations fit your development workflows and you value an inspectable implementation with independently adoptable capabilities. Start with [Tuist Tests](/marketing-markdown/tests) or caching for a supported toolchain, and bring recorded evidence into a common developer and agent workflow.
+Choose Tuist when its Xcode, Gradle, Bazel, and Elixir integrations fit your development workflows and you value an inspectable implementation with independently adoptable capabilities. Optimize the project first, then its execution environment. Start with [Tuist Tests](/marketing-markdown/tests) or caching for a supported toolchain, and bring recorded evidence into a common developer and agent workflow.
 
 ## What overlaps
 
@@ -14,13 +14,13 @@ The important distinctions are the integration and execution mechanisms. Develoc
 | --- | --- | --- |
 | Xcode development workflows | [Compilation caching](/en/docs-markdown/guides/features/cache/xcode-cache) for ordinary projects, plus [module caching](/en/docs-markdown/guides/features/cache/module-cache) for generated projects. | Verify the exact supported build integration; a broad platform description does not establish every feature on every toolchain. |
 | Reduce test execution | Selective testing is currently generated-Xcode-project-only and works at test-target granularity. | Predictive Test Selection uses a model trained on build history, with selection profiles and a simulator. Check its supported integrations and coverage tradeoffs. |
-| Run tests in parallel | Tuist plans timing-balanced shards for Xcode, Gradle, and Elixir across CI jobs; not Bazel today. | Test Distribution dispatches tests to execution agents. Compare its agent and test-framework requirements, not just the number of machines. |
+| Run tests in parallel | Tuist plans timing-balanced shards for Xcode, Gradle, and Elixir across CI jobs; not Bazel today. | Test Distribution dispatches a Gradle or Maven build's tests to remote agents, using historical test timings. Its cited page describes compiling once and merging results into one build record, not simply launching identical CI jobs. Check agent and test-framework requirements. |
 | Diagnose and govern cache reuse | Tuist exposes supported cache and build records through insights and MCP; configure trusted producers. | Universal Cache describes dependency, setup, and output caching with Edge deployment, provenance, and Build Scan observability. These are meaningful overlapping and additional mechanisms to evaluate. |
 | Investigate with agents | Authorized [Tuist MCP](/en/docs-markdown/guides/features/agentic-coding/mcp) exposes supported build and test evidence. | Develocity documents MCP access to build and analytics data. Compare available records, permissions, and questions each can answer. |
 
 ## Choose Tuist when
 
-You want to improve an Xcode development loop without moving CI, use generated-project optimizations where appropriate, or bring supported Apple, Android, Bazel, and Elixir evidence into a common workflow. You want engineers to inspect [source and development](https://github.com/tuist/tuist) and contribute to relevant integrations. Confirm feature support rather than interpreting the list of toolchains as universal parity.
+You want to improve Gradle, Bazel, Elixir, or Xcode development workflows without moving CI, and bring their supported evidence into a common investigation. Generated-project optimizations are additional Xcode-specific options. You want engineers to inspect [source and development](https://github.com/tuist/tuist) and contribute to relevant integrations. Confirm feature support rather than interpreting the list of toolchains as universal parity.
 
 ## First experiment
 

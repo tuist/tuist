@@ -242,21 +242,89 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert depot =~ "local workstations is not supported yet"
     assert depot =~ "not a claim that Depot's other remote caches are CI-only"
 
-    assert MarketingMarkdown.get("/compare/blacksmith") =~ "JUnit"
+    assert depot =~ "XCODE_XCCONFIG_FILE"
+
+    namespace = MarketingMarkdown.get("/compare/namespace")
+    assert namespace =~ "separate Bazel remote cache supports local builds and external CI"
+    assert namespace =~ "does not provide that execution service"
+    assert namespace =~ "https://namespace.so/docs/bazel"
+
+    assert MarketingMarkdown.get("/compare/blacksmith") =~ "JUnit results take precedence"
     assert MarketingMarkdown.get("/compare/appcircle") =~ "Build Insights report"
+    assert MarketingMarkdown.get("/compare/appcircle") =~ "not itself evidence of individual flaky-test detection"
     assert MarketingMarkdown.get("/compare/appcircle") =~ "Enterprise plan"
     assert MarketingMarkdown.get("/compare/buildbuddy") =~ "MIT-licensed"
     assert MarketingMarkdown.get("/compare/buildbuddy") =~ "not remote execution"
+    assert MarketingMarkdown.get("/compare/buildbuddy") =~ "explicitly separates `enterprise/`"
     assert MarketingMarkdown.get("/compare/develocity") =~ "predictive selection learns from build history"
+    assert MarketingMarkdown.get("/compare/develocity") =~ "Gradle or Maven build's tests"
+    assert MarketingMarkdown.get("/compare/buildkite") =~ "Pro or Enterprise"
+    assert MarketingMarkdown.get("/compare/circleci") =~ "OAuth organizations"
+    assert MarketingMarkdown.get("/compare/circleci") =~ "circleci/<UID>"
+    assert MarketingMarkdown.get("/compare/circleci") =~ "`npx` server is deprecated"
+    assert MarketingMarkdown.get("/compare/warpbuild") =~ "Windows x86-64"
+    assert MarketingMarkdown.get("/compare/warpbuild") =~ "approximately one minute"
     assert MarketingMarkdown.get("/compare/runs-on") =~ "macOS is not yet supported"
     assert MarketingMarkdown.get("/compare/ubicloud") =~ "Transparent Cache"
     assert MarketingMarkdown.get("/compare/ubicloud") =~ "deprecated"
+    assert MarketingMarkdown.get("/compare/ubicloud") =~ "AGPL-3.0"
     assert MarketingMarkdown.get("/compare/cirun") =~ "Linux runners on AWS"
+    assert MarketingMarkdown.get("/compare/cirun") =~ "https://docs.cirun.io/caching/s3-compatible"
     assert MarketingMarkdown.get("/compare/buildjet") =~ "official, self-hosted, and BuildJet runners"
 
     for slug <- ["appcircle", "bitrise", "buildkite", "circleci", "develocity", "warpbuild"] do
       assert MarketingMarkdown.get("/compare/" <> slug) =~ "MCP"
     end
+  end
+
+  test "guides prioritize project improvements before execution environments across toolchains" do
+    for path <-
+          ["/", "/cache", "/compute", "/pricing", "/compare"] ++
+            @comparison_paths ++
+            ["/solutions/slow-builds", "/solutions/slow-tests", "/solutions/flaky-tests", "/solutions/ci-costs"] do
+      markdown = MarketingMarkdown.get(path)
+      assert markdown =~ ~r/[Pp]roject (?:optimization )?first/, path
+      assert markdown =~ "environment", path
+    end
+
+    home = MarketingMarkdown.get("/")
+    assert home =~ "engineering teams"
+    assert home =~ "Gradle task outputs"
+    assert home =~ "Bazel action outputs"
+    assert home =~ "For Elixir"
+    assert home =~ "Xcode compilation outputs"
+    assert home =~ "not the scope of the build and test platform"
+  end
+
+  test "billing comparisons cite units, scope, exceptions, and Tuist's own metering" do
+    overview = MarketingMarkdown.get("/compare")
+    assert overview =~ "## Billing and incentives"
+    assert overview =~ "included allowances and fixed commitments"
+    assert overview =~ "per-build charge for Docker builds"
+    assert overview =~ "per-second/vCPU metering for Depot CI"
+    assert overview =~ "Build minutes by machine type on pay-as-you-go plans"
+    assert overview =~ "Hosted-agent vCPU minutes"
+    assert overview =~ "annual license tiers"
+    assert overview =~ "rather than a universal per-build fee"
+    assert overview =~ "do not prove that a provider deliberately keeps builds slow"
+    assert overview =~ "Tuist itself has"
+
+    for url <- [
+          "https://namespace.so/pricing",
+          "https://www.blacksmith.sh/pricing",
+          "https://www.warpbuild.com/pricing",
+          "https://depot.dev/pricing",
+          "https://circleci.com/docs/guides/plans-pricing/credits/index.md",
+          "https://docs.codemagic.io/billing/billing/",
+          "https://buildkite.com/pricing/",
+          "https://runs-on.com/pricing/",
+          "https://www.buildbuddy.io/pricing/"
+        ] do
+      assert overview =~ url
+    end
+
+    assert MarketingMarkdown.get("/pricing") =~ "Tuist also meters feature usage"
+    assert MarketingMarkdown.get("/solutions/ci-costs") =~ "include its charges"
   end
 
   test "documents important feature-specific constraints" do

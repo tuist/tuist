@@ -1,12 +1,12 @@
 # Tuist and Appcircle: toolchain work or an app-delivery platform?
 
-Choose Tuist for separately adoptable build-output caching, build and test insights, and evidence-backed agent investigation across supported development environments. Improve the build and test loop without migrating the team's delivery platform; start with a [supported Tuist integration](/en/docs-markdown/guides/get-started).
+Choose Tuist for separately adoptable build-output caching, build and test insights, and evidence-backed agent investigation across supported development environments. Optimize the project first, then its execution environment, without migrating the team's delivery platform; start with a [supported Tuist integration](/en/docs-markdown/guides/get-started).
 
 ## What overlaps
 
 [Appcircle's documentation](https://docs.appcircle.io/) covers builds, continuous testing, signing identities, testing distribution, an enterprise app store, and publishing to stores. Its [self-hosted offering](https://docs.appcircle.io/self-hosted-appcircle) supports deployment on your own infrastructure and requires its Enterprise plan.
 
-Appcircle also documents an [MCP server](https://docs.appcircle.io/appcircle-ai/ai-features-on-appcircle/appcircle-mcp) for builds, workflow configurations, signing, distribution, publishing, and reports. Its [Build Insights report](https://docs.appcircle.io/appcircle-ai/ai-insights/build-insights) includes CI health, workflow quality, failure causes, artifact health, and queue time. Its public MCP repository does not by itself establish the licensing of the whole platform. Compare the actual data and permitted actions, not whether one service has an AI label.
+Appcircle also documents an [MCP server](https://docs.appcircle.io/appcircle-ai/ai-features-on-appcircle/appcircle-mcp) for builds, workflow configurations, signing, distribution, publishing, and reports. Its [Build Insights report](https://docs.appcircle.io/appcircle-ai/ai-insights/build-insights) includes CI health, workflow quality, failure causes, artifact health, and queue time. Its flaky-profile signal compares passing and failing builds of the same commit; it is not itself evidence of individual flaky-test detection. Its public MCP repository does not by itself establish the licensing of the whole platform. Compare the actual data and permitted actions, not whether one service has an AI label.
 
 ## Compare the boundary you want to own
 

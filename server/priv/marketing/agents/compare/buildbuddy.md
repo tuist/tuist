@@ -1,10 +1,10 @@
 # Tuist and BuildBuddy: cross-toolchain insight or Bazel-focused acceleration?
 
-Choose Tuist when you want supported build and test evidence across Xcode, Gradle, Bazel, and Elixir, with caching that can follow developers, CI, and agents. Start with [Tuist Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cache) and bring Bazel invocation evidence into the same investigation workflow as your supported Apple and Android builds.
+Choose Tuist when you want supported build and test evidence across Xcode, Gradle, Bazel, and Elixir, with caching that can follow developers, CI, and agents. Optimize the project first, then its execution environment. Start with [Tuist Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cache) and bring Bazel invocation evidence into the same investigation workflow as your supported Gradle, Elixir, or Xcode builds.
 
 ## What overlaps
 
-BuildBuddy's [public repository](https://github.com/buildbuddy-io/buildbuddy) describes a Bazel build-event viewer, result store, timing information, test logs, and remote cache. It identifies its core as MIT-licensed and documents cloud and self-hosted deployment. Check separate Enterprise terms rather than assigning the core license to every feature.
+BuildBuddy's [public repository](https://github.com/buildbuddy-io/buildbuddy) describes a Bazel build-event viewer, result store, timing information, test logs, and remote cache. It identifies its core as MIT-licensed and documents cloud and self-hosted deployment. The [repository license](https://github.com/buildbuddy-io/buildbuddy/blob/master/LICENSE) explicitly separates `enterprise/` and third-party components from the MIT core. Check those terms rather than assigning the core license to every feature.
 
 Its [remote cache](https://www.buildbuddy.io/remote-cache/) and [remote execution documentation](https://www.buildbuddy.io/docs/remote-build-execution/) describe different mechanisms. Both Tuist and BuildBuddy can reuse compatible Bazel action outputs; BuildBuddy also documents executing actions remotely. Tuist's Bazel remote cache is not remote execution.
 
@@ -20,7 +20,7 @@ Its [remote cache](https://www.buildbuddy.io/remote-cache/) and [remote executio
 
 ## Choose Tuist when
 
-You have Apple, Android, Bazel, or Elixir workflows that benefit from a common evidence and investigation layer, and Tuist's supported capabilities address the bottleneck. You want to adopt that layer without choosing a new CI execution environment. Its public development gives engineers a path to inspect and contribute fixes, but openness alone does not distinguish it from BuildBuddy.
+You have Gradle, Bazel, Elixir, or Xcode workflows that benefit from a common evidence and investigation layer, and Tuist's supported capabilities address the bottleneck. You want to adopt that layer without choosing a new CI execution environment. Its public development gives engineers a path to inspect and contribute fixes, but openness alone does not distinguish it from BuildBuddy.
 
 ## First experiment
 
@@ -28,7 +28,7 @@ Configure [Tuist Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cach
 
 ## Sources and review
 
-Sources checked on **2026-10-08**: [BuildBuddy repository](https://github.com/buildbuddy-io/buildbuddy), [documentation](https://www.buildbuddy.io/docs/introduction/), [remote cache](https://www.buildbuddy.io/remote-cache/), [remote execution](https://www.buildbuddy.io/docs/remote-build-execution/), and [Tuist Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cache). This comparison is written by Tuist and acknowledges the substantial Bazel overlap.
+Sources checked on **2026-10-08**: [BuildBuddy repository](https://github.com/buildbuddy-io/buildbuddy), [component license](https://github.com/buildbuddy-io/buildbuddy/blob/master/LICENSE), [documentation](https://www.buildbuddy.io/docs/introduction/), [remote cache](https://www.buildbuddy.io/remote-cache/), [remote execution](https://www.buildbuddy.io/docs/remote-build-execution/), and [Tuist Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cache). This comparison is written by Tuist and acknowledges the substantial Bazel overlap.
 
 ## Limitations
 
