@@ -111,6 +111,13 @@ if [ -z "${jit}" ]; then
   exit 1
 fi
 echo "$(date -u +%FT%TZ) run-job: JIT staged, starting runner"
+# The runner prints `.setup_info` as groups in the job's "Set up job"
+# step; the poller stages the server's group, which links the job to its
+# Tuist dashboard page.
+if [ -s "${JIT_PATH}.setup-info" ]; then
+  cp "${JIT_PATH}.setup-info" /home/runner/actions-runner/.setup_info 2>/dev/null ||
+    echo "$(date -u +%FT%TZ) run-job: could not install setup info; the job will run without the Tuist link"
+fi
 # Forensic vitals for this job's lifetime. Backgrounded so it keeps
 # sampling until the container (and microVM) dies; its last line
 # before a mid-job death lands in the Pod logs, the only trail left
