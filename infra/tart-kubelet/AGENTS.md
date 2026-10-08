@@ -3,6 +3,12 @@
 `tart-kubelet` maps one Kubernetes Pod to one Tart VM. The host is trusted;
 workflow code runs in the guest. Never expose host credentials or masters.
 
+- Node liveness comes from the `kube-node-lease` Lease that
+  `internal/nodeagent/lease.go` renews every 10s on its own client, with a
+  bounded timeout. A renewal that fails without an API response closes every
+  API connection (shared `connrotation` dialer) so the next one redials. Keep
+  slow work (guest probes, label scans) in the Node status refresh, never in the
+  lease path.
 - Built-in cache behavior remains in `internal/podagent/volume*.go` and the
   runner-image dispatch script. Preserve existing Tuist/CAS paths and identities.
 - Custom volumes use `internal/podagent/custom_volumes*.go` and the shared
