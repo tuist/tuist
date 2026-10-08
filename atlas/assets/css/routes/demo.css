@@ -44,23 +44,6 @@
   }
 }
 
-[data-part="demo-banner"] {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--noora-spacing-4);
-  padding: var(--noora-spacing-4) var(--noora-spacing-6);
-  background: var(--noora-surface-background-secondary);
-  border-bottom: 1px solid var(--noora-surface-border-primary);
-  font: var(--noora-font-body-small);
-
-  & > [data-part="demo-banner-description"] {
-    flex: 1;
-    min-width: min(100%, 240px);
-    color: var(--noora-surface-label-secondary);
-  }
-}
-
 [data-part="demo-page"] {
   padding: var(--noora-spacing-8);
 

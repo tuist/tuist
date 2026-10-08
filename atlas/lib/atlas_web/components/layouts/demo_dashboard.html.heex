@@ -3,10 +3,26 @@
     <div data-part="left-section">
       <.link navigate={~p"/demo"} class="headerbar__brand">
         <img src={~p"/images/tuist-logo.svg"} alt="Atlas" data-part="logo" />
-        <span class="headerbar__title">Atlas demo</span>
+        <span class="headerbar__title">Atlas</span>
       </.link>
     </div>
     <div data-part="right-section">
+      <.tooltip
+        id="demo-badge"
+        title={gettext("Fictional data. Read-only.")}
+        placement="bottom-end"
+      >
+        <:trigger :let={attrs}>
+          <.badge
+            label={gettext("Demo")}
+            color="information"
+            style="light-fill"
+            size="large"
+            tabindex="0"
+            {attrs}
+          />
+        </:trigger>
+      </.tooltip>
       <.button
         id="demo-self-host-link"
         href="https://atlas.tuist.dev/docs/self-hosting"
@@ -94,21 +110,6 @@
           {label}
         </.link>
       </nav>
-      <aside id="demo-banner" data-part="demo-banner">
-        <.badge label={gettext("Read-only demo")} color="information" />
-        <span data-part="demo-banner-description">
-          {gettext(
-            "All data is fictional. Browse, search, and filter; changes and integrations are disabled."
-          )}
-        </span>
-        <.button
-          id="demo-banner-docs-link"
-          href="https://atlas.tuist.dev/docs"
-          label={gettext("Read the docs")}
-          variant="secondary"
-          size="small"
-        />
-      </aside>
       <div data-part="demo-page">{@inner_content}</div>
     </div>
   </section>

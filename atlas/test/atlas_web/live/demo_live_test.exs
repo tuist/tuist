@@ -27,7 +27,9 @@ defmodule AtlasWeb.DemoLiveTest do
   test "anonymous visits redirect to the curated demo", %{conn: conn} do
     assert conn |> get("/") |> redirected_to() == "/demo"
     {:ok, view, _html} = live(build_conn(), "/demo")
-    assert has_element?(view, "#demo-banner")
+    assert has_element?(view, "header #demo-badge [data-part='trigger'][tabindex='0']", "Demo")
+    assert has_element?(view, "#demo-badge [data-part='content']", "Fictional data. Read-only.")
+    refute has_element?(view, "#demo-banner")
     assert has_element?(view, "#demo-accounts-link")
     assert has_element?(view, "#demo-docs-link")
     refute has_element?(view, "#account-dropdown")
@@ -95,7 +97,8 @@ defmodule AtlasWeb.DemoLiveTest do
         ] do
       {:ok, view, _html} = live(conn, path)
       render_async(view)
-      assert has_element?(view, "#demo-banner")
+      assert has_element?(view, "header #demo-badge [data-part='trigger']", "Demo")
+      refute has_element?(view, "#demo-banner")
     end
 
     {:ok, finance, _html} = live(conn, "/commercial/finance")

@@ -71,7 +71,7 @@ done
 if [[ "$ready" != true ]]; then tail -100 "$work/server.log" >&2; exit 1; fi
 for path in /demo /commercial/sales/accounts /tasks /commercial/finance /commercial/finance/vendors /library/notes; do
   curl -fsS -H 'X-Forwarded-Proto: https' "http://127.0.0.1:$http_port$path" > "$work/page.html"
-  grep -q 'id="demo-banner"' "$work/page.html"
+  grep -q 'id="demo-badge"' "$work/page.html"
 done
 for path in /mcp /admin/users /auth/google /inference/v1/models; do
   status="$(curl -sS -o /dev/null -w '%{http_code}' -H 'X-Forwarded-Proto: https' "http://127.0.0.1:$http_port$path")"

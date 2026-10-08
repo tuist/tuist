@@ -1494,9 +1494,9 @@ msgstr ""
 msgid "A company operating system, ready to explore"
 msgstr ""
 
-#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:64
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:17
 #, elixir-autogen, elixir-format
-msgid "All data is fictional. Browse, search, and filter; changes and integrations are disabled."
+msgid "Demo"
 msgstr ""
 
 #: lib/atlas_web/live/demo_live.ex:52
@@ -1555,14 +1555,9 @@ msgstr ""
 msgid "Open an account to see its contacts, commercial terms, invoices, and timeline together. Try searching for Helio or filtering by lifecycle."
 msgstr ""
 
-#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:68
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:12
 #, elixir-autogen, elixir-format
-msgid "Read the docs"
-msgstr ""
-
-#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:62
-#, elixir-autogen, elixir-format
-msgid "Read-only demo"
+msgid "Fictional data. Read-only."
 msgstr ""
 
 #: lib/atlas_web/components/layouts/demo_dashboard.html.heex:10
