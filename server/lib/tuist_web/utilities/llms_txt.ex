@@ -2,10 +2,10 @@ defmodule TuistWeb.Utilities.LlmsTxt do
   @moduledoc """
   Builds the `/llms.txt` index described by https://llmstxt.org.
 
-  The file is the entry point agents and AI crawlers look for when they want a
-  curated map of a site instead of crawling it. Ours points at the Markdown twin
-  of every documentation page (`/:locale/docs-markdown/*`), which is otherwise
-  undiscoverable: nothing links to it and it is absent from the sitemap.
+  The file provides a curated map for agents that use it, not a guarantee of
+  search discovery or citations. It points at documentation Markdown twins
+  (`/:locale/docs-markdown/*`), landing-page guides, and shared-source problem
+  and comparison guides. Public HTML guides are also linked in the sitemap.
 
   Only English is indexed. The file lives at a single URL, so a translated
   variant would have nowhere to be served from.
@@ -18,7 +18,7 @@ defmodule TuistWeb.Utilities.LlmsTxt do
 
   @locale "en"
 
-  @summary "Tuist is build infrastructure for productive teams. It integrates into existing build toolchains to share a binary cache across machines and CI, run only the tests a change can affect, track flaky tests, surface build and test insights, and share app previews from a URL."
+  @summary "Tuist is build infrastructure for productive teams. It integrates into existing build toolchains to share compatible build outputs across developer, CI, and agent environments, surface build and test insights, track flaky tests, and share app previews from a URL. Selective testing skips unchanged test targets in Tuist-generated Xcode projects. Managed runners are optional and currently invite-only."
 
   @notes [
     "Every documentation page has a plain-Markdown twin: swap `/docs/` for `/docs-markdown/` in any documentation URL to get the Markdown source instead of the rendered HTML page.",
@@ -99,6 +99,8 @@ defmodule TuistWeb.Utilities.LlmsTxt do
       [""],
       documentation_sections(),
       link_section("Product", @product_pages),
+      guide_section("Solve a problem", "/solutions/"),
+      guide_section("Comparisons", "/compare"),
       link_section("Company", @company_pages),
       link_section("Policies", @policy_pages),
       link_section("Optional", @optional_pages)
@@ -158,6 +160,16 @@ defmodule TuistWeb.Utilities.LlmsTxt do
       Enum.map(pages, fn {path, description} ->
         target = MarketingMarkdown.alternate_path(path) || path
         link(page_title(path), Tuist.Environment.app_url(path: target), description)
+      end) ++ [""]
+  end
+
+  defp guide_section(title, prefix) do
+    pages = Enum.filter(MarketingMarkdown.public_pages(), &String.starts_with?(&1.path, prefix))
+
+    ["## #{title}", ""] ++
+      Enum.map(pages, fn page ->
+        url = Tuist.Environment.app_url(path: MarketingMarkdown.alternate_path(page.path))
+        link(page.title, url, page.description)
       end) ++ [""]
   end
 

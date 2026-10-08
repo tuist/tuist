@@ -1,10 +1,27 @@
 # Tuist: build, test, and CI infrastructure for app teams
 
-Tuist shortens the build, test, and review loop for developers, CI, and coding agents. It is a set of separately adoptable capabilities around a shared server: remote caching, managed CI runners, test insights and test acceleration, app previews, and build and bundle analytics. Most of them plug into your existing Xcode, Gradle, Bazel, or Elixir setup.
+Tuist helps developers and agents understand and reduce build and test work, wherever that work runs. Separately adoptable capabilities include remote caching, build and test insights, test acceleration, app previews, and optional managed CI runners. Most integrate with an existing Xcode, Gradle, Bazel, or Elixir setup; support differs by toolchain.
 
 ## Problem
 
 The same code is compiled again on laptops, CI machines, and agent sandboxes. Test suites grow slower and flakier, CI time goes to queues and cold machines, and sharing a development build means a store upload or a local checkout. Without shared build and test data, teams guess where the time goes.
+
+## Solve a problem
+
+| Question | Decision guide |
+| --- | --- |
+| My builds are slow | [Diagnose build work, reduce duplication, and evaluate caching](/marketing-markdown/solutions/slow-builds) |
+| My tests are flaky | [Investigate failures, contain known flakes, and restore reliability](/marketing-markdown/solutions/flaky-tests) |
+| My tests take too long | [Find slow tests, avoid unchanged targets, or balance shards](/marketing-markdown/solutions/slow-tests) |
+| My CI costs are going up | [Measure duplicate work, retries, and total execution cost](/marketing-markdown/solutions/ci-costs) |
+| Which provider or approach fits? | [Compare Tuist with runner, CI/CD, and build-acceleration providers](/marketing-markdown/compare) |
+
+## Why evaluate Tuist
+
+- **Understand the work, not just the machine.** Toolchain-aware insights give developers and agents evidence for graph, task, and test changes before paying for more compute. Insights do not automatically optimize a project.
+- **Reuse outputs across environments.** Regional cache endpoints serve compatible local, CI, and agent builds without requiring Tuist Runners.
+- **Inspect and contribute.** Public [source](https://github.com/tuist/tuist), [issues](https://github.com/tuist/tuist/issues), and [pull requests](https://github.com/tuist/tuist/pulls) make implementation and fixes visible; component licenses and deployment terms differ.
+- **Adopt toolchain-native integrations and agent access.** Documented integrations and authorized [MCP tools](/en/docs-markdown/guides/features/agentic-coding/mcp) let agents investigate real project data, not just guess from source code.
 
 ## Choose an area by bottleneck
 

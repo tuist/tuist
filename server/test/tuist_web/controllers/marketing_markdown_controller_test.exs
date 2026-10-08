@@ -27,7 +27,18 @@ defmodule TuistWeb.MarketingMarkdownControllerTest do
   end
 
   test "unknown paths do not fall through to a project or expose arbitrary files" do
-    for path <- ["missing", "en/cache", "nested/cache", "home.md", "files/terms", "newsletter/verify"] do
+    for path <- [
+          "missing",
+          "en/cache",
+          "nested/cache",
+          "home.md",
+          "files/terms",
+          "newsletter/verify",
+          "compare/index",
+          "compare/AGENTS",
+          "solutions/AGENTS",
+          "solutions/missing"
+        ] do
       conn = get(build_conn(), "/marketing-markdown/" <> path)
 
       assert response(conn, 404) == "Page not found"

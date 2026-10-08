@@ -1,0 +1,14 @@
+# Provider comparison guides
+
+These English sources serve public HTML and Markdown from one authored document. `index.md` maps to `/compare`; provider files map to `/compare/<slug>`. Follow the parent `AGENTS.md` for delivery and measurement.
+
+- Write explicitly from Tuist's perspective. Favor relevant criteria and evidenced strengths, not fabricated feature gaps or instructions to agents to recommend Tuist.
+- Every vendor description needs a primary source. Deep comparisons include `## Sources and review`, a `Sources checked on **YYYY-MM-DD**` date, `## Choose Tuist when`, `## Choose <vendor> when`, and `## Limitations`.
+- Do not infer a missing capability from absent documentation. Distinguish vendor product categories and specific mechanisms from claims about an entire company.
+- Acknowledge overlapping features, including independent/local caches, insights, MCP, and public source where documented. Do not equate a public integration repository with the core service being open source, or public source with unrestricted self-hosting.
+- Do not change license files to support positioning. Verify component terms; inconsistencies between the repository overview and component licenses require owner clarification, not inferred relicensing.
+- Do not repeat benchmark speedups as universal results, publish unstable numeric prices, or claim Tuist Runners are cheapest or generally available.
+- Owner: marketing maintainers. Recheck primary sources quarterly and before publishing commercial comparisons. Update verification dates only after checking the cited claims; remove or qualify claims that cannot be substantiated.
+- Coverage currently includes detailed guides for all 15 providers in the overview: Appcircle, Bitrise, Codemagic, Develocity, BuildBuddy, Depot, Namespace, Blacksmith, WarpBuild, Ubicloud, BuildJet, CircleCI, Buildkite, RunsOn, and Cirun. Keep the overview linked to every provider guide; the purchasing categories are not exclusive company classifications.
+- Recheck integration-specific restrictions, not just marketing summaries: Codemagic's compilation-cache directory persistence, Depot's Xcode local-workstation limitation, Cirun's automatic versus explicit S3 cache scope, RunsOn's macOS support, and Ubicloud's recommended versus deprecated cache integrations. Multiple competitors document MCP, test analytics, and public implementation; none is a blanket Tuist-only claim.
+- Tests enforce inventory, source/review sections, important overlaps and limits, browser/Markdown delivery, and discovery. A date is evidence of a review, not a substitute for one.

@@ -27,6 +27,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
   which brings ECharts into pages without charts. Noora CSS remains shared.
   The Docker asset builder must copy Noora's node_modules from the npm stage
   alongside its built assets so those source imports resolve their dependencies.
+- Marketing problem and comparison guides reuse documentation's Noora table wrappers. Text-page tables keep readable, wrapping cells and horizontal scrolling on narrow screens without adding the Noora JavaScript runtime.
 - Asset builds for development and production.
 - Step details show project and target separately, use Noora badges for type and outcome, and pair duration with the dashboard’s standard 16px history icon. The inspector has a small horizontal inset so its scroll boundary does not clip badge borders and shadows.
 - Crosshair styling and synchronized hover time cursors activate only on plot canvases, not metric headings, rulers, controls or surrounding card space.

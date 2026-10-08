@@ -3,27 +3,54 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
 
   alias TuistWeb.Utilities.MarketingMarkdown
 
+  @providers [
+    {"appcircle", "Appcircle"},
+    {"bitrise", "Bitrise"},
+    {"blacksmith", "Blacksmith"},
+    {"buildbuddy", "BuildBuddy"},
+    {"buildjet", "BuildJet"},
+    {"buildkite", "Buildkite"},
+    {"circleci", "CircleCI"},
+    {"cirun", "Cirun"},
+    {"codemagic", "Codemagic"},
+    {"depot", "Depot"},
+    {"develocity", "Develocity"},
+    {"namespace", "Namespace"},
+    {"runs-on", "RunsOn"},
+    {"ubicloud", "Ubicloud"},
+    {"warpbuild", "WarpBuild"}
+  ]
+  @comparison_paths Enum.map(@providers, fn {slug, _name} -> "/compare/" <> slug end)
+
   test "covers every marketing landing page with an authored guide" do
-    assert MarketingMarkdown.guide_paths() == [
-             "/",
-             "/about",
-             "/blog",
-             "/brand",
-             "/cache",
-             "/changelog",
-             "/community",
-             "/compute",
-             "/customers",
-             "/download",
-             "/globe",
-             "/longevity",
-             "/newsletter",
-             "/openness",
-             "/previews",
-             "/pricing",
-             "/security",
-             "/tests"
-           ]
+    assert MarketingMarkdown.guide_paths() ==
+             Enum.sort(
+               [
+                 "/",
+                 "/about",
+                 "/blog",
+                 "/brand",
+                 "/cache",
+                 "/changelog",
+                 "/community",
+                 "/compare",
+                 "/compute",
+                 "/customers",
+                 "/download",
+                 "/globe",
+                 "/longevity",
+                 "/newsletter",
+                 "/openness",
+                 "/previews",
+                 "/pricing",
+                 "/security",
+                 "/solutions/ci-costs",
+                 "/solutions/flaky-tests",
+                 "/solutions/slow-builds",
+                 "/solutions/slow-tests",
+                 "/tests"
+               ] ++ @comparison_paths
+             )
 
     for path <- MarketingMarkdown.guide_paths() do
       markdown = MarketingMarkdown.get(path)
@@ -101,6 +128,133 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/de/cache") == nil
     assert MarketingMarkdown.get("/../pages/terms") == nil
     assert MarketingMarkdown.get("/AGENTS") == nil
+  end
+
+  test "public problem and comparison pages derive HTML and metadata from their Markdown" do
+    assert Enum.map(MarketingMarkdown.public_pages(), & &1.path) ==
+             Enum.sort(
+               [
+                 "/compare",
+                 "/solutions/ci-costs",
+                 "/solutions/flaky-tests",
+                 "/solutions/slow-builds",
+                 "/solutions/slow-tests"
+               ] ++ @comparison_paths
+             )
+
+    for page <- MarketingMarkdown.public_pages() do
+      markdown = MarketingMarkdown.get(page.path)
+      html_page = MarketingMarkdown.public_page(page.path)
+      assert String.starts_with?(markdown, "# " <> page.title <> "\n\n" <> page.description)
+      assert html_page.body =~ "<table>"
+      assert html_page.body =~ "Limitations"
+      refute html_page.body =~ "<h1"
+      refute html_page.body =~ "href=\"/marketing-markdown"
+      refute html_page.body =~ "href=\"/en/docs-markdown"
+      assert MarketingMarkdown.alternate_path(page.path) == "/marketing-markdown" <> page.path
+    end
+
+    html = MarketingMarkdown.public_page("/solutions/slow-builds").body
+    assert html =~ ~s(href="/cache")
+    assert html =~ ~s(href="/en/docs/guides/features/build-insights")
+    assert html =~ ~s(href="/solutions/slow-tests")
+    assert html =~ ~s(href="/compare")
+
+    for path <- ["/cache", "/compare/index", "/compare/AGENTS", "/solutions/AGENTS", "/solutions/missing"] do
+      assert MarketingMarkdown.public_page(path) == nil
+    end
+
+    assert MarketingMarkdown.get("/compare/index") == nil
+    assert MarketingMarkdown.get("/solutions/AGENTS") == nil
+    assert MarketingMarkdown.get("/compare/AGENTS") == nil
+  end
+
+  test "problem guides connect diagnosis, agent investigation, experiments, and limitations" do
+    mcp_docs = File.read!(Path.expand("../../../priv/docs/en/guides/features/agentic-coding/mcp.md", __DIR__))
+
+    for slug <- ["slow-builds", "flaky-tests", "slow-tests", "ci-costs"] do
+      path = "/solutions/" <> slug
+      markdown = MarketingMarkdown.get(path)
+      assert markdown =~ "## Diagnose"
+      assert markdown =~ "## Investigate with an agent"
+      assert markdown =~ "## First experiment"
+      assert markdown =~ "## Limitations"
+      assert MarketingMarkdown.get("/") =~ MarketingMarkdown.alternate_path(path)
+
+      for [_match, tool] <- Regex.scan(~r/`((?:list|get|update)_[a-z_]+)`/, markdown) do
+        assert mcp_docs =~ "`#{tool}`", tool
+      end
+    end
+
+    assert MarketingMarkdown.get("/solutions/slow-builds") =~ "Xcode 26"
+    assert MarketingMarkdown.get("/solutions/slow-tests") =~ "test-target granularity"
+    assert MarketingMarkdown.get("/solutions/slow-tests") =~ "not Bazel today"
+    assert MarketingMarkdown.get("/solutions/flaky-tests") =~ "quarantine is not applied there yet"
+    assert MarketingMarkdown.get("/solutions/ci-costs") =~ "no public pricing"
+  end
+
+  test "comparisons disclose their perspective, primary sources, and review date" do
+    for path <- ["/compare" | @comparison_paths] do
+      markdown = MarketingMarkdown.get(path)
+      assert markdown =~ "written by Tuist"
+      assert markdown =~ ~r/Sources checked on \*\*\d{4}-\d{2}-\d{2}\*\*/
+      assert markdown =~ "https://"
+      assert markdown =~ "## Limitations"
+      assert markdown =~ "invite-only"
+    end
+
+    for {slug, vendor} <- @providers do
+      markdown = MarketingMarkdown.get("/compare/" <> slug)
+      assert markdown =~ "## Choose Tuist when"
+      assert markdown =~ "## Choose #{vendor} when"
+      assert markdown =~ "## Sources and review"
+      assert markdown =~ "## What overlaps"
+      assert markdown =~ "## First experiment"
+    end
+
+    assert MarketingMarkdown.get("/compare/bitrise") =~ "Agent access and insights are not unique to Tuist"
+    assert MarketingMarkdown.get("/compare") =~ "Openness is not unique to Tuist"
+    assert MarketingMarkdown.get("/compare") =~ "Runner independence alone is not a unique Tuist claim"
+  end
+
+  test "comparison overview links every detailed provider guide" do
+    overview = MarketingMarkdown.get("/compare")
+    html = MarketingMarkdown.public_page("/compare").body
+    links = html |> Floki.parse_fragment!() |> Floki.attribute("a", "href")
+
+    for {slug, vendor} <- @providers do
+      path = "/compare/" <> slug
+      assert overview =~ "[Tuist and #{vendor}]"
+      assert overview =~ MarketingMarkdown.alternate_path(path)
+      assert path in links
+      assert MarketingMarkdown.get(path) =~ MarketingMarkdown.alternate_path("/compare")
+    end
+  end
+
+  test "comparisons retain researched overlaps and integration-specific qualifications" do
+    codemagic = MarketingMarkdown.get("/compare/codemagic")
+    assert codemagic =~ "CompilationCache.noindex"
+    assert codemagic =~ "Do not say Codemagic lacks compilation caching"
+
+    depot = MarketingMarkdown.get("/compare/depot")
+    assert depot =~ "local workstations is not supported yet"
+    assert depot =~ "not a claim that Depot's other remote caches are CI-only"
+
+    assert MarketingMarkdown.get("/compare/blacksmith") =~ "JUnit"
+    assert MarketingMarkdown.get("/compare/appcircle") =~ "Build Insights report"
+    assert MarketingMarkdown.get("/compare/appcircle") =~ "Enterprise plan"
+    assert MarketingMarkdown.get("/compare/buildbuddy") =~ "MIT-licensed"
+    assert MarketingMarkdown.get("/compare/buildbuddy") =~ "not remote execution"
+    assert MarketingMarkdown.get("/compare/develocity") =~ "predictive selection learns from build history"
+    assert MarketingMarkdown.get("/compare/runs-on") =~ "macOS is not yet supported"
+    assert MarketingMarkdown.get("/compare/ubicloud") =~ "Transparent Cache"
+    assert MarketingMarkdown.get("/compare/ubicloud") =~ "deprecated"
+    assert MarketingMarkdown.get("/compare/cirun") =~ "Linux runners on AWS"
+    assert MarketingMarkdown.get("/compare/buildjet") =~ "official, self-hosted, and BuildJet runners"
+
+    for slug <- ["appcircle", "bitrise", "buildkite", "circleci", "develocity", "warpbuild"] do
+      assert MarketingMarkdown.get("/compare/" <> slug) =~ "MCP"
+    end
   end
 
   test "documents important feature-specific constraints" do

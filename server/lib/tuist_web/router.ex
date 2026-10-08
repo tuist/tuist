@@ -22,6 +22,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.SameOriginCSRFExemptionPlug
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
+  alias TuistWeb.Utilities.MarketingMarkdown
 
   @public_robots_txt [train_ai: true, search: true, ai_input: true]
   @marketing_route_metadata %{type: :marketing, robots_txt: @public_robots_txt}
@@ -412,6 +413,12 @@ defmodule TuistWeb.Router do
       :browser_marketing,
       :assign_current_path
     ]
+
+    for %{path: path} <- MarketingMarkdown.public_pages() do
+      get path, MarketingController, :decision_guide,
+        metadata: @marketing_route_metadata,
+        private: %{locale: "en", marketing_english_only: true}
+    end
 
     for locale <- ["en"] ++ Localization.additional_locales() do
       locale_path_prefix = Localization.locale_path_prefix(locale)

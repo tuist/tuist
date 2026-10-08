@@ -13,6 +13,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Utilities.MarketingMarkdown
 
   @iphone_user_agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
 
@@ -83,6 +84,78 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
+  describe "problem and comparison guides" do
+    test "renders every public guide with a single heading, browser links, and Markdown discovery" do
+      for page <- MarketingMarkdown.public_pages() do
+        conn = get(build_conn(), page.path <> "?utm_source=agent")
+        document = conn |> html_response(200) |> Floki.parse_document!()
+
+        assert Floki.text(Floki.find(document, "h1")) == page.title
+        assert length(Floki.find(document, "h1")) == 1
+        assert Floki.find(document, "[data-prose] .noora-table [data-part='scroll-container'] table") != []
+
+        assert Floki.attribute(document, ~s(link[rel="canonical"]), "href") ==
+                 [Tuist.Environment.app_url(path: page.path)]
+
+        assert Floki.attribute(document, ~s(link[type="text/markdown"]), "href") ==
+                 [Tuist.Environment.app_url(path: MarketingMarkdown.alternate_path(page.path))]
+
+        assert conn |> get_resp_header("link") |> Enum.join() =~ MarketingMarkdown.alternate_path(page.path)
+        assert get_resp_header(conn, "cloudflare-cdn-cache-control") == []
+        assert get_resp_header(conn, "cache-control") == ["public, max-age=60, stale-while-revalidate=86400"]
+
+        links = Floki.attribute(document, "[data-prose] a", "href")
+        refute Enum.any?(links, &String.starts_with?(&1, ["/marketing-markdown", "/en/docs-markdown"]))
+
+        for href <- Enum.filter(links, &String.starts_with?(&1, "/")) do
+          route = Phoenix.Router.route_info(TuistWeb.Router, "GET", URI.parse(href).path, "")
+          assert route.type in [:marketing, :docs], href
+        end
+      end
+    end
+
+    test "English-only guides do not redirect or advertise nonexistent translations" do
+      for page <- MarketingMarkdown.public_pages() do
+        conn = build_conn() |> put_req_header("accept-language", "ko") |> get(page.path)
+        document = conn |> html_response(200) |> Floki.parse_document!()
+        assert Floki.attribute(document, "html", "lang") == ["en"]
+
+        assert Floki.attribute(document, ~s(link[rel="alternate"][hreflang]), "hreflang") ==
+                 ["en", "en", "x-default"]
+
+        assert Floki.find(document, "#footer-locale-dropdown") == []
+      end
+    end
+
+    test "canonical requests negotiate the same Markdown as explicit paths" do
+      for page <- MarketingMarkdown.public_pages() do
+        conn = build_conn() |> put_req_header("accept", "text/markdown") |> get(page.path)
+        assert response(conn, 200) == MarketingMarkdown.get(page.path)
+        assert get_resp_header(conn, "content-type") == ["text/markdown; charset=utf-8"]
+        assert get_resp_header(conn, "cloudflare-cdn-cache-control") == ["no-store"]
+      end
+    end
+
+    test "homepage links all problem guides and the comparison overview", %{conn: conn} do
+      document = conn |> get("/") |> html_response(200) |> Floki.parse_document!()
+      links = Floki.attribute(document, "#marketing-footer a", "href")
+
+      for path <- [
+            "/solutions/slow-builds",
+            "/solutions/flaky-tests",
+            "/solutions/slow-tests",
+            "/solutions/ci-costs",
+            "/compare"
+          ] do
+        assert path in links
+      end
+    end
+
+    test "legacy feature redirects remain intact", %{conn: conn} do
+      assert conn |> get("/flaky-tests") |> redirected_to(301) == "/tests"
+    end
+  end
+
   describe "GET /blog/:year/:month/:day/:slug" do
     test "emits article metadata with a profile URL for the author", %{conn: conn} do
       post = List.first(Blog.get_posts())
@@ -130,6 +203,18 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Folded into the tests page; their URLs redirect and are not advertised.
       for path <- ["/flaky-tests", "/test-insights"] do
         refute xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+      end
+    end
+
+    test "includes canonical guide pages without invented modification dates or translations", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+
+      for page <- MarketingMarkdown.public_pages() do
+        url = Tuist.Environment.app_url(path: page.path)
+        assert xml =~ "<loc>#{url}</loc>"
+        refute xml =~ ~r|<loc>#{Regex.escape(url)}</loc>\s*<lastmod>|
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: "/ko" <> page.path)}</loc>"
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: MarketingMarkdown.alternate_path(page.path))}</loc>"
       end
     end
 
