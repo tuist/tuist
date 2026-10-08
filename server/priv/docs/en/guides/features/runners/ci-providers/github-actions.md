@@ -15,7 +15,7 @@
 Running a job on the fleet takes three changes: connect GitHub, point `runs-on` at a Tuist <.localized_link href="/guides/features/runners/profiles">profile</.localized_link>, and push.
 
 1. **Request access.** Runners are invite-only during the beta. [Reach out](mailto:contact@tuist.dev) with the account you want enabled.
-2. **Connect GitHub.** Make sure your project is <.localized_link href="/guides/integrations/gitforge/github">connected to your GitHub organization</.localized_link>. Tuist receives `workflow_job` events for that organization and dispatches matching jobs to the fleet. Without this connection, no jobs reach your runners.
+2. **Connect GitHub.** Make sure your project is <.localized_link href="/guides/integrations/gitforge/github">connected to your GitHub organization</.localized_link>. Tuist receives `workflow_job` events for that organization and dispatches matching jobs to the fleet. Without this connection, no jobs reach your runners. If your organization uses an IP allow list, also allowlist the <.localized_link href="/guides/server/network#tuist-runners">runner IP addresses</.localized_link>, or steps like `actions/checkout` fail with a 403.
 3. **Point `runs-on` at a Tuist profile.** Every enabled account starts with two ready-to-use <.localized_link href="/guides/features/runners/profiles">profiles</.localized_link>: `linux` and `macos`. Reference them with the `tuist-` prefix:
 
    ```yaml
