@@ -129,7 +129,7 @@
                 )
                 .willReturn([externalGraphTarget: .test(hash: "external-hash")])
             given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
-            given(cacheStorage).republish(.any, cacheCategory: .value(.binaries)).willReturn()
+            given(cacheStorage).republishIfNeeded(.any, cacheCategory: .value(.binaries)).willReturn()
             given(generatorFactory)
                 .binaryCacheWarming(
                     config: .any,
@@ -194,7 +194,7 @@
             )
 
             verify(cacheStorage)
-                .republish(
+                .republishIfNeeded(
                     .matching { items in
                         items.count == 1 && items.first?.key.hash == "fixtures-hash"
                             && items.first?.key.metadata.binaryCacheFingerprints == fingerprints && items.first?.value == path
@@ -214,7 +214,7 @@
             )
 
             verify(cacheStorage)
-                .republish(.any, cacheCategory: .any)
+                .republishIfNeeded(.any, cacheCategory: .any)
                 .called(0)
         }
 
@@ -229,7 +229,7 @@
             )
 
             verify(cacheStorage)
-                .republish(.any, cacheCategory: .any)
+                .republishIfNeeded(.any, cacheCategory: .any)
                 .called(0)
         }
 
@@ -646,7 +646,7 @@
                 .fetch(.any, cacheCategory: .value(.binaries))
                 .willReturn(fetched)
             given(cacheStorage)
-                .republish(.any, cacheCategory: .value(.binaries))
+                .republishIfNeeded(.any, cacheCategory: .value(.binaries))
                 .willReturn()
             given(generatorFactory)
                 .binaryCacheWarming(

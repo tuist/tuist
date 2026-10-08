@@ -481,7 +481,7 @@ struct BinaryCacheStorageTests {
         #expect(hits.keys.map(\.source) == [.local])
         await remote.evictAll()
 
-        try await producer.republish([target: try #require(hits.values.first)], cacheCategory: .binaries)
+        try await producer.republishIfNeeded([target: try #require(hits.values.first)], cacheCategory: .binaries)
 
         let reader = subject(directory.appending(component: "reader"), remote: remote)
         #expect(try await reader.fetch([target], cacheCategory: .binaries).keys.map(\.source) == [.remote])
@@ -499,7 +499,7 @@ struct BinaryCacheStorageTests {
         let uploads = await remote.uploads
         let actions = await remote.actions
 
-        try await producer.republish([target: try #require(hits.values.first)], cacheCategory: .binaries)
+        try await producer.republishIfNeeded([target: try #require(hits.values.first)], cacheCategory: .binaries)
 
         #expect(await remote.uploads == uploads)
         #expect(await remote.actions == actions)

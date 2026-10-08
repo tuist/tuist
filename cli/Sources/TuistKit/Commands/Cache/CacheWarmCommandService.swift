@@ -225,7 +225,7 @@ import XcodeGraph
             let cacheableTargets = hashedGraph.targetsToBuild
 
             if !noUpload, !generateOnly {
-                try await cacheStorage.republish(hashedGraph.localHits, cacheCategory: .binaries)
+                try await cacheStorage.republishIfNeeded(hashedGraph.localHits, cacheCategory: .binaries)
             }
 
             try foreignBuildOutputValidator.validate(
