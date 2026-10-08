@@ -391,6 +391,43 @@ struct REAPICacheClientTests {
         }
     }
 
+    /// The cache verifies a splice by reading the blob back, so a blob is spliced as soon as its chunks are in rather
+    /// than after every other upload of the operation.
+    @Test(.inTemporaryDirectory) func splicesEachBlobAsSoonAsItsChunksAreUploaded() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state, splices: true), WireBytes(state: state),
+            WireCapabilities(maximumBatchBytes: 2 * 1024 * 1024, splicingAverageChunkBytes: 512 * 1024),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            var guards = REAPICacheClient.TransferGuards()
+            guards.uploadConcurrency = 1
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project", guards: guards
+            ) { "token" }
+            try await client.validateCapabilities()
+            var blobs: [REAPI.Digest: URL] = [:]
+            for (seed, size) in [(UInt64(7), 6 * 1024 * 1024), (8, 3 * 1024 * 1024)] {
+                let data = Data.splitMix(count: size, seed: seed)
+                let source = directory.appending(component: "\(seed)").url
+                try data.write(to: source)
+                blobs[REAPI.digest(data)] = source
+            }
+            #expect(try await client.uploadAvailableBlobs(blobs).available == Set(blobs.keys))
+            let events = await state.events
+            #expect(events.filter { $0 == "splice" }.count == 2)
+            #expect(try #require(events.firstIndex(of: "splice")) < #require(events.lastIndex(of: "update")))
+        }
+    }
+
     @Test(.inTemporaryDirectory) func uploadsAChunkAgainWhenTheCacheEvictsItBeforeTheSplice() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let state = WireCache()
@@ -1650,8 +1687,11 @@ private actor WireCache {
     private var evictsBeforeSplice = false
     /// Drops the first chunk of the next splice, the way the cache evicts a chunk between its upload and the splice.
     func evictAChunkBeforeTheNextSplice() { evictsBeforeSplice = true }
+    /// Batch uploads and splices in the order the cache received them.
+    var events: [String] = []
     func beginSplice(chunks: [REAPI.Digest]) {
         splices += 1
+        events.append("splice")
         if evictsBeforeSplice, let chunk = chunks.first {
             evictsBeforeSplice = false
             blobs[chunk] = nil
@@ -1661,6 +1701,7 @@ private actor WireCache {
     func beginUpdate(bytes: Int) throws {
         updateCalls += 1
         updateBytes += bytes
+        events.append("update")
         largestBatch = max(largestBatch, bytes)
         if failUpdate { failUpdate = false; throw RPCError(code: .unavailable, message: "Injected transient failure") }
     }

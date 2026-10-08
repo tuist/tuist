@@ -27,6 +27,15 @@ enum REAPIChunking {
         var offset: Int64 = 0
         var whole = SHA256()
         var chunks: [Chunk] = []
+        // The tables are read once per byte, so the loop indexes them through pointers rather than the static arrays.
+        let gear = UnsafeMutableBufferPointer<UInt64>.allocate(capacity: 256)
+        let gearShifted = UnsafeMutableBufferPointer<UInt64>.allocate(capacity: 256)
+        defer {
+            gear.deallocate()
+            gearShifted.deallocate()
+        }
+        _ = gear.initialize(from: Self.gear)
+        _ = gearShifted.initialize(from: Self.gear.map { $0 << 1 })
         while true {
             while !exhausted, buffer.count - start < maximumChunkBytes {
                 if start > 0 {
@@ -38,7 +47,7 @@ enum REAPIChunking {
             }
             if start == buffer.count { break }
             let chunk = buffer.withUnsafeBufferPointer { pointer in
-                let length = cut(UnsafeBufferPointer(rebasing: pointer[start...]))
+                let length = cut(UnsafeBufferPointer(rebasing: pointer[start...]), gear: gear, gearShifted: gearShifted)
                 let bytes = UnsafeRawBufferPointer(UnsafeBufferPointer(rebasing: pointer[start ..< start + length]))
                 whole.update(bufferPointer: bytes)
                 return Chunk(offset: offset, digest: .with {
@@ -56,8 +65,14 @@ enum REAPIChunking {
         return chunks
     }
 
-    /// The length of the chunk that starts `source`.
-    static func cut(_ source: UnsafeBufferPointer<UInt8>) -> Int {
+    /// The length of the chunk that starts `source`, given the gear table and the table shifted left by one bit.
+    static func cut(
+        _ source: UnsafeBufferPointer<UInt8>,
+        gear: UnsafeMutableBufferPointer<UInt64>,
+        gearShifted: UnsafeMutableBufferPointer<UInt64>
+    ) -> Int {
+        let smallMask = Self.smallMask, smallMaskShifted = Self.smallMask << 1
+        let largeMask = Self.largeMask, largeMaskShifted = Self.largeMask << 1
         var remaining = source.count
         if remaining <= minimumChunkBytes { return remaining }
         var center = averageChunkBytes
@@ -90,9 +105,6 @@ enum REAPIChunking {
     /// Masks for 2^(19 + 2) and 2^(19 - 2) bits: the average chunk size's bits, normalized at level 2.
     private static let smallMask: UInt64 = 0x0000_D917_6753_7000
     private static let largeMask: UInt64 = 0x0000_D907_0353_7000
-    private static let smallMaskShifted = smallMask << 1
-    private static let largeMaskShifted = largeMask << 1
-    private static let gearShifted = gear.map { $0 << 1 }
     private static let gear: [UInt64] = [
         0x3B5D_3C7D_207E_37DC, 0x784D_68BA_9112_3086, 0xCD52_880F_882E_7298, 0xEACF_8E4E_19FD_CCA7,
         0xC31F_385D_FBD1_632B, 0x1D5F_2700_1E25_ABE6, 0x8313_0BDE_3C9A_D991, 0xC4B2_2567_6E9B_7649,
