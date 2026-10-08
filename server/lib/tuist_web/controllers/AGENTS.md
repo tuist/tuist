@@ -4,6 +4,7 @@ This area owns Phoenix controllers for HTML and API endpoints.
 
 ## Responsibilities
 - `LlmsTxtController` serves `/llms.txt` as the agent-facing index and `/llms-full.txt` as the complete English documentation Markdown export, including runtime CLI reference pages. Both are public plain-text responses cached for one hour.
+- `MarketingMarkdownController` serves landing-page guides and original legal documents at `/marketing-markdown[/<page>]`, plus full original static statements at `/marketing-markdown/source/<page>`, without sessions or language redirects. Unknown paths return uncacheable 404s; preserve on-premise forwarding and public marketing classification.
 - `ProjectSitemapController` serves a sitemap index and bounded public-project root pages. Select only public handles and disable caching to reflect visibility changes; never enumerate private records, settings, or unbounded build histories.
 - Standalone documentation and error documents use `LayoutComponents.head_analytics_scripts`, like the shared page layouts.
 - Stripe customer updates acknowledge customers without a matching account, as subscription updates do. Keep failures updating an existing account visible so Stripe can retry delivery.

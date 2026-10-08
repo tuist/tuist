@@ -96,6 +96,24 @@
     <TuistWeb.LayoutComponents.head_favicon_links />
     <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
     <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
+    <link
+      :if={
+        TuistWeb.Utilities.MarketingMarkdown.alternate_path(
+          TuistWeb.Marketing.Localization.current_path(assigns)
+        )
+      }
+      rel="alternate"
+      type="text/markdown"
+      hreflang="en"
+      href={
+        Tuist.Environment.app_url(
+          path:
+            TuistWeb.Utilities.MarketingMarkdown.alternate_path(
+              TuistWeb.Marketing.Localization.current_path(assigns)
+            )
+        )
+      }
+    />
     <!-- Language alternates for SEO -->
     <%= for locale <- TuistWeb.Marketing.Localization.all_locales() do %>
       <link
