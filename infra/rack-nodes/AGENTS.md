@@ -599,6 +599,12 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
     applies the objects to `tuist`. Paste the ACL again: the cutover drops
     staging's rack grants. `kubectl $P -n tuist get rlh` shows each host
     waiting: no device, and for the edges, no other edge to serve a netboot.
+    Production's egress proxies now accept the tailnet's subnet routes,
+    staging's Connector's `10.128.0.0/12` among them, which is production's
+    Service CIDR too: once they have rolled, check that the Scaleway minis'
+    jobs still start and that
+    `kubectl $P -n tailscale-operator exec macmini-egress-0 -- ip route show table 52`
+    lists the routes while the proxies keep answering.
 
 12. **Reinstall `ber1-edge-a` from a stick** (hands-on). On `main`, the env
     is production:
