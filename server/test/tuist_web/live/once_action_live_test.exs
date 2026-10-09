@@ -11,6 +11,7 @@ defmodule TuistWeb.OnceActionLiveTest do
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.OnceActionLive
 
   setup %{project: project, organization: organization} do
     project = project |> Ecto.Changeset.change(build_system: :once) |> Repo.update!()
@@ -32,16 +33,63 @@ defmodule TuistWeb.OnceActionLiveTest do
     assert has_element?(view, "#once-action h1", "Compile library 1")
     assert has_element?(view, "#once-action-history-chart")
     assert has_element?(view, "#once-action", "native-target")
-    assert has_element?(view, "button[data-history-note][data-part=trigger][aria-label='About retained history']")
-    assert has_element?(view, "#once-action-duration-tooltip")
-    assert has_element?(view, "#once-action-executions-tooltip")
-    assert has_element?(view, "#once-action-cache-tooltip")
-    assert has_element?(view, "#once-action-failures-tooltip")
-    assert has_element?(view, "[data-part=observation-summary] [data-first-observed]")
+    refute has_element?(view, "[data-history-note]")
+    refute has_element?(view, "#once-action-history-scope")
+
+    for metric <- ["duration", "executions", "cache", "failures"] do
+      assert has_element?(view, "#once-action-#{metric}-tooltip [data-part=trigger]")
+    end
+
+    refute has_element?(view, "[data-part=observation-summary], [data-first-observed], [data-first-failure]")
     refute has_element?(view, "p[data-part=history-note]")
 
     assert view |> render() |> Floki.parse_fragment!() |> Floki.find("#once-action-history-table tbody tr") |> length() ==
              6
+  end
+
+  test "rates and durations use sampled aggregates while counts use bars", %{conn: conn, path: path} do
+    for {metric, type} <- [{"duration", "scatter"}, {"cache", "scatter"}, {"executions", "bar"}, {"failures", "bar"}] do
+      assert OnceActionLive.chart_type(metric) == type
+      {:ok, view, _} = live(conn, path <> "?metric=#{metric}")
+      render_async(view, 5_000)
+      [chart] = view |> render() |> Floki.parse_fragment!() |> Floki.find("#once-action-history-chart")
+      options = chart |> Floki.find("[data-part=data]") |> Floki.text() |> Jason.decode!()
+      assert [%{"type" => ^type}] = Enum.map(options["series"], &Map.take(&1, ["type"]))
+    end
+  end
+
+  test "unavailable metric measurements show an empty state instead of bare scatter axes", %{
+    conn: conn,
+    path: path,
+    actions: actions
+  } do
+    for {metric, attrs} <- [
+          {"duration", %{was_cached: true, result: "succeeded"}},
+          {"cache", %{was_cached: false, cache_key: ""}}
+        ] do
+      Enum.each(actions, fn action -> Action |> Repo.get!(action.id) |> Ecto.Changeset.change(attrs) |> Repo.update!() end)
+
+      {:ok, view, _} = live(conn, path <> "?metric=#{metric}")
+      render_async(view, 5_000)
+      refute has_element?(view, "#once-action-history-chart")
+      assert has_element?(view, "[data-part=analytics-chart] [data-part=empty]", "No measurements for this metric")
+    end
+  end
+
+  test "scatter points omit missing measurements without dropping genuine zero values" do
+    stats = %{
+      series: [
+        %{day: ~N[2026-10-01 00:00:00], duration: nil, hits: 0, cache_observations: 0},
+        %{day: ~N[2026-10-02 00:00:00], duration: Decimal.new(0), hits: 0, cache_observations: 1},
+        %{day: ~N[2026-10-03 00:00:00], duration: Decimal.new(10), hits: 1, cache_observations: 2}
+      ]
+    }
+
+    [duration] = OnceActionLive.chart_series(stats, "duration")
+    assert duration.data == [["2026-10-02T00:00:00Z", 0.0], ["2026-10-03T00:00:00Z", 10.0]]
+
+    [cache] = OnceActionLive.chart_series(stats, "cache")
+    assert cache.data == [["2026-10-02T00:00:00Z", 0.0], ["2026-10-03T00:00:00Z", 50.0]]
   end
 
   test "source search uses the shared compact toolbar without an unsupported shortcut", %{conn: conn, path: path} do

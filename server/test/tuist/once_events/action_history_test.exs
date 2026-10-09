@@ -75,6 +75,10 @@ defmodule Tuist.OnceEvents.ActionHistoryTest do
     assert Decimal.equal?(stats.duration, 200)
     assert stats.first_seen == first.started_at
     assert stats.first_failure == failed.started_at
+    without_dates = ActionHistory.analytics(restored, include_observation_dates: false)
+    assert without_dates.first_seen == nil
+    assert without_dates.first_failure == nil
+    assert Map.drop(without_dates, [:first_seen, :first_failure]) == Map.drop(stats, [:first_seen, :first_failure])
   end
 
   test "terminal metrics exclude skipped and cancelled rows and include execution failures", %{project: project} do

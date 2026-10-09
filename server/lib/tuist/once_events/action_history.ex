@@ -142,14 +142,18 @@ defmodule Tuist.OnceEvents.ActionHistory do
       query = cohort(action, opts)
 
       observed =
-        Repo.one(
-          from([a] in query,
-            select: %{
-              first_seen: min(a.started_at),
-              first_failure: filter(min(a.started_at), failure(a))
-            }
+        if Keyword.get(opts, :include_observation_dates, true) do
+          Repo.one(
+            from([a] in query,
+              select: %{
+                first_seen: min(a.started_at),
+                first_failure: filter(min(a.started_at), failure(a))
+              }
+            )
           )
-        )
+        else
+          %{first_seen: nil, first_failure: nil}
+        end
 
       period = in_period(query, opts)
 

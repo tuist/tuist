@@ -76,7 +76,9 @@ defmodule TuistWeb.OnceActionLive do
            (socket.assigns.analytics_key != analytics_key or async_failed?(socket, :analytics)) do
         socket
         |> assign(:analytics_key, analytics_key)
-        |> assign_async(:analytics, fn -> {:ok, %{analytics: ActionHistory.analytics(action, opts)}} end)
+        |> assign_async(:analytics, fn ->
+          {:ok, %{analytics: ActionHistory.analytics(action, opts ++ [include_observation_dates: false])}}
+        end)
       else
         socket
       end
@@ -153,16 +155,19 @@ defmodule TuistWeb.OnceActionLive do
       %{
         name: metric_label(metric),
         color: "var:noora-chart-#{metric_color(metric)}",
-        symbol: "circle",
-        connectNulls: true,
-        data: Enum.map(stats.series, &[NaiveDateTime.to_iso8601(&1.day) <> "Z", metric_value(&1, metric)])
+        data:
+          stats.series
+          |> Enum.map(&[NaiveDateTime.to_iso8601(&1.day) <> "Z", metric_value(&1, metric)])
+          |> Enum.reject(fn [_timestamp, value] -> is_nil(value) end)
       }
     ]
   end
 
+  def chart_has_data?(stats, metric), do: Enum.any?(stats.series, &(not is_nil(metric_value(&1, metric))))
+
   def chart_labels(stats), do: Enum.map(stats.series, &NaiveDateTime.to_iso8601(&1.day))
   def chart_type(metric) when metric in ["executions", "failures"], do: "bar"
-  def chart_type(_), do: "line"
+  def chart_type(_), do: "scatter"
   def metric_label("executions"), do: dgettext("dashboard_projects", "Executions")
   def metric_label("failures"), do: dgettext("dashboard_projects", "Failures")
   def metric_label("cache"), do: dgettext("dashboard_projects", "Cache hit rate")

@@ -54,29 +54,6 @@
     }
   }
 
-  & [data-part="observation-summary"] {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--noora-spacing-7);
-    border-top: 1px solid var(--noora-surface-border-primary);
-    padding-top: var(--noora-spacing-6);
-  }
-
-  & [data-history-note] {
-    display: flex;
-    cursor: pointer;
-    border: none;
-    background: none;
-    padding: 0;
-    color: var(--noora-surface-label-secondary);
-
-    & svg {
-      width: var(--noora-icon-size-medium);
-      height: var(--noora-icon-size-medium);
-    }
-  }
-
   & [data-part="metadata"] > .noora-link-button {
     align-self: flex-start;
     max-width: 100%;

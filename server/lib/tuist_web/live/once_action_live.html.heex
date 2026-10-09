@@ -75,7 +75,7 @@
             description={
               dgettext(
                 "dashboard_projects",
-                "Average duration of executed actions. Excludes cache hits, skipped and cancelled actions."
+                "Average duration of executed actions. Excludes cache hits, skipped and cancelled actions. Each point is the average for a time bucket."
               )
             }
             value={if ready?, do: duration(@analytics.result.duration)}
@@ -91,7 +91,7 @@
             description={
               dgettext(
                 "dashboard_projects",
-                "Executed actions in the selected period. Excludes cache hits, skipped and cancelled actions."
+                "Executed actions in the selected period. Excludes cache hits, skipped and cancelled actions. Each bar is the total for a time bucket."
               )
             }
             value={if ready?, do: format_number(@analytics.result.executions)}
@@ -107,7 +107,7 @@
             description={
               dgettext(
                 "dashboard_projects",
-                "Cache hits as a percentage of reported cache observations. Unreported outcomes are excluded."
+                "Cache hits as a percentage of reported cache observations. Unreported outcomes are excluded. Each point is the rate for a time bucket."
               )
             }
             value={if ready?, do: cache_rate(@analytics.result)}
@@ -123,7 +123,7 @@
             description={
               dgettext(
                 "dashboard_projects",
-                "Failed executions, including timeouts and infrastructure errors."
+                "Failed executions, including timeouts and infrastructure errors. Each bar is the total for a time bucket."
               )
             }
             value={if ready?, do: format_number(@analytics.result.failures)}
@@ -135,7 +135,7 @@
         </div>
         <div data-part="analytics-chart">
           <.chart
-            :if={ready? and @analytics.result.total > 0}
+            :if={ready? and chart_has_data?(@analytics.result, @metric)}
             id="once-action-history-chart"
             type={chart_type(@metric)}
             show_legend={false}
@@ -159,56 +159,13 @@
               }
             }
           />
-          <p :if={ready? and @analytics.result.total == 0} data-part="empty">
-            {dgettext("dashboard_projects", "No observations in this period.")}
+          <p :if={ready? and not chart_has_data?(@analytics.result, @metric)} data-part="empty">
+            {dgettext(
+              "dashboard_projects",
+              "No measurements for this metric in the selected period."
+            )}
           </p>
           <.skeleton_chart :if={!ready?} />
-        </div>
-        <div :if={ready?} data-part="observation-summary">
-          <div data-part="metadata">
-            <span data-part="label">{if @branch == "",
-              do: dgettext("dashboard_projects", "First observed in retained history"),
-              else:
-                dgettext(
-                  "dashboard_projects",
-                  "First observed on this branch in retained history"
-                )}</span>
-            <span data-first-observed>{timestamp(
-              @analytics.result.first_seen,
-              @current_user_timezone
-            )}</span>
-          </div>
-          <div data-part="metadata">
-            <span data-part="label">{if @branch == "",
-              do: dgettext("dashboard_projects", "First observed failure"),
-              else: dgettext("dashboard_projects", "First observed failure on this branch")}</span>
-            <span data-first-failure>{timestamp(
-              @analytics.result.first_failure,
-              @current_user_timezone
-            )}</span>
-          </div>
-          <.tooltip
-            id="once-action-history-scope"
-            size="large"
-            title={dgettext("dashboard_projects", "Retained history")}
-            description={
-              dgettext(
-                "dashboard_projects",
-                "History covers retained runs that report this logical identity, including any output variant selected by the producer. First observed dates do not indicate when an action was created or a failure began."
-              )
-            }
-          >
-            <:trigger :let={attrs}>
-              <button
-                type="button"
-                data-history-note
-                aria-label={dgettext("dashboard_projects", "About retained history")}
-                {attrs}
-              >
-                <.info_circle />
-              </button>
-            </:trigger>
-          </.tooltip>
         </div>
       </div>
     </.card_section>
