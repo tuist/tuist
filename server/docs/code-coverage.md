@@ -64,7 +64,7 @@ What was skipped comes from what Tuist itself skipped, not from a list of the te
 | Quarantine "skip", `--skip-test-targets`, `-skip-testing` | `test_runs.skip_test_identifiers` | the tests each identifier names (`Module`, `Module/Suite`, `Module/Suite/test`, with or without `()`), resolved against the target's tests in that ancestor run |
 | The caller's `-only-testing` | `test_runs.only_test_identifiers` | nothing; a scheme whose every run was narrowed is a gap |
 
-The ancestor runs that executed a skipped target are read once, and only their selective-testing hashes are read.
+The ancestor runs are read nearest first, a chunk at a time. A target's source run is settled once it is as preferred as any run can be, and the walk stops when every skipped target is settled. Selective-testing hashes are read only for the runs walked.
 
 ### How it is decided
 
@@ -73,6 +73,7 @@ The ancestor runs that executed a skipped target are read once, and only their s
    - A test target selective testing skipped is one unit, carried from its `target` evidence. Only ancestor runs that hashed the target the same way as the commit's run qualify: the same hash means the same inputs, so the same tests over the same code. Among those, the nearest wins.
    - Every other skipped test is a unit of its own, carried from its `test` evidence plus its suite's `suite` evidence, from the nearest ancestor run that holds it. That includes the tests of a skipped target that couldn't be carried whole.
    - The nearest run is fewest commits back, then newest, among the clean-checkout runs on the commit's ancestors within the history window. For tests it's picked in ClickHouse, a chunk of runs at a time, nearest first.
+   - A scheme's runs behind its nearest **full run** are never considered. A full run is one that isn't partial, has no narrowed or skipped tests, and collected evidence. It executed every test of the scheme with evidence, so nothing older can be a source. Runs on a branch merged in since the full run aren't behind it. With a full run a day on the default branch, what a fold reads is bounded by the runs since then, not by the window. A test that was deleted and later restored is carried only from the full run's side.
    - A test with no source is a gap, and the reason says why from what the ancestor runs collected: `no_ancestor`, `collection_off`, `evidence_expired`, `not_linked`, `overlapped` or `no_evidence`.
 3. **Check that each unit's source still applies.** All of these must hold:
    1. The test passed in the source run, or the target had no failing test there (`test_failed`).
