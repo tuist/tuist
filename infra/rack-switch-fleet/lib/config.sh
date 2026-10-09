@@ -19,16 +19,118 @@ FLEET_MERGE_AWK="$FLEET_ROOT/lib/merge.awk"
 # configuration that switch has never had, and ber1-mgmt is a different model
 # entirely, so neither's unmanaged set is known. `replace` therefore reports
 # every line it would remove rather than trusting this list to be complete.
-# Where the compute half of the rack's inventory lives. A node that is a
-# cluster-managed machine points at its RackHost by name rather than restating
-# it, so the two inventories are connected by reference and not by two people
-# keeping two records in step.
-FLEET_RACK_VALUES="${FLEET_RACK_VALUES:-$FLEET_ROOT/../helm/tuist/values-managed-staging.yaml}"
+# Where the compute half of the rack's inventory lives, when set: the tuist
+# chart's values file for the rack's env otherwise (fleet_rack_values). A node
+# that is a cluster-managed machine points at its RackHost by name rather than
+# restating it, so the two inventories are connected by reference and not by
+# two people keeping two records in step.
+FLEET_RACK_VALUES="${FLEET_RACK_VALUES:-}"
 
 FLEET_UNMANAGED='^user name |^system-time ntp '
 export FLEET_UNMANAGED
 
 fleet_site_file() { echo "$FLEET_ROOT/sites/$1.json"; }
+
+# The env whose cluster the rack belongs to, from the site's
+# kubernetes.namespace, by the tuist chart's convention: production deploys to
+# `tuist` and every other env to `tuist-<env>`. Every place that needs the
+# rack's env (the deploy workflows, the install stick, the card passwords, the
+# values the render reads) asks this, so moving the rack is changing that one
+# field.
+fleet_site_env() {
+  local site_file="$1" namespace
+  namespace="$(jq -r '.kubernetes.namespace // empty' "$site_file")"
+  case "$namespace" in
+    tuist) echo production;;
+    tuist-?*) echo "${namespace#tuist-}";;
+    *)
+      echo "error: $(basename "$site_file")'s kubernetes.namespace '$namespace' names no env; it is tuist or tuist-<env>" >&2
+      return 1;;
+  esac
+}
+
+# The tuist chart's values file the site's RackHosts and RackLinuxHosts are
+# declared in: FLEET_RACK_VALUES when set, the rack's env's otherwise.
+fleet_rack_values() {
+  local site_file="$1" env
+  if [ -n "$FLEET_RACK_VALUES" ]; then
+    echo "$FLEET_RACK_VALUES"
+    return 0
+  fi
+  env="$(fleet_site_env "$site_file")" || return 1
+  echo "$FLEET_ROOT/../helm/tuist/values-managed-$env.yaml"
+}
+
+# Helm values for infra/helm/rack-switch-controller, from the site definition:
+# the namespace whose RackSwitch objects it reconciles, the Omada site, the
+# address the controller tells switches to connect back to, and the 1Password
+# items its ExternalSecrets read. JSON, which Helm reads as YAML.
+fleet_controller_values() {
+  jq -e '{
+    watchNamespace: .kubernetes.namespace,
+    omada: {site: .management.controller.site, controllerAddress: (.management.controller.address // "")},
+    credentials: {
+      omadaApiItem: .management.controller.credential_item,
+      deviceAccountItem: .management.controller.device_account_item
+    }
+  }' "$1"
+}
+
+# Helm values for infra/helm/rack-edge: the site whose rendered files it runs.
+fleet_edge_values() { jq -e '{site: .site}' "$1"; }
+
+# What else names the rack's env has to agree with kubernetes.namespace: the
+# vault the controller's credentials are in, the Omada controller's tailnet
+# name in that env's chart values, and the tuist chart values that declare the
+# rack's hosts and runner pools, which no other env may declare too. Two envs
+# declaring one rack means two operators adopting the same boxes and two
+# servers answering the same dispatch label. The charts are read from infra/helm,
+# or the directory a second argument names.
+fleet_check_env() {
+  local site_file="$1" helm="${2:-$FLEET_ROOT/../helm}" env site bad="" vault url address host omada_values hostname values other
+  env="$(fleet_site_env "$site_file")" || return 1
+  site="$(jq -r '.site' "$site_file")"
+
+  if jq -e '.management.controller != null' "$site_file" >/dev/null; then
+    vault="$(jq -r '.management.controller.vault // empty' "$site_file")"
+    if [ -n "$vault" ] && [ "$vault" != "tuist-k8s-$env" ]; then
+      bad+="management.controller.vault is $vault, but the rack is in $env, whose cluster reads tuist-k8s-$env"$'\n'
+    fi
+    address="$(jq -r '.management.controller.address // empty' "$site_file")"
+    if ! [[ "$address" =~ ^100\.([0-9]{1,3})\.[0-9]{1,3}\.[0-9]{1,3}$ ]] || (( BASH_REMATCH[1] < 64 || BASH_REMATCH[1] > 127 )); then
+      bad+="management.controller.address '$address' is not a tailnet address (100.64.0.0/10): set it to the Omada controller's tailnet IP in $env"$'\n'
+    fi
+    url="$(jq -r '.management.controller.url // empty' "$site_file")"
+    host="${url#https://}"; host="${host%%[:/]*}"
+    omada_values="$helm/omada/values-$env.yaml"
+    if [ ! -f "$omada_values" ]; then
+      bad+="the rack is in $env, which has no Omada controller values ($(basename "$omada_values"))"$'\n'
+    else
+      hostname="$(yq -r '."omada-controller-helm".service.annotations."tailscale.com/hostname" // ""' "$omada_values")"
+      if [ "${host%%.*}" != "$hostname" ]; then
+        bad+="management.controller.url names $host, but $env's Omada controller is $hostname on the tailnet"$'\n'
+      fi
+    fi
+  fi
+
+  values="$helm/tuist/values-managed-$env.yaml"
+  [ -f "$values" ] || bad+="the rack is in $env, which has no $(basename "$values")"$'\n'
+  for other in "$helm"/tuist/values-managed-*.yaml; do
+    [ "$other" = "$values" ] && continue
+    [ "$(basename "$other")" = values-managed-common.yaml ] && continue
+    if [ "$(SITE="$site" yq '
+        ([.rackFleet | select(.enabled == true and .site == strenv(SITE))] | length) +
+        ([.rackLinuxFleet | select(.enabled == true and .site == strenv(SITE))] | length) +
+        ([.runnersFleet.pools[]? | select(.site == strenv(SITE))] | length)' "$other")" != 0 ]; then
+      bad+="$(basename "$other") declares $site's hosts or runner pools, but the rack is in $env"$'\n'
+    fi
+  done
+
+  if [ -n "$bad" ]; then
+    printf 'error: %s' "$bad" | sed '2,$s/^/error: /' >&2
+    return 1
+  fi
+}
 
 fleet_device() {
   local site_file="$1" name="$2" device
@@ -687,7 +789,8 @@ FLEET_RACKHOST_OWNED="serial address rack position_u power outlet"
 # A node may name a RackHost, and if it does that host has to exist and the node
 # has to leave the host's own fields to it.
 fleet_check_rack_hosts() {
-  local site_file="$1" values="${2:-$FLEET_RACK_VALUES}" declared known bad=""
+  local site_file="$1" values="${2:-}" declared known bad=""
+  [ -n "$values" ] || values="$(fleet_rack_values "$site_file")" || return 1
   declared="$(jq -r '[.nodes[]? | select(.rack_host != null)] | length' "$site_file")"
   [ "$declared" = "0" ] && return 0
 

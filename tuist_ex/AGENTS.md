@@ -25,7 +25,13 @@ a passing retry can turn the exit code green, merges the attempts as
 repetitions and submits once. Sharding (`Shards`, `mix tuist.test.build`) plans with ExUnit modules, since
 that is what runs report timings for, discovered by parsing the test files
 without loading them, and runs test files, since that is what Mix can
-select. The build archive materializes dependency `deps/*/priv` directories whose
+select. Each reported module carries an `execution_mode` (`parallel` for
+`async: true`, `serial` otherwise, from the test's `:async` tag). The plan
+request declares `concurrent_modules`, the units whose module says
+`use ..., async: true`, read from the same parse, as the Xcode CLI declares
+`parallelizable_modules`; the server measures how many ran at once from
+earlier shards' reported modes and durations, and balances the shards' wall
+clock rather than their summed module durations. The build archive materializes dependency `deps/*/priv` directories whose
 real paths stay inside the checkout, including native libraries generated in
 `deps/` that are absent on cold workers. Preserve project `priv` links so nested
 checkout-relative resources (such as published agent skills) keep their original
@@ -114,7 +120,14 @@ dashboard presentation belong in `server/`.
   it samples as options. Tests give payload builders a fixed environment so
   none of them asks git about the checkout. Keep it that way: a test that
   needs `async: false` is a sign that state leaked somewhere global, and
-  `compile_profile_install_test.exs` is the one place that is expected.
+  `compile_profile_install_test.exs` and `http_test.exs` (which prunes the
+  VM's code path) are the places where it is expected.
+- `TuistEx.Auth.token/1` tries `TUIST_TOKEN`, then the stored credentials, then
+  an OpenID Connect exchange on GitHub Actions, CircleCI or Bitrise, so CI needs
+  no login step. The exchanged token is kept in memory for the VM and never
+  written to the shared credentials file: a runner that outlives the job would
+  otherwise hand it to the next repository's job. Every failure on that path is
+  an `{:error, message}`, never a raise, because reporting must stay silent.
 - Validate with `mix format --check-formatted`, `mix compile --warnings-as-errors`,
   `mix test --warnings-as-errors`, `mix hex.build`, and `mix docs --warnings-as-errors`.
 - The user guides are the Elixir pages under `server/priv/docs/en/guides/`

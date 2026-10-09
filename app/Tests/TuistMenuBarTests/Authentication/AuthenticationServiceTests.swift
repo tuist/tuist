@@ -102,6 +102,26 @@ import TuistServer
         #expect(rootService.authenticationState == .loggedOut)
     }
 
+    @Test(arguments: [
+        nil,
+        AppServerConfiguration(url: URL(string: "https://tuist.example.com")!, oauthClientID: "self-hosted-client"),
+    ])
+    func refreshing_credentials_keeps_the_session_on_its_server(server: AppServerConfiguration?) async throws {
+        let store = makeCredentialsStore()
+        let account = Account(email: "tuist@tuist.dev", handle: "tuist")
+        let appStorage = TestAppStorage(authenticationState: .loggedIn(account: account, server: server))
+        let subject = await makeAuthenticationService(store: store, appStorage: appStorage)
+
+        try await store.store(credentials: makeCredentials(email: account.email, handle: account.handle), serverURL: serverURL)
+        for _ in 0 ..< 20 {
+            await Task.yield()
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        #expect(subject.authenticationState == .loggedIn(account: account, server: server))
+        #expect(try appStorage.get(AuthenticationStateKey.self) == .loggedIn(account: account, server: server))
+    }
+
     private func makeAuthenticationService(
         store: ServerCredentialsStore,
         appStorage: TestAppStorage

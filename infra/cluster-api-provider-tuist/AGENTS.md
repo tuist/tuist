@@ -970,7 +970,8 @@ pipes `op read 'op://<vault>/BER1_RACK_CARD_ROOT/key'` into
 `cmd/rack-card-password`, which looks the device's MAC up in
 `infra/rack-switch-fleet/sites/<site>.json` and prints the password. The vault
 comes from the site's `kubernetes.namespace` (`tuist-<env>` reads
-`tuist-k8s-<env>`) or `--vault`. The key is never printed.
+`tuist-k8s-<env>`, and production's `tuist` reads `tuist-k8s-production`) or
+`--vault`. The key is never printed.
 
 **Rotating the root key** is changing the item's value on a live cluster. Once
 ESO syncs it, every object derives new passwords, its Secret no longer records
@@ -1413,11 +1414,24 @@ never while AMT reports its link down. A failed configuration is recorded in
 `AMTActivated` down.
 
 **`spec.online` is the host's power state, and `tuist.dev/reboot` a one-off
-reboot** (`racklinuxhost_amt_power.go`). A host on the tailnet is on; for one
-that is not, AMT is asked every ten minutes (`status.power`). A host that
-should be off is shut down from its own OS while it is on the tailnet and
-powered off through AMT otherwise, one that should be on and is off is powered
-on, and changes are five minutes apart (`PowerMatchesOnline`). The annotation
+reboot** (`racklinuxhost_amt_power.go`). A host on the tailnet is on
+(`status.power.source` `Tailnet`); one that leaves it is read from AMT at once
+and every ten minutes after (`AMT`). A host that should be off is shut down
+from its own OS while it is on the tailnet and powered off through AMT
+otherwise, and one that should be on and is off is powered on, which is how a
+host comes back after a power loss its firmware does not restore. A change
+waits five minutes after the last power change or reboot, doubled for each
+change made since the state last matched (`status.power.changes`), up to an
+hour; `PowerMatchesOnline` reports it, as a warning from the third change, and
+each change is a `PowerChanged` event. An edge joining the tailnet wakes its
+site's other hosts, since AMT is reached through it. `PowerReachable` (and
+`capt_racklinuxhost_power_reachable`) says whether the host could be powered on
+that way now: AMT activated, a link on the management port, and the last read
+through an edge (`status.amt.lastPowerRead`, hourly while the host is on the
+tailnet) answered. AMT reports no address while it sees no link, so the
+operator falls back to the static one it gave it (`status.amt.assignedAddress`).
+Nothing powers on an edge while no edge is up: the edges need the firmware's
+Restore On AC Power Loss (see `infra/rack-nodes/AGENTS.md`). The annotation
 takes `cycle` (hard power cycle), `reset`, or `pxe` (a power cycle into the
 network boot: the boot order cleared, the boot settings written back,
 the configuration made the next one, and Force PXE Boot chosen, which boots the
@@ -1451,7 +1465,7 @@ Machine again, which joins the host afresh: that is how to force a re-join.
 
 ```bash
 kubectl get rlh                     # hosts: hostname, role, state, tailnet address, power
-kubectl get rlh -o wide             # plus the boot MAC, the device and a published install's key
+kubectl get rlh -o wide             # plus the boot MAC, the device, a published install's key, AMT and PowerReachable
 kubectl patch rlh <uuid> --type merge -p '{"spec":{"reinstallGeneration":2}}'   # reinstall
 kubectl delete rlh <uuid>           # retire a host the chart no longer declares
 kubectl get rlm -o wide             # machines: node name, phase, last converge

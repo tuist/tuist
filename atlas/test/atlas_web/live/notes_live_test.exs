@@ -20,13 +20,15 @@ defmodule AtlasWeb.NotesLiveTest do
     assert has_element?(editor, "#note-form")
     assert has_element?(editor, "#note-content[maxlength='50000']")
     assert has_element?(editor, "#note-content[phx-debounce='300']")
-    assert has_element?(editor, "#note-preview")
+    assert has_element?(editor, "[data-pane='source'] .noora-card__section #note-content[aria-label='Markdown']")
+    assert has_element?(editor, "[data-pane='preview'] .noora-card__section #note-preview[data-part='note-body']")
 
     render_change(editor, "preview", %{
       "note" => %{"content" => "# A new note\n\n**Previewed** content."}
     })
 
-    assert has_element?(editor, "#note-preview h1", "A new note")
+    assert has_element?(editor, "#note-preview h2", "A new note")
+    refute has_element?(editor, "#note-preview h1")
     assert has_element?(editor, "#note-preview strong", "Previewed")
 
     render_submit(editor, "save", %{
@@ -34,6 +36,88 @@ defmodule AtlasWeb.NotesLiveTest do
     })
 
     assert [%{title: "A new note"}] = Notes.list_notes(query: "A new note")
+  end
+
+  test "previews Markdown using Noora tables, alerts, and heading typography", %{conn: conn} do
+    {conn, _user} = log_in_user(conn)
+    {:ok, view, _html} = live(conn, ~p"/library/notes/new")
+
+    render_change(view, "preview", %{
+      "note" => %{
+        "content" => """
+        # Financing plan
+
+        ## Programs
+
+        | Program | Amount |
+        | --- | --- |
+        | **Berlin Start** | EUR 5k |
+
+        > [!WARNING]
+        > Verify the **terms** before applying.
+
+        ```elixir
+        :ok
+        ```
+        """
+      }
+    })
+
+    assert has_element?(view, "#note-preview h2", "Financing plan")
+    assert has_element?(view, "#note-preview h3", "Programs")
+    assert has_element?(view, "#note-preview .noora-table table th", "Program")
+    assert has_element?(view, "#note-preview table td strong", "Berlin Start")
+
+    assert has_element?(
+             view,
+             "#note-preview .noora-alert[data-status='warning'] [data-part='description'] strong",
+             "terms"
+           )
+
+    assert has_element?(view, "#note-preview pre code", ":ok")
+
+    render_change(view, "preview", %{
+      "note" => %{"content" => "# Revised plan\n\nA simpler note."}
+    })
+
+    assert has_element?(view, "#note-preview h2", "Revised plan")
+    refute has_element?(view, "#note-preview table, #note-preview .noora-alert, #note-preview pre")
+  end
+
+  test "existing notes use the same sanitized Markdown preview", %{conn: conn} do
+    {conn, user} = log_in_user(conn)
+
+    {:ok, note} =
+      Notes.create_note(
+        %{
+          content: """
+          # Shared plan
+
+          | Program | Amount |
+          | --- | --- |
+          | Berlin Start | EUR 5k |
+
+          <script>alert('unsafe')</script>
+
+          [Unsafe link](javascript:alert%281%29)
+          """
+        },
+        user
+      )
+
+    {:ok, view, _html} = live(conn, ~p"/library/notes/#{note.id}")
+
+    assert has_element?(view, "#note-preview[data-part='note-body'] h2", "Shared plan")
+    assert has_element?(view, "#note-preview .noora-table table td", "Berlin Start")
+    refute has_element?(view, "#note-preview script, #note-preview a[href^='javascript:']")
+
+    view
+    |> form("#note-form", note: %{content: "# Shared plan\n\nUpdated **context**."})
+    |> render_submit()
+
+    assert Notes.get_note(note.id).content == "# Shared plan\n\nUpdated **context**."
+    assert has_element?(view, "#note-preview strong", "context")
+    refute has_element?(view, "#note-preview table")
   end
 
   test "searches notes while typing", %{conn: conn} do

@@ -108,7 +108,8 @@ fleet_in_network() { [ "$(fleet_network "$1/${2#*/}")" = "$(fleet_network "$2")"
 # A machine is a node whose role is on the segment; one still planned is left
 # out until it is racked.
 fleet_edge_machines() {
-  local site_file="$1" values="${2:-$FLEET_RACK_VALUES}" hosts linux
+  local site_file="$1" values="${2:-}" hosts linux
+  [ -n "$values" ] || values="$(fleet_rack_values "$site_file")" || return 1
   hosts="$(yq -o=json '[.rackFleet.hosts[]? | {"key": .name, "value": (.address // "")}] | from_entries' "$values" 2>/dev/null)" || hosts=''
   [ -n "$hosts" ] || hosts='{}'
   linux="$(yq -o=json '[.rackLinuxFleet.hosts[]? | {"key": .hostname, "value": (.address // "")}] | from_entries' "$values" 2>/dev/null)" || linux=''
@@ -127,7 +128,8 @@ fleet_edge_machines() {
 # machine on it has a RackHost, a MAC to reserve its address against, and an
 # address inside the segment that no edge uses.
 fleet_edge_check_machines() {
-  local site_file="$1" values="${2:-$FLEET_RACK_VALUES}" gateway bad="" node address mac
+  local site_file="$1" values="${2:-}" gateway bad="" node address mac
+  [ -n "$values" ] || values="$(fleet_rack_values "$site_file")" || return 1
   [ -n "$(jq -r '.management.edge.machines.vlan // empty' "$site_file")" ] || return 0
   gateway="$(jq -r '.management.edge.machines.gateway // empty' "$site_file")"
   if ! [[ "$gateway" =~ ^[0-9.]+/([0-9]|[12][0-9]|3[0-2])$ ]] || ! fleet_is_ipv4 "${gateway%/*}"; then

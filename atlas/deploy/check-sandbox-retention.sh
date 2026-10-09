@@ -15,7 +15,10 @@ esac
 
 # Use Helm's stored manifest as the deletion/ownership source, not the desired
 # namespace name or live ownership annotations, which may have been stripped.
-installed=$(helm list --all --namespace "$release_namespace" --output json |
+# Explicit status filters include every state on Helm 3 and 4. Helm 4 removed
+# --all, and Helm 3 otherwise defaults to only deployed and failed releases.
+installed=$(helm list --deployed --failed --pending --uninstalled --superseded --uninstalling \
+  --namespace "$release_namespace" --output json |
   jq --raw-output --arg release "$release" 'if type == "array" then any(.[]; .name == $release) else error("Invalid release listing") end')
 if [ "$installed" = false ]; then
   exit 0

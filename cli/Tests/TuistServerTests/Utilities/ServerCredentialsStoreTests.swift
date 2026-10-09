@@ -1,4 +1,5 @@
 import Foundation
+import Testing
 import TuistSupport
 import XCTest
 
@@ -26,7 +27,7 @@ final class ServerCredentialsStoreTests: TuistUnitTestCase {
             configDirectory: temporaryDirectory
         )
         let credentials = ServerCredentials(
-            accessToken: "access-token", refreshToken: "refresh-token"
+            accessToken: "access-token", refreshToken: "refresh-token", oauthClientID: "self-hosted-client"
         )
         let serverURL = URL(string: "https://tuist.io")!
 
@@ -39,5 +40,16 @@ final class ServerCredentialsStoreTests: TuistUnitTestCase {
         try await subject.delete(serverURL: serverURL)
         let gotReadAfterDelete = try await subject.read(serverURL: serverURL)
         XCTAssertEqual(gotReadAfterDelete, nil)
+    }
+}
+
+struct ServerCredentialSerializationTests {
+    @Test func decodes_legacy_credentials_without_an_oauth_client() throws {
+        let data = Data(#"{"accessToken":"access-token","refreshToken":"refresh-token"}"#.utf8)
+        let credentials = try JSONDecoder().decode(ServerCredentials.self, from: data)
+
+        #expect(credentials.accessToken == "access-token")
+        #expect(credentials.refreshToken == "refresh-token")
+        #expect(credentials.oauthClientID == nil)
     }
 }
