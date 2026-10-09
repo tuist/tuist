@@ -85,8 +85,9 @@ for current and oldest-supported ClickHouse, with references scoped to the GitHu
 run, attempt, and variant. Each shard owns fresh PostgreSQL and ClickHouse databases.
 Only the build job compiles, so it stays on `tuist-linux-large` while the shards
 run on the default `tuist-linux` shape.
-Bootstrap only `tuist_ex`, authenticate with `mix tuist.login` using GitHub
-OpenID Connect, and download with `mix tuist.test --prepare-only`. Run `db:reset`
+Bootstrap only `tuist_ex` and download with `mix tuist.test --prepare-only`;
+`tuist_ex` exchanges the job's GitHub OpenID Connect token itself, so there is no
+login step. Run `db:reset`
 in a separate process before `mix tuist.test --no-download --warnings-as-errors`,
 so migration regression tests do not redefine modules already loaded by setup.
 Date the shard's checkout to the commit time before `db:reset`: a checkout newer
