@@ -393,7 +393,7 @@ func TestApplyDynamicAnnotationsOwnsOnlyItsPrefix(t *testing.T) {
 		DynamicAnnotations: func(context.Context) (map[string]string, error) {
 			return map[string]string{
 				"tuist.dev/runner-egress-public-key": "key",
-				"tuist.dev/other":                     "ignored",
+				"tuist.dev/other":                    "ignored",
 			}, nil
 		},
 	}
