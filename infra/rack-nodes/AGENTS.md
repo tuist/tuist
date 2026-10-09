@@ -455,24 +455,36 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
 3. **Stand up production's Omada controller** (remote). Dispatch
    `omada-deployment.yml` with `environment: production`, which installs the
    controller alone, as `omada-production` on the tailnet. Its tailnet IP is in
-   `tailscale status | grep omada-production`. This uses TP-Link's Controller
-   Migration ([how to migrate an Omada controller](https://www.omadanetworks.com/us/document/13126/)).
-   In the staging controller (`https://omada.taild6d7bb.ts.net:8043`), open
-   Global View, Settings, Migration, the Controller Migration tab, start it and
-   export the backup. Restore it on production's controller at
-   `https://omada-production.taild6d7bb.ts.net:8043` (Settings, Maintenance,
-   Backup & Restore, or the first-boot wizard's restore), so it knows the site,
-   the device account and the three switches as adopted. A restore takes only
-   a backup of the same Major.Minor.Patch, so both controllers run the chart's
-   pinned `6.3.0.45` (staging did on 2026-10-09). Leave staging's migration
-   at its Confirm step until step 7. A controller without the backup sees each
-   switch as managed by another controller and has to adopt it afresh, which
-   needs it forgotten in staging first, and forgetting a switch its controller
-   still manages factory-resets it: ToR A carries the rack's uplinks. Then make
-   an Open API client on the production controller (Client mode,
-   Administrator over site `ber1`) and store it in `tuist-k8s-production` as
-   `omada production open api`, with `client-id` and `client-secret` fields;
-   delete the restored staging client from it.
+   `tailscale status | grep omada-production` (`100.91.73.50`, done on
+   2026-10-09). This uses TP-Link's Controller Migration
+   ([how to migrate an Omada controller](https://www.omadanetworks.com/us/document/13126/)),
+   which takes only a backup of the same Major.Minor.Patch, so both
+   controllers run the chart's pinned `6.3.0.45`.
+   - In the staging controller (`https://omada.taild6d7bb.ts.net:8043`),
+     Global View, Settings, Migration, Controller Migration, Start Export:
+     every Backup Contents box, 7 days, Export to Local File. Leave it at the
+     next step, Migrate Controller, until step 7.
+   - In production's first-boot wizard
+     (`https://omada-production.taild6d7bb.ts.net:8043`), Create a Local
+     Account (not a TP-Link ID, which binds the controller to TP-Link's
+     cloud) and save it in 1Password's Infrastructure vault: the import does
+     not carry the controller's own logins over, so this account is
+     production's. Finish the wizard, then Global View, Settings, Migration,
+     Controller Migration, Start Import with the exported file. Production
+     then knows the site, the device account and the three switches, shown
+     disconnected.
+   - The import does carry staging's Open API client, so `omada production
+     open api` is a byte-for-byte copy of `omada staging open api` in
+     `tuist-k8s-production`.
+   - The import also carries staging's address for the switches to connect
+     back to. From the cutover branch, `mise run rack:omada controller` sets
+     it to production's, and `mise run rack:omada devices` lists the three
+     switches.
+
+   A controller without the backup sees each switch as managed by another
+   controller and has to adopt it afresh, which needs it forgotten in staging
+   first, and forgetting a switch its controller still manages factory-resets
+   it: ToR A carries the rack's uplinks.
 
 4. **Finish the cutover branch** (remote): set `management.controller.address`
    in `ber1.json` to the production controller's tailnet IP, run
