@@ -129,11 +129,11 @@ msgstr ""
 msgid "Avg. test case run duration"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_overview_live.ex:209
+#: lib/tuist_web/live/bazel_overview_live.ex:210
 #: lib/tuist_web/live/mix_overview_live.html.heex:120
 #: lib/tuist_web/live/mix_overview_live.html.heex:173
 #: lib/tuist_web/live/mix_overview_live.html.heex:224
-#: lib/tuist_web/live/once_overview_live.ex:198
+#: lib/tuist_web/live/once_overview_live.ex:199
 #: lib/tuist_web/live/once_runs_live.ex:1089
 #: lib/tuist_web/live/once_tests_live.ex:230
 #: lib/tuist_web/live/test_runs_live.ex:344
@@ -1789,7 +1789,7 @@ msgstr ""
 msgid "Arguments"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_overview_live.ex:211
+#: lib/tuist_web/live/bazel_overview_live.ex:212
 #: lib/tuist_web/live/mix_overview_live.html.heex:121
 #: lib/tuist_web/live/xcode_overview_live.html.heex:186
 #, elixir-autogen, elixir-format

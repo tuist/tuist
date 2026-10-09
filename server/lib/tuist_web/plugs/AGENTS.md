@@ -4,6 +4,7 @@ This area owns Plug middleware for request processing.
 
 ## Responsibilities
 - `PublicPageHeaderPlug` keeps public-response classification separate from indexing. Project indexing overrides noindex only for opted-in public project HTML on hosted production; redirects and failures reset it. Public-account indexing retains its separate existing policy. Settings and download routes must remain non-indexable even under a public project.
+- `PublicPageChallengePlug` exempts only GET/HEAD public project roots with default/ignored tracking parameters. Use the private visibility marker set by `PublicPageHeaderPlug`, not a client header or user agent. The paired LiveView hook rechecks the actual URI on every patch; a root visit never grants verification for deeper dashboards.
 - Implement request/response middleware (auth, analytics, rate limiting).
 - Handle cross-cutting response negotiation, such as alternate agent-friendly representations.
 - `MarkdownNegotiationPlug` uses explicit Markdown Accept preferences, respects quality zero and HTML preference, and overrides only successful pages with authored marketing or original docs content. Never turn redirects/errors into guides. Only responses actually converted to Markdown disable Cloudflare CDN caching, for both marketing and docs negotiation. Preserve existing cache policies for HTML, redirects, errors, and other unconverted responses. An edge-cached HTML response can reach a Markdown-preferring client; explicit Markdown URLs are the reliable representation-specific path and remain cacheable.

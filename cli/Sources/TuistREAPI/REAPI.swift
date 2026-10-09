@@ -130,6 +130,10 @@ public struct REAPIBlobUpload: Sendable {
 
 public protocol REAPICacheStoring: Sendable {
     func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult?
+    /// Whether the cache still stores the action. Sends `x-tuist-lookup: presence`, which asks Kura not to extend
+    /// the lifetime of the entry or of the blobs it references; a server that does not recognize the header treats
+    /// it as a regular `GetActionResult`.
+    func containsActionResult(for digest: REAPI.Digest) async throws -> Bool
     func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws
     func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> REAPIBlobUpload
     func downloadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest>

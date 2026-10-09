@@ -364,6 +364,7 @@ defmodule Tuist.Application do
           {Finch, name: Tuist.Finch, pools: finch_pools()},
           {Cachex, [:tuist, []]},
           Tuist.Authentication.TokenVerificationCache,
+          TuistWeb.PublicOverviewCache,
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
           Tuist.KeyValueStore.Invalidator,

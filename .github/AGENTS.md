@@ -85,10 +85,16 @@ The server build-plan and unsharded fallback jobs run `verification/bcrypt_load.
 `server.yml` compiles the test build once and creates separate four-shard plans
 for current and oldest-supported ClickHouse, with references scoped to the GitHub
 run, attempt, and variant. Each shard owns fresh PostgreSQL and ClickHouse databases.
-Bootstrap only `tuist_ex`, authenticate with `mix tuist.login` using GitHub
-OpenID Connect, and download with `mix tuist.test --prepare-only`. Run `db:reset`
+Only the build job compiles, so it stays on `tuist-linux-large` while the shards
+run on the default `tuist-linux` shape.
+Bootstrap only `tuist_ex` and download with `mix tuist.test --prepare-only`;
+`tuist_ex` exchanges the job's GitHub OpenID Connect token itself, so there is no
+login step. Run `db:reset`
 in a separate process before `mix tuist.test --no-download --warnings-as-errors`,
 so migration regression tests do not redefine modules already loaded by setup.
+Date the shard's checkout to the commit time before `db:reset`: a checkout newer
+than the downloaded build makes Mix treat `noora` and `tuist_common` as changed and
+recompile the app.
 Take shard references from the build job's outputs, not the current run attempt,
 so rerunning only failed jobs reuses the original plan. Keep distinct `--scheme`
 labels for ClickHouse variants so their outcomes are not treated as flaky reruns.
@@ -100,7 +106,11 @@ Gradle fork fallbacks. The explicitly named unsharded fallback also runs both va
 
 CNPG restore drills resolve production to namespace `tuist`, not `tuist-production`; staging and canary retain their prefixed namespaces. Validate the resolver with `python3 .github/scripts/cnpg-restore-drill.test.py` without credentials. Recovery clusters are isolated and must never archive into or delete the source backup path. Use a run-scoped disposable StorageClass cloned from the source data volume's provisioning settings, with `Delete` reclamation and no default-class annotation. Never change the source class or existing volumes. Teardown must target only the run's `pg-restore-drill-*` resources, use foreground cluster deletion, verify PVC/PV removal, and propagate failures rather than silently leaving copied data. Previously retained drill volumes require separate human-authorized cleanup.
 
-Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials. Deployment validation pins Helm, mikefarah yq, and jq and runs the rendering and fake-kubectl retirement checks before the image build. Managed deployment checks live legacy namespace retention after stuck-release recovery, because rollback can remove its retention annotation. Keep that read-only guard before upgrades that disable the legacy sandbox objects.
+Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials. Deployment validation pins Helm, mikefarah yq, and jq and runs the rendering and fake-kubectl retirement checks before the image build. Managed deployment checks live legacy namespace retention after stuck-release recovery, because rollback can remove its retention annotation. Keep that read-only guard before upgrades that disable the legacy sandbox objects. The release-list arguments must remain compatible with the pinned Helm version; fake release-state tests also validate them against the real CLI without cluster access. After rollout and readiness, the managed release smoke test requires the public root to redirect signed-out visitors to `/login`, so a healthy but outdated or misrouted application cannot pass.
+
+## Cloudflare configuration
+
+`workflows/cloudflare-config-tests.yml` runs the crawler-exemption scope regressions without credentials on pull requests and main changes. These tests do not validate Cloudflare's API expression parser or modify the live zone.
 
 ## CodeQL
 

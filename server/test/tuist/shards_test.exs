@@ -30,6 +30,31 @@ defmodule Tuist.ShardsTest do
     |> MapSet.new()
   end
 
+  defp module_run(name, duration, execution_mode) do
+    %{name: name, status: "success", duration: duration, execution_mode: execution_mode, test_cases: []}
+  end
+
+  defp sharded_run_fixture(project, shards) do
+    plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: length(shards))
+
+    shards
+    |> Enum.with_index()
+    |> Enum.each(fn {{duration, test_modules}, index} ->
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        build_system: "mix",
+        shard_plan_id: plan.id,
+        shard_index: index,
+        duration: duration,
+        test_modules: test_modules
+      )
+    end)
+
+    RunsFixtures.optimize_test_runs()
+  end
+
   describe "create_shard_plan/2" do
     test "creates a shard plan with module-level granularity" do
       project = ProjectsFixtures.project_fixture()
@@ -1007,6 +1032,125 @@ defmodule Tuist.ShardsTest do
 
       [assignment] = result.shard_assignments
       assert assignment["estimated_duration_ms"] == 10_000
+    end
+
+    test "balances module shards by wall clock with the concurrency history shows" do
+      project = ProjectsFixtures.project_fixture()
+
+      # Four concurrent modules at a time: shard 0 spends 40s - 30s serial on
+      # 40s of concurrent modules, shard 1 spends 22.5s - 20s on 10s.
+      sharded_run_fixture(project, [
+        {40_000,
+         [
+           module_run("SerialA", 30_000, "serial"),
+           module_run("Parallel1", 20_000, "parallel"),
+           module_run("Parallel2", 20_000, "parallel")
+         ]},
+        {22_500, [module_run("SerialB", 20_000, "serial"), module_run("Parallel3", 10_000, "parallel")]}
+      ])
+
+      modules = ["SerialA", "SerialB", "Parallel1", "Parallel2", "Parallel3"]
+
+      concurrent =
+        Shards.create_shard_plan(project, %{
+          reference: "concurrent-modules",
+          modules: modules,
+          concurrent_modules: ["Parallel1", "Parallel2", "Parallel3"],
+          shard_total: 2
+        })
+
+      assert Enum.map(concurrent.shard_assignments, & &1["estimated_duration_ms"]) == [40_000, 40_000]
+
+      assert [["Parallel3", "SerialA"], ["Parallel1", "Parallel2", "SerialB"]] =
+               Enum.map(concurrent.shard_assignments, &Enum.sort(&1["test_targets"]))
+
+      summed =
+        Shards.create_shard_plan(project, %{reference: "concurrent-modules-summed", modules: modules, shard_total: 2})
+
+      assert Enum.map(summed.shard_assignments, & &1["estimated_duration_ms"]) == [50_000, 50_000]
+    end
+
+    test "prices concurrent modules by the concurrency their shard runs achieved" do
+      project = ProjectsFixtures.project_fixture()
+      parallel = for index <- 1..8, do: "Parallel#{index}"
+
+      # 80s of concurrent modules took 30s - 10s serial, four at a time, so the
+      # plan holds 10s serial and 80s / 4 concurrent, where eight would be 10s.
+      sharded_run_fixture(project, [
+        {30_000, [module_run("Serial", 10_000, "serial") | Enum.map(parallel, &module_run(&1, 10_000, "parallel"))]}
+      ])
+
+      result =
+        Shards.create_shard_plan(project, %{
+          reference: "concurrent-modules-measured",
+          modules: ["Serial" | parallel],
+          concurrent_modules: parallel,
+          shard_total: 1
+        })
+
+      assert [%{"estimated_duration_ms" => 30_000}] = result.shard_assignments
+    end
+
+    test "leaves a rerun shard out of the concurrency it measures" do
+      project = ProjectsFixtures.project_fixture()
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      rerun = for index <- 1..8, do: "Rerun#{index}"
+      single = for index <- 1..8, do: "Single#{index}"
+
+      report = fn index, serial, parallel ->
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          is_ci: true,
+          git_branch: project.default_branch,
+          build_system: "mix",
+          shard_plan_id: plan.id,
+          shard_index: index,
+          duration: 30_000,
+          test_modules: [
+            module_run(serial, 10_000, "serial") | Enum.map(parallel, &module_run(&1, 10_000, "parallel"))
+          ]
+        )
+      end
+
+      # Both shards ran four at a time. Shard 0 reported twice, which adds a
+      # second copy of its modules, but only one of its durations counts.
+      report.(0, "RerunSerial", rerun)
+      report.(0, "RerunSerial", rerun)
+      report.(1, "SingleSerial", single)
+      RunsFixtures.optimize_test_runs()
+
+      result =
+        Shards.create_shard_plan(project, %{
+          reference: "concurrent-modules-rerun",
+          modules: ["RerunSerial", "SingleSerial"] ++ rerun ++ single,
+          concurrent_modules: rerun ++ single,
+          shard_total: 1
+        })
+
+      # 20s serial and 160s / 4 concurrent; counting the rerun's modules twice
+      # would measure 16 for shard 0 and plan 20s + 160s / 10.
+      assert [%{"estimated_duration_ms" => 60_000}] = result.shard_assignments
+    end
+
+    test "sums module durations when no shard run of the plan's modules reported execution modes" do
+      project = ProjectsFixtures.project_fixture()
+
+      sharded_run_fixture(project, [
+        {11_000, [module_run("ParallelA", 20_000, nil), module_run("ParallelB", 20_000, nil)]}
+      ])
+
+      # Another build system's shards: modes, but modules this plan does not hold.
+      sharded_run_fixture(project, [{1_000, [module_run("OtherTests", 20_000, "parallel")]}])
+
+      result =
+        Shards.create_shard_plan(project, %{
+          reference: "concurrent-modules-unmeasured",
+          modules: ["ParallelA", "ParallelB"],
+          concurrent_modules: ["ParallelA", "ParallelB"],
+          shard_total: 1
+        })
+
+      assert [%{"estimated_duration_ms" => 40_000}] = result.shard_assignments
     end
 
     test "derives suite units from history when the client does not enumerate" do

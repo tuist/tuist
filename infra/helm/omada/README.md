@@ -67,10 +67,15 @@ is why the console path and the fleet CLI stay whichever way this goes.
 
 ## Standing it up
 
-`.github/workflows/omada-deployment.yml` deploys it to staging on a merge that
-touches this chart, or on dispatch. It is a workflow rather than a command
-because creating the namespace needs rights an engineer does not have in
-staging.
+`.github/workflows/omada-deployment.yml` deploys it on a merge that touches
+this chart or the site definition, or on dispatch, to the cluster the rack
+belongs to: the env whose namespace the site definition's
+`kubernetes.namespace` is (`tuist-<env>`, or `tuist` for production;
+`mise run rack:fleet env`), with `values-<env>.yaml`. A dispatch naming another
+env installs the controller alone there, which is how the controller a rack
+moves to is stood up before its switches are pointed at it. It is a workflow
+rather than a command because creating the namespace needs rights an engineer
+does not have.
 
 The admin account and the Open API client are created in the controller's own
 first-boot wizard, at `https://omada.<tailnet>.ts.net:8043`, so no

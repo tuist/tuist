@@ -1,8 +1,9 @@
 defmodule Tuist.KeyValueStore do
   @moduledoc ~S"""
-  A module for doing key-value caching. The storage layer depends on the presence of a Redis connection.
-  - If a Redis connection is available, it caches the value in Redis.
-  - If a Redis connection is not available, it caches the value in memory (cleaned in deploys)
+  A module for doing key-value caching. Values use Cachex by default.
+  With `persist_across_deployments: true` and a configured Redis connection,
+  values are shared through Redis. Otherwise, or on Redis connection failure,
+  values use the selected in-memory Cachex cache (cleaned in deploys).
   """
 
   alias Tuist.Environment
@@ -71,7 +72,7 @@ defmodule Tuist.KeyValueStore do
   end
 
   defp get_from_redis(cache_key) do
-    case Redix.command(Environment.redis_conn_name(), ["GET", cache_key(cache_key)]) do
+    case redis_command(Environment.redis_conn_name(), ["GET", cache_key(cache_key)]) do
       {:ok, nil} ->
         nil
 
@@ -217,13 +218,20 @@ defmodule Tuist.KeyValueStore do
     cache_key = cache_key(cache_key)
     cache_ttl = Keyword.get(opts, :ttl, to_timeout(minute: 1))
 
-    Redix.command(Environment.redis_conn_name(), [
+    redis_command(Environment.redis_conn_name(), [
       "SET",
       cache_key,
       :erlang.term_to_binary(value),
       "EX",
       div(cache_ttl, 1000)
     ])
+  end
+
+  defp redis_command(connection, command) do
+    case Redix.command(connection, command) do
+      {:error, %Redix.ConnectionError{} = error} -> raise error
+      result -> result
+    end
   end
 
   defp put_in_cachex(cache_key, value, opts) do
