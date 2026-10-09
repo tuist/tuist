@@ -74,7 +74,6 @@ COPY noora/mix.exs noora/mix.lock /noora/
 # install mix dependencies
 COPY atlas/mix.exs atlas/mix.lock ./
 RUN mix deps.get --only $MIX_ENV
-RUN mkdir config
 
 # copy compile-time config files before we compile dependencies
 # to ensure any relevant config change will trigger the dependencies
@@ -93,9 +92,12 @@ COPY noora/lib /noora/lib
 COPY --from=noora-assets /noora/priv/static /noora/priv/static
 RUN mix deps.compile noora --force
 
+# Copied before the code because they rarely change: every instruction after
+# the one an edit invalidates runs again.
 COPY atlas/priv priv
-COPY atlas/lib lib
 COPY atlas/assets assets
+COPY atlas/rel rel
+COPY atlas/lib lib
 
 # Compile the project (generates colocated hooks needed by esbuild)
 RUN mix compile
@@ -105,8 +107,6 @@ RUN mix assets.deploy
 
 # Changes to config/runtime.exs don't require recompiling the code
 COPY atlas/config/runtime.exs config/
-
-COPY atlas/rel rel
 
 # Version the release independently of the image tag. mix.exs reads it, but
 # only the .app file carries it, so it's declared after compilation and only
@@ -127,7 +127,9 @@ ARG APT_CACHE_BUST=0
 RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get update -y && \
   apt-get install -y libstdc++6 openssl libncurses6 locales ca-certificates poppler-utils pandoc chromium fonts-liberation \
-  && apt-get clean && rm -f /var/lib/apt/lists/*_*
+  && apt-get clean && rm -f /var/lib/apt/lists/*_* \
+  && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen \
+  && mkdir -p /app && chown nobody /app
 
 # Chromium binary path used by browse_chrome to start headless instances for
 # the `browse_url` MCP tool. Set here so the pool boots automatically.
@@ -136,15 +138,11 @@ RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
 ENV CHROME_PATH=/usr/bin/chromium
 ENV HOME=/tmp
 
-# Set the locale
-RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
-
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
 WORKDIR "/app"
-RUN chown nobody /app
 
 # set runner ENV
 ENV MIX_ENV="prod"
