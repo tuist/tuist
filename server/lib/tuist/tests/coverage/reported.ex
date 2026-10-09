@@ -202,7 +202,7 @@ defmodule Tuist.Tests.Coverage.Reported do
     test_reasons = test_gap_reasons(context, gaps, reasons)
 
     kind = if gaps == [] and gap_files == 0 and run_gaps == [], do: "reported", else: "partial"
-    shas = units |> Enum.map(& &1.source.sha) |> Enum.uniq() |> Enum.sort()
+    shas = sources |> Map.values() |> Enum.map(& &1.sha) |> Enum.uniq() |> Enum.sort()
 
     files
     |> result(kind, skipped, carried_tests, {gap_files, test_reasons ++ file_reasons ++ run_gaps}, shas)
