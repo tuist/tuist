@@ -65,6 +65,7 @@ This directory contains the core business logic and domain modules for the serve
 
 - Accounts: `server/lib/tuist/accounts/AGENTS.md`
 - Alerts: `server/lib/tuist/alerts/AGENTS.md`
+- Automations: [automations/AGENTS.md](automations/AGENTS.md), including test-case actions and cross-build cache-key findings.
 - Api: `server/lib/tuist/api/AGENTS.md`
 - App Builds: `server/lib/tuist/app_builds/AGENTS.md`
 - Authentication: `server/lib/tuist/authentication/AGENTS.md`

@@ -29,6 +29,53 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
     }
   end
 
+  describe "build notifications" do
+    test "summarizes a group with safe values and source-native links", %{project: project} do
+      automation = %{id: UUIDv7.generate(), name: "Cache consistency", project_id: project.id}
+      {:ok, encrypted} = Slack.encrypt_webhook_url("https://hooks.slack.com/services/T/B/test")
+
+      findings = [
+        %{
+          evidence: %{
+            "source" => "bazel",
+            "unit_name" => "Compile <!channel>",
+            "commit_sha" => "abcdef0123456789",
+            "first_run" => "linux",
+            "second_run" => "macos"
+          }
+        }
+      ]
+
+      expect(Client, :post_to_webhook, fn _, blocks ->
+        message = Enum.find(blocks, &(&1.type == "section")).text.text
+        assert message =~ "1 build unit has"
+        assert message =~ "Compile &lt;!channel&gt;"
+        assert message =~ "/builds/invocations/linux"
+        assert message =~ "/builds/invocations/macos"
+        assert message =~ "/settings/automations/#{automation.id}"
+        refute message =~ "{{build."
+        :ok
+      end)
+
+      assert :ok =
+               SendSlackAction.execute(automation, %{type: :build_findings, findings: findings}, %{
+                 "webhook_url_encrypted" => encrypted,
+                 "message" => "{{build.summary}}\n{{build.url}}"
+               })
+    end
+
+    test "missing Slack configuration returns an error instead of acknowledging delivery", %{project: project} do
+      automation = %{id: UUIDv7.generate(), name: "Cache consistency", project_id: project.id}
+      reject(&Client.post_message/3)
+
+      assert {:error, :slack_not_configured} =
+               SendSlackAction.execute(automation, %{type: :build_findings, findings: []}, %{
+                 "channel" => "C1",
+                 "message" => "{{build.summary}}"
+               })
+    end
+  end
+
   describe "execute/3" do
     test "decrypts the webhook URL and posts the message to it", %{project: project} do
       automation = %{name: "Quarantine", project_id: project.id}

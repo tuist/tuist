@@ -8,6 +8,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   alias Tuist.Authorization
   alias Tuist.Automations
   alias Tuist.Automations.Alerts.Alert
+  alias Tuist.Automations.Builds
   alias Tuist.Environment
   alias Tuist.Slack
   alias TuistWeb.Helpers.OpenGraph
@@ -46,6 +47,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       )
       |> assign_automations(selected_project)
       |> assign_create_automation_form_defaults()
+      |> assign_build_form_defaults()
       |> assign(match_count: :idle, match_count_ref: nil, match_count_timer: nil, match_count_running_ref: nil)
       |> attach_hook(:match_count, :handle_event, &refresh_match_count_on_event/3)
 
@@ -181,8 +183,26 @@ defmodule TuistWeb.ProjectAutomationsLive do
     edit_forms = Map.new(automations, fn a -> {a.id, automation_to_form(a)} end)
 
     socket
-    |> assign(automations: automations)
+    |> assign(automations: Enum.reject(automations, &Builds.monitor?/1))
+    |> assign(build_automations: Enum.filter(automations, &Builds.monitor?/1))
     |> assign(edit_automation_forms: edit_forms)
+  end
+
+  @build_message ":warning: *{{automation.name}}*\n\n{{build.summary}}\n\n<{{build.url}}|View cache key findings>"
+
+  defp assign_build_form_defaults(socket) do
+    assign(socket,
+      editing_build_automation_id: nil,
+      build_automation_name: "Cache key consistency",
+      build_automation_error: nil,
+      build_automation_action: %{
+        "type" => "send_slack",
+        "channel" => "",
+        "channel_name" => "",
+        "webhook_url_encrypted" => "",
+        "message" => @build_message
+      }
+    )
   end
 
   defp assign_create_automation_form_defaults(socket) do
@@ -300,6 +320,96 @@ defmodule TuistWeb.ProjectAutomationsLive do
   @impl true
 
   # Automation create form handlers
+
+  def handle_event("open_build_automation_modal", _params, socket) do
+    {:noreply, assign_build_form_defaults(socket)}
+  end
+
+  def handle_event("edit_build_automation", %{"id" => id}, socket) do
+    assigns = socket.assigns
+
+    with :ok <- Authorization.authorize(:automation_alert_update, assigns.current_user, assigns.selected_project),
+         {:ok, automation} <- Automations.get_alert(id),
+         true <- automation.project_id == socket.assigns.selected_project.id and Builds.monitor?(automation) do
+      {:noreply,
+       socket
+       |> assign(
+         editing_build_automation_id: automation.id,
+         build_automation_name: automation.name,
+         build_automation_action: hd(automation.trigger_actions),
+         build_automation_error: nil
+       )
+       |> push_event("open-modal", %{id: "build-automation-modal"})}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_build_automation_name", %{"value" => name}, socket) do
+    {:noreply, assign(socket, build_automation_name: name)}
+  end
+
+  def handle_event("build_automation_channel_selected", %{"channel_token" => token}, socket) do
+    case verify_and_encrypt(token) do
+      {:ok, %{channel_id: id, channel_name: name, encrypted_webhook_url: encrypted}} ->
+        action =
+          Map.merge(socket.assigns.build_automation_action, %{
+            "channel" => id,
+            "channel_name" => name,
+            "webhook_url_encrypted" => encrypted
+          })
+
+        {:noreply, assign(socket, build_automation_action: action)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("save_build_automation", _params, socket) do
+    assigns = socket.assigns
+    permission = if assigns.editing_build_automation_id, do: :automation_alert_update, else: :automation_alert_create
+
+    attrs = %{
+      name: assigns.build_automation_name,
+      monitor_type: "cache_key_consistency",
+      trigger_config: %{},
+      trigger_actions: [assigns.build_automation_action],
+      recovery_enabled: false
+    }
+
+    result =
+      with :ok <- Authorization.authorize(permission, assigns.current_user, assigns.selected_project),
+           true <- Builds.supported?(assigns.selected_project) do
+        if assigns.editing_build_automation_id do
+          with {:ok, automation} <- Automations.get_alert(assigns.editing_build_automation_id),
+               true <- automation.project_id == assigns.selected_project.id and Builds.monitor?(automation) do
+            Automations.update_alert(automation, attrs, actor: assigns.current_user, source: "dashboard")
+          end
+        else
+          Automations.create_alert(Map.put(attrs, :project_id, assigns.selected_project.id),
+            actor: assigns.current_user,
+            source: "dashboard"
+          )
+        end
+      end
+
+    case result do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign_automations(assigns.selected_project)
+         |> assign_build_form_defaults()
+         |> push_event("close-modal", %{id: "build-automation-modal"})}
+
+      _ ->
+        {:noreply,
+         assign(socket,
+           build_automation_error:
+             dgettext("dashboard_projects", "Enter a name and select a Slack channel to save this automation.")
+         )}
+    end
+  end
 
   def handle_event("open_create_automation_modal", _params, socket) do
     {:noreply, assign_create_automation_form_defaults(socket)}
@@ -1043,6 +1153,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
         labels = Enum.map_join(events, ", ", &test_updated_event_label/1)
         dgettext("dashboard_projects", "When a test is updated: %{events}", events: labels)
     end
+  end
+
+  def automation_summary(%{monitor_type: "cache_key_consistency"}) do
+    dgettext(
+      "dashboard_projects",
+      "When the same build unit has different cache keys across CI builds of the same commit"
+    )
   end
 
   def automation_summary(_), do: ""

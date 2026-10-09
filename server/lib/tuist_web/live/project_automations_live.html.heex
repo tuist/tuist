@@ -16,10 +16,6 @@
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/notifications"}
     />
     <.tab_menu_horizontal_item
-      :if={
-        Tuist.Projects.Project.xcode_project?(@selected_project) or
-          Tuist.Projects.Project.bazel_project?(@selected_project)
-      }
       label={dgettext("dashboard_projects", "Automations")}
       selected={true}
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations"}
@@ -44,7 +40,13 @@
     title={elem(@flash_message, 1)}
   />
 
-  <.card_section data-part="test-case-automations-card-section">
+  <.card_section
+    :if={
+      Tuist.Projects.Project.xcode_project?(@selected_project) or
+        Tuist.Projects.Project.bazel_project?(@selected_project)
+    }
+    data-part="test-case-automations-card-section"
+  >
     <div data-part="header">
       <div data-part="title-group">
         <span data-part="title">
@@ -1181,6 +1183,183 @@
                 <.icon name="trash" />
               </.button>
             </:button>
+          </.button_cell>
+        </:col>
+      </.table>
+    </div>
+  </.card_section>
+
+  <.card_section
+    :if={Builds.supported?(@selected_project)}
+    data-part="build-automations-card-section"
+  >
+    <div data-part="header">
+      <div data-part="title-group">
+        <span data-part="title">{dgettext("dashboard_projects", "Build automations")}</span>
+        <span data-part="subtitle">
+          {dgettext("dashboard_projects", "Monitor builds and respond with automated actions.")}
+        </span>
+      </div>
+      <.modal
+        :if={@can_manage_automations}
+        id="build-automation-modal"
+        title={
+          if @editing_build_automation_id,
+            do: dgettext("dashboard_projects", "Edit build automation"),
+            else: dgettext("dashboard_projects", "Create build automation")
+        }
+        header_size="large"
+      >
+        <:trigger :let={attrs}>
+          <.button
+            label={dgettext("dashboard_projects", "Add automation")}
+            variant="secondary"
+            size="medium"
+            phx-click="open_build_automation_modal"
+            {attrs}
+          />
+        </:trigger>
+        <div data-part="modal-content-wrapper">
+          <div data-part="automation-form">
+            <.alert
+              :if={@build_automation_error}
+              title={@build_automation_error}
+              status="error"
+              type="secondary"
+              size="small"
+            />
+            <div data-part="form-row">
+              <label data-part="label">{dgettext("dashboard_projects", "Name")}</label>
+              <.text_input
+                type="basic"
+                id="build-automation-name"
+                name="name"
+                value={@build_automation_name}
+                phx-keyup="update_build_automation_name"
+                phx-debounce="300"
+              />
+            </div>
+            <div data-part="form-row">
+              <label data-part="label">{dgettext("dashboard_projects", "When")}</label>
+              <p>{automation_summary(%{monitor_type: "cache_key_consistency"})}</p>
+              <p>
+                {dgettext(
+                  "dashboard_projects",
+                  "Compares reported cache keys from the last 30 days. Missing or ambiguous identities are skipped. Differences may be intentional; this check does not prove a cache failure."
+                )}
+              </p>
+            </div>
+            <div data-part="form-row">
+              <label data-part="label">{dgettext("dashboard_projects", "What")}</label>
+              <span>{dgettext(
+                "dashboard_projects",
+                "Send a grouped Slack notification for newly detected build units. Recurring differences do not send another notification, and findings do not automatically resolve."
+              )}</span>
+              <.tag
+                :if={@build_automation_action["channel_name"] != ""}
+                label={"##{@build_automation_action["channel_name"]}"}
+              />
+              <.button
+                :if={@slack_configured}
+                id="build-automation-channel-link"
+                label={dgettext("dashboard_projects", "Select channel")}
+                variant="secondary"
+                size="medium"
+                href={@automation_channel_selection_url}
+                phx-hook="SelectSlackChannelPopup"
+                data-event="build_automation_channel_selected"
+                data-id="build"
+              />
+              <p :if={not @slack_configured}>
+                {dgettext(
+                  "dashboard_projects",
+                  "Slack must be configured to enable build notifications."
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+        <:footer>
+          <.modal_footer>
+            <:action>
+              <.button
+                label={
+                  if @editing_build_automation_id,
+                    do: dgettext("dashboard_projects", "Save"),
+                    else: dgettext("dashboard_projects", "Create")
+                }
+                variant="primary"
+                size="medium"
+                phx-click="save_build_automation"
+                disabled={
+                  String.trim(@build_automation_name) == "" or
+                    @build_automation_action["channel"] == ""
+                }
+              />
+            </:action>
+          </.modal_footer>
+        </:footer>
+      </.modal>
+    </div>
+    <div data-part="content">
+      <p :if={@build_automations == []} data-part="empty-state">
+        {dgettext("dashboard_projects", "No build automations yet.")}
+      </p>
+      <.table
+        :if={@build_automations != []}
+        id="build-automations-table"
+        rows={@build_automations}
+        row_key={fn a -> a.id end}
+      >
+        <:col :let={automation} label={dgettext("dashboard_projects", "Name")}>
+          <.text_cell label={automation.name} />
+        </:col>
+        <:col :let={automation} label={dgettext("dashboard_projects", "Trigger")}>
+          <.text_cell label={automation_summary(automation)} />
+        </:col>
+        <:col :let={automation} label={dgettext("dashboard_projects", "Status")}>
+          <.text_cell label={
+            if automation.enabled,
+              do: dgettext("dashboard_projects", "Enabled"),
+              else: dgettext("dashboard_projects", "Disabled")
+          } />
+        </:col>
+        <:col :let={automation} label="">
+          <.button_cell>
+            <:button><.button
+              icon_only
+              size="small"
+              variant="secondary"
+              aria-label={dgettext("dashboard_projects", "View automation details")}
+              navigate={
+                ~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations/#{automation.id}"
+              }
+            ><.icon name="arrow_right" /></.button></:button>
+            <:button :if={@can_manage_automations}><.button
+              icon_only
+              size="small"
+              variant="secondary"
+              aria-label={dgettext("dashboard_projects", "Edit automation")}
+              phx-click="edit_build_automation"
+              phx-value-id={automation.id}
+            ><.icon name="pencil" /></.button></:button>
+            <:button :if={@can_manage_automations}><.button
+              icon_only
+              size="small"
+              variant="secondary"
+              aria-label={dgettext("dashboard_projects", "Enable or disable automation")}
+              phx-click="toggle_automation_enabled"
+              phx-value-id={automation.id}
+            ><.icon name={if automation.enabled, do: "player_pause", else: "player_play"} /></.button></:button>
+            <:button :if={@can_manage_automations}><.button
+              icon_only
+              size="small"
+              variant="secondary"
+              aria-label={dgettext("dashboard_projects", "Delete automation")}
+              phx-click="delete_automation"
+              phx-value-id={automation.id}
+              data-confirm={dgettext("dashboard_projects", "Delete this automation?")}
+            ><.icon name="trash" /></.button></:button>
           </.button_cell>
         </:col>
       </.table>

@@ -61,6 +61,100 @@
   </.card>
 
   <.card
+    :if={Builds.monitor?(@automation)}
+    icon="settings"
+    title={dgettext("dashboard_projects", "Cache key findings")}
+  >
+    <.card_section>
+      <p>
+        {dgettext(
+          "dashboard_projects",
+          "These build units reported different cache keys at the same commit. Differences may be intentional. Findings remain recorded and do not automatically resolve."
+        )}
+      </p>
+      <p>
+        {dgettext(
+          "dashboard_projects",
+          "The initial history scan runs in the background and sends one grouped Slack summary. Comparisons cover the latest 32 CI runs per commit within 30 days, or 128 command events for Xcode module caching."
+        )}
+      </p>
+      <p :if={
+        Enum.any?(Map.values(@automation.build_scan_state), fn state ->
+          (state["skipped_commits"] || 0) > 0
+        end)
+      }>
+        {dgettext(
+          "dashboard_projects",
+          "Some comparisons failed or exceeded analytics limits. Later sweeps retry them; missing evidence is not a successful consistency check."
+        )}
+      </p>
+      <p :if={@build_findings == []}>
+        {dgettext("dashboard_projects", "No inconsistencies detected yet.")}
+      </p>
+      <.table
+        :if={@build_findings != []}
+        id="build-findings-table"
+        rows={Enum.take(@build_findings, 20)}
+        row_key={fn f -> f.id end}
+      >
+        <:col :let={finding} label={dgettext("dashboard_projects", "Build unit")}>
+          <.text_cell
+            label={finding.evidence["unit_name"]}
+            sublabel={Builds.source_label(finding.source)}
+          />
+        </:col>
+        <:col :let={finding} label={dgettext("dashboard_projects", "Commit")}>
+          <.text_cell label={String.slice(finding.evidence["commit_sha"], 0, 12)} />
+        </:col>
+        <:col :let={finding} label={dgettext("dashboard_projects", "Cache keys")}>
+          <div data-part="finding-cache-keys">
+            <code>{finding.evidence["first_key"]}</code><br /><code>{finding.evidence[
+              "second_key"
+            ]}</code>
+          </div>
+        </:col>
+        <:col :let={finding} label={dgettext("dashboard_projects", "Builds")}>
+          <.button_cell>
+            <:button><.button
+              label={dgettext("dashboard_projects", "Build A")}
+              variant="secondary"
+              size="small"
+              navigate={
+                finding_run_url(
+                  @selected_project,
+                  @selected_account,
+                  finding.evidence,
+                  "first_run"
+                )
+              }
+            /></:button>
+            <:button><.button
+              label={dgettext("dashboard_projects", "Build B")}
+              variant="secondary"
+              size="small"
+              navigate={
+                finding_run_url(
+                  @selected_project,
+                  @selected_account,
+                  finding.evidence,
+                  "second_run"
+                )
+              }
+            /></:button>
+          </.button_cell>
+        </:col>
+      </.table>
+      <.button
+        :if={length(@build_findings) > 20}
+        label={dgettext("dashboard_projects", "Next")}
+        variant="secondary"
+        size="medium"
+        phx-click="show_more_build_findings"
+      />
+    </.card_section>
+  </.card>
+
+  <.card
     icon="history"
     title={dgettext("dashboard_projects", "Edit history")}
     data-part="history-card"
