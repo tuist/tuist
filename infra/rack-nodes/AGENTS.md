@@ -424,7 +424,7 @@ Every step below says whether it needs someone at the rack (hands-on) or not
 production`); staging is writable. The commands use
 
 ```
-S="--context tuist-k8s-staging"; P="--context tuist-k8s-production"
+S="--context kube-staging.tuist.dev"; P="--context tuist-k8s-production"
 EDGE_A=44312e80-1dc6-11f1-853e-8f903547d200
 EDGE_B=04450c00-63f4-11f1-81f4-3582298d5c00
 STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
@@ -455,18 +455,24 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
 3. **Stand up production's Omada controller** (remote). Dispatch
    `omada-deployment.yml` with `environment: production`, which installs the
    controller alone, as `omada-production` on the tailnet. Its tailnet IP is in
-   `tailscale status | grep omada-production`. In the staging controller
-   (`https://omada.taild6d7bb.ts.net:8043`), export a backup (Settings,
-   Maintenance, Backup), and restore it in production's first-boot wizard at
-   `https://omada-production.taild6d7bb.ts.net:8043`, so the production
-   controller knows the site, the device account and the three switches as
-   adopted. A controller without the backup sees each switch as managed by
-   another controller and has to adopt it afresh, which needs it forgotten in
-   staging first, and forgetting factory-resets a switch: ToR A carries the
-   rack's uplinks. Then make an Open API client on the production controller
-   (Client mode, Administrator over site `ber1`) and store it in
-   `tuist-k8s-production` as `omada production open api`, with `client-id` and
-   `client-secret` fields; delete the restored staging client from it.
+   `tailscale status | grep omada-production`. This uses TP-Link's Controller
+   Migration ([how to migrate an Omada controller](https://www.omadanetworks.com/us/document/13126/)).
+   In the staging controller (`https://omada.taild6d7bb.ts.net:8043`), open
+   Global View, Settings, Migration, the Controller Migration tab, start it and
+   export the backup. Restore it on production's controller at
+   `https://omada-production.taild6d7bb.ts.net:8043` (Settings, Maintenance,
+   Backup & Restore, or the first-boot wizard's restore), so it knows the site,
+   the device account and the three switches as adopted. A restore takes only
+   a backup of the same Major.Minor.Patch, so both controllers run the chart's
+   pinned `6.3.0.45` (staging did on 2026-10-09). Leave staging's migration
+   at its Confirm step until step 7. A controller without the backup sees each
+   switch as managed by another controller and has to adopt it afresh, which
+   needs it forgotten in staging first, and forgetting a switch its controller
+   still manages factory-resets it: ToR A carries the rack's uplinks. Then make
+   an Open API client on the production controller (Client mode,
+   Administrator over site `ber1`) and store it in `tuist-k8s-production` as
+   `omada production open api`, with `client-id` and `client-secret` fields;
+   delete the restored staging client from it.
 
 4. **Finish the cutover branch** (remote): set `management.controller.address`
    in `ber1.json` to the production controller's tailnet IP, run
@@ -511,14 +517,19 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
    case a switch has to be reached by its console). Stop staging's rack switch
    controller so it reports nothing and writes nothing meanwhile:
    `kubectl $S -n omada scale deployment rack-switch-controller --replicas=0`.
-   Then tell the switches the new controller, smallest blast radius first
-   (`ber1-mgmt`, `ber1-tor-b`, `ber1-tor-a`): the staging controller's device
-   migration (its Migration page, which takes the target controller's
-   address), or per switch `mise run rack:omada inform <device>` from the
-   cutover branch, whose `ber1.json` names the production controller. Neither
-   was measured on these switches; do `ber1-mgmt` alone first. Each shows
-   connected in production in `mise run rack:omada devices` from the cutover
-   branch. Do not forget them in staging.
+   Then, in staging's Controller Migration from step 3, click Confirm, enter
+   production's controller tailnet IP in Controller IP/Inform URL (an address:
+   the switches resolve no tailnet names), and migrate the switches smallest
+   blast radius first: `ber1-mgmt` alone (deselect the others), then
+   `ber1-tor-b`, then `ber1-tor-a`. Each reaches the new controller through
+   the edge, which the ACL lets reach `tag:tuist-k8s-production` on the Omada
+   ports. Each shows connected in production's Devices page and in
+   `mise run rack:omada devices` from the cutover branch. Only once all three
+   are connected there, click Forget Devices in staging, which finishes the
+   migration; forgetting one staging still manages resets it. Not measured on
+   these switches yet. If a switch does not come over, `mise run rack:omada
+   inform <device>` from the cutover branch tells it the new controller
+   directly.
 
 8. **Retire the rack from staging** (remote), in this order. First delete its
    objects while staging still runs the deploy from `main`: the operator's
@@ -648,7 +659,7 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
     the server of the env the rack is in.
 
 17. **Clean up staging** (remote), once the smoke passes:
-    `helm --kube-context tuist-k8s-staging -n omada uninstall rack-edge rack-switch-controller omada`, the
+    `helm --kube-context kube-staging.tuist.dev -n omada uninstall rack-edge rack-switch-controller omada`, the
     controller's volumes (`kubectl $S -n omada delete pvc --all`), the leftover
     candidates (`kubectl $S -n tuist-staging delete rlc --all`), the hosts' AMT
     Secrets in `tuist-staging`, and the staging copies of the 1Password items
