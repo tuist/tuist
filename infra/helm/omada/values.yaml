@@ -27,7 +27,8 @@ omada-controller-helm:
 
   # ClusterIP rather than the chart's LoadBalancer default. Devices do not
   # discover this controller by broadcast, because they are not on the cluster's
-  # L2; they are told where it is. See the adoption note in values-staging.yaml.
+  # L2; they are told where it is. See the reachability note in
+  # values-staging.yaml.
   service:
     type: ClusterIP
 

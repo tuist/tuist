@@ -58,3 +58,8 @@ k8s-monitoring:
           tailscale.com/expose: "true"
           tailscale.com/hostname: tuist-alloy-receiver-production
           tailscale.com/tags: tag:tuist-k8s-production
+
+    # BER1's Linux nodes. Their pods' logs and node-local Kura metrics reach
+    # the receiver above over the tailnet; see alloy-rack in values.yaml.
+    alloy-rack:
+      enabled: true

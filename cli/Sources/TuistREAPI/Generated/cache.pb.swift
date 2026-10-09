@@ -615,6 +615,143 @@ public struct Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse: Sendable
     public init() {}
 }
 
+public struct Build_Bazel_Remote_Execution_V2_ChunkingFunction: Sendable {
+    // SwiftProtobuf.Message conformance is added in an extension below. See the
+    // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+    // methods supported on all messages.
+
+    public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+    public enum Value: SwiftProtobuf.Enum, Swift.CaseIterable {
+        public typealias RawValue = Int
+        case unknown // = 0
+        case fastCdc2020 // = 1
+        case UNRECOGNIZED(Int)
+
+        public init() {
+            self = .unknown
+        }
+
+        public init?(rawValue: Int) {
+            switch rawValue {
+            case 0: self = .unknown
+            case 1: self = .fastCdc2020
+            default: self = .UNRECOGNIZED(rawValue)
+            }
+        }
+
+        public var rawValue: Int {
+            switch self {
+            case .unknown: return 0
+            case .fastCdc2020: return 1
+            case let .UNRECOGNIZED(i): return i
+            }
+        }
+
+        /// The compiler won't synthesize support with the UNRECOGNIZED case.
+        public static let allCases: [Build_Bazel_Remote_Execution_V2_ChunkingFunction.Value] = [
+            .unknown,
+            .fastCdc2020,
+        ]
+    }
+
+    public init() {}
+}
+
+public struct Build_Bazel_Remote_Execution_V2_SplitBlobRequest: Sendable {
+    // SwiftProtobuf.Message conformance is added in an extension below. See the
+    // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+    // methods supported on all messages.
+
+    public var instanceName: String = .init()
+
+    public var blobDigest: Build_Bazel_Remote_Execution_V2_Digest {
+        get { _blobDigest ?? Build_Bazel_Remote_Execution_V2_Digest() }
+        set { _blobDigest = newValue }
+    }
+
+    /// Returns true if `blobDigest` has been explicitly set.
+    public var hasBlobDigest: Bool { _blobDigest != nil }
+    /// Clears the value of `blobDigest`. Subsequent reads from it will return its default value.
+    public mutating func clearBlobDigest() { _blobDigest = nil }
+
+    public var digestFunction: Build_Bazel_Remote_Execution_V2_DigestFunction.Value = .unknown
+
+    public var chunkingFunction: Build_Bazel_Remote_Execution_V2_ChunkingFunction.Value = .unknown
+
+    public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+    public init() {}
+
+    fileprivate var _blobDigest: Build_Bazel_Remote_Execution_V2_Digest?
+}
+
+public struct Build_Bazel_Remote_Execution_V2_SplitBlobResponse: Sendable {
+    // SwiftProtobuf.Message conformance is added in an extension below. See the
+    // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+    // methods supported on all messages.
+
+    public var chunkDigests: [Build_Bazel_Remote_Execution_V2_Digest] = []
+
+    public var chunkingFunction: Build_Bazel_Remote_Execution_V2_ChunkingFunction.Value = .unknown
+
+    public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+    public init() {}
+}
+
+public struct Build_Bazel_Remote_Execution_V2_SpliceBlobRequest: Sendable {
+    // SwiftProtobuf.Message conformance is added in an extension below. See the
+    // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+    // methods supported on all messages.
+
+    public var instanceName: String = .init()
+
+    public var blobDigest: Build_Bazel_Remote_Execution_V2_Digest {
+        get { _blobDigest ?? Build_Bazel_Remote_Execution_V2_Digest() }
+        set { _blobDigest = newValue }
+    }
+
+    /// Returns true if `blobDigest` has been explicitly set.
+    public var hasBlobDigest: Bool { _blobDigest != nil }
+    /// Clears the value of `blobDigest`. Subsequent reads from it will return its default value.
+    public mutating func clearBlobDigest() { _blobDigest = nil }
+
+    public var chunkDigests: [Build_Bazel_Remote_Execution_V2_Digest] = []
+
+    public var digestFunction: Build_Bazel_Remote_Execution_V2_DigestFunction.Value = .unknown
+
+    public var chunkingFunction: Build_Bazel_Remote_Execution_V2_ChunkingFunction.Value = .unknown
+
+    public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+    public init() {}
+
+    fileprivate var _blobDigest: Build_Bazel_Remote_Execution_V2_Digest?
+}
+
+public struct Build_Bazel_Remote_Execution_V2_SpliceBlobResponse: Sendable {
+    // SwiftProtobuf.Message conformance is added in an extension below. See the
+    // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+    // methods supported on all messages.
+
+    public var blobDigest: Build_Bazel_Remote_Execution_V2_Digest {
+        get { _blobDigest ?? Build_Bazel_Remote_Execution_V2_Digest() }
+        set { _blobDigest = newValue }
+    }
+
+    /// Returns true if `blobDigest` has been explicitly set.
+    public var hasBlobDigest: Bool { _blobDigest != nil }
+    /// Clears the value of `blobDigest`. Subsequent reads from it will return its default value.
+    public mutating func clearBlobDigest() { _blobDigest = nil }
+
+    public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+    public init() {}
+
+    fileprivate var _blobDigest: Build_Bazel_Remote_Execution_V2_Digest?
+}
+
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
 private let _protobuf_package = "build.bazel.remote.execution.v2"
@@ -1700,6 +1837,230 @@ extension Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse.Response: Swi
     ) -> Bool {
         if lhs._digest != rhs._digest { return false }
         if lhs._status != rhs._status { return false }
+        if lhs.unknownFields != rhs.unknownFields { return false }
+        return true
+    }
+}
+
+extension Build_Bazel_Remote_Execution_V2_ChunkingFunction: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase,
+    SwiftProtobuf._ProtoNameProviding
+{
+    public static let protoMessageName: String = _protobuf_package + ".ChunkingFunction"
+    public static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+
+    public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
+        // Load everything into unknown fields
+        while try decoder.nextFieldNumber() != nil {}
+    }
+
+    public func traverse(visitor: inout some SwiftProtobuf.Visitor) throws {
+        try unknownFields.traverse(visitor: &visitor)
+    }
+
+    public static func == (
+        lhs: Build_Bazel_Remote_Execution_V2_ChunkingFunction,
+        rhs: Build_Bazel_Remote_Execution_V2_ChunkingFunction
+    ) -> Bool {
+        if lhs.unknownFields != rhs.unknownFields { return false }
+        return true
+    }
+}
+
+extension Build_Bazel_Remote_Execution_V2_ChunkingFunction.Value: SwiftProtobuf._ProtoNameProviding {
+    public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0UNKNOWN\0\u{1}FAST_CDC_2020\0")
+}
+
+extension Build_Bazel_Remote_Execution_V2_SplitBlobRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase,
+    SwiftProtobuf._ProtoNameProviding
+{
+    public static let protoMessageName: String = _protobuf_package + ".SplitBlobRequest"
+    public static let _protobuf_nameMap = SwiftProtobuf
+        ._NameMap(bytecode: "\0\u{3}instance_name\0\u{3}blob_digest\0\u{3}digest_function\0\u{3}chunking_function\0")
+
+    public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
+        while let fieldNumber = try decoder.nextFieldNumber() {
+            // The use of inline closures is to circumvent an issue where the compiler
+            // allocates stack space for every case branch when no optimizations are
+            // enabled. https://github.com/apple/swift-protobuf/issues/1034
+            switch fieldNumber {
+            case 1: try decoder.decodeSingularStringField(value: &instanceName)
+            case 2: try decoder.decodeSingularMessageField(value: &_blobDigest)
+            case 3: try decoder.decodeSingularEnumField(value: &digestFunction)
+            case 4: try decoder.decodeSingularEnumField(value: &chunkingFunction)
+            default: break
+            }
+        }
+    }
+
+    public func traverse(visitor: inout some SwiftProtobuf.Visitor) throws {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every if/case branch local when no optimizations
+        // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+        // https://github.com/apple/swift-protobuf/issues/1182
+        if !instanceName.isEmpty {
+            try visitor.visitSingularStringField(value: instanceName, fieldNumber: 1)
+        }
+        try { if let v = self._blobDigest {
+            try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+        } }()
+        if digestFunction != .unknown {
+            try visitor.visitSingularEnumField(value: digestFunction, fieldNumber: 3)
+        }
+        if chunkingFunction != .unknown {
+            try visitor.visitSingularEnumField(value: chunkingFunction, fieldNumber: 4)
+        }
+        try unknownFields.traverse(visitor: &visitor)
+    }
+
+    public static func == (
+        lhs: Build_Bazel_Remote_Execution_V2_SplitBlobRequest,
+        rhs: Build_Bazel_Remote_Execution_V2_SplitBlobRequest
+    ) -> Bool {
+        if lhs.instanceName != rhs.instanceName { return false }
+        if lhs._blobDigest != rhs._blobDigest { return false }
+        if lhs.digestFunction != rhs.digestFunction { return false }
+        if lhs.chunkingFunction != rhs.chunkingFunction { return false }
+        if lhs.unknownFields != rhs.unknownFields { return false }
+        return true
+    }
+}
+
+extension Build_Bazel_Remote_Execution_V2_SplitBlobResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase,
+    SwiftProtobuf._ProtoNameProviding
+{
+    public static let protoMessageName: String = _protobuf_package + ".SplitBlobResponse"
+    public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}chunk_digests\0\u{3}chunking_function\0")
+
+    public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
+        while let fieldNumber = try decoder.nextFieldNumber() {
+            // The use of inline closures is to circumvent an issue where the compiler
+            // allocates stack space for every case branch when no optimizations are
+            // enabled. https://github.com/apple/swift-protobuf/issues/1034
+            switch fieldNumber {
+            case 1: try decoder.decodeRepeatedMessageField(value: &chunkDigests)
+            case 2: try decoder.decodeSingularEnumField(value: &chunkingFunction)
+            default: break
+            }
+        }
+    }
+
+    public func traverse(visitor: inout some SwiftProtobuf.Visitor) throws {
+        if !chunkDigests.isEmpty {
+            try visitor.visitRepeatedMessageField(value: chunkDigests, fieldNumber: 1)
+        }
+        if chunkingFunction != .unknown {
+            try visitor.visitSingularEnumField(value: chunkingFunction, fieldNumber: 2)
+        }
+        try unknownFields.traverse(visitor: &visitor)
+    }
+
+    public static func == (
+        lhs: Build_Bazel_Remote_Execution_V2_SplitBlobResponse,
+        rhs: Build_Bazel_Remote_Execution_V2_SplitBlobResponse
+    ) -> Bool {
+        if lhs.chunkDigests != rhs.chunkDigests { return false }
+        if lhs.chunkingFunction != rhs.chunkingFunction { return false }
+        if lhs.unknownFields != rhs.unknownFields { return false }
+        return true
+    }
+}
+
+extension Build_Bazel_Remote_Execution_V2_SpliceBlobRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase,
+    SwiftProtobuf._ProtoNameProviding
+{
+    public static let protoMessageName: String = _protobuf_package + ".SpliceBlobRequest"
+    public static let _protobuf_nameMap = SwiftProtobuf
+        ._NameMap(
+            bytecode: "\0\u{3}instance_name\0\u{3}blob_digest\0\u{3}chunk_digests\0\u{3}digest_function\0\u{3}chunking_function\0"
+        )
+
+    public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
+        while let fieldNumber = try decoder.nextFieldNumber() {
+            // The use of inline closures is to circumvent an issue where the compiler
+            // allocates stack space for every case branch when no optimizations are
+            // enabled. https://github.com/apple/swift-protobuf/issues/1034
+            switch fieldNumber {
+            case 1: try decoder.decodeSingularStringField(value: &instanceName)
+            case 2: try decoder.decodeSingularMessageField(value: &_blobDigest)
+            case 3: try decoder.decodeRepeatedMessageField(value: &chunkDigests)
+            case 4: try decoder.decodeSingularEnumField(value: &digestFunction)
+            case 5: try decoder.decodeSingularEnumField(value: &chunkingFunction)
+            default: break
+            }
+        }
+    }
+
+    public func traverse(visitor: inout some SwiftProtobuf.Visitor) throws {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every if/case branch local when no optimizations
+        // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+        // https://github.com/apple/swift-protobuf/issues/1182
+        if !instanceName.isEmpty {
+            try visitor.visitSingularStringField(value: instanceName, fieldNumber: 1)
+        }
+        try { if let v = self._blobDigest {
+            try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+        } }()
+        if !chunkDigests.isEmpty {
+            try visitor.visitRepeatedMessageField(value: chunkDigests, fieldNumber: 3)
+        }
+        if digestFunction != .unknown {
+            try visitor.visitSingularEnumField(value: digestFunction, fieldNumber: 4)
+        }
+        if chunkingFunction != .unknown {
+            try visitor.visitSingularEnumField(value: chunkingFunction, fieldNumber: 5)
+        }
+        try unknownFields.traverse(visitor: &visitor)
+    }
+
+    public static func == (
+        lhs: Build_Bazel_Remote_Execution_V2_SpliceBlobRequest,
+        rhs: Build_Bazel_Remote_Execution_V2_SpliceBlobRequest
+    ) -> Bool {
+        if lhs.instanceName != rhs.instanceName { return false }
+        if lhs._blobDigest != rhs._blobDigest { return false }
+        if lhs.chunkDigests != rhs.chunkDigests { return false }
+        if lhs.digestFunction != rhs.digestFunction { return false }
+        if lhs.chunkingFunction != rhs.chunkingFunction { return false }
+        if lhs.unknownFields != rhs.unknownFields { return false }
+        return true
+    }
+}
+
+extension Build_Bazel_Remote_Execution_V2_SpliceBlobResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase,
+    SwiftProtobuf._ProtoNameProviding
+{
+    public static let protoMessageName: String = _protobuf_package + ".SpliceBlobResponse"
+    public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}blob_digest\0")
+
+    public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
+        while let fieldNumber = try decoder.nextFieldNumber() {
+            // The use of inline closures is to circumvent an issue where the compiler
+            // allocates stack space for every case branch when no optimizations are
+            // enabled. https://github.com/apple/swift-protobuf/issues/1034
+            switch fieldNumber {
+            case 1: try decoder.decodeSingularMessageField(value: &_blobDigest)
+            default: break
+            }
+        }
+    }
+
+    public func traverse(visitor: inout some SwiftProtobuf.Visitor) throws {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every if/case branch local when no optimizations
+        // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+        // https://github.com/apple/swift-protobuf/issues/1182
+        if let v = _blobDigest {
+            try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+        }
+        try unknownFields.traverse(visitor: &visitor)
+    }
+
+    public static func == (
+        lhs: Build_Bazel_Remote_Execution_V2_SpliceBlobResponse,
+        rhs: Build_Bazel_Remote_Execution_V2_SpliceBlobResponse
+    ) -> Bool {
+        if lhs._blobDigest != rhs._blobDigest { return false }
         if lhs.unknownFields != rhs.unknownFields { return false }
         return true
     }

@@ -554,6 +554,25 @@ defmodule Tuist.Runners.RunnerSessions do
 
   def record_execution(_runner_name, _executed_workflow_job_id, _account_id, _job_window), do: :unknown_runner
 
+  @doc """
+  The workflow_job that ran on the runner named `runner_name` within
+  `account_id`: the one `record_execution/4` bound, or, until GitHub reports
+  it, the one the runner was minted for.
+
+  Reads the session because it is the one record of a runner that a later
+  mint never rewrites. `runner_workflow_jobs.runner_name` is overwritten each
+  time a job's row is minted again, so it cannot say which runner ran a job.
+  """
+  def workflow_job_id_for_runner(runner_name, account_id)
+      when is_binary(runner_name) and runner_name != "" and is_integer(account_id) do
+    case session_for_runner(runner_name, account_id) do
+      nil -> :error
+      %RunnerSession{} = session -> {:ok, session.executed_workflow_job_id || session.workflow_job_id}
+    end
+  end
+
+  def workflow_job_id_for_runner(_runner_name, _account_id), do: :error
+
   # Prefer the open session; fall back to the most recent closed one so a
   # `completed` backstop can still bind after a fast job's pod is gone.
   # Same policy as `latest_for_pod/1`, expressed once — see

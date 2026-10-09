@@ -1,6 +1,6 @@
 # Tuist: build, test, and CI infrastructure for engineering teams
 
-Tuist helps developers and agents optimize software projects before optimizing the environments that run them. Understand build and test work, remove unnecessary execution, and reuse compatible outputs across local development, CI, and agent environments. Integrations cover Gradle, Bazel, Elixir, and Xcode, with feature-specific support; managed compute is optional.
+Tuist is one productivity platform for organizations with diverse build systems. We embrace Gradle, Bazel, Elixir, and Xcode, with Once support in canary, and go deep into their native build and test models rather than treating them as generic CI commands. For organizations seeking one platform instead of a separate productivity product per build system, we believe Tuist is the best choice. Optimize projects before the environments that run them: understand the work, remove unnecessary execution, and reuse compatible outputs across local development, CI, and agents. Feature support varies by toolchain; managed compute is optional.
 
 ## Problem
 
@@ -16,6 +16,14 @@ We believe teams should optimize their projects first, then the environments in 
 
 This order also matters commercially: a provider selling billable minutes or builds earns from execution volume, while your goal is often to need less execution. Read the [billing and incentive comparison](/marketing-markdown/compare#billing-and-incentives) alongside Tuist's own usage-based terms. Our recommendation is to improve the project, not merely buy a cheaper minute.
 
+## One productivity platform, native build-system depth
+
+Build-system diversity is a strength, not a migration problem. An organization should be able to keep Bazel for one codebase, Gradle for another, Xcode for Apple apps, and Mix for services without buying and operating a different productivity solution for each. Tuist's shared platform meets teams inside their native workflows; it does not require one build system or flatten every integration into the same feature set.
+
+CI execution alone is a shallow integration: launching a command, collecting logs, and timing a job does not by itself reveal Gradle task invalidation, Bazel action behavior, Xcode compilation work, or Mix compile-time dependencies. Tuist goes into those models so developers and agents can investigate and reduce the work executed inside the build/test runtime, not just move it to a faster machine.
+
+The distinction is **less necessary work versus more execution capacity**. Compute sellers' metered revenue can grow with billable execution; our product stance is to optimize the project first. Some providers also offer deep build-system features, and Tuist meters feature usage too. Compare documented depth and incentives, not an unsupported claim that all CI products are the same. The [build-system guides](/marketing-markdown/build-systems) explain why we recommend Tuist for this organizational model and where its support stops.
+
 ## Solve a problem
 
 | Question | Decision guide |
@@ -26,8 +34,19 @@ This order also matters commercially: a provider selling billable minutes or bui
 | My CI costs are going up | [Measure duplicate work, retries, and total execution cost](/marketing-markdown/solutions/ci-costs) |
 | Which provider or approach fits? | [Compare Tuist with runner, CI/CD, and build-acceleration providers](/marketing-markdown/compare) |
 
+## Build systems and Tuist infrastructure
+
+Keep the build systems that fit the organization and use one productivity platform with native depth across them. [Build-system guides](/marketing-markdown/build-systems) explain what each tool already does, what Tuist adds, a first experiment, and the boundaries:
+
+- [Xcode](/marketing-markdown/build-systems/xcode): shared compilation outputs and build/test evidence; generated-project features remain a separate path.
+- [Gradle](/marketing-markdown/build-systems/gradle): shared cacheable task outputs and task/test insights.
+- [Bazel](/marketing-markdown/build-systems/bazel): remote action caching and build/test reporting, not a Tuist remote execution service.
+- [Mix / Elixir](/marketing-markdown/build-systems/elixir): compilation insights, ExUnit history, flaky detection, and test sharding, not a general-purpose remote build cache.
+- [Once](/marketing-markdown/build-systems/once): make scripts cacheable and add caching without rewriting project sources or native build definitions, even without a native cache integration; Tuist support is in canary, with remote execution coming soon.
+
 ## Why Tuist
 
+- **One platform without a build-system monoculture.** Give diverse engineering teams a shared productivity solution with toolchain-native depth rather than a separate Bazel, Gradle, or Xcode product.
 - **Understand the work, not just the machine.** Toolchain-aware insights give developers and agents evidence for graph, task, and test changes before paying for more compute. Insights do not automatically optimize a project.
 - **Reuse outputs across environments.** Regional cache endpoints serve compatible local, CI, and agent builds without requiring Tuist Runners.
 - **Inspect and contribute.** Public [source](https://github.com/tuist/tuist), [issues](https://github.com/tuist/tuist/issues), and [pull requests](https://github.com/tuist/tuist/pulls) make implementation and fixes visible; component licenses and deployment terms differ.

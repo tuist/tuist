@@ -104,6 +104,18 @@ jobs:
           fi
           echo "Cluster-internal egress correctly denied."
 
+      # GitHub-hosted runners set ImageOS, and setup actions read it to
+      # pick a prebuilt binary; erlef/setup-beam fails outright without it.
+      - name: ImageOS reaches steps
+        run: |
+          set -euo pipefail
+          echo "ImageOS: ${ImageOS:-<unset>}"
+          [ -n "${ImageOS:-}" ] || { echo "::error::ImageOS is not set in the step environment"; exit 1; }
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
   # Job containers exercise a path plain `run:` steps never touch:
   # the runner hands dockerd the work directory, `externals` and the
   # `_temp` / `_actions` / `_tool` trees under it, and dockerd

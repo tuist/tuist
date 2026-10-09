@@ -158,7 +158,17 @@ gRPC target groups need an HTTPS listener. On that listener:
 
 ### CDNs {#load-balancers-cdns}
 
-A CDN in front of a node must support gRPC, must not cap request body size, and must not block the gRPC paths in its firewall rules. On Cloudflare, turn on gRPC in the zone's network settings. If your CDN cannot meet these requirements, give clients a hostname that bypasses it, for example a DNS-only record.
+A CDN in front of a node must support gRPC and must not block the gRPC paths in its firewall rules. Clients upload large artifacts in chunks of at most 2 MiB and have the node assemble them, so no request needs a large body or a long upload. The module cache and the Xcode compilation cache do this, and Bazel does when built with `--experimental_remote_cache_chunking` (Bazel 8.7, and 9.1 or later). Without that flag, Bazel uploads each output in a single request, so the CDN must also allow large request bodies and uploads that take as long as your largest outputs need on your slowest link. If your CDN cannot meet these requirements, give clients a hostname that bypasses it, for example a DNS-only record.
+
+#### Cloudflare {#load-balancers-cloudflare}
+
+Module caching works through a proxied Cloudflare hostname on any plan. In the zone:
+
+1. Under **Network**, turn on **gRPC**.
+2. Under **SSL/TLS**, set the encryption mode to **Full** or **Full (strict)**. Cloudflare connects to the origin on port 443, so the origin must serve TLS there and offer HTTP/2 through ALPN.
+3. Make sure no WAF custom rule or managed rule blocks the gRPC paths listed above.
+
+Cloudflare ends a request when the origin has not started responding after about two minutes. A Bazel upload without `--experimental_remote_cache_chunking` is answered only once its last byte arrives, so on Cloudflare such uploads fail when they take longer than that.
 
 ## Connect nodes to Tuist {#connect-nodes-to-tuist}
 

@@ -72,14 +72,13 @@ defmodule Tuist.Kura.Lifecycle do
   ## Never-used instances
 
   An active instance whose storage telemetry shows nothing stored since it
-  entered service is drained after 24 hours on Air and seven days on Pro by
-  default, whatever its demand. The hourly sweep reads
+  entered service is drained after 24 hours on Air and seven days on Pro and
+  Enterprise by default, whatever its demand. The hourly sweep reads
   `Tuist.Environment.kura_air_unused_hours/0` and `kura_unused_days/0`.
   Air's unused-instance tracking grace is capped at its unused window; the
-  inactivity path retains the full tracking grace. Both plans require snapshots
-  on every full service day and at least 90% of
-  the expected per-replica snapshot count, with each date capped at the time
-  in service. Partial boundary days need not have a row: provisioning and
+  inactivity path retains the full tracking grace. Every plan requires
+  snapshots on every full service day and at least 90% of the expected
+  per-replica snapshot count, with each date capped at the time in service. Partial boundary days need not have a row: provisioning and
   rollup delivery can cross midnight. Insufficient telemetry is left to the
   inactivity window.
   Demand does not cancel that drain, and once archived the account-region is
@@ -87,8 +86,9 @@ defmodule Tuist.Kura.Lifecycle do
 
   ## Plans
 
-  Enterprise is never archived. Air and Pro follow the 90-day window, and Air
-  alone can shorten to 60 under capacity pressure. Open-source accounts are
+  Enterprise is never archived for inactivity, only for never being used. Air
+  and Pro follow the 90-day window, and Air alone can shorten to 60 under
+  capacity pressure. Open-source accounts are
   outside the lifecycle entirely: `Tuist.Kura.AccountPolicies` resolves no
   service region for them, so they are never provisioned and never archived.
 
@@ -656,7 +656,7 @@ defmodule Tuist.Kura.Lifecycle do
         cutoff = if plan == :air, do: air_cutoff, else: DateTime.add(now, -default_window_seconds, :second)
         tracked_before = if plan == :air, do: air_tracking_cutoff, else: tracking_cutoff
 
-        archivable_plan?(plan) and DateTime.before?(service_started_at(server, lifecycle), cutoff) and
+        DateTime.before?(service_started_at(server, lifecycle), cutoff) and
           DateTime.before?(lifecycle.inserted_at, tracked_before)
       end)
 
@@ -935,8 +935,10 @@ defmodule Tuist.Kura.Lifecycle do
     cond do
       # Re-read at resolution, not only at selection: an account that upgrades
       # to a plan that is never archived while its instance is mid-drain gets
-      # it back, rather than being reclaimed under the plan it just left.
-      not archivable_plan?(plan) ->
+      # it back, rather than being reclaimed under the plan it just left. A
+      # never-used instance holds nothing the plan protects, so it drains on
+      # every plan.
+      lifecycle.drain_reason != :unused and not archivable_plan?(plan) ->
         Logger.info("[Kura.Lifecycle] instance #{server.id} is on a plan that is never archived; returning it to service")
 
         cancel_drain(server, lifecycle, plan)
@@ -1154,8 +1156,14 @@ defmodule Tuist.Kura.Lifecycle do
 
   defp cold_return?(%AccountRegionLifecycle{last_returned_at: nil}, _started_at), do: false
 
+  # `last_returned_at` is stamped after the return's deployment is inserted and
+  # truncated to the second, so the deployment can read as up to a second later
+  # than the return. The minute of slack before it mirrors
+  # `Kura.new_instance_readiness/1`: an archived server is outside every
+  # rollout, so nothing else is deployed in that minute.
   defp cold_return?(%AccountRegionLifecycle{last_returned_at: returned_at}, started_at) do
-    DateTime.compare(returned_at, started_at) != :lt
+    DateTime.compare(started_at, DateTime.add(returned_at, -1, :minute)) != :lt and
+      DateTime.before?(started_at, DateTime.add(returned_at, 1, :second))
   end
 
   ## Gates

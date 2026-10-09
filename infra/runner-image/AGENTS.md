@@ -488,6 +488,10 @@ added to catch that failed on `admin`'s unwritable cache instead.
   additions for the cirruslabs base's pre-installed tools), so
   step shells see the same environment an interactive SSH
   session on the same VM would.
+  `dispatch-poll.sh` also exports `ImageOS` (e.g. `macos26`, from
+  `sw_vers`) before starting the runner, as GitHub-hosted runners
+  do; setup actions such as `erlef/setup-beam` read it to pick a
+  prebuilt binary.
 - `/etc/kcpassword` + `autoLoginUser=runner` — macOS auto-login
   config so the desktop session exists at boot and loginwindow
   loads the LaunchAgent. Without this the VM boots to a login

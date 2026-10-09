@@ -37,6 +37,7 @@ Do not bootstrap the npm package from a local machine. The first automated relea
 - Icon transition hooks restore their visual state after LiveView patches, including patches that leave the watched ancestor's state unchanged.
 - Phoenix table disclosure buttons support an optional `row_toggle` JS callback for server-managed lazy loading. Callers then own `expanded_rows`; tables without a callback retain client-side expansion.
 
+- `Noora.Icon` tracks each SVG as an `@external_resource` and recompiles on added or removed icons through `__mix_recompile__?/0`. Don't declare the `icons` directory itself as an external resource: Mix can't digest a directory, so every fresh checkout would recompile `Noora.Icon` and everything that depends on Noora.
 - Brand icons use monochrome filled `currentColor` SVGs in `lib/noora/icons/` (for example `brand-gitlab.svg`, `brand-docker.svg`, `brand-gradle.svg`), exposed as `brand_<name>/1`. Regenerate `js/web-components/icons.json` with `aube run generate:web-components` after adding or replacing one.
 
 - Use `noora` as the conventional commit scope for changes in this directory

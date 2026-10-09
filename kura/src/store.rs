@@ -913,6 +913,7 @@ pub struct ApplyProvenance<'a> {
     pub sync_feed_row: bool,
 }
 
+#[cfg(test)]
 impl ApplyProvenance<'static> {
     /// A push from a peer of unknown region on the legacy replication
     /// routes: it may have crossed a region boundary, so it earns a row.
@@ -5725,6 +5726,7 @@ impl Store {
     /// origin resolved and `trunk` the publishing build's trunk; a peer that
     /// sends neither (an older node, or any non-REAPI write) applies untagged,
     /// exactly as before.
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub async fn apply_replicated_inline_artifact_from_bytes(
         &self,
@@ -5751,8 +5753,8 @@ impl Store {
         .await
     }
 
-    /// [`Self::apply_replicated_inline_artifact_from_bytes`] with the
-    /// provenance the caller learned from the wire.
+    /// Apply an inline artifact with the provenance and branch metadata the
+    /// caller learned from the wire.
     #[allow(clippy::too_many_arguments)]
     pub async fn apply_replicated_inline_artifact_from_bytes_with(
         &self,
@@ -12585,7 +12587,6 @@ mod tests {
                 chunk_bytes: 1024 * 1024,
             },
             action_cache_eviction_cascade_enabled: true,
-            reapi_blob_chunking_enabled: true,
             file_descriptor_pool_size: 32,
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,

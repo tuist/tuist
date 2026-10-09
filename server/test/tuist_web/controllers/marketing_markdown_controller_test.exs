@@ -37,7 +37,10 @@ defmodule TuistWeb.MarketingMarkdownControllerTest do
           "compare/index",
           "compare/AGENTS",
           "solutions/AGENTS",
-          "solutions/missing"
+          "solutions/missing",
+          "build-systems/index",
+          "build-systems/AGENTS",
+          "build-systems/missing"
         ] do
       conn = get(build_conn(), "/marketing-markdown/" <> path)
 

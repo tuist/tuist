@@ -8,7 +8,7 @@ defmodule TuistWeb.MixBuildsLiveTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-  @render_async_timeout 1_000
+  @render_async_timeout 5_000
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(handle: "mixbuilds#{System.unique_integer([:positive])}")

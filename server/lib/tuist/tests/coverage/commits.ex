@@ -67,9 +67,9 @@ defmodule Tuist.Tests.Coverage.Commits do
   @doc """
   Whether the commit's figure is incomplete, a lower bound (`reported_kind`
   `partial`, `gap_reasons` saying why): the coverage of some skipped tests
-  could not be determined, a selective run's skipped tests could not be
-  listed, or a scheme's coverage only came from CI runs on a dirty checkout. The
-  fold decides it, so the actual coverage may be higher. A figure whose
+  could not be determined, a scheme's runs executed only the tests their
+  caller selected, or a scheme's coverage only came from CI runs on a dirty
+  checkout. The fold decides it, so the actual coverage may be higher. A figure whose
   skipped tests were all carried forward is complete, as is one nothing
   skipped in.
   """
@@ -243,9 +243,8 @@ defmodule Tuist.Tests.Coverage.Commits do
       # its coverage is still known: all of it carried forward. The row is
       # written with nothing measured and the reported figure filled in, so
       # the commit is comparable and its pipeline can signal completion. A
-      # commit whose runs carried nothing either — no candidate was ever
-      # enumerated for those schemes — has no coverage to publish and keeps
-      # none.
+      # commit whose runs carried nothing either (no ancestor ran what those
+      # schemes skipped) has no coverage to publish and keeps none.
       runs == [] and not is_nil(reported) and reported.executable_lines > 0 ->
         clean = clean_runs(project.id, sha)
         {project |> carried_row(sha, previous, reported, clean, opts) |> lower_bound(project.id, sha), clean}
@@ -258,16 +257,16 @@ defmodule Tuist.Tests.Coverage.Commits do
     end
   end
 
-  # Besides the gaps `Reported` finds, the figure is a lower bound when what a
-  # selective run skipped could not be listed (`observed` with a partial
-  # scheme), or when a scheme's coverage only came from CI runs on a dirty
-  # checkout: the pipeline set out to measure it, and no clean run of it did,
-  # not even one skipped whole. A local run measures what a developer tried,
-  # not what the pipeline owes the commit. Settled on the built row, so the unmeasured
-  # files are still read the way the coverage was reached.
+  # Besides the gaps `Reported` finds, the figure is a lower bound when a
+  # scheme's runs all left tests out and nothing names what Tuist skipped, or
+  # when a scheme's coverage only came from CI runs on a dirty checkout: the
+  # pipeline set out to measure it, and no clean run of it did, not even one
+  # skipped whole. A local run measures what a developer tried, not what the pipeline
+  # owes the commit. Settled on the built row, so the unmeasured files are
+  # still read the way the coverage was reached.
   defp lower_bound(row, project_id, sha) do
     row =
-      if row.reported_kind == "observed" and row.partial_schemes != [],
+      if row.reported_kind == "measured" and row.partial_schemes != [],
         do: %{row | reported_kind: "partial"},
         else: row
 
@@ -769,6 +768,8 @@ defmodule Tuist.Tests.Coverage.Commits do
           pull_request_number: fragment("argMax(?, ?)", t.pull_request_number, t.inserted_at),
           base_branch: fragment("argMax(?, ?)", t.base_branch, t.inserted_at),
           coverage_evidence_status: fragment("argMax(?, ?)", t.coverage_evidence_status, t.inserted_at),
+          only_test_identifiers: fragment("argMax(?, ?)", t.only_test_identifiers, t.inserted_at),
+          skip_test_identifiers: fragment("argMax(?, ?)", t.skip_test_identifiers, t.inserted_at),
           ran_at: min(t.ran_at)
         }
       )
@@ -790,6 +791,8 @@ defmodule Tuist.Tests.Coverage.Commits do
           pull_request_number: t.pull_request_number,
           base_branch: t.base_branch,
           coverage_evidence_status: t.coverage_evidence_status,
+          only_test_identifiers: t.only_test_identifiers,
+          skip_test_identifiers: t.skip_test_identifiers,
           ran_at: t.ran_at,
           covered_lines: c.covered_lines,
           executable_lines: c.executable_lines

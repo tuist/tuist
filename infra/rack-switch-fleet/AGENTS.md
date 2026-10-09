@@ -606,10 +606,17 @@ the committed objects are stale. The object names the 1Password item holding the
 login and never carries the login.
 
 **They live in the rack's cluster.** Each site names its namespace
-(`kubernetes.namespace`); BER1 is `tuist-staging`, beside its `RackHost`, while
-the rack is at home, and moves to production with the rack. On a merge to
-`main`, the Rack Switches workflow applies the CRD and each site's rendered
-objects there, so the cluster's desired state follows git.
+(`kubernetes.namespace`); BER1 is `tuist`, production's, beside its `RackHost`
+(it was `tuist-staging` while the rack was built at home). The namespace is
+also what names the rack's env, by the tuist chart's convention (`tuist-<env>`,
+or `tuist` for production; `mise run rack:fleet env`): the Rack Switches
+workflow's objects, `omada-deployment.yml`, the install stick, the card
+passwords and the chart values the render reads all follow it, and
+`fleet_check_env` in the tests fails when the controller's vault and tailnet
+name, or the tuist chart values declaring the rack's hosts and runner pools,
+disagree with it. On a merge to `main`, the Rack Switches workflow applies the
+CRD and each site's rendered objects there, so the cluster's desired state
+follows git.
 
 **Status is pushed by an operator**, with `rack:fleet publish`, into the site's namespace in
 the cluster `--context` names (never whatever context happens to be current), which runs a
@@ -1043,8 +1050,10 @@ writes the manifest naming that directory into the kubelet's static pod path,
 The hash covers the site files and the manifest, so a change to either is a
 new manifest and the kubelet replaces the pod. The DaemonSet's pod is ready
 once the static pod's path has run with its hash (`/run/rack-edge/started`),
-and rolls one edge at a time, 90 seconds apart. A configuration nothing runs
-any more is deleted once the new one runs.
+and rolls one edge at a time, 90 seconds apart. `omada-deployment.yml` installs
+the release without waiting on it, like the other releases on rack nodes, since
+a dark edge would hold the wait. A configuration nothing runs any more is
+deleted once the new one runs.
 
 The static pod outlives the DaemonSet: deleting the release, or an edge's
 label, leaves it running, which is what keeps an edge up while its installer

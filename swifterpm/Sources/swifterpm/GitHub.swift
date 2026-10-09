@@ -5,11 +5,12 @@ struct GitHubRepo {
     let repo: String
 
     init(location: String) throws {
+        let sshPrefix = "git@github.com:"
         let normalized =
-            location.hasPrefix("git@github.com:")
-                ? location.replacingOccurrences(of: "git@github.com:", with: "https://github.com/")
+            location.lowercased().hasPrefix(sshPrefix)
+                ? "https://github.com/" + location.dropFirst(sshPrefix.count)
                 : location
-        guard let url = URL(string: normalized), url.host == "github.com" else {
+        guard let url = URL(string: normalized), url.host?.lowercased() == "github.com" else {
             throw ToolError.message("not a GitHub URL")
         }
         let parts = url.path.split(separator: "/").map(String.init)
@@ -40,7 +41,7 @@ enum GitHubAuth {
 }
 
 enum SourceControlLocations {
-    static func canonicalResolvedFileLocation(_ location: String) -> String {
+    static func canonicalLocation(_ location: String) -> String {
         if let shorthandLocation = ColonSeparatedGitLocation(location) {
             return shorthandLocation.canonicalString
         }

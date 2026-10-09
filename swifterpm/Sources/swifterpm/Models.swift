@@ -133,37 +133,22 @@ struct ResolvedPin: Codable, Equatable, Sendable {
         case state
     }
 
+    /// Keeps the location spelling SwiftPM recorded, so the lockfile is the same whichever tool
+    /// wrote it. Comparisons and cache keys use `SourceControlLocations.canonicalLocation`.
     func normalizedForResolvedFile(mirrors: MirrorConfig) -> ResolvedPin {
-        var normalized = normalizedForResolvedFile()
-        if PinKind.isSourceControl(kind),
-           let original = mirrors.mirroredOriginal(ofSourceControlLocation: location)
-        {
+        var normalized = self
+        guard PinKind.isSourceControl(kind) else { return normalized }
+
+        if let original = mirrors.mirroredOriginal(ofSourceControlLocation: location) {
             normalized.location = original
         }
-        return normalized
-    }
-
-    private func normalizedForResolvedFile() -> ResolvedPin {
-        var normalized = self
-        if let originalLocation {
-            normalized.originalLocation = Self.normalizedRemoteSourceControlLocation(originalLocation)
+        if kind != "localSourceControl",
+           !location.hasPrefix("/"),
+           URL(string: location)?.isFileURL != true
+        {
+            normalized.identity = identity.lowercased()
         }
-        guard PinKind.isSourceControl(kind),
-              kind != "localSourceControl",
-              !location.hasPrefix("/"),
-              URL(string: location)?.isFileURL != true
-        else { return normalized }
-
-        normalized.identity = identity.lowercased()
-        normalized.location = Self.normalizedRemoteSourceControlLocation(location)
         return normalized
-    }
-
-    private static func normalizedRemoteSourceControlLocation(_ location: String) -> String {
-        guard !location.hasPrefix("/"),
-              URL(string: location)?.isFileURL != true
-        else { return location }
-        return SourceControlLocations.canonicalResolvedFileLocation(location)
     }
 
     func revision() throws -> String {

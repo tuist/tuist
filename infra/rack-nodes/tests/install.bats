@@ -10,6 +10,10 @@ setup() {
   source "$ROOT/infra/rack-nodes/tailnet-key.sh"
   # shellcheck source=/dev/null
   source "$ROOT/infra/rack-nodes/render-autoinstall.sh"
+  # shellcheck source=/dev/null
+  source "$ROOT/infra/rack-switch-fleet/lib/config.sh"
+  # The env whose chart values declare BER1's hosts.
+  RACK_ENV="$(fleet_site_env "$ROOT/infra/rack-switch-fleet/sites/ber1.json")"
 
   BIN="$BATS_TEST_TMPDIR/bin"
   mkdir -p "$BIN"
@@ -49,21 +53,21 @@ render() {
 }
 
 @test "the host comes from the env's chart values, by its hostname or its UUID" {
-  run rack_host_json staging 44312e80-1dc6-11f1-853e-8f903547d200
+  run rack_host_json "$RACK_ENV" 44312e80-1dc6-11f1-853e-8f903547d200
   [ "$status" -eq 0 ]
   [ "$(jq -r '.name' <<<"$output")" = ber1-edge-a ]
-  run rack_host_json staging ber1-edge-a
+  run rack_host_json "$RACK_ENV" ber1-edge-a
   [ "$status" -eq 0 ]
   [ "$(jq -r '.name' <<<"$output")" = ber1-edge-a ]
   [ "$(jq -r '.role' <<<"$output")" = edge ]
   [ "$(jq -c '.tailnetTags' <<<"$output")" = '["tag:tuist-rack-edge"]' ]
-  [ "$(jq -r '.vault' <<<"$output")" = tuist-k8s-staging ]
+  [ "$(jq -r '.vault' <<<"$output")" = "tuist-k8s-$RACK_ENV" ]
   [ "$(jq -r '.sshItem' <<<"$output")" = BER1_FLEET_SSH ]
   [ "$(jq -r '.tailscaleItem' <<<"$output")" = TAILSCALE_RACK_NODES ]
 }
 
 @test "a host the values do not declare is refused" {
-  run rack_host_json staging ber1-nope
+  run rack_host_json "$RACK_ENV" ber1-nope
   [ "$status" -eq 2 ]
   [[ "$output" == *"not in rackLinuxFleet.hosts"* ]]
 }
@@ -174,7 +178,7 @@ render() {
 }
 
 @test "a stick for any host asks the env's boot server for the install published for the machine" {
-  run rack_boot_server staging
+  run rack_boot_server "$RACK_ENV"
   [ "$status" -eq 0 ]
   [ "$output" = http://192.168.50.1:8480 ]
   run render_stick_seed "$BATS_TEST_TMPDIR/stick" http://192.168.50.1:8480
@@ -193,7 +197,7 @@ render() {
 }
 
 @test "an env without a boot server has no stick for any host" {
-  run rack_boot_server production
+  run rack_boot_server canary
   [ "$status" -ne 0 ]
   [[ "$output" == *"rackLinuxFleet.boot.address"* ]]
 }

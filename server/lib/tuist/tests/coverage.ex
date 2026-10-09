@@ -489,7 +489,7 @@ defmodule Tuist.Tests.Coverage do
   end
 
   @retention_tables %{
-    files: ["coverage_files", "git_commit_files", "test_run_changed_files", "test_run_enumerated_tests"],
+    files: ["coverage_files", "git_commit_files", "test_run_changed_files"],
     runs: ["coverage_runs"]
   }
 
