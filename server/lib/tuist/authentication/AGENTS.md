@@ -13,6 +13,7 @@ This context owns authentication flows and token handling.
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
+- Production-cost proof-cache coverage runs in ExUnit using an explicit rounds-12 hash and exactly one real verification for 2,000 lookups at concurrency 64. Keep shared bcrypt configuration unchanged; use `Mimic.call_original/3`, not VM-wide tracing or latency assertions.
 - If changes add or modify stored customer data, update `server/data-export.md`.
 
 ## Related Context

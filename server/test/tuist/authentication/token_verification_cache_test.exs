@@ -20,6 +20,27 @@ defmodule Tuist.Authentication.TokenVerificationCacheTest do
     end
   end
 
+  test "a concurrent production-cost burst performs exactly one real bcrypt verification", %{cache: cache} do
+    secret = Base.encode64(:crypto.strong_rand_bytes(20))
+    stored_hash = Bcrypt.hash_pwd_salt(secret, log_rounds: 12)
+    assert String.starts_with?(stored_hash, "$2b$12$")
+
+    expect(Bcrypt, :verify_pass, 1, fn ^secret, ^stored_hash ->
+      Mimic.call_original(Bcrypt, :verify_pass, [secret, stored_hash])
+    end)
+
+    results =
+      1..2_000
+      |> Task.async_stream(fn _ -> TokenVerificationCache.verify_pass(secret, stored_hash, cache: cache) end,
+        max_concurrency: 64,
+        timeout: 30_000
+      )
+      |> Enum.to_list()
+
+    assert length(results) == 2_000
+    assert Enum.all?(results, &(&1 == {:ok, true}))
+  end
+
   test "concurrent cold requests share one verification", %{cache: cache} do
     expect(Bcrypt, :verify_pass, 1, fn "secret", "stored-hash" ->
       Process.sleep(50)
