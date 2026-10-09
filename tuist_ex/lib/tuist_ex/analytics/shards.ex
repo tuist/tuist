@@ -85,17 +85,29 @@ defmodule TuistEx.Analytics.Shards do
   or parsed stops the plan: leaving it out would let every shard pass while
   the suite itself cannot compile.
   """
-  def test_units(test_paths \\ test_paths()) do
+  def test_units(test_paths \\ test_paths()), do: test_paths |> scan() |> elem(0)
+
+  @doc """
+  Returns `{units, concurrent}`: the units of `test_units/1`, and those of
+  them ExUnit runs alongside other modules, the ones whose module says
+  `use ..., async: true`. A unit planned under its path is not one of them.
+  """
+  def scan(test_paths \\ test_paths()) do
     units =
       for path <- test_paths,
           file <- Path.wildcard(Path.join(path, "**/*_test.exs")),
           do: {unit(file), file}
 
-    counts = Enum.frequencies_by(units, &elem(&1, 0))
+    counts = Enum.frequencies_by(units, fn {{name, _async?}, _file} -> name end)
 
-    Map.new(units, fn {unit, file} ->
-      if counts[unit] == 1, do: {unit, file}, else: {file, file}
-    end)
+    {units, concurrent} =
+      Enum.reduce(units, {%{}, []}, fn {{name, async?}, file}, {units, concurrent} ->
+        if counts[name] == 1,
+          do: {Map.put(units, name, file), if(async?, do: [name | concurrent], else: concurrent)},
+          else: {Map.put(units, file, file), concurrent}
+      end)
+
+    {units, Enum.sort(concurrent)}
   end
 
   defp test_paths, do: Mix.Project.config()[:test_paths] || ["test"]
@@ -106,20 +118,31 @@ defmodule TuistEx.Analytics.Shards do
       {_ast, modules} =
         Macro.prewalk(ast, [], fn
           # Not walked into: a nested module's name is relative to its parent.
-          {:defmodule, _meta, [{:__aliases__, _, parts} | _]}, acc when is_list(parts) ->
+          {:defmodule, _meta, [{:__aliases__, _, parts} | rest]}, acc when is_list(parts) ->
             if Enum.all?(parts, &is_atom/1),
-              do: {nil, [Enum.join(parts, ".") | acc]},
+              do: {nil, [{Enum.join(parts, "."), async?(rest)} | acc]},
               else: {nil, acc}
 
           node, acc ->
             {node, acc}
         end)
 
-      Enum.min(modules, fn -> file end)
+      Enum.min_by(modules, &elem(&1, 0), fn -> {file, false} end)
     else
       _ -> Mix.raise("Cannot plan the shards: #{file} could not be read or parsed.")
     end
   end
+
+  # `use ExUnit.Case, async: true`, or a case template given the option,
+  # among the module's own statements.
+  defp async?([[do: {:__block__, _meta, statements}]]), do: Enum.any?(statements, &async_use?/1)
+  defp async?([[do: statement]]), do: async_use?(statement)
+  defp async?(_rest), do: false
+
+  defp async_use?({:use, _meta, [_module, options]}) when is_list(options),
+    do: Enum.any?(options, &match?({:async, true}, &1))
+
+  defp async_use?(_statement), do: false
 
   @doc """
   The test files a shard runs, given the units it was assigned.
@@ -180,16 +203,18 @@ defmodule TuistEx.Analytics.Shards do
   end
 
   @doc """
-  Asks the server to split `modules` into shards. Returns the plan: its
+  Asks the server to split `modules` into shards, `concurrent` being those
+  ExUnit runs alongside other modules. Returns the plan: its
   `"shard_count"` and, per shard, its `"index"`, `"test_targets"` and
   `"estimated_duration_ms"`.
   """
-  def create_plan(reference, modules, options) do
+  def create_plan(reference, modules, concurrent, options) do
     body =
       %{
         reference: reference,
         modules: Enum.sort(modules),
         granularity: "module",
+        concurrent_modules: Enum.sort(concurrent),
         shard_min: Keyword.get(options, :shard_min),
         shard_max: Keyword.get(options, :shard_max),
         shard_total: Keyword.get(options, :shard_total),

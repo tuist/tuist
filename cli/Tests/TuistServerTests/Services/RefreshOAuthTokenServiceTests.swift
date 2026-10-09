@@ -41,6 +41,30 @@ struct RefreshOAuthTokenServiceTests {
         )
     }
 
+    @Test(.withMockedEnvironment(), arguments: [true, false])
+    func refreshTokens_uses_the_client_of_matching_credentials(matchingToken: Bool) async throws {
+        let store = MockServerCredentialsStoring()
+        given(store).read(serverURL: .value(serverURL)).willReturn(
+            .test(refreshToken: matchingToken ? "refresh-token" : "another-token", oauthClientID: "self-hosted-client")
+        )
+        let requests = RequestRecorder()
+        let subject = RefreshOAuthTokenService(serverEnvironmentService: serverEnvironmentService) { request in
+            requests.record(request)
+            return Self.response(
+                statusCode: 200,
+                json: ["access_token": "new-access-token", "refresh_token": "new-refresh-token"]
+            )
+        }
+
+        _ = try await ServerCredentialsStore.$current.withValue(store) {
+            try await subject.refreshTokens(serverURL: serverURL, refreshToken: "refresh-token")
+        }
+
+        let request = try #require(requests.requests.first)
+        let body = try #require(request.httpBody.flatMap { String(data: $0, encoding: .utf8) })
+        #expect(body.contains("client_id=\(matchingToken ? "self-hosted-client" : "client-id")"))
+    }
+
     @Test(.withMockedEnvironment()) func refreshTokens_maps_invalid_grant_to_unauthorized() async throws {
         let subject = RefreshOAuthTokenService(serverEnvironmentService: serverEnvironmentService) { _ in
             Self.response(

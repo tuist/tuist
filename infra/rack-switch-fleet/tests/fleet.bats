@@ -2002,6 +2002,89 @@ run_resolve() {
     [[ "$output" == *"which has no values-managed-$env.yaml"* ]]
 }
 
+# --- the env the rack belongs to ----------------------------------------------
+
+@test "the rack's env is its namespace's, by the tuist chart's convention" {
+    site="$BATS_TEST_TMPDIR/site.json"
+    jq '.kubernetes.namespace = "tuist"' "$SITE_FILE" > "$site"
+    run fleet_site_env "$site"
+    [ "$status" -eq 0 ]
+    [ "$output" = production ]
+    jq '.kubernetes.namespace = "tuist-canary"' "$SITE_FILE" > "$site"
+    run fleet_site_env "$site"
+    [ "$output" = canary ]
+    jq '.kubernetes.namespace = "omada"' "$SITE_FILE" > "$site"
+    run fleet_site_env "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"names no env"* ]]
+}
+
+@test "the render reads the RackHosts from the values of the rack's env" {
+    site="$BATS_TEST_TMPDIR/site.json"
+    jq '.kubernetes.namespace = "tuist"' "$SITE_FILE" > "$site"
+    FLEET_RACK_VALUES="" run fleet_rack_values "$site"
+    [ "$status" -eq 0 ]
+    [[ "$output" == */helm/tuist/values-managed-production.yaml ]]
+    FLEET_RACK_VALUES=/elsewhere.yaml run fleet_rack_values "$site"
+    [ "$output" = /elsewhere.yaml ]
+}
+
+@test "everything that names the rack's env agrees with its namespace" {
+    run fleet_check_env "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    run "$FLEET_ROOT/fleet.sh" --site ber1 env
+    [ "$status" -eq 0 ]
+    [ "$output" = "$(fleet_site_env "$SITE_FILE")" ]
+}
+
+@test "the rack switch controller and the edge take the rack from the site definition" {
+    run "$FLEET_ROOT/fleet.sh" --site ber1 helm-values rack-switch-controller
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.watchNamespace' <<<"$output")" = "$(jq -r '.kubernetes.namespace' "$SITE_FILE")" ]
+    [ "$(jq -r '.omada.site' <<<"$output")" = "$(jq -r '.management.controller.site' "$SITE_FILE")" ]
+    [ "$(jq -r '.omada.controllerAddress' <<<"$output")" = "$(jq -r '.management.controller.address' "$SITE_FILE")" ]
+    [ "$(jq -r '.credentials.omadaApiItem' <<<"$output")" = "$(jq -r '.management.controller.credential_item' "$SITE_FILE")" ]
+    [ "$(jq -r '.credentials.deviceAccountItem' <<<"$output")" = "$(jq -r '.management.controller.device_account_item' "$SITE_FILE")" ]
+    run "$FLEET_ROOT/fleet.sh" --site ber1 helm-values rack-edge
+    [ "$(jq -r '.site' <<<"$output")" = ber1 ]
+}
+
+@test "a controller vault, address or tailnet name from another env is refused" {
+    site="$BATS_TEST_TMPDIR/site.json"
+    env="$(fleet_site_env "$SITE_FILE")"
+    jq '.management.controller.vault = "tuist-k8s-elsewhere"' "$SITE_FILE" > "$site"
+    run fleet_check_env "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"whose cluster reads tuist-k8s-$env"* ]]
+    jq '.management.controller.address = ""' "$SITE_FILE" > "$site"
+    run fleet_check_env "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not a tailnet address"* ]]
+    jq '.management.controller.address = "192.168.0.10"' "$SITE_FILE" > "$site"
+    run fleet_check_env "$site"
+    [[ "$output" == *"is not a tailnet address"* ]]
+    jq '.management.controller.url = "https://omada-elsewhere.example.ts.net:8043"' "$SITE_FILE" > "$site"
+    run fleet_check_env "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"names omada-elsewhere.example.ts.net"* ]]
+}
+
+@test "a second env declaring the rack's hosts or pools is refused" {
+    helm="$BATS_TEST_TMPDIR/helm"
+    mkdir -p "$helm"
+    cp -R "$FLEET_ROOT/../helm/tuist" "$FLEET_ROOT/../helm/omada" "$helm/"
+    env="$(fleet_site_env "$SITE_FILE")"
+    run fleet_check_env "$SITE_FILE" "$helm"
+    [ "$status" -eq 0 ]
+    yq -i '.runnersFleet.pools = [{"name": "ber1", "site": "ber1"}]' "$helm/tuist/values-managed-canary.yaml"
+    run fleet_check_env "$SITE_FILE" "$helm"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"values-managed-canary.yaml declares ber1's hosts or runner pools, but the rack is in $env"* ]]
+    rm "$helm/tuist/values-managed-$env.yaml"
+    run fleet_check_env "$SITE_FILE" "$helm"
+    [[ "$output" == *"which has no values-managed-$env.yaml"* ]]
+}
+
 # --- the path from switches behind the edge node to the tailnet --------------
 
 @test "an interface address gives the network it sits in" {

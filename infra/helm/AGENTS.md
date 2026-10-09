@@ -11,6 +11,11 @@ This node covers Helm assets under `infra/helm/`.
 
 ## Conventions
 
+- Production enables the Kura authority controller independently of instance
+  activation. Keep it enabled once any instance has a serving rollback floor;
+  disabling it expires live grants. See
+  [serving authority](../kura-controller/serving-authority.md).
+
 - `capi.vultrPrivateNetwork` declares regional networks; the CAPI controller owns
   provider IDs and creation intent in a retained `-state` ConfigMap. Keep that
   state out of Helm-owned data. Production enables Chicago and Santiago; Santiago
@@ -130,6 +135,9 @@ This node covers Helm assets under `infra/helm/`.
   Canary and production enable them fleet-wide after the platform-index
   enablement migration. Self-hosting and staging stay off by default; staging's
   40 GiB cache quota cannot fit the built-in reservation and custom admission floor.
+  Production M4 replacement hosts have a 512 GiB shared cache quota; M2 stays
+  at 80 GiB. Existing APFS quotas are immutable under bootstrap and the fleet
+  uses OnDelete: deploy the host free-space guard before replacing drained M4s.
 - Cache-volume agents expose phase/source/result telemetry on a separate port
   9091. Allow scraping only from `observability`, retain the series in staging,
   and keep runner acquisition on 8090 under its existing pod selector.

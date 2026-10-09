@@ -2,6 +2,7 @@ package podagent
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -11,6 +12,30 @@ import (
 )
 
 const customCapacity = 20_000_000_000
+
+// Custom masters are reclaimed by the shared backend first. If that is not
+// enough, unused built-in masters and convergence staging share the same disk
+// budget. Keep the full reservation of every writer; CoW blocks may stay pinned
+// after a master is removed, so admission must remeasure the filesystem.
+func (c *CustomVolumes) reclaim(ctx context.Context, minimum uint64) error {
+	release, err := c.guard(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	if _, err := c.freeBytesLocked(); err != nil {
+		return err
+	}
+	want := minimum + uint64(len(c.Builtins.reserved))*c.Builtins.capBytes() + c.reservedBytes()
+	_, err = c.Builtins.admitBesideConvergenceLocked(want, masterKey{})
+	if errors.Is(err, errNoRoom) && c.Builtins.dropConvergeStagingLocked() {
+		_, err = c.Builtins.ensureFreeLocked(want, masterKey{})
+	}
+	if errors.Is(err, errNoRoom) {
+		return cachevolumes.ErrCapacity
+	}
+	return err
+}
 
 // Called under the built-in admission lock. Filesystem free space already
 // includes allocated blocks; only running writers need additional headroom.

@@ -279,8 +279,9 @@ jobs:
           TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-server-floor
   test:
     name: Test
-    # Keep the 4 vCPU / 16 GB shape for the tests and their database services.
-    runs-on: tuist-linux-large
+    # Shards download the compiled build from Build Test Shards, so they fit the
+    # default shape and stay out of the large pool's queue.
+    runs-on: tuist-linux
     timeout-minutes: 30
     needs: test-build
     permissions:
@@ -314,6 +315,11 @@ jobs:
           restore-mix-cache: "false"
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
+      # A checkout newer than the downloaded build makes Mix treat the path
+      # dependencies as changed and recompile the app in db:reset.
+      - name: Date the checkout to the commit
+        working-directory: .
+        run: git ls-files -z server noora tuist_common tuist_ex | xargs -0 touch -d "@$(git log -1 --format=%ct)"
       - name: Download the test build
         run: mix 'do' deps.compile tuist_ex + tuist.test --prepare-only
       # Run migrations in another process so migration regression tests can
@@ -326,7 +332,7 @@ jobs:
     name: Test (oldest supported ClickHouse)
     # Keep exercising the release declared by Tuist.ClickHouseVersions, including
     # every migration, rather than testing only against the newer hosted release.
-    runs-on: tuist-linux-large
+    runs-on: tuist-linux
     timeout-minutes: 30
     needs: test-build
     permissions:
@@ -370,6 +376,9 @@ jobs:
           clickhouse --version
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
+      - name: Date the checkout to the commit
+        working-directory: .
+        run: git ls-files -z server noora tuist_common tuist_ex | xargs -0 touch -d "@$(git log -1 --format=%ct)"
       - name: Download the test build
         run: mix 'do' deps.compile tuist_ex + tuist.test --prepare-only
       - name: Setup database
@@ -577,8 +586,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: false
+      # The docker driver builds inside the runner's dind dockerd, whose
+      # --registry-mirror routes docker.io base-image pulls through the
+      # in-cluster pull-through cache. A docker-container builder resolves
+      # registries on its own and would bypass that mirror.
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
       - name: Docker build
         run: |
           log_file=/tmp/server-docker-build.log
@@ -593,8 +608,6 @@ jobs:
             --build-arg TUIST_VERSION=1.24.11.11 \
             --build-arg MIX_ENV=prod \
             --build-arg APT_CACHE_BUST=${{ github.sha }} \
-            --build-arg DOCKER_IMAGE_PREFIX=mirror.gcr.io/ \
-            --build-arg DOCKER_OFFICIAL_IMAGE_PREFIX=mirror.gcr.io/library/ \
             "$GITHUB_WORKSPACE" > "$log_file" 2>&1 &
           build_pid=$!
           while kill -0 "$build_pid" 2>/dev/null; do
