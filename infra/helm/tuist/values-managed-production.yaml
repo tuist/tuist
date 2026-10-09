@@ -15,6 +15,9 @@ tailscaleDeviceReaper:
     - tag:tuist-k8s-production
 
 registry:
+  # Off the processor pool, which has no memory to spare beside the processor.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
   # Clients stay on tuist.dev/api/registry while the Worker forwards requests
   # to this dedicated ingress host. The ingress hostname is not advertised as
   # a separate registry endpoint.
@@ -426,6 +429,9 @@ capi:
     cidr: 172.30.243.0/24
 
 kuraController:
+  # Off the processor pool, which has no memory to spare beside the processor.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
   # Instance activation remains explicit; keep renewal enabled after activation.
   servingAuthority:
     enabled: true
@@ -646,7 +652,7 @@ clickhouse:
       # first brought this server up, the surge pod stayed Pending for ten
       # minutes, and the release rolled back on "Progress deadline exceeded"
       # with ClickHouse itself healthy. The general pool has the memory, and
-      # it has exactly three nodes, which is what the required anti-affinity
+      # it has at least three nodes, which is what the required anti-affinity
       # between members wants.
       nodeSelector:
         node.cluster.x-k8s.io/pool: general
@@ -852,6 +858,9 @@ processor:
   affinity: {}
 
 swiftRegistrySync:
+  # Off the processor pool, which has no memory to spare beside the processor.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
   # The legacy cache writer is disabled, so this deployment is the sole
   # registry synchronization writer.
   enabled: true
@@ -1289,6 +1298,9 @@ ovhFleets:
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
 # xcresult capacity offline.
 macosFleet:
+  # Off the processor pool, which has no memory to spare beside the processor.
+  operatorNodeSelector:
+    node.cluster.x-k8s.io/pool: general
   # The cluster's own tag, for a proxy the Tailscale operator runs for one
   # Service (values.yaml).
   tailscaleEgress:
@@ -1789,6 +1801,9 @@ kataContainers:
   enabled: true
 
 runnersController:
+  # Off the processor pool, which has no memory to spare beside the processor.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
   features:
     dindImage: true
     registryMirror: true
