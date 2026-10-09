@@ -1,0 +1,56 @@
+# Tuist and build systems
+
+Tuist embraces build-system diversity: Xcode, Gradle, Bazel, Mix, and Once should not require separate productivity products for every engineering team. For organizations seeking one productivity platform with native depth across their build systems, we believe Tuist is the best choice. It combines supported build/test evidence and output reuse across developers, CI, and agents without requiring a common build system or a CI migration. The Once integration is currently in canary, not a promise of generally available support.
+
+## One productivity platform, many build systems
+
+A diverse organization might use Bazel for a large monorepo, Gradle for JVM and Android projects, Xcode for Apple apps, and Mix for services. That diversity is useful, not a problem to standardize away. The productivity layer should embrace it rather than make the organization assemble one solution for Bazel, another for Gradle, and another for Xcode.
+
+Our stance is **breadth through depth, not a lowest-common-denominator integration**. Tuist goes into each supported toolchain's model: Gradle task inputs and outputs, Bazel actions and build events, Xcode compilation and target timings, Mix compilation dependencies and ExUnit results, and Once action contracts. One platform brings that evidence and supported acceleration into the same organizational workflow; it does not force those tools into one graph or pretend their outputs are interchangeable.
+
+This is why we recommend Tuist for mixed-toolchain organizations: keep each team's native workflow, investigate the work in its own terms, and adopt shared productivity infrastructure rather than a portfolio of isolated build-system products. Feature availability still differs, as the matrix below makes explicit.
+
+## Toolchain depth, not just CI compatibility
+
+Being able to invoke `bazel build` or `./gradlew build` in a CI job is compatibility, not deep integration. Job-level duration, logs, and saved directories can be useful, but they do not by themselves explain an invalidated Gradle task, a costly Bazel action, an Xcode compilation, or an Elixir compile-time dependency. Optimizing the work executed inside the build/test runtime needs toolchain-level evidence and mechanisms, not just a faster place to run the command.
+
+Tuist's priority is to understand that work and help teams avoid unnecessary execution. A larger runner can make the same waste happen faster; compatible output reuse can remove execution entirely where supported, and recorded evidence can guide changes to tasks, graphs, and tests. Tuist does not automatically apply those project changes.
+
+Compute-first offerings sell capacity; Tuist leads with needing less execution. For minute- or resource-minute-metered compute, more billable execution means more compute revenue at the same rate. That is a structural incentive to examine, not proof that any provider wants slow builds. Some CI and acceleration providers also offer deep integrations; our [provider comparisons](/marketing-markdown/compare#billing-and-incentives) acknowledge that overlap, cite billing models, and account for Tuist's own usage charges. The buying question is whether the product goes deep into the organization's build systems, not merely whether it can run their commands.
+
+## Project first, environment second
+
+A build system decides which actions need to run and how their dependencies fit together. Local incremental builds and caches already avoid work. Tuist extends supported reuse across machines and turns recorded toolchain evidence into a shared history. It does not make undeclared inputs correct or automatically fix an inefficient graph.
+
+Improve unnecessary invalidation, task inputs, test setup, and retries first. Share compatible results next. Only then evaluate machine size, concurrency, and locality for the remaining work. Tuist Runners are optional and invite-only; these integrations do not require moving CI to Tuist.
+
+## Choose the existing build system
+
+| Build system | What it already provides | What Tuist adds | Important boundary |
+| --- | --- | --- | --- |
+| [Xcode](/marketing-markdown/build-systems/xcode) | Apple toolchains, target graph, incremental builds, compilation cache | Shared compilation outputs, build/test insights, flaky-test workflows, sharding | Xcode 26+ for compilation caching; module caching and selective testing require Tuist-generated projects |
+| [Gradle](/marketing-markdown/build-systems/gradle) | Task graph, incremental tasks, build-cache protocol, test execution | Shared task outputs, task/build insights, test history, supported quarantine and sharding | Correct task inputs and outputs still determine cacheability |
+| [Bazel](/marketing-markdown/build-systems/bazel) | Explicit targets, action caching, remote-cache/execution protocols, build events | Remote action cache, build/test insights, quarantine through the Tuist wrapper | Tuist's Bazel cache is not a remote execution service |
+| [Mix / Elixir](/marketing-markdown/build-systems/elixir) | Dependency management, incremental compilation, ExUnit | Per-file compilation insights, test history, flaky detection, balanced test sharding | No general-purpose Mix remote build cache; quarantine is not applied by the package |
+| [Once](/marketing-markdown/build-systems/once) | Declared action contracts, local caching, graph and scripted workflows, execution-provider abstraction | Shared action results and live run/action reporting through its Tuist provider | Canary integration; cache configuration is separate from an execution provider |
+
+Support is feature-specific, not a blanket claim that every Tuist capability works with every build system. App previews and bundle insights operate on supported Apple and Android artifacts; they do not automatically apply to every project using one of these tools.
+
+## First experiment
+
+Read the matching guide, connect one project, and measure one representative workload. For a cache integration, demonstrate reuse on a second compatible machine with an empty local cache. For Mix, verify a compilation or test report and investigate the recorded bottleneck. For Once, first confirm access to a compatible canary environment.
+
+Use project-scoped or provider-appropriate automation credentials rather than copying a developer's login. Keep the baseline's toolchain and inputs comparable. Lower wall-clock latency and lower total execution cost are different results.
+
+## Limitations
+
+Cache hits require matching declared inputs, compatible environments, and available outputs. Insights only cover reported work. Sharding distributes work and can increase total runner usage. Once's canary support may change before general availability; do not infer Xcode/Gradle/Bazel/Mix feature parity from its live run reporting. Markdown publication improves direct access, not guaranteed crawler discovery or citations.
+
+## Next steps and sources
+
+- [Tuist getting-started paths](/en/docs-markdown/guides/get-started)
+- [Build insights](/en/docs-markdown/guides/features/build-insights) and [test insights](/en/docs-markdown/guides/features/test-insights)
+- [Once's Tuist provider](https://buildonce.dev/docs/guide/infrastructure/tuist)
+- [Problem guides](/marketing-markdown/solutions/slow-builds) and [provider comparisons](/marketing-markdown/compare)
+
+Written by Tuist. Sources reviewed on **2026-10-09**; the individual guides link primary build-system documentation and feature-specific setup references.

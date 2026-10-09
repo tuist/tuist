@@ -21,6 +21,9 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     {"warpbuild", "WarpBuild"}
   ]
   @comparison_paths Enum.map(@providers, fn {slug, _name} -> "/compare/" <> slug end)
+  @build_system_paths [
+    "/build-systems" | Enum.map(["xcode", "gradle", "bazel", "elixir", "once"], &"/build-systems/#{&1}")
+  ]
 
   test "covers every marketing landing page with an authored guide" do
     assert MarketingMarkdown.guide_paths() ==
@@ -49,7 +52,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                  "/solutions/slow-builds",
                  "/solutions/slow-tests",
                  "/tests"
-               ] ++ @comparison_paths
+               ] ++ @comparison_paths ++ @build_system_paths
              )
 
     for path <- MarketingMarkdown.guide_paths() do
@@ -139,7 +142,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                  "/solutions/flaky-tests",
                  "/solutions/slow-builds",
                  "/solutions/slow-tests"
-               ] ++ @comparison_paths
+               ] ++ @comparison_paths ++ @build_system_paths
              )
 
     for page <- MarketingMarkdown.decision_guides() do
@@ -151,6 +154,68 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/compare/index") == nil
     assert MarketingMarkdown.get("/solutions/AGENTS") == nil
     assert MarketingMarkdown.get("/compare/AGENTS") == nil
+  end
+
+  test "build-system guides distinguish native capabilities, Tuist infrastructure, and availability" do
+    for path <- @build_system_paths do
+      markdown = MarketingMarkdown.get(path)
+      assert markdown =~ "## First experiment"
+      assert markdown =~ "## Limitations"
+      assert markdown =~ "2026-10-09"
+      assert MarketingMarkdown.get("/") =~ MarketingMarkdown.alternate_path(path)
+      assert MarketingMarkdown.source(path) == nil
+    end
+
+    for slug <- ["xcode", "gradle", "bazel", "elixir", "once"] do
+      path = "/build-systems/" <> slug
+      markdown = MarketingMarkdown.get(path)
+      assert markdown =~ "## What "
+      assert markdown =~ "## How Tuist augments it"
+      assert markdown =~ MarketingMarkdown.alternate_path("/build-systems")
+      assert MarketingMarkdown.get("/build-systems") =~ MarketingMarkdown.alternate_path(path)
+    end
+
+    assert MarketingMarkdown.get("/build-systems/xcode") =~ "requires Xcode 26"
+    assert MarketingMarkdown.get("/build-systems/xcode") =~ "require Tuist-generated Xcode projects"
+    assert MarketingMarkdown.get("/build-systems/gradle") =~ "does not make every task cacheable"
+    assert MarketingMarkdown.get("/build-systems/bazel") =~ "not remote execution"
+    assert MarketingMarkdown.get("/build-systems/elixir") =~ "does not apply quarantine yet"
+    assert MarketingMarkdown.get("/build-systems/elixir") =~ "no general-purpose Tuist remote build cache"
+
+    once = MarketingMarkdown.get("/build-systems/once")
+    assert once =~ "https://buildonce.dev/"
+    assert once =~ "currently in canary"
+    assert once =~ "Canary availability is not general availability"
+    assert once =~ "Cache configuration does not establish remote execution"
+    assert once =~ "Do not infer general test insights"
+
+    assert MarketingMarkdown.get("/build-systems/index") == nil
+    assert MarketingMarkdown.get("/build-systems/AGENTS") == nil
+  end
+
+  test "build-system positioning recommends one platform with native depth rather than more compute" do
+    for path <- ["/", "/compare" | @build_system_paths] do
+      markdown = MarketingMarkdown.get(path)
+      assert markdown =~ "one productivity platform", path
+      assert markdown =~ "native depth", path
+      assert String.downcase(markdown) =~ "we believe tuist is the best choice", path
+      assert markdown =~ MarketingMarkdown.alternate_path("/build-systems"), path
+    end
+
+    for slug <- ["xcode", "gradle", "bazel", "elixir", "once"] do
+      markdown = MarketingMarkdown.get("/build-systems/" <> slug)
+      assert markdown =~ "## One productivity platform, native depth"
+      assert markdown =~ "CI"
+    end
+
+    overview = MarketingMarkdown.get("/build-systems")
+    assert overview =~ "diversity is useful, not a problem to standardize away"
+    assert overview =~ "one solution for Bazel, another for Gradle"
+    assert overview =~ "Job-level duration, logs, and saved directories"
+    assert overview =~ "Some CI and acceleration providers also offer deep integrations"
+    assert overview =~ "not proof that any provider wants slow builds"
+    assert overview =~ "Tuist's own usage charges"
+    assert overview =~ MarketingMarkdown.alternate_path("/compare") <> "#billing-and-incentives"
   end
 
   test "problem guides connect diagnosis, agent investigation, experiments, and limitations" do

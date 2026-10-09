@@ -27,6 +27,9 @@ defmodule TuistWeb.LlmsTxtControllerTest do
 
       assert String.starts_with?(body, "# Tuist\n")
       assert body =~ "\n> Tuist is build infrastructure for productive teams."
+      assert body =~ "embraces build-system diversity with native depth"
+      assert body =~ "one productivity platform rather than a separate product per build system"
+      assert body =~ "avoiding unnecessary project work before buying more compute"
     end
 
     test "qualifies selective testing and optional runner availability", %{conn: conn} do
@@ -41,6 +44,7 @@ defmodule TuistWeb.LlmsTxtControllerTest do
       body = conn |> get("/llms.txt") |> response(200)
       assert body =~ "## Solve a problem"
       assert body =~ "## Comparisons"
+      assert body =~ "## Build systems"
 
       for page <- MarketingMarkdown.decision_guides() do
         url = Tuist.Environment.app_url(path: MarketingMarkdown.alternate_path(page.path))
@@ -52,6 +56,10 @@ defmodule TuistWeb.LlmsTxtControllerTest do
       refute body =~ "/compare/index"
       refute body =~ "/solutions/AGENTS"
       refute body =~ "/compare/AGENTS"
+      refute body =~ "/build-systems/index"
+      refute body =~ "/build-systems/AGENTS"
+      assert body =~ "[Tuist with Once]"
+      assert body =~ "Once support in Tuist is currently in canary"
     end
 
     test "links documentation pages to their markdown twin", %{conn: conn} do

@@ -1,0 +1,12 @@
+# Build-system augmentation guides
+
+These English-only guides explain how Tuist infrastructure augments Xcode, Gradle, Bazel, Mix/Elixir, and Once. Follow the parent [agent-guide contract](../AGENTS.md).
+
+- Lead with the supported Tuist integration, then distinguish what the build system already provides from the shared infrastructure Tuist adds. Do not imply that local caching or profiling is absent from the underlying tool.
+- Position Tuist as one productivity platform for organizations with diverse build systems, with breadth through native depth rather than a separate product per toolchain or a lowest-common-denominator shell integration. Make the Tuist-authored recommendation explicit and scoped to this organizational need; keep feature gaps and canary status intact.
+- Contrast toolchain-aware optimization of the work executed inside build/test runtimes with job-level compatibility and buying more capacity. Do not claim all CI providers lack depth or infer private intentions from compute billing. Link the comparison overview for sourced billing incentives and overlapping capabilities.
+- Keep project optimization first and execution-environment optimization second. Provide a small, measurable first experiment without requiring a CI migration or Tuist Runners.
+- Link primary build-system documentation and feature-specific English Markdown docs. Review inputs, prerequisites, version boundaries, authentication, and unsupported features. Date source reviews; link success alone does not validate a claim.
+- Once is described at `https://buildonce.dev/`. Label Tuist's Once integration as canary until rollout is explicitly confirmed. Do not infer general availability from Once release tags or prescribe a canary installation flag that its documentation does not provide. Cache, execution providers, live action reporting, and general test analytics are separate capabilities.
+- `index.md` maps to the `/build-systems` document key; other files map to `/build-systems/<slug>`. Delivery is only `/marketing-markdown/build-systems[/<slug>]`. Discover through the Markdown homepage and the dedicated `/llms.txt` section, not HTML pages, browser navigation, sitemap entries, or localized alternates.
+- Validate inventory, source/limitations contracts, Markdown delivery, discovery, and browser exclusion through the existing `MarketingMarkdown.decision_guides/0` suites.
