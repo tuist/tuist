@@ -13,9 +13,9 @@ on:
         required: true
         default: cli-dependencies-v1
       phase:
-        description: Seed a cold volume, verify retained contents, or reject failed-job writes
+        description: Seed, verify, reject failed writes, or synchronize two warm writers
         type: choice
-        options: [seed, verify, fail]
+        options: [seed, verify, fail, concurrent]
         default: seed
 
 permissions:
@@ -24,9 +24,15 @@ permissions:
 jobs:
   smoke:
     if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    name: smoke (${{ matrix.writer }})
     runs-on: ${{ inputs.runner_label }}
-    timeout-minutes: 30
+    timeout-minutes: ${{ inputs.phase == 'concurrent' && 40 || 30 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        writer: ${{ fromJSON(inputs.phase == 'concurrent' && '[1, 2]' || '[1]') }}
     permissions:
+      actions: read
       contents: read
       id-token: write
     steps:
@@ -61,7 +67,7 @@ jobs:
               ln -s nested/file "$proof/link"
               xattr -w dev.tuist.volume-smoke retained "$proof/nested/file"
               ;;
-            verify|fail)
+            verify|fail|concurrent)
               test "$CACHE_HIT" = true
               test "$(cat "$proof/sentinel")" = retained
               test -L "$proof/link"
@@ -78,6 +84,41 @@ jobs:
             exit 1
           fi
           sync
+      - name: Synchronize attached writers
+        if: inputs.phase == 'concurrent'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WRITER_ID: ${{ matrix.writer }}
+        run: |
+          set -euo pipefail
+          writer="${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:${WRITER_ID}"
+          printf '%s\n' "$writer" > .build/.tuist-volume-smoke/concurrent-writer
+          deadline=$((SECONDS + 1500))
+          state=waiting
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            state=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq '
+              if any(.jobs[]; .conclusion != null and .conclusion != "success") then "failed"
+              elif ([.jobs[] | select(any(.steps[]?;
+                .name == "Synchronize attached writers" and
+                (.status == "in_progress" or .conclusion == "success")
+              ))] | length) == 2 then "ready"
+              else "waiting" end')
+            if [ "$state" = failed ]; then
+              echo "The other writer failed before synchronization" >&2
+              exit 1
+            fi
+            if [ "$state" = ready ]; then
+              break
+            fi
+            sleep 10
+          done
+          if [ "$state" != ready ]; then
+            echo "Timed out waiting for both writers to attach" >&2
+            exit 1
+          fi
+          test "$(cat .build/.tuist-volume-smoke/concurrent-writer)" = "$writer"
+          echo "Both writers attached; this branch retained writer $writer"
       - uses: ./.github/actions/mise-install
         with:
           install: tuist
@@ -91,6 +132,7 @@ jobs:
         env:
           PHASE: ${{ inputs.phase }}
           CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
+          WRITER_ID: ${{ matrix.writer }}
         run: |
           set -euo pipefail
           before=$(du -sk .build/ | awk '{print $1}')
@@ -100,6 +142,9 @@ jobs:
           test -L .build
           test -s .build/workspace-state.json
           proof=.build/.tuist-volume-smoke
+          if [ "$PHASE" = concurrent ]; then
+            test "$(cat "$proof/concurrent-writer")" = "${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:${WRITER_ID}"
+          fi
           find -H .build -type f -name Package.swift -print0 > "$RUNNER_TEMP/volume-dependency-manifests"
           test -s "$RUNNER_TEMP/volume-dependency-manifests"
           xargs -0 shasum -a 256 < "$RUNNER_TEMP/volume-dependency-manifests" > "$proof/dependencies.sha256"
@@ -112,5 +157,8 @@ jobs:
             echo "- Retained dependency manifests: $packages"
             echo "- Logical size before/after install: ${before}/${after} KiB"
             echo "- Commit: $GITHUB_SHA"
+            if [ -f "$proof/concurrent-writer" ]; then
+              echo "- Retained writer: $(cat "$proof/concurrent-writer")"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
           sync
