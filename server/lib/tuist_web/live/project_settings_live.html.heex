@@ -31,29 +31,6 @@
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/bundles"}
     />
   </.tab_menu_horizontal>
-  <.card_section :if={
-    Tuist.Environment.network_trusted_build_publishing_enabled?() and
-      @selected_project.build_system in [:xcode, :gradle, :mix, :bazel]
-  }>
-    <div data-part="header">
-      <span data-part="title">{dgettext("dashboard_projects", "Network-trusted report publishing")}</span>
-      <span data-part="description">
-        {dgettext(
-          "dashboard_projects",
-          "Allow completed build and test reports without credentials. Protect this instance with a VPN or private ingress. Reported actor identifiers are unverified. Archives, attachments, dashboard, and cache access still require authorization."
-        )}
-      </span>
-    </div>
-    <.button
-      phx-click="toggle_network_trusted_builds"
-      variant="secondary"
-      label={
-        if @selected_project.network_trusted_builds,
-          do: dgettext("dashboard_projects", "Disable publishing without credentials"),
-          else: dgettext("dashboard_projects", "Enable publishing without credentials")
-      }
-    />
-  </.card_section>
   <h2 data-part="subtitle">
     {dgettext("dashboard_projects", "General")}
   </h2>

@@ -144,7 +144,7 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
   defp publication_enabled?(event, project) do
     case Map.get(event, "submission_auth", "") do
       "" -> true
-      "network_trusted" -> TuistWeb.Plugs.ReportPublishingPlug.enabled?(project)
+      "network_trusted" -> project.build_system == :bazel and TuistWeb.Plugs.ReportPublishingPlug.enabled?()
       _ -> false
     end
   end

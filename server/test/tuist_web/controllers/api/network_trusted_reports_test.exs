@@ -19,21 +19,30 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
 
   setup do
     user = AccountsFixtures.user_fixture(preload: [:account])
-    stub(Tuist.Environment, :network_trusted_build_publishing_enabled?, fn -> true end)
+    stub(Tuist.Environment, :network_trusted_report_publishing_enabled?, fn -> true end)
     %{user: user}
   end
 
-  defp project(user, system) do
-    project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: system)
-    {:ok, project} = Projects.update_project(project, %{network_trusted_builds: true})
-    project
-  end
+  defp project(user, system), do: ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: system)
 
   defp publish(conn, project, suffix, body) do
     conn
     |> put_req_header("content-type", "application/json")
     |> put_req_header("x-tuist-actor-id", "developer-123")
     |> post("/api/projects/#{project.account.name}/#{project.name}#{suffix}", body)
+  end
+
+  test "instance enablement applies to newly created private projects across accounts", %{conn: conn, user: user} do
+    other_user = AccountsFixtures.user_fixture(preload: [:account])
+
+    for owner <- [user, other_user] do
+      project = project(owner, :xcode)
+      assert project.visibility == :private
+
+      assert conn
+             |> publish(project, "/builds", %{id: UUIDv7.generate(), status: "success", duration: 1, is_ci: false})
+             |> json_response(200)
+    end
   end
 
   test "both Xcode creation routes publish completed data with a fresh ID and no automation", %{conn: conn, user: user} do
@@ -117,8 +126,8 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
   test "Bazel authorization grants publishing only and checks every fresh session", %{conn: conn, user: user} do
     project = project(user, :bazel)
     assert conn |> publish(project, "/bazel/publishing", %{}) |> json_response(200) == %{"network_trusted" => true}
-    {:ok, project} = Projects.update_project(project, %{network_trusted_builds: false})
-    assert conn |> publish(project, "/bazel/publishing", %{}) |> json_response(403)
+    stub(Tuist.Environment, :network_trusted_report_publishing_enabled?, fn -> false end)
+    assert conn |> publish(project, "/bazel/publishing", %{}) |> json_response(401)
     assert conn |> get("/api/cache/access") |> json_response(401)
   end
 
@@ -140,7 +149,7 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
     end
   end
 
-  test "policies deny disabled deployment, project, and wrong project types before schema validation", %{
+  test "the instance policy denies disabled deployments and wrong project types before schema validation", %{
     conn: conn,
     user: user
   } do
@@ -148,10 +157,7 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
     assert conn |> publish(project, "/builds", %{}) |> json_response(403)
     assert conn |> publish(project, "/tests", %{build_system: "xcode"}) |> json_response(403)
     assert conn |> publish(project, "/tests", %{build_system: %{bad: "type"}}) |> json_response(403)
-    {:ok, project} = Projects.update_project(project, %{network_trusted_builds: false})
-    assert conn |> publish(project, "/mix/builds", %{}) |> json_response(403)
-    {:ok, project} = Projects.update_project(project, %{network_trusted_builds: true})
-    stub(Tuist.Environment, :network_trusted_build_publishing_enabled?, fn -> false end)
+    stub(Tuist.Environment, :network_trusted_report_publishing_enabled?, fn -> false end)
     assert conn |> publish(project, "/mix/builds", %{}) |> json_response(401)
   end
 

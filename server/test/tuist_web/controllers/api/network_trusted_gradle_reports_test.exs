@@ -11,8 +11,7 @@ defmodule TuistWeb.API.NetworkTrustedGradleReportsTest do
   setup do
     user = AccountsFixtures.user_fixture(preload: [:account])
     project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :gradle)
-    {:ok, project} = Tuist.Projects.update_project(project, %{network_trusted_builds: true})
-    stub(Tuist.Environment, :network_trusted_build_publishing_enabled?, fn -> true end)
+    stub(Tuist.Environment, :network_trusted_report_publishing_enabled?, fn -> true end)
     %{user: user, project: project}
   end
 
@@ -41,12 +40,6 @@ defmodule TuistWeb.API.NetworkTrustedGradleReportsTest do
     assert build.actor_account_id == 0
     assert build.claimed_actor_id == "developer-123"
     assert build.submission_auth == "network_trusted"
-  end
-
-  test "hosted deployments cannot opt in and self-hosted deployments remain default off" do
-    refute Tuist.Environment.network_trusted_build_publishing_enabled?(true, "true")
-    refute Tuist.Environment.network_trusted_build_publishing_enabled?(false, "0")
-    assert Tuist.Environment.network_trusted_build_publishing_enabled?(false, "true")
   end
 
   test "duplicate credentials and stale authenticated assignments cannot downgrade", %{
@@ -140,31 +133,30 @@ defmodule TuistWeb.API.NetworkTrustedGradleReportsTest do
     assert conn |> publish(project, body) |> json_response(201)
   end
 
-  test "rejects by default at deployment and project level", %{conn: conn, project: project} do
-    stub(Tuist.Environment, :network_trusted_build_publishing_enabled?, fn -> false end)
+  test "the instance policy alone enables new projects and denies reports when disabled", %{conn: conn, project: project} do
+    assert conn |> publish(project) |> json_response(201)
+    refute :network_trusted_builds in Tuist.Projects.Project.__schema__(:fields)
+    stub(Tuist.Environment, :network_trusted_report_publishing_enabled?, fn -> false end)
     assert conn |> publish(project) |> json_response(401)
-    stub(Tuist.Environment, :network_trusted_build_publishing_enabled?, fn -> true end)
-    {:ok, project} = Tuist.Projects.update_project(project, %{network_trusted_builds: false})
-    assert conn |> publish(project) |> json_response(403)
   end
 
-  test "revocation takes effect even with a warmed project cache", %{conn: conn, project: project} do
+  test "build-system changes take effect even with a warmed project cache", %{conn: conn, project: project} do
     warmed =
       conn
       |> assign(:caching, true)
       |> TuistWeb.Plugs.LoaderPlug.assign_selected_project("#{project.account.name}/#{project.name}")
 
-    assert warmed.assigns.selected_project.network_trusted_builds
-    {:ok, _} = Tuist.Projects.update_project(project, %{network_trusted_builds: false})
+    assert warmed.assigns.selected_project.build_system == :gradle
+    {:ok, _} = Tuist.Projects.update_project(project, %{build_system: :xcode})
     assert warmed |> publish(project) |> json_response(403)
   end
 
-  test "missing, disabled and wrong-system projects have indistinguishable anonymous denials", %{
+  test "missing and wrong-system projects have indistinguishable anonymous denials", %{
     conn: conn,
     project: project
   } do
-    {:ok, disabled} = Tuist.Projects.update_project(project, %{network_trusted_builds: false})
-    expected = conn |> publish(disabled) |> json_response(403)
+    wrong_system = ProjectsFixtures.project_fixture(account_id: project.account_id, build_system: :xcode)
+    expected = conn |> publish(wrong_system) |> json_response(403)
 
     assert conn
            |> put_req_header("content-type", "application/json")
@@ -184,7 +176,6 @@ defmodule TuistWeb.API.NetworkTrustedGradleReportsTest do
            })
            |> json_response(403) == expected
 
-    {:ok, wrong_system} = Tuist.Projects.update_project(project, %{build_system: :xcode, network_trusted_builds: true})
     assert conn |> publish(wrong_system) |> json_response(403) == expected
   end
 

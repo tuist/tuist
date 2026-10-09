@@ -5,6 +5,7 @@ This directory holds Phoenix configuration for the server.
 ## Responsibilities
 - Environment-specific configuration (dev, test, prod).
 - Runtime config and endpoint settings.
+- `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true` enables reporting-only network trust for every supported project/account on a self-hosted instance. Parse only exact `true` into the startup application configuration; default false, keep hosted denial, and require replica restarts for changes. There is no dashboard/project policy or allowlist.
 - Request logging filters Google One Tap credentials alongside passwords, secrets and tokens.
 - Marketing's esbuild `noora/hooks` alias resolves individual Noora hook sources
   so unused charting and form runtimes stay out of the marketing bundle.

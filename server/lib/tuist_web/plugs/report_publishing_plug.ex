@@ -59,7 +59,7 @@ defmodule TuistWeb.Plugs.ReportPublishingPlug do
       if Authentication.authenticated?(conn) do
         LoaderPlug.call(conn, [])
       else
-        # Revocation must not wait for the authenticated project lookup cache.
+        # Project existence and build-system changes must not wait for authenticated lookup caches.
         conn |> assign(:caching, false) |> LoaderPlug.call([])
       end
 
@@ -75,9 +75,7 @@ defmodule TuistWeb.Plugs.ReportPublishingPlug do
 
   def network_publisher?(conn), do: conn.private[:network_publication_authorized] == true
 
-  def enabled?(project) do
-    Environment.network_trusted_build_publishing_enabled?() and project.network_trusted_builds
-  end
+  def enabled?, do: Environment.network_trusted_report_publishing_enabled?()
 
   defp authorize_publication(%{assigns: %{selected_project: project}} = conn, kind) do
     cond do
@@ -105,7 +103,7 @@ defmodule TuistWeb.Plugs.ReportPublishingPlug do
     end
   end
 
-  defp eligible_project?(project, kind, body), do: enabled?(project) and compatible?(project, kind, body)
+  defp eligible_project?(project, kind, body), do: enabled?() and compatible?(project, kind, body)
 
   defp compatible?(project, :test, body) do
     system = value(body, :build_system) || "xcode"

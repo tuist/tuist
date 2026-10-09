@@ -44,7 +44,7 @@ Identifiers must be 1–128 bytes of non-space printable ASCII. Invalid override
 
 ## Credential-free reporting on a private network {#network-trusted-publishing}
 
-After an administrator enables the deployment and project policy in the <.localized_link href="/guides/server/self-host/server#network-trusted-build-publishing">self-hosting guide</.localized_link>, configure your destination and opt in:
+After an operator configures `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true` on the instance and restarts it as described in the <.localized_link href="/guides/server/self-host/server#network-trusted-report-publishing">self-hosting guide</.localized_link>, configure your destination and opt in. The instance setting covers every supported project and has no dashboard toggle:
 
 ```elixir
 tuist: [

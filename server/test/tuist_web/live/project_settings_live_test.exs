@@ -7,7 +7,6 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Projects
-  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   test "renders the project settings page", %{
@@ -22,60 +21,18 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
     assert html =~ "Settings"
   end
 
-  test "publishing policy changes are authorized, persisted and audited", %{
+  test "report publishing has no dashboard control even when enabled for the instance", %{
     conn: conn,
-    organization: organization,
-    user: user
+    organization: organization
   } do
-    stub(Tuist.Environment, :network_trusted_build_publishing_enabled?, fn -> true end)
-    project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :gradle)
-    {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
-    assert has_element?(lv, "button[phx-click=toggle_network_trusted_builds]", "Enable publishing without credentials")
+    stub(Tuist.Environment, :network_trusted_report_publishing_enabled?, fn -> true end)
 
-    log =
-      ExUnit.CaptureLog.capture_log(fn ->
-        render_click(lv, "toggle_network_trusted_builds")
-      end)
-
-    assert Projects.get_project_by_id(project.id).network_trusted_builds
-    assert has_element?(lv, "button[phx-click=toggle_network_trusted_builds]", "Disable publishing without credentials")
-    assert log =~ "actor_user_id=#{user.id}"
-    assert log =~ "project_id=#{project.id} enabled=true"
-    log = ExUnit.CaptureLog.capture_log(fn -> render_click(lv, "toggle_network_trusted_builds") end)
-    refute Projects.get_project_by_id(project.id).network_trusted_builds
-    assert has_element?(lv, "button[phx-click=toggle_network_trusted_builds]", "Enable publishing without credentials")
-    assert log =~ "project_id=#{project.id} enabled=false"
-  end
-
-  test "a non-administrator cannot toggle network-trusted publishing", %{conn: conn} do
-    stub(Tuist.Environment, :network_trusted_build_publishing_enabled?, fn -> true end)
-    organization = AccountsFixtures.organization_fixture(preload: [:account])
-    project = ProjectsFixtures.project_fixture(account_id: organization.account.id, build_system: :gradle)
-    user = AccountsFixtures.user_fixture()
-    Tuist.Accounts.add_user_to_organization(user, organization)
-    conn = log_in_user(conn, user)
-
-    assert_raise TuistWeb.Errors.UnauthorizedError, fn ->
-      live(conn, ~p"/#{project.account.name}/#{project.name}/settings")
+    for system <- [:xcode, :gradle, :mix, :bazel] do
+      project = ProjectsFixtures.project_fixture(account: organization.account, build_system: system)
+      {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
+      refute html =~ "Network-trusted"
+      refute has_element?(lv, "button[phx-click=toggle_network_trusted_builds]")
     end
-
-    refute Projects.get_project_by_id(project.id).network_trusted_builds
-  end
-
-  test "unsupported projects ignore forged publishing toggle events", %{conn: conn, organization: organization} do
-    stub(Tuist.Environment, :network_trusted_build_publishing_enabled?, fn -> true end)
-    project = ProjectsFixtures.project_fixture(account_id: organization.account.id, build_system: :once)
-    {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
-    render_click(lv, "toggle_network_trusted_builds")
-    refute Projects.get_project_by_id(project.id).network_trusted_builds
-  end
-
-  test "deployment opt-out ignores forged publishing toggle events", %{conn: conn, organization: organization} do
-    stub(Tuist.Environment, :network_trusted_build_publishing_enabled?, fn -> false end)
-    project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :gradle)
-    {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
-    render_click(lv, "toggle_network_trusted_builds")
-    refute Projects.get_project_by_id(project.id).network_trusted_builds
   end
 
   test "hides bundle settings for Bazel projects", %{

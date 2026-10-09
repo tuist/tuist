@@ -7,7 +7,6 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
   alias Tuist.Bazel
   alias Tuist.Bazel.Invocation
   alias Tuist.ClickHouseRepo
-  alias Tuist.Projects
   alias Tuist.Tests
   alias Tuist.Tests.Test
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -309,8 +308,7 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
     conn: conn,
     project: project
   } do
-    stub(Tuist.Environment, :network_trusted_build_publishing_enabled?, fn -> true end)
-    {:ok, project} = Projects.update_project(project, %{network_trusted_builds: true})
+    stub(Tuist.Environment, :network_trusted_report_publishing_enabled?, fn -> true end)
     reject(Tuist.MCP.Events.Publisher, :publish, 3)
 
     event = %{
@@ -347,7 +345,7 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
     assert [%{name: "//app:tests", test_case_id: nil, status: "failure"}] = test.test_case_runs
     assert event |> send_event.() |> json_response(202) == %{"accepted" => 1, "rejected" => 0}
     assert ClickHouseRepo.aggregate(from(t in Test, where: t.project_id == ^project.id), :count) == 1
-    {:ok, _} = Projects.update_project(project, %{network_trusted_builds: false})
+    stub(Tuist.Environment, :network_trusted_report_publishing_enabled?, fn -> false end)
     assert event |> send_event.() |> json_response(202) == %{"accepted" => 0, "rejected" => 1}
     assert ClickHouseRepo.aggregate(from(t in Test, where: t.project_id == ^project.id), :count) == 1
   end

@@ -53,14 +53,39 @@ jobs:
           # Deploy to your infrastructure
 ```
 
-## Network-trusted report publishing {#network-trusted-build-publishing}
+## Network-trusted report publishing {#network-trusted-report-publishing}
 
 Self-hosted installations can opt into accepting completed **Xcode, Gradle, Elixir/Mix, and Bazel build and test reports** without individual sign-in. This policy is off by default and unavailable on hosted Tuist. It grants reporting only, not dashboard access, administration, reads, remote cache access, archives, attachments, shard planning, or artifact processing. The self-hosting license requirement remains enforced.
 
+### Configure the instance {#network-trusted-instance-configuration}
+
+This is an **instance-wide runtime configuration**, not a dashboard or per-project setting. Enabling it permits credential-free reporting to **all existing and newly created Xcode, Gradle, Elixir/Mix, and Bazel projects across every account on the instance**, including private projects. It does not change project visibility or grant access to their existing reports. There is no project allowlist or dashboard toggle.
+
 1. Restrict the HTTP deployment and any Bazel BES ingress to your trusted network, for example a VPN and ingress firewall. Tuist does not verify VPN membership or infer trust from forwarded IP headers.
-2. Set `TUIST_NETWORK_TRUSTED_BUILD_PUBLISHING=true` on the server deployment.
-3. As an administrator, enable **Network-trusted report publishing** in each supported project's settings.
-4. Configure the self-hosted server URL and project on each client and explicitly opt in with `TUIST_NETWORK_TRUSTED_PUBLISHING=true`. For Gradle, you can instead check in `buildInsights.networkTrustedPublishing = true`. For Elixir, `tuist: [network_trusted_publishing: true]` is also supported. Present credentials are still used; blank, corrupt, rejected, or failed-refresh credentials are errors, not permission to publish anonymously. Swift records a rejected refresh in the shared credential file so later authenticated and opted-in commands fail immediately; login/logout clears that marker, and Gradle/Elixir respect it too.
+2. Set the following environment variable on every server replica that handles report publishing or Bazel analytics ingestion:
+
+   ```sh
+   TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true
+   ```
+
+   For example, in the Tuist server service's Docker Compose configuration:
+
+   ```yaml
+   environment:
+     TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING: "true"
+   ```
+
+3. Restart or redeploy those replicas. The server reads the variable at startup; changing the deployment environment does not update an already running process. The default is `false`, and only the exact value `true` enables it. Hosted Tuist cannot enable this mode.
+
+### Configure the clients {#network-trusted-client-configuration}
+
+Configure the self-hosted server URL and project on each client and explicitly opt in in the environment used by the reporting command, Gradle daemon, or Xcode scheme post-action:
+
+```sh
+TUIST_NETWORK_TRUSTED_PUBLISHING=true
+```
+
+The server variable allows unsigned reports on the instance; the client variable chooses that publishing mode when credentials are genuinely absent. They are separate controls. No project administrator action in the dashboard is required. For Gradle, you can instead check in `buildInsights.networkTrustedPublishing = true`. For Elixir, `tuist: [network_trusted_publishing: true]` is also supported. Present credentials are still used; blank, corrupt, rejected, or failed-refresh credentials are errors, not permission to publish anonymously. Swift records a rejected refresh in the shared credential file so later authenticated and opted-in commands fail immediately; login/logout clears that marker, and Gradle/Elixir respect it too.
 
 | Client | Credential-free reporting path | Intentional limitations |
 | --- | --- | --- |
@@ -69,16 +94,18 @@ Self-hosted installations can opt into accepting completed **Xcode, Gradle, Elix
 | Elixir | `mix tuist.compile` and `mix tuist.test` POST structured JSON | No privileged coverage/history references; shards and artifact endpoints still require credentials |
 | Bazel | `tuist bazel setup` generates BES-only configuration for an explicit `TUIST_BAZEL_BES_BACKEND=grpcs://bes.example:443` | No remote cache, downloader, credential helper, or artifact reads; test reports contain target-level outcomes, not JUnit testcase detail |
 
-For Bazel, deploy a compatible Kura node with its authentication engine connected to the self-hosted control plane. Its per-stream publishing decision is uncached, grants no cache access, and is checked again when completed invocation telemetry reaches the server. Disabling policy rejects queued unsigned invocations too. A no-auth Kura node is not sufficient. Regenerate the BES-only configuration after enabling or disabling the client opt-in; previously generated authenticated cache options are not automatically converted by ordinary Bazel invocations.
+For Bazel, deploy a compatible Kura node with its authentication engine connected to the self-hosted control plane. Its per-stream publishing decision is uncached, grants no cache access, and is checked again when completed invocation telemetry reaches the server. After a server replica restarts with publishing disabled, it rejects queued unsigned invocations too. A no-auth Kura node is not sufficient. Regenerate the BES-only configuration after enabling or disabling the client opt-in; previously generated authenticated cache options are not automatically converted by ordinary Bazel invocations.
 
 > [!WARNING]
-> Anyone who can reach the enabled project's publishing endpoint can submit telemetry, consume its quota, and claim an actor identifier. An actor claim is visibly unverified and never establishes identity. Do not enable this policy on an internet-accessible deployment without a separate enforced network boundary. Invalid supplied credentials are rejected, not downgraded.
+> Anyone who can reach a supported project's publishing endpoint on an enabled instance can submit telemetry, consume its quota, and claim an actor identifier. This applies to every account/project, not just a selected project. Reporting responses can also reveal whether an account/project handle exists and its build system, including private projects. An actor claim is visibly unverified and never establishes identity. Do not enable this policy on an internet-accessible deployment without a separate enforced network boundary. Invalid supplied credentials are rejected, not downgraded.
 
 Credential-free requests are limited to 8 MB of request/decompressed data, bounded collections, and recursive structure limits. Project quotas are 60 requests per minute and 10,000 per day, independent of VPN NAT addresses. Rejected payloads also consume quota; authenticated publication is unaffected. Configure shared Valkey for deployment-wide enforcement with multiple replicas; without it, limits are per server process and reset on restart. If the configured shared quota backend is unavailable, credential-free publishing fails closed rather than falling back to per-node limits. Add ingress connection, body, and rate limits as a separate defense. Kura additionally bounds unsigned streams to 8 MB/20,000 retained events, 256 MiB of transport data, a five-minute idle/backpressure timeout, a six-hour lifetime, 16 concurrent streams per node, and four concurrent streams/retained invocation records per project. Discarded output/artifact events count only toward the transport cap. Unsigned telemetry has a separate bounded analytics queue/circuit breaker, with 128 KiB serialized invocation events and a 32 KiB inline test-summary budget. An idle BES connection (including a silent action that sends no events) can expire after five minutes. A network caller can occupy its bounded reporting slots until the lifetime limit; size ingress capacity accordingly. These reporting limits do not apply to authenticated traffic.
 
 The server generates report IDs; repeat submissions may produce duplicate reports. Replayed Bazel analytics for the same server invocation deduplicate the test summary, but a restarted BES stream receives a new invocation ID and cannot recover the previous stream's acknowledged events. Unsigned reports are visible telemetry, not authenticated test evidence: they cannot replace canonical testcase metadata, retroactively change authenticated runs, populate selective-execution or quarantine evidence indexes, influence coverage carry-forward/gaps/completeness or enqueue coverage recomputation, enqueue flaky alerts, trigger first-run webhooks, VCS comments, or automatic failure-agent events. Unknown testcases remain report-local; already known cases may be linked for navigation. Run views can show claimed outcomes, but trusted reliability/automation aggregates intentionally exclude them. Optional actor identifiers label telemetry but do not grant access or link claims to accounts.
 
-Disable the project setting or deployment switch to stop new credential-free publishing. Set `TUIST_NETWORK_TRUSTED_PUBLISHING=false` to restore credential-required behavior on clients; the explicit environment opt-out overrides Gradle and Elixir configuration. Existing reports remain subject to ordinary project visibility and retention. To suppress the claimed actor independently, set `TUIST_ACTOR_ID=""` (for Bazel, regenerate `.bazelrc.tuist` with that environment or use `--build_metadata=TUIST_ACTOR_ID=` per invocation); this does not remove verified credential identity. Do not delete rejected credentials as an automatic fallback: sign in again or explicitly sign out/remove them as a deliberate recovery action.
+### Disable credential-free publishing {#disable-network-trusted-publishing}
+
+Set `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=false` (or remove it) and restart or redeploy **every relevant server replica** to stop credential-free publishing across the instance. During a rolling deployment, replicas still running with the old setting can continue accepting unsigned reports until replaced; block publishing at the private ingress first if immediate revocation is required. Bazel's uncached control-plane checks and queued analytics ingestion observe each replica's startup configuration. Set `TUIST_NETWORK_TRUSTED_PUBLISHING=false` to restore credential-required behavior on clients; the explicit environment opt-out overrides Gradle and Elixir configuration. Existing reports remain subject to ordinary project visibility and retention. To suppress the claimed actor independently, set `TUIST_ACTOR_ID=""` (for Bazel, regenerate `.bazelrc.tuist` with that environment or use `--build_metadata=TUIST_ACTOR_ID=` per invocation); this does not remove verified credential identity. Do not delete rejected credentials as an automatic fallback: sign in again or explicitly sign out/remove them as a deliberate recovery action.
 
 ## Runtime requirements {#runtime-requirements}
 
@@ -247,6 +274,7 @@ As an on-premise user, you'll receive a license that you'll need to expose as an
 | `TUIST_OPERATOR_EMAIL_DOMAIN` | Confirmed users whose email address ends in `@<this-domain>` can access the operations URLs (`/ops/*`) | No | `tuist.dev` | `example.com` |
 | `TUIST_SERVER_VERSION_IDENTIFIER` | A label displayed as a badge in the dashboard navbar to identify the server instance (e.g. a version number or branch name) | No | Git branch in dev | `v1.2.3` |
 | `TUIST_WEB` | Enable the web server endpoint | No | `1` | `1` or `0` |
+| `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING` | Accept completed build and test reports without credentials for all supported projects/accounts on a privately protected self-hosted instance. Read at startup; restart all relevant replicas after changing it. Does not grant dashboard, cache, archive, attachment, or administration access. | No | `false` | `true` |
 | `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | The gRPC endpoint of an OpenTelemetry Collector to send traces to | No | | `http://localhost:4317` |
 | `TUIST_LOKI_URL` | The base URL of a Loki-compatible endpoint to push logs to (e.g. Grafana Alloy or Loki) | No | | `http://localhost:3100` |
 

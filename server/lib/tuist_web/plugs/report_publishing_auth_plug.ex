@@ -14,7 +14,7 @@ defmodule TuistWeb.Plugs.ReportPublishingAuthPlug do
   def call(conn, _opts) do
     case get_req_header(conn, "authorization") do
       [] ->
-        if Authentication.authenticated?(conn) or Environment.network_trusted_build_publishing_enabled?() do
+        if Authentication.authenticated?(conn) or Environment.network_trusted_report_publishing_enabled?() do
           conn
         else
           reject(conn)

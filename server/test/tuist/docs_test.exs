@@ -87,6 +87,21 @@ defmodule Tuist.DocsTest do
       assert migration_page.body =~ "localized_link"
     end
 
+    test "self-hosting documents the instance-wide reporting configuration and separate client opt-in" do
+      page = Docs.get_page("/en/guides/server/self-host/server")
+      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true"
+      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_PUBLISHING=true"
+      assert page.markdown =~ "all existing and newly created"
+      assert page.markdown =~ "across every account on the instance"
+      assert page.markdown =~ "reads the variable at startup"
+      assert page.markdown =~ "no project allowlist or dashboard toggle"
+      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=false"
+      assert page.markdown =~ "every relevant server replica"
+      refute page.markdown =~ "TUIST_NETWORK_TRUSTED_BUILD_PUBLISHING"
+      refute page.markdown =~ "enable **Network-trusted report publishing** in each"
+      assert Enum.any?(page.headings, &(&1.id == "network-trusted-report-publishing"))
+    end
+
     test "wraps Markdown tables in a scroll container" do
       page = Docs.get_page("/en/guides/server/self-host/server")
 

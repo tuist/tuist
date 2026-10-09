@@ -51,7 +51,7 @@ Actor identifiers are 1–128 bytes of non-space printable ASCII. They are visib
 
 ## Network-trusted publishing {#network-trusted-publishing}
 
-Self-hosted deployments can explicitly allow Gradle build and test reports from their trusted network without developer credentials. An administrator must enable both the deployment policy and the project's setting first. See <.localized_link href="/guides/server/self-host/server#network-trusted-build-publishing">the self-hosting guide</.localized_link>.
+Self-hosted deployments can explicitly allow Gradle build and test reports from their trusted network without developer credentials. An operator must configure `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true` on the instance and restart it first. This applies to every supported project; there is no dashboard setting. See <.localized_link href="/guides/server/self-host/server#network-trusted-report-publishing">the self-hosting guide</.localized_link>.
 
 Configure the destination once in the repository:
 
