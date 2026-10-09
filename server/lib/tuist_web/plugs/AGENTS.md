@@ -23,3 +23,5 @@ This area owns Plug middleware for request processing.
 - Business logic: `server/lib/tuist/AGENTS.md`
 
 - Authorization booleans must not be cached: same-account credentials can have different scopes/project grants. Re-evaluate using the current subject. The initial proof rollout leaves subject caching unchanged until #14033; do not promise immediate revocation.
+
+- Proof-cache `UnavailableError` must render HTTP 503 in strict and cached authentication. Cachex-backed legacy subject fills return unavailable without retaining errors, and never bypass proof-cache failure guards with bcrypt.

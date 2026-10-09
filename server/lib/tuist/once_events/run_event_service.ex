@@ -23,6 +23,7 @@ defmodule Tuist.OnceEvents.RunEventService do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Authentication
+  alias Tuist.Authentication.UnavailableError
   alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.KeyValueStore
@@ -264,13 +265,19 @@ defmodule Tuist.OnceEvents.RunEventService do
   # counter keeps a spike of refusals, such as tokens expiring under long runs,
   # visible and alertable.
   defp refuse!(rpc, stage, reason) do
+    {status, reason} =
+      case reason do
+        {:unavailable, message} -> {:unavailable, message}
+        message -> {:unauthenticated, message}
+      end
+
     :telemetry.execute(Telemetry.event_name_once_events_refused(), %{count: 1}, %{
       rpc: rpc,
       stage: stage,
-      status: :unauthenticated
+      status: status
     })
 
-    raise GRPC.RPCError, status: :unauthenticated, message: to_string(reason)
+    raise GRPC.RPCError, status: status, message: to_string(reason)
   end
 
   defp resolve_project(stream, hint_project_id) do
@@ -301,6 +308,8 @@ defmodule Tuist.OnceEvents.RunEventService do
     else
       _ -> {:error, "missing or invalid bearer"}
     end
+  rescue
+    UnavailableError -> {:error, {:unavailable, "Authentication temporarily unavailable."}}
   end
 
   # Same short cache as the HTTP API, so a long run does not pay for password

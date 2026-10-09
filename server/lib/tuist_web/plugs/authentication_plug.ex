@@ -9,8 +9,10 @@ defmodule TuistWeb.AuthenticationPlug do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
+  alias Tuist.Authentication.UnavailableError
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias TuistWeb.Errors.ServiceUnavailableError
   alias TuistWeb.Headers
   alias TuistWeb.RequestOrigin
   alias TuistWeb.WarningsHeaderPlug
@@ -28,6 +30,9 @@ defmodule TuistWeb.AuthenticationPlug do
     else
       conn
     end
+  rescue
+    UnavailableError ->
+      reraise ServiceUnavailableError, [message: "Authentication temporarily unavailable."], __STACKTRACE__
   end
 
   def call(conn, {:require_authentication, opts}) do
@@ -86,22 +91,7 @@ defmodule TuistWeb.AuthenticationPlug do
 
     case authenticated_subject do
       %Project{} = project ->
-        %{account: account} = project
-
-        cli_version = Headers.get_cli_version(conn)
-
-        conn =
-          if Projects.legacy_token?(token) and not is_nil(cli_version) and
-               Version.compare(cli_version, Version.parse!("4.20.0")) == :gt do
-            WarningsHeaderPlug.put_warning(
-              conn,
-              "The project token you are using is deprecated. Please create a new token by running `tuist projects token create #{account.name}/#{project.name}."
-            )
-          else
-            conn
-          end
-
-        TuistWeb.Authentication.put_current_project(conn, project)
+        put_project(conn, token, project)
 
       %User{} = user ->
         TuistWeb.Authentication.put_current_user(conn, user)
@@ -111,9 +101,29 @@ defmodule TuistWeb.AuthenticationPlug do
         |> assign(:current_subject, subject)
         |> put_claimed_agent_user(subject)
 
+      {:error, _reason} ->
+        raise ServiceUnavailableError, "Authentication temporarily unavailable."
+
       nil ->
         conn
     end
+  end
+
+  defp put_project(conn, token, %Project{account: account} = project) do
+    cli_version = Headers.get_cli_version(conn)
+
+    conn =
+      if Projects.legacy_token?(token) and not is_nil(cli_version) and
+           Version.compare(cli_version, Version.parse!("4.20.0")) == :gt do
+        WarningsHeaderPlug.put_warning(
+          conn,
+          "The project token you are using is deprecated. Please create a new token by running `tuist projects token create #{account.name}/#{project.name}."
+        )
+      else
+        conn
+      end
+
+    TuistWeb.Authentication.put_current_project(conn, project)
   end
 
   defp put_claimed_agent_user(conn, %AuthenticatedAccount{scopes: scopes, agent_registration_id: registration_id})

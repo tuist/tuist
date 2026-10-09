@@ -11,6 +11,7 @@ defmodule Tuist.Authentication.TokenVerificationCache do
   import Cachex.Spec, only: [expiration: 1, hook: 1]
 
   alias Tuist.Authentication.SingleFlight
+  alias Tuist.Authentication.UnavailableError
 
   @cache :token_verification
   @ttl to_timeout(minute: 1)
@@ -30,23 +31,29 @@ defmodule Tuist.Authentication.TokenVerificationCache do
     cache = Keyword.get(opts, :cache, @cache)
     key = :crypto.hash(:sha256, :erlang.term_to_binary({password, stored_hash}))
 
-    case SingleFlight.fetch(cache, key, fn ->
-           started_at = System.monotonic_time()
-           verified = Bcrypt.verify_pass(password, stored_hash)
+    case SingleFlight.fetch(
+           cache,
+           key,
+           fn ->
+             started_at = System.monotonic_time()
+             verified = Bcrypt.verify_pass(password, stored_hash)
 
-           :telemetry.execute(
-             [:tuist, :authentication, :bcrypt_verification],
-             %{count: 1, duration: System.monotonic_time() - started_at},
-             %{outcome: if(verified, do: :valid, else: :invalid)}
-           )
+             :telemetry.execute(
+               [:tuist, :authentication, :bcrypt_verification],
+               %{count: 1, duration: System.monotonic_time() - started_at},
+               %{outcome: if(verified, do: :valid, else: :invalid)}
+             )
 
-           if verified, do: {:commit, true}, else: {:ignore, false}
-         end) do
+             if verified, do: {:commit, true}, else: {:ignore, false}
+           end,
+           Keyword.take(opts, [:timeout])
+         ) do
       true -> true
       {:commit, true} -> true
-      _ -> false
+      {:ignore, false} -> false
+      _ -> raise UnavailableError
     end
   rescue
-    ArgumentError -> false
+    ArgumentError -> reraise UnavailableError, __STACKTRACE__
   end
 end
