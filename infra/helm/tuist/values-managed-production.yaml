@@ -426,6 +426,9 @@ capi:
     cidr: 172.30.243.0/24
 
 kuraController:
+  # Instance activation remains explicit; keep renewal enabled after activation.
+  servingAuthority:
+    enabled: true
   privateReplication:
     enabled: true
   stableDNS:
