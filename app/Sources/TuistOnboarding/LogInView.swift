@@ -47,48 +47,21 @@ public struct LogInView: View {
 
         Spacer()
 
-        if let selfHostedServerURL = authenticationService.selfHostedServerURL {
-            Button {
-                presentSelfHostedServerAlert()
-            } label: {
-                HStack(spacing: Noora.Spacing.spacing1) {
-                    Image("ServerIcon")
-                        .frame(width: 20, height: 20)
-                    Text(selfHostedServerURL)
-                        .font(.subheadline.weight(.medium))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .padding(.horizontal, Noora.Spacing.spacing2)
-                }
-                .foregroundColor(Noora.Colors.buttonSecondaryLabel)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, Noora.Spacing.spacing5)
-                .padding(.horizontal, Noora.Spacing.spacing4)
-                .background(Noora.Colors.surfaceBackgroundPrimary)
-                .cornerRadius(Noora.CornerRadius.large)
-            }
-            .accessibilityHint("Changes the self-hosted server address")
-            .padding(.horizontal, Noora.Spacing.spacing9)
-            .padding(.bottom, Noora.Spacing.spacing9)
-        }
-
         VStack(spacing: Noora.Spacing.spacing5) {
             SocialButton(
                 title: "Sign in with Tuist",
                 style: .primary,
                 icon: "TuistLogo"
             ) {
-                errorHandler.fireAndHandleError { try await authenticationService.signIn() }
+                signInToTuistHosted { try await authenticationService.signIn() }
             }
 
-            // A self-hosted server's login page lists the providers it has configured, and it can't
-            // redeem Apple authorization codes issued for Tuist's bundle ID.
-            if authenticationService.selfHostedServerURL == nil {
-                SocialButton(
-                    title: "Sign in with Apple",
-                    style: .secondary,
-                    icon: "AppleLogo"
-                ) {
+            SocialButton(
+                title: "Sign in with Apple",
+                style: .secondary,
+                icon: "AppleLogo"
+            ) {
+                signInToTuistHosted {
                     let request = ASAuthorizationAppleIDProvider().createRequest()
                     request.requestedScopes = [.fullName, .email]
 
@@ -101,41 +74,32 @@ public struct LogInView: View {
                     controller.presentationContextProvider = appleSignInDelegate
                     controller.performRequests()
                 }
+            }
 
-                SocialButton(
-                    title: "Sign in with Google",
-                    style: .secondary,
-                    icon: "GoogleLogo"
-                ) {
-                    errorHandler.fireAndHandleError { try await authenticationService.signInWithGoogle() }
-                }
+            SocialButton(
+                title: "Sign in with Google",
+                style: .secondary,
+                icon: "GoogleLogo"
+            ) {
+                signInToTuistHosted { try await authenticationService.signInWithGoogle() }
+            }
 
-                SocialButton(
-                    title: "Sign in with GitHub",
-                    style: .secondary,
-                    icon: "GitHubLogo"
-                ) {
-                    errorHandler.fireAndHandleError { try await authenticationService.signInWithGitHub() }
-                }
+            SocialButton(
+                title: "Sign in with GitHub",
+                style: .secondary,
+                icon: "GitHubLogo"
+            ) {
+                signInToTuistHosted { try await authenticationService.signInWithGitHub() }
             }
 
             divider
 
-            if authenticationService.selfHostedServerURL == nil {
-                SocialButton(
-                    title: "Self-hosted server",
-                    style: .secondary,
-                    icon: "ServerIcon"
-                ) {
-                    presentSelfHostedServerAlert()
-                }
-            } else {
-                SocialButton(
-                    title: "Use Tuist-hosted",
-                    style: .secondary
-                ) {
-                    errorHandler.fireAndHandleError { try await authenticationService.selectServer(nil) }
-                }
+            SocialButton(
+                title: "Self-hosted server",
+                style: .secondary,
+                icon: "ServerIcon"
+            ) {
+                presentSelfHostedServerAlert()
             }
         }
         .padding(.horizontal, Noora.Spacing.spacing8)
@@ -178,6 +142,14 @@ public struct LogInView: View {
         Rectangle()
             .fill(Noora.Colors.surfaceLabelTertiary.opacity(0.3))
             .frame(height: 1)
+    }
+
+    /// The saved self-hosted server only prefills the prompt, so the other buttons always sign in to Tuist-hosted.
+    private func signInToTuistHosted(_ signIn: @escaping () async throws -> Void) {
+        errorHandler.fireAndHandleError {
+            try await authenticationService.selectServer(nil)
+            try await signIn()
+        }
     }
 
     private func presentSelfHostedServerAlert() {

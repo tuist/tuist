@@ -71,62 +71,29 @@ struct MenuBarLoginView: View {
         VStack(spacing: 0) {
             caption("Sign in to run previews")
 
-            if let selfHostedServerURL = authenticationService.selfHostedServerURL {
-                Button {
-                    editSelfHostedServer()
-                } label: {
-                    Label(selfHostedServerURL, image: "ServerIcon")
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                .buttonStyle(.plain)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .help("Change the self-hosted server address")
-                .padding(.horizontal, 12)
-                .padding(.bottom, 12)
-            }
-
             primaryButton("Sign in with Tuist", icon: "TuistLogo") {
-                errorHandling.fireAndHandleError {
-                    try await authenticationService.signIn()
-                }
+                signInToTuistHosted { try await authenticationService.signIn() }
             }
             .padding(.bottom, 8)
 
-            // A self-hosted server's login page lists the providers it has configured.
-            if authenticationService.selfHostedServerURL == nil {
-                secondaryButton("Sign in with Google", icon: "GoogleLogo") {
-                    errorHandling.fireAndHandleError {
-                        try await authenticationService.signInWithGoogle()
-                    }
-                }
-                .padding(.bottom, 8)
-
-                secondaryButton("Sign in with GitHub", icon: "GitHubLogo") {
-                    errorHandling.fireAndHandleError {
-                        try await authenticationService.signInWithGitHub()
-                    }
-                }
-                .padding(.bottom, 12)
+            secondaryButton("Sign in with Google", icon: "GoogleLogo") {
+                signInToTuistHosted { try await authenticationService.signInWithGoogle() }
             }
+            .padding(.bottom, 8)
+
+            secondaryButton("Sign in with GitHub", icon: "GitHubLogo") {
+                signInToTuistHosted { try await authenticationService.signInWithGitHub() }
+            }
+            .padding(.bottom, 12)
 
             divider
                 .padding(.bottom, 12)
 
-            if authenticationService.selfHostedServerURL == nil {
-                secondaryButton("Self-hosted server", icon: "ServerIcon") {
-                    editSelfHostedServer()
-                }
-                .padding(.bottom, 16)
-            } else {
-                secondaryButton("Use Tuist-hosted") {
-                    errorHandling.fireAndHandleError {
-                        try await authenticationService.selectServer(nil)
-                    }
-                }
-                .padding(.bottom, 16)
+            secondaryButton("Self-hosted server", icon: "ServerIcon") {
+                serverURL = authenticationService.selfHostedServerURL ?? ""
+                step = .selfHosted
             }
+            .padding(.bottom, 16)
         }
     }
 
@@ -203,9 +170,12 @@ struct MenuBarLoginView: View {
         .padding(.horizontal, 12)
     }
 
-    private func editSelfHostedServer() {
-        serverURL = authenticationService.selfHostedServerURL ?? ""
-        step = .selfHosted
+    /// The saved self-hosted server only prefills the address, so the other buttons always sign in to Tuist-hosted.
+    private func signInToTuistHosted(_ signIn: @escaping () async throws -> Void) {
+        errorHandling.fireAndHandleError {
+            try await authenticationService.selectServer(nil)
+            try await signIn()
+        }
     }
 
     private func selectSelfHostedServer() {
