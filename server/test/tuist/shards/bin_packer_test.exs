@@ -173,6 +173,17 @@ defmodule Tuist.Shards.BinPackerTest do
       assert BinPacker.pack_concurrent(units, 1, 4) == [{0, Enum.map(units, &Tuple.delete_at(&1, 2)), 200}]
     end
 
+    test "spreads units that cost the same anywhere instead of leaving a shard empty" do
+      # Each shard's estimate stays at 100 until it holds four of these, so
+      # taking the first of equal shards would pack them 4/4/0/0.
+      units = for index <- 1..8, do: {"P#{index}", 100, :parallel}
+
+      result = BinPacker.pack_concurrent(units, 4, 4)
+
+      assert Enum.map(result, fn {_index, shard_units, _estimate} -> length(shard_units) end) == [2, 2, 2, 2]
+      assert Enum.map(result, &elem(&1, 2)) == [100, 100, 100, 100]
+    end
+
     test "packs serial units as pack/2 does" do
       units = [{"A", 100}, {"B", 80}, {"C", 60}, {"D", 40}, {"E", 20}]
 

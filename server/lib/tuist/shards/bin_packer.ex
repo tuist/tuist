@@ -122,9 +122,13 @@ defmodule Tuist.Shards.BinPacker do
     units
     |> Enum.sort_by(&elem(&1, 1), :desc)
     |> Enum.reduce(empty_shards, fn {name, duration, mode}, shards ->
+      # A concurrent unit can cost nothing on a shard whose longest unit
+      # outlasts the rest, so shards often tie; the shorter, then emptier, one
+      # wins, which leaves no shard without a unit while units remain.
       {min_index, _units, _load} =
-        Enum.min_by(shards, fn {_index, _units, load} ->
-          load |> add_load(duration, mode) |> concurrent_estimate(concurrency)
+        Enum.min_by(shards, fn {_index, shard_units, load} ->
+          {load |> add_load(duration, mode) |> concurrent_estimate(concurrency), concurrent_estimate(load, concurrency),
+           length(shard_units)}
         end)
 
       List.update_at(shards, min_index, fn {index, shard_units, load} ->

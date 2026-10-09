@@ -1091,6 +1091,47 @@ defmodule Tuist.ShardsTest do
       assert [%{"estimated_duration_ms" => 30_000}] = result.shard_assignments
     end
 
+    test "leaves a rerun shard out of the concurrency it measures" do
+      project = ProjectsFixtures.project_fixture()
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      rerun = for index <- 1..8, do: "Rerun#{index}"
+      single = for index <- 1..8, do: "Single#{index}"
+
+      report = fn index, serial, parallel ->
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          is_ci: true,
+          git_branch: project.default_branch,
+          build_system: "mix",
+          shard_plan_id: plan.id,
+          shard_index: index,
+          duration: 30_000,
+          test_modules: [
+            module_run(serial, 10_000, "serial") | Enum.map(parallel, &module_run(&1, 10_000, "parallel"))
+          ]
+        )
+      end
+
+      # Both shards ran four at a time. Shard 0 reported twice, which adds a
+      # second copy of its modules, but only one of its durations counts.
+      report.(0, "RerunSerial", rerun)
+      report.(0, "RerunSerial", rerun)
+      report.(1, "SingleSerial", single)
+      RunsFixtures.optimize_test_runs()
+
+      result =
+        Shards.create_shard_plan(project, %{
+          reference: "concurrent-modules-rerun",
+          modules: ["RerunSerial", "SingleSerial"] ++ rerun ++ single,
+          concurrent_modules: rerun ++ single,
+          shard_total: 1
+        })
+
+      # 20s serial and 160s / 4 concurrent; counting the rerun's modules twice
+      # would measure 16 for shard 0 and plan 20s + 160s / 10.
+      assert [%{"estimated_duration_ms" => 60_000}] = result.shard_assignments
+    end
+
     test "sums module durations when no shard run of the plan's modules reported execution modes" do
       project = ProjectsFixtures.project_fixture()
 

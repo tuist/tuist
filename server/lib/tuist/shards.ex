@@ -921,6 +921,8 @@ defmodule Tuist.Shards do
   # counts only when every module it ran reported an execution mode and is part of this plan, which
   # leaves out runs from before the client reported modes and another build system's shards. Module
   # rows are folded to one per id first, since a rewritten row leaves a second copy until parts merge.
+  # A shard reported more than once (a rerun of its job) is left out too: each report adds its modules
+  # under new ids, while only the latest report's duration is kept, so the two would not match.
   defp fetch_module_concurrency(_project, []), do: nil
 
   defp fetch_module_concurrency(project, modules) do
@@ -956,7 +958,8 @@ defmodule Tuist.Shards do
         shard_index,
         sumIf(duration, execution_mode = 'parallel') AS parallel_total,
         sumIf(duration, execution_mode = 'serial') AS serial_total,
-        countIf(execution_mode NOT IN ('parallel', 'serial') OR name NOT IN {modules:Array(String)}) AS excluded
+        countIf(execution_mode NOT IN ('parallel', 'serial') OR name NOT IN {modules:Array(String)}) AS excluded,
+        count() - uniqExact(name) AS repeated
       FROM module_runs
       GROUP BY test_run_id, shard_index
     )
@@ -966,6 +969,7 @@ defmodule Tuist.Shards do
     FROM latest_shard_runs AS r
     INNER JOIN shards AS s ON s.test_run_id = r.test_run_id AND s.shard_index = r.shard_index
     WHERE s.excluded = 0
+      AND s.repeated = 0
       AND s.parallel_total > 0
       AND toFloat64(r.duration) > toFloat64(s.serial_total)
     """
