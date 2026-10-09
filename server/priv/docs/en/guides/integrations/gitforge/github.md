@@ -33,17 +33,21 @@ No additional Tuist server configuration is needed; the manifest flow generates 
 
 #### App permissions and webhook events {#github-app-permissions}
 
-The GitHub Enterprise App manifest requests the following **repository permissions**:
+The GitHub Enterprise App manifest currently requests the following **repository permissions**. These are the permissions requested during registration, not the minimum required for PR comments and bundle-size checks.
 
-| Permission | Access | Used for |
+| Permission | Access | Purpose and requirement |
 |---|---|---|
 | Metadata (`metadata`) | Read-only | Basic repository metadata; required by GitHub for every App |
-| Contents (`contents`) | Read-only | Reading repository contents |
-| Pull requests (`pull_requests`) | Read and write | Accessing pull requests and supporting PR feedback |
-| Issues (`issues`) | Read and write | Posting and updating PR comments through GitHub's issue comments API |
+| Contents (`contents`) | Read-only | Grants access to repository contents, but is not required by Tuist's PR-comment or bundle-size-check workflows |
+| Pull requests (`pull_requests`) | Read and write | Reading pull requests, including their head commit SHA, and listing, posting, and updating PR comments |
+| Issues (`issues`) | Read and write | Currently requested, but redundant for PR comments when `pull_requests: write` is granted |
 | Checks (`checks`) | Read and write | Creating and updating check runs, including bundle-size pass/fail checks |
 
-The App subscribes to the `check_run`, `pull_request`, and `issue_comment` webhook events. The manifest flow configures these permissions and subscriptions automatically.
+Tuist posts PR comments through GitHub's issue comments API because GitHub treats every pull request as an issue. However, the [comment endpoints](https://docs.github.com/en/rest/issues/comments?apiVersion=2022-11-28) accept either Issues or Pull requests permissions: using an `/issues/.../comments` endpoint does not require `issues: write` when `pull_requests: write` is already granted.
+
+For PR comments and bundle-size checks, the minimum repository permissions are `metadata: read`, `pull_requests: write`, and `checks: write`. `contents: read` and `issues: write` are not required for those workflows. The current manifest still requests both and does not offer a reduced-permissions option during setup.
+
+The manifest also subscribes to the `check_run`, `pull_request`, and `issue_comment` webhook events. The manifest flow configures these subscriptions automatically. Tuist currently handles `check_run` events for bundle-size check actions; its webhook handler ignores `pull_request` and `issue_comment` events.
 
 For manual App setup on github.com with a self-hosted Tuist server, see <.localized_link href="/guides/server/self-host/server#platform-github-registering-the-app">the self-hosting guide</.localized_link>.
 
