@@ -21,7 +21,7 @@ import (
 func TestVolumeUsagePersistsRetriesAndHostIdentity(t *testing.T) {
 	root := t.TempDir()
 	warm := true
-	usage := &volumeUsage{PodName: "guest-chosen", PodUID: "guest", VolumeName: "guest", AttachedAt: "2026-09-30T08:00:00Z", AttachMS: 42, AttachedSizeBytes: 1024, SizeBytes: 4096, CapacityBytes: 20000000000, Warm: &warm}
+	usage := &volumeUsage{PodName: "guest-chosen", PodUID: "guest", VolumeName: "guest", AttachedAt: time.Now().UTC().Format(time.RFC3339), AttachMS: 42, AttachedSizeBytes: 1024, SizeBytes: 4096, CapacityBytes: 20000000000, Warm: &warm}
 	entry := &Entry{PodName: "actual-pod", PodUID: "actual-uid", Volume: VolumeAttachment{VolumeName: "tuist-cache", PromotedGeneration: 3}}
 	worker := NewConvergeWorker(&VolumeManager{Root: root, CapGiB: 28}, false, nil)
 	if err := worker.queueUsage(entry, usage, VolumeOutcomePromoted); err != nil {
@@ -56,11 +56,81 @@ func TestVolumeUsagePersistsRetriesAndHostIdentity(t *testing.T) {
 		t.Fatal("failed report was lost", err)
 	}
 	restarted.reportUsage(context.Background())
+	if attempts != 1 {
+		t.Fatalf("retried before the backoff elapsed: %d attempts", attempts)
+	}
+	past := time.Now().Add(-time.Second)
+	if err := os.Chtimes(path, past, past); err != nil {
+		t.Fatal(err)
+	}
+	restarted.reportUsage(context.Background())
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatal("acknowledged report retained", err)
 	}
 	if attempts != 2 {
 		t.Fatalf("attempts %d", attempts)
+	}
+}
+
+func TestVolumeUsageDropsReportsTheServerWillNeverAccept(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		status   int
+		attached time.Time
+		dropped  bool
+	}{
+		{"execution unavailable", http.StatusGone, time.Now(), true},
+		{"invalid report", http.StatusUnprocessableEntity, time.Now(), true},
+		{"execution pending", http.StatusTooEarly, time.Now(), false},
+		{"server unavailable", http.StatusServiceUnavailable, time.Now(), false},
+		{"pending past the max age", http.StatusTooEarly, time.Now().Add(-usageReportMaxAge - time.Minute), true},
+		{"server unavailable past the max age", http.StatusServiceUnavailable, time.Now().Add(-usageReportMaxAge - time.Minute), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			warm := true
+			usage := &volumeUsage{AttachedAt: tc.attached.UTC().Format(time.RFC3339), CapacityBytes: 1, Warm: &warm}
+			entry := &Entry{PodName: "pod", PodUID: "uid", Volume: VolumeAttachment{VolumeName: "tuist-cache"}}
+			worker := NewConvergeWorker(&VolumeManager{Root: root, CapGiB: 28}, false, nil)
+			if err := worker.queueUsage(entry, usage, VolumeOutcomeDiscarded); err != nil {
+				t.Fatal(err)
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+			}))
+			defer server.Close()
+			worker.Prefetch = &ServerPrefetch{Client: fake.NewSimpleClientset(), endpoint: server.URL, token: "host-token", tokenExpiry: time.Now().Add(5 * time.Minute)}
+			worker.reportUsage(context.Background())
+			path := filepath.Join(root, "usage-reports", "uid.json")
+			info, err := os.Stat(path)
+			if tc.dropped {
+				if !os.IsNotExist(err) {
+					t.Fatal("report retained", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal("report dropped", err)
+			}
+			if !info.ModTime().After(time.Now()) {
+				t.Fatal("retry not deferred")
+			}
+		})
+	}
+}
+
+func TestVolumeUsageKeepsReportsBlockedByLocalFailures(t *testing.T) {
+	root := t.TempDir()
+	warm := true
+	usage := &volumeUsage{AttachedAt: time.Now().Add(-usageReportMaxAge - time.Hour).UTC().Format(time.RFC3339), CapacityBytes: 1, Warm: &warm}
+	entry := &Entry{PodName: "pod", PodUID: "uid", Volume: VolumeAttachment{VolumeName: "tuist-cache"}}
+	worker := NewConvergeWorker(&VolumeManager{Root: root, CapGiB: 28}, false, &ServerPrefetch{})
+	if err := worker.queueUsage(entry, usage, VolumeOutcomeDiscarded); err != nil {
+		t.Fatal(err)
+	}
+	worker.reportUsage(context.Background())
+	if _, err := os.Stat(filepath.Join(root, "usage-reports", "uid.json")); err != nil {
+		t.Fatal("report waiting for an unknown endpoint was dropped", err)
 	}
 }
 
