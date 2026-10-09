@@ -99,6 +99,7 @@ defmodule Tuist.Runners do
   """
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
@@ -134,6 +135,16 @@ defmodule Tuist.Runners do
   # account's warm master nor writes into it. Fail-closed: any uncertainty means
   # the label is present and the job runs cold on an isolated branch.
   @cache_untrusted_label "tuist.dev/runner-cache-untrusted"
+
+  # Dedicated runner egress. The server stamps the gateway label with the owner
+  # label; tart-kubelet then routes the VM through that gateway and sets the
+  # ready condition, which the server waits for before handing out the
+  # credential. The Node annotation lists the gateways whose tunnel is healthy
+  # on that host.
+  @egress_gateway_label "tuist.dev/runner-egress-gateway"
+  @egress_ready_condition "tuist.dev/RunnerEgressReady"
+  @egress_ready_gateways_annotation "tuist.dev/runner-egress-ready-gateways"
+  @egress_ready_poll_interval_ms 250
 
   # The owner label gates dispatch egress: the runners-namespace
   # NetworkPolicy admits only label-less (idle, polling) Pods to the
@@ -790,6 +801,10 @@ defmodule Tuist.Runners do
       pool reconciler replaces the Pod with one on the current
       image. In-flight customer jobs are unaffected because
       the check runs only on idle polls (before claim attempt).
+    * `{:error, :egress_aborted}`: the claim was bound to the account's
+      dedicated egress gateway but could not complete, so it was released.
+      The Pod's VM is routed for that account, so the web layer answers
+      410 and the Pod is replaced rather than offered another job.
   """
   def dispatch_for_sa(namespace, sa_name) when is_binary(namespace) and is_binary(sa_name) do
     :telemetry.span(Telemetry.event_name_dispatch_request(), %{}, fn ->
@@ -824,29 +839,26 @@ defmodule Tuist.Runners do
   # it to `claimed`), so there is no cross-store lag to defend
   # against. It only accumulates jobs this poll already lost a claim
   # race for.
+  #
+  # `ready_egress_gateways` memoizes, for the rest of this request, the
+  # gateways the polling host's Node reports healthy. It stays `nil` until a
+  # candidate's account has a dedicated gateway, so dispatch for every other
+  # account never reads the Node for it.
   defp claim_and_serve(namespace, sa_name, fleet_name, node_name) do
-    claim_and_serve(
-      namespace,
-      sa_name,
-      fleet_name,
-      node_name,
-      [],
-      [],
-      [],
-      @max_claim_attempts_per_dispatch
-    )
+    claim_and_serve(%{
+      namespace: namespace,
+      sa_name: sa_name,
+      fleet_name: fleet_name,
+      node_name: node_name,
+      excluded_account_ids: [],
+      excluded_repositories: [],
+      excluded_workflow_job_ids: [],
+      attempts_left: @max_claim_attempts_per_dispatch,
+      ready_egress_gateways: nil
+    })
   end
 
-  defp claim_and_serve(
-         _namespace,
-         sa_name,
-         fleet_name,
-         _node_name,
-         _excluded_account_ids,
-         _excluded_repositories,
-         _excluded_workflow_job_ids,
-         0
-       ) do
+  defp claim_and_serve(%{attempts_left: 0, fleet_name: fleet_name, sa_name: sa_name}) do
     Logger.debug("runners: claim attempts exhausted",
       fleet: fleet_name,
       sa: sa_name
@@ -855,46 +867,110 @@ defmodule Tuist.Runners do
     {:error, :lost_race}
   end
 
-  defp claim_and_serve(
-         namespace,
-         sa_name,
-         fleet_name,
-         node_name,
-         excluded_account_ids,
-         excluded_repositories,
-         excluded_workflow_job_ids,
-         attempts_left
-       ) do
+  defp claim_and_serve(state) do
     case pick_affine_candidate(
-           fleet_name,
-           node_name,
-           excluded_account_ids,
-           excluded_repositories,
-           excluded_workflow_job_ids
+           state.fleet_name,
+           state.node_name,
+           state.excluded_account_ids,
+           state.excluded_repositories,
+           state.excluded_workflow_job_ids
          ) do
       {:ok, candidate, affinity_outcome} ->
-        claim_candidate(%{
-          namespace: namespace,
-          sa_name: sa_name,
-          fleet_name: fleet_name,
-          node_name: node_name,
-          candidate: candidate,
-          affinity_outcome: affinity_outcome,
-          retry_context: %{
-            excluded_account_ids: excluded_account_ids,
-            excluded_repositories: excluded_repositories,
-            excluded_workflow_job_ids: excluded_workflow_job_ids,
-            attempts_left: attempts_left
-          }
-        })
+        gate_egress(state, candidate, affinity_outcome)
 
       {:error, :empty} ->
         {:error, :empty}
     end
   end
 
-  defp claim_candidate(%{candidate: candidate, fleet_name: fleet_name} = context) do
-    case candidate_resources(candidate, fleet_name) do
+  # An account with a dedicated egress gateway is dispatched only to a macOS
+  # host whose Node lists that gateway as healthy. Otherwise the account is
+  # skipped for this poll, like `:account_busy`, and its jobs stay queued.
+  defp gate_egress(state, candidate, affinity_outcome) do
+    case Accounts.runner_egress_gateway(candidate.account_id) do
+      nil ->
+        claim_candidate(state, candidate, affinity_outcome, nil)
+
+      gateway ->
+        case egress_gateway_ready(state, gateway) do
+          {:ok, state} ->
+            claim_candidate(state, candidate, affinity_outcome, gateway)
+
+          {{:error, reason}, state} ->
+            :telemetry.execute(
+              Telemetry.event_name_dispatch_egress_held(),
+              %{count: 1},
+              %{
+                fleet: state.fleet_name,
+                account_id: Integer.to_string(candidate.account_id),
+                gateway: gateway,
+                reason: Atom.to_string(reason)
+              }
+            )
+
+            Logger.debug("runners: holding dispatch for dedicated egress account",
+              fleet: state.fleet_name,
+              sa: state.sa_name,
+              account_id: candidate.account_id,
+              gateway: gateway,
+              reason: reason
+            )
+
+            claim_and_serve(%{state | excluded_account_ids: [candidate.account_id | state.excluded_account_ids]})
+        end
+    end
+  end
+
+  defp egress_gateway_ready(state, gateway) do
+    if Catalog.fleet_platform(state.fleet_name) == :macos do
+      state = Map.update!(state, :ready_egress_gateways, &(&1 || node_ready_egress_gateways(state.node_name)))
+
+      if MapSet.member?(state.ready_egress_gateways, gateway),
+        do: {:ok, state},
+        else: {{:error, :gateway_not_ready}, state}
+    else
+      {{:error, :platform}, state}
+    end
+  end
+
+  defp node_ready_egress_gateways(node_name) when is_binary(node_name) do
+    case K8sClient.get_node(node_name) do
+      {:ok, node} ->
+        node
+        |> get_in(["metadata", "annotations", @egress_ready_gateways_annotation])
+        |> parse_egress_gateways()
+
+      {:error, reason} ->
+        Logger.warning("runners: node read failed; holding dedicated egress dispatch",
+          node: node_name,
+          reason: inspect(reason)
+        )
+
+        MapSet.new()
+    end
+  end
+
+  defp node_ready_egress_gateways(_node_name), do: MapSet.new()
+
+  defp parse_egress_gateways(value) when is_binary(value) do
+    value
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> MapSet.new()
+  end
+
+  defp parse_egress_gateways(_value), do: MapSet.new()
+
+  defp claim_candidate(state, candidate, affinity_outcome, egress_gateway) do
+    context =
+      Map.merge(state, %{
+        candidate: candidate,
+        affinity_outcome: affinity_outcome,
+        egress_gateway: egress_gateway
+      })
+
+    case candidate_resources(candidate, state.fleet_name) do
       {:ok, resources} ->
         attempt_candidate(context, resources)
 
@@ -984,6 +1060,9 @@ defmodule Tuist.Runners do
     {:error, reason}
   end
 
+  # A claim bound to a dedicated egress gateway never retries: once the Pod
+  # carries the gateway label its VM is routed for that account, so
+  # `serve_claim/2` ends such a request with `:egress_aborted` instead.
   defp handle_serve_claim({:error, {mint_failure, exclusion_scope}}, context)
        when mint_failure in [:github_mint_failed, :buildkite_mint_failed, :gitlab_mint_failed] and
               exclusion_scope in [:account, :repository, :workflow_job] do
@@ -991,28 +1070,6 @@ defmodule Tuist.Runners do
   end
 
   defp handle_serve_claim(result, _context), do: result
-
-  defp retry_claim_and_serve(
-         %{
-           namespace: namespace,
-           sa_name: sa_name,
-           fleet_name: fleet_name,
-           node_name: node_name,
-           retry_context: retry_context,
-           candidate: candidate
-         },
-         exclusion_scope
-       ) do
-    retry_claim_and_serve(
-      namespace,
-      sa_name,
-      fleet_name,
-      node_name,
-      retry_context,
-      candidate,
-      exclusion_scope
-    )
-  end
 
   defp candidate_resources(%{platform: "linux", vcpus: vcpus, memory_gb: memory_gb}, _fleet_name)
        when is_integer(vcpus) and vcpus > 0 and is_integer(memory_gb) and memory_gb > 0,
@@ -1024,82 +1081,41 @@ defmodule Tuist.Runners do
 
   defp candidate_resources(_candidate, fleet_name), do: Catalog.resources_for_fleet(fleet_name)
 
-  defp retry_claim_and_serve(
-         namespace,
-         sa_name,
-         fleet_name,
-         node_name,
-         %{
-           excluded_account_ids: excluded_account_ids,
-           excluded_repositories: excluded_repositories,
-           excluded_workflow_job_ids: excluded_workflow_job_ids,
-           attempts_left: attempts_left
-         },
-         candidate,
-         :workflow_job
-       ) do
-    claim_and_serve(
-      namespace,
-      sa_name,
-      fleet_name,
-      node_name,
-      excluded_account_ids,
-      excluded_repositories,
-      [candidate.workflow_job_id | excluded_workflow_job_ids],
-      attempts_left - 1
-    )
+  defp retry_claim_and_serve(%{candidate: candidate} = context, :workflow_job) do
+    context
+    |> claim_loop_state()
+    |> Map.update!(:excluded_workflow_job_ids, &[candidate.workflow_job_id | &1])
+    |> Map.update!(:attempts_left, &(&1 - 1))
+    |> claim_and_serve()
   end
 
-  defp retry_claim_and_serve(
-         namespace,
-         sa_name,
-         fleet_name,
-         node_name,
-         %{
-           excluded_account_ids: excluded_account_ids,
-           excluded_repositories: excluded_repositories,
-           excluded_workflow_job_ids: excluded_workflow_job_ids,
-           attempts_left: attempts_left
-         },
-         candidate,
-         :account
-       ) do
-    claim_and_serve(
-      namespace,
-      sa_name,
-      fleet_name,
-      node_name,
-      [candidate.account_id | excluded_account_ids],
-      excluded_repositories,
-      excluded_workflow_job_ids,
-      attempts_left
-    )
+  defp retry_claim_and_serve(%{candidate: candidate} = context, :account) do
+    context
+    |> claim_loop_state()
+    |> Map.update!(:excluded_account_ids, &[candidate.account_id | &1])
+    |> claim_and_serve()
   end
 
-  defp retry_claim_and_serve(
-         namespace,
-         sa_name,
-         fleet_name,
-         node_name,
-         %{
-           excluded_account_ids: excluded_account_ids,
-           excluded_repositories: excluded_repositories,
-           excluded_workflow_job_ids: excluded_workflow_job_ids,
-           attempts_left: attempts_left
-         },
-         candidate,
-         :repository
-       ) do
-    claim_and_serve(
-      namespace,
-      sa_name,
-      fleet_name,
-      node_name,
-      excluded_account_ids,
-      [candidate.repository | excluded_repositories],
-      excluded_workflow_job_ids,
-      attempts_left - 1
-    )
+  defp retry_claim_and_serve(%{candidate: candidate} = context, :repository) do
+    context
+    |> claim_loop_state()
+    |> Map.update!(:excluded_repositories, &[candidate.repository | &1])
+    |> Map.update!(:attempts_left, &(&1 - 1))
+    |> claim_and_serve()
+  end
+
+  defp claim_loop_state(context) do
+    Map.take(context, [
+      :namespace,
+      :sa_name,
+      :fleet_name,
+      :node_name,
+      :excluded_account_ids,
+      :excluded_repositories,
+      :excluded_workflow_job_ids,
+      :attempts_left,
+      :ready_egress_gateways
+    ])
   end
 
   # Fetch the K oldest queued candidates and let the volume-affinity policy
@@ -1196,7 +1212,8 @@ defmodule Tuist.Runners do
       fleet_name: fleet_name,
       candidate: candidate,
       resources: resources,
-      affinity_outcome: affinity_outcome
+      affinity_outcome: affinity_outcome,
+      egress_gateway: egress_gateway
     } = context
 
     # Already resolved upstream for cache-volume affinity, so recording it on
@@ -1207,15 +1224,27 @@ defmodule Tuist.Runners do
     case Accounts.get_account_by_id(candidate.account_id) do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
+        egress_started_at = System.monotonic_time(:millisecond)
 
         with {:ok, %{dispatch_label: pool_dispatch_label, runner_labels: runner_labels}} <-
                Dispatch.pool_summary_by_name(fleet_name),
              dispatch_label = pick_dispatch_label(candidate, pool_dispatch_label),
-             :ok <- stamp_owner_label(namespace, pod_name, account),
+             :ok <- stamp_owner_label(namespace, pod_name, account, egress_gateway),
              {:ok, credential, runner_name} <-
-               mint_credential(account, candidate, sa_name, dispatch_label, runner_labels),
-             :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name, claim.claimed_at),
-             :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
+               account
+               |> mint_credential(candidate, sa_name, dispatch_label, runner_labels)
+               |> egress_bound(egress_gateway, :mint_failed),
+             {:ok, egress_wait_ms} <- await_egress_ready(namespace, pod_name, egress_gateway, egress_started_at),
+             :ok <-
+               candidate.workflow_job_id
+               |> Claims.mark_running(runner_name, claim.claimed_at)
+               |> egress_bound(egress_gateway, :mark_running_failed),
+             :ok <-
+               candidate.workflow_job_id
+               |> record_running_safe(runner_name)
+               |> egress_bound(egress_gateway, :record_running_failed) do
+          if egress_gateway, do: record_egress_commit(fleet_name, egress_gateway, :ready, egress_wait_ms)
+
           # Fork-exclusion: only a trusted (same-repo, non-fork) job may touch
           # the account's shared cache. Determine trust fail-closed — any
           # uncertainty means untrusted, so the job runs cold and cannot poison
@@ -1298,6 +1327,27 @@ defmodule Tuist.Runners do
              volume_head: if(trusted, do: volume_head_payload(account, volume_name))
            }}
         else
+          {:error, {:egress_aborted, outcome, reason}} ->
+            release_safely(candidate, claim, reason)
+
+            Logger.warning("runners: dedicated egress dispatch failed; releasing claim and recycling pod",
+              account: account.name,
+              sa: sa_name,
+              gateway: egress_gateway,
+              outcome: outcome,
+              reason: inspect(reason),
+              workflow_job_id: candidate.workflow_job_id
+            )
+
+            record_egress_commit(
+              fleet_name,
+              egress_gateway,
+              outcome,
+              System.monotonic_time(:millisecond) - egress_started_at
+            )
+
+            {:error, :egress_aborted}
+
           {:error, reason} = err ->
             release_safely(candidate, claim, reason)
             err
@@ -1377,9 +1427,65 @@ defmodule Tuist.Runners do
 
   # The owner label gates dispatch egress (see the @owner_label_stamp_attempts
   # note) so it is stamped as soon as the claim is won, before the JIT mint.
-  defp stamp_owner_label(namespace, pod_name, account) do
+  defp stamp_owner_label(namespace, pod_name, account, nil) do
     patch = %{"metadata" => %{"labels" => %{@owner_label => account.name}}}
     patch_pod_labels(namespace, pod_name, patch, @owner_label_stamp_attempts)
+  end
+
+  # The gateway label must land: without it the host never routes the VM, so a
+  # failed stamp ends the dispatch instead of degrading like the owner label.
+  defp stamp_owner_label(namespace, pod_name, account, egress_gateway) do
+    patch = %{"metadata" => %{"labels" => %{@owner_label => account.name, @egress_gateway_label => egress_gateway}}}
+
+    case try_patch_pod_labels(namespace, pod_name, patch, @owner_label_stamp_attempts) do
+      :ok -> :ok
+      {:error, reason} -> {:error, {:egress_aborted, :label_stamp_failed, reason}}
+    end
+  end
+
+  defp egress_bound({:error, reason}, egress_gateway, outcome) when is_binary(egress_gateway),
+    do: {:error, {:egress_aborted, outcome, reason}}
+
+  defp egress_bound(result, _egress_gateway, _outcome), do: result
+
+  defp await_egress_ready(_namespace, _pod_name, nil, _started_at), do: {:ok, nil}
+
+  defp await_egress_ready(namespace, pod_name, _egress_gateway, started_at) do
+    poll_egress_ready(namespace, pod_name, started_at, started_at + Environment.runner_egress_ready_timeout_ms())
+  end
+
+  defp poll_egress_ready(namespace, pod_name, started_at, deadline) do
+    ready? = egress_ready?(K8sClient.get_pod(namespace, pod_name))
+    now = System.monotonic_time(:millisecond)
+
+    cond do
+      ready? ->
+        {:ok, now - started_at}
+
+      now >= deadline ->
+        {:error, {:egress_aborted, :not_ready, :timeout}}
+
+      true ->
+        Process.sleep(min(@egress_ready_poll_interval_ms, deadline - now))
+        poll_egress_ready(namespace, pod_name, started_at, deadline)
+    end
+  end
+
+  defp egress_ready?({:ok, pod}) do
+    pod
+    |> get_in(["status", "conditions"])
+    |> List.wrap()
+    |> Enum.any?(&match?(%{"type" => @egress_ready_condition, "status" => "True"}, &1))
+  end
+
+  defp egress_ready?(_result), do: false
+
+  defp record_egress_commit(fleet_name, egress_gateway, outcome, wait_ms) do
+    :telemetry.execute(
+      Telemetry.event_name_dispatch_egress_commit(),
+      %{count: 1, wait_ms: wait_ms},
+      %{fleet: fleet_name, gateway: egress_gateway, outcome: Atom.to_string(outcome)}
+    )
   end
 
   # The account label is the host's cache-materialize trigger: tart-kubelet
@@ -1443,19 +1549,10 @@ defmodule Tuist.Runners do
     _ -> false
   end
 
-  defp patch_pod_labels(namespace, pod_name, patch, attempts_left) do
-    case K8sClient.patch_pod(namespace, pod_name, patch) do
-      {:ok, _} ->
+  defp patch_pod_labels(namespace, pod_name, patch, attempts) do
+    case try_patch_pod_labels(namespace, pod_name, patch, attempts) do
+      :ok ->
         :ok
-
-      {:error, reason} when attempts_left > 1 ->
-        Logger.warning("runners: pod label stamp failed; retrying",
-          pod: pod_name,
-          reason: inspect(reason)
-        )
-
-        Process.sleep(@owner_label_stamp_retry_backoff_ms)
-        patch_pod_labels(namespace, pod_name, patch, attempts_left - 1)
 
       {:error, reason} ->
         Logger.warning(
@@ -1470,6 +1567,25 @@ defmodule Tuist.Runners do
         # the label" rather than dropping the job. Per-account cap
         # accounting reads from Postgres, not these labels.
         :ok
+    end
+  end
+
+  defp try_patch_pod_labels(namespace, pod_name, patch, attempts_left) do
+    case K8sClient.patch_pod(namespace, pod_name, patch) do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} when attempts_left > 1 ->
+        Logger.warning("runners: pod label stamp failed; retrying",
+          pod: pod_name,
+          reason: inspect(reason)
+        )
+
+        Process.sleep(@owner_label_stamp_retry_backoff_ms)
+        try_patch_pod_labels(namespace, pod_name, patch, attempts_left - 1)
+
+      {:error, _reason} = error ->
+        error
     end
   end
 
@@ -1753,8 +1869,12 @@ defmodule Tuist.Runners do
     end
   end
 
-  # A Pod carries the account label once its dispatch has committed.
-  defp committed?(pod), do: is_binary(get_in(pod, ["metadata", "labels", @account_label]))
+  # A Pod carries the account label once its dispatch has committed, and the
+  # egress gateway label as soon as its VM is bound to one account's route.
+  defp committed?(pod) do
+    labels = get_in(pod, ["metadata", "labels"]) || %{}
+    is_binary(labels[@account_label]) or is_binary(labels[@egress_gateway_label])
+  end
 
   defp operator_drain?(pod), do: get_in(pod, ["metadata", "labels", @operator_drain_label]) == "true"
 

@@ -6577,4 +6577,34 @@ defmodule Tuist.AccountsTest do
                %{account.name => account.id, downcased => account.id}
     end
   end
+
+  describe "runner egress gateway" do
+    test "reads back the gateway an operator assigned, and nil once cleared" do
+      account = account_fixture()
+      assert Accounts.runner_egress_gateway(account.id) == nil
+
+      assert {:ok, account} = Accounts.update_runner_egress_gateway(account, "dedicated-1")
+      assert Accounts.runner_egress_gateway(account.id) == "dedicated-1"
+
+      assert {:ok, account} = Accounts.update_runner_egress_gateway(account, nil)
+      assert Accounts.runner_egress_gateway(account.id) == nil
+    end
+
+    test "rejects a gateway name the Mac hosts cannot use" do
+      account = account_fixture()
+
+      for name <- ["Dedicated-1", "dedicated_1", "a,b", "-dedicated", String.duplicate("a", 25)] do
+        assert {:error, changeset} = Accounts.update_runner_egress_gateway(account, name)
+        assert %{runner_egress_gateway: ["has invalid format"]} = errors_on(changeset)
+      end
+    end
+
+    test "is not settable through the account update changeset" do
+      account = account_fixture()
+
+      changeset = Account.update_changeset(account, %{runner_egress_gateway: "dedicated-1"})
+
+      refute Map.has_key?(changeset.changes, :runner_egress_gateway)
+    end
+  end
 end

@@ -4,6 +4,8 @@ defmodule Tuist.RunnersTest do
   import Mimic
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.KeyValueStore
@@ -1971,6 +1973,357 @@ defmodule Tuist.RunnersTest do
       assert_received {:execution_recorded, job_id, account_id}
       assert job_id == candidate.workflow_job_id
       assert account_id == account.id
+    end
+  end
+
+  describe "dispatch_for_sa/2 dedicated egress" do
+    setup do
+      stub(Environment, :runner_egress_ready_timeout_ms, fn -> 1_000 end)
+
+      test_pid = self()
+      handler_id = make_ref()
+
+      :telemetry.attach_many(
+        handler_id,
+        [Telemetry.event_name_dispatch_egress_held(), Telemetry.event_name_dispatch_egress_commit()],
+        fn event, measurements, metadata, _config -> send(test_pid, {:telemetry, event, measurements, metadata}) end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      :ok
+    end
+
+    defp egress_account(gateway) do
+      account = account_fixture()
+
+      if gateway do
+        {:ok, account} = Accounts.update_runner_egress_gateway(account, gateway)
+        account
+      else
+        account
+      end
+    end
+
+    defp mac_candidate(account, workflow_job_id \\ 70_001) do
+      %{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "fleet-a",
+        repository: "acme/app",
+        workflow_run_id: workflow_job_id * 10,
+        run_attempt: 1,
+        workflow_name: "CI",
+        job_name: "build",
+        head_branch: "main",
+        head_sha: "deadbeef",
+        platform: "macos",
+        vcpus: 4,
+        memory_gb: 16,
+        requested_dispatch_label: "tuist-macos",
+        enqueued_at: DateTime.utc_now()
+      }
+    end
+
+    defp egress_ready_pod(status) do
+      "pod-1"
+      |> pod_with_image("ghcr.io/tuist/tuist-runner@sha256:current", node_name: "mac-07")
+      |> Map.put("status", %{
+        "conditions" => [%{"type" => "tuist.dev/RunnerEgressReady", "status" => status}]
+      })
+    end
+
+    defp node_with_ready_gateways(value) do
+      annotations = if value, do: %{"tuist.dev/runner-egress-ready-gateways" => value}, else: %{}
+      {:ok, %{"metadata" => %{"name" => "mac-07", "annotations" => annotations}}}
+    end
+
+    # Everything up to the claim: the polling Pod on mac-07, its fleet, and the
+    # queued candidates. The node's cache residency is served from the cache, so
+    # any `get_node` call comes from the egress gate.
+    defp stub_egress_poll(candidates, opts \\ []) do
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+      platform = Keyword.get(opts, :platform, :macos)
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, pod_with_image("pod-1", image, node_name: "mac-07")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:ok, pool_with_image(image)} end)
+      stub(Catalog, :fleet_platform, fn "fleet-a" -> platform end)
+
+      stub(KeyValueStore, :get_or_update, fn
+        [:runner_node_cache_volumes, _node], _opts, _fun -> %{masters: MapSet.new(), repository_volumes?: false}
+        _key, _opts, fun -> fun.()
+      end)
+
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, candidates} end)
+    end
+
+    defp stub_egress_claim(candidate, claimed_at) do
+      expect(Claims, :attempt, fn workflow_job_id, _account_id, "fleet-a", "pod-1", _resources ->
+        assert workflow_job_id == candidate.workflow_job_id
+        {:ok, %{claimed_at: claimed_at}}
+      end)
+
+      expect(Jobs, :record_claimed, fn ^candidate, "pod-1", ^claimed_at -> :ok end)
+
+      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
+        {:ok, %{dispatch_label: "tuist-macos", runner_labels: ["self-hosted", "macOS", "ARM64"]}}
+      end)
+
+      stub(VCS, :get_github_app_installation_for_account, fn _account_id ->
+        {:ok, %{installation_id: 42, client_url: "https://github.com"}}
+      end)
+
+      stub(GitHubClient, :get_workflow_run, fn %{repository_full_handle: repository} ->
+        {:ok, %{"head_repository" => %{"full_name" => repository}, "repository" => %{"full_name" => repository}}}
+      end)
+
+      stub(CacheGrant, :mint, fn _account_id -> nil end)
+
+      expect(GitHubClient, :generate_jit_config, fn _installation, _login, attrs ->
+        {:ok, %{encoded_jit_config: "jit-blob", runner_name: attrs.name}}
+      end)
+    end
+
+    defp capture_patches do
+      test_pid = self()
+
+      stub(K8sClient, :patch_pod, fn "tuist-runners", "pod-1", patch ->
+        send(test_pid, {:patched, get_in(patch, ["metadata", "labels"])})
+        {:ok, %{}}
+      end)
+    end
+
+    test "dispatches an account without a gateway without reading the node for it" do
+      account = egress_account(nil)
+      candidate = mac_candidate(account)
+      stub_egress_poll([candidate])
+      stub_egress_claim(candidate, DateTime.utc_now())
+      capture_patches()
+      reject(&K8sClient.get_node/1)
+      reject(&K8sClient.get_node/2)
+
+      expect(Claims, :mark_running, fn _workflow_job_id, _runner_name, _claimed_at -> :ok end)
+      expect(Jobs, :record_running, fn _workflow_job_id, _runner_name -> :ok end)
+
+      assert {:ok, _result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      owner = account.name
+      assert_receive {:patched, %{"tuist.dev/runner-pool-owner" => ^owner} = owner_labels}
+      refute Map.has_key?(owner_labels, "tuist.dev/runner-egress-gateway")
+      refute_receive {:telemetry, _event, _measurements, _metadata}
+    end
+
+    test "holds a gateway account when the polling node does not report the gateway ready" do
+      account = egress_account("dedicated-1")
+      account_id = account.id
+      stub_egress_poll([mac_candidate(account)])
+
+      expect(K8sClient, :get_node, fn "mac-07" -> node_with_ready_gateways("dedicated-2") end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [^account_id], [], [], _k -> {:error, :empty} end)
+      reject(&Claims.attempt/5)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      account_label = Integer.to_string(account_id)
+
+      assert_receive {:telemetry, [:tuist, :runners, :dispatch, :egress_held], %{count: 1},
+                      %{account_id: ^account_label, gateway: "dedicated-1", reason: "gateway_not_ready"}}
+    end
+
+    test "holds a gateway account when the node has no ready gateways" do
+      account = egress_account("dedicated-1")
+      stub_egress_poll([mac_candidate(account)])
+
+      expect(K8sClient, :get_node, fn "mac-07" -> node_with_ready_gateways(nil) end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [_account_id], [], [], _k -> {:error, :empty} end)
+      reject(&Claims.attempt/5)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert_receive {:telemetry, [:tuist, :runners, :dispatch, :egress_held], _, %{reason: "gateway_not_ready"}}
+    end
+
+    test "holds a gateway account when the node cannot be read" do
+      account = egress_account("dedicated-1")
+      stub_egress_poll([mac_candidate(account)])
+
+      expect(K8sClient, :get_node, fn "mac-07" -> {:error, :timeout} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [_account_id], [], [], _k -> {:error, :empty} end)
+      reject(&Claims.attempt/5)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert_receive {:telemetry, [:tuist, :runners, :dispatch, :egress_held], _, %{reason: "gateway_not_ready"}}
+    end
+
+    test "holds a gateway account on a fleet that is not macOS" do
+      account = egress_account("dedicated-1")
+      stub_egress_poll([mac_candidate(account)], platform: :linux)
+
+      reject(&K8sClient.get_node/1)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [_account_id], [], [], _k -> {:error, :empty} end)
+      reject(&Claims.attempt/5)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert_receive {:telemetry, [:tuist, :runners, :dispatch, :egress_held], _, %{reason: "platform"}}
+    end
+
+    test "dispatches the next account while one is held, reading the node once" do
+      held = egress_account("dedicated-1")
+      also_held = egress_account("dedicated-1")
+      eligible = egress_account(nil)
+      held_id = held.id
+      also_held_id = also_held.id
+      eligible_candidate = mac_candidate(eligible, 70_003)
+
+      stub_egress_poll([mac_candidate(held)])
+      expect(K8sClient, :get_node, 1, fn "mac-07" -> node_with_ready_gateways("") end)
+
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [^held_id], [], [], _k ->
+        {:ok, [mac_candidate(also_held, 70_002)]}
+      end)
+
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [^also_held_id, ^held_id], [], [], _k ->
+        {:ok, [eligible_candidate]}
+      end)
+
+      stub_egress_claim(eligible_candidate, DateTime.utc_now())
+      capture_patches()
+      expect(Claims, :mark_running, fn _workflow_job_id, _runner_name, _claimed_at -> :ok end)
+      expect(Jobs, :record_running, fn _workflow_job_id, _runner_name -> :ok end)
+
+      assert {:ok, %{account: %{id: eligible_id}}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert eligible_id == eligible.id
+    end
+
+    test "stamps the gateway with the owner label and serves once the host confirms the route" do
+      account = egress_account("dedicated-1")
+      candidate = mac_candidate(account)
+      stub_egress_poll([candidate])
+      expect(K8sClient, :get_node, fn "mac-07" -> node_with_ready_gateways("shared-0, dedicated-1") end)
+      stub_egress_claim(candidate, DateTime.utc_now())
+      capture_patches()
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" -> {:ok, egress_ready_pod("False")} end)
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" -> {:ok, egress_ready_pod("True")} end)
+      expect(Claims, :mark_running, fn _workflow_job_id, _runner_name, _claimed_at -> :ok end)
+      expect(Jobs, :record_running, fn _workflow_job_id, _runner_name -> :ok end)
+
+      assert {:ok, %{credential: %{kind: :github, jit: "jit-blob"}}} =
+               Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      owner = account.name
+
+      assert_receive {:patched,
+                      %{"tuist.dev/runner-pool-owner" => ^owner, "tuist.dev/runner-egress-gateway" => "dedicated-1"}}
+
+      assert_receive {:telemetry, [:tuist, :runners, :dispatch, :egress_commit], %{wait_ms: wait_ms},
+                      %{gateway: "dedicated-1", outcome: "ready"}}
+
+      assert wait_ms >= 0
+    end
+
+    test "releases the claim and recycles the pod when the route is never confirmed" do
+      stub(Environment, :runner_egress_ready_timeout_ms, fn -> 300 end)
+      account = egress_account("dedicated-1")
+      candidate = mac_candidate(account)
+      other_candidate = mac_candidate(egress_account(nil), 70_009)
+      claimed_at = DateTime.utc_now()
+
+      stub_egress_poll([candidate, other_candidate])
+      expect(K8sClient, :get_node, fn "mac-07" -> node_with_ready_gateways("dedicated-1") end)
+      stub_egress_claim(candidate, claimed_at)
+      capture_patches()
+      stub(K8sClient, :get_pod, fn "tuist-runners", "pod-1" -> {:ok, egress_ready_pod("False")} end)
+
+      expect(Claims, :release, fn workflow_job_id, ^claimed_at ->
+        assert workflow_job_id == candidate.workflow_job_id
+        :ok
+      end)
+
+      reject(&Claims.mark_running/3)
+
+      assert {:error, :egress_aborted} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      assert_receive {:telemetry, [:tuist, :runners, :dispatch, :egress_commit], _,
+                      %{gateway: "dedicated-1", outcome: "not_ready"}}
+    end
+
+    test "does not retry another job when the mint fails after the gateway was stamped" do
+      account = egress_account("dedicated-1")
+      candidate = mac_candidate(account)
+      claimed_at = DateTime.utc_now()
+
+      stub_egress_poll([candidate, mac_candidate(egress_account(nil), 70_009)])
+      expect(K8sClient, :get_node, fn "mac-07" -> node_with_ready_gateways("dedicated-1") end)
+
+      expect(Claims, :attempt, fn _workflow_job_id, _account_id, "fleet-a", "pod-1", _resources ->
+        {:ok, %{claimed_at: claimed_at}}
+      end)
+
+      expect(Jobs, :record_claimed, fn ^candidate, "pod-1", ^claimed_at -> :ok end)
+
+      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
+        {:ok, %{dispatch_label: "tuist-macos", runner_labels: ["self-hosted", "macOS", "ARM64"]}}
+      end)
+
+      stub(VCS, :get_github_app_installation_for_account, fn _account_id -> {:error, :not_found} end)
+      capture_patches()
+      expect(Claims, :release, fn _workflow_job_id, ^claimed_at -> :ok end)
+
+      assert {:error, :egress_aborted} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      assert_receive {:telemetry, [:tuist, :runners, :dispatch, :egress_commit], _,
+                      %{gateway: "dedicated-1", outcome: "mint_failed"}}
+    end
+
+    test "ends the dispatch when the gateway label cannot be stamped" do
+      account = egress_account("dedicated-1")
+      candidate = mac_candidate(account)
+      claimed_at = DateTime.utc_now()
+
+      stub_egress_poll([candidate])
+      expect(K8sClient, :get_node, fn "mac-07" -> node_with_ready_gateways("dedicated-1") end)
+
+      expect(Claims, :attempt, fn _workflow_job_id, _account_id, "fleet-a", "pod-1", _resources ->
+        {:ok, %{claimed_at: claimed_at}}
+      end)
+
+      expect(Jobs, :record_claimed, fn ^candidate, "pod-1", ^claimed_at -> :ok end)
+
+      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
+        {:ok, %{dispatch_label: "tuist-macos", runner_labels: ["self-hosted", "macOS", "ARM64"]}}
+      end)
+
+      stub(K8sClient, :patch_pod, fn "tuist-runners", "pod-1", _patch -> {:error, :timeout} end)
+      reject(&GitHubClient.generate_jit_config/3)
+      expect(Claims, :release, fn _workflow_job_id, ^claimed_at -> :ok end)
+
+      assert {:error, :egress_aborted} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      assert_receive {:telemetry, [:tuist, :runners, :dispatch, :egress_commit], _, %{outcome: "label_stamp_failed"}}
+    end
+
+    test "reaps a polling pod that is already bound to an egress gateway" do
+      pod =
+        "pod-1"
+        |> pod_with_image("img")
+        |> put_in(["metadata", "labels"], %{"tuist.dev/runner-egress-gateway" => "dedicated-1"})
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" -> {:ok, pod} end)
+      reject(&Claims.attempt/5)
+
+      assert {:error, :pod_committed} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
   end
 end

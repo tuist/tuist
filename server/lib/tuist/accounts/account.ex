@@ -70,6 +70,7 @@ defmodule Tuist.Accounts.Account do
     field :custom_cache_endpoints_enabled, :boolean, default: false
     field :runner_trial_started_at, :utc_datetime
     field :runner_trial_ended_at, :utc_datetime
+    field :runner_egress_gateway, :string
 
     belongs_to :organization, Organization
     belongs_to :user, User
@@ -140,6 +141,12 @@ defmodule Tuist.Accounts.Account do
 
   def runner_trial_changeset(account, attrs) do
     cast(account, attrs, [:runner_trial_started_at, :runner_trial_ended_at])
+  end
+
+  def runner_egress_gateway_changeset(account, attrs) do
+    account
+    |> cast(attrs, [:runner_egress_gateway])
+    |> validate_format(:runner_egress_gateway, ~r/^[a-z0-9]([-a-z0-9]{0,22}[a-z0-9])?$/)
   end
 
   def free_tier_reset_changeset(account, attrs) do

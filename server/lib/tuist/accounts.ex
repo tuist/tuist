@@ -156,6 +156,24 @@ defmodule Tuist.Accounts do
     end
   end
 
+  @doc """
+  The dedicated runner egress gateway an account's runner jobs must leave through, or
+  `nil` when they use the runner host's own address.
+  """
+  def runner_egress_gateway(account_id) do
+    Repo.one(from(a in Account, where: a.id == ^account_id, select: a.runner_egress_gateway))
+  end
+
+  @doc """
+  Assigns, or with `nil` clears, the account's dedicated runner egress gateway. Managed
+  by operators; there is no user-facing path to it.
+  """
+  def update_runner_egress_gateway(%Account{} = account, gateway) do
+    account
+    |> Account.runner_egress_gateway_changeset(%{runner_egress_gateway: gateway})
+    |> Repo.update()
+  end
+
   def get_account_by_handle(handle) do
     Repo.one(from(a in Account, where: a.name == ^handle))
   end

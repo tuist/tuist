@@ -47,6 +47,12 @@ Jobs that run on macOS <.localized_link href="/guides/features/runners">Tuist Ru
 > [!NOTE]
 > This list changes when we add machines to the fleet. We are moving the runners to a dedicated IP range so the list stays stable.
 
+These addresses belong to the machines in the fleet, which run jobs from every account that uses Tuist Runners. Allowlisting them also lets other accounts' jobs reach your infrastructure.
+
+#### Dedicated egress address {#dedicated-egress-address}
+
+If your account needs a stable address that only its jobs use, for example for a GitHub organization IP allow list, a dedicated egress address is available on the **Enterprise plan**. Your jobs then reach the internet only from that address. [Contact us](mailto:contact@tuist.dev) to set it up.
+
 <!--
 MAINTAINERS: the first table is the customer-facing contract for the reserved egress
 set. It must stay in lockstep with `ciliumEgressGateway.server.failoverController.egressIpAllowlist`
