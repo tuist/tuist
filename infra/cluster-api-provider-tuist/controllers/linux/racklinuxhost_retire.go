@@ -28,6 +28,7 @@ const rackRetireRequeue = 15 * time.Second
 // drops the finalizer. The AMT credentials stay: they belong to the box, whose
 // AMT keeps them.
 func (r *RackLinuxHostReconciler) reconcileDelete(ctx context.Context, host *infrav1.RackLinuxHost) (ctrl.Result, error) {
+	rackLinuxHostPowerReachableGauge.DeleteLabelValues(host.Spec.Hostname, host.Spec.Location.Site)
 	if !controllerutil.ContainsFinalizer(host, RackLinuxHostFinalizer) {
 		return ctrl.Result{}, nil
 	}

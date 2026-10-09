@@ -168,11 +168,21 @@ The installer can get its default route from its provisioning lease, through
 the edge, as well as from the uplinks' DHCP, so each edge translates the
 provisioning range onto its uplinks as well as into the tailnet.
 
-**Racking an MS-01** is its cables and the install stick. Its firmware stays as
-it ships: with its disk empty it boots the stick, which installs it once the
-host is declared. Netbooting instead needs, once, in Setup: Advanced → Network
-Stack Configuration → Network Stack and IPv4 PXE Support enabled; Secure Boot
-stays on. Then it netboots whenever its disk does not boot.
+**Racking an MS-01** is its cables, the install stick, and one visit to Setup
+(Del at the logo, or over its JetKVM):
+
+1. Advanced → ACPI Settings → Restore On AC Power Loss: **Always On**. It ships
+   Always Off, and an MS-01 left so stays off after a power loss until its
+   button is pressed or AMT powers it on (below). An edge must have it; the
+   others should. Always On, not Last State: `online` decides whether a host
+   stays off, and the operator shuts down one that comes back on against it.
+2. For netbooting: Advanced → Network Stack Configuration → Network Stack and
+   IPv4 PXE Support enabled. Then it netboots whenever its disk does not boot.
+3. Save and exit. Secure Boot stays on.
+
+Its i226-LM is cabled to the management switch before it is declared: that is
+the port AMT answers on. With its disk empty it boots the stick, which installs
+it once the host is declared.
 
 **The stick is the MS-01's route, a workaround for its firmware.** The MS-01 ships
 with its network stack off, and nothing but a person in Setup turns it on:
@@ -181,9 +191,10 @@ firmware's Setup variables from the OS means poking an undocumented AMI
 variable layout that changes between firmware releases, where a wrong write
 can leave the box unbootable, and changing a security setting behind the
 person racking it. A stick boots with the firmware's defaults, Secure Boot
-included, so a factory box needs no one in Setup: it announces itself,
-installs once declared, and is reinstalled through `BootNext` to the stick.
-Netboot, with its one Setup visit, is what AMT's recovery of a box that no
+included, so a factory box needs no one in Setup to install: it announces
+itself, installs once declared, and is reinstalled through `BootNext` to the
+stick. Restore On AC Power Loss is the same kind of Setup setting, which is why
+it is set by hand at racking. Netboot is what AMT's recovery of a box that no
 longer boots needs; a box without it is recovered by booting its stick. Every
 box needs its stick left plugged in, so the next machine model should be
 something like an ASRock Rack board, whose BMC sets the boot order and firmware
@@ -224,6 +235,16 @@ powered off (below) and not rebooted into an install.
 through AMT when it is not on the tailnet, and `true` powers it back on through
 AMT. A one-off reboot through AMT is the `tuist.dev/reboot` annotation (`cycle`,
 `reset` or `pxe`).
+
+**After a power loss** a host whose firmware restores comes back by itself. One
+that does not is off, and the operator powers it on through AMT once a host
+that should be on is off the tailnet and AMT reports it off, retrying with a
+backoff (`PowerMatchesOnline`, `PowerChanged` events). AMT is reached through an
+edge, so this needs an edge back first: with both edges off, only an edge's own
+Restore On AC Power Loss brings the rack back, which is why every edge must
+have it. `PowerReachable` (in `kubectl get rlh -o wide`) shows, before it is
+needed, whether a host could be powered on that way; `AMTLinkDown` is a
+management port with no link, a cable to look at.
 
 Watch it with:
 
