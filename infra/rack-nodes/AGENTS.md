@@ -529,19 +529,20 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
    case a switch has to be reached by its console). Stop staging's rack switch
    controller so it reports nothing and writes nothing meanwhile:
    `kubectl $S -n omada scale deployment rack-switch-controller --replicas=0`.
-   Then, in staging's Controller Migration from step 3, click Confirm, enter
-   production's controller tailnet IP in Controller IP/Inform URL (an address:
-   the switches resolve no tailnet names), and migrate the switches smallest
-   blast radius first: `ber1-mgmt` alone (deselect the others), then
-   `ber1-tor-b`, then `ber1-tor-a`. Each reaches the new controller through
-   the edge, which the ACL lets reach `tag:tuist-k8s-production` on the Omada
-   ports. Each shows connected in production's Devices page and in
-   `mise run rack:omada devices` from the cutover branch. Only once all three
-   are connected there, click Forget Devices in staging, which finishes the
-   migration; forgetting one staging still manages resets it. Not measured on
-   these switches yet. If a switch does not come over, `mise run rack:omada
-   inform <device>` from the cutover branch tells it the new controller
-   directly.
+   Check the path first: the switches reach the controller through the edge
+   holding `192.168.0.10`, so from it
+   `nc -z 100.91.73.50 29811` through `29817` should all answer. Then, in
+   staging's Controller Migration from step 3 (Start Export, Skip), click
+   Confirm, enter production's controller tailnet IP in Controller IP/Inform
+   URL (an address: the switches resolve no tailnet names), and Migrate
+   Devices. The controller warns that it may push each switch its full
+   configuration and drop it briefly. Done on 2026-10-09 with all three at
+   once: production showed them adopting, configuring, then connected within
+   90 seconds, and the rack kept every node Ready. One at a time limits a
+   blip to half the rack, for when it carries jobs. Do not click Forget
+   Devices in staging; its controller is uninstalled in step 17. If a switch
+   does not come over, `mise run rack:omada inform <device>` from the cutover
+   branch tells it the new controller directly.
 
 8. **Retire the rack from staging** (remote), in this order. First delete its
    objects while staging still runs the deploy from `main`: the operator's
