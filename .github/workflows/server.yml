@@ -317,6 +317,11 @@ jobs:
           restore-mix-cache: "false"
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
+      # A checkout newer than the downloaded build makes Mix treat the path
+      # dependencies as changed and recompile the app in db:reset.
+      - name: Date the checkout to the commit
+        working-directory: .
+        run: git ls-files -z server noora tuist_common tuist_ex | xargs -0 touch -d "@$(git log -1 --format=%ct)"
       - name: Authenticate and download the test build
         run: mix 'do' deps.compile tuist_ex + tuist.login + tuist.test --prepare-only
       # Run migrations in another process so migration regression tests can
@@ -373,6 +378,9 @@ jobs:
           clickhouse --version
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
+      - name: Date the checkout to the commit
+        working-directory: .
+        run: git ls-files -z server noora tuist_common tuist_ex | xargs -0 touch -d "@$(git log -1 --format=%ct)"
       - name: Authenticate and download the test build
         run: mix 'do' deps.compile tuist_ex + tuist.login + tuist.test --prepare-only
       - name: Setup database
