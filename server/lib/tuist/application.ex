@@ -35,6 +35,7 @@ defmodule Tuist.Application do
   alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
+  alias Tuist.Tests.TestRunChangedFile
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestRunError
   alias Tuist.Tests.TestRunStressCandidate
@@ -83,6 +84,7 @@ defmodule Tuist.Application do
     TransportLogger.attach(:tuist)
     QueryErrorContext.attach()
     Tuist.Repo.PromExPlugin.attach()
+    Tuist.ClickHouseRepo.PromExPlugin.attach()
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()
@@ -95,6 +97,8 @@ defmodule Tuist.Application do
       OpentelemetryEcto.setup([event_prefix: [:tuist, :ingest_repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :click_house_repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :ops_click_house_repo]] ++ ecto_skip_metrics)
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :shadow_click_house_repo]] ++ ecto_skip_metrics)
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :shadow_ingest_repo]] ++ ecto_skip_metrics)
 
       kick_opentelemetry_exporter_after_boot()
     end
@@ -335,11 +339,16 @@ defmodule Tuist.Application do
           Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
           Supervisor.child_spec(Buffer, id: Buffer),
           Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
+          Supervisor.child_spec(Tuist.Mix.Build.Buffer, id: Tuist.Mix.Build.Buffer),
+          Supervisor.child_spec(Tuist.Mix.Diagnostic.Buffer, id: Tuist.Mix.Diagnostic.Buffer),
+          Supervisor.child_spec(Tuist.Mix.CompiledFile.Buffer, id: Tuist.Mix.CompiledFile.Buffer),
+          Supervisor.child_spec(Tuist.Mix.Step.Buffer, id: Tuist.Mix.Step.Buffer),
           Supervisor.child_spec(ConfigurationOperation.Buffer, id: ConfigurationOperation.Buffer),
           Supervisor.child_spec(ArtifactTransform.Buffer, id: ArtifactTransform.Buffer),
           Supervisor.child_spec(Test.Buffer, id: Test.Buffer),
           Supervisor.child_spec(TestRunDestination.Buffer, id: TestRunDestination.Buffer),
           Supervisor.child_spec(TestRunError.Buffer, id: TestRunError.Buffer),
+          Supervisor.child_spec(TestRunChangedFile.Buffer, id: TestRunChangedFile.Buffer),
           Supervisor.child_spec(TestRunStressCandidate.Buffer, id: TestRunStressCandidate.Buffer),
           Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
           Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
@@ -353,8 +362,11 @@ defmodule Tuist.Application do
           Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
           Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
           Tuist.Vault,
+          {Task.Supervisor, name: Tuist.MCP.Events.VerificationSupervisor, max_children: 100},
+          {Task.Supervisor, name: Tuist.MCP.Events.DeliverySupervisor, max_children: 20},
           {Finch, name: Tuist.Finch, pools: finch_pools()},
           {Cachex, [:tuist, []]},
+          TuistWeb.PublicOverviewCache,
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
           {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
@@ -368,7 +380,8 @@ defmodule Tuist.Application do
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
-        [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}]
+        [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}] ++
+        once_events_grpc_children()
 
     children
     |> Kernel.++(
@@ -548,8 +561,15 @@ defmodule Tuist.Application do
 
       base_pools =
         %{
+          # Accounts with custom S3 storage talk to origins without a named
+          # pool, so the fallback pool must handle primary-storage-level load.
           :default => [
-            size: TuistCommon.FinchPools.download_pool_size(active_download_queue_concurrencies()),
+            size:
+              max(
+                TuistCommon.FinchPools.download_pool_size(active_download_queue_concurrencies()),
+                Environment.s3_pool_size()
+              ),
+            count: Environment.s3_pool_count(),
             start_pool_metrics?: true
           ],
           "https://api.github.com" => [
@@ -645,6 +665,32 @@ defmodule Tuist.Application do
   def config_change(changed, _new, removed) do
     TuistWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  # gRPC listener for `once.events.v1`. Off by default (mode = env), on
+  # when `TUIST_ONCE_EVENTS_GRPC=on`. The port defaults to 4001 so it does
+  # not collide with the Phoenix endpoint on 4000.
+  defp once_events_grpc_children do
+    if String.downcase(System.get_env("TUIST_ONCE_EVENTS_GRPC") || "off") == "on" do
+      port =
+        "TUIST_ONCE_EVENTS_GRPC_PORT"
+        |> System.get_env()
+        |> case do
+          nil -> 4001
+          "" -> 4001
+          value -> String.to_integer(value)
+        end
+
+      [
+        {GRPC.Server.Supervisor,
+         endpoint: Tuist.OnceEvents.GRPCEndpoint,
+         port: port,
+         start_server: true,
+         exception_log_filter: {Tuist.OnceEvents.GRPCExceptionFilter, :log?}}
+      ]
+    else
+      []
+    end
   end
 
   def redis_opts do

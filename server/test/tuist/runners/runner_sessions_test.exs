@@ -387,6 +387,41 @@ defmodule Tuist.Runners.RunnerSessionsTest do
     end
   end
 
+  describe "workflow_job_id_for_runner/2" do
+    test "returns the job GitHub ran on the runner, not the one it was minted for" do
+      account = account_fixture()
+      session_fixture(account, runner_name: "runner-ran-other", workflow_job_id: 9101)
+      assert :mismatch = RunnerSessions.record_execution("runner-ran-other", 9199, account.id)
+
+      assert RunnerSessions.workflow_job_id_for_runner("runner-ran-other", account.id) == {:ok, 9199}
+    end
+
+    test "falls back to the minted job before GitHub reports the execution" do
+      account = account_fixture()
+      session_fixture(account, runner_name: "runner-unbound", workflow_job_id: 9102)
+
+      assert RunnerSessions.workflow_job_id_for_runner("runner-unbound", account.id) == {:ok, 9102}
+    end
+
+    test "resolves a runner whose session has ended" do
+      account = account_fixture()
+      session_fixture(account, pod_name: "pod-ended", runner_name: "runner-ended", workflow_job_id: 9103)
+      assert :matched = RunnerSessions.record_execution("runner-ended", 9103, account.id)
+      {:ok, _} = RunnerSessions.close_by_pod_name("pod-ended", DateTime.utc_now())
+
+      assert RunnerSessions.workflow_job_id_for_runner("runner-ended", account.id) == {:ok, 9103}
+    end
+
+    test "does not cross account boundaries" do
+      account = account_fixture()
+      other_account = account_fixture()
+      session_fixture(account, runner_name: "runner-owned", workflow_job_id: 9104)
+
+      assert RunnerSessions.workflow_job_id_for_runner("runner-owned", other_account.id) == :error
+      assert RunnerSessions.workflow_job_id_for_runner("", account.id) == :error
+    end
+  end
+
   describe "executed_job_for_pod/1" do
     test "resolves the pod to the job GitHub proved it is running" do
       account = account_fixture()

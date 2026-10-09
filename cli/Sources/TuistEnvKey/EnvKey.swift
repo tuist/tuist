@@ -345,6 +345,7 @@ public enum EnvKey: String, CaseIterable {
 
     case organizationInviteOrganizationName = "TUIST_ORGANIZATION_INVITE_ORGANIZATION_NAME"
     case organizationInviteEmail = "TUIST_ORGANIZATION_INVITE_EMAIL"
+    case organizationInviteRole = "TUIST_ORGANIZATION_INVITE_ROLE"
     case organizationInvitePath = "TUIST_ORGANIZATION_INVITE_PATH"
 
     // ORGANIZATION SHOW
@@ -417,6 +418,12 @@ public enum EnvKey: String, CaseIterable {
     case cacheRunShowId = "TUIST_CACHE_RUN_SHOW_ID"
     case cacheRunShowPath = "TUIST_CACHE_RUN_SHOW_PATH"
     case cacheRunShowJson = "TUIST_CACHE_RUN_SHOW_JSON"
+
+    // COVERAGE COMPLETE
+    case coverageCompletePath = "TUIST_COVERAGE_COMPLETE_PATH"
+    case coverageCompleteFullHandle = "TUIST_COVERAGE_COMPLETE_FULL_HANDLE"
+    case coverageCompleteCommit = "TUIST_COVERAGE_COMPLETE_COMMIT"
+    case coverageCompleteJSON = "TUIST_COVERAGE_COMPLETE_JSON"
 
     // ORGANIZATION UPDATE MEMBER
 

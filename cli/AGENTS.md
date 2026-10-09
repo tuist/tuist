@@ -10,6 +10,8 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Rosalind app bundle analysis: `cli/Sources/Rosalind/AGENTS.md`
 - Bazel integration and test execution: `cli/Sources/TuistBazelCommand/AGENTS.md`
 - Shared Swift/Elixir report identities: `cli/Tests/Fixtures/JUnitIdentity/AGENTS.md`
+- Per-test coverage evidence is recorded by the TestCoverageAttribution package test targets link (https://github.com/tuist/TestCoverageAttribution); the CLI only tells the test processes where to write and reduces it: `cli/Sources/TuistXCResultService/AGENTS.md`. Tuist's own unit test targets and the app's tests link it too (0.1.x from GitHub, as dynamic frameworks in `Package.swift`'s `PackageSettings` so the observer loads in bundles that reference nothing in it), for `.github/workflows/coverage.yml`, which sets `TUIST_COVERAGE_EVIDENCE` and ends with a guarded `tuist coverage complete`; dispatched with a `sha`, it collects an earlier commit on main with main's tools instead
+- When a run uploads coverage, `tuist test`, `tuist xcodebuild test` and `tuist xcodebuild build-for-testing` add build settings that make coverage counters atomic (`AtomicCoverageCounters`). The settings resolve to nothing unless Xcode builds with coverage (`CLANG_COVERAGE_MAPPING`), so builds without coverage keep their compiler arguments and cache keys. Without atomic counters, tests running in parallel lose increments and xccov reports wrong, sometimes wrapped, counts.
 - Cache client: `cli/Sources/TuistCache`
 - Bazel Remote Execution API (REAPI) client: `cli/Sources/TuistREAPI` (see `cli/Sources/TuistREAPI/AGENTS.md`)
 - Dependencies tooling: `cli/Sources/TuistDependencies`

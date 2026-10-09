@@ -2,11 +2,24 @@ defmodule AtlasWeb.Plugs.RequireAuth do
   import Phoenix.Controller
   import Plug.Conn
 
+  alias Atlas.Demo
   alias Atlas.Users
 
   def init(opts), do: opts
 
-  def call(conn, _opts) do
+  def call(conn, opts) do
+    if Demo.enabled?() do
+      if conn.request_path in ["/", "/demo"] do
+        conn |> redirect(to: "/commercial/sales/accounts") |> halt()
+      else
+        assign(conn, :current_user, Demo.user())
+      end
+    else
+      authenticate(conn, opts)
+    end
+  end
+
+  defp authenticate(conn, _opts) do
     case get_session(conn, :user_id) do
       nil ->
         conn

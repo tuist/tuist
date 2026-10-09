@@ -38,15 +38,16 @@ struct TestPathsTests {
         }
     }
 
-    @Test func mappedSnapshotsFollowRelocatedCheckout() throws {
+    @Test(arguments: ["/^src", "/^root"])
+    func mappedSnapshotsFollowRelocatedCheckout(prefix: String) throws {
         let directory = try TestPaths.snapshotDirectory(
-            filePath: "/^src/cli/Tests/ExampleTests/Nested/ExampleTests.swift",
+            filePath: "\(prefix)/cli/Tests/ExampleTests/Nested/ExampleTests.swift",
             repositoryRoot: AbsolutePath(validating: "/relocated/checkout")
         )
         #expect(directory.pathString == "/relocated/checkout/cli/Tests/ExampleTests/Nested/__Snapshots__/ExampleTests")
     }
 
-    @Test(arguments: ["/checkout", "/^src-other"])
+    @Test(arguments: ["/checkout", "/^src-other", "/^rootless", "/^spm"])
     func unmappedSnapshotsKeepTheirSourceLocation(root: String) throws {
         let directory = try TestPaths.snapshotDirectory(
             filePath: "\(root)/cli/Tests/ExampleTests.swift",

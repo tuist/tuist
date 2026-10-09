@@ -1069,6 +1069,8 @@ var targets: [Target] = [
         name: "TuistProcessTests",
         dependencies: [
             "TuistProcess",
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
         ],
         path: "cli/Tests/TuistProcessTests"
     ),
@@ -1843,6 +1845,10 @@ targets.append(
             "Mockable": .staticFramework,
             "Subprocess": .staticFramework,
             "_NIOFileSystem": .staticFramework,
+            // Dynamic, so the observer registers when a test bundle loads even when the bundle
+            // references nothing in it; a static framework would be dropped by the linker.
+            "TestCoverageAttribution": .framework,
+            "TestCoverageAttributionObserver": .framework,
         ],
         baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
     )
@@ -2018,6 +2024,8 @@ let package = Package(
             url: "https://github.com/lfroms/fluid-menu-bar-extra",
             .upToNextMajor(from: "1.1.0")
         ),
+        // Per-test coverage evidence in the coverage workflow; not in the registry yet.
+        .package(url: "https://github.com/tuist/TestCoverageAttribution", .upToNextMinor(from: "0.1.1")),
         .package(id: "tuist.sdk", .upToNextMajor(from: "0.2.0")),
         .package(id: "apple.swift-collections", "1.1.4"..<"1.3.0"),
         .package(id: "apple.swift-service-context", .upToNextMajor(from: "1.0.0")),

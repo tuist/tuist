@@ -1,0 +1,71 @@
+name: macOS Cache Volumes Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_label:
+        description: Cache-enabled macOS runner profile
+        type: string
+        default: tuist-macos-27-0
+      cache_key:
+        description: Fresh key for seed; reuse for verify and fail after publication
+        type: string
+        required: true
+      phase:
+        description: Seed a cold volume, verify retained contents, or reject failed-job writes
+        type: choice
+        options: [seed, verify, fail]
+        default: seed
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    runs-on: ${{ inputs.runner_label }}
+    timeout-minutes: 10
+    steps:
+      - uses: tuist/cache-volume@v1
+        id: volume
+        with:
+          key: ${{ inputs.cache_key }}
+          path: ${{ runner.temp }}/tuist-cache-volume-smoke
+      - name: Verify mounted APFS and retained metadata
+        shell: bash
+        env:
+          PHASE: ${{ inputs.phase }}
+          CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          target="$RUNNER_TEMP/tuist-cache-volume-smoke"
+          test -L "$target"
+          device=$(df -P "$target" | awk 'NR == 2 { print $1 }')
+          [[ "$device" == /dev/disk* ]]
+          filesystem=$(diskutil info -plist "$device" | plutil -extract FilesystemType raw -)
+          test "$filesystem" = apfs
+          df -h "$target"
+          case "$PHASE" in
+            seed)
+              test "$CACHE_HIT" = false
+              test ! -e "$target/sentinel"
+              mkdir "$target/nested"
+              printf 'retained' > "$target/sentinel"
+              printf 'payload' > "$target/nested/file"
+              ln -s nested/file "$target/link"
+              xattr -w dev.tuist.volume-smoke retained "$target/nested/file"
+              ;;
+            verify|fail)
+              test "$CACHE_HIT" = true
+              test "$(cat "$target/sentinel")" = retained
+              test -L "$target/link"
+              test "$(cat "$target/link")" = payload
+              test "$(xattr -p dev.tuist.volume-smoke "$target/nested/file")" = retained
+              ;;
+          esac
+          if [ "$PHASE" = fail ]; then
+            printf 'must-not-publish' > "$target/sentinel"
+            sync
+            exit 1
+          fi
+          sync

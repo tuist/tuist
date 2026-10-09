@@ -309,65 +309,6 @@ defmodule Atlas.MCP.ProxyTest do
     assert message =~ "restricted tool set"
   end
 
-  # The grant elevates the upstream session past the user's own memberships, so
-  # it must travel per user and per request rather than from static config.
-  test "forwards the user's operator grant to an upstream that expects one" do
-    stub(Config, :get, fn -> grant_forwarding_proxy_config() end)
-    user = %User{id: "user-1"}
-    conn = %{assigns: %{current_user: user}}
-
-    stub(Atlas.MCP, :proxyable_operator_grant, fn ^user, "tuist" -> %{token: "grant-token"} end)
-
-    expect(Req, :post, fn %Req.Request{} = request ->
-      assert request.headers["x-tuist-operator-grant"] == ["grant-token"]
-      assert request.options.json["method"] == "initialize"
-
-      {:ok,
-       %Req.Response{
-         status: 200,
-         headers: %{"mcp-session-id" => ["session-1"]},
-         body: %{
-           "jsonrpc" => "2.0",
-           "id" => request.options.json["id"],
-           "result" => %{"protocolVersion" => "2025-03-26"}
-         }
-       }}
-    end)
-
-    expect_initialized_notification()
-    expect_tools_list([%{"name" => "get_test_run", "annotations" => %{"readOnlyHint" => true}}])
-
-    assert [%{"name" => "tuist__get_test_run"}] = Proxy.list_hoisted_tools(conn)
-  end
-
-  test "sends no grant header when the user has none stored" do
-    stub(Config, :get, fn -> grant_forwarding_proxy_config() end)
-    user = %User{id: "user-1"}
-    conn = %{assigns: %{current_user: user}}
-
-    stub(Atlas.MCP, :proxyable_operator_grant, fn ^user, "tuist" -> nil end)
-
-    expect(Req, :post, fn %Req.Request{} = request ->
-      refute Map.has_key?(request.headers, "x-tuist-operator-grant")
-
-      {:ok,
-       %Req.Response{
-         status: 200,
-         headers: %{"mcp-session-id" => ["session-1"]},
-         body: %{
-           "jsonrpc" => "2.0",
-           "id" => request.options.json["id"],
-           "result" => %{"protocolVersion" => "2025-03-26"}
-         }
-       }}
-    end)
-
-    expect_initialized_notification()
-    expect_tools_list([%{"name" => "get_test_run", "annotations" => %{"readOnlyHint" => true}}])
-
-    assert [%{"name" => "tuist__get_test_run"}] = Proxy.list_hoisted_tools(conn)
-  end
-
   test "sends Atlas' workload identity to an upstream configured for it" do
     stub(Config, :get, fn -> atlas_identity_proxy_config() end)
     conn = %{assigns: %{current_user: %User{id: "user-1"}, audit_interface: "mcp"}}
@@ -441,172 +382,6 @@ defmodule Atlas.MCP.ProxyTest do
     expect_tools_list([%{"name" => "get_test_run", "annotations" => %{"readOnlyHint" => true}}])
 
     assert [%{"name" => "tuist__get_test_run"}] = Proxy.list_hoisted_tools(conn)
-  end
-
-  # A refusal the operator cannot act on is a dead end: the upstream knows which
-  # account owns the record, and this is the only place that meets a user who
-  # could ask for it.
-  test "a refusal naming an account becomes a request the operator can act on" do
-    stub(Config, :get, fn -> grant_forwarding_proxy_config() end)
-    user = %User{id: "user-1"}
-    conn = %{assigns: %{current_user: user}}
-
-    stub(Atlas.MCP, :proxyable_operator_grant, fn ^user, "tuist" -> nil end)
-
-    stub(Atlas.MCP, :start_operator_grant_request, fn ^user, "tuist", "acme" ->
-      {:ok, grant_offer("acme")}
-    end)
-
-    expect_initialize("https://tuist.example/mcp")
-    expect_initialized_notification()
-    expect_tools_list([%{"name" => "get_test_run", "annotations" => %{"readOnlyHint" => true}}])
-    expect_tool_call_refusal(~s(You do not have access to this resource. It belongs to the account "acme".))
-
-    assert {:ok, %{"content" => content, "isError" => true}} =
-             Proxy.call_hoisted_tool(conn, "tuist__get_test_run", %{"test_run_id" => "run-1"})
-
-    offer = content |> Enum.map_join(" ", & &1["text"])
-
-    assert offer =~ "No operator grant for acme"
-    assert offer =~ "https://ops.example/project-access/new?account=acme"
-    # The link is reached by way of customer data, so the account is named for a
-    # person to check rather than assumed.
-    assert offer =~ "Confirm the account named on that form"
-  end
-
-  # Relaying the link is the step of this hand-off that fails quietly: it asks a
-  # model to notice a sentence and pass it on. The same offer therefore goes out
-  # in a shape a client can render as an affordance and resume from itself.
-  test "states the request as metadata a client can act on, not only as prose" do
-    stub(Config, :get, fn -> grant_forwarding_proxy_config() end)
-    user = %User{id: "user-1"}
-    conn = %{assigns: %{current_user: user}}
-
-    stub(Atlas.MCP, :proxyable_operator_grant, fn ^user, "tuist" -> nil end)
-
-    stub(Atlas.MCP, :start_operator_grant_request, fn ^user, "tuist", "acme" ->
-      {:ok, grant_offer("acme")}
-    end)
-
-    expect_initialize("https://tuist.example/mcp")
-    expect_initialized_notification()
-    expect_tools_list([%{"name" => "get_test_run", "annotations" => %{"readOnlyHint" => true}}])
-    expect_tool_call_refusal(~s(You do not have access to this resource. It belongs to the account "acme".))
-
-    assert {:ok, %{"_meta" => %{"atlas/operatorGrant" => grant}}} =
-             Proxy.call_hoisted_tool(conn, "tuist__get_test_run", %{"test_run_id" => "run-1"})
-
-    assert grant["code"] == "operator_grant_required"
-    assert grant["server"] == "tuist"
-    assert grant["account"] == "acme"
-    assert grant["requestUrl"] == "https://ops.example/project-access/new?account=acme"
-    assert grant["expiresAt"] == "2026-08-19T12:00:00Z"
-
-    # The state ties a resumed call to the round trip this refusal started,
-    # which is what stops a client from following someone else's request.
-    assert grant["state"] == "request-acme"
-
-    # Nothing about the call was wrong, only the credential behind it, so a
-    # client may put the person back where they were instead of asking again.
-    assert grant["retryable"] == true
-  end
-
-  test "leaves metadata the upstream set on the refusal alone" do
-    stub(Config, :get, fn -> grant_forwarding_proxy_config() end)
-    user = %User{id: "user-1"}
-    conn = %{assigns: %{current_user: user}}
-
-    stub(Atlas.MCP, :proxyable_operator_grant, fn ^user, "tuist" -> nil end)
-
-    stub(Atlas.MCP, :start_operator_grant_request, fn ^user, "tuist", "acme" ->
-      {:ok, grant_offer("acme")}
-    end)
-
-    expect_initialize("https://tuist.example/mcp")
-    expect_initialized_notification()
-    expect_tools_list([%{"name" => "get_test_run", "annotations" => %{"readOnlyHint" => true}}])
-
-    expect_tool_call_refusal(
-      ~s(You do not have access to this resource. It belongs to the account "acme".),
-      %{"_meta" => %{"tuist/traceId" => "trace-1"}}
-    )
-
-    assert {:ok, %{"_meta" => meta}} =
-             Proxy.call_hoisted_tool(conn, "tuist__get_test_run", %{"test_run_id" => "run-1"})
-
-    assert meta["tuist/traceId"] == "trace-1"
-    assert meta["atlas/operatorGrant"]["account"] == "acme"
-  end
-
-  test "adds nothing when the user already holds a grant for that account" do
-    stub(Config, :get, fn -> grant_forwarding_proxy_config() end)
-    user = %User{id: "user-1"}
-    conn = %{assigns: %{current_user: user}}
-
-    stub(Atlas.MCP, :proxyable_operator_grant, fn ^user, "tuist" ->
-      %{token: "grant-token", account_handle: "acme"}
-    end)
-
-    expect_initialize("https://tuist.example/mcp")
-    expect_initialized_notification()
-    expect_tools_list([%{"name" => "get_test_run", "annotations" => %{"readOnlyHint" => true}}])
-    expect_tool_call_refusal("You do not have access to this resource. It belongs to the account \"acme\".")
-
-    assert {:ok, %{"content" => content} = result} =
-             Proxy.call_hoisted_tool(conn, "tuist__get_test_run", %{"test_run_id" => "run-1"})
-
-    refute content |> Enum.map_join(" ", & &1["text"]) =~ "operator grant"
-    refute Map.has_key?(result, "_meta")
-  end
-
-  # Holding a grant is not holding the right one: a shift that touches two
-  # customers would otherwise be left at the dead end this offer exists to
-  # remove.
-  test "offers a grant for another account even while one is held" do
-    stub(Config, :get, fn -> grant_forwarding_proxy_config() end)
-    user = %User{id: "user-1"}
-    conn = %{assigns: %{current_user: user}}
-
-    stub(Atlas.MCP, :proxyable_operator_grant, fn ^user, "tuist" ->
-      %{token: "grant-token", account_handle: "acme"}
-    end)
-
-    stub(Atlas.MCP, :start_operator_grant_request, fn ^user, "tuist", "globex" ->
-      {:ok, grant_offer("globex")}
-    end)
-
-    expect_initialize("https://tuist.example/mcp")
-    expect_initialized_notification()
-    expect_tools_list([%{"name" => "get_test_run", "annotations" => %{"readOnlyHint" => true}}])
-    expect_tool_call_refusal(~s(You do not have access to this resource. It belongs to the account "globex".))
-
-    assert {:ok, %{"content" => content}} =
-             Proxy.call_hoisted_tool(conn, "tuist__get_test_run", %{"test_run_id" => "run-1"})
-
-    offer = content |> Enum.map_join(" ", & &1["text"])
-
-    assert offer =~ "No operator grant for globex"
-    assert offer =~ "account=globex"
-  end
-
-  # The wording is the upstream's. An upstream that has not deployed it yet, or
-  # a refusal for some other reason, loses the link and keeps the refusal.
-  test "leaves a refusal that names no account untouched" do
-    stub(Config, :get, fn -> grant_forwarding_proxy_config() end)
-    user = %User{id: "user-1"}
-    conn = %{assigns: %{current_user: user}}
-
-    stub(Atlas.MCP, :proxyable_operator_grant, fn ^user, "tuist" -> nil end)
-
-    expect_initialize("https://tuist.example/mcp")
-    expect_initialized_notification()
-    expect_tools_list([%{"name" => "get_test_run", "annotations" => %{"readOnlyHint" => true}}])
-    expect_tool_call_refusal("You do not have access to this resource.")
-
-    assert {:ok, %{"content" => content}} =
-             Proxy.call_hoisted_tool(conn, "tuist__get_test_run", %{"test_run_id" => "run-1"})
-
-    assert content == [%{"type" => "text", "text" => "You do not have access to this resource."}]
   end
 
   test "returns a clear error for an unknown upstream server" do
@@ -721,7 +496,6 @@ defmodule Atlas.MCP.ProxyTest do
     stub(Config, :get, fn -> tuist_proxy_config() end)
     user = %User{id: "user-1"}
     conn = %{assigns: %{current_user: user}}
-    stub(Atlas.MCP, :proxyable_operator_grant, fn _, _ -> nil end)
     expect(Atlas.MCP, :access_token_for, fn ^user, _ -> {:error, :refresh_unavailable} end)
 
     assert {:ok, %{status: "refresh_unavailable", stage: "authorization", retryable: true, tools: []}} =
@@ -753,7 +527,6 @@ defmodule Atlas.MCP.ProxyTest do
     first_conn = %{assigns: %{current_user: first}}
     second_conn = %{assigns: %{current_user: second}}
 
-    stub(Atlas.MCP, :proxyable_operator_grant, fn _, _ -> nil end)
     expect(Atlas.MCP, :access_token_for, 3, fn ^first, _ -> {:ok, "token-1"} end)
     expect_initialize("https://tuist.example/mcp")
     expect_initialized_notification()
@@ -817,18 +590,6 @@ defmodule Atlas.MCP.ProxyTest do
     end)
   end
 
-  # Read-only filtering is independent of how the upstream authenticates, so
-  # these use a bearer token to keep the per-user OAuth session out of the way.
-  defp grant_forwarding_proxy_config do
-    server =
-      read_only_proxy_config()
-      |> Keyword.fetch!(:servers)
-      |> hd()
-      |> Map.put("operator_grant_header", "x-tuist-operator-grant")
-
-    [servers: [server]]
-  end
-
   defp atlas_identity_proxy_config do
     server =
       read_only_proxy_config()
@@ -860,6 +621,8 @@ defmodule Atlas.MCP.ProxyTest do
     ]
   end
 
+  # Read-only filtering is independent of how the upstream authenticates, so
+  # these use a bearer token to keep the per-user OAuth session out of the way.
   defp read_only_proxy_config do
     server =
       tuist_proxy_config()
@@ -906,15 +669,6 @@ defmodule Atlas.MCP.ProxyTest do
          body: %{"jsonrpc" => "2.0", "id" => request.options.json["id"], "result" => result}
        }}
     end)
-  end
-
-  defp grant_offer(account_handle) do
-    %{
-      url: "https://ops.example/project-access/new?account=#{account_handle}",
-      state: "request-#{account_handle}",
-      account_handle: account_handle,
-      expires_at: ~U[2026-08-19 12:00:00Z]
-    }
   end
 
   defp expect_tools_list(tools) do

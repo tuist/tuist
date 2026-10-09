@@ -15,7 +15,7 @@ spec:
   applyOrder: 2
   applyNote: Carries the WAN optic and the router uplink, so a bad change takes the site off the internet and takes the path used to fix it with it. Changed only after the same change has been applied to ber1-tor-b and the rack is still up.
   credentialItem: ber1-tor-a switch admin
-  configRevision: e34dbdf64e4b95fd
+  configRevision: 26e3a24984f3bc3c
   config:
     hostname: ber1-tor-a
     managementVlan: 1
@@ -173,7 +173,7 @@ spec:
       - port: 27
         description: ""
         spanningTree: true
-        nativeVlan: 1
+        nativeVlan: 10
         taggedVlans: []
       - port: 28
         description: ""
@@ -217,6 +217,10 @@ spec:
       purpose: data
       peer: ber1-edge-b
       detail: edge/sfp28-2
+    - port: 27
+      purpose: data
+      peer: ber1-store-a
+      detail: storage/sfp28-1
     - port: 31
       purpose: isl
       peer: ber1-tor-b

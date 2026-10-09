@@ -52,6 +52,18 @@ peerTls:
   certFileName: tls.crt
   keyFileName: tls.key
 
+# Enable only after bidirectional underlay verification. These values describe
+# every host eligible for this StatefulSet; use a matching nodeSelector.
+# private_url may contain $(POD_NAME) and $(POD_NAMESPACE). It must have a valid
+# peer certificate SAN. A provider name alone does not establish a private path.
+peerTopology: {}
+# provider: ovh
+# private_network: verified-vrack-id-and-vlan
+# private_url: https://$(POD_NAME).kura-headless.$(POD_NAMESPACE).svc.cluster.local:7443
+# canonical_networks: [another-verified-domain-id]
+# Optional: reciprocal exact-ID approval for canonical mTLS across domains.
+# Same-domain traffic stays private-only regardless of this list.
+
 headlessService:
   annotations: {}
 
@@ -145,13 +157,6 @@ config:
     # additionally gated on the node's one-time reverse-map backfill completing,
     # and the serve-side presence gates stay on regardless as the backstop.
     evictionCascadeEnabled: true
-  reapi:
-    # Advertise SplitBlob and SpliceBlob with Fast content-defined chunking
-    # 2020 parameters. Reads
-    # of recipes already on disk remain enabled when this rollout flag is off.
-    # Pin this to false during the reader-first phase of an existing fleet's
-    # rolling upgrade, then remove the override after every node is recipe-aware.
-    blobChunkingEnabled: true
   backfill:
     # Share of the age-ordered segment ring (counted from the newest) whose
     # boundary segment's seal-time age stat bounds how far back a backfill

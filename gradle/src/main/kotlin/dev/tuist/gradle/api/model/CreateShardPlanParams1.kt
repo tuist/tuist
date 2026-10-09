@@ -23,13 +23,16 @@ import com.google.gson.annotations.SerializedName
  *
  * @param reference A unique shard plan reference, typically derived from CI environment.
  * @param buildRunId The UUID of the associated Xcode build run.
+ * @param gitBranch The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
  * @param gradleBuildId The UUID of the associated Gradle build.
  * @param granularity Sharding granularity level.
  * @param modules Test module names (for module-level granularity).
+ * @param parallelizableModules Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
  * @param shardMax Maximum number of shards.
  * @param shardMaxDuration Target maximum duration per shard in milliseconds.
  * @param shardMin Minimum number of shards.
- * @param shardTotal Exact number of shards.
+ * @param shardTotal Exact number of shards. With suite granularity, the final shard is the catch-all.
+ * @param skippedTestSuites Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
  * @param testSuites Test suite names (for suite-level granularity).
  */
 
@@ -42,11 +45,15 @@ data class CreateShardPlanParams1 (
 
     /* The UUID of the associated Xcode build run. */
     @SerializedName("build_run_id")
-    val buildRunId: kotlin.String? = null,
+    val buildRunId: java.util.UUID? = null,
+
+    /* The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch. */
+    @SerializedName("git_branch")
+    val gitBranch: kotlin.String? = null,
 
     /* The UUID of the associated Gradle build. */
     @SerializedName("gradle_build_id")
-    val gradleBuildId: kotlin.String? = null,
+    val gradleBuildId: java.util.UUID? = null,
 
     /* Sharding granularity level. */
     @SerializedName("granularity")
@@ -55,6 +62,10 @@ data class CreateShardPlanParams1 (
     /* Test module names (for module-level granularity). */
     @SerializedName("modules")
     val modules: kotlin.collections.List<kotlin.String>? = null,
+
+    /* Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows. */
+    @SerializedName("parallelizable_modules")
+    val parallelizableModules: kotlin.collections.List<kotlin.String>? = null,
 
     /* Maximum number of shards. */
     @SerializedName("shard_max")
@@ -68,9 +79,13 @@ data class CreateShardPlanParams1 (
     @SerializedName("shard_min")
     val shardMin: kotlin.Int? = null,
 
-    /* Exact number of shards. */
+    /* Exact number of shards. With suite granularity, the final shard is the catch-all. */
     @SerializedName("shard_total")
     val shardTotal: kotlin.Int? = null,
+
+    /* Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history. */
+    @SerializedName("skipped_test_suites")
+    val skippedTestSuites: kotlin.collections.List<kotlin.String>? = null,
 
     /* Test suite names (for suite-level granularity). */
     @SerializedName("test_suites")

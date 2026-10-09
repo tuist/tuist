@@ -404,12 +404,15 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
                 COMPILATION_CACHE_ENABLE_PLUGIN=YES
                 COMPILATION_CACHE_PLUGIN_PATH=\(pluginPath)
                 COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(proxySocketPath)
+                COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES=YES
                 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
                 OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=\(fullHandle)\(prefixMapping)
 
                 `COMPILATION_CACHE_REMOTE_SERVICE_PATH` is what lets C, Objective-C and precompiled modules be shared too. Without it only Swift is shared, and a machine with a cold cache recompiles the rest.
 
-                `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH` and `COMPILATION_CACHE_REMOTE_SERVICE_PATH` are not directly exposed by Xcode; add them as user-defined build settings.\
+                `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` lets the remote cache lookups for those compilations run at the same time instead of a few at a time.
+
+                `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` are not directly exposed by Xcode; add them as user-defined build settings.\
                 \(missingPluginNote)
                 """
             )
@@ -473,12 +476,15 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         else { return "" }
         return """
 
-        SWIFT_ENABLE_PREFIX_MAPPING=YES
+        SWIFT_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))
         SWIFT_ENABLE_PROJECT_PREFIX_MAPPING=YES
-        CLANG_ENABLE_PREFIX_MAPPING=YES
+        CLANG_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))
         CLANG_ENABLE_PROJECT_PREFIX_MAPPING=YES
+        TUIST_PREFIX_MAPPING_FOR_COVERAGE_=YES
+        TUIST_PREFIX_MAPPING_FOR_COVERAGE_NO=YES
+        TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES=NO
 
-        The four *_PREFIX_MAPPING settings make cache keys independent of where the project and DerivedData live, so artifacts are reusable across machines and CI. They are Xcode 27+ only, are not exposed by Xcode (add them as user-defined build settings), and enabling them changes every cache key — the next build re-populates the cache from cold, once.
+        The four *_PREFIX_MAPPING settings make cache keys independent of where the project and DerivedData live, so artifacts are reusable across machines and CI. They are Xcode 27+ only, are not exposed by Xcode (add them as user-defined build settings), and enabling them changes every cache key — the next build re-populates the cache from cold, once. The TUIST_PREFIX_MAPPING_FOR_COVERAGE_* settings turn prefix mapping off in builds that gather code coverage, whose reports would otherwise leave out every source compiled with it. When you pass these settings to xcodebuild on the command line, single-quote the ones that contain $(...) so the shell doesn't expand them.
         """
     }
 

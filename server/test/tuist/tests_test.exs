@@ -9,6 +9,8 @@ defmodule Tuist.TestsTest do
   alias Tuist.Automations.ActionExecutor
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.MCP.Events.Subscription
+  alias Tuist.MCP.Events.Workers.FanoutWorker
   alias Tuist.Repo
   alias Tuist.Shards.ShardRun
   alias Tuist.Tests
@@ -5570,6 +5572,78 @@ defmodule Tuist.TestsTest do
   end
 
   describe "cross-run flaky detection" do
+    test "does not mark a failure as flaky when the test only failed before on the commit" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "repeated_failure_#{System.unique_integer([:positive])}"
+
+      failing_run = fn ->
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: "failure",
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 500,
+              test_cases: [%{name: "testBroken", status: "failure", duration: 250}]
+            }
+          ]
+        )
+      end
+
+      {:ok, _first_test} = failing_run.()
+      {:ok, second_test} = failing_run.()
+
+      {[second_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: second_test.id}]
+        })
+
+      refute second_run.is_flaky
+      refute second_test.is_flaky
+    end
+
+    test "flags every failure of a run with more failures than fit in one lookup" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "many_failures_#{System.unique_integer([:positive])}"
+      test_case_count = 5_000
+
+      run_with_status = fn status ->
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: status,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: status,
+              duration: 500,
+              test_cases: for(i <- 1..test_case_count, do: %{name: "test#{i}", status: status, duration: 1})
+            }
+          ]
+        )
+      end
+
+      {:ok, _passing_test} = run_with_status.("success")
+      {:ok, failing_test} = run_with_status.("failure")
+
+      assert {:ok, %{is_flaky: true}} = Tests.get_test(failing_test.id)
+
+      assert ClickHouseRepo.aggregate(
+               from(tcr in TestCaseRun,
+                 where: tcr.test_run_id == ^failing_test.id and tcr.is_flaky == true
+               ),
+               :count
+             ) == test_case_count
+    end
+
     test "does not compare unrelated Bazel runs without commit metadata" do
       project = ProjectsFixtures.project_fixture(build_system: :bazel)
 
@@ -6565,6 +6639,73 @@ defmodule Tuist.TestsTest do
     end
   end
 
+  describe "create_test/1 with Git history" do
+    test "stores the run's place in history and the files it changed" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          git_branch: "feature",
+          git_commit_sha: "head",
+          base_branch: "main",
+          merge_base_sha: "base",
+          is_pull_request: true,
+          pull_request_number: 42,
+          git_object_format: "sha1",
+          history_source: "client",
+          changed_files: [
+            %{
+              path: "Sources/A.swift",
+              status: "modified",
+              git_blob_id: "blobA",
+              hunks: [%{start: 3, end: 5}, %{start: 10, end: 10}]
+            },
+            %{
+              path: "Sources/New.swift",
+              previous_path: "Sources/Old.swift",
+              status: "renamed",
+              git_blob_id: "blobN",
+              hunks: [],
+              truncated: true
+            },
+            %{path: "Sources/Gone.swift", status: "deleted"}
+          ]
+        )
+
+      {:ok, stored} = Tests.get_test(test_run.id)
+
+      assert {stored.base_branch, stored.merge_base_sha, stored.is_pull_request, stored.pull_request_number} ==
+               {"main", "base", true, 42}
+
+      assert {stored.git_object_format, stored.history_source, stored.history_fallback_reason} == {"sha1", "client", ""}
+
+      files =
+        ClickHouseRepo.all(
+          from(f in Tuist.Tests.TestRunChangedFile,
+            where: f.test_run_id == ^test_run.id,
+            order_by: f.path,
+            select: {f.path, f.previous_path, f.status, f.git_blob_id, f.hunk_starts, f.hunk_ends, f.truncated}
+          )
+        )
+
+      assert files == [
+               {"Sources/A.swift", "", "modified", "blobA", [3, 10], [5, 10], false},
+               {"Sources/Gone.swift", "", "deleted", "", [], [], false},
+               {"Sources/New.swift", "Sources/Old.swift", "renamed", "blobN", [], [], true}
+             ]
+    end
+
+    test "defaults to no history when the client sent none" do
+      project = ProjectsFixtures.project_fixture()
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+      {:ok, stored} = Tests.get_test(test_run.id)
+
+      assert {stored.base_branch, stored.merge_base_sha, stored.is_pull_request, stored.history_source} ==
+               {"", "", false, ""}
+    end
+  end
+
   describe "update_test_case/3 quarantine" do
     test "mutes a test case" do
       project = ProjectsFixtures.project_fixture()
@@ -6697,6 +6838,54 @@ defmodule Tuist.TestsTest do
   end
 
   describe "list_flaky_test_cases/2" do
+    test "combines identity filters and search before paginating and counting" do
+      project = ProjectsFixtures.project_fixture()
+
+      for {name, suite_name, module_name} <- [
+            {"selectedFirst", "CoordinatorTests", "AppTests"},
+            {"selectedSecond", "CoordinatorTests", "AppTests"},
+            {"selectedOtherSuite", "OtherTests", "AppTests"},
+            {"selectedOtherModule", "CoordinatorTests", "OtherModule"},
+            {"excludedBySearch", "CoordinatorTests", "AppTests"}
+          ] do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: name,
+            suite_name: suite_name,
+            module_name: module_name
+          )
+
+        IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+        RunsFixtures.test_case_event_fixture(
+          project_id: project.id,
+          test_case_id: test_case.id,
+          event_type: "marked_flaky",
+          inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+        )
+      end
+
+      for {name, page} <- [{"selectedFirst", 1}, {"selectedSecond", 2}] do
+        {results, meta} =
+          Tests.list_flaky_test_cases(project.id, %{
+            filters: [
+              %{field: "suite_name", op: :==, value: "CoordinatorTests"},
+              %{field: "module_name", op: :==, value: "AppTests"},
+              %{field: :name, op: :ilike_and, value: "selected"}
+            ],
+            order_by: [:name],
+            order_directions: [:asc],
+            page_size: 1,
+            page: page
+          })
+
+        assert Enum.map(results, & &1.name) == [name]
+        assert meta.total_count == 2
+        assert meta.total_pages == 2
+      end
+    end
+
     test "returns empty list when no flaky test cases exist" do
       project = ProjectsFixtures.project_fixture()
 
@@ -6732,7 +6921,7 @@ defmodule Tuist.TestsTest do
           test_modules: test_modules.("success")
         )
 
-      {:ok, _second_test} =
+      {:ok, second_test} =
         RunsFixtures.test_fixture(
           project_id: project.id,
           account_id: project.account_id,
@@ -6762,6 +6951,7 @@ defmodule Tuist.TestsTest do
       assert flaky_test.module_name == "TestModule"
       # Only the failing run is flaky; the passing run on the same commit stays clean
       assert flaky_test.flaky_runs_count == 1
+      assert flaky_test.last_flaky_run_id == second_test.id
     end
 
     test "supports ordering by marked_flaky_at" do
@@ -7188,6 +7378,7 @@ defmodule Tuist.TestsTest do
 
       assert old.flaky_runs_count == 0
       refute old.last_flaky_at
+      refute old.last_flaky_run_id
 
       {all_results, all_meta} = Tests.list_flaky_test_cases(project.id, %{})
 
@@ -7257,6 +7448,7 @@ defmodule Tuist.TestsTest do
       assert no_ci_only.name == "ciFlaky"
       assert no_ci_only.flaky_runs_count == 0
       refute no_ci_only.last_flaky_at
+      refute no_ci_only.last_flaky_run_id
     end
 
     test "scopes flaky-run stats by combined time range and environment filters" do
@@ -8592,6 +8784,7 @@ defmodule Tuist.TestsTest do
             is_flaky: true,
             is_new: false,
             is_quarantined: false,
+            coverage_evidence: "none",
             duration: 100,
             inserted_at: NaiveDateTime.utc_now(),
             module_name: "FlakyTestModule",
@@ -9814,8 +10007,24 @@ defmodule Tuist.TestsTest do
   describe "update_test_case/3 with event creation" do
     test "creates marked_flaky event when is_flaky changes from false to true" do
       # Given
-      project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account: user.account)
+      token = AccountsFixtures.account_token_fixture(account: user.account, scopes: ["mcp"])
+
+      %Subscription{}
+      |> Subscription.changeset(%{
+        id: "sub_marked_flaky_#{Ecto.UUID.generate()}",
+        user_id: user.id,
+        account_token_id: token.id,
+        account_id: user.account.id,
+        project_id: project.id,
+        event_name: "test_case.marked_flaky",
+        callback_url: "https://example.com/events",
+        signing_secret: "whsec_" <> Base.encode64(:crypto.strong_rand_bytes(32)),
+        refresh_before: DateTime.utc_now() |> DateTime.add(3600, :second) |> DateTime.truncate(:second)
+      })
+      |> Repo.insert!()
+
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
       IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
@@ -9832,6 +10041,7 @@ defmodule Tuist.TestsTest do
       assert length(events) == 1
       assert hd(events).event_type == "marked_flaky"
       assert hd(events).actor_id == user.account.id
+      assert_enqueued(worker: FanoutWorker, args: %{"project_id" => project.id, "test_case_id" => test_case.id})
     end
 
     test "creates unmarked_flaky event when is_flaky changes from true to false" do
@@ -11654,6 +11864,72 @@ defmodule Tuist.TestsTest do
       {:clickhouse_query, query} -> drain_clickhouse_queries([query | acc])
     after
       0 -> Enum.reverse(acc)
+    end
+  end
+
+  describe "create_test/1 with the repository, dirty checkouts and execution mode" do
+    test "records the run's repository from its remote, whether the checkout was dirty, and how the tests executed" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      {:ok, run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1000,
+          status: "success",
+          scheme: "App",
+          git_branch: "main",
+          git_commit_sha: "abc",
+          git_remote_url_origin: "git@github.com:Acme/App.git",
+          git_dirty: true,
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          execution_mode: "parallel",
+          test_modules: [
+            %{name: "AppTests", status: "success", duration: 100, execution_mode: "serial", test_cases: []},
+            %{name: "CoreTests", status: "success", duration: 100, test_cases: []}
+          ]
+        })
+
+      {:ok, stored} = Tests.get_test(run.id)
+      assert {stored.execution_mode, stored.git_dirty} == {"parallel", true}
+      assert stored.git_repository_id == Tuist.GitHistory.repository_id(project.account_id, "https://github.com/acme/app")
+
+      modes =
+        ClickHouseRepo.all(
+          from(m in Tuist.Tests.TestModuleRun,
+            where: m.test_run_id == ^run.id,
+            select: {m.name, m.execution_mode},
+            order_by: m.name
+          )
+        )
+
+      assert modes == [{"AppTests", "serial"}, {"CoreTests", ""}]
+    end
+
+    test "leaves a run without them at the defaults" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      {:ok, run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1000,
+          status: "success",
+          scheme: "App",
+          git_branch: "main",
+          git_commit_sha: "abc",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: []
+        })
+
+      {:ok, stored} = Tests.get_test(run.id)
+      assert {stored.execution_mode, stored.git_dirty, stored.git_repository_id} == {"", false, 0}
     end
   end
 end

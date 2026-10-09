@@ -8,6 +8,7 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 |---|---|
 | `cert-manager` | TLS certificate issuance via Let's Encrypt + Cloudflare DNS-01 |
 | `ingress-nginx` | Ingress controller backed by a cloud LoadBalancer |
+| `grpc-ingress-nginx` | Ingress controller (`nginx-grpc` class) for in-cluster gRPC backends, such as the Once events listener. Keeps upstream keepalive on, which the main controller turns off for its HTTP backends, so no `Connection` header reaches strict HTTP/2 servers |
 | `kura-*-ingress-nginx` | Regional Kura gateways on host-network DaemonSets or shared cloud LoadBalancers |
 | `external-dns` | Sync Ingress / Service hostnames into Cloudflare DNS |
 | `external-secrets` | Pull secrets from external stores (1Password, SOPS, etc.) into the cluster |
@@ -44,6 +45,12 @@ Those gateways are host-network DaemonSets, one nginx per cache box. A region
 running more than one box also needs `kuraGatewayNetworkPolicy.enabled`, or a
 gateway can only serve the Kura pods that happen to share its box and answers
 504 for the rest. See `templates/kura-gateway-network-policy.yaml`.
+
+A rack's gateway (`kura-ber1-runners`) is configured in this chart's values but
+deployed by `infra/helm/rack-cache-gateways`, which `k8s:install-platform`
+installs after this release, from the same values, without waiting on it. This
+release is waited on, and a DaemonSet with a pod on a dark rack node never
+reads as ready.
 
 `k8s:install-platform` also loads `values-<cluster-name>.yaml` when present.
 Use that cluster overlay for static environment configuration such as stable

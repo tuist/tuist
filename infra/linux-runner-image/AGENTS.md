@@ -228,7 +228,9 @@ before promoting it, then against the production runner profile.
 3. The `poller` init container runs `dispatch-poll.sh`, exchanging
    the projected SA token for a JIT config (200 with the JIT when
    a queue row is claimed, 204 while idle), then stages the JIT
-   and exits. The `runner` main container starts, runs the GitHub
+   (plus `<jit>.setup-info`, the "Set up job" group linking the job
+   to its dashboard page, which `run-job.sh` copies to the runner's
+   `.setup_info`) and exits. The `runner` main container starts, runs the GitHub
    Actions runner single-shot under that JIT (no token), and
    exits. The runner-container exit is what kubelet observes for
    billing + reaping; the rest is identical to the macOS path
@@ -282,3 +284,11 @@ cache subtree. The broker bounds source resolution with os.Root and creates each
 mount in a short-lived worker. Validate with the privileged Linux bind-mount suite
 in linux-runner-image.yml, including a client without CAP_SYS_ADMIN in separate
 PID/mount namespaces. Roll out controller and runner image together on idle pods.
+
+- The shared cache client also supports macOS: use unique mailbox requests per
+  attempt, remove completed request/response files, and retry busy clean detaches
+  five times. Sample filesystem usage before detach, bind it to the lease, and
+  write the detach proof only after both clean detach and the usage report succeed.
+  Launch hdiutil without RUNNER_TRACKING_ID so GitHub's orphan cleanup cannot
+  kill the image helper before dispatch detaches it. Keep job process tracking
+  intact for all other commands and preserve the clean-detach publication gate.

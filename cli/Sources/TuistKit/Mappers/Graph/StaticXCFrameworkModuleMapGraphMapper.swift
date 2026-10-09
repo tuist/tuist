@@ -66,11 +66,22 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
         var sideEffects: [SideEffectDescriptor] = []
         let graphTraverser = GraphTraverser(graph: graph)
         let sourceGraphTraverser = environment.initialGraphWithSources.map { GraphTraverser(graph: $0) }
-        let xcframeworkVariantsProcessedByGeneratedTargets = Self.xcframeworkVariantsProcessedByGeneratedTargets(
+        let xcframeworkVariantsLinkedDirectlyByGeneratedTargets = Self.xcframeworkVariantsLinkedDirectlyByGeneratedTargets(
             in: graph,
-            initialGraphWithSources: environment.initialGraphWithSources,
-            traverser: graphTraverser
+            initialGraphWithSources: environment.initialGraphWithSources
         )
+        var xcframeworkVariantsProcessedByGeneratedTargetsByPath: [AbsolutePath: Set<ProductsVariant>] = [:]
+        func xcframeworkVariantsProcessedByGeneratedTargets(_ path: AbsolutePath) -> Set<ProductsVariant> {
+            if let variants = xcframeworkVariantsProcessedByGeneratedTargetsByPath[path] {
+                return variants
+            }
+            var variants = xcframeworkVariantsLinkedDirectlyByGeneratedTargets[path, default: []]
+            for reference in graphTraverser.targetsProcessingStaticXCFramework(at: path) {
+                variants.formUnion(Self.productsVariants(of: reference.target, under: reference.condition))
+            }
+            xcframeworkVariantsProcessedByGeneratedTargetsByPath[path] = variants
+            return variants
+        }
 
         let graph = try await mapGraph(
             graph: graph
@@ -90,9 +101,9 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
             // `sdk=` conditions the vendor copy is still needed for, possibly none.
             let moduleMapSDKConditions: (ConditionedXCFramework) -> [String]? = { conditionedXCFramework in
                 let targetVariants = Self.productsVariants(of: target, under: nil)
-                let producingVariants = xcframeworkVariantsProcessedByGeneratedTargets[
-                    conditionedXCFramework.xcframework.path, default: []
-                ].intersection(targetVariants)
+                let producingVariants = xcframeworkVariantsProcessedByGeneratedTargets(
+                    conditionedXCFramework.xcframework.path
+                ).intersection(targetVariants)
                 guard !producingVariants.isEmpty else { return nil }
                 let consumingCondition: PlatformCondition?
                 if case let .condition(condition) = Self.conditionThroughOtherDependencies(
@@ -389,24 +400,19 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
     ///   binary-cache substitution case where the linker was a source target that got cached; only
     ///   counted when the linking target is still in the substituted graph, since a target replaced
     ///   by a cached binary never runs `ProcessXCFramework`).
-    /// * `linkableDependencies` of every generated target — the actual set of xcframeworks that
-    ///   land in the target's Frameworks build phase, including the ones a static consumer relinks
-    ///   transitively through `LinkGenerator.staticDependenciesPrecompiledLibrariesAndFrameworks`.
-    ///   The direct-edge walk misses this shape (a static SwiftPM shim like `GoogleMapsTarget` that
-    ///   wraps `GoogleMaps.xcframework` isn't a direct graph edge for its consumer, but Xcode still
-    ///   processes the transitively-relinked xcframework), which is exactly the redefinition path
-    ///   this mapper needs to cover.
-    /// * `copyProductDependencies` of every generated target. A static target does not link its
-    ///   precompiled static xcframeworks, but its "Static XCFramework Dependencies" phase still makes
-    ///   Xcode process them, including the ones a cached static xcframework dependency brings along.
+    ///
+    /// `map` adds, only for the xcframeworks a consumer needs a vendor module map for, the generated targets
+    /// `GraphTraverser.targetsProcessingStaticXCFramework(at:)` returns: the ones a static consumer relinks the
+    /// xcframework into transitively (a static SwiftPM shim like `GoogleMapsTarget` wrapping
+    /// `GoogleMaps.xcframework`), and the static targets whose "Static XCFramework Dependencies" phase processes it.
+    /// Finding those is the expensive part, so it isn't done here.
     ///
     /// A link under a platform condition (a SwiftPM binary target consumed with
     /// `.when(platforms: [.iOS])`) still makes Xcode process the xcframework on the destinations the
     /// condition allows, so it counts for those destinations only.
-    private static func xcframeworkVariantsProcessedByGeneratedTargets(
+    private static func xcframeworkVariantsLinkedDirectlyByGeneratedTargets(
         in graph: Graph,
-        initialGraphWithSources: Graph?,
-        traverser: GraphTraverser
+        initialGraphWithSources: Graph?
     ) -> [AbsolutePath: Set<ProductsVariant>] {
         var variantsByPath: [AbsolutePath: Set<ProductsVariant>] = [:]
 
@@ -427,16 +433,6 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
                             under: graph.dependencyConditions[(sourceDependency, dependency)]
                         )
                     )
-                }
-                let linkableReferences = (try? traverser.linkableDependencies(
-                    path: project.path,
-                    name: target.name,
-                    shouldExcludeHostAppDependencies: false
-                )) ?? []
-                let copiedReferences = traverser.copyProductDependencies(path: project.path, name: target.name)
-                for reference in linkableReferences.union(copiedReferences) {
-                    guard case let .xcframework(path, _, _, _, condition) = reference else { continue }
-                    record(path, on: productsVariants(of: target, under: condition))
                 }
             }
         }
@@ -688,29 +684,36 @@ extension SettingsDictionary {
             case let .string(value):
                 settings[key] = .string(value)
             case let .array(value):
+                // A bare token is never a standalone Swift flag, so it is the argument of the flag before it
+                // (`-module-alias A=B`, `-D FOO`, `-cas-plugin-option k=v`). Deduplicating it on its own would
+                // drop a repeated flag and orphan its next argument, which swift-driver reads as an input file.
+                func takesArgument(at index: Int) -> Bool {
+                    guard value[index].hasPrefix("-"), index + 1 < value.endIndex else { return false }
+                    let next = value[index + 1]
+                    return value[index].isFlagWithArgument || (!next.hasPrefix("-") && next != "$(inherited)")
+                }
+                func isWarningGroupFlag(at index: Int) -> Bool {
+                    (value[index] == "-Werror" || value[index] == "-Wwarning") &&
+                        (index == 0 || !takesArgument(at: index - 1))
+                }
                 var seen = Set<String>()
-                let value = value.enumerated().filter {
-                    if $0.element.isFlagWithArgument {
-                        if value.endIndex > $0.offset + 1 {
-                            return !seen.contains($0.element + value[$0.offset + 1])
-                        } else {
-                            return true
-                        }
-                    } else {
-                        if $0.offset == 0 {
-                            return seen.insert($0.element).inserted
-                        } else {
-                            let previousElement = value[$0.offset - 1]
-                            if previousElement.isFlagWithArgument {
-                                return seen.insert(previousElement + $0.element).inserted
-                            } else {
-                                return seen.insert($0.element).inserted
-                            }
-                        }
+                let uniqueFlags = value.enumerated().filter {
+                    // Preserve ordered warning overrides, but leave forwarded options such as -Xcc -Werror alone.
+                    if isWarningGroupFlag(at: $0.offset) ||
+                        ($0.offset > 0 && isWarningGroupFlag(at: $0.offset - 1))
+                    {
+                        return true
                     }
+                    if takesArgument(at: $0.offset) {
+                        return !seen.contains($0.element + value[$0.offset + 1])
+                    }
+                    if $0.offset > 0, takesArgument(at: $0.offset - 1) {
+                        return seen.insert(value[$0.offset - 1] + $0.element).inserted
+                    }
+                    return seen.insert($0.element).inserted
                 }
                 settings[key] = .array(
-                    value.map(\.element)
+                    uniqueFlags.map(\.element)
                 )
             }
         }

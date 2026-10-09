@@ -64,6 +64,17 @@ ingress-nginx:
         load-balancer.hetzner.cloud/location: fsn1
         load-balancer.hetzner.cloud/node-selector: topology.kubernetes.io/region=fsn1
 
+# gRPC ingress for the Once events listener. It sits on the same general fsn1
+# pool as the main controller. See `grpc-ingress-nginx` in values.yaml for why
+# it is a separate controller.
+grpc-ingress-nginx:
+  enabled: true
+  controller:
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: fsn1
+        load-balancer.hetzner.cloud/node-selector: topology.kubernetes.io/region=fsn1
+
 # Dedicated Kura ingress dataplanes. These are shared per region, not
 # per customer: customer-specific hosts route through the regional
 # ingress class and then to the selected Kura pod. Keep the controller
@@ -72,18 +83,12 @@ ingress-nginx:
 kura-eu-west-ingress-nginx:
   enabled: true
   controller:
-    # EU-West workloads run on OVH. Retain a gateway on every old and new
-    # cache node while cached DNS/long-lived connections drain from Dedibox.
+    # EU-West runs entirely on OVH. Publish addresses from the gateway nodes
+    # automatically so a replacement host does not require a static DNS edit.
     kind: DaemonSet
     hostNetwork: true
     dnsPolicy: ClusterFirstWithHostNet
     reportNodeInternalIp: true
-    # Temporary DNS withdrawal: publish only the verified OVH destinations,
-    # without narrowing the shared pool selector or stopping old gateways.
-    # Remove this override AFTER Dedibox retirement; until then update it if
-    # an OVH host/IP changes. See infra/kura-controller/eu-west-ovh-migration.md.
-    extraArgs:
-      publish-status-address: "51.68.54.127,51.75.213.141,51.75.213.81"
     # Direct client connections on this hostNetwork path: no Hetzner LB adds a
     # PROXY header, so the shared regional default (use-proxy-protocol: true)
     # would mangle every connection. Turn it off here.
@@ -107,7 +112,7 @@ kura-us-east-ingress-nginx:
   controller:
     # US East is on the OVH Vint Hill (VA) bare-metal box: the regional gateway
     # runs host-network so serving traffic hits the box NIC directly (OVH has no
-    # Hetzner LB), the same shape as eu-west on Dedibox above.
+    # Hetzner LB), the same shape as eu-west on OVH above.
     # reportNodeInternalIp publishes the box's public IP (its node InternalIP)
     # into each Ingress status so external-dns resolves the per-account hosts.
     kind: DaemonSet
@@ -178,6 +183,10 @@ kura-ap-southeast-ingress-nginx:
       annotations: {}
 
 kura-runners-ingress-nginx:
+  enabled: true
+
+# The BER1 rack's cache gateway, on its storage node (values.yaml).
+kura-ber1-runners-ingress-nginx:
   enabled: true
 
 # South America West (Santiago, Vultr). Same host-network shape as the other

@@ -23,10 +23,9 @@ whose infrastructure provider is caph.
 
 Every existing Linux kind implements the same lifecycle: adopt a pre-prepped
 box, self-join it, and **reinstall it back to the pool on release**. The
-reinstall is what makes a released box safe to re-adopt, and on OVH and Dedibox
-it is also what lays down the disk layout, because both APIs take a
-partitioning plan (`internal/ovh` `PlanStorage`, `internal/dedibox`
-`planPartitions`): a mirrored root plus a separate XFS `/data`.
+reinstall is what makes a released box safe to re-adopt, and on OVH
+it is also what lays down the disk layout, because its API takes a
+partitioning plan (`internal/ovh` `PlanStorage`): a mirrored root plus a separate XFS `/data`.
 
 **Vultr's API has no partitioning control.** Its installer offers RAID 1 across
 both disks, which is one filesystem spanning the pair, or no RAID.
@@ -77,8 +76,8 @@ drift checks), and the operator-minted kubelet identity.
 
 Verified against the live API 2026-09-07.
 
-The other kinds adopt by a provider-side marker set as the last step of prep: an
-OVH `displayName` **prefix**, a Dedibox **tag**. `GET /v2/bare-metals` does
+OVH adopts by a provider-side `displayName` **prefix** set as the last step
+of prep. `GET /v2/bare-metals` does
 filter server-side, on `label`, `tag` and `region`, but **`label` matches
 exactly**, not by prefix:
 
@@ -89,7 +88,7 @@ exactly**, not by prefix:
 | `label=TUIST-KURA-VULTR-PRODUCTION-SA-WEST` | 1 (case-insensitive) |
 
 So the OVH `adoptDisplayNamePrefix` pattern has no server-side equivalent here.
-Adoption follows **Dedibox instead**: an `adoptTag` on the `tags` list, narrowed
+Adoption uses exact membership of an `adoptTag` on the `tags` list, narrowed
 by `region` and `plan`, which is one query rather than listing the fleet and
 filtering client-side. The `label` stays what it is now, the human-readable
 per-box name.
@@ -175,7 +174,7 @@ release-then-reinstall cycle emits one of those per release.
 ## Credential
 
 `VULTR_API` in `tuist-k8s-<env>`, an API Credential item with an `api-key`
-field, mirroring `OVH_API` and `DEDIBOX_SCW_API`. Created 2026-09-07 in
+field, mirroring `OVH_API`. Created 2026-09-07 in
 `tuist-k8s-production`.
 
 Vultr gates API keys on a **source IP allowlist**, which the other providers do

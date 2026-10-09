@@ -36,8 +36,8 @@ func poolNode(name string, ready bool) *corev1.Node {
 		status = corev1.ConditionTrue
 	}
 	return &corev1.Node{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: map[string]string{"node.cluster.x-k8s.io/pool": "kura-dedibox"}},
-		Spec:       corev1.NodeSpec{ProviderID: "dedibox://fr-par-1/100"},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: map[string]string{"node.cluster.x-k8s.io/pool": "kura-eu-west"}},
+		Spec:       corev1.NodeSpec{ProviderID: "ovh://gra/ns1234.ip-1-2-3.eu"},
 		Status:     corev1.NodeStatus{Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: status}}},
 	}
 }
@@ -59,7 +59,7 @@ func failoverIPCR(demux bool) *infrav1.FailoverIP {
 		IP:               "203.0.113.10",
 		Vendor:           "fake",
 		Region:           "eu-west",
-		NodePoolSelector: map[string]string{"node.cluster.x-k8s.io/pool": "kura-dedibox"},
+		NodePoolSelector: map[string]string{"node.cluster.x-k8s.io/pool": "kura-eu-west"},
 	}
 	if demux {
 		spec.DemuxSelector = map[string]string{"app.kubernetes.io/component": "peer-demux"}
@@ -151,15 +151,5 @@ func TestOVHServiceNameFromProviderID(t *testing.T) {
 	}
 	if _, err := ovhServiceNameFromProviderID("hcloud://5"); err == nil {
 		t.Fatal("expected error for non-OVH providerID")
-	}
-}
-
-func TestParseDediboxTarget(t *testing.T) {
-	zone, id, err := parseDediboxTarget("fr-par-1/75839")
-	if err != nil || zone != "fr-par-1" || id != 75839 {
-		t.Fatalf("got zone=%q id=%d err=%v", zone, id, err)
-	}
-	if _, _, err := parseDediboxTarget("nonsense"); err == nil {
-		t.Fatal("expected error for malformed target")
 	}
 }

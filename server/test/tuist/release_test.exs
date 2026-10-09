@@ -2,6 +2,7 @@ defmodule Tuist.ReleaseTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  alias Tuist.ClickHouse.Backfill
   alias Tuist.ClickHouse.Parity
   alias Tuist.Release
 
@@ -44,6 +45,82 @@ defmodule Tuist.ReleaseTest do
       end)
 
       assert_raise RuntimeError, ~r/schema_migrations.*20260912090000/, fn -> Release.check_clickhouse_parity() end
+    end
+  end
+
+  describe "clickhouse_repair_window/3" do
+    test "parses the instants as UTC, to the second" do
+      assert Release.clickhouse_repair_window("2026-10-04T17:15:00Z", "2026-10-04T19:05:00.500Z") ==
+               {~U[2026-10-04 17:15:00Z], ~U[2026-10-04 19:05:00Z]}
+    end
+
+    test "converts an offset to UTC" do
+      assert Release.clickhouse_repair_window("2026-10-04T14:15:00-03:00", "2026-10-04T19:05:00Z") ==
+               {~U[2026-10-04 17:15:00Z], ~U[2026-10-04 19:05:00Z]}
+    end
+
+    test "raises on an instant that does not parse" do
+      assert_raise ArgumentError, fn -> Release.clickhouse_repair_window("2026-10-04 17:15", "2026-10-04T19:05:00Z") end
+    end
+
+    test "raises unless the span ended long enough ago for the mirror to have settled" do
+      now = ~U[2026-10-04 19:30:00Z]
+
+      assert Release.clickhouse_repair_window("2026-10-04T17:15:00Z", "2026-10-04T19:15:00Z", now) ==
+               {~U[2026-10-04 17:15:00Z], ~U[2026-10-04 19:15:00Z]}
+
+      assert_raise ArgumentError, ~r/15 minutes ago/, fn ->
+        Release.clickhouse_repair_window("2026-10-04T17:15:00Z", "2026-10-04T19:20:00Z", now)
+      end
+    end
+
+    test "raises unless the span starts before it ends" do
+      assert_raise ArgumentError, fn ->
+        Release.clickhouse_repair_window("2026-10-04T19:05:00Z", "2026-10-04T17:15:00Z")
+      end
+
+      assert_raise ArgumentError, fn ->
+        Release.clickhouse_repair_window("2026-10-04T17:15:00Z", "2026-10-04T17:15:00Z")
+      end
+    end
+  end
+
+  describe "repair_clickhouse/2" do
+    setup do
+      stub(System, :put_env, fn _key, _value -> :ok end)
+      stub(Tuist.Environment, :migration_database_url, fn -> nil end)
+      :ok
+    end
+
+    test "repairs the given span" do
+      expect(Backfill, :run, fn opts ->
+        assert opts == [windows: [{~U[2026-10-04 17:15:00Z], ~U[2026-10-04 19:05:00Z]}]]
+        {:ok, %{"test_runs" => %{copied: 1, skipped: 0, failed: 0}}}
+      end)
+
+      assert Release.repair_clickhouse("2026-10-04T17:15:00Z", "2026-10-04T19:05:00Z") == :ok
+    end
+
+    test "raises naming the tables a chunk failed in" do
+      stub(Backfill, :run, fn _opts ->
+        {:ok,
+         %{
+           "test_runs" => %{copied: 0, skipped: 0, failed: 1},
+           "test_cases" => %{copied: 1, skipped: 0, failed: 0}
+         }}
+      end)
+
+      assert_raise RuntimeError, ~r/failed chunks in: test_runs$/, fn ->
+        Release.repair_clickhouse("2026-10-04T17:15:00Z", "2026-10-04T19:05:00Z")
+      end
+    end
+
+    test "raises when the repair cannot start" do
+      stub(Backfill, :run, fn _opts -> {:error, :already_running} end)
+
+      assert_raise RuntimeError, ~r/already_running/, fn ->
+        Release.repair_clickhouse("2026-10-04T17:15:00Z", "2026-10-04T19:05:00Z")
+      end
     end
   end
 
@@ -187,12 +264,15 @@ defmodule Tuist.ReleaseTest do
       assert Release.processor_role_grant_statements(role, database, schema) == [
                ~s(REVOKE ALL ON ALL TABLES IN SCHEMA "public" FROM "tuist_processor"),
                ~s|REVOKE ALL (compressed, state, error, updated_at) ON TABLE "public".bazel_profile_uploads FROM "tuist_processor"|,
+               ~s|REVOKE ALL (account_id, event_name, project_id, refresh_before) ON TABLE "public".mcp_event_subscriptions FROM "tuist_processor"|,
                ~s(GRANT CONNECT ON DATABASE "tuist" TO "tuist_processor"),
                ~s(GRANT USAGE ON SCHEMA "public" TO "tuist_processor"),
                ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public".oban_jobs, "public".oban_peers, "public".test_case_run_flaky_corrections, "public".bazel_test_invocations, "public".bazel_test_results, "public".bazel_test_summaries TO "tuist_processor"),
                ~s(GRANT USAGE, SELECT ON SEQUENCE "public".oban_jobs_id_seq TO "tuist_processor"),
-               ~s(GRANT SELECT ON TABLE "public".accounts, "public".projects, "public".automation_alerts, "public".webhook_endpoints, "public".feature_flags TO "tuist_processor"),
-               ~s|GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE "public".bazel_profile_uploads TO "tuist_processor"|
+               ~s(GRANT SELECT ON TABLE "public".accounts, "public".projects, "public".automation_alerts, "public".webhook_endpoints, "public".feature_flags, "public".coverage_commits TO "tuist_processor"),
+               ~s|GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE "public".bazel_profile_uploads TO "tuist_processor"|,
+               ~s|GRANT SELECT (account_id, event_name, project_id, refresh_before) ON TABLE "public".mcp_event_subscriptions TO "tuist_processor"|,
+               ~s(GRANT SELECT, INSERT ON TABLE "public".mcp_event_job_keys TO "tuist_processor")
              ]
     end
 
@@ -204,7 +284,7 @@ defmodule Tuist.ReleaseTest do
         |> File.read!()
 
       expected_read_grant =
-        ~s(GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints, :"tuist_schema".feature_flags TO tuist_processor;)
+        ~s(GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints, :"tuist_schema".feature_flags, :"tuist_schema".coverage_commits TO tuist_processor;)
 
       assert occurrences(sql, expected_read_grant) == 1
 
@@ -218,6 +298,14 @@ defmodule Tuist.ReleaseTest do
 
       assert sql =~
                ~s|GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE :"tuist_schema".bazel_profile_uploads TO tuist_processor;|
+
+      assert sql =~
+               ~s|REVOKE ALL (account_id, event_name, project_id, refresh_before) ON TABLE :"tuist_schema".mcp_event_subscriptions FROM tuist_processor;|
+
+      assert sql =~
+               ~s|GRANT SELECT (account_id, event_name, project_id, refresh_before) ON TABLE :"tuist_schema".mcp_event_subscriptions TO tuist_processor;|
+
+      assert sql =~ ~s(GRANT SELECT, INSERT ON TABLE :"tuist_schema".mcp_event_job_keys TO tuist_processor;)
     end
   end
 

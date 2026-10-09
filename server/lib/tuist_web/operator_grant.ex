@@ -22,11 +22,10 @@ defmodule TuistWeb.OperatorGrant do
     * `load_operator_grant/2` + `on_mount(:load, …)` — attach the
       session grant for the current `account_handle` onto
       `current_user.operator_grant` (controller and LiveView paths).
-    * `accept_operator_grant_header/2` — the same handoff for surfaces
-      with no cookie session: a plug in `:mcp` that takes the grant from
-      the `x-tuist-operator-grant` header, verifies it, pins the account,
-      and attaches it for this request only. Nothing is stored, so the
-      caller presents the grant on every call.
+    * `accept_atlas_identity_header/2` — a plug in `:mcp` that lets an
+      operator calling through Atlas read any account without a grant,
+      once Atlas' ServiceAccount token in `x-tuist-atlas-identity`
+      verifies.
     * `redirect_to_ops_if_operator/2` — a plug that bounces a
       non-member operator with no grant to the reason form instead of
       404ing them.
@@ -63,15 +62,18 @@ defmodule TuistWeb.OperatorGrant do
   # Account handles are alphanumeric + dashes (mirrors the server's name
   # validation). Anything else is rejected before the handle is resolved.
   @account_handle_regex ~r/^[a-zA-Z0-9-]+$/
-  @grant_header "x-tuist-operator-grant"
   @atlas_identity_header "x-tuist-atlas-identity"
 
+  # No longer accepted on `/mcp`, but older clients and the MCP docs of the
+  # time sent a live grant in it, so it stays out of recorded headers.
+  @retired_grant_header "x-tuist-operator-grant"
+
   @doc """
-  Request headers that carry live credentials: an operator grant, and Atlas'
-  ServiceAccount token (which also authenticates the internal Atlas API). Keep
-  them out of anything that records request headers.
+  Request headers that carry live credentials: Atlas' ServiceAccount token,
+  which also authenticates the internal Atlas API, and the retired operator
+  grant header. Keep them out of anything that records request headers.
   """
-  def credential_headers, do: [@grant_header, @atlas_identity_header]
+  def credential_headers, do: [@atlas_identity_header, @retired_grant_header]
 
   # --- verification ------------------------------------------------------
 
@@ -332,46 +334,7 @@ defmodule TuistWeb.OperatorGrant do
     if query == "", do: conn.request_path, else: conn.request_path <> "?" <> query
   end
 
-  # --- handoff plug (runs in :mcp) ---------------------------------------
-
-  @doc """
-  Honour a grant presented in the `#{@grant_header}` header, for surfaces
-  authenticated by a token rather than a cookie.
-
-  The browser handoff stores the grant in the session because a person clicks
-  through many pages after justifying access once. A token-authenticated caller
-  has nowhere to keep it, so the grant is attached for this request only and
-  presented again on the next one — which also means it cannot outlive its `exp`
-  in a cookie.
-
-  A header that is present but not honoured fails the request rather than
-  falling through unauthenticated. The browser flow strips the token and carries
-  on because a person will see the page they landed on and can retry; an agent
-  would instead see a bare "you do not have access" and have no way to tell a
-  rejected grant from a missing one.
-  """
-  def accept_operator_grant_header(conn, _opts) do
-    case get_req_header(conn, @grant_header) do
-      [token | _] when is_binary(token) and token != "" -> attach_header_grant(conn, token)
-      _ -> conn
-    end
-  end
-
-  defp attach_header_grant(conn, token) do
-    with {:ok, claims} <- verify(token),
-         %User{} = user <- operator_from_conn(conn),
-         :ok <- check_header_subject_is_operator(user, claims),
-         %{id: account_id} <- Accounts.get_account_by_handle(claims.account_handle) do
-      log_grant_context(claims)
-      assign(conn, :operator_grant_user, %{user | operator_grant: session_grant(claims, account_id)})
-    else
-      _ ->
-        conn
-        |> put_status(:unauthorized)
-        |> json(%{error: "operator_grant_rejected"})
-        |> halt()
-    end
-  end
+  # --- Atlas identity (runs in :mcp) ------------------------------------
 
   @doc """
   Plug for the MCP pipeline: lets a Tuist operator read any account when the
@@ -381,7 +344,7 @@ defmodule TuistWeb.OperatorGrant do
   projected ServiceAccount token in the `x-tuist-atlas-identity` header. Atlas
   records every proxied call in its audit log, so a verified header is what
   makes grant-free reads acceptable; the same operator calling `/mcp` directly
-  keeps needing a grant. Reads only: `Tuist.MCP.Authorization` consults
+  only sees their own memberships. Reads only: `Tuist.MCP.Authorization` consults
   `:atlas_operator` for `:read` actions and nothing else.
 
   Trust model: the header proves the caller holds Atlas' credential, not that
@@ -391,9 +354,9 @@ defmodule TuistWeb.OperatorGrant do
   is detected by reconciling the `atlas_operator_*` log fields set here and in
   `Tuist.MCP.Authorization` against Atlas' audit log (`infra/log-review.md`).
 
-  A header that fails verification rejects the request, as a rejected grant
-  does. A verifier that is not configured is not the caller's fault, so the
-  request continues without the elevation.
+  A header that fails verification rejects the request, so an agent can tell a
+  rejected identity from a plain refusal. A verifier that is not configured is
+  not the caller's fault, so the request continues without the elevation.
   """
   def accept_atlas_identity_header(conn, _opts) do
     case get_req_header(conn, @atlas_identity_header) do
@@ -445,30 +408,6 @@ defmodule TuistWeb.OperatorGrant do
       %{current_user: %User{} = user} -> user
       %{current_subject: %AuthenticatedAccount{issued_by: %User{} = user}} -> user
       _ -> nil
-    end
-  end
-
-  # Same bearer-token reasoning as the browser handoff: honour the grant only
-  # for the confirmed operator named in `sub`.
-  #
-  # The browser also requires that the session authenticated through Google
-  # (`auth_method == :google`). There is no session here, and no equivalent
-  # signal on an access token — but the grant itself is the artifact of that
-  # authentication: ops.tuist.dev mints it only for an authenticated operator,
-  # signs it, and binds it to `sub` with a short TTL, all verified above. A
-  # second Google login *to this server* would prove nothing about the one that
-  # produced the grant, and requiring it would reject freshly minted grants from
-  # operators who authenticated only at ops.
-  #
-  # What remains unestablished is that the *credential presenting* the grant was
-  # itself Google-authenticated. That needs the authentication method bound to
-  # the token, which is not reachable without changing the OAuth dependency.
-  defp check_header_subject_is_operator(%User{email: email} = user, %{sub: sub}) do
-    if Accounts.tuist_operator?(user) and emails_match?(email, sub) do
-      :ok
-    else
-      Logger.warning("operator grant rejected: subject does not match the authenticated user")
-      {:error, :subject_mismatch}
     end
   end
 

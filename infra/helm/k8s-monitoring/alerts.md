@@ -1279,7 +1279,8 @@ The paired telemetry rule for every Kura rule that reads a metric off the
 `kura` scrape job: `kura_http_*`, `kura_rocksdb_*`,
 `kura_response_stream_admissions_*`, `kura_capacity_sheds_*`,
 `kura_memory_actions_*`, `kura_memory_pressure_state`, `kura_segment_shed_age_*`,
-`kura_backfill_ring_fullness_percent`, `kura_public_request_latency_*`, and the
+`kura_backfill_ring_fullness_percent`, `kura_public_request_latency_*`,
+`kura_region_sync_lag_seconds`, and the
 `egress-tree-agent` job behind `kura_egress_tree_*`, `kura_container_memory_*` and the
 `kura_node_geo_info` join key behind every region rule. Those are threshold rules with
 **No Data: Normal**, so they cannot distinguish a healthy fleet from a scrape
@@ -1735,8 +1736,8 @@ and on (cluster, pod) (
   those three days is under a day. Overnight and weekend builds have been
   missing all that time. Tuist.Kura.ClaimSizing grows the claim on its own
   and a resize would have reopened the ring-fullness gate, so this means the
-  loop did not act: the claim is clamped at the plan ceiling (64Gi air and
-  pro, 256Gi enterprise), the region has no disk to grow into (see "Kura
+  loop did not act: the claim is clamped at the plan ceiling (64Gi air,
+  256Gi pro and enterprise), the region has no disk to grow into (see "Kura
   region cannot place another instance"), or sizing itself is stuck.`
 
 Kura instances are expected to use all the disk they are given: every
@@ -2022,6 +2023,64 @@ read gauges that the server emits, so if every server pod dies, both go to
 No Data and stay silent. The companion absence rule described on the Kura
 rollout dashboard (`tuist-kura-rollout.json`) is not created. The server's own
 availability alerts cover that failure.
+
+### Kura receiving no REAPI requests
+
+```promql
+sum(increase(kura_public_request_latency_seconds_count{cluster="tuist-production", transport="grpc",
+  route=~"/build.bazel.remote.execution.v2.(ActionCache/GetActionResult|ContentAddressableStorage/(FindMissingBlobs|BatchReadBlobs|BatchUpdateBlobs))"}[10m]))
+```
+
+- Threshold: `< 1`
+- Pending period: none. The ten-minute window is the grace period.
+- Severity: warning, to be promoted to critical once it has run clean for a
+  while.
+- Production only (the `cluster` matcher). Folder `Alerts`, group `Cache`.
+  No contact point on the rule; the policy tree routes it. **No Data:
+  Alerting**, because an empty result is the condition: `sum()` over no
+  series returns nothing. **Error: Error**.
+- Summary: `No REAPI requests reached the production Kura fleet in the last 10 minutes`
+- **Not created yet.** The rule definition is
+  `kura-no-reapi-requests-alert-rules.json` next to this file once it lands;
+  create it with the provisioning API (`X-Disable-Provenance: true`,
+  `ruleGroup: Cache`), not `gcx resources push`.
+
+The four routes are the ones `tuist-cas-proxy` uses for the Xcode cache.
+Bazel and, from CLI 4.211, the module cache use the same REAPI routes, and
+Kura has no client label, so the rule watches every REAPI client at once
+rather than the Xcode lane alone. The floor is what makes it usable: an idle
+proxy polls `GetActionResult` for its snapshot refresh about once a minute,
+so even at night and on weekends the fleet sees one or two of these requests
+every five minutes. Over the 28 days to 2026-10-03 no ten-minute window was
+empty; the quietest held one request (2026-09-05 to 2026-09-10, when the
+fleet was smaller) and since 2026-09-11 none held fewer than nine. Five- and
+two-minute windows do go empty, so ten is the shortest interval the history
+supports. `kura_usage_events` in ClickHouse is not a substitute: it is
+flushed in batches of about five minutes, so it shows gaps that Prometheus
+does not.
+
+**What it catches.** Every client stopping at once: an endpoint answer that
+sends clients elsewhere (the legacy cache nodes, an empty list, a host that
+does not resolve), or a REAPI ingress that is down across regions. It does
+not catch one account's proxies being pinned to the wrong server, which is
+what happened in September (tuist/tuist#13715); that needs the proxy to
+report its endpoint in the build report, which is a CLI change.
+
+**When it fires.** Check the Kura availability alerts first: if instances
+are unready, this is the client-facing symptom of that. If they are healthy,
+the clients are going elsewhere:
+
+1. `curl -sS -H "Authorization: Bearer $TUIST_TOKEN" "https://tuist.dev/api/cache/endpoints?account_handle=<handle>"`
+   for an account with an active instance should answer that instance's
+   `*.kura.tuist.dev` host (or its `*.cache.tuist.dev` stable host). A legacy
+   `cache-*.tuist.dev` host or an empty list is the fault.
+2. Look for REAPI arriving at the wrong place: on the legacy nodes
+   `{job="cache-nginx", stream="access"} |~ "build\\.bazel\\.remote"` (nginx
+   answers 404), and on the Tuist server ingress
+   `{service_name="ingress-nginx"} |~ "build\\.bazel\\.remote"`.
+3. If nothing arrives anywhere, the clients cannot resolve or reach the Kura
+   hosts: check external DNS for the `kura.tuist.dev` records and the region
+   ingress controllers.
 
 ### Kura egress budget almost entirely consumed
 
@@ -5089,6 +5148,111 @@ restarted**, whereas short excursions during a restart burst stay under the
 stalled pod is silent, but its peers log `artifact replication upload stalled:
 no body progress for 60000ms` against it every couple of minutes.
 
+### Kura region replication lagging
+
+```promql
+max by (cluster, namespace, statefulset, region) (
+  label_replace(
+    max_over_time(kura_region_sync_lag_seconds{cluster="tuist-production"}[5m]),
+    "statefulset", "$1", "pod", "(.+)-[0-9]+"
+  )
+)
+```
+
+- Threshold: `> 600`, as a separate threshold expression on `A`
+- Pending period: 10 minutes
+- Severity: warning
+- Production only. Folder `Alerts`, group `Cache` (five-minute evaluation).
+  No contact point on the rule: the policy tree sends it to
+  `#notifications`. **No Data: Normal**, **Error: Error**.
+- Summary: `Kura {{ $labels.statefulset }} is
+  {{ $values.A.Value | humanizeDuration }} behind region {{ $labels.region }}`
+- Proposed rule; it must be created in Grafana separately. Create it once a
+  Kura release exporting the gauge has rolled out to production, after
+  checking step 12 of
+  [Create the rules in Grafana](#create-the-rules-in-grafana): a brand-new
+  metric is exactly what Adaptive Metrics aggregates, and this rule is useless
+  without `pod` and `region`.
+
+The gauge is exported by the pod holding its region's gateway role, one series
+per remote region it pulls from. It is replication lag in **origin version
+time**: the newest version the remote gateway has committed for its region,
+minus the newest version applied here (see D-37 in
+[`kura/docs/replication-implementation.md`](../../../kura/docs/replication-implementation.md)).
+It reads 0 when caught up, including while the remote region writes nothing,
+so an idle region never fires this. That is why the rule reads this gauge and
+not `kura_region_watermark_age_seconds`, which grows through every idle stretch
+of the remote region. While the link cannot reach the remote gateway there is
+no fresh sample, so the lag keeps growing by the silence beyond one long-poll
+(`KURA_SYNC_LONG_POLL_SECS`, 25 s). A cut-off link therefore fires this rule
+too, roughly twenty minutes after the last answer. Everything written in the
+remote region since then is missing here: reads served from this region miss
+on artifacts that exist in the other one.
+
+**Why aggregate by StatefulSet, not pod.** Only the gateway reports the series,
+and it is removed when the link closes. Restarts and membership blips move the
+role between the instance's pods, so the series hops from `...-0` to `...-1`.
+Grouping by pod would reset the pending period and open a second alert on every
+hop. Scraped Kura series carry no StatefulSet label, so the query derives it
+from the pod name (`kura-<account>-<region>-<n>`); `instance` is
+`<namespace>/<pod>` and hops with it. The `region` label is the **remote**
+region; the local one is part of the StatefulSet name.
+
+**Why `max_over_time(...[5m])`.** The window matches the `Cache` group's
+five-minute evaluation, so each evaluation sees every sample since the last
+one. A hop leaves the series absent for a scrape or two, and an evaluation
+landing in that gap would otherwise see no series and reset the pending
+period. The `max` also collapses the brief overlap when both pods report. The
+cost is that the alert resolves up to five minutes late.
+
+**Why 600 seconds and 10 minutes.** A handover or a gateway entering runs a
+backward pass, and until that pass completes the new holder reports the lag
+from its seeded watermark, which can sit a buffer (`KURA_SYNC_PASS_START_BUFFER_MS`,
+10 minutes) below the remote head. Most passes finish in a minute or two. The
+pending period needs three consecutive evaluations above the threshold, so the
+lag has to stay above ten minutes for between five and ten minutes of samples,
+depending on how they fall against the evaluation. A short pass does not fire;
+a region more than a quarter of an hour behind does. A long cold backward pass
+can fire it. That is a true positive: the region is not current until the
+pass finishes. This is a warning, not a page: reads fall through to a miss,
+nothing is lost, and the link catches up on its own once the cause clears.
+
+#### Triage
+
+Work out which side is behind, using the gateway pod of the lagging instance
+(`kura_gateway_role`) and the remote region's gateway:
+
+1. **Can the gateway reach the remote gateway at all?**
+   `max by (pod, region) (kura_region_sync_last_success_age_seconds)` on the
+   lagging instance. Above a few minutes, the link is failing, not slow: check
+   the gateway's logs for `region listing` errors, the WAN path (Cilium,
+   DNS, the remote ingress), and whether the remote gateway pod is Ready. If
+   the age is high against every remote region, this gateway is cut off; if
+   only against one, that region is.
+2. **Is the remote gateway holding its listing back?**
+   `kura_region_listing_bound_lag_seconds` on the **remote** gateway pod. The
+   ascending listing only serves below the frontier of the remote gateway's
+   own replica link to its sibling (D-24), so a sibling link that is
+   bootstrapping or has not reported holds the whole region's listing back.
+   86400 means the listing is bounded whole. Follow that replica link on the
+   remote gateway (`kura_sync_forward_cursor_lag_seconds`,
+   `kura_sync_forward_fell_behind_total`, its `sync_links`) rather than this
+   one.
+3. **Is the remote region writing faster than this link applies?** Compare the
+   remote instance's write rate with `kura_region_sync_bytes_fetched_total`
+   and `kura_region_sync_entries_listed_total` on this gateway. A steady,
+   growing lag with a healthy last-success age is a throughput problem: look
+   at this pod's memory pressure, sheds and RocksDB write buffer.
+4. **Is a backward pass running?** `/status/cluster` on the gateway pod lists
+   one `sync_links` entry per link with its `phase`, `settled` and `lag`. A
+   link in `bootstrapping` that stays there is a slow pass;
+   `kura_region_sync_last_cycle_duration_seconds` shows how long the last one
+   took. A link in `retrying` is step 1.
+
+A gateway that restarts in a loop hands the role over on every restart, and
+each handover starts a new pass. Check **Kura cache pod restart loop** first
+if the StatefulSet shows restarts.
+
 ### Worker node pool stuck mid-rollout
 
 Catches a worker MachineDeployment that started replacing Machines and cannot
@@ -5624,12 +5788,17 @@ sum by (cluster, namespace, result) (
 - Folder `Alerts`, group `Server`
 - Summary: `ClickHouse reads are failing with {{ $labels.result }} in {{ $labels.cluster }}`
 - `tuist_clickhouse_query_count` is emitted by `Tuist.ClickHouseRepo.PromExPlugin`
-  for every query the read-only ClickHouse repo runs. `result` is `ok`,
+  for reads against both physical Cloud and shadow ClickHouse repositories.
+  The `repo` label distinguishes `clickhouse_read` from
+  `clickhouse_shadow_read`; this rule aggregates both. Adding shadow event
+  coverage can surface failures that were previously unobserved, without a
+  threshold change. `result` is `ok`,
   `clickhouse_<code>` for an error ClickHouse returned (`clickhouse_159` is
-  `TIMEOUT_EXCEEDED`, which the repo's `max_execution_time` produces for a
+  `TIMEOUT_EXCEEDED`, which the Cloud repo's `max_execution_time` produces for a
   slow read; `clickhouse_241` the memory limit), `transport_closed` for a
   connection the client dropped, `queue_timeout` for a pool checkout that never
-  got a connection.
+  got a connection. The shadow repo does not configure `max_execution_time`:
+  a client timeout alone does not establish that its server-side query stopped.
 - The threshold is `> 0` on purpose, the same reasoning as the Kura
   NetworkPolicy rule above: the errors are rare enough that any magnitude floor
   would be tuned blind and hide a low-rate variant. Duration does the
@@ -5657,10 +5826,15 @@ histogram_quantile(
 - Severity: warning
 - Folder `Alerts`, group `Server`
 - Summary: `p90 ClickHouse read took over 5s for 10 minutes in {{ $labels.cluster }}`
-- Same histogram as the failures rule, all outcomes included so a query that
-  ran into its timeout counts as slow rather than disappearing from the
-  distribution. The repo stops a read at 15 s server-side and 20 s
-  client-side, so the histogram's top buckets are 15 000, 20 000 and 30 000.
+- Same histogram as the failures rule, aggregating Cloud and shadow physical
+  read repositories. Newly instrumented shadow reads can change the observed
+  p90 and make this rule fire. All outcomes are included so a query that ran
+  into its timeout counts as slow rather than disappearing from the distribution.
+  Cloud reads have a 15 s server-side limit and a 20 s client timeout. Shadow
+  reads do not configure a server-side execution limit and use the driver's
+  default 15 s client timeout; a client timeout does not guarantee server-side
+  cancellation. The histogram's top finite buckets are 15 000, 20 000 and
+  30 000; longer observations fall into `+Inf`.
 - This is the rule that covers dashboard pages. They are LiveViews: the
   initial render returns in milliseconds and the data is loaded afterwards
   over the socket, so the HTTP request duration rules stay flat while a page
@@ -6503,6 +6677,38 @@ Triage follows the payload:
 
 Content blockers cannot explain a total outage; the collector is same-origin
 precisely so no blocklist matches it.
+
+### Metrics samples rejected as duplicate timestamps
+
+Unlike every other rule here, this one queries the `grafanacloud-usage` data
+source, which carries Grafana Cloud's own metering of the stack.
+
+```promql
+sum(
+  grafanacloud_instance_samples_discarded_per_second{
+    id="1774467",
+    reason="new-value-for-timestamp"
+  }
+) > 500
+```
+
+- Pending period: 1 hour
+- Summary: `Grafana Cloud is rejecting {{ $values.A.Value }} metric samples per second as duplicate timestamps`
+
+Mimir keeps one sample per series and timestamp and rejects the rest, but
+Grafana Cloud bills every data point it receives. The healthy baseline is
+about 100 per second. From 2026-09-30 to 2026-10-05 it ran at about 2,500 per
+second, which doubled billable series from about 240k to 447k without any
+change in active series.
+
+The usual cause is the Adaptive Metrics dependency described in "The apiserver
+request rules are load-bearing for cost" in `README.md`: the rule for
+`apiserver_request_total` or `apiserver_request_duration_seconds_bucket` is
+gone, so the control-plane collector's colliding series reach storage. Read
+the colliding series from the `err-mimir-sample-duplicate-timestamp` lines in
+the `grafanacloud-tuist-usage-insights` Loki data source, then restore the
+rule. Any other series named there means a new relabel rule in this chart is
+collapsing distinct series into one label set.
 
 ## Useful investigation queries
 

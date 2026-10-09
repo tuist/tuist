@@ -1107,6 +1107,25 @@
         ],
         "type": "table",
         "description": "Linux build processor container lifecycle in the selected cluster, independent of the database workload selector."
+      },
+      {
+        "id": 20,
+        "title": "Connection idle time average",
+        "description": "Time a connection was idle before checkout, not connection occupancy or part of total query time. Missing idle measurements are omitted. Compare with connection waits and failures; this alone cannot distinguish network latency, PgBouncer wait, or time held between statements in a transaction.",
+        "type": "timeseries",
+        "datasource": {"type": "prometheus", "uid": "$datasource"},
+        "gridPos": {"x": 12, "y": 72, "w": 12, "h": 8},
+        "fieldConfig": {"defaults": {"unit": "ms", "min": 0, "color": {"mode": "palette-classic"}}, "overrides": []},
+        "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+        "targets": [
+          {
+            "datasource": {"type": "prometheus", "uid": "$datasource"},
+            "expr": "sum by (workload, repo) (rate(tuist_repo_query_idle_time_milliseconds_sum{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval])) / sum by (workload, repo) (rate(tuist_repo_query_idle_time_milliseconds_count{cluster=\"$cluster\",workload=~\"$workload\",repo=~\"$repo\",result=\"ok\"}[$__rate_interval]))",
+            "legendFormat": "{{workload}} / {{repo}}",
+            "range": true,
+            "refId": "A"
+          }
+        ]
       }
     ],
     "schemaVersion": 39,
@@ -1174,7 +1193,7 @@
           "name": "repo",
           "label": "Database repository",
           "type": "custom",
-          "query": "postgres,clickhouse_read,clickhouse_write",
+          "query": "postgres,clickhouse_read,clickhouse_write,clickhouse_shadow_read,clickhouse_shadow_write,ops_clickhouse_read",
           "current": {
             "text": "postgres",
             "value": "postgres"

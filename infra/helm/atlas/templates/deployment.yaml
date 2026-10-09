@@ -1,5 +1,16 @@
 {{- $appSecret := include "atlas.appSecretName" . -}}
 {{- $pgSecret := include "atlas.postgresAppSecret" . -}}
+{{- if ne (toString .Values.env.ATLAS_DEMO_MODE) (toString .Values.demo.enabled) -}}
+{{- fail "Atlas env.ATLAS_DEMO_MODE must match demo.enabled (true or false)" -}}
+{{- end -}}
+{{- if .Values.demo.enabled -}}
+{{- if or .Values.postgres.enabled .Values.tuistServer.enabled .Values.externalSecrets.enabled .Values.clickhouse.enabled .Values.vector.enabled .Values.agentSandboxes.enabled -}}
+{{- fail "Atlas demo must use isolated external PostgreSQL and no managed integrations" -}}
+{{- end -}}
+{{- if or (not .Values.migrationJob.appSecretName) (eq .Values.migrationJob.appSecretName $appSecret) -}}
+{{- fail "Atlas demo requires a separate migrationJob.appSecretName and a read-only application Secret" -}}
+{{- end -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -26,9 +37,18 @@ spec:
         {{- include "atlas.webSelectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "atlas.fullname" . }}
+      # In-process agents need no Kubernetes API credentials. The optional
+      # Tuist-audience token below is a separate, explicitly projected identity.
+      automountServiceAccountToken: false
+      {{- if .Values.demo.enabled }}
+      enableServiceLinks: false
+      {{- end }}
+      {{- if .Values.image.pullSecretName }}
       imagePullSecrets:
         - name: {{ .Values.image.pullSecretName }}
+      {{- end }}
       terminationGracePeriodSeconds: 30
+      {{- if .Values.migrationJob.enabled }}
       initContainers:
         # Wait for CNPG to be reachable, then run migrations. Folded into
         # the pod's startup rather than a Helm hook to avoid the chicken-
@@ -46,10 +66,16 @@ spec:
             - /bin/bash
             - -ec
             - |
+              {{- if .Values.postgres.enabled }}
               echo "Waiting for ${PGHOST}:${PGPORT}…"
               until (echo > /dev/tcp/$PGHOST/$PGPORT) >/dev/null 2>&1; do sleep 2; done
               export DATABASE_URL="ecto://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT}/${PGDATABASE}"
+              {{- end }}
+              {{- if .Values.demo.enabled }}
+              exec /app/bin/atlas eval "Atlas.Release.migrate(); Atlas.Release.seed_demo()"
+              {{- else }}
               exec /app/bin/atlas eval "Atlas.Release.migrate"
+              {{- end }}
           env:
             - name: PHX_HOST
               value: {{ .Values.host | quote }}
@@ -57,6 +83,7 @@ spec:
             - name: {{ $k }}
               value: {{ $v | quote }}
             {{- end }}
+            {{- if .Values.postgres.enabled }}
             - name: PGUSER
               valueFrom:
                 secretKeyRef:
@@ -82,10 +109,14 @@ spec:
                 secretKeyRef:
                   name: {{ $pgSecret }}
                   key: dbname
+            {{- end }}
             {{- include "atlas.clickhouseEnv" . | nindent 12 }}
           envFrom:
             - secretRef:
-                name: {{ $appSecret }}
+                name: {{ .Values.migrationJob.appSecretName | default $appSecret }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- end }}
       containers:
         - name: atlas
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -98,7 +129,9 @@ spec:
             - /bin/sh
             - -c
             - |
+              {{- if .Values.postgres.enabled }}
               export DATABASE_URL="ecto://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT}/${PGDATABASE}"
+              {{- end }}
               exec /app/bin/server
           ports:
             - name: http
@@ -118,6 +151,7 @@ spec:
             - name: TUIST_SERVER_TOKEN_PATH
               value: {{ printf "%s/token" .Values.tuistServer.tokenMountPath | quote }}
             {{- end }}
+            {{- if .Values.postgres.enabled }}
             - name: PGUSER
               valueFrom:
                 secretKeyRef:
@@ -143,6 +177,7 @@ spec:
                 secretKeyRef:
                   name: {{ $pgSecret }}
                   key: dbname
+            {{- end }}
             {{- include "atlas.clickhouseEnv" . | nindent 12 }}
           envFrom:
             - secretRef:

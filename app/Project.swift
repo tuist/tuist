@@ -231,6 +231,7 @@ let project = Project(
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistErrorHandling/**"],
             dependencies: [
+                .target(name: "TuistAuthentication"),
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
                 .project(target: "TuistHTTP", path: "../"),
@@ -286,6 +287,7 @@ let project = Project(
                 .target(name: "TuistApp"),
                 .project(target: "TuistTesting", path: "../"),
                 .project(target: "TuistConstants", path: "../"),
+                .external(name: "TestCoverageAttribution"),
             ]
         ),
     ],

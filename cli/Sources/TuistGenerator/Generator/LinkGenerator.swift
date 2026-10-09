@@ -190,7 +190,7 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
                     role = .plugin
                 case .macro:
                     role = .link
-                case .runtime, .runtimeEmbedded:
+                case .runtime, .runtimeEmbedded, .runtimeDynamic, .runtimeDynamicEmbedded:
                     role = target.product.isStatic ? .buildOnly : .link
                 }
                 guard role != .buildOnly else { continue }

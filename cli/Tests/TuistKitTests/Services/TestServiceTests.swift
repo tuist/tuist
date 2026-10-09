@@ -13,6 +13,8 @@ import TuistConfig
 import TuistConfigLoader
 import TuistConstants
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistGenerator
 import TuistGit
 import TuistLoader
@@ -212,6 +214,7 @@ final class TestServiceTests: TuistUnitTestCase {
             gitController: gitController,
             uploadResultBundleService: uploadResultBundleService,
             derivedDataLocator: derivedDataLocator,
+            testEnumerationService: noTestEnumeration(),
             createTestService: createTestService,
             serverEnvironmentService: serverEnvironmentService,
             ciController: ciController,
@@ -619,6 +622,64 @@ final class TestServiceTests: TuistUnitTestCase {
                 passthroughXcodeBuildArguments: .value(["-destination", "id=device-id"])
             )
             .called(1)
+    }
+
+    func test_run_bumps_coverage_counters_atomically_when_coverage_is_uploaded() async throws {
+        for uploadsCoverage in [true, false] {
+            try await withMockedEnvironment {
+                Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+                Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = uploadsCoverage ? "1" : "0"
+                // Given
+                xcodebuildController.reset()
+                given(xcodebuildController)
+                    .test(
+                        .any, scheme: .any, clean: .any, destination: .any, action: .any, rosetta: .any,
+                        derivedDataPath: .any, resultBundlePath: .any, arguments: .any, retryCount: .any,
+                        testTargets: .any, skipTestTargets: .any, testPlanConfiguration: .any,
+                        passthroughXcodeBuildArguments: .any
+                    )
+                    .willProduce { _, _, _, _, _, _, _, _, _, _, _, _, _, _ in }
+                givenGenerator()
+                given(configLoader)
+                    .loadConfig(path: .any)
+                    .willReturn(.test(project: .testGeneratedProject()))
+                given(generator)
+                    .generateWithGraph(path: .any, options: .any)
+                    .willProduce { path, _ in
+                        (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
+                    }
+                given(buildGraphInspector)
+                    .testableTarget(
+                        scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                        graphTraverser: .any,
+                        action: .any
+                    )
+                    .willReturn(.test(target: .test(destinations: [.iPhone, .mac])))
+                given(simulatorController)
+                    .findAvailableDevice(udid: .any)
+                    .willReturn(.test(device: .test(name: "Test iPhone")))
+
+                // When
+                try await testRun(
+                    schemeName: "TestScheme",
+                    path: try temporaryPath(),
+                    passthroughXcodeBuildArguments: ["-destination", "id=device-id"]
+                )
+
+                // Then
+                let expected = uploadsCoverage
+                    ? AtomicCoverageCounters.adding(to: ["-destination", "id=device-id"])
+                    : ["-destination", "id=device-id"]
+                verify(xcodebuildController)
+                    .test(
+                        .any, scheme: .any, clean: .any, destination: .any, action: .any, rosetta: .any,
+                        derivedDataPath: .any, resultBundlePath: .any, arguments: .any, retryCount: .any,
+                        testTargets: .any, skipTestTargets: .any, testPlanConfiguration: .any,
+                        passthroughXcodeBuildArguments: .value(expected)
+                    )
+                    .called(1)
+            }
+        }
     }
 
     func test_run_tests_for_only_specified_scheme() async throws {
@@ -4217,6 +4278,71 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_run_recordsThePassthroughTestFiltersAsTheCallersSelection() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([Scheme.test(name: "ProjectScheme")])
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (path, .test(), MapperEnvironment())
+                }
+
+            let resultBundlePath = try temporaryPath().appending(component: "test.xcresult")
+            try await fileSystem.makeDirectory(at: resultBundlePath)
+
+            configLoader.reset()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(
+                    .test(
+                        project: .testGeneratedProject(),
+                        fullHandle: "tuist/tuist",
+                        url: URL(string: "https://example.com")!
+                    )
+                )
+
+            xcResultService.reset()
+            given(xcResultService)
+                .coveredFilePaths(path: .any)
+                .willReturn(nil)
+            given(xcResultService)
+                .parse(path: .any, rootDirectory: .any)
+                .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
+            given(xcResultService)
+                .parseTestStatuses(path: .any)
+                .willReturn(TestResultStatuses(testCases: []))
+
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                resultBundlePath: resultBundlePath,
+                skipTestTargets: [try TestIdentifier(string: "AppTests/SlowTests")],
+                passthroughXcodeBuildArguments: [
+                    "-only-testing:AppTests", "-skip-testing", "AppTests/FlakyTests", "-skip-testing:AppTests/SlowTests",
+                ]
+            )
+
+            // Then
+            verify(uploadResultBundleService)
+                .uploadTestSummary(
+                    testSummary: .any,
+                    resultBundlePath: .any,
+                    projectDerivedDataDirectory: .any,
+                    config: .any,
+                    shardPlanId: .any,
+                    shardIndex: .any,
+                    onlyTestIdentifiers: .value(["AppTests"]),
+                    skipTestIdentifiers: .value(["AppTests/SlowTests", "AppTests/FlakyTests"]),
+                    stressNewTests: .any
+                )
+                .called(1)
+        }
+    }
+
     func test_run_fetches_quarantined_tests_and_runs_them() async throws {
         // Given
         givenGenerator()
@@ -4755,9 +4881,11 @@ final class TestServiceTests: TuistUnitTestCase {
                     macOSVersion: .any, xcodeVersion: .any, ciRunId: .any,
                     ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
                     shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
-                    stressNewTests: .any
+                    stressNewTests: .any,
+                    gitHistory: .any,
+                    coverageUpload: .any
                 )
-                .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _, _ in
+                .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _, _, _, _ in
                     uploadedReports += 1
                     XCTAssertEqual(summary.testPlanName, "ProjectSchemeOne")
                     XCTAssertEqual(summary.status, .passed)
@@ -5588,7 +5716,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
                 skipTestIdentifiers: .any,
-                stressNewTests: .any
+                stressNewTests: .any,
+                gitHistory: .any,
+                coverageUpload: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -5636,7 +5766,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
                 skipTestIdentifiers: .any,
-                stressNewTests: .any
+                stressNewTests: .any,
+                gitHistory: .any,
+                coverageUpload: .any
             )
             .called(1)
     }
@@ -5678,7 +5810,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 macOSVersion: .any, xcodeVersion: .any, ciRunId: .any,
                 ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
                 shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
-                stressNewTests: .any
+                stressNewTests: .any,
+                gitHistory: .any,
+                coverageUpload: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -7921,7 +8055,8 @@ private struct TestServiceSchemePlanningFixture {
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader,
             xcodeBuildArgumentParser: xcodeBuildArgumentParser,
-            derivedDataLocator: derivedDataLocator
+            derivedDataLocator: derivedDataLocator,
+            testEnumerationService: noTestEnumeration()
         )
     }
 
@@ -8284,6 +8419,7 @@ private struct TestServiceStressNewTestsFixture {
             xcodeBuildArgumentParser: xcodeBuildArgumentParser,
             gitController: gitController,
             derivedDataLocator: derivedDataLocator,
+            testEnumerationService: noTestEnumeration(),
             serverEnvironmentService: serverEnvironmentService,
             uploadBuildRunService: nil,
             stressNewTestsService: stressNewTestsService
@@ -8371,4 +8507,17 @@ extension StressNewTestsResult {
             ]
         )
     }
+}
+
+/// The tests of a run are listed with a second xcodebuild invocation, which these tests have no
+/// products for.
+private func noTestEnumeration() -> MockTestEnumerationServicing {
+    let service = MockTestEnumerationServicing()
+    given(service)
+        .record(
+            resultBundlePath: .any, target: .any, scheme: .any, destination: .any, rosetta: .any,
+            derivedDataPath: .any, testPlan: .any, xcodebuildArguments: .any
+        )
+        .willReturn(nil)
+    return service
 }

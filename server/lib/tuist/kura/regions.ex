@@ -28,7 +28,7 @@ defmodule Tuist.Kura.Regions do
 
   alias Tuist.Kura.Provisioner.KubernetesController
 
-  defstruct [:id, :display_name, :provisioner, :provisioner_config, :runner_platforms, retired: false]
+  defstruct [:id, :display_name, :provisioner, :provisioner_config, :runner_platforms, :site, retired: false]
 
   @doc """
   The region's nodes as a Kubernetes label selector, or `nil` when the region
@@ -121,9 +121,12 @@ defmodule Tuist.Kura.Regions do
   # (1900-2025 MiB against the current 2Gi), the busiest pro instance reaches
   # ~1220 MiB, and air instances sit at ~150 MiB.
   @enterprise_memory_floor_mib 1024
-  @enterprise_memory_ceiling_mib 4096
+  # Pro and Enterprise share the paid ceiling, so a busy Pro account absorbs
+  # the same burst an Enterprise one does. The floor is not raised with it:
+  # Kura sizes its fixed transient pool, the one materialized reads reserve
+  # from, from the floor, so Pro keeps the floor that pool was sized on.
   @pro_memory_floor_mib 512
-  @pro_memory_ceiling_mib 3072
+  @paid_memory_ceiling_mib 4096
   # Air, and the fallback for any plan without its own profile.
   @standard_memory_floor_mib 256
   @standard_memory_ceiling_mib 768
@@ -132,10 +135,10 @@ defmodule Tuist.Kura.Regions do
   # burst bound. Each sits several times over its plan's measured 14-day peak
   # (631m enterprise, 53m pro, 1-2m air, all 15-second averages) because a CFS
   # quota is not work-conserving: one set near real use stalls a burst on an
-  # otherwise idle box. As a share of the smallest managed box, 11 cores:
-  # 36%, 18%, 9%.
-  @enterprise_cpu_ceiling_milli 4000
-  @pro_cpu_ceiling_milli 2000
+  # otherwise idle box. Pro shares the enterprise ceiling so the paid plans
+  # burst alike. As a share of the smallest managed box, 11 cores: 36% paid,
+  # 9% Air.
+  @paid_cpu_ceiling_milli 4000
   @standard_cpu_ceiling_milli 1000
   # Filesystem quota one replica of a cache instance reserves, per plan. The
   # claim covers the whole data volume, not just the cache: Kura's artifact ring
@@ -152,11 +155,10 @@ defmodule Tuist.Kura.Regions do
   # `ephemeral-storage`, so an oversized quota does not waste disk, it refuses
   # to place instances that would have fitted.
   #
-  # Air and Pro therefore start in the same place, and `Tuist.Kura.ClaimSizing`
-  # gives them the same ceiling too: what a paid plan buys is not a bigger
-  # cache on day one, it is the demand-driven lifecycle and the regional
-  # placement around it. An account that needs more disk gets it by proving so,
-  # whichever plan it is on. Enterprise starts a step higher only because it is
+  # Air and Pro therefore start in the same place: what a paid plan buys is not
+  # a bigger cache on day one, it is room to grow. An account that needs more
+  # disk gets it by proving so, and `Tuist.Kura.ClaimSizing` lets a paid account
+  # that proves it grow four times past where Air stops. Enterprise starts a step higher only because it is
   # the plan whose accounts predictably arrive with a working set already.
   #
   # They are also powers of two so that growth lands squarely. Sizing clamps a
@@ -184,7 +186,6 @@ defmodule Tuist.Kura.Regions do
   # provisioner); held flat, 8 GiB of reserve would leave an 8Gi claim no ring
   # at all.
   @enterprise_storage_claim "16Gi"
-  @pro_storage_claim "8Gi"
   @air_storage_claim "8Gi"
 
   # Which countries `accounts.region == :europe` accepts a datacenter in. The
@@ -245,9 +246,9 @@ defmodule Tuist.Kura.Regions do
       country: "US",
       subdivision: "US-OR"
     },
-    # EU West (Paris) runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
-    # pool (each environment's `dediboxFleet`), local-NVMe storage, a hostNetwork
-    # regional gateway bound to the box's public IP (Dedibox has no Hetzner LB),
+    # Production EU West runs on OVH in Gravelines, retaining the historical
+    # `kura-dedibox` pool selector and local-NVMe storage. Its hostNetwork
+    # regional gateway publishes the OVH nodes' public IPs,
     # and two bounded-size replicas so a rolling deploy fails the cache Service
     # over to the warm standby instead of dropping traffic while the primary pod
     # restarts. Both replicas of an account stay co-located on its box (controller
@@ -276,15 +277,14 @@ defmodule Tuist.Kura.Regions do
       # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
       egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 500,
-      # Scaleway Dedibox DC5 in production and staging, DC2 in canary; both sit
-      # in the Paris region.
+      # OVHcloud Gravelines, Hauts-de-France.
       country: "FR",
-      subdivision: "FR-IDF"
+      subdivision: "FR-HDF"
     },
     # Canada East (Beauharnois / OVHcloud BHS) on OVH bare metal: the
     # `kura-ca-east` node pool (the `ovhFleet`), local-NVMe storage, and a
     # hostNetwork regional gateway bound to the box's public IP (OVH has no
-    # Hetzner LB) — the same bare-metal shape as eu-west on Dedibox. The
+    # Hetzner LB) — the same bare-metal shape as eu-west on OVH. The
     # provider (OVH) is an implementation detail behind the geographic id. Gated
     # by TUIST_KURA_AVAILABLE_REGIONS (staging/canary-only while the integration
     # is validated; production serves us-east/us-west on their own OVH fleets).
@@ -537,6 +537,42 @@ defmodule Tuist.Kura.Regions do
       country: "FR",
       subdivision: "FR-IDF"
     },
+    # The BER1 rack's cache, on its storage node beside the rack's minis.
+    # Only the site's runner pools take it (`Tuist.Runners.Catalog.fleet_site/1`)
+    # and only accounts enabled on the `runner_site_cache` flag get a node.
+    #
+    # A rack node runs a pod network of its own, which the cluster does not
+    # route to and which routes to no Service, so the pods resolve names
+    # through public resolvers and call the server through its public URL,
+    # and the controller samples them through the API server
+    # (`nodeLocalNetwork`). That also rules out the peer mesh: one replica,
+    # no mesh, until the site has a second storage node to pair with.
+    %{
+      id: "ber1-runners",
+      site: "ber1",
+      replicas: 1,
+      mesh: false,
+      ingress_class_name: "kura-ber1-runners",
+      display_name: "BER1 rack (runner cache)",
+      cluster_id: "ber1",
+      node_pool: "rack-storage-ber1",
+      # The node's XFS /data, through the same local-path class as the other
+      # bare-metal pools.
+      storage_class: "scw-local-nvme",
+      storage_size: "50Gi",
+      runner_platforms: [:macos],
+      data_plane: :private_gateway,
+      # The rack's machines segment, where the minis sit.
+      client_cidrs: ["10.10.0.0/24"],
+      # Tailscale's resolver answers the tailnet, where the trace collector
+      # is, and fails other names over to the public resolvers.
+      node_local_network: %{nameservers: ["100.100.100.100", "1.1.1.1", "8.8.8.8"]},
+      tolerations: [
+        %{"key" => "tuist.dev/rack-storage", "operator" => "Exists", "effect" => "NoSchedule"}
+      ],
+      country: "DE",
+      subdivision: "DE-BE"
+    },
     # A catalog tombstone for runner-cache rows created before the staging
     # Hetzner runner pool was retired. It is never offered for provisioning,
     # but keeping the original cluster identity lets the reconciler observe and
@@ -609,14 +645,14 @@ defmodule Tuist.Kura.Regions do
   The `%{floor_mib:, ceiling_mib:}` memory profile for a billing plan.
 
   Every plan gets a profile, so this is a sizing decision rather than a feature
-  grant. `:enterprise` and `:pro` have their own; every other plan, `:air`
-  included, takes the smallest. Unknown plans fall there too, which is the safe
-  side on a shared box.
+  grant. The paid plans share the larger ceiling, which sets how large a burst
+  an instance absorbs. Each plan reserves its own floor, and every plan other
+  than `:enterprise` and `:pro`, `:air` included, takes the smallest profile.
+  Unknown plans fall there too, which is the safe side on a shared box.
   """
-  def memory_profile(:enterprise),
-    do: %{floor_mib: @enterprise_memory_floor_mib, ceiling_mib: @enterprise_memory_ceiling_mib}
+  def memory_profile(:enterprise), do: %{floor_mib: @enterprise_memory_floor_mib, ceiling_mib: @paid_memory_ceiling_mib}
 
-  def memory_profile(:pro), do: %{floor_mib: @pro_memory_floor_mib, ceiling_mib: @pro_memory_ceiling_mib}
+  def memory_profile(:pro), do: %{floor_mib: @pro_memory_floor_mib, ceiling_mib: @paid_memory_ceiling_mib}
 
   def memory_profile(_plan), do: %{floor_mib: @standard_memory_floor_mib, ceiling_mib: @standard_memory_ceiling_mib}
 
@@ -628,8 +664,7 @@ defmodule Tuist.Kura.Regions do
   that is enforced. The floor has no entry here because the controller observes
   it per instance rather than granting it per plan.
   """
-  def cpu_ceiling_milli(:enterprise), do: @enterprise_cpu_ceiling_milli
-  def cpu_ceiling_milli(:pro), do: @pro_cpu_ceiling_milli
+  def cpu_ceiling_milli(plan) when plan in [:enterprise, :pro], do: @paid_cpu_ceiling_milli
   def cpu_ceiling_milli(_plan), do: @standard_cpu_ceiling_milli
 
   @doc """
@@ -648,14 +683,12 @@ defmodule Tuist.Kura.Regions do
   The `%{claim_size:}` storage profile for a billing plan: the filesystem quota
   each replica of that plan's cache instance reserves.
 
-  Every plan gets a profile, the same way memory does. `:enterprise` and `:pro`
-  have their own; every other plan takes air's, which is also the floor no
+  Every plan gets a profile, the same way memory does. `:enterprise` has its own;
+  every other plan, `:pro` included, takes air's, which is also the floor no
   instance is sized below. Unknown plans land there too, which is the side that
   admits rather than the side that refuses.
   """
   def storage_profile(:enterprise), do: %{claim_size: @enterprise_storage_claim}
-
-  def storage_profile(:pro), do: %{claim_size: @pro_storage_claim}
 
   def storage_profile(_plan), do: %{claim_size: @air_storage_claim}
 
@@ -912,6 +945,13 @@ defmodule Tuist.Kura.Regions do
 
   def serves_runner_platform?(_, _), do: false
 
+  @doc """
+  The site a private region's nodes are racked at, beside that site's runner
+  pools, or `nil` for a region that serves fleets at no particular site.
+  """
+  def site(%__MODULE__{site: site}), do: site
+  def site(_), do: nil
+
   @doc "The region with the given ID in the current runtime, or `nil` if unavailable."
   def available_region(id) when is_binary(id), do: Enum.find(available(), &(&1.id == id))
   def available_region(_), do: nil
@@ -1043,10 +1083,13 @@ defmodule Tuist.Kura.Regions do
   end
 
   defp private_region(spec) do
+    node_local_network = Map.get(spec, :node_local_network)
+
     %__MODULE__{
       id: spec.id,
       display_name: spec.display_name,
       runner_platforms: spec.runner_platforms,
+      site: Map.get(spec, :site),
       retired: Map.get(spec, :retired, false),
       provisioner: KubernetesController,
       provisioner_config: %{
@@ -1075,11 +1118,20 @@ defmodule Tuist.Kura.Regions do
         memory_governed: Map.get(spec, :memory_governed, false),
         disk_envelope_size: Map.get(spec, :disk_envelope_size),
         replicas: Map.get(spec, :replicas, 1),
-        tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
+        # A node-local pod reaches no Service, so it calls the server through
+        # its public URL.
+        tuist_base_url:
+          if(node_local_network,
+            do: Tuist.Environment.app_url(),
+            else: Tuist.Environment.kura_tuist_base_url()
+          ),
+        node_local_network: node_local_network,
+        otlp_traces_endpoint: if(node_local_network, do: Tuist.Environment.kura_node_local_otlp_traces_endpoint()),
         # The runner-cache node replicates with the account's other nodes
         # over the in-cluster peer mesh (cache content stays coherent; the
-        # runner hot path remains node-local over the Private Network).
-        mesh: true
+        # runner hot path remains node-local over the Private Network). A
+        # node-local region reaches no peer, so it opts out.
+        mesh: Map.get(spec, :mesh, true)
       }
     }
   end

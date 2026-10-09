@@ -83,11 +83,26 @@ public struct Build_Bazel_Remote_Execution_V2_CacheCapabilities: Sendable {
 
     public var supportedBatchUpdateCompressors: [Build_Bazel_Remote_Execution_V2_Compressor.Value] = []
 
+    public var splitBlobSupport: Bool = false
+
+    public var spliceBlobSupport: Bool = false
+
+    public var fastCdc2020Params: Build_Bazel_Remote_Execution_V2_FastCdc2020Params {
+        get { _fastCdc2020Params ?? Build_Bazel_Remote_Execution_V2_FastCdc2020Params() }
+        set { _fastCdc2020Params = newValue }
+    }
+
+    /// Returns true if `fastCdc2020Params` has been explicitly set.
+    public var hasFastCdc2020Params: Bool { _fastCdc2020Params != nil }
+    /// Clears the value of `fastCdc2020Params`. Subsequent reads from it will return its default value.
+    public mutating func clearFastCdc2020Params() { _fastCdc2020Params = nil }
+
     public var unknownFields = SwiftProtobuf.UnknownStorage()
 
     public init() {}
 
     fileprivate var _actionCacheUpdateCapabilities: Build_Bazel_Remote_Execution_V2_ActionCacheUpdateCapabilities?
+    fileprivate var _fastCdc2020Params: Build_Bazel_Remote_Execution_V2_FastCdc2020Params?
 }
 
 public struct Build_Bazel_Remote_Execution_V2_ActionCacheUpdateCapabilities: Sendable {
@@ -96,6 +111,20 @@ public struct Build_Bazel_Remote_Execution_V2_ActionCacheUpdateCapabilities: Sen
     // methods supported on all messages.
 
     public var updateEnabled: Bool = false
+
+    public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+    public init() {}
+}
+
+public struct Build_Bazel_Remote_Execution_V2_FastCdc2020Params: Sendable {
+    // SwiftProtobuf.Message conformance is added in an extension below. See the
+    // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+    // methods supported on all messages.
+
+    public var avgChunkSizeBytes: UInt64 = 0
+
+    public var seed: UInt32 = 0
 
     public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -186,7 +215,7 @@ extension Build_Bazel_Remote_Execution_V2_CacheCapabilities: SwiftProtobuf.Messa
     public static let protoMessageName: String = _protobuf_package + ".CacheCapabilities"
     public static let _protobuf_nameMap = SwiftProtobuf
         ._NameMap(
-            bytecode: "\0\u{3}digest_functions\0\u{3}action_cache_update_capabilities\0\u{4}\u{2}max_batch_total_size_bytes\0\u{4}\u{2}supported_compressors\0\u{3}supported_batch_update_compressors\0"
+            bytecode: "\0\u{3}digest_functions\0\u{3}action_cache_update_capabilities\0\u{4}\u{2}max_batch_total_size_bytes\0\u{4}\u{2}supported_compressors\0\u{3}supported_batch_update_compressors\0\u{4}\u{2}split_blob_support\0\u{3}splice_blob_support\0\u{3}fast_cdc_2020_params\0"
         )
 
     public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
@@ -200,6 +229,9 @@ extension Build_Bazel_Remote_Execution_V2_CacheCapabilities: SwiftProtobuf.Messa
             case 4: try decoder.decodeSingularInt64Field(value: &maxBatchTotalSizeBytes)
             case 6: try decoder.decodeRepeatedEnumField(value: &supportedCompressors)
             case 7: try decoder.decodeRepeatedEnumField(value: &supportedBatchUpdateCompressors)
+            case 9: try decoder.decodeSingularBoolField(value: &splitBlobSupport)
+            case 10: try decoder.decodeSingularBoolField(value: &spliceBlobSupport)
+            case 11: try decoder.decodeSingularMessageField(value: &_fastCdc2020Params)
             default: break
             }
         }
@@ -225,6 +257,15 @@ extension Build_Bazel_Remote_Execution_V2_CacheCapabilities: SwiftProtobuf.Messa
         if !supportedBatchUpdateCompressors.isEmpty {
             try visitor.visitPackedEnumField(value: supportedBatchUpdateCompressors, fieldNumber: 7)
         }
+        if splitBlobSupport != false {
+            try visitor.visitSingularBoolField(value: splitBlobSupport, fieldNumber: 9)
+        }
+        if spliceBlobSupport != false {
+            try visitor.visitSingularBoolField(value: spliceBlobSupport, fieldNumber: 10)
+        }
+        try { if let v = self._fastCdc2020Params {
+            try visitor.visitSingularMessageField(value: v, fieldNumber: 11)
+        } }()
         try unknownFields.traverse(visitor: &visitor)
     }
 
@@ -237,6 +278,9 @@ extension Build_Bazel_Remote_Execution_V2_CacheCapabilities: SwiftProtobuf.Messa
         if lhs.maxBatchTotalSizeBytes != rhs.maxBatchTotalSizeBytes { return false }
         if lhs.supportedCompressors != rhs.supportedCompressors { return false }
         if lhs.supportedBatchUpdateCompressors != rhs.supportedBatchUpdateCompressors { return false }
+        if lhs.splitBlobSupport != rhs.splitBlobSupport { return false }
+        if lhs.spliceBlobSupport != rhs.spliceBlobSupport { return false }
+        if lhs._fastCdc2020Params != rhs._fastCdc2020Params { return false }
         if lhs.unknownFields != rhs.unknownFields { return false }
         return true
     }
@@ -272,6 +316,46 @@ extension Build_Bazel_Remote_Execution_V2_ActionCacheUpdateCapabilities: SwiftPr
         rhs: Build_Bazel_Remote_Execution_V2_ActionCacheUpdateCapabilities
     ) -> Bool {
         if lhs.updateEnabled != rhs.updateEnabled { return false }
+        if lhs.unknownFields != rhs.unknownFields { return false }
+        return true
+    }
+}
+
+extension Build_Bazel_Remote_Execution_V2_FastCdc2020Params: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase,
+    SwiftProtobuf._ProtoNameProviding
+{
+    public static let protoMessageName: String = _protobuf_package + ".FastCdc2020Params"
+    public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}avg_chunk_size_bytes\0\u{1}seed\0")
+
+    public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
+        while let fieldNumber = try decoder.nextFieldNumber() {
+            // The use of inline closures is to circumvent an issue where the compiler
+            // allocates stack space for every case branch when no optimizations are
+            // enabled. https://github.com/apple/swift-protobuf/issues/1034
+            switch fieldNumber {
+            case 1: try decoder.decodeSingularUInt64Field(value: &avgChunkSizeBytes)
+            case 2: try decoder.decodeSingularUInt32Field(value: &seed)
+            default: break
+            }
+        }
+    }
+
+    public func traverse(visitor: inout some SwiftProtobuf.Visitor) throws {
+        if avgChunkSizeBytes != 0 {
+            try visitor.visitSingularUInt64Field(value: avgChunkSizeBytes, fieldNumber: 1)
+        }
+        if seed != 0 {
+            try visitor.visitSingularUInt32Field(value: seed, fieldNumber: 2)
+        }
+        try unknownFields.traverse(visitor: &visitor)
+    }
+
+    public static func == (
+        lhs: Build_Bazel_Remote_Execution_V2_FastCdc2020Params,
+        rhs: Build_Bazel_Remote_Execution_V2_FastCdc2020Params
+    ) -> Bool {
+        if lhs.avgChunkSizeBytes != rhs.avgChunkSizeBytes { return false }
+        if lhs.seed != rhs.seed { return false }
         if lhs.unknownFields != rhs.unknownFields { return false }
         return true
     }

@@ -6,27 +6,46 @@ This node covers Helm assets under `infra/helm/`.
 - Umbrella and component charts for deploying Tuist services on Kubernetes
 - Values for embedded vs external infrastructure dependencies
 - Kubernetes manifests and helper templates for app services, data services, and observability
+- Atlas standalone and managed deployment: see `atlas/AGENTS.md`.
 - Standalone app charts with their own release boundary, such as Noora Storybook and Slack
 
 ## Conventions
 
+- Production enables the Kura authority controller independently of instance
+  activation. Keep it enabled once any instance has a serving rollback floor;
+  disabling it expires live grants. See
+  [serving authority](../kura-controller/serving-authority.md).
+
+- `capi.vultrPrivateNetwork` declares regional networks; the CAPI controller owns
+  provider IDs and creation intent in a retained `-state` ConfigMap. Keep that
+  state out of Helm-owned data. Production enables Chicago and Santiago; Santiago
+  has two enrolled hosts with bidirectional physical private-path and isolated
+  replication validation. See the qualification limits in
+  `../kura-controller/vultr-private-networking.md`. Reciprocal `canonicalPeers`
+  region names
+  approve canonical mTLS between exact VPC IDs resolved by the controller. Stage
+  this policy on existing runtimes before qualifying another region; same-VPC
+  traffic remains private-only. Self-hosted defaults stay off.
+
+- `capi.ovhPrivateNetwork` declares the environment's provisioned vRack and
+  reserved CIDR. `kuraController.privateReplication` consumes Node route
+  attestations; both default off for self-hosting. Address reservations are
+  controller-owned and must not be placed in Helm-owned data or garbage-collected
+  with a Machine. See `../kura-controller/private-network-provisioning.md`.
+  Managed staging, canary and production enable both settings for their own
+  provisioned OVH vRack. Runtime publication still waits for matching host route
+  attestations; this does not enable topology for other providers.
+
 - Production public EU-West runs on three `ovhFleets.eu-west` nodes. Managed
-  Dedibox fleets now declare `replicas: 0` in all three environments. Deploy
-  retirement only after production DNS withdrawal/soak and non-production
-  instance teardown. Retain the Dedibox reconciler and
-  credentials until all Machine finalizers complete. Follow the DNS withdrawal
-  and soak gates in [the migration runbook](../kura-controller/eu-west-ovh-migration.md)
-  before deploying retirement. Staging/canary Dedibox retirement also requires decommissioning their
-  EU-West instances first; public validation continues on OVH `ca-east`. Preserve
-  deletion-time support and the separate Scaleway Mac runner cache (`kuraFleet`). The historical
-  `kura-dedibox` selector and `scw-local-nvme` class also serve OVH workloads.
-  Production EU-West ingress temporarily pins `publish-status-address` to the
-  three OVH IPs while retaining gateways on Dedibox for DNS drain. Update that
-  list on any OVH replacement, then remove the override after Dedibox retirement.
-  Non-production EU-West ingress and egress-tree pool entries are removed;
-  public staging/canary validation uses OVH `ca-east`. Provider release wipes
-  the boxes but does not cancel their monthly subscriptions. Remove retained
-  zero-replica definitions and credentials only after every finalizer completes.
+  Dedibox support is removed after all Machine release finalizers completed
+  on September 28, 2026: no fleet values, templates, provider implementation,
+  CRD sources, credentials wiring, or provider permissions remain. Helm does
+  not prune installed CRDs or the legacy IAM ExternalSecret hook; both require
+  explicit post-deployment cleanup. Follow [the cleanup runbook](../kura-controller/eu-west-ovh-migration.md#post-retirement-cleanup).
+  Production EU-West ingress discovers OVH gateway Node addresses automatically.
+  Preserve the `kura-dedibox` selector and `scw-local-nvme` StorageClass because
+  OVH uses both. Public staging/canary validation uses OVH `ca-east`; retain the
+  separate Scaleway Elastic Metal Mac runner cache (`kuraFleet`) and Mac fleets.
 - Stable cache DNS infrastructure is enabled in managed staging, canary, and production. Canary advertises and hands out stable endpoints once ready; staging and production require the `kura_stable_hostname` account/global feature flag, absent by default, with no server environment rollout toggles or account allowlist. Keep environment owner IDs and vault credentials separate. Certificate readiness is an operator bootstrap check, not a routine deployment gate; see `../cache-dns/README.md`.
 - `pomerium/templates/access-tiers.yaml` extends the shared `view` tier with `get`/`list`/`watch` on `dnsendpoints.externaldns.k8s.io` in all namespaces. Keep DNS inspection in this read tier, scoped to that resource; DNS mutation and Secret access are not part of this grant. The Pomerium deployment workflow applies this chart to staging, canary, and production on merge.
 - OVH Machine repairs use `patch ovhdedicatedmachines` in the directly bound
@@ -36,6 +55,15 @@ This node covers Helm assets under `infra/helm/`.
   Machine's `egressBudgetMbps` from its reviewed OnDelete fleet template).
   Staging has standing write access; canary/production require human elevation.
 - Kura archival defaults to hourly sweeps with a 24-hour never-used Air window. Canary inherits the hourly default; staging keeps its five-minute sweep override for lifecycle drills.
+- Production's `node.cluster.x-k8s.io/pool: processor` nodes are untainted and have no memory beyond what the processor's rollout surge needs. Pin other production workloads, in any chart, to `node.cluster.x-k8s.io/pool: general` with a `nodeSelector`. A workload left unpinned can land there and deadlock the processor rollout, and helm then rolls back the whole release. The general pool's limit is CPU requests, not memory: keep one node with room for the server's 1-CPU surge pod, and resize `md-0` in `k8s/clusters/workloads/production/cluster.yaml` rather than squeezing that out.
+- Deploys wait on the tuist, k8s-monitoring and platform releases (Helm 4's
+  kstatus wait: a DaemonSet is ready only when every pod it wants is). Nothing
+  in them may run a pod on a rack node, which can be dark for days: rack-node
+  workloads go in `rack-nodes` or `rack-cache-gateways`, installed with
+  `--wait=hookOnly` from the tuist and platform charts' values. Run
+  `mise -C infra run helm:rack-independence` after adding a DaemonSet or
+  tolerations; the Helm workflow runs it too. See "Deploys and the rack's
+  health" in `../rack-nodes/AGENTS.md`.
 - Prefer one umbrella chart that models deployable capabilities, not implementation brands.
 - When a workload needs an independent workflow and release cadence, give it its own chart
   rather than adding it to `helm/tuist/`.
@@ -50,6 +78,9 @@ This node covers Helm assets under `infra/helm/`.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
   browser LCP p99 also requires distinct affected sessions, not just total samples.
+  ClickHouse read-failure and latency rules aggregate Cloud and shadow physical
+  repos; expanding telemetry coverage can surface previously invisible failures
+  without any threshold change.
 - `k8s-monitoring/kura-availability-alert-rules.json` reflects the enabled rule,
   provisioned separately from Helm. Its zero-ready-replica expression and routing
   are exercised by `test-kura-availability-alert.sh` using Bash, jq, promtool and amtool.
@@ -72,6 +103,10 @@ This node covers Helm assets under `infra/helm/`.
   Receiving Bazel build events alone does not enable analytics delivery.
 
 ## Related Context
+- Experimental Kura serving-authority flag defaults off. The additive CRD,
+  per-instance ConfigMap-read role, sticky runtime/controller rollback floor and
+  quarantined-volume reaper exclusion belong together; see
+  [`../kura-controller/serving-authority.md`](../kura-controller/serving-authority.md).
 - Parent infra context: `infra/AGENTS.md`
 - Noora Storybook chart: `infra/helm/noora-storybook/AGENTS.md`
 - Slack chart: `infra/helm/slack/AGENTS.md`
@@ -80,6 +115,8 @@ This node covers Helm assets under `infra/helm/`.
 - Processor runtime dependencies: `processor/AGENTS.md`
 
 - Runner Kura uses `platform`'s `kura-runners` ingress-nginx DaemonSet with the shared streaming config. Keep direct-source enforcement (forwarded headers, real IP and PROXY protocol disabled), HTTP/gRPC source allowlists, and disabled ingress status publication together. Private DNS comes from the controller DNSEndpoint. Managed Tuist values enable the namespace-scoped gateway readiness read role. `kuraFleet.replicas` counts hosts; the catalog configures two process replicas per account. See `infra/kura-controller/private-runner-rollouts.md`.
+
+- The Once events listener (`once.events.v1`, gRPC on the server's port 4001) is served by `platform`'s `grpc-ingress-nginx` controller (`nginx-grpc` class), and its hosts are DNS-only with a cert-manager certificate. Do not move it to the main `nginx` class or turn Cloudflare proxying back on. The main controller keeps upstream keepalive off for the Bandit backends, which makes ingress-nginx send `Connection: close` upstream. HTTP/2 forbids that header, and Cowboy resets the stream with PROTOCOL_ERROR (nginx logs `upstream rejected request with error 1`). Cloudflare answers gRPC to a proxied host with a 403. To check a change, send a gRPC-shaped request (`content-type: application/grpc`) to the host: a healthy listener answers HTTP 200 with a `grpc-status` header.
 
 - Private gateway-backed Kura pods carry `tuist.dev/host-network-gateway=true`. `tuist/templates/kura-gateway-network-policy.yaml` allows TCP 4000 from Cilium host/remote-node identities, including cross-host proxying; Kubernetes namespace/ipBlock selectors do not cover this hop. Keep it gated by `kuraController.privateGateway.enabled` with the gateway read permission so self-hosted installs do not require Cilium.
 
@@ -105,6 +142,16 @@ This node covers Helm assets under `infra/helm/`.
   agent image from the matching controller release through normal deployment.
   Keep `tuist/values-ci.yaml` supplied with a controller image tag so static
   production rendering exercises the cache-volume agent's shared-tag fallback.
+
+- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
+  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
+  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+  Canary and production enable them fleet-wide after the platform-index
+  enablement migration. Self-hosting and staging stay off by default; staging's
+  40 GiB cache quota cannot fit the built-in reservation and custom admission floor.
+  Production M4 replacement hosts have a 512 GiB shared cache quota; M2 stays
+  at 80 GiB. Existing APFS quotas are immutable under bootstrap and the fleet
+  uses OnDelete: deploy the host free-space guard before replacing drained M4s.
 - Cache-volume agents expose phase/source/result telemetry on a separate port
   9091. Allow scraping only from `observability`, retain the series in staging,
   and keep runner acquisition on 8090 under its existing pod selector.

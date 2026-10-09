@@ -1465,9 +1465,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Project | Status | Tests | Commit |
-        |:-:|:-:|:-:|:-:|
-        | [my-android-app](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 2 | #{commit_link} |
+        | Test runs | Status | Passed | Failed | Skipped | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|
+        | [my-android-app](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 2 | 0 | 0 | #{commit_link} |
 
         """
 
@@ -1476,6 +1476,110 @@ defmodule Tuist.VCSTest do
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
         assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "rolls up the mix test runs of the latest commit" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      mix_test_run = fn attrs, test_cases ->
+        {:ok, test_run} =
+          RunsFixtures.test_fixture(
+            [
+              project_id: project.id,
+              account_id: project.account_id,
+              git_ref: @git_ref,
+              git_commit_sha: @git_commit_sha,
+              build_system: "mix",
+              test_modules: [
+                %{
+                  name: "Tuist.AccountsTest",
+                  status: if(Enum.any?(test_cases, &(&1.status == "failure")), do: "failure", else: "success"),
+                  duration: 1000,
+                  test_cases: Enum.map(test_cases, &Map.put(&1, :duration, 100))
+                }
+              ]
+            ] ++ attrs
+          )
+
+        test_run
+      end
+
+      _previous_commit_test_run =
+        mix_test_run.(
+          [git_commit_sha: "abcdef0123", scheme: "clickhouse-current", status: "failure"],
+          [%{name: "deletes an account", status: "failure"}]
+        )
+
+      current_test_run =
+        mix_test_run.([scheme: "clickhouse-current"], [
+          %{name: "creates an account", status: "success"},
+          %{name: "deletes an account", status: "success"}
+        ])
+
+      _replaced_floor_test_run =
+        mix_test_run.([scheme: "clickhouse-floor", status: "failure"], [
+          %{name: "creates an account", status: "failure"},
+          %{name: "updates an account", status: "failure"}
+        ])
+
+      floor_test_run =
+        mix_test_run.([scheme: "clickhouse-floor", status: "failure"], [
+          %{name: "creates an account", status: "failure"},
+          %{name: "updates an account", status: "success"}
+        ])
+
+      unlabelled_test_run = mix_test_run.([], [%{name: "lists accounts", status: "skipped"}])
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      test_runs_cell =
+        Enum.map_join(
+          [
+            {"Unknown", unlabelled_test_run},
+            {"clickhouse-current", current_test_run},
+            {"clickhouse-floor", floor_test_run}
+          ],
+          "<br/>",
+          fn {name, test_run} -> "[#{name}](https://tuist.dev/test_runs/#{test_run.id})" end
+        )
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json].body =~
+                 """
+                 #### Tests 🧪
+
+                 | Test runs | Status | Passed | Failed | Skipped | Commit |
+                 |:-:|:-:|:-:|:-:|:-:|:-:|
+                 | #{test_runs_cell} | ❌ | 2 | 1 | 1 | #{commit_link} |
+                 """
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -1568,9 +1672,9 @@ defmodule Tuist.VCSTest do
 
         ##### Gradle
 
-        | Project | Status | Tests | Commit |
-        |:-:|:-:|:-:|:-:|
-        | [my-android-app](https://tuist.dev/test_runs/#{gradle_test_run.id}) | ✅ | 2 | #{commit_link} |
+        | Test runs | Status | Passed | Failed | Skipped | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|
+        | [my-android-app](https://tuist.dev/test_runs/#{gradle_test_run.id}) | ✅ | 2 | 0 | 0 | #{commit_link} |
 
         """
 
@@ -3367,7 +3471,7 @@ defmodule Tuist.VCSTest do
       ]
 
       expect(KeyValueStore, :get_or_update, fn key, opts, fun ->
-        assert key == [VCS, "repositories", "https://api.github.com", installation_id]
+        assert key == [VCS, "repositories", github_app_installation.id, "https://api.github.com", installation_id]
         assert Keyword.get(opts, :ttl) == to_timeout(minute: 15)
         fun.()
       end)
@@ -3405,7 +3509,7 @@ defmodule Tuist.VCSTest do
       ]
 
       expect(KeyValueStore, :get_or_update, fn key, opts, fun ->
-        assert key == [VCS, "repositories", "https://api.github.com", installation_id]
+        assert key == [VCS, "repositories", github_app_installation.id, "https://api.github.com", installation_id]
         assert Keyword.get(opts, :ttl) == to_timeout(minute: 15)
         fun.()
       end)
@@ -3431,6 +3535,29 @@ defmodule Tuist.VCSTest do
       assert repositories == page1_repos ++ page2_repos
     end
 
+    test "isolates repository caches by installation row even when endpoint and upstream ID overlap" do
+      first = %GitHubAppInstallation{
+        id: "first",
+        client_url: "https://github.internal.example.com",
+        api_url: "https://proxy.example.com/api/v3",
+        installation_id: "123"
+      }
+
+      second = %{first | id: "second"}
+
+      expect(KeyValueStore, :get_or_update, 2, fn key, _opts, fetch ->
+        send(self(), {:repository_key, key})
+        fetch.()
+      end)
+
+      stub(Client, :list_installation_repositories, fn _, _ -> {:ok, %{meta: %{next_url: nil}, repositories: []}} end)
+      assert {:ok, []} = VCS.get_github_app_installation_repositories(first)
+      assert {:ok, []} = VCS.get_github_app_installation_repositories(second)
+      assert_received {:repository_key, first_key}
+      assert_received {:repository_key, second_key}
+      refute first_key == second_key
+    end
+
     test "returns error when GitHub client fails on first page" do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -3446,7 +3573,7 @@ defmodule Tuist.VCSTest do
       error_message = "GitHub API error"
 
       expect(KeyValueStore, :get_or_update, fn key, opts, fun ->
-        assert key == [VCS, "repositories", "https://api.github.com", installation_id]
+        assert key == [VCS, "repositories", github_app_installation.id, "https://api.github.com", installation_id]
         assert Keyword.get(opts, :ttl) == to_timeout(minute: 15)
         fun.()
       end)
@@ -4007,6 +4134,7 @@ defmodule Tuist.VCSTest do
           account_id: account_one.id,
           installation_id: "1001",
           client_url: "https://ghes.example.com",
+          api_url: "https://proxy.example.com/api/v3",
           app_id: "ghes-app-1",
           client_id: "cid-1",
           client_secret: "cs-1",
@@ -4040,7 +4168,8 @@ defmodule Tuist.VCSTest do
 
       api_urls = Enum.map(apps, & &1.api_url)
       assert "https://api.github.com" in api_urls
-      assert "https://ghes.example.com/api/v3" in api_urls
+      assert "https://proxy.example.com/api/v3" in api_urls
+      refute "https://ghes.example.com/api/v3" in api_urls
       assert "https://other-ghes.example.com/api/v3" in api_urls
     end
 

@@ -173,6 +173,10 @@ pdcAgent:
       memory: 1Gi
 
 kuraController:
+  servingAuthority:
+    enabled: false
+  privateReplication:
+    enabled: false
   enabled: false
   stableDNS:
     enabled: false
@@ -194,6 +198,7 @@ kuraController:
     enabled: false
   namespace: kura
   replicaCount: 2
+  nodeSelector: {}
   tolerations: []
   image:
     repository: ghcr.io/tuist/kura-controller
@@ -465,10 +470,35 @@ server:
     type: ClusterIP
     port: 80
     targetPort: 8080
-  # Dedicated HTTP origin for Bazel build events. Bazel Build Event Service
-  # traffic terminates at Kura, which forwards normalized events only to the
-  # authenticated server webhook exposed by this ingress.
-  bazelEvents:
+    # gRPC port for `once.events.v1` (and, later, native BEP). Enabled
+    # per environment; the server also needs `TUIST_ONCE_EVENTS_GRPC=on`
+    # to start the listener on the pod side.
+    grpcPort: 4001
+    grpcTargetPort: 4001
+  # Dedicated origin for build event traffic. Fronts the gRPC surface for
+  # `once.events.v1` (build, test, cache, and exec invocations alike), and
+  # on a follow-up will also carry native BEP. The subdomain is
+  # `events.<host>` so the name reflects the stream contents rather than
+  # one of the invocation kinds. Bazel BEP still terminates at Kura today
+  # and posts summaries to the main tuist.dev host; nothing self-hosted
+  # should have `enabled: true` prior to the Once gRPC rollout.
+  #
+  # Renamed from `bazelEvents` (introduced in #13184). The templates
+  # resolve the effective config through `tuist.serverEventsConfig` with
+  # these precedence rules:
+  #
+  #   1. `server.events.enabled: true` -> use `server.events`.
+  #   2. `server.events.enabled` is falsy AND `server.bazelEvents.enabled:
+  #      true` -> use `server.bazelEvents` as the one-release deprecation
+  #      path for #13184 adopters.
+  #   3. BOTH `enabled: true` -> the chart `fail`s with a migration
+  #      message. Pick one key.
+  #
+  # The scheme the discovery doc advertises
+  # (`TUIST_ONCE_EVENTS_ENDPOINTS`) follows `tlsSecretName`: set it ->
+  # `grpcs://`, leave it empty -> `grpc://`, so non-TLS self-hosted
+  # installs don't advertise a scheme their ingress cannot serve.
+  events:
     enabled: false
     className: nginx
     host: ""
@@ -478,6 +508,17 @@ server:
       nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
       nginx.ingress.kubernetes.io/proxy-body-size: "50m"
       nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+      # A run's event stream stays open for as long as the run, so these
+      # also set the gRPC read and send timeouts, which default to 60s.
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      # Once enabled, the ingress forwards gRPC (HTTP/2 end-to-end) to
+      # the server's grpc port. Rendered when eventsGrpc.enabled is true.
+  # gRPC listener toggle for `once.events.v1`. When enabled, the server's
+  # Service exposes the grpcPort/grpcTargetPort above and the ingress
+  # template picks the GRPC backend protocol.
+  eventsGrpc:
+    enabled: false
   resources: {}
   extraEnv: []
   # Additional env from Secrets or ConfigMaps. List of objects with
@@ -793,8 +834,8 @@ server:
   kuraPeerFailoverIps: []
   # - region: eu-west
   #   ip: "1.2.3.4"
-  #   vendor: dedibox
-  #   pool: kura-dedibox
+  #   vendor: ovh
+  #   pool: kura-eu-west
   # Erlang distribution / libcluster configuration. Emits a headless Service
   # and wires TUIST_CLUSTER_DNS_SERVICE + TUIST_CLUSTER_APP_NAME into the pod.
   cluster:
@@ -1395,6 +1436,16 @@ xcresultProcessor:
 # alongside `macosFleet.enabled`.
 capi:
   enabled: true
+  vultrPrivateNetwork:
+    enabled: false
+    # Per region: description, cidr, qualified, canonicalPeers (region names).
+    # Reciprocal approvals permit canonical mTLS between resolved VPC IDs.
+    # Upgrade existing runtimes before qualifying an additional region.
+    regions: {}
+  ovhPrivateNetwork:
+    enabled: false
+    vrackID: ""
+    cidr: ""
   # Workload kubeconfig CAPI core's cluster cache uses to reach this
   # cluster and bind Mac-mini Machines to Nodes. Synced from 1Password
   # by ESO into <release>-capi-kubeconfig (the Secret CAPI looks up).
@@ -1451,65 +1502,6 @@ kuraFleet:
     # own project, so there's no collision).
     privateNetworkName: tuist-runner-cache
     privateNetworkCIDR: 172.16.0.0/22
-
-# Dedibox fleet — the EU customer-facing Kura cache region on Scaleway Dedibox
-# bare metal. Off by default; an env opts in via values-managed-<env>.yaml.
-dediboxFleet:
-  enabled: false
-  replicas: 1
-  # Propagated to the Node as node.cluster.x-k8s.io/pool; the region's
-  # nodeSelector pins its Kura cache pods here.
-  nodePool: kura-dedibox
-  kubernetesVersion: "v1.34.8"
-  machine:
-    # Per-fleet tag the operator stamps on each pre-ordered Dedibox box. THIS is
-    # the environment boundary: every Dedibox in the org shares the default
-    # Scaleway project (a Dedibox can't be moved between projects), so the
-    # reconciler claims only boxes carrying this tag. Required when enabled.
-    adoptTag: ""
-    # Dedibox commercial offer to narrow adoption within the tag-scoped pool
-    # (e.g. Start-9-M). Empty matches any offer carrying the tag.
-    offer: ""
-    # Console datacenter the box lives in (DC2/DC3/DC5/AMS1).
-    datacenter: DC2
-    # Install OS label; needs a modern-CPU box (old SKUs lack 24.04 images).
-    os: ubuntu_24.04
-    # Per-box egress budget in Mbps advertised as the tuist.dev/egress-mbps
-    # extended resource (0 = unset).
-    egressBudgetMbps: 0
-  scaleway:
-    # Override to point the reconciler at a Secret you manage instead of the
-    # ESO-synced one. Holds the default-project Dedibox IAM key (secret-key +
-    # project-id).
-    secretName: ""
-    externalSecrets:
-      enabled: true
-      # 1Password item holding the default-project Dedibox IAM key. The same key
-      # serves every env (all Dedibox share the default project), so it lives in
-      # a vault each env's ClusterSecretStore can read.
-      item: ""
-      refreshInterval: 1h
-      storeRef:
-        name: onepassword
-        kind: ClusterSecretStore
-      fields:
-        secretKey: secret-key
-        projectID: project-id
-  # Per-fleet SSH keypair (+ install sudo-password) the reconciler self-joins
-  # boxes with, owned from 1Password instead of minted in-cluster. Default off
-  # keeps the controller's in-cluster minting; set enabled=true + item to a
-  # 1Password item carrying private-key / public-key / sudo-password fields.
-  sshExternalSecret:
-    enabled: false
-    item: ""
-    refreshInterval: 1h
-    storeRef:
-      name: onepassword
-      kind: ClusterSecretStore
-    fields:
-      privateKey: private-key
-      publicKey: public-key
-      sudoPassword: sudo-password
 
 ovhFleet:
   enabled: false
@@ -1635,6 +1627,11 @@ rackFleet:
   # `sshIngressAllowCIDRs`.
   sshIngressAllowCIDRs: []
 
+  # The rack's runner-cache gateways, as IPv4 CIDRs, which a rack host's Tart
+  # VMs may reach on TCP 443 through the VM egress firewall. Every other
+  # private destination stays blocked. Empty passes none.
+  vmCacheGatewayCIDRs: []
+
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl
   # history. Removing one is also `kubectl delete rackhost <name>`: Helm keeps
@@ -1658,10 +1655,15 @@ rackFleet:
   #     shelf: s3
   #     positionU: 12
   #     power:                  # the fleet's remote reboot: Apple silicon boots
-  #       driver: shelly        # on power-apply and every host runs
-  #       host: 192.168.0.50    # `pmset autorestart 1`, so an outlet cycle is a
-  #       outlet: "0"           # cold boot with nobody at a console.
-  #       credentialsSecret: "" # optional; omit for an unauthenticated plug
+  #       pdu: ber1-pdu-b       # on power-apply and every host runs
+  #       outlet: "1"           # `pmset autorestart 1`, so an outlet cycle is
+  #                             # a cold boot with nobody at a console. `pdu`
+  #                             # names a RackPDU (rendered from the site
+  #                             # definition in infra/rack-switch-fleet), whose
+  #                             # outlets are 1-based. A plug that is not a
+  #                             # RackPDU takes `driver` (shelly), `host`,
+  #                             # `outlet` ("0") and `credentialsSecret`
+  #                             # instead.
   #     parked: false           # keeps the box declared with no Machine (bench
   #                             # work, an RMA, a box that is off); parking a
   #                             # host deletes its Node undrained
@@ -1695,12 +1697,29 @@ rackFleet:
       publicKey: public-key
       sudoPassword: sudo-password
 
-  # PDU / smart-plug credentials, if the endpoint has any. A plug on a
-  # management segment with no password needs none; leave disabled and omit
+  # The root key every rack power card's passwords (RackPDU, RackATS) are
+  # derived from, synced read-only from 1Password into `secretName` in the
+  # release namespace, which the operator reads as --rack-card-root-secret.
+  # Without it the operator adopts no card. A rebuilt cluster derives the same
+  # passwords from the same item, so it re-adopts the cards with nobody at the
+  # rack.
+  cardRootKey:
+    enabled: false
+    item: BER1_RACK_CARD_ROOT
+    field: key
+    secretName: rack-card-root
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+
+  # Credentials of a smart plug that is not a RackPDU (a Shelly on a desk), if
+  # it has any. A RackPDU's credentials are derived by its controller from
+  # `cardRootKey`. A plug with no password needs none; leave disabled and omit
   # `power.credentialsSecret` on the hosts.
   powerExternalSecret:
     enabled: false
-    item: BER1_PDU
+    item: ""
     secretName: ""       # default: <fleet-name>-power
     refreshInterval: 1h
     storeRef:
@@ -1787,6 +1806,8 @@ rackLinuxFleet:
   # is not on the tailnet yet, or whose reinstallGeneration asks for one, and
   # the host installs itself when it netboots or boots its stick. The site
   # definition's management.edge.netboot points the edge node's DHCP here.
+  # The rack-nodes chart (infra/helm/rack-nodes) renders its DaemonSet, and the
+  # rack node agent's, from these values; this chart configures the operator.
   boot:
     enabled: false
     site: ""           # default: rackLinuxFleet.site; the tuist.dev/rack-edge value
@@ -1826,6 +1847,8 @@ macosFleet:
     # but not production.
     tag: ""
     pullPolicy: IfNotPresent
+  # Placement of the provider Deployment, not of the Mac minis.
+  operatorNodeSelector: {}
   # External URL of the cluster API server that Mac minis dial when
   # joining. Auto-discovered from the kube-public/cluster-info
   # ConfigMap that kubeadm/CAPI write during cluster bootstrap; only
@@ -2201,6 +2224,8 @@ macosFleet:
 # default-deny NetworkPolicy + GitHub-only egress limits a
 # compromised runner's reachability into the cluster.
 runnersFleet:
+  customCacheVolumes:
+    enabled: false
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every macOS pool (a per-pool
   # or per-xcodeOverride `idleTimeoutSeconds` wins). Bounds how long a
@@ -2865,6 +2890,7 @@ runnersController:
     limits:
       cpu: 500m
       memory: 256Mi
+  nodeSelector: {}
 # The standalone cache service is deprecated for new deployments. Hosted
 # Tuist has moved cache serving into Kura (see kuraController / kuraRuntime)
 # and disables this workload (`cache.enabled: false` in

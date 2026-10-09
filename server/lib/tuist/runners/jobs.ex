@@ -46,12 +46,14 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
   alias Tuist.IngestRepo
+  alias Tuist.MCP.Events.Publisher
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.GitLab.Job, as: GitLabJob
   alias Tuist.Runners.Job
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
@@ -1335,6 +1337,19 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  The lifecycle row of the job that ran on `runner_name` within
+  `account_id`. See `Tuist.Runners.RunnerSessions.workflow_job_id_for_runner/2`.
+  """
+  def get_executed_by_runner_name(account_id, runner_name) do
+    with {:ok, workflow_job_id} <- RunnerSessions.workflow_job_id_for_runner(runner_name, account_id),
+         %WorkflowJob{} = job <- Repo.get_by(WorkflowJob, account_id: account_id, workflow_job_id: workflow_job_id) do
+      {:ok, job}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  @doc """
   Lists lifecycle rows in `status = 'queued'` whose
   `enqueued_at` falls in `[enqueued_after, enqueued_before)` —
   candidates for the "queued but never reconciled" recovery path that
@@ -1418,11 +1433,24 @@ defmodule Tuist.Runners.Jobs do
 
     broadcast_status_change(row.account_id, "completed")
 
+    if conclusion == "failure" and row.status not in ["completed", "cancelled"] do
+      Publisher.publish(
+        "ci_job.failed",
+        %{
+          "account_id" => row.account_id,
+          "workflow_run_id" => row.workflow_run_id,
+          "workflow_job_id" => row.workflow_job_id
+        },
+        row.workflow_job_id
+      )
+    end
+
     {:ok, %{row | status: WorkflowJobs.terminal_status(conclusion), conclusion: conclusion, completed_at: now}}
   end
 
   defp record_completed_locked(attrs, conclusion) do
     now = DateTime.utc_now()
+    previous = if conclusion == "failure", do: Repo.get(WorkflowJob, Map.fetch!(attrs, :workflow_job_id))
 
     persist_completion!(Map.fetch!(attrs, :workflow_job_id), Map.fetch!(attrs, :account_id), conclusion, now)
     :ok = WorkflowJobs.record_completed(attrs, conclusion, now)
@@ -1434,6 +1462,19 @@ defmodule Tuist.Runners.Jobs do
     )
 
     broadcast_status_change(Map.get(attrs, :account_id), "completed")
+
+    if conclusion == "failure" and (is_nil(previous) or previous.status not in ["completed", "cancelled"]) do
+      Publisher.publish(
+        "ci_job.failed",
+        %{
+          "account_id" => Map.fetch!(attrs, :account_id),
+          "workflow_run_id" => Map.fetch!(attrs, :workflow_run_id),
+          "workflow_job_id" => Map.fetch!(attrs, :workflow_job_id)
+        },
+        Map.fetch!(attrs, :workflow_job_id)
+      )
+    end
+
     :ok
   end
 

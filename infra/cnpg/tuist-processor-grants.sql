@@ -38,6 +38,7 @@ BEGIN;
 REVOKE ALL ON ALL TABLES IN SCHEMA :"tuist_schema" FROM tuist_processor;
 -- Table-level REVOKE does not remove column-level privileges.
 REVOKE ALL (compressed, state, error, updated_at) ON TABLE :"tuist_schema".bazel_profile_uploads FROM tuist_processor;
+REVOKE ALL (account_id, event_name, project_id, refresh_before) ON TABLE :"tuist_schema".mcp_event_subscriptions FROM tuist_processor;
 
 GRANT CONNECT ON DATABASE tuist TO tuist_processor;
 GRANT USAGE ON SCHEMA :"tuist_schema" TO tuist_processor;
@@ -52,11 +53,19 @@ GRANT USAGE, SELECT ON SEQUENCE :"tuist_schema".oban_jobs_id_seq TO tuist_proces
 -- Read-only lookups the workers perform. These rows are not written by the
 -- processors, hence no INSERT/UPDATE. Build ingestion reads feature_flags to
 -- decide whether to collect Xcode build steps, even when the flag is disabled.
-GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints, :"tuist_schema".feature_flags TO tuist_processor;
+-- Test ingestion reads coverage_commits to refold a commit whose coverage is
+-- already measured.
+GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints, :"tuist_schema".feature_flags, :"tuist_schema".coverage_commits TO tuist_processor;
 
 -- Profile workers read staged uploads, record their terminal state and clear
 -- the payload. Upload creation and expiration belong to the web runtime.
 GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE :"tuist_schema".bazel_profile_uploads TO tuist_processor;
+
+-- Ingestion publishes agent events: it checks whether an agent is subscribed
+-- and records fan-out dedup keys. Subscription access is column-level so
+-- callback URLs and signing secrets stay out of reach.
+GRANT SELECT (account_id, event_name, project_id, refresh_before) ON TABLE :"tuist_schema".mcp_event_subscriptions TO tuist_processor;
+GRANT SELECT, INSERT ON TABLE :"tuist_schema".mcp_event_job_keys TO tuist_processor;
 
 COMMIT;
 

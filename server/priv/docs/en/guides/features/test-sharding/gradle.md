@@ -7,14 +7,17 @@
 ---
 # Gradle test sharding {#gradle-test-sharding}
 
-The Tuist Gradle plugin includes built-in support for test sharding. It discovers test suites by scanning compiled test class files and uses the Tuist server to create balanced shard plans based on historical timing data.
+The Tuist Gradle plugin includes built-in support for test sharding. It plans the test suites that Tuist recorded in previous CI runs of your projects' test tasks and uses the Tuist server to create balanced shard plans based on historical timing data.
+
+> [!IMPORTANT] REQUIREMENTS
+> - <.localized_link href="/guides/features/test-insights/gradle">Test insights</.localized_link> must be configured
 
 ## How it works {#how-it-works}
 
 Test sharding follows a two-phase workflow:
 
-1. **Build phase:** Tuist enumerates your tests and creates a **shard plan** on the server. The server uses historical test timing data from the last 30 days to distribute tests across shards so each shard takes roughly the same amount of time. The build phase outputs a **shard matrix** that your CI system uses to spawn parallel runners.
-2. **Test phase:** Each CI runner receives a **shard index** and executes only the tests assigned to that shard.
+1. **Build phase:** Tuist creates a **shard plan** on the server from the test suites recorded for your projects. The server uses historical test timing data from the last 30 days to distribute tests across shards so each shard takes roughly the same amount of time. The build phase outputs a **shard matrix** that your CI system uses to spawn parallel runners.
+2. **Test phase:** Each CI runner receives a **shard index** and executes only the tests assigned to that shard. The last shard also runs every test suite that is not assigned to another shard.
 
 ## Build phase {#build-phase}
 
@@ -26,10 +29,11 @@ Prepare test shards using the `tuistPrepareTestShards` task:
 ```
 
 This task:
-1. Compiles the test classes
-2. Discovers test suites by scanning the compiled class files
-3. Creates a shard plan on the Tuist server using historical timing data
-4. Outputs a shard matrix for your CI system
+1. Finds the projects that have the test task to shard, without compiling them
+2. Creates a shard plan on the Tuist server from the test suites and timings recorded for those projects in the last 30 days
+3. Outputs a shard matrix for your CI system
+
+When no test suites are recorded yet, for example on the first run, the plan has a single shard that runs every test.
 
 ### Build options {#build-options}
 
@@ -40,16 +44,29 @@ Configure sharding via Gradle project properties:
 | `-PtuistShardMax=<N>` | Maximum number of shards (default: 2) |
 | `-PtuistShardMin=<N>` | Minimum number of shards |
 | `-PtuistShardMaxDuration=<MS>` | Target maximum duration per shard in milliseconds |
+| `-PtuistShardTestTask=<NAME>` | Test task whose tests are sharded, for example `testDebugUnitTest`. Defaults to every test task in the build |
+
+Android projects with multiple build variants have one unit test task per variant. Set `-PtuistShardTestTask` to the variant your shards run so only the projects that have it are planned:
+
+```sh
+./gradlew tuistPrepareTestShards \
+  -PtuistShardMax=5 \
+  -PtuistShardTestTask=testDebugUnitTest
+```
 
 The shard reference is automatically derived from CI environment variables (`GITHUB_RUN_ID`, `CI_PIPELINE_ID`, etc.) or can be set explicitly via the `TUIST_SHARD_REFERENCE` environment variable.
 
 ## Test phase {#test-phase}
 
-Each shard runner executes its assigned tests using the standard `test` task. When `TUIST_SHARD_INDEX` is set, the plugin automatically fetches the shard assignment from the server and filters the test execution to include only the assigned test suites.
+Each shard runner executes its assigned tests using the standard `test` task. When `TUIST_SHARD_INDEX` is set, the plugin automatically fetches the shard assignment from the server and filters the test execution to include only the assigned test suites. Test tasks in projects with no suites assigned to the shard are skipped.
+
+The last shard runs every test task and excludes the suites assigned to the other shards, so suites that have no recorded runs yet, such as newly added ones, still run.
 
 ```sh
 TUIST_SHARD_INDEX=0 ./gradlew test
 ```
+
+If you set `-PtuistShardTestTask` in the build phase, run that same task in each shard, for example `./gradlew testDebugUnitTest`.
 
 ## Continuous integration {#continuous-integration}
 

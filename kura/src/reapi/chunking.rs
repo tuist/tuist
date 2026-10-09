@@ -165,6 +165,17 @@ pub fn recipe_key(blob_digest_key: &str) -> String {
     format!("{RECIPE_KEY_PREFIX}{blob_digest_key}")
 }
 
+/// Appends [`recipe_key`] for `blob_digest` to `output` without allocating.
+pub fn push_recipe_key(output: &mut String, blob_digest: &reapi::Digest) {
+    use std::fmt::Write as _;
+    write!(
+        output,
+        "{RECIPE_KEY_PREFIX}{}/{}",
+        blob_digest.hash, blob_digest.size_bytes
+    )
+    .expect("writing to a String cannot fail");
+}
+
 pub fn is_recipe_key(key: &str) -> bool {
     key.starts_with(RECIPE_KEY_PREFIX)
 }
@@ -258,15 +269,22 @@ pub async fn fetch_chunk_manifests(
     state: &SharedState,
     namespace_id: &str,
     recipe: &ChunkedBlobRecipe,
+    refresh: bool,
 ) -> Result<Option<Vec<ArtifactManifest>>, String> {
     let mut manifests = Vec::with_capacity(recipe.chunks().len());
     for digest in recipe.chunks() {
         let key = blob_key(&format!("{}/{}", digest.hash, digest.size_bytes));
-        let Some(manifest) = state
-            .store
-            .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, &key)
-            .await?
-        else {
+        let lookup = if refresh {
+            state
+                .store
+                .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, &key)
+                .await?
+        } else {
+            state
+                .store
+                .manifest_for_key(ArtifactProducer::Reapi, namespace_id, &key)?
+        };
+        let Some(manifest) = lookup else {
             return Ok(None);
         };
         manifests.push(manifest);
@@ -305,7 +323,19 @@ pub async fn presence_keys(
     if direct_exists {
         return Ok(Some(vec![direct_key]));
     }
+    recipe_presence_keys(state, namespace_id, blob_digest, trigger, aging, budget).await
+}
 
+/// The composite half of [`presence_keys`], for callers that already know the
+/// direct blob is absent.
+pub async fn recipe_presence_keys(
+    state: &SharedState,
+    namespace_id: &str,
+    blob_digest: &reapi::Digest,
+    trigger: RefreshTrigger,
+    aging: bool,
+    budget: &mut PresenceBudget,
+) -> Result<Option<Vec<String>>, String> {
     let Some((_manifest, recipe)) = fetch_recipe(state, namespace_id, blob_digest).await? else {
         return Ok(None);
     };

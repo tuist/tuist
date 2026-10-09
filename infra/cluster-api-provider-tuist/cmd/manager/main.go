@@ -26,6 +26,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
@@ -38,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
@@ -45,7 +47,6 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/macos"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
-	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/dedibox"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/githubapp"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
@@ -69,10 +70,13 @@ func init() {
 
 func main() {
 	var (
-		metricsAddr          string
-		probeAddr            string
-		enableLeaderElection bool
-		secretsNamespace     string
+		metricsAddr               string
+		probeAddr                 string
+		enableLeaderElection      bool
+		secretsNamespace          string
+		ovhPrivateNetworkConfig   string
+		vultrPrivateNetworkConfig string
+		rackCardRootSecret        string
 
 		apiServerURL                 string
 		nodeIdentityClusterRole      string
@@ -80,6 +84,7 @@ func main() {
 		tartTarballPath              string
 		tailscaleBinariesPath        string
 		nodeExporterBinaryPath       string
+		hostSensorsBinaryPath        string
 		logShipperBinaryPath         string
 		logShipURL                   string
 		logShipEnv                   string
@@ -98,6 +103,9 @@ func main() {
 		runnerCacheVolumeGiB         int
 		cacheVolumeMasterCapGiB      int
 		cacheVolumeCASGiB            int
+		customCacheURL               string
+		customCacheNamespace         string
+		customCacheSA                string
 		tartKubeletMaxUpdateAttempts int
 		terminalRetryAfter           time.Duration
 		bootstrapRebootAfter         int
@@ -124,6 +132,12 @@ func main() {
 		"Single-leader election; required when running >1 replica")
 	flag.StringVar(&secretsNamespace, "secrets-namespace", "default",
 		"Namespace where the operator stores per-fleet SSH key Secrets")
+	flag.StringVar(&vultrPrivateNetworkConfig, "vultr-private-network-config", "",
+		"ConfigMap in the secrets namespace declaring regional Vultr private networks")
+	flag.StringVar(&ovhPrivateNetworkConfig, "ovh-private-network-config", "",
+		"ConfigMap in the secrets namespace declaring the private-only OVH cache network")
+	flag.StringVar(&rackCardRootSecret, "rack-card-root-secret", "rack-card-root",
+		"Secret in --secrets-namespace whose `key` every rack power card's passwords are derived from. Without it no RackPDU or RackATS card is adopted")
 
 	flag.StringVar(&apiServerURL, "api-server-url", os.Getenv("CAPI_TARTKUBELET_API_SERVER_URL"),
 		"External API server URL Mac minis dial when joining (https://...). "+
@@ -157,6 +171,13 @@ func main() {
 			"Empty disables the host-metrics step. Paired with "+
 			"--tailscale-binaries-path: node_exporter without Tailscale would bind "+
 			"to a public interface, which the bootstrap step actively refuses.")
+	flag.StringVar(&hostSensorsBinaryPath, "host-sensors-binary-path",
+		envOrDefault("CAPI_HOST_SENSORS_BINARY_PATH", ""),
+		"Local path of the darwin/arm64 tuist-host-sensors binary baked into this "+
+			"image (/opt/host-sensors/tuist-host-sensors-darwin-arm64 by default). "+
+			"Writes the host's temperatures, fan speeds, power and thermal pressure "+
+			"for node_exporter's textfile collector every 30 seconds. Empty, or no "+
+			"--node-exporter-binary-path to serve the readings, removes the job.")
 	flag.StringVar(&logShipperBinaryPath, "log-shipper-binary-path",
 		envOrDefault("CAPI_LOG_SHIPPER_BINARY_PATH", ""),
 		"Local path of the darwin/arm64 tuist-log-shipper binary baked into this "+
@@ -255,6 +276,9 @@ func main() {
 			"This quota is the aggregate ceiling for all cache volumes on the host — the filesystem bound "+
 			"that keeps cache volumes from ever starving the VM image path. 0 (default) leaves the feature "+
 			"off. Flows from the chart's macosFleet.runnerCacheVolume.gib.")
+	flag.StringVar(&customCacheURL, "custom-cache-url", "", "Opt-in server URL for macOS custom cache volumes")
+	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Custom cache agent namespace")
+	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Custom cache agent service account")
 	flag.IntVar(&cacheVolumeMasterCapGiB, "cache-volume-master-cap-gib", 0,
 		"Per-account cache master image cap (GiB) passed to tart-kubelet's --cache-volume-cap-gib. The "+
 			"image is sparse so this is a ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB). "+
@@ -336,6 +360,10 @@ func main() {
 		"The CAPI Cluster the RackHost controller makes each rack Mac host a Machine of. Empty, or no --rackhost-fleet-name, makes none.")
 	flag.StringVar(&rackHostBootstrapSecretName, "rackhost-bootstrap-secret-name", "",
 		"The Secret each rack Mac Machine names as its bootstrap data; the operator bootstraps the host, so it only has to exist.")
+	var rackHostVMCacheGatewayCIDRsRaw string
+	flag.StringVar(&rackHostVMCacheGatewayCIDRsRaw, "rackhost-vm-cache-gateway-cidrs", "",
+		"Comma-separated IPv4 CIDRs of the rack's runner-cache gateways, which the VM egress firewall on a rack Mac host lets Tart VMs reach on TCP 443. "+
+			"Rack hosts only; the rented fleets never pass them. Flows from the chart's rackFleet.vmCacheGatewayCIDRs.")
 	flag.DurationVar(&terminalRetryAfter, "tartkubelet-terminal-retry-after", 30*time.Minute,
 		"How long after a terminal drift-loop failure the host gets a fresh retry budget. "+
 			"Recovers a host that was merely unreachable when the operator tried to push, "+
@@ -484,6 +512,15 @@ func main() {
 		}
 		setupLog.Info("loaded node_exporter binary", "path", nodeExporterBinaryPath, "bytes", len(nodeExporterBinary), "sha", sha256Hex(nodeExporterBinary))
 	}
+	var hostSensorsBinary []byte
+	if hostSensorsBinaryPath != "" {
+		hostSensorsBinary, err = os.ReadFile(hostSensorsBinaryPath)
+		if err != nil {
+			setupLog.Error(err, "read host sensors binary", "path", hostSensorsBinaryPath)
+			os.Exit(1)
+		}
+		setupLog.Info("loaded host sensors binary", "path", hostSensorsBinaryPath, "bytes", len(hostSensorsBinary), "sha", sha256Hex(hostSensorsBinary))
+	}
 	var logShipperBinary []byte
 	if logShipperBinaryPath != "" {
 		logShipperBinary, err = os.ReadFile(logShipperBinaryPath)
@@ -517,6 +554,7 @@ func main() {
 		TartTarball:        tartTarball,
 		TailscaleBinaries:  tailscaleBinaries,
 		NodeExporterBinary: nodeExporterBinary,
+		HostSensorsBinary:  hostSensorsBinary,
 		LogShipperBinary:   logShipperBinary,
 		LogShipURL:         logShipURL,
 		LogShipEnv:         logShipEnv,
@@ -530,19 +568,22 @@ func main() {
 		// Load-bearing, not cosmetic: an OAuth-minted credential carries
 		// no default tag, so a host config pushed without these cannot
 		// join the tailnet at all.
-		TailscaleTags:           parseCommaList(tailscaleTagsRaw),
-		TailscaleAcceptRoutes:   tailscaleAcceptRoutes,
-		VMKuraEgressCIDR:        vmKuraEgressCIDR,
-		VMClusterDNSIP:          vmClusterDNSIP,
-		VMCachePNCIDR:           vmCachePNCIDR,
-		SSHIngressAllowCIDRs:    parseCommaList(sshIngressAllowRaw),
-		HostCPU:                 tartKubeletHostCPU,
-		HostMemoryMB:            tartKubeletHostMemory,
-		MaxPods:                 tartKubeletMaxPods,
-		RunnerCacheVolumeGiB:    runnerCacheVolumeGiB,
-		CacheVolumeMasterCapGiB: cacheVolumeMasterCapGiB,
-		CacheVolumeCASGiB:       cacheVolumeCASGiB,
-		VNCRelayPort:            vncRelayPort,
+		TailscaleTags:             parseCommaList(tailscaleTagsRaw),
+		TailscaleAcceptRoutes:     tailscaleAcceptRoutes,
+		VMKuraEgressCIDR:          vmKuraEgressCIDR,
+		VMClusterDNSIP:            vmClusterDNSIP,
+		VMCachePNCIDR:             vmCachePNCIDR,
+		SSHIngressAllowCIDRs:      parseCommaList(sshIngressAllowRaw),
+		HostCPU:                   tartKubeletHostCPU,
+		HostMemoryMB:              tartKubeletHostMemory,
+		MaxPods:                   tartKubeletMaxPods,
+		RunnerCacheVolumeGiB:      runnerCacheVolumeGiB,
+		CacheVolumeMasterCapGiB:   cacheVolumeMasterCapGiB,
+		CacheVolumeCASGiB:         cacheVolumeCASGiB,
+		CustomCacheURL:            customCacheURL,
+		CustomCacheNamespace:      customCacheNamespace,
+		CustomCacheServiceAccount: customCacheSA,
+		VNCRelayPort:              vncRelayPort,
 	}
 	hostConfigHash := bootstrap.HostConfigHash(fleetConfig)
 	setupLog.Info("computed host config hash", "hash", hostConfigHash)
@@ -670,6 +711,46 @@ func main() {
 		}
 	}
 	powerRegistry := power.NewRegistry()
+	// Logs out of the PDU and ATS sessions on shutdown: an Eaton card allows one
+	// session per account, and a stale one refuses the next leader's login.
+	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		<-ctx.Done()
+		closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := powerRegistry.Close(closeCtx); err != nil {
+			setupLog.Error(err, "log out of PDU sessions")
+		}
+		return nil
+	})); err != nil {
+		setupLog.Error(err, "add power session cleanup")
+		os.Exit(1)
+	}
+	if err := (&macos.RackPDUReconciler{
+		Client:           mgr.GetClient(),
+		APIReader:        mgr.GetAPIReader(),
+		Scheme:           mgr.GetScheme(),
+		Recorder:         mgr.GetEventRecorderFor("rackpdu-controller"),
+		Power:            powerRegistry,
+		EgressNamespace:  egressNamespace,
+		EgressProxyGroup: egressProxyGroup,
+		RootKeySecret:    types.NamespacedName{Namespace: secretsNamespace, Name: rackCardRootSecret},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackPDUReconciler")
+		os.Exit(1)
+	}
+	if err := (&macos.RackATSReconciler{
+		Client:           mgr.GetClient(),
+		Scheme:           mgr.GetScheme(),
+		Recorder:         mgr.GetEventRecorderFor("rackats-controller"),
+		APIReader:        mgr.GetAPIReader(),
+		Power:            powerRegistry,
+		EgressNamespace:  egressNamespace,
+		EgressProxyGroup: egressProxyGroup,
+		RootKeySecret:    types.NamespacedName{Namespace: secretsNamespace, Name: rackCardRootSecret},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackATSReconciler")
+		os.Exit(1)
+	}
 	if err := (&macos.RackHostReconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
@@ -678,6 +759,8 @@ func main() {
 		Power:                powerRegistry,
 		SecretsNamespace:     secretsNamespace,
 		QuarantineRetryAfter: rackHostQuarantineRetryAfter,
+		EgressNamespace:      egressNamespace,
+		EgressProxyGroup:     egressProxyGroup,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackHostReconciler")
 		os.Exit(1)
@@ -693,6 +776,7 @@ func main() {
 		// rented one run the same host config, which is what lets one workload
 		// target both and one operator image roll both.
 		FleetConfig:                   fleetConfig,
+		VMCacheGatewayCIDRs:           parseCommaList(rackHostVMCacheGatewayCIDRsRaw),
 		DefaultGuestCapacity:          tartKubeletGuestCapacity,
 		TartKubeletBinarySHA:          binarySHA,
 		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),
@@ -824,16 +908,18 @@ func main() {
 			os.Exit(1)
 		}
 		if err := (&linux.OVHDedicatedMachineReconciler{
-			Client:             mgr.GetClient(),
-			APIReader:          mgr.GetAPIReader(),
-			Scheme:             mgr.GetScheme(),
-			OVHClient:          ovhClient,
-			Recorder:           mgr.GetEventRecorderFor("ovhdedicatedmachine-controller"),
-			CredentialsManager: credsManager,
-			Kubeconfig:         kubeconfigBuilder,
-			KubernetesMinor:    "v1.34",
-			DefaultDatacenter:  "vin",
-			DefaultOS:          "ubuntu_24.04",
+			Client:                   mgr.GetClient(),
+			APIReader:                mgr.GetAPIReader(),
+			Scheme:                   mgr.GetScheme(),
+			OVHClient:                ovhClient,
+			Recorder:                 mgr.GetEventRecorderFor("ovhdedicatedmachine-controller"),
+			CredentialsManager:       credsManager,
+			Kubeconfig:               kubeconfigBuilder,
+			KubernetesMinor:          "v1.34",
+			DefaultDatacenter:        "vin",
+			DefaultOS:                "ubuntu_24.04",
+			PrivateNetworkConfigName: ovhPrivateNetworkConfig,
+			PrivateNetworkNamespace:  secretsNamespace,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup OVHDedicatedMachineReconciler")
 			os.Exit(1)
@@ -854,57 +940,22 @@ func main() {
 			os.Exit(1)
 		}
 		if err := (&linux.VultrMachineReconciler{
-			Client:             mgr.GetClient(),
-			APIReader:          mgr.GetAPIReader(),
-			Scheme:             mgr.GetScheme(),
-			VultrClient:        vultrClient,
-			Recorder:           mgr.GetEventRecorderFor("vultrmachine-controller"),
-			CredentialsManager: credsManager,
-			Kubeconfig:         kubeconfigBuilder,
-			KubernetesMinor:    "v1.34",
-			DefaultRegion:      "scl",
+			Client:                   mgr.GetClient(),
+			APIReader:                mgr.GetAPIReader(),
+			Scheme:                   mgr.GetScheme(),
+			VultrClient:              vultrClient,
+			Recorder:                 mgr.GetEventRecorderFor("vultrmachine-controller"),
+			CredentialsManager:       credsManager,
+			Kubeconfig:               kubeconfigBuilder,
+			KubernetesMinor:          "v1.34",
+			DefaultRegion:            "scl",
+			PrivateNetworkConfigName: vultrPrivateNetworkConfig,
+			PrivateNetworkNamespace:  secretsNamespace,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup VultrMachineReconciler")
 			os.Exit(1)
 		}
 		setupLog.Info("Vultr machine reconciler enabled")
-	}
-
-	// Dedibox (Scaleway) dedicated machines — the EU customer-facing kind, same
-	// shape as OVH (install-on-claim, monthly contract). Talks raw HTTP to the
-	// Scaleway Dedibox API (the SDK client is broken) with a DEFAULT-project IAM
-	// key — every Dedibox in the org shares the default project, so it adopts by
-	// per-fleet tag, not by project. Gated on its dedicated DEDIBOX_SCW_SECRET_KEY
-	// so it stays dormant until an env opts in.
-	if os.Getenv("DEDIBOX_SCW_SECRET_KEY") != "" {
-		dediboxClient, err := dedibox.NewClientFromEnv()
-		if err != nil {
-			setupLog.Error(err, "dedibox client")
-			os.Exit(1)
-		}
-		// Register the fleet bootstrap SSH key in the Dedibox (org default)
-		// project via the Dedibox client — a Dedibox install only accepts keys
-		// from the server's project, not the per-env project the shared Scaleway
-		// client uses for the macOS/Elastic Metal kinds.
-		dediboxCreds := *credsManager
-		dediboxCreds.SSHKeyRegistrar = dediboxClient.RegisterSSHKey
-		if err := (&linux.DediboxMachineReconciler{
-			Client:             mgr.GetClient(),
-			APIReader:          mgr.GetAPIReader(),
-			Scheme:             mgr.GetScheme(),
-			DediboxClient:      dediboxClient,
-			Recorder:           mgr.GetEventRecorderFor("dediboxmachine-controller"),
-			CredentialsManager: &dediboxCreds,
-			Kubeconfig:         kubeconfigBuilder,
-			KubernetesMinor:    "v1.34",
-			DefaultDatacenter:  "dc3",
-			DefaultOS:          "ubuntu_24.04",
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "setup DediboxMachineReconciler")
-			os.Exit(1)
-		}
-		failoverMovers["dedibox"] = shared.DediboxFailoverMover{Client: dediboxClient, Zones: dedibox.Zones()}
-		setupLog.Info("Dedibox machine reconciler enabled")
 	}
 
 	// Failover-IP placement: keep each region's public peer failover IP routed to

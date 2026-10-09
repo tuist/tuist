@@ -176,10 +176,16 @@ server:
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
-  bazelEvents:
+  events:
     enabled: true
-    host: build-canary.tuist.dev
-    tlsSecretName: tuist-tls-cloudflare-origin
+    host: events-canary.tuist.dev
+
+  # Starts the `once.events.v1` gRPC listener on the server pod and routes
+  # the events ingress at events-canary.tuist.dev as GRPC end-to-end, so
+  # Once CLIs that discover the host via `/.well-known/once` can stream
+  # live run events (build, test, cache, exec) to this deployment.
+  eventsGrpc:
+    enabled: true
 
   # Request sized so a surge pod (chart-default maxSurge: 1) co-schedules
   # alongside the live pod on the canary nodepool. Steady-state
@@ -371,7 +377,15 @@ pdcAgent:
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
 
+capi:
+  ovhPrivateNetwork:
+    enabled: true
+    vrackID: pn-2024092
+    cidr: 172.30.242.0/24
+
 kuraController:
+  privateReplication:
+    enabled: true
   stableDNS:
     enabled: true
     hostedZoneId: Z046862130S1WUMPV7Z3P
@@ -579,30 +593,6 @@ kuraFleet:
     # the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# Retire Dedibox after old EU-West instances are destroyed through the server
-# lifecycle. Public validation uses OVH ca-east; the Mac runner cache stays.
-dediboxFleet:
-  # Keep the reconciler and credentials until all release finalizers finish.
-  enabled: true
-  # Zero retires every managed Dedibox host; release reinstalls/wipes the box.
-  replicas: 0
-  machine:
-    adoptTag: tuist-kura-canary
-    offer: Start-9-M
-    datacenter: DC2
-    os: ubuntu_24.04
-    # Node egress budget (Mbps): ~500 Mbit/s box, advertised as
-    # tuist.dev/egress-mbps so eu-west's 25-Mbps-floor pods bin-pack
-    # (@enterprise_egress_floor_mbps).
-    egressBudgetMbps: 500
-  scaleway:
-    externalSecrets:
-      item: DEDIBOX_SCW_API
-  # Own the fleet SSH key from 1Password (generated fresh into this item).
-  sshExternalSecret:
-    enabled: true
-    item: DEDIBOX_FLEET_SSH
-
 # OVH fleet (OVHcloud bare-metal). Backs the `ca-east` region (Canada East /
 # OVHcloud BHS), mirroring staging. The reconciler adopts a pre-ordered OVH box
 # whose displayName starts with adoptDisplayNamePrefix, registers the fleet SSH
@@ -772,6 +762,8 @@ macosFleet:
 # Canary keeps one warm runner so the production rollout can be
 # validated on the same substrate first.
 runnersFleet:
+  customCacheVolumes:
+    enabled: true
   enabled: true
   hostCount: 1
   # Pre-ordered pool. Operator pre-orders Mac minis named with the
@@ -795,6 +787,11 @@ runnersFleet:
   # guarantee; the sum across overrides must stay ≤ `hostCount`.
   xcodeOverrides:
     "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+    "27.1-rc":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

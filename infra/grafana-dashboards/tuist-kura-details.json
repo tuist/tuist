@@ -11509,7 +11509,7 @@
               "transformations": []
             }
           },
-          "description": "Artifact write throughput by producer and result. This is ingest, so a write that stored nothing books no bytes: `result=\"damped\"` and the failure results carry no series here.\n\nPrometheus name: `kura_artifact_write_bytes_total_total` · labels: producer, result",
+          "description": "Artifact write throughput by producer and result. This is ingest, so a write that stored nothing books no bytes: `result=\"damped\"`, `result=\"already_present\"`, and the failure results carry no series here.\n\nPrometheus name: `kura_artifact_write_bytes_total_total` · labels: producer, result",
           "id": 29,
           "links": [],
           "title": "artifact_write_bytes_total (rate)",
@@ -11719,7 +11719,7 @@
               "transformations": []
             }
           },
-          "description": "Artifact writes by producer and result.\n\n`result=\"damped\"` is a REAPI action-cache refresh that stored nothing because the entry already held those bytes inside the 24h damping window: no store write, no version bump, no replication feed row. Only `result=\"ok\"` is comparable with the counters that likewise see applied changes only (`kura_region_sync_entries_listed_total`, `kura_backfill_bodies_total{outcome=\"applied\"}`) -- comparing those against all REAPI writes shows a shortfall that looks exactly like replication losing entries. The damped share of the two is the damping rate.\n\nPrometheus name: `kura_artifact_writes_total_total` · labels: producer, result",
+          "description": "Artifact writes by producer and result.\n\n`result=\"damped\"` is a REAPI action-cache refresh that stored nothing because the entry already held those bytes inside the 24h damping window: no store write, no version bump, no replication feed row. `result=\"already_present\"` is a ByteStream Write of a CAS blob the node already stored: Kura read the upload without staging, storing, or billing it. Only `result=\"ok\"` is comparable with the counters that likewise see applied changes only (`kura_region_sync_entries_listed_total`, `kura_backfill_bodies_total{outcome=\"applied\"}`) -- comparing those against all REAPI writes shows a shortfall that looks exactly like replication losing entries. The damped share of the two is the damping rate.\n\nPrometheus name: `kura_artifact_writes_total_total` · labels: producer, result",
           "id": 30,
           "links": [],
           "title": "artifact_writes_total (rate)",
@@ -23526,6 +23526,98 @@
             "version": "12.0.0"
           }
         }
+      },
+      "panel-246": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (region) (kura_region_sync_lag_seconds{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{region}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Cross-region replication lag in origin version time: the newest version the remote gateway has committed for its region (`newest_version_ms` on each listing page, including what its listing still holds back) minus the newest version applied here. Zero when caught up, including while the remote region is idle — unlike `region_watermark_age_seconds`, which ages through every quiet stretch. Only the pod holding the gateway role reports it (the role moves on restarts and membership blips), so the panel aggregates by region. It is sampled on each listing response; while the link cannot reach the remote gateway it grows by the silence beyond one long-poll on top of the last sample, and `region_sync_last_success_age_seconds` says how long that has been. A remote gateway on a release without `newest_version_ms` reports only caught-up samples.\n\nPrometheus name: `kura_region_sync_lag_seconds` · labels: region",
+          "id": 246,
+          "links": [],
+          "title": "region_sync_lag_seconds",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
       }
     },
     "layout": {
@@ -26113,6 +26205,19 @@
                         "width": 8,
                         "x": 16,
                         "y": 35
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-246"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 42
                       }
                     }
                   ]

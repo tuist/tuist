@@ -30,8 +30,12 @@ spec:
     variables:
       - name: region
         value: fsn1
+      # cpx22 (2 vCPU, 4 GB) ran out of memory during deploys: all three
+      # members dropped under 100 MiB available, and controllers across the
+      # cluster lost their leases. Changing this rolls the control plane one
+      # member at a time; see "Resizing the control plane" in the README.
       - name: hcloudControlPlaneMachineType
-        value: cpx22
+        value: cpx32
       # Default for pools without an override (md-0).
       - name: hcloudWorkerMachineType
         value: ccx23
@@ -133,11 +137,12 @@ spec:
         # plus the 3-instance CloudNativePG cluster — its hard pod
         # anti-affinity (`topologyKey: kubernetes.io/hostname,
         # podAntiAffinityType: required`) needs one CNPG instance per
-        # host, so the pool size has to match the configured instance
-        # count to avoid leaving a CNPG pod permanently Pending.
+        # host, so the pool needs at least as many nodes as instances.
+        # The fourth node is CPU-request headroom for the server's 1-CPU
+        # surge pod beside the controllers pinned here off the processor pool.
         - class: hcloud-worker
           name: md-0
-          replicas: 3
+          replicas: 4
           failureDomain: fsn1
           rollout:
             strategy:

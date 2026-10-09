@@ -14,7 +14,12 @@ defmodule TuistWeb.BuildRunsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Runs")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("build-runs"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_builds", "Build Runs"),
+          fallback: "build-runs"
+        )
+      )
 
     socket =
       cond do
@@ -25,6 +30,9 @@ defmodule TuistWeb.BuildRunsLive do
 
         Project.gradle_project?(project) ->
           TuistWeb.GradleBuildRunsLive.assign_mount(socket)
+
+        Project.mix_project?(project) ->
+          TuistWeb.MixBuildRunsLive.assign_mount(socket)
 
         true ->
           TuistWeb.XcodeBuildRunsLive.assign_mount(socket)
@@ -46,6 +54,9 @@ defmodule TuistWeb.BuildRunsLive do
 
       Project.gradle_project?(project) ->
         {:noreply, TuistWeb.GradleBuildRunsLive.assign_handle_params(socket, params)}
+
+      Project.mix_project?(project) ->
+        {:noreply, TuistWeb.MixBuildRunsLive.assign_handle_params(socket, params)}
 
       true ->
         {:noreply, TuistWeb.XcodeBuildRunsLive.assign_handle_params(socket, params)}

@@ -75,6 +75,11 @@ type RackAppleSiliconMachineReconciler struct {
 	// which both the push and the hash go through.
 	FleetConfig bootstrap.Config
 
+	// VMCacheGatewayCIDRs are the rack's runner-cache gateways, which a rack
+	// host's Tart VMs may reach on TCP 443. Overlaid by rackFleetConfig, so
+	// the rented fleets sharing FleetConfig never pass them.
+	VMCacheGatewayCIDRs []string
+
 	// DefaultGuestCapacity is the fleet-wide fallback for a Machine that does
 	// not set spec.guestCapacity.
 	DefaultGuestCapacity int
@@ -633,28 +638,9 @@ func (r *RackAppleSiliconMachineReconciler) quarantineHost(ctx context.Context, 
 }
 
 func (r *RackAppleSiliconMachineReconciler) cycleHostPower(ctx context.Context, host *infrav1.RackHost) error {
-	if host.Spec.Power == nil {
-		return fmt.Errorf("host %s has no power outlet configured", host.Name)
-	}
-	if r.Power == nil {
-		return fmt.Errorf("no power drivers wired into this operator build")
-	}
-	driver, err := r.Power.Get(host.Spec.Power.Driver)
+	driver, outlet, err := rackHostOutlet(ctx, r.Client, r.Power, r.SecretsNamespace, r.egressConfig(), host)
 	if err != nil {
-		return err
-	}
-	outlet := power.Outlet{
-		Driver: host.Spec.Power.Driver,
-		Host:   host.Spec.Power.Host,
-		Outlet: host.Spec.Power.Outlet,
-	}
-	if ref := host.Spec.Power.CredentialsSecretRef; ref != nil && ref.Name != "" {
-		secret := &corev1.Secret{}
-		if err := r.Get(ctx, types.NamespacedName{Namespace: r.SecretsNamespace, Name: ref.Name}, secret); err != nil {
-			return fmt.Errorf("read power credentials %s/%s: %w", r.SecretsNamespace, ref.Name, err)
-		}
-		outlet.Username = string(secret.Data["username"])
-		outlet.Password = string(secret.Data["password"])
+		return fmt.Errorf("host %s: %w", host.Name, err)
 	}
 	return power.Cycle(ctx, driver, outlet, r.powerCycleSettle())
 }
@@ -819,6 +805,7 @@ func (r *RackAppleSiliconMachineReconciler) perHostConfig(
 		VNCRelayHost:         r.egressHost(machine.Name),
 		NodeLabels:           rackMachineNodeLabels(machine),
 		KnownHostFingerprint: knownFingerprint,
+		ExpectedSerial:       host.Spec.Serial,
 	}, nil
 }
 
@@ -938,12 +925,16 @@ func (r *RackAppleSiliconMachineReconciler) hostSizing(machine *infrav1.RackAppl
 //   - its SSH ingress guard admits the host's subnet routers, the source its
 //     LAN dial arrives from.
 //
-// Both push paths and the stamped hash go through here, so a change to either
-// drifts the host rather than being recorded as converged without reaching it.
+// It also carries the rack's cache gateways into the VM egress firewall.
+//
+// Both push paths and the stamped hash go through here, so a change to any of
+// them drifts the host rather than being recorded as converged without
+// reaching it.
 func (r *RackAppleSiliconMachineReconciler) rackFleetConfig(host *infrav1.RackHost) bootstrap.Config {
 	cfg := r.FleetConfig
 	cfg.TailscalePersistentDevice = true
 	cfg.SSHIngressAllowCIDRs = append(slices.Clone(r.FleetConfig.SSHIngressAllowCIDRs), host.Spec.SSHIngressAllowCIDRs...)
+	cfg.VMCacheGatewayCIDRs = slices.Clone(r.VMCacheGatewayCIDRs)
 	return cfg
 }
 

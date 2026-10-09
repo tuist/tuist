@@ -1,7 +1,7 @@
 defmodule Tuist.ClickHouseRepo.PromExPlugin do
   @moduledoc """
-  Prometheus metrics for every query `Tuist.ClickHouseRepo` runs: a count and a
-  duration histogram, both split by outcome.
+  Prometheus metrics for Cloud and shadow ClickHouse reads: a count and a
+  duration histogram, both split by physical repository and outcome.
 
   The `result` tag is `ok`, `clickhouse_<code>` for an error ClickHouse returned
   (159 is `TIMEOUT_EXCEEDED`, 241 the memory limit), `transport_<reason>` for a
@@ -11,12 +11,25 @@ defmodule Tuist.ClickHouseRepo.PromExPlugin do
   """
   use PromEx.Plugin
 
-  @query_event [:tuist, :click_house_repo, :query]
+  @query_events [[:tuist, :click_house_repo, :query], [:tuist, :shadow_click_house_repo, :query]]
+  @query_event [:tuist, :clickhouse, :read, :query]
   @metric_prefix [:tuist, :clickhouse, :query]
 
   # Spans the interactive range up to and past the server- and client-side
   # timeouts configured on the repo.
   @duration_buckets [10, 50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000, 15_000, 20_000, 30_000]
+
+  def attach do
+    :telemetry.attach_many(__MODULE__, @query_events, &__MODULE__.handle_query/4, nil)
+  end
+
+  def handle_query([:tuist, prefix, :query], measurements, %{result: result}, _config)
+      when prefix in [:click_house_repo, :shadow_click_house_repo] do
+    repo = if prefix == :shadow_click_house_repo, do: Tuist.ShadowClickHouseRepo, else: Tuist.ClickHouseRepo
+    :telemetry.execute(@query_event, measurements, tag_values(%{repo: repo, result: result}))
+  end
+
+  def handle_query(_event, _measurements, _metadata, _config), do: :ok
 
   @impl true
   def event_metrics(_opts) do
@@ -27,8 +40,7 @@ defmodule Tuist.ClickHouseRepo.PromExPlugin do
           counter(
             @metric_prefix ++ [:count],
             event_name: @query_event,
-            description: "Queries run against the read-only ClickHouse repo, by outcome.",
-            tag_values: &tag_values/1,
+            description: "Queries run against physical read-only ClickHouse repos, by outcome.",
             tags: [:repo, :result]
           ),
           distribution(
@@ -37,13 +49,16 @@ defmodule Tuist.ClickHouseRepo.PromExPlugin do
             measurement: :total_time,
             description: "Wall-clock of a read-only ClickHouse query, pool wait included, by outcome.",
             reporter_options: [buckets: @duration_buckets],
-            tag_values: &tag_values/1,
             tags: [:repo, :result],
             unit: {:native, :millisecond}
           )
         ]
       )
     ]
+  end
+
+  def tag_values(%{repo: Tuist.ShadowClickHouseRepo, result: result}) do
+    %{repo: "clickhouse_shadow_read", result: result_tag(result)}
   end
 
   def tag_values(%{result: result}) do

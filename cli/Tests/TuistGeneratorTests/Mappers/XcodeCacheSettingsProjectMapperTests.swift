@@ -82,10 +82,45 @@ struct XcodeCacheSettingsProjectMapperTests {
 
         // Then
         let baseSettings = mappedProject.settings.base
-        #expect(baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] == .string("YES"))
+        #expect(
+            baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] ==
+                .string("$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))")
+        )
         #expect(baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
-        #expect(baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] == .string("YES"))
+        #expect(
+            baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] ==
+                .string("$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))")
+        )
         #expect(baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
+    }
+
+    /// The compiler writes mapped paths into the coverage mapping and xccov can't
+    /// resolve them, so a build that gathers coverage (`CLANG_COVERAGE_MAPPING=YES`)
+    /// must resolve prefix mapping off, and every other build on.
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
+    func map_whenXcode27_disablesPrefixMappingForCoverageBuilds() async throws {
+        // Given
+        try stubXcodeVersion(Version(27, 0, 0))
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: nil,
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(tuist: tuist)
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: Project.test(name: "TestProject"))
+
+        // Then
+        let baseSettings = mappedProject.settings.base
+        #expect(baseSettings["TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES"] == .string("NO"))
+        #expect(baseSettings["TUIST_PREFIX_MAPPING_FOR_COVERAGE_NO"] == .string("YES"))
+        #expect(baseSettings["TUIST_PREFIX_MAPPING_FOR_COVERAGE_"] == .string("YES"))
     }
 
     /// Earlier Xcodes don't define these settings and their build systems lack the
@@ -116,6 +151,7 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == nil)
         #expect(baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] == nil)
         #expect(baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == nil)
+        #expect(baseSettings.keys.filter { $0.hasPrefix("TUIST_PREFIX_MAPPING_FOR_COVERAGE") }.isEmpty)
     }
 
     @Test(.inTemporaryDirectory, .withMockedXcodeController)
@@ -156,6 +192,7 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] == nil)
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == nil)
         #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == nil)
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES"] == nil)
     }
 
     @Test(.inTemporaryDirectory, .withMockedXcodeController)
@@ -212,6 +249,9 @@ struct XcodeCacheSettingsProjectMapperTests {
             baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"]
                 == .string(Environment.current.casProxySocketPathString())
         )
+        // With a remote service, the build system queries the cache for every local
+        // miss; detached, those queries overlap instead of waiting for an execution lane.
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES"] == .string("YES"))
 
         // The account/project is delivered to the plugin as a compiler option so
         // it reaches every frontend, including Xcode ⌘B builds.
@@ -253,6 +293,7 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == nil)
         #expect(baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] == nil)
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES"] == nil)
         #expect(baseSettings["OTHER_SWIFT_FLAGS"] == nil)
     }
 

@@ -19,16 +19,118 @@ FLEET_MERGE_AWK="$FLEET_ROOT/lib/merge.awk"
 # configuration that switch has never had, and ber1-mgmt is a different model
 # entirely, so neither's unmanaged set is known. `replace` therefore reports
 # every line it would remove rather than trusting this list to be complete.
-# Where the compute half of the rack's inventory lives. A node that is a
-# cluster-managed machine points at its RackHost by name rather than restating
-# it, so the two inventories are connected by reference and not by two people
-# keeping two records in step.
-FLEET_RACK_VALUES="${FLEET_RACK_VALUES:-$FLEET_ROOT/../helm/tuist/values-managed-staging.yaml}"
+# Where the compute half of the rack's inventory lives, when set: the tuist
+# chart's values file for the rack's env otherwise (fleet_rack_values). A node
+# that is a cluster-managed machine points at its RackHost by name rather than
+# restating it, so the two inventories are connected by reference and not by
+# two people keeping two records in step.
+FLEET_RACK_VALUES="${FLEET_RACK_VALUES:-}"
 
 FLEET_UNMANAGED='^user name |^system-time ntp '
 export FLEET_UNMANAGED
 
 fleet_site_file() { echo "$FLEET_ROOT/sites/$1.json"; }
+
+# The env whose cluster the rack belongs to, from the site's
+# kubernetes.namespace, by the tuist chart's convention: production deploys to
+# `tuist` and every other env to `tuist-<env>`. Every place that needs the
+# rack's env (the deploy workflows, the install stick, the card passwords, the
+# values the render reads) asks this, so moving the rack is changing that one
+# field.
+fleet_site_env() {
+  local site_file="$1" namespace
+  namespace="$(jq -r '.kubernetes.namespace // empty' "$site_file")"
+  case "$namespace" in
+    tuist) echo production;;
+    tuist-?*) echo "${namespace#tuist-}";;
+    *)
+      echo "error: $(basename "$site_file")'s kubernetes.namespace '$namespace' names no env; it is tuist or tuist-<env>" >&2
+      return 1;;
+  esac
+}
+
+# The tuist chart's values file the site's RackHosts and RackLinuxHosts are
+# declared in: FLEET_RACK_VALUES when set, the rack's env's otherwise.
+fleet_rack_values() {
+  local site_file="$1" env
+  if [ -n "$FLEET_RACK_VALUES" ]; then
+    echo "$FLEET_RACK_VALUES"
+    return 0
+  fi
+  env="$(fleet_site_env "$site_file")" || return 1
+  echo "$FLEET_ROOT/../helm/tuist/values-managed-$env.yaml"
+}
+
+# Helm values for infra/helm/rack-switch-controller, from the site definition:
+# the namespace whose RackSwitch objects it reconciles, the Omada site, the
+# address the controller tells switches to connect back to, and the 1Password
+# items its ExternalSecrets read. JSON, which Helm reads as YAML.
+fleet_controller_values() {
+  jq -e '{
+    watchNamespace: .kubernetes.namespace,
+    omada: {site: .management.controller.site, controllerAddress: (.management.controller.address // "")},
+    credentials: {
+      omadaApiItem: .management.controller.credential_item,
+      deviceAccountItem: .management.controller.device_account_item
+    }
+  }' "$1"
+}
+
+# Helm values for infra/helm/rack-edge: the site whose rendered files it runs.
+fleet_edge_values() { jq -e '{site: .site}' "$1"; }
+
+# What else names the rack's env has to agree with kubernetes.namespace: the
+# vault the controller's credentials are in, the Omada controller's tailnet
+# name in that env's chart values, and the tuist chart values that declare the
+# rack's hosts and runner pools, which no other env may declare too. Two envs
+# declaring one rack means two operators adopting the same boxes and two
+# servers answering the same dispatch label. The charts are read from infra/helm,
+# or the directory a second argument names.
+fleet_check_env() {
+  local site_file="$1" helm="${2:-$FLEET_ROOT/../helm}" env site bad="" vault url address host omada_values hostname values other
+  env="$(fleet_site_env "$site_file")" || return 1
+  site="$(jq -r '.site' "$site_file")"
+
+  if jq -e '.management.controller != null' "$site_file" >/dev/null; then
+    vault="$(jq -r '.management.controller.vault // empty' "$site_file")"
+    if [ -n "$vault" ] && [ "$vault" != "tuist-k8s-$env" ]; then
+      bad+="management.controller.vault is $vault, but the rack is in $env, whose cluster reads tuist-k8s-$env"$'\n'
+    fi
+    address="$(jq -r '.management.controller.address // empty' "$site_file")"
+    if ! [[ "$address" =~ ^100\.([0-9]{1,3})\.[0-9]{1,3}\.[0-9]{1,3}$ ]] || (( BASH_REMATCH[1] < 64 || BASH_REMATCH[1] > 127 )); then
+      bad+="management.controller.address '$address' is not a tailnet address (100.64.0.0/10): set it to the Omada controller's tailnet IP in $env"$'\n'
+    fi
+    url="$(jq -r '.management.controller.url // empty' "$site_file")"
+    host="${url#https://}"; host="${host%%[:/]*}"
+    omada_values="$helm/omada/values-$env.yaml"
+    if [ ! -f "$omada_values" ]; then
+      bad+="the rack is in $env, which has no Omada controller values ($(basename "$omada_values"))"$'\n'
+    else
+      hostname="$(yq -r '."omada-controller-helm".service.annotations."tailscale.com/hostname" // ""' "$omada_values")"
+      if [ "${host%%.*}" != "$hostname" ]; then
+        bad+="management.controller.url names $host, but $env's Omada controller is $hostname on the tailnet"$'\n'
+      fi
+    fi
+  fi
+
+  values="$helm/tuist/values-managed-$env.yaml"
+  [ -f "$values" ] || bad+="the rack is in $env, which has no $(basename "$values")"$'\n'
+  for other in "$helm"/tuist/values-managed-*.yaml; do
+    [ "$other" = "$values" ] && continue
+    [ "$(basename "$other")" = values-managed-common.yaml ] && continue
+    if [ "$(SITE="$site" yq '
+        ([.rackFleet | select(.enabled == true and .site == strenv(SITE))] | length) +
+        ([.rackLinuxFleet | select(.enabled == true and .site == strenv(SITE))] | length) +
+        ([.runnersFleet.pools[]? | select(.site == strenv(SITE))] | length)' "$other")" != 0 ]; then
+      bad+="$(basename "$other") declares $site's hosts or runner pools, but the rack is in $env"$'\n'
+    fi
+  done
+
+  if [ -n "$bad" ]; then
+    printf 'error: %s' "$bad" | sed '2,$s/^/error: /' >&2
+    return 1
+  fi
+}
 
 fleet_device() {
   local site_file="$1" name="$2" device
@@ -199,6 +301,68 @@ fleet_check_sensor_chains() {
   if [ -n "$bad" ]; then
     echo "error: sensor bus is wrong:" >&2
     printf '%s\n' "$bad" | sed 's/^/  /' >&2
+    return 1
+  fi
+}
+
+# Power runs feed -> ATS -> load, or feed -> ATS -> PDU -> load. A node or
+# switch names the device its cord goes into, `ats` or `pdu`, never both, and a
+# PDU names its ATS, so everything resolves to exactly one transfer switch: the
+# unit of failure. The pairs that exist so one of them survives (edges, storage,
+# ToRs) must resolve to different ones, or one ATS takes both.
+fleet_check_power() {
+  local site_file="$1" bad
+  bad="$(jq -r '
+    ([.nodes[]? | select(.hardware == "eats16n") | .name]) as $atses |
+    ([.nodes[]? | select(.hardware == "evmafc20a") | {key: .name, value: .ats}] | from_entries) as $pdus |
+    [.nodes[]?, .devices[]] as $all |
+    def feeder: if .ats != null then .ats elif .pdu != null then $pdus[.pdu] else null end;
+    [
+      $all[] | select(.ats != null and .pdu != null) |
+        "\(.name): names both ats and pdu; a cord goes into one of them"
+    ] + [
+      $all[] | select(.ats != null and (.ats as $a | $atses | index($a) | not)) |
+        "\(.name): ats \(.ats) is not a transfer switch in this site"
+    ] + [
+      $all[] | select(.pdu != null and (.pdu as $p | $pdus | has($p) | not)) |
+        "\(.name): pdu \(.pdu) is not a PDU in this site"
+    ] + [
+      $all[] | select(.hardware == "evmafc20a" and (.ats == null or .pdu != null)) |
+        "\(.name): a PDU is fed by a transfer switch, so it names an ats and no pdu"
+    ] + [
+      $all[] | select(.hardware == "eats16n" and (.ats != null or .pdu != null)) |
+        "\(.name): a transfer switch takes the facility feeds, not another power device"
+    ] + [
+      $all[] | select(.hardware == "eats16n" and (.preferred_source | IN(1, 2) | not)) |
+        "\(.name): preferred_source is \(.preferred_source // "missing"); a transfer switch prefers source 1 (feed A) or 2 (feed B)"
+    ] + [
+      $all[] | select(.hardware != "eats16n" and .preferred_source != null) |
+        "\(.name): only a transfer switch has a preferred_source"
+    ] + [
+      ([$all[] | select(.role == "edge")], [$all[] | select(.role == "storage")],
+       [$all[] | select(.role == "tor")]) |
+      [.[] | {name, role, ats: feeder} | select(.ats != null)] |
+      select(length == 2 and .[0].ats == .[1].ats) |
+        "\(.[0].name) and \(.[1].name) both resolve to \(.[0].ats), so one transfer switch takes the pair"
+    ] + [
+      $all[] | select(.role == "edge" or .role == "storage" or .role == "tor") | select(feeder == null) |
+        "\(.name): one of the \(.role) pair, but names no ats or pdu, so which transfer switch it shares cannot be checked"
+    ] + [
+      # The feed cords into a transfer switch are cables like any other, so
+      # each source names the feed behind it, once.
+      select([$all[] | select(.hardware == "eats16n")] | length > 0) |
+      (1, 2) as $source | [(.feeds // [])[] | select(.source == $source)] |
+      if length == 0 then "the site has transfer switches but names no feed for source \($source)"
+      elif length > 1 then "source \($source) has more than one feed: \(map(.name) | join(", "))"
+      else empty end
+    ] + [
+      [$all[] | select(.mgmt_address != null)] | group_by(.mgmt_address)[] | select(length > 1) |
+        "\(map(.name) | join(" and ")) share management address \(.[0].mgmt_address)"
+    ] | .[]
+  ' "$site_file")" || return 1
+  if [ -n "$bad" ]; then
+    echo "error: power chain is wrong:" >&2
+    printf '  %s\n' "$bad" >&2
     return 1
   fi
 }
@@ -379,6 +543,7 @@ fleet_render() {
   fleet_check_node_interfaces "$site_file" || return 1
   fleet_check_management_links "$site_file" || return 1
   fleet_check_sensor_chains "$site_file" || return 1
+  fleet_check_power "$site_file" || return 1
   fleet_check_port_map "$site_file" "$name" "$spec" || return 1
   fleet_check_lags "$site_file" || return 1
 
@@ -624,7 +789,8 @@ FLEET_RACKHOST_OWNED="serial address rack position_u power outlet"
 # A node may name a RackHost, and if it does that host has to exist and the node
 # has to leave the host's own fields to it.
 fleet_check_rack_hosts() {
-  local site_file="$1" values="${2:-$FLEET_RACK_VALUES}" declared known bad=""
+  local site_file="$1" values="${2:-}" declared known bad=""
+  [ -n "$values" ] || values="$(fleet_rack_values "$site_file")" || return 1
   declared="$(jq -r '[.nodes[]? | select(.rack_host != null)] | length' "$site_file")"
   [ "$declared" = "0" ] && return 0
 
@@ -648,6 +814,29 @@ fleet_check_rack_hosts() {
     done
   done < <(jq -r '.nodes[]? | select(.rack_host != null) | "\(.name)\t\(.rack_host)"' "$site_file")
   rm -f "$known"
+
+  # A mini's outlet is its RackHost's and its ToR port is this file's, so this
+  # is the one place both halves meet. They have to resolve to the same
+  # transfer switch: crossed, any one ATS failure takes the whole fleet, half
+  # the minis losing power and the other half their ToR.
+  local outlets crossed
+  outlets="$(yq -o=json '[.rackFleet.hosts[]? | {"key": .name, "value": (.power.pdu // "")}] | from_entries' "$values" 2>/dev/null)" || outlets='{}'
+  crossed="$(jq -r --argjson outlets "$outlets" '
+    ([.nodes[]? | select(.hardware == "evmafc20a") | {key: .name, value: .ats}] | from_entries) as $pdus |
+    ([.nodes[]?, .devices[]] | map({key: .name, value: (if .ats != null then .ats elif .pdu != null then $pdus[.pdu] else null end)}) | from_entries) as $feeder |
+    .nodes[]? | select(.rack_host != null) | . as $node |
+    ($outlets[$node.rack_host] // "") as $pdu | select($pdu != "") |
+    if ($pdus | has($pdu) | not) then
+      "\($node.name): RackHost \($node.rack_host) is on \($pdu), which is not a PDU in this site"
+    else
+      $pdus[$pdu] as $ats |
+      $node.links[]? | select(.purpose == "data" and .switch != null) |
+      .switch as $tor | $feeder[$tor] as $tor_ats |
+      select($tor_ats != null and $tor_ats != $ats) |
+        "\($node.name): its outlet on \($pdu) resolves to \($ats) but its ToR \($tor) to \($tor_ats); a mini and its ToR must lose power together"
+    end
+  ' "$site_file")"
+  [ -n "$crossed" ] && bad="$bad$crossed"$'\n'
 
   if [ -n "$bad" ]; then
     echo "error: node references into the cluster inventory are wrong:" >&2
@@ -726,6 +915,50 @@ fleet_render_k8s() {
     }' | yq -P -
 }
 
+# The site's switched PDUs that have a management address, one name per line.
+fleet_pdus() {
+  jq -r '.nodes[]? | select(.hardware == "evmafc20a" and (.mgmt_address // "") != "") | .name' "$1"
+}
+
+# The site's transfer switches that have a management address, one name per
+# line.
+fleet_atses() {
+  jq -r '.nodes[]? | select(.hardware == "eats16n" and (.mgmt_address // "") != "") | .name' "$1"
+}
+
+# A PDU as a RackPDU object, which the CAPI provider's RackPDU controller
+# adopts once it is installed (managedBy: controller). Spec only, like the
+# RackSwitch objects.
+fleet_render_pdu() {
+  fleet_render_power "$1" "$2" RackPDU
+}
+
+# A transfer switch as a RackATS object, which the CAPI provider's RackATS
+# controller adopts, keeps on its preferred source and observes once it is
+# installed.
+fleet_render_ats() {
+  fleet_render_power "$1" "$2" RackATS
+}
+
+fleet_render_power() {
+  local site_file="$1" name="$2" kind="$3"
+  jq -r --arg n "$name" --arg kind "$kind" '
+    .site as $site |
+    .nodes[] | select(.name == $n) |
+    (.status == "installed") as $managed |
+    {
+      apiVersion: "infrastructure.cluster.x-k8s.io/v1alpha1",
+      kind: $kind,
+      metadata: { name: .name, labels: { "tuist.dev/site": $site, "tuist.dev/role": "power" } },
+      spec: ({ site: $site, model: .hardware }
+        + (if .mac then { mac: .mac } else {} end)
+        + { address: .mgmt_address }
+        + (if $kind == "RackPDU" and .ats then { chain: .ats } else {} end)
+        + { managedBy: (if $managed then "controller" else "standalone" end) }
+        + (if $kind == "RackPDU" then { outletStateOnStartup: "on" } else { preferredSource: .preferred_source } end))
+    }
+  ' "$site_file" | yq -P -p=json '(select(.kind == "RackPDU") | .spec.outletStateOnStartup) style="double"' -
+}
 
 # Which terminal line is this connection, from `show users` output. The firmware
 # names each connection's task tSshNN with N only ever increasing, so the newest
@@ -820,9 +1053,14 @@ HEADER
       (.nodes[]? as $n | $n.links[] |
         {from: .switch, port, to: $n.name, nic: (.nic // ""), media: (.media // ""),
          purpose: (.purpose // "data"), status: (.status // $n.status // "")}),
-      (.nodes[]? | select(.ats != null) |
-        {from: .ats, port: null, to: .name, nic: "psu", media: "power", purpose: "power",
-         status: (if $status[.ats] == "planned" or .status == "planned" then "planned" else .status end)})
+      ((.nodes[]?, (.devices[] | .status = "installed")) | select((.ats // .pdu) != null) |
+        (.ats // .pdu) as $from |
+        {from: $from, port: null, to: .name, nic: (if .role == "power" then "inlet" else "psu" end),
+         media: "power", purpose: "power",
+         status: (if $status[$from] == "planned" or .status == "planned" then "planned" else .status end)}),
+      ((.feeds // []) as $feeds | .nodes[]? | select(.hardware == "eats16n") | . as $ats | $feeds[] |
+        {from: .name, port: null, to: $ats.name, nic: "source-\(.source)", media: "power", purpose: "feed",
+         status: ($ats.status // "")})
     ] |
     sort_by(.from, (.port == null), .port, .to) | .[] |
     "| \(.from) | \(.port // "") | \(.to) | \(.nic) | \(.media) | \(.purpose) | \(.status) |"

@@ -1154,8 +1154,14 @@ defmodule Tuist.Kura.Lifecycle do
 
   defp cold_return?(%AccountRegionLifecycle{last_returned_at: nil}, _started_at), do: false
 
+  # `last_returned_at` is stamped after the return's deployment is inserted and
+  # truncated to the second, so the deployment can read as up to a second later
+  # than the return. The minute of slack before it mirrors
+  # `Kura.new_instance_readiness/1`: an archived server is outside every
+  # rollout, so nothing else is deployed in that minute.
   defp cold_return?(%AccountRegionLifecycle{last_returned_at: returned_at}, started_at) do
-    DateTime.compare(returned_at, started_at) != :lt
+    DateTime.compare(started_at, DateTime.add(returned_at, -1, :minute)) != :lt and
+      DateTime.before?(started_at, DateTime.add(returned_at, 1, :second))
   end
 
   ## Gates

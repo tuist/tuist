@@ -210,9 +210,15 @@ mod result_label {
 /// [`crate::usage::Usage::spawn_tasks`], which follows the same "run
 /// until the runtime drops" contract.
 pub fn spawn_tasks(state: &crate::state::SharedState) {
-    if state.config.analytics.is_none() {
+    let Some(analytics_config) = state.config.analytics.as_ref() else {
         return;
-    }
+    };
+    // Analytics targets the public control plane. It needs ordinary trust,
+    // redirects and proxies, independently of the peer mTLS routing policy.
+    let client =
+        crate::control_plane_http::analytics_client_builder(analytics_config.request_timeout_ms)
+            .build()
+            .expect("analytics HTTP client should build");
 
     for pipeline in Pipeline::ALL {
         let name: &'static str = match pipeline {
@@ -220,13 +226,10 @@ pub fn spawn_tasks(state: &crate::state::SharedState) {
             Pipeline::XcodeCache => "analytics_forwarder_xcode_cache",
             Pipeline::ReapiCache => "analytics_forwarder_reapi_cache",
         };
+        let client = client.clone();
         crate::replication::spawn_supervised(name, state.clone(), move |state| {
-            // Every field is rebuilt per (re)spawn: on a panic, the
-            // supervisor restarts the closure, and picking up a fresh
-            // `state.client` snapshot means a TLS/cert rotation between
-            // panic and respawn is not stuck on the old handle.
             let store = Arc::clone(&state.store);
-            let client = (**state.client.load()).clone();
+            let client = client.clone();
             let metrics = state.metrics.clone();
             let analytics_config = state
                 .config
@@ -739,6 +742,74 @@ mod tests {
             failure_backoff_ms_base: 5,
             failure_backoff_ms_max: 50,
         }
+    }
+
+    #[tokio::test]
+    async fn topology_does_not_disable_analytics_redirects() {
+        let target = CaptureServer::start(StatusCode::OK).await;
+        let destination = target.base_url();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        let router = axum::Router::new().fallback(move || {
+            let destination = destination.clone();
+            async move { axum::response::Redirect::temporary(&destination) }
+        });
+        let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+        let ctx = test_context(|config| {
+            config.peer_topology = Some(crate::peer_topology::PeerTopology {
+                canonical_networks: Vec::new(),
+                provider: "ovh".into(),
+                private_network: Some("test".into()),
+                private_url: Some("https://private.example".into()),
+            });
+            config.analytics = Some(crate::config::AnalyticsConfig {
+                server_url: origin.clone(),
+                signing_key: "test".into(),
+                batch_size: 16,
+                batch_timeout_ms: 100,
+                queue_capacity: 16,
+                request_timeout_ms: 5_000,
+                circuit_breaker_failure_threshold: 3,
+                circuit_breaker_open_ms: 100,
+                outbox_max_entries: 100,
+                outbox_max_bytes: 1024 * 1024,
+                outbox_max_batch_bytes: 64 * 1024,
+            });
+        })
+        .await;
+        let peers = crate::peer_tls::PeerClientFactory::from_config(&ctx.state.config)
+            .await
+            .unwrap()
+            .build()
+            .unwrap();
+        ctx.state.client.store(Arc::new(peers));
+        assert_eq!(
+            ctx.state
+                .client()
+                .get(&origin)
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::TEMPORARY_REDIRECT
+        );
+        let payload = br#"{"events":[{"n":1}]}"#;
+        let value = encode_value(0, 1, ContentType::Json, payload).unwrap();
+        ctx.state
+            .store
+            .append_analytics_outbox_entry(Pipeline::GradleCache, 1, Uuid::from_u128(1), &value)
+            .await
+            .unwrap();
+        spawn_tasks(&ctx.state);
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while ctx.state.store.analytics_outbox_entry_count().unwrap() != 0 {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("forwarder must deliver through the public redirect");
+        assert_eq!(target.received(), vec![payload.to_vec()]);
+        server.abort();
     }
 
     #[tokio::test]

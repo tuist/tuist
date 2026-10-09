@@ -1059,6 +1059,8 @@ async fn the_ascending_listing_stops_at_the_replica_link_frontier() {
     context
         .state
         .apply_peer_views(vec![crate::sync::roles::PeerView {
+            private_healthy: true,
+            topology: None,
             url: sibling.to_owned(),
             region: "local".to_owned(),
             serving: true,
@@ -1186,6 +1188,8 @@ async fn status_advertises_the_membership_view_node_urls() {
     context
         .state
         .apply_peer_views(vec![crate::sync::roles::PeerView {
+            private_healthy: true,
+            topology: None,
             url: "http://sibling:7443".into(),
             region: "local".into(),
             serving: true,
@@ -1200,6 +1204,8 @@ async fn status_advertises_the_membership_view_node_urls() {
 async fn the_peer_serving_aggregate_follows_the_membership_view() {
     use crate::sync::roles::PeerView;
     let view = |index: usize| PeerView {
+        private_healthy: true,
+        topology: None,
         url: format!("http://peer-{index}.kura.internal:7443"),
         region: "local".to_owned(),
         serving: true,
@@ -1251,6 +1257,8 @@ async fn a_sibling_that_predates_pull_settles_the_link_as_unsupported() {
     context
         .state
         .apply_peer_views(vec![crate::sync::roles::PeerView {
+            private_healthy: true,
+            topology: None,
             url: sibling.clone(),
             region: "local".to_owned(),
             serving: true,
@@ -1324,6 +1332,8 @@ async fn a_remote_gateway_that_predates_pull_settles_the_region_link_as_unsuppor
     context
         .state
         .apply_peer_views(vec![crate::sync::roles::PeerView {
+            private_healthy: true,
+            topology: None,
             url: gateway.clone(),
             region: "eu-west".to_owned(),
             serving: true,
@@ -1353,4 +1363,274 @@ async fn a_remote_gateway_that_predates_pull_settles_the_region_link_as_unsuppor
     let catch_up = context.state.catch_up_status();
     assert_eq!(catch_up.initial_cycle, crate::state::CatchUpMode::Complete);
     assert_eq!(catch_up.budget_exhausted_capability, 1);
+}
+
+fn gauge_value(rendered: &str, name: &str, region: &str) -> Option<i64> {
+    let prefix = format!("{name}{{region=\"{region}\"}} ");
+    rendered
+        .lines()
+        .find_map(|line| line.strip_prefix(&prefix))
+        .map(|value| value.trim().parse().expect("gauge value"))
+}
+
+async fn apply_with_origin(store: &Store, key: &str, version_ms: u64, origin: &str) {
+    store
+        .apply_replicated_inline_artifact_from_bytes_with(
+            ApplyProvenance {
+                origin_region: Some(origin),
+                content_sha256: None,
+                sync_feed_row: true,
+            },
+            ArtifactProducer::Xcode,
+            "ios",
+            key,
+            "application/octet-stream",
+            b"v",
+            version_ms,
+            None,
+            None,
+        )
+        .await
+        .expect("apply");
+}
+
+// D-37: the newest listed version follows commits of this region's records
+// only and is answered for this region's reads alone.
+#[tokio::test]
+async fn newest_listed_version_follows_own_origin_commits() {
+    let context = test_context(|_| {}).await;
+    let store = &context.state.store;
+    let base = now_ms() - 60_000;
+    apply_with_origin(store, "own", base + 10, "local").await;
+    apply_with_origin(store, "foreign", base + 20, "eu").await;
+    assert_eq!(
+        store.newest_listed_version("local").expect("read"),
+        Some(base + 10),
+        "a record another region originated is not listed to its readers"
+    );
+    assert_eq!(
+        store.newest_listed_version("eu").expect("read"),
+        None,
+        "only this node's own region is tracked"
+    );
+    write_inline(store, "client", b"v").await;
+    assert!(
+        store
+            .newest_listed_version("local")
+            .expect("read")
+            .is_some_and(|newest| newest > base + 10),
+        "a client write counts once it commits"
+    );
+}
+
+// After a restart the value is seeded from the newest listable index row,
+// stepping over rows another region originated.
+#[tokio::test]
+async fn newest_listed_version_seeds_from_the_index() {
+    let context = test_context(|_| {}).await;
+    let store = &context.state.store;
+    let base = now_ms() - 60_000;
+    store
+        .insert_backfill_index_row_for_testing(
+            base + 10,
+            BackfillRecordKind::NamespaceTombstone,
+            "doomed",
+            None,
+        )
+        .expect("index row");
+    apply_with_origin(store, "foreign", base + 20, "eu").await;
+    assert_eq!(
+        store.newest_listed_version("local").expect("read"),
+        Some(base + 10)
+    );
+}
+
+struct RegionLagFixture {
+    source: TestContext,
+    puller: TestContext,
+    gateway_url: String,
+    open_bodies: tokio::sync::watch::Sender<bool>,
+    server: tokio::task::JoinHandle<()>,
+}
+
+impl RegionLagFixture {
+    /// A region-`eu-west` gateway holding three of its own records (the
+    /// newest 300 s above the puller's watermark) and a region-`local`
+    /// puller whose region link to it is open, with the source's bodies
+    /// endpoint held until `open_bodies`.
+    async fn start() -> Self {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let address = listener.local_addr().expect("address");
+        let gateway_url = format!("http://{address}");
+        let source = test_context(|config| {
+            config.region = "eu-west".into();
+            config.node_url = gateway_url.clone();
+            config.peers = vec![gateway_url.clone()];
+        })
+        .await;
+        let base = now_ms() - 600_000;
+        for (key, offset) in [("one", 10_000), ("two", 20_000), ("three", 300_000)] {
+            apply_with_origin(&source.state.store, key, base + offset, "eu-west").await;
+        }
+        source
+            .state
+            .store
+            .run_backfill_index_build()
+            .expect("index build");
+
+        let (open_bodies, gate) = tokio::sync::watch::channel(false);
+        let app = internal_router(source.state.clone()).layer(axum::middleware::from_fn(
+            move |request: axum::extract::Request, next: axum::middleware::Next| {
+                let mut gate = gate.clone();
+                async move {
+                    if request.uri().path() == "/_internal/backfill/bodies" {
+                        let _ = gate.wait_for(|open| *open).await;
+                    }
+                    next.run(request).await
+                }
+            },
+        ));
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.expect("serve");
+        });
+
+        let puller = test_context(|config| config.sync_long_poll_secs = 1).await;
+        puller
+            .state
+            .store
+            .advance_sync_watermark("eu-west", base)
+            .await
+            .expect("seed watermark");
+        puller
+            .state
+            .apply_peer_views(vec![crate::sync::roles::PeerView {
+                private_healthy: true,
+                topology: None,
+                url: gateway_url.clone(),
+                region: "eu-west".to_owned(),
+                serving: true,
+                draining: false,
+            }]);
+        puller.state.sync.evaluate(&puller.state);
+        Self {
+            source,
+            puller,
+            gateway_url,
+            open_bodies,
+            server,
+        }
+    }
+
+    fn gauge(&self, name: &str) -> Option<i64> {
+        self.puller.state.sync.evaluate(&self.puller.state);
+        gauge_value(&self.puller.state.metrics.render(), name, "eu-west")
+    }
+
+    fn lag(&self) -> Option<i64> {
+        self.gauge("kura_region_sync_lag_seconds")
+    }
+
+    async fn wait_for_lag(&self, done: impl Fn(Option<i64>) -> bool, what: &str) {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+        while !done(self.lag()) {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "{what}: lag {:?}",
+                self.lag()
+            );
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    }
+}
+
+// The region link reports lag in origin version time: the gap it has to
+// close while its first pass is held, and zero once caught up even though
+// the remote region has gone quiet and the watermark keeps ageing.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_region_link_reports_lag_not_watermark_age() {
+    let fixture = RegionLagFixture::start().await;
+    fixture
+        .wait_for_lag(|lag| lag.is_some(), "the link never reported its lag")
+        .await;
+    assert_eq!(
+        fixture.lag(),
+        Some(300),
+        "held at its first bodies fetch, the link is as far behind as the newest record is above its watermark"
+    );
+
+    fixture.open_bodies.send(true).expect("open the gate");
+    fixture
+        .wait_for_lag(|lag| lag == Some(0), "the link never caught up")
+        .await;
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    assert_eq!(fixture.lag(), Some(0), "idle long-polls stay caught up");
+    assert!(
+        fixture
+            .gauge("kura_region_watermark_age_seconds")
+            .is_some_and(|age| age >= 290),
+        "while the watermark ages with the idle source"
+    );
+}
+
+// A source that holds its listing back — here behind a sibling link that has
+// yet to report a frontier (D-24) — answers caught-up pages while its own
+// newer writes wait. That is lag, not a caught-up link.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_held_listing_reads_as_lag() {
+    let fixture = RegionLagFixture::start().await;
+    fixture.open_bodies.send(true).expect("open the gate");
+    fixture
+        .wait_for_lag(|lag| lag == Some(0), "the link never caught up")
+        .await;
+
+    fixture
+        .source
+        .state
+        .apply_peer_views(vec![crate::sync::roles::PeerView {
+            private_healthy: true,
+            topology: None,
+            url: "http://127.0.0.1:1".to_owned(),
+            region: "eu-west".to_owned(),
+            serving: true,
+            draining: false,
+        }]);
+    fixture.source.state.sync.evaluate(&fixture.source.state);
+    assert_eq!(
+        fixture
+            .source
+            .state
+            .sync
+            .listing_bound(&fixture.source.state),
+        0
+    );
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    apply_with_origin(&fixture.source.state.store, "held", now_ms(), "eu-west").await;
+    fixture
+        .wait_for_lag(
+            |lag| lag.is_some_and(|lag| lag >= 1),
+            "a write the source holds back never showed as lag",
+        )
+        .await;
+}
+
+// While the link cannot reach the remote gateway its last sample goes
+// stale; the lag keeps growing with the time since the last answer instead
+// of reading caught up for the whole outage.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_unreachable_gateway_does_not_read_as_caught_up() {
+    let fixture = RegionLagFixture::start().await;
+    fixture.open_bodies.send(true).expect("open the gate");
+    fixture
+        .wait_for_lag(|lag| lag == Some(0), "the link never caught up")
+        .await;
+    fixture.server.abort();
+    let _ = &fixture.gateway_url;
+    fixture
+        .wait_for_lag(
+            |lag| lag.is_some_and(|lag| lag >= 3),
+            "an unreachable gateway kept reading as caught up",
+        )
+        .await;
 }

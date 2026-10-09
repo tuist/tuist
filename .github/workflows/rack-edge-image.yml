@@ -7,7 +7,7 @@ name: Rack Edge Image
 #
 # A push to main that changes the image's inputs publishes `sha-<12 sha>` and
 # `latest`; omada-deployment.yml waits for the sha tag and deploys it. Pull
-# requests render the chart with every environment's values.
+# requests render the chart for every site with rendered edge files.
 
 on:
   push:
@@ -41,14 +41,18 @@ jobs:
         with:
           install_args: "--locked helm"
           cache: "false"
-      - name: The chart renders with every environment's values
+      # The site comes from the site definition at deploy time
+      # (omada-deployment.yml), so every site with rendered files is a release
+      # it may get.
+      - name: The chart renders for every site
         run: |
           set -euo pipefail
           chart=infra/helm/rack-edge
-          for values in "$chart"/values-*.yaml; do
-            helm lint "$chart" -f "$chart/values.yaml" -f "$values"
+          for dir in "$chart"/sites/*/; do
+            site="$(basename "$dir")"
+            helm lint "$chart" -f "$chart/values.yaml" --set site="$site"
             helm template rack-edge "$chart" --namespace omada \
-              -f "$chart/values.yaml" -f "$values" > /dev/null
+              -f "$chart/values.yaml" --set site="$site" > /dev/null
           done
 
   build:

@@ -159,6 +159,80 @@ defmodule TuistWeb.WellKnownControllerTest do
     end
   end
 
+  describe "GET /.well-known/once" do
+    test "advertises the events.<host> gRPC endpoint by default", %{conn: conn} do
+      stub(System, :get_env, fn
+        "TUIST_ONCE_EVENTS_ENDPOINTS" -> nil
+        name -> System.get_env(name)
+      end)
+
+      conn = get(conn, "/.well-known/once")
+
+      response = json_response(conn, 200)
+      assert %{"events" => [url]} = response
+      assert url =~ ~r/^grpcs?:\/\/events[.-]/
+      refute Map.has_key?(response, "live_url_template")
+    end
+
+    test "returns the endpoints named by TUIST_ONCE_EVENTS_ENDPOINTS when configured", %{conn: conn} do
+      stub(System, :get_env, fn
+        "TUIST_ONCE_EVENTS_ENDPOINTS" -> "grpcs://ingest-eu.tuist.dev, grpcs://ingest-us.tuist.dev"
+        name -> System.get_env(name)
+      end)
+
+      conn = get(conn, "/.well-known/once")
+
+      assert %{
+               "events" => [
+                 "grpcs://ingest-eu.tuist.dev",
+                 "grpcs://ingest-us.tuist.dev"
+               ]
+             } = json_response(conn, 200)
+    end
+
+    # Managed envs (staging, canary) run on subdomains like
+    # `staging.tuist.dev`, where the string-prefix default would advertise
+    # a hostname that doesn't line up with the real ingress at
+    # `events-staging.tuist.dev` (dash, not dot). Those deployments MUST
+    # set `TUIST_ONCE_EVENTS_ENDPOINTS` explicitly from Helm; this test
+    # pins the contract that the override wins on a sub-prefix origin
+    # without freezing the exact shape of the (apex-only) default, so a
+    # future controller improvement that natively advertises
+    # `events-<env>.<apex>` can land without breaking the test.
+    test "override wins on sub-prefix hosts", %{conn: conn} do
+      stub(System, :get_env, fn
+        "TUIST_ONCE_EVENTS_ENDPOINTS" -> nil
+        name -> System.get_env(name)
+      end)
+
+      conn_without_override =
+        conn
+        |> put_req_header("x-forwarded-proto", "https")
+        |> put_req_header("x-forwarded-host", "staging.tuist.dev")
+        |> get("/.well-known/once")
+
+      assert %{"events" => [default_url]} = json_response(conn_without_override, 200)
+      # Default must at least carry the `events` subdomain prefix (dot or
+      # dash); exact shape intentionally unpinned so a future native
+      # sub-prefix fix doesn't need a test rewrite.
+      assert default_url =~ ~r/^grpcs?:\/\/events[.-]/
+
+      stub(System, :get_env, fn
+        "TUIST_ONCE_EVENTS_ENDPOINTS" -> "grpcs://events-staging.tuist.dev"
+        name -> System.get_env(name)
+      end)
+
+      conn_with_override =
+        conn
+        |> put_req_header("x-forwarded-proto", "https")
+        |> put_req_header("x-forwarded-host", "staging.tuist.dev")
+        |> get("/.well-known/once")
+
+      assert %{"events" => ["grpcs://events-staging.tuist.dev"]} =
+               json_response(conn_with_override, 200)
+    end
+  end
+
   describe "GET /.well-known/mcp/server-card.json" do
     test "returns the MCP server card", %{conn: conn} do
       conn = get(conn, "/.well-known/mcp/server-card.json")
@@ -171,9 +245,10 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert get_resp_header(conn, "cache-control") == ["public, max-age=3600"]
       refute Map.has_key?(response, "$schema")
       assert response["version"] == "1.0"
-      assert response["protocolVersion"] == "2025-06-18"
+      assert response["protocolVersion"] == "2026-07-28"
       assert response["serverInfo"]["name"] == server.name
       assert response["serverInfo"]["version"] == server.version
+      assert response["serverInfo"]["version"] == "1.35.0"
       assert response["serverInfo"]["title"] == "Tuist"
       assert response["transport"]["type"] == "streamable-http"
       assert response["transport"]["endpoint"] == "/mcp"
@@ -186,6 +261,12 @@ defmodule TuistWeb.WellKnownControllerTest do
              }
 
       assert response["instructions"] == server.instructions
+
+      assert response["instructions"] =~
+               "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."
+
+      refute response["instructions"] =~ "auth_md"
+      refute response["instructions"] =~ "agent_auth.skill"
       assert response["tools"] == ["dynamic"]
       assert response["prompts"] == ["dynamic"]
     end

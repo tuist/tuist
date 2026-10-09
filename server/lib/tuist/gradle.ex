@@ -18,6 +18,9 @@ defmodule Tuist.Gradle do
   alias Tuist.Gradle.Task
   alias Tuist.Ingestion.DedupToken
   alias Tuist.IngestRepo
+  alias Tuist.MCP.Events.Publisher
+
+  require Tuist.BuildMetrics
 
   @doc """
   Creates a Gradle build with associated tasks.
@@ -58,9 +61,23 @@ defmodule Tuist.Gradle do
 
       machine_metrics = Map.get(attrs, :machine_metrics, [])
 
-      create_machine_metrics(build_id, machine_metrics, now)
+      create_machine_metrics(build_id, attrs.project_id, machine_metrics, now)
       create_configuration_operations(build_id, attrs.project_id, Map.get(attrs, :configuration_operations, []), now)
       create_artifact_transforms(build_id, attrs.project_id, Map.get(attrs, :artifact_transforms, []), now)
+
+      if attrs.status == "failure",
+        do:
+          Publisher.publish(
+            "build.failed",
+            %{
+              "project_id" => attrs.project_id,
+              "build_system" => "gradle",
+              "build_id" => build_id,
+              "is_ci" => Map.get(attrs, :is_ci, false),
+              "git_branch" => Map.get(attrs, :git_branch) || ""
+            },
+            "gradle:#{build_id}"
+          )
 
       {:ok, build_id}
     end
@@ -132,11 +149,12 @@ defmodule Tuist.Gradle do
     )
   end
 
-  defp create_machine_metrics(build_id, metrics, now) do
+  defp create_machine_metrics(build_id, project_id, metrics, now) do
     entries =
       Enum.map(metrics, fn metric ->
         %{
           gradle_build_id: build_id,
+          project_id: project_id,
           timestamp: metric.timestamp,
           cpu_usage_percent: metric.cpu_usage_percent / 1,
           memory_used_bytes: metric.memory_used_bytes,
@@ -283,6 +301,11 @@ defmodule Tuist.Gradle do
       end)
 
     base_query = apply_custom_tag_filters(base_query, custom_tag_filters)
+
+    base_query =
+      if Keyword.get(opts, :failure_category, false),
+        do: Tuist.BuildMetrics.with_failure_category(base_query, "gradle", project_id),
+        else: base_query
 
     ClickHouseFlop.validate_and_run!(base_query, flop_params, for: Build)
   end

@@ -64,8 +64,8 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
     /// in CI environments where limited scopes are desired for security reasons.
     case project(String)
 
-    /// The token represents an account session, typically obtained via OIDC from a CI provider.
-    /// These tokens cannot be refreshed and are valid until expiry.
+    /// The token represents an account session without a refresh token, typically obtained via OIDC
+    /// from a CI provider. These tokens cannot be refreshed and are valid until expiry.
     case account(JWT)
 
     /// It returns the value of the token
@@ -197,6 +197,7 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
 // swiftlint:disable:next type_body_length
 public struct ServerAuthenticationController: ServerAuthenticationControlling {
     private let refreshAuthTokenService: RefreshAuthTokenServicing
+    private let refreshOAuthTokenService: RefreshOAuthTokenServicing
     private let fileSystem: FileSysteming
     private let cachedValueStore: CachedValueStoring
     #if canImport(TuistSupport)
@@ -213,11 +214,13 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     #if canImport(TuistProcess)
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
+            refreshOAuthTokenService: RefreshOAuthTokenServicing = RefreshOAuthTokenService(),
             fileSystem: FileSysteming = FileSystem(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
             cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
+            self.refreshOAuthTokenService = refreshOAuthTokenService
             self.fileSystem = fileSystem
             self.backgroundProcessRunner = backgroundProcessRunner
             self.cachedValueStore = cachedValueStore
@@ -225,10 +228,12 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     #else
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
+            refreshOAuthTokenService: RefreshOAuthTokenServicing = RefreshOAuthTokenService(),
             fileSystem: FileSysteming = FileSystem(),
             cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
+            self.refreshOAuthTokenService = refreshOAuthTokenService
             self.fileSystem = fileSystem
             self.cachedValueStore = cachedValueStore
         }
@@ -695,7 +700,12 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         return try credentials.map {
             let accessToken = try JWT.parse($0.accessToken)
             if accessToken.type == "account" {
-                return .account(accessToken)
+                // Account tokens issued by the OAuth authorization server, such as the ones the Tuist app
+                // signs in with, carry an account refresh token and go through the same refresh flow as user tokens.
+                guard let refreshToken = $0.refreshToken.flatMap({ try? JWT.parse($0) }),
+                      refreshToken.type == "account"
+                else { return .account(accessToken) }
+                return .user(accessToken: accessToken, refreshToken: refreshToken)
             } else {
                 return .user(
                     accessToken: accessToken,
@@ -760,15 +770,24 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         refreshToken: JWT
     ) async throws -> ServerAuthenticationTokens {
         do {
-            let newTokens = try await refreshAuthTokenService.refreshTokens(
-                serverURL: serverURL,
-                refreshToken: refreshToken.token
-            )
+            let credentials = try await ServerCredentialsStore.current.read(serverURL: serverURL)
+            let newTokens = if refreshToken.type == "account" {
+                try await refreshOAuthTokenService.refreshTokens(
+                    serverURL: serverURL,
+                    refreshToken: refreshToken.token
+                )
+            } else {
+                try await refreshAuthTokenService.refreshTokens(
+                    serverURL: serverURL,
+                    refreshToken: refreshToken.token
+                )
+            }
             try await ServerCredentialsStore.current
                 .store(
                     credentials: ServerCredentials(
                         accessToken: newTokens.accessToken,
-                        refreshToken: newTokens.refreshToken
+                        refreshToken: newTokens.refreshToken,
+                        oauthClientID: credentials?.oauthClientID
                     ),
                     serverURL: serverURL
                 )
@@ -792,6 +811,11 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         } catch let error as RefreshAuthTokenServiceError {
             Logger.current.error(
                 "Token refresh failed error_type=\(String(reflecting: type(of: error)))"
+            )
+            throw error
+        } catch where ServerErrorClassifier.isTransient(error) {
+            Logger.current.debug(
+                "Token refresh deferred for transient error_type=\(String(reflecting: type(of: error)))"
             )
             throw error
         } catch {

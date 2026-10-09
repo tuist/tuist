@@ -3,6 +3,7 @@ defmodule Atlas.Users do
 
   alias Atlas.Audit
   alias Atlas.Authorization.Roles
+  alias Atlas.Demo
   alias Atlas.Repo
   alias Atlas.Users.User
 
@@ -24,11 +25,17 @@ defmodule Atlas.Users do
   All scope strings currently granted to a user, expanded so that any
   `<area>:write` scope also grants `<area>:read`.
   """
-  def scopes_for(%User{} = user), do: Roles.scopes_for_user(user)
+  def scopes_for(%User{} = user) do
+    if Demo.enabled?(), do: Demo.scopes(), else: Roles.scopes_for_user(user)
+  end
+
   def scopes_for(_user), do: []
 
   @doc "True if the user carries the required scope, either directly or via a write override."
-  def has_scope?(%User{} = user, scope) when is_binary(scope), do: Roles.has_scope?(user, scope)
+  def has_scope?(%User{} = user, scope) when is_binary(scope) do
+    if Demo.enabled?(), do: scope in Demo.scopes(), else: Roles.has_scope?(user, scope)
+  end
+
   def has_scope?(_user, _scope), do: false
 
   @doc """

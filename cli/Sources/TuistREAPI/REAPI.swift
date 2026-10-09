@@ -18,6 +18,10 @@ public enum REAPI {
         }
     }
 
+    /// Servers report the empty blob present whether or not it was ever uploaded, and need not serve it, so
+    /// clients synthesize it instead of reading it.
+    public static let emptyBlob = digest(Data())
+
     public static func digest(file: URL) throws -> Digest {
         let handle = try FileHandle(forReadingFrom: file)
         defer { try? handle.close() }
@@ -63,9 +67,11 @@ public enum REAPICacheError: Error, LocalizedError, Equatable {
     case insufficientSpace
     case transferStalled
     case uploadFailed(reason: String)
+    case invalidTransferGuards(reason: String)
     public var errorDescription: String? {
         switch self {
         case let .uploadFailed(reason): "The cache did not accept every blob: \(reason)"
+        case let .invalidTransferGuards(reason): "The REAPI cache client was configured with invalid transfer guards: \(reason)"
         case .invalidDigest: "The cache returned an invalid content digest."
         case .corruptBlob: "The cache content failed its integrity check."
         case .invalidTree: "The cache artifact has an unsupported layout or an unsafe path or symlink."
@@ -84,6 +90,7 @@ public enum REAPICall: String, Sendable {
     case updateActionResult = "/build.bazel.remote.execution.v2.ActionCache/UpdateActionResult"
     case findMissingBlobs = "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs"
     case batchUpdateBlobs = "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs"
+    case spliceBlob = "/build.bazel.remote.execution.v2.ContentAddressableStorage/SpliceBlob"
     case byteStreamWrite = "/google.bytestream.ByteStream/Write"
 
     var service: String {
@@ -124,6 +131,10 @@ public struct REAPIBlobUpload: Sendable {
 
 public protocol REAPICacheStoring: Sendable {
     func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult?
+    /// Whether the cache still stores the action. Sends `x-tuist-lookup: presence`, which asks Kura not to extend
+    /// the lifetime of the entry or of the blobs it references; a server that does not recognize the header treats
+    /// it as a regular `GetActionResult`.
+    func containsActionResult(for digest: REAPI.Digest) async throws -> Bool
     func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws
     func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> REAPIBlobUpload
     func downloadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest>

@@ -89,6 +89,7 @@ defmodule TuistWeb.Webhooks.ReapiCacheController do
            observed_at: observed_at(event),
            invocation_id: optional_string(event, "invocation_id"),
            action_mnemonic: optional_string(event, "action_mnemonic"),
+           output_path: optional_output_path(event),
            target_label: optional_string(event, "target_label"),
            configuration_id: optional_string(event, "configuration_id"),
            project_id: project_id,
@@ -150,6 +151,13 @@ defmodule TuistWeb.Webhooks.ReapiCacheController do
 
   defp with_microsecond_precision(%DateTime{microsecond: {value, _precision}} = datetime) do
     %{datetime | microsecond: {value, 6}}
+  end
+
+  defp optional_output_path(event) do
+    case Map.get(event, "output_path") do
+      path when is_binary(path) and byte_size(path) <= 1024 -> path
+      _ -> ""
+    end
   end
 
   defp optional_string(event, key) do

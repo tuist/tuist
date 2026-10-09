@@ -20,6 +20,7 @@ defmodule Atlas.Support do
   alias Atlas.Support.Workers.DeliverChatEmailVerification
   alias Atlas.Support.Workers.DeliverReply
   alias Atlas.Support.Workers.PostNotification
+  alias Atlas.SupportInbox.Workers.ClassifyInbound
   alias Atlas.Users
   alias AtlasWeb.Endpoint
 
@@ -149,7 +150,7 @@ defmodule Atlas.Support do
       {:ok, %{thread: thread, message: message, duplicate?: duplicate?}} ->
         if !duplicate? do
           audit_inbound(thread, message)
-          enqueue_notification(:inbound_received, thread.id, message_id: message.id)
+          ClassifyInbound.enqueue(thread.id, message.id)
         end
 
         {:ok, %{thread: thread, message: message}}

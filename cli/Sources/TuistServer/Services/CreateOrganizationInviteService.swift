@@ -7,6 +7,7 @@ public protocol CreateOrganizationInviteServicing {
     func createOrganizationInvite(
         organizationName: String,
         email: String,
+        role: Operations.createInvitation.Input.Body.jsonPayload.rolePayload?,
         serverURL: URL
     ) async throws -> ServerInvitation
 }
@@ -34,6 +35,7 @@ public struct CreateOrganizationInviteService: CreateOrganizationInviteServicing
     public func createOrganizationInvite(
         organizationName: String,
         email: String,
+        role: Operations.createInvitation.Input.Body.jsonPayload.rolePayload?,
         serverURL: URL
     ) async throws -> ServerInvitation {
         let client = Client.authenticated(serverURL: serverURL)
@@ -41,7 +43,7 @@ public struct CreateOrganizationInviteService: CreateOrganizationInviteServicing
         let response = try await client.createInvitation(
             .init(
                 path: .init(organization_name: organizationName),
-                body: .json(.init(invitee_email: email))
+                body: .json(.init(invitee_email: email, role: role))
             )
         )
         switch response {

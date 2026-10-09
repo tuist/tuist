@@ -305,7 +305,8 @@ config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
 # Stripity Stripe adds a Connection header, which is forbidden by Hypertext Transfer
 # Protocol version 2 and causes Hackney protocol errors after negotiating version 2.
 config :stripity_stripe,
-  hackney_opts: [protocols: [:http1]]
+  hackney_opts: [protocols: [:http1]],
+  http_module: Tuist.Billing.StripeHTTPClient
 
 config :tower, reporters: [TowerOpentelemetry]
 

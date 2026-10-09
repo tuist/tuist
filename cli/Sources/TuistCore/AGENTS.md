@@ -12,6 +12,7 @@ This module contains core domain abstractions and shared models used across the 
 
 ## Invariants
 - Analytics types are Codable and designed for transport to the server.
+- Hosted tests subtract host-provided native package products only on platforms without an explicit dynamic-linkage hint. Hints on either consumer are authoritative only for the platforms where that dependency is reachable; legacy declarations keep their existing static assumption.
 - Models encode run metadata (command args, environment, git info, cache endpoints).
 - Restoring a test-products snapshot retains the graph, selective-testing state, and build link, but must not replay the original build's binary cache lookups as activity in each test shard.
 

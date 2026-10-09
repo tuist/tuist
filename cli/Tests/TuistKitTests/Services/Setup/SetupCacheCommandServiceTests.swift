@@ -283,10 +283,13 @@ struct SetupCacheCommandServiceTests {
         try await subject.run(path: nil)
 
         // Then
-        TuistTest.expectLogs("SWIFT_ENABLE_PREFIX_MAPPING=YES")
+        TuistTest.expectLogs("SWIFT_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))")
         TuistTest.expectLogs("SWIFT_ENABLE_PROJECT_PREFIX_MAPPING=YES")
-        TuistTest.expectLogs("CLANG_ENABLE_PREFIX_MAPPING=YES")
+        TuistTest.expectLogs("CLANG_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))")
         TuistTest.expectLogs("CLANG_ENABLE_PROJECT_PREFIX_MAPPING=YES")
+        TuistTest.expectLogs("TUIST_PREFIX_MAPPING_FOR_COVERAGE_=YES")
+        TuistTest.expectLogs("TUIST_PREFIX_MAPPING_FOR_COVERAGE_NO=YES")
+        TuistTest.expectLogs("TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES=NO")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_withCustomURL() async throws {

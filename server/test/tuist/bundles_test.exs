@@ -7,6 +7,7 @@ defmodule Tuist.BundlesTest do
   alias Tuist.Bundles
   alias Tuist.Bundles.Artifact
   alias Tuist.Bundles.Bundle
+  alias Tuist.Bundles.BundleThreshold
   alias Tuist.ClickHouseRepo
   alias Tuist.Projects
   alias Tuist.Repo
@@ -907,6 +908,20 @@ defmodule Tuist.BundlesTest do
   end
 
   describe "bundle_download_size_analytics/2" do
+    test "uses the latest bundle even when its download size is missing" do
+      project = ProjectsFixtures.project_fixture()
+      BundlesFixtures.bundle_fixture(project: project, download_size: 900, inserted_at: ~U[2024-08-09 00:00:00Z])
+      BundlesFixtures.bundle_fixture(project: project, download_size: nil, inserted_at: ~U[2024-08-09 01:00:00Z])
+
+      points =
+        Bundles.bundle_download_size_analytics(project,
+          start_datetime: ~U[2024-08-08 00:00:00Z],
+          end_datetime: ~U[2024-08-10 00:00:00Z]
+        )
+
+      assert Enum.find(points, &(&1.date == ~D[2024-08-09])).bundle_download_size == 0
+    end
+
     test "returns bundle download size analytics for the last three days" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
@@ -1305,6 +1320,50 @@ defmodule Tuist.BundlesTest do
     end
   end
 
+  describe "project_app_bundle_options/1" do
+    test "returns narrow options with the latest supported platforms" do
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        supported_platforms: [:macos],
+        inserted_at: ~U[2024-08-01 00:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        supported_platforms: [:ios],
+        inserted_at: ~U[2024-08-02 00:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "Other",
+        supported_platforms: [:tvos],
+        inserted_at: ~U[2024-08-03 00:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(project: project, name: "Expired", inserted_at: ~U[2020-01-01 00:00:00Z])
+
+      assert Bundles.project_app_bundle_options(project) == [
+               %{name: "Other", supported_platforms: [:tvos]},
+               %{name: "App", supported_platforms: [:ios]}
+             ]
+    end
+
+    test "bounds the options to fifty names" do
+      project = ProjectsFixtures.project_fixture()
+
+      for index <- 1..51 do
+        BundlesFixtures.bundle_fixture(project: project, name: "App#{index}")
+      end
+
+      assert length(Bundles.project_app_bundle_options(project)) == 50
+    end
+  end
+
   describe "has_bundles_in_project_default_branch?/1" do
     test "returns true when there are bundles in the project's default branch" do
       # Given
@@ -1435,6 +1494,29 @@ defmodule Tuist.BundlesTest do
       assert is_nil(threshold.bundle_name)
     end
 
+    test "database enforces exactly one limit even when changeset validation is bypassed" do
+      project = ProjectsFixtures.project_fixture()
+
+      for limits <- [
+            %{deviation_percentage: nil, deviation_bytes: nil},
+            %{deviation_percentage: 0.47, deviation_bytes: 1_500_000}
+          ] do
+        changeset =
+          %BundleThreshold{
+            id: UUIDv7.generate(),
+            project_id: project.id,
+            name: "Invalid",
+            metric: :install_size,
+            baseline_branch: "main"
+          }
+          |> Ecto.Changeset.change(limits)
+          |> Ecto.Changeset.check_constraint(:deviation_bytes, name: :bundle_thresholds_one_limit)
+
+        assert {:error, changeset} = Repo.insert(changeset, mode: :savepoint)
+        assert errors_on(changeset).deviation_bytes == ["is invalid"]
+      end
+    end
+
     test "creates a threshold with bundle_name" do
       project = ProjectsFixtures.project_fixture()
 
@@ -1500,6 +1582,102 @@ defmodule Tuist.BundlesTest do
   end
 
   describe "evaluate_project_thresholds/2" do
+    for metric <- [:install_size, :download_size] do
+      @metric metric
+      test "evaluates absolute #{@metric} growth at byte precision" do
+        project = ProjectsFixtures.project_fixture()
+
+        threshold =
+          BundlesFixtures.bundle_threshold_fixture(project: project, metric: @metric, deviation_bytes: 1_500_000)
+
+        for baseline_size <- [0, 317_000_000, 400_000_000] do
+          name = "App-#{baseline_size}"
+
+          BundlesFixtures.bundle_fixture(
+            [
+              project: project,
+              name: name,
+              git_branch: "main",
+              inserted_at: ~U[2024-01-01 00:00:00Z]
+            ] ++ [{@metric, baseline_size}]
+          )
+
+          for growth <- [-1, 0, 1_500_000, 1_500_001] do
+            bundle =
+              BundlesFixtures.bundle_fixture(
+                [
+                  project: project,
+                  name: name,
+                  git_branch: "feature",
+                  inserted_at: ~U[2024-01-02 00:00:00Z]
+                ] ++ [{@metric, max(0, baseline_size + growth)}]
+              )
+
+            result = Bundles.evaluate_project_thresholds(project, bundle)
+
+            if growth > 1_500_000 do
+              assert {:violated, ^threshold, info} = result
+              assert info.current_size - info.baseline_size == growth
+              if baseline_size == 0, do: assert(is_nil(info.deviation))
+            else
+              assert result == :ok
+            end
+          end
+        end
+      end
+    end
+
+    test "keeps fractional percentage thresholds unchanged" do
+      project = ProjectsFixtures.project_fixture()
+      BundlesFixtures.bundle_threshold_fixture(project: project, deviation_percentage: 0.47)
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        install_size: 100_000,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      within_limit = BundlesFixtures.bundle_fixture(project: project, install_size: 100_469, git_branch: "feature")
+      assert Bundles.evaluate_project_thresholds(project, within_limit) == :ok
+      over_limit = %{within_limit | install_size: 100_471}
+      assert {:violated, _, _} = Bundles.evaluate_project_thresholds(project, over_limit)
+    end
+
+    test "absolute limits preserve baseline and bundle name filtering" do
+      project = ProjectsFixtures.project_fixture()
+
+      threshold =
+        BundlesFixtures.bundle_threshold_fixture(
+          project: project,
+          deviation_bytes: 1,
+          baseline_branch: "release",
+          bundle_name: "App"
+        )
+
+      bundle = BundlesFixtures.bundle_fixture(project: project, name: "App", install_size: 1000, git_branch: "feature")
+      BundlesFixtures.bundle_fixture(project: project, name: "App", install_size: 1, git_branch: "main")
+      assert Bundles.evaluate_project_thresholds(project, bundle) == :ok
+      BundlesFixtures.bundle_fixture(project: project, name: "App", install_size: 1, git_branch: "release")
+      assert {:violated, ^threshold, _} = Bundles.evaluate_project_thresholds(project, bundle)
+      assert Bundles.evaluate_project_thresholds(project, %{bundle | name: "Other"}) == :ok
+    end
+
+    test "absolute download limits skip missing sizes" do
+      project = ProjectsFixtures.project_fixture()
+      BundlesFixtures.bundle_threshold_fixture(project: project, metric: :download_size, deviation_bytes: 1)
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        download_size: nil,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      bundle = BundlesFixtures.bundle_fixture(project: project, download_size: 100, git_branch: "feature")
+      assert Bundles.evaluate_project_thresholds(project, bundle) == :ok
+    end
+
     test "returns :ok when no thresholds exist" do
       project = ProjectsFixtures.project_fixture()
 
