@@ -396,12 +396,16 @@ fleet_prefix_mask() {
 # facing an edge node's data links and on the ISL, so traffic between the two
 # edges stays on the switches that join them. A port facing a node whose role
 # is on the machines segment carries that segment's VLAN untagged and nothing
-# else, so the machine never sees the management VLAN.
+# else, so the machine never sees the management VLAN. A `wan` port carries the
+# site's WAN VLAN untagged and nothing else once the site has one, so the
+# upstream sees the edges and nothing of the rack; without one it stays on the
+# management VLAN, the way a router uplink into it is cabled.
 fleet_port_settings() {
   local site_file="$1" device="$2" spec="$3"
   jq -r --argjson d "$device" --argjson spec "$spec" '
     ([.vlans[]? | select(.carried_by == null) | .id]) as $site_vlans |
     ([.vlans[]? | select(.carried_by == "edges") | .id]) as $edge_vlans |
+    (.management.edge.wan.vlan // null) as $wan_vlan |
     ([.nodes[]? | select(.role == "edge") | .links[] |
       select(.purpose == "data" and .switch == $d.name and .port != null) | .port]) as $edge_ports |
     (.management.edge.machines.vlan // null) as $machines_vlan |
@@ -417,14 +421,16 @@ fleet_port_settings() {
     (($members | any(. as $m | $edge_ports | index($m))) or
       ($members | any(. as $m | $d.ports[($m | tostring)].purpose == "isl"))) as $edge_facing |
     ($machines_vlan != null and ($members | any(. as $m | $machine_ports | index($m)))) as $machine_facing |
+    ($wan_vlan != null and $lag == null and $p.purpose == "wan") as $wan_facing |
     [ $g.prefix, $g.unit, ($n | tostring),
       (if $lag then ($lag.name // "lag\($lag.id)") else ($p.description // "") end),
       ((if $p | has("spanning_tree") then $p.spanning_tree else true end) | tostring),
       (if $lag then ($lag.id | tostring) else "" end),
-      ((if $machine_facing then ((if $lag then $lag.vlans else $p.vlans end) // [])
+      ((if $wan_facing then []
+        elif $machine_facing then ((if $lag then $lag.vlans else $p.vlans end) // [])
         else (if $lag then ($lag.vlans // $site_vlans) else ($p.vlans // $site_vlans) end) +
           (if $edge_facing then $edge_vlans else [] end) end) | unique | map(tostring) | join(",")),
-      (if $machine_facing then ($machines_vlan | tostring) else "" end)
+      (if $wan_facing then ($wan_vlan | tostring) elif $machine_facing then ($machines_vlan | tostring) else "" end)
     ] | join("\u001f")
   ' "$site_file"
 }

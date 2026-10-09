@@ -301,7 +301,10 @@ carries the same guard.
 
 - network configuration for the SFP+ uplinks only (DHCP on the X710's `i40e`
   ports), so the 2.5G ports stay unmanaged for the node's pods: an edge's
-  rack-edge pod owns its switch port;
+  rack-edge pod owns its switch port. On an edge that lasts until its first
+  converge, which takes DHCP off the uplinks (the WAN is the rack-edge pod's),
+  so a reinstalled edge at a site with no DHCP on the management VLAN reaches
+  nothing until then;
 - `blacklist btusb` in `/etc/modprobe.d/tuist-rack.conf`, which the converge
   also keeps: the MS-01's Bluetooth dereferences NULL on a warm boot of the 6.8
   kernel, and the node's `panic_on_oops` turns that into a reboot every 70

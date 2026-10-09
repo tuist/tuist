@@ -49,6 +49,14 @@ setup() {
     export RACK_SITE=ber1-standalone
 }
 
+# The site as it was before it had a WAN of its own, for the tests of what an
+# edge does on a management VLAN that reaches the internet by itself.
+site_without_wan() {
+    jq '.management.edge.wan = {vlan: null, address: null} | .vlans |= map(select(.id != 4001))' \
+        "$SITE_FILE" > "$BATS_TEST_TMPDIR/nowan.json"
+    echo "$BATS_TEST_TMPDIR/nowan.json"
+}
+
 # A copy of the site with ber1-mgmt's MAC removed, for the paths that handle a
 # switch whose MAC nobody has recorded yet. Tools resolve a site by name under
 # sites/, so the copy has to live there; teardown removes it.
@@ -67,10 +75,13 @@ fleet_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; $1"; }
 
 # The transcripts and the export in fixtures/ were taken off ber1-tor-b before the
 # site gave its switches the edge node as gateway, before port descriptions were
-# rendered, before the edges' VRRP VLAN and before the ISL was a lag, so they are
-# compared with a render of the site without any of them.
+# rendered, before the edges' VRRP VLAN, before the ISL was a lag and before
+# the WAN ports, so they are compared with a render of the site without any of
+# them.
 render_as_captured() {
-    jq 'del(.management.edge) | del(.vlans) | del(.devices[].lags) | (.devices[].ports[]?) |= del(.description)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/captured-site.json"
+    jq 'del(.management.edge) | del(.vlans) | del(.devices[].lags) |
+        (.devices[].ports) |= (if . then with_entries(select(.value.purpose != "wan")) else . end) |
+        (.devices[].ports[]?) |= del(.description)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/captured-site.json"
     fleet_render "$BATS_TEST_TMPDIR/captured-site.json" "$1"
 }
 
@@ -141,14 +152,16 @@ render_as_captured() {
     fleet_render "$SITE_FILE" ber1-tor-a > "$a"
     fleet_render "$SITE_FILE" ber1-tor-b > "$b"
     run bash -c "diff '$a' '$b' | grep '^<'"
-    # the hostname, the address, the WAN uplink's description, the name of
+    # the hostname, the address, the copper WAN port tor-b has no twin of, the
+    # name of the WAN optic's port (tor-b's holds the spare), the name of
     # tor-a's ISL lag on its two members and its port-channel, and ber1-store-a's
     # port on the machines segment, whose pair ber1-store-b is still planned
-    [ "${#lines[@]}" -eq 9 ]
+    [ "${#lines[@]}" -eq 14 ]
+    [[ "$output" == *'description "wan cogent"'* ]]
     [[ "$output" == *"switchport pvid 10"* ]]
     [[ "$output" == *'hostname "ber1-tor-a"'* ]]
     [[ "$output" == *"ip address 192.168.0.11"* ]]
-    [[ "$output" == *'description "router uplink WAN"'* ]]
+    [[ "$output" == *'description "wan copper"'* ]]
     [[ "$output" == *'description "isl ber1-tor-b"'* ]]
 }
 
@@ -2320,7 +2333,7 @@ STUB
 
 @test "the edge path translates every switch and advertises nothing, and leaves the floating addresses to keepalived" {
     source "$FLEET_ROOT/lib/edge.sh"
-    run fleet_edge_path "$SITE_FILE"
+    run fleet_edge_path "$(site_without_wan)"
     [ "$status" -eq 0 ]
     [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade'* ]]
     [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu'* ]]
@@ -2332,7 +2345,8 @@ STUB
 
 @test "each edge's keepalived holds every floating address, prefers ber1-edge-a, and talks to the other edge alone" {
     source "$FLEET_ROOT/lib/edge.sh"
-    run fleet_edge_keepalived "$SITE_FILE" ber1-edge-a
+    site="$(site_without_wan)"
+    run fleet_edge_keepalived "$site" ber1-edge-a
     [ "$status" -eq 0 ]
     [[ "$output" == *"router_id ber1-edge-a"* ]]
     [[ "$output" == *"interface vrrp0"* ]]
@@ -2370,20 +2384,129 @@ STUB
 
 @test "a WAN address floats only through keepalived, so the standby holds none until it takes over" {
     source "$FLEET_ROOT/lib/edge.sh"
-    site="$BATS_TEST_TMPDIR/wan.json"
-    jq '.vlans += [{id: 4001, name: "wan-dmz", carried_by: "edges"}] |
-        .management.edge.wan = {vlan: 4001, address: "198.51.100.1/31"}' "$SITE_FILE" > "$site"
-    run fleet_edge_keepalived "$site" ber1-edge-b
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"198.51.100.1/31 dev wan0"* ]]
-    run fleet_edge_path "$site"
+    for edge in ber1-edge-a ber1-edge-b; do
+        run fleet_edge_keepalived "$SITE_FILE" "$edge"
+        [ "$status" -eq 0 ]
+        [[ "$output" == *"    149.6.170.31/31 dev wan0"$'\n'* ]]
+        # the IPv6 address moves with the instance without being advertised
+        [[ "$output" == *"  virtual_ipaddress_excluded {
+    2001:978:2:b::4:11/127 dev wan0
+  }"* ]]
+        # the default routes go with the addresses
+        [[ "$output" == *"    0.0.0.0/0 via 149.6.170.30 dev wan0"$'\n'* ]]
+        [[ "$output" == *"    ::/0 via 2001:978:2:b::4:10 dev wan0"$'\n'* ]]
+        # an edge whose WAN bond has no link never holds the WAN
+        [[ "$output" == *"track_interface {
+    enp87s0
+    wan0
+  }"* ]]
+    done
+    run fleet_edge_path "$SITE_FILE"
     [ "$status" -eq 0 ]
     [[ "$output" == *"edge_vlan_bond wan0 4001"* ]]
-    [[ "$output" != *"198.51.100.1"* ]]
-    # the edge trunks carry the WAN VLAN, and nothing else does
-    run fleet_render "$site" ber1-tor-a
+    [[ "$output" != *"149.6.170."* ]]
+    [[ "$output" != *"2001:978:"* ]]
+    # the edge trunks carry the WAN VLAN tagged, and the WAN ports untagged and
+    # alone, with no spanning tree towards the upstream
+    for tor in ber1-tor-a ber1-tor-b; do
+        run fleet_render "$SITE_FILE" "$tor"
+        [ "$status" -eq 0 ]
+        [ "$(awk '/^interface /{port = $3} /allowed vlan 4001 tagged/{printf "%s ", port}' <<<"$output")" = "1/0/25 1/0/26 1/0/31 1/0/32 1 " ]
+        [[ "$output" == *'interface ten-gigabitEthernet 1/0/30
+  description "wan '*'"
+  no spanning-tree
+  switchport general allowed vlan 4001 untagged
+  switchport pvid 4001
+  no switchport general allowed vlan 1
+#'* ]]
+    done
+    [ "$(awk '/^interface /{port = $3} /allowed vlan 4001 untagged/{printf "%s ", port}' <<<"$output")" = "1/0/30 " ]
+    run fleet_render "$SITE_FILE" ber1-tor-a
+    [ "$(awk '/^interface /{port = $3} /allowed vlan 4001 untagged/{printf "%s ", port}' <<<"$output")" = "1/0/24 1/0/30 " ]
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-tor-a | yq -o=json '.spec.config' | jq -c '[.ports[] | select(.port == 24 or .port == 30) | {port, nativeVlan, taggedVlans, spanningTree}]'"
+    [ "$output" = '[{"port":24,"nativeVlan":4001,"taggedVlans":[],"spanningTree":false},{"port":30,"nativeVlan":4001,"taggedVlans":[],"spanningTree":false}]' ]
+    # without a WAN of its own the site keeps a WAN port on the management VLAN
+    run fleet_render "$(site_without_wan)" ber1-tor-a
     [ "$status" -eq 0 ]
-    [ "$(awk '/^interface /{port = $3} /allowed vlan 4001 tagged/{printf "%s ", port}' <<<"$output")" = "1/0/25 1/0/26 1/0/31 1/0/32 1 " ]
+    [[ "$output" != *"4001"* ]]
+    [[ "$output" == *'interface ten-gigabitEthernet 1/0/24
+  description "wan copper"
+  no spanning-tree
+#'* ]]
+}
+
+@test "with a WAN of its own, an edge reaches the internet through it or through the other edge, and the switches through its uplinks" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    bin="$BATS_TEST_TMPDIR/edge-wan"
+    edge_run_stub "$bin"
+    fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" NODE_NAME=ber1-edge-b sh "$bin/mgmt-path.sh"
+    [ "$status" -eq 0 ]
+    run cat "$bin/log"
+    # nothing brings the uplinks up but this, once DHCP is off them
+    [[ "$output" == *"ip link set enp2s0f1np1 up"* ]]
+    [[ "$output" == *"ip link set enp2s0f0np0 up"* ]]
+    [[ "$output" == *"ip link add link enp2s0f1np1 name wan0-1 type vlan id 4001"* ]]
+    # the standby's way out is the master, at a metric keepalived's route beats
+    [[ "$output" == *"ip route replace default via 10.255.255.1 dev vrrp0 metric 200"* ]]
+    # the ToRs' management addresses over whichever uplink has link, and the
+    # switch behind the edge left to keepalived's host route
+    [[ "$output" == *"ip route replace 192.168.0.11/32 nexthop dev enp2s0f1np1 nexthop dev enp2s0f0np0"* ]]
+    [[ "$output" == *"ip route replace 192.168.0.12/32 nexthop dev enp2s0f1np1 nexthop dev enp2s0f0np0"* ]]
+    [[ "$output" != *"192.168.0.13/32"* ]]
+    # the master translates the standby and the management segment onto the WAN
+    [[ "$output" == *'oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade'* ]]
+    # and the WAN lets in replies, ping, neighbour discovery and the tailnet's
+    # direct path, and nothing else
+    [[ "$output" == *'table inet tuist_rack_wan {
+  chain input {
+    type filter hook input priority filter;
+    iifname "wan0" ct state established,related accept
+    iifname "wan0" meta l4proto { icmp, ipv6-icmp } accept
+    iifname "wan0" udp dport 41641 accept
+    iifname "wan0" drop
+  }
+  chain forward {
+    type filter hook forward priority filter;
+    iifname "wan0" ct state established,related accept
+    iifname "wan0" drop
+  }
+}'* ]]
+    fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" NODE_NAME=ber1-edge-a sh "$bin/mgmt-path.sh"
+    [ "$status" -eq 0 ]
+    run cat "$bin/log"
+    [[ "$output" == *"ip route replace default via 10.255.255.2 dev vrrp0 metric 200"* ]]
+    # a site without a WAN routes nothing of its own and filters nothing
+    run fleet_edge_path "$(site_without_wan)"
+    [[ "$output" != *"ip route replace"* ]]
+    [[ "$output" != *"wan0"* ]]
+    [[ "$output" != *"peer_address"* ]]
+}
+
+@test "a WAN address that is not an address, or a gateway outside it, is refused at render" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    site="$BATS_TEST_TMPDIR/badwan.json"
+    jq '.management.edge.wan.gateway = "149.6.170.28"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"management.edge.wan.gateway '149.6.170.28' is not another address in 149.6.170.31/31"* ]]
+    jq '.management.edge.wan.gateway = "149.6.170.31"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    jq '.management.edge.wan.address = "149.6.170.31"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not an address with its prefix length"* ]]
+    jq '.management.edge.wan.address6 = "2001:978:2:b::4:11"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    jq '.management.edge.wan |= {vlan, address6, gateway6}' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"management.edge.wan has a gateway or an IPv6 address but no address"* ]]
+    run fleet_edge_check "$SITE_FILE"
+    [ "$status" -eq 0 ]
 }
 
 @test "the edges' VLANs are tagged only on the ports facing an edge's data links and on the ISL" {
@@ -2420,7 +2543,7 @@ STUB
     run fleet_edge_check "$site"
     [ "$status" -ne 0 ]
     [[ "$output" == *"vrrp.vlan 4000 is not a VLAN carried_by the edges"* ]]
-    jq '.management.edge.wan.address = "198.51.100.1/31"' "$SITE_FILE" > "$site"
+    jq '.management.edge.wan.vlan = null' "$SITE_FILE" > "$site"
     run fleet_edge_check "$site"
     [ "$status" -ne 0 ]
     [[ "$output" == *"management.edge.wan has an address but no vlan"* ]]
@@ -2449,10 +2572,10 @@ STUB
 
 @test "a netbooting site translates the provisioning range onto the uplinks, and only then" {
     source "$FLEET_ROOT/lib/edge.sh"
-    run fleet_edge_path "$SITE_FILE"
+    run fleet_edge_path "$(site_without_wan)"
     [ "$status" -eq 0 ]
     [[ "$output" == *'oifname != { "tailscale0", "enp87s0" } ip saddr 192.168.50.0/24 masquerade'* ]]
-    jq 'del(.management.edge.netboot)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nonetboot.json"
+    jq 'del(.management.edge.netboot)' "$(site_without_wan)" > "$BATS_TEST_TMPDIR/nonetboot.json"
     run fleet_edge_path "$BATS_TEST_TMPDIR/nonetboot.json"
     [ "$status" -eq 0 ]
     [[ "$output" != *'ip saddr 192.168.50.0/24 masquerade'* ]]
@@ -2488,7 +2611,7 @@ STUB
     source "$FLEET_ROOT/lib/edge.sh"
     bin="$BATS_TEST_TMPDIR/edge-vrrp"
     edge_run_stub "$bin"
-    fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
+    fleet_edge_path "$(site_without_wan)" > "$bin/mgmt-path.sh"
     run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" NODE_NAME=ber1-edge-b sh "$bin/mgmt-path.sh"
     [ "$status" -eq 0 ]
     run cat "$bin/log"
@@ -2615,25 +2738,27 @@ STUB
     [[ "$(tagged_on 10 <<<"$output")" == *"1/0/25, "*"1/0/26, "* ]]
     [ "$(tagged_on 10 <<<"$output")" = "$(tagged_on 4000 <<<"$output")" ]
     # on ToR A only the storage node sits on the segment
-    [ "$(awk '/^interface /{port = $2 " " $3} /untagged/ {print port}' <<<"$output")" = "ten-gigabitEthernet 1/0/27" ]
+    [ "$(awk '/^interface /{port = $2 " " $3} /allowed vlan 10 untagged/ {print port}' <<<"$output")" = "ten-gigabitEthernet 1/0/27" ]
     run fleet_render "$SITE_FILE" ber1-mgmt
     [[ "$output" != *"vlan 10"* ]]
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-tor-b | yq -o=json '.spec.config' | jq -c '[(.ports[] | select(.port == 2) | {nativeVlan, taggedVlans}), ([.vlans[].id])]'"
     [ "$status" -eq 0 ]
-    [ "$output" = '[{"nativeVlan":10,"taggedVlans":[]},[10,4000]]' ]
-    # a site without the segment leaves the runner on the management VLAN
+    [ "$output" = '[{"nativeVlan":10,"taggedVlans":[]},[10,4000,4001]]' ]
+    # a site without the segment leaves the runner on the management VLAN, and
+    # the spare WAN optic's port is the one port with a native VLAN of its own
     jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomachines.json"
     run fleet_render "$BATS_TEST_TMPDIR/nomachines.json" ber1-tor-b
     [ "$status" -eq 0 ]
-    [[ "$output" != *"untagged"* ]]
+    [[ "$output" != *"vlan 10"* ]]
+    [ "$(grep -c untagged <<<"$output")" -eq 1 ]
 }
 
 @test "each edge has an address of its own on the machines segment, and only the master holds the gateway" {
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_path "$SITE_FILE"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"ber1-edge-a) vrrp_address=10.255.255.1/29 machines_address=10.10.0.2/24 uplinks="* ]]
-    [[ "$output" == *"ber1-edge-b) vrrp_address=10.255.255.2/29 machines_address=10.10.0.3/24 uplinks="* ]]
+    [[ "$output" == *"ber1-edge-a) vrrp_address=10.255.255.1/29 machines_address=10.10.0.2/24 peer_address=10.255.255.2 uplinks="* ]]
+    [[ "$output" == *"ber1-edge-b) vrrp_address=10.255.255.2/29 machines_address=10.10.0.3/24 peer_address=10.255.255.1 uplinks="* ]]
     [[ "$output" != *"10.10.0.1"* ]]
     for edge in ber1-edge-a ber1-edge-b; do
         run fleet_edge_keepalived "$SITE_FILE" "$edge"

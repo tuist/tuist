@@ -14,9 +14,10 @@ name: Rack Fleet Controller Deployment
 # and production; staging gets a server deploy only when someone dispatches
 # one, and the rack's objects need their CRD where the rack is.
 #
-# And it installs the rack-edge DaemonSet (infra/helm/rack-edge), which runs the
-# switches' path into the tailnet and their DHCP on the rack's edge node, a
-# RackLinuxMachine of this cluster.
+# And it installs the rack-edge DaemonSet (infra/helm/rack-edge), which puts the
+# rack's edge workload on each edge node, a RackLinuxMachine of this cluster, as
+# a kubelet static pod: the WAN, the switches' path into the tailnet and their
+# DHCP.
 #
 # THE IMAGES. rack-switch-controller-image.yml and rack-edge-image.yml build
 # `sha-<12 sha>` only for a push that changes their image's inputs, so the image
@@ -175,8 +176,11 @@ jobs:
             -f "$CONTROLLER_CHART_PATH/values-staging.yaml" \
             --set image.tag="$TAG" \
             --atomic --timeout 5m --wait
-      # Last, and waited on: a DaemonSet whose pod does not come up on the edge
-      # node means the switches' path or their DHCP is down.
+      # Last, and waited on: an edge whose static pod does not apply its new
+      # configuration means the switches' path or their DHCP is down. The edges
+      # roll one at a time, each held 90 s after it is ready, so two of them
+      # take about four minutes. A rollback would leave the new static pod
+      # beside the old chart's, so the wait outlasts the rollout.
       - name: helm upgrade --install the rack edge
         env:
           TAG: ${{ steps.image.outputs.edge_tag }}
@@ -186,7 +190,7 @@ jobs:
             -f "$EDGE_CHART_PATH/values.yaml" \
             -f "$EDGE_CHART_PATH/values-staging.yaml" \
             --set image.tag="$TAG" \
-            --atomic --timeout 5m --wait
+            --atomic --timeout 10m --wait
       - name: Diagnostics on failure
         if: failure()
         run: |
