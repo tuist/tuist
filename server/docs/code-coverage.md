@@ -59,7 +59,7 @@ The skipped tests are the commit's candidates minus the tests its runs executed.
 
 ### How it is decided
 
-1. **The commit changes a tracked file.** If the commit's tracked files (`Package.resolved`, `Project.swift`, `*.xcconfig`, … see `Tuist.GitHistory` `tracked_file_globs`) differ from its first parent's, nothing is carried, and no evidence is read: every ancestor's evidence predates the change. When either listing is missing, this step is skipped and step 3 checks each source instead.
+1. **The commit changes a tracked file.** If the commit's tracked files (`Package.resolved`, `Project.swift`, `*.xcconfig`, … see `Tuist.GitHistory` `tracked_file_globs`) differ from every parent's, nothing is carried, and no evidence is read: every ancestor's evidence predates the change. A merge whose tracked files match one parent's can still carry from that side. When a listing is missing, this step is skipped and step 3 checks each source instead.
 2. **Group the skipped tests into units, each with one source run.**
    - A test target selective testing skipped is one unit, carried from its `target` evidence. Only ancestor runs that hashed the target the same way as the commit's run qualify: the same hash means the same inputs, so the same tests over the same code. Among those, the nearest wins.
    - Every other skipped test is a unit of its own, carried from its `test` evidence plus its suite's `suite` evidence, from the nearest ancestor run that holds it. That includes the tests of a skipped target that couldn't be carried whole.
