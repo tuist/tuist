@@ -75,6 +75,9 @@ can delegate the install back to native SwiftPM. Require both volume hits and
 verify retained source manifests and registry checksum markers before installing.
 Wait for both snapshots to publish before verification. Use a fresh prefix when
 changing the set of retained paths; the two volumes publish independently.
+Keep smoke phase, hit and writer variables out of the installer environment:
+SwifterPM fingerprints manifest-visible variables, so test-control changes would
+otherwise invalidate its retained manifest JSON between phases and writers.
 The optional `concurrent` phase starts two warm writers on the same key. Each
 writes its own marker and waits until both jobs reach the attachment barrier
 before proceeding; dispatching two independent runs alone does not prove overlap.
