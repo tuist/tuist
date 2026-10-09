@@ -182,6 +182,79 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert {:error, :unavailable} = CacheVolumes.allocate(params)
   end
 
+  test "the executed binding admits a job whose own row has not reached running yet", %{account: account, job: job} do
+    Repo.insert!(%Buildkite.Installation{
+      account_id: account.id,
+      organization_slug: "org",
+      stack_key: "linux-#{account.id}",
+      agent_token: "test"
+    })
+
+    Repo.insert!(%Buildkite.Job{
+      account_id: account.id,
+      job_uuid: Ecto.UUID.generate(),
+      workflow_job_id: job.workflow_job_id,
+      build_uuid: Ecto.UUID.generate(),
+      build_number: 42,
+      organization_slug: "org",
+      pipeline_slug: "pipeline",
+      queue_key: "queue",
+      cache_volume_identity: %{
+        "provider" => "buildkite",
+        "provider_instance" => "org-id",
+        "scope_id" => "pipeline-id",
+        "trusted" => true
+      }
+    })
+
+    Repo.insert!(%RunnerSession{
+      account_id: account.id,
+      workflow_job_id: System.unique_integer([:positive]),
+      executed_workflow_job_id: job.workflow_job_id,
+      fleet_name: "linux",
+      pod_name: "displaced-pod",
+      node_name: "node",
+      platform: :linux,
+      vcpus: 2,
+      memory_gb: 8,
+      billing_multiplier: 10_000,
+      started_at: DateTime.utc_now()
+    })
+
+    params = %{
+      "pod_name" => "displaced-pod",
+      "pod_uid" => "displaced-uid",
+      "node_name" => "node",
+      "key" => "gradle",
+      "architecture" => "amd64",
+      "uid" => 1001
+    }
+
+    assert {:error, :pending} = CacheVolumes.allocate(params)
+
+    row =
+      Repo.insert!(
+        struct(
+          WorkflowJob,
+          Map.merge(job, %{
+            provider: "buildkite",
+            status: "claimed",
+            pod_name: "other-pod",
+            fleet_name: "linux",
+            enqueued_at: DateTime.utc_now()
+          })
+        )
+      )
+
+    assert {:ok, _} = CacheVolumes.allocate(params)
+
+    row = Repo.update!(Ecto.Changeset.change(row, status: "queued", pod_name: nil))
+    assert {:ok, _} = CacheVolumes.allocate(params)
+
+    Repo.update!(Ecto.Changeset.change(row, status: "completed"))
+    assert {:error, :unavailable} = CacheVolumes.allocate(params)
+  end
+
   for platform <- [:linux, :macos] do
     @session_platform platform
     test "only an open #{@session_platform} session waiting for execution attribution is retryable", %{
