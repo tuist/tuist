@@ -238,6 +238,7 @@ defmodule Tuist do
       ClickHouseTimeSeries,
       Telemetry.QueryErrorContext,
       Repo.PromExPlugin,
+      ClickHouseRepo.PromExPlugin,
       OpsClickHouseRepo,
       Markdown,
       Cldr,
