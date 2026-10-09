@@ -3,11 +3,21 @@ name: Rack Fleet Controller Deployment
 # The Omada SDN controller for the rack fleet (infra/helm/omada), and the rack
 # switch controller that drives it (infra/helm/rack-switch-controller). One
 # Omada controller, because a switch can be adopted by only one; both live in
-# the staging cluster while the rack is at home and move to production with
-# the rack. The Omada admin account and Open API client come from its own
-# first-boot wizard, so nothing here seeds them; the rack switch controller
-# reads the API client and the site's device account from 1Password through
-# ExternalSecrets.
+# the cluster the rack belongs to. The Omada admin account and Open API client
+# come from its own first-boot wizard, so nothing here seeds them; the rack
+# switch controller reads the API client and the site's device account from
+# 1Password through ExternalSecrets.
+#
+# WHICH CLUSTER. The rack's site definition says: its kubernetes.namespace is
+# `tuist-<env>`, or `tuist` for production (`rack:fleet env`), and the deploy
+# goes to that env's cluster, with infra/helm/omada/values-<env>.yaml. The rack
+# switch controller's namespace, Omada site, controller address and 1Password
+# items, and the edge's site, come from the same file (`rack:fleet
+# helm-values`), so moving the rack is an edit to the site definition alone.
+# A dispatch can name another env, which installs the Omada controller there
+# and nothing else: the controller a rack moves to has to be running before the
+# switches are pointed at it, while the rack switch controller and the edge
+# follow the site definition. See "Production" in infra/rack-nodes/AGENTS.md.
 #
 # It also applies the RackSwitch CRD to the same cluster. server-deployment.yml
 # carries that CRD to every cluster it deploys, but merges only deploy canary
@@ -15,8 +25,8 @@ name: Rack Fleet Controller Deployment
 # one, and the rack's objects need their CRD where the rack is.
 #
 # And it installs the rack-edge DaemonSet (infra/helm/rack-edge), which runs the
-# switches' path into the tailnet and their DHCP on the rack's edge node, a
-# RackLinuxMachine of this cluster.
+# switches' path into the tailnet and their DHCP on the rack's edge nodes,
+# RackLinuxMachines of this cluster.
 #
 # THE IMAGES. rack-switch-controller-image.yml and rack-edge-image.yml build
 # `sha-<12 sha>` only for a push that changes their image's inputs, so the image
@@ -38,6 +48,8 @@ on:
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - infra/helm/rack-edge/**
       - infra/rack-switch-fleet/edge/**
+      - infra/rack-switch-fleet/sites/**
+      - infra/rack-switch-fleet/lib/config.sh
       - .github/workflows/omada-deployment.yml
       - .github/workflows/rack-switch-controller-image.yml
       - .github/workflows/rack-edge-image.yml
@@ -46,14 +58,19 @@ on:
       commit_sha:
         description: Commit SHA to deploy (defaults to github.sha)
         required: false
+      environment:
+        description: Where to deploy. `rack` deploys everything to the env the rack is in; another env gets only the Omada controller
+        required: false
+        default: rack
+        type: choice
+        options:
+          - rack
+          - staging
+          - production
 
 permissions:
   contents: read
   packages: read
-
-concurrency:
-  group: omada-deploy-staging
-  cancel-in-progress: false
 
 env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
@@ -69,15 +86,70 @@ env:
   DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
 
 jobs:
-  deploy:
-    name: Deploy staging
+  resolve:
+    name: Find the rack's cluster
     if: github.repository == 'tuist/tuist'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      environment: ${{ steps.site.outputs.environment }}
+      site: ${{ steps.site.outputs.site }}
+      rack: ${{ steps.site.outputs.rack }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - name: Read the site definition
+        id: site
+        env:
+          REQUESTED: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          # One Omada controller, so one site with a controller.
+          sites=()
+          for file in infra/rack-switch-fleet/sites/*.json; do
+            if jq -e '.management.controller != null' "$file" >/dev/null; then
+              sites+=("$(basename "$file" .json)")
+            fi
+          done
+          if [ "${#sites[@]}" -ne 1 ]; then
+            echo "::error::expected one site with a management.controller, found ${#sites[@]}: ${sites[*]}"
+            exit 1
+          fi
+          site="${sites[0]}"
+          environment="$(infra/rack-switch-fleet/fleet.sh --site "$site" env)"
+          rack=true
+          if [ -n "$REQUESTED" ] && [ "$REQUESTED" != rack ] && [ "$REQUESTED" != "$environment" ]; then
+            echo "$site is in $environment; installing only the Omada controller in $REQUESTED"
+            environment="$REQUESTED"
+            rack=false
+          fi
+          if [ ! -f "$HELM_CHART_PATH/values-$environment.yaml" ]; then
+            echo "::error::$environment has no Omada controller values ($HELM_CHART_PATH/values-$environment.yaml)"
+            exit 1
+          fi
+          echo "$site deploys to $environment (rack switch controller and edge: $rack)"
+          {
+            echo "environment=$environment"
+            echo "site=$site"
+            echo "rack=$rack"
+          } >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy ${{ needs.resolve.outputs.environment }}
+    needs: resolve
     runs-on: ubuntu-latest
     timeout-minutes: 35
     environment:
-      name: server-k8s-staging
+      name: server-k8s-${{ needs.resolve.outputs.environment }}
+    concurrency:
+      group: omada-deploy-${{ needs.resolve.outputs.environment }}
+      cancel-in-progress: false
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
+      ENVIRONMENT: ${{ needs.resolve.outputs.environment }}
+      SITE: ${{ needs.resolve.outputs.site }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -97,8 +169,8 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
-          op document get "kubeconfig: tuist-staging" \
-            --vault "tuist-k8s-staging" --output "$KUBECONFIG"
+          op document get "kubeconfig: tuist-$ENVIRONMENT" \
+            --vault "tuist-k8s-$ENVIRONMENT" --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Verify cluster reachability
         run: |
@@ -118,9 +190,10 @@ jobs:
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
             -f "$HELM_CHART_PATH/values.yaml" \
-            -f "$HELM_CHART_PATH/values-staging.yaml" \
+            -f "$HELM_CHART_PATH/values-$ENVIRONMENT.yaml" \
             --atomic --timeout 10m --wait
       - name: Resolve the images
+        if: needs.resolve.outputs.rack == 'true'
         id: image
         run: |
           set -euo pipefail
@@ -138,11 +211,13 @@ jobs:
           resolve controller infra/rack-switch-controller .github/workflows/rack-switch-controller-image.yml
           resolve edge infra/rack-switch-fleet/edge .github/workflows/rack-edge-image.yml
       - uses: docker/login-action@v3
+        if: needs.resolve.outputs.rack == 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Wait for the images
+        if: needs.resolve.outputs.rack == 'true'
         env:
           CONTROLLER_TAG: ${{ steps.image.outputs.controller_tag }}
           CONTROLLER_COMMIT: ${{ steps.image.outputs.controller_commit }}
@@ -166,25 +241,31 @@ jobs:
           wait_for "$CONTROLLER_IMAGE:$CONTROLLER_TAG" "$CONTROLLER_COMMIT" "Rack Switch Controller Image"
           wait_for "$EDGE_IMAGE:$EDGE_TAG" "$EDGE_COMMIT" "Rack Edge Image"
       - name: helm upgrade --install the rack switch controller
+        if: needs.resolve.outputs.rack == 'true'
         env:
           TAG: ${{ steps.image.outputs.controller_tag }}
         run: |
+          set -euo pipefail
+          infra/rack-switch-fleet/fleet.sh --site "$SITE" helm-values rack-switch-controller > "$RUNNER_TEMP/controller-site.yaml"
           helm upgrade --install "$CONTROLLER_RELEASE_NAME" "$CONTROLLER_CHART_PATH" \
             --namespace "$NAMESPACE" \
             -f "$CONTROLLER_CHART_PATH/values.yaml" \
-            -f "$CONTROLLER_CHART_PATH/values-staging.yaml" \
+            -f "$RUNNER_TEMP/controller-site.yaml" \
             --set image.tag="$TAG" \
             --atomic --timeout 5m --wait
       # Last, and waited on: a DaemonSet whose pod does not come up on the edge
       # node means the switches' path or their DHCP is down.
       - name: helm upgrade --install the rack edge
+        if: needs.resolve.outputs.rack == 'true'
         env:
           TAG: ${{ steps.image.outputs.edge_tag }}
         run: |
+          set -euo pipefail
+          infra/rack-switch-fleet/fleet.sh --site "$SITE" helm-values rack-edge > "$RUNNER_TEMP/edge-site.yaml"
           helm upgrade --install "$EDGE_RELEASE_NAME" "$EDGE_CHART_PATH" \
             --namespace "$NAMESPACE" \
             -f "$EDGE_CHART_PATH/values.yaml" \
-            -f "$EDGE_CHART_PATH/values-staging.yaml" \
+            -f "$RUNNER_TEMP/edge-site.yaml" \
             --set image.tag="$TAG" \
             --atomic --timeout 5m --wait
       - name: Diagnostics on failure
