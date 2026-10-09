@@ -42,6 +42,13 @@ on:
           assembled from fragments.
         required: false
         default: "0"
+      expected_egress_ip:
+        description: >-
+          When set, the job checks its public IPv4 and fails unless it is
+          this address (the account's dedicated egress address). It also
+          reports IPv6 reachability and reaches GitHub over HTTPS and SSH.
+        required: false
+        default: ""
 
   # Also fires when this workflow file itself changes on the
   # feat/runners-shape-2 branch. The smoke isn't a default CI
@@ -102,6 +109,30 @@ jobs:
           # Mac mini's security group at the IaaS layer, not
           # somewhere we can curl from the workflow.
           curl -fsSL -o /dev/null -w "github.com → HTTP %{http_code}\n" https://github.com
+
+      - name: Dedicated egress address
+        if: github.event_name == 'workflow_dispatch' && inputs.expected_egress_ip != ''
+        env:
+          EXPECTED_EGRESS_IP: ${{ inputs.expected_egress_ip }}
+        run: |
+          set -uo pipefail
+          observed=$(curl -4 -fsS -m 15 https://api.ipify.org || true)
+          second=$(curl -4 -fsS -m 15 https://ifconfig.me/ip || true)
+          echo "Public IPv4: ${observed} (second source: ${second})"
+          if curl -6 -fsS -m 10 -o /dev/null https://api64.ipify.org; then
+            echo "::warning::This VM has a working IPv6 path, which does not use the dedicated address."
+          else
+            echo "No IPv6 path."
+          fi
+          git ls-remote https://github.com/tuist/tuist HEAD
+          ssh_out=$(ssh -T -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=15 git@github.com 2>&1 || true)
+          echo "ssh git@github.com: ${ssh_out}"
+          case "${ssh_out}" in
+            *"Permission denied"*|*"successfully authenticated"*) echo "GitHub SSH reachable." ;;
+            *) echo "::error::GitHub SSH unreachable"; exit 1 ;;
+          esac
+          [ "${observed}" = "${EXPECTED_EGRESS_IP}" ] && [ "${second}" = "${EXPECTED_EGRESS_IP}" ] || { echo "::error::expected egress ${EXPECTED_EGRESS_IP}"; exit 1; }
+          echo "Egress is the dedicated address."
 
       - name: Hold the runner to produce a billable window
         if: >-
