@@ -24,7 +24,7 @@ only the first edge of a site is installed from a stick of its own.
 - **The operator** (`infra/cluster-api-provider-tuist`, `controllers/linux`)
   publishes each host's install, finds the host on the tailnet and joins it.
   See "Rack-owned Linux hosts" in its AGENTS.md.
-- **The boot server** (`rackLinuxFleet.boot`, a DaemonSet in the tuist chart
+- **The boot server** (`rackLinuxFleet.boot`, a DaemonSet in the rack-nodes chart
   running the operator's `rack-boot` on both edges) serves what the operator
   publishes, on the site's provisioning address, from whichever edge holds it,
   hands each install's seed to its host alone, and lists the machines sticks
@@ -419,11 +419,64 @@ the cluster reaches it.
   `nodeLocalNetwork` instances use Tailscale's `100.100.100.100`, which
   answers tailnet names and fails others over, then public resolvers.
 - **Telemetry.** `alloy-rack` (`infra/helm/k8s-monitoring`) on each rack node
-  ships its pods' logs and scrapes its node-local Kura pods, and pushes both to
-  the Alloy receiver at its tailnet name. Kura exports its traces there too.
+  ships its pods' logs, scrapes its node-local Kura pods and exports the
+  host's own metrics, and pushes them to the Alloy receiver at its tailnet
+  name. Kura exports its traces there too.
 - **Being reached.** A pod the cluster has to read from is reached through the
   API server: the Kura controller samples node-local pods through a
   port-forward, which goes through the kubelet.
+
+## Deploys and the rack's health
+
+A rack is dark for days at a time: while it travels to the colo, through a power
+event, whenever its one uplink is down. Deploys go on regardless, and nothing
+needs doing to the cluster first.
+
+Deploys wait on the tuist, k8s-monitoring and platform releases with Helm 4's
+`--wait`, which reads a DaemonSet as ready only when every pod it wants is
+Ready, the pods on dark nodes included, and a Deployment only when all its
+replicas are available. So nothing in those releases runs a pod on a rack
+node:
+
+- The rack node agent and the boot server are the rack-nodes chart's
+  (`infra/helm/rack-nodes`), installed by `server-deployment.yml` after the
+  tuist release, from the tuist chart's values and the operator's image.
+- The Kura gateways on storage nodes are the rack-cache-gateways chart's
+  (`infra/helm/rack-cache-gateways`), installed by `k8s:install-platform` after
+  the platform release, from the platform chart's values.
+- node-exporter skips rack nodes; `alloy-rack`, an Alloy resource the wait does
+  not look through, exports their host metrics.
+
+Both charts install with `--wait=hookOnly`, so a deploy applies them and moves
+on; the DaemonSet controller rolls their pods out on the nodes that are up and
+on the others as they return. A broken rollout there does not fail the deploy:
+check the DaemonSets after one that changes them. Kura instances on rack nodes
+belong to no release. `mise -C infra run helm:rack-independence` (in the Helm
+workflow) renders every env's waited releases and fails when one schedules a
+pod onto a rack node: one per role in `rackLinuxFleet.roles`, a rack Linux node
+with no role, and a rack's Mac mini.
+
+### Downtime
+
+For planned downtime, a move or work on the rack:
+
+1. **The minis** (remote). Cordon each one's Node and let its running jobs
+   finish (`kubectl get rh` names the Machine, which is also the Node), then
+   set `parked: true` on each host in `rackFleet.hosts` and deploy. Parking
+   deletes the Machine and the Node, so the `ber1` pool has no nodes to place
+   runners on and nothing tries to bootstrap a mini that is off. Unparking them
+   afterwards (and deploying) bootstraps each one again.
+2. **The Linux hosts** need nothing. Their Nodes go NotReady and their pods are
+   evicted after five minutes; the Kura pods on a storage node stay Pending,
+   bound to their local volumes, until it is back. A host that comes back on
+   the tailnet keeps its install and its Node, so leave `online` and
+   `reinstallGeneration` alone.
+
+An unplanned outage needs nothing at all. The rack fleet's MachineHealthCheck
+remediates a mini whose Node has been NotReady for 30 minutes, but only while
+at most one is (`unhealthyRange: "[0-1]"`): a rack-wide outage remediates no
+mini, and once the rack is back, a mini that stayed down is remediated on its
+own.
 
 ## Production
 
@@ -706,4 +759,6 @@ them.
 `curl`; it runs in the Rack Switches workflow. The boot server, the netboot
 seed, the iPXE script and the install lifecycle are Go tests in the operator
 (`internal/rackboot`, `internal/rackinstall`,
-`controllers/linux/racklinuxhost_install_test.go`).
+`controllers/linux/racklinuxhost_install_test.go`). `mise -C infra run
+helm:rack-independence` checks that deploys do not wait on rack nodes (see
+"Deploys and the rack's health"); it runs in the Helm workflow.

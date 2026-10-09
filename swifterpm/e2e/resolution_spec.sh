@@ -155,10 +155,15 @@ write_registry_package_archive() {
     cd "${package_root}"
     zip -qry "${registry_dir}/registryfoo.zip" .
   )
+  file_sha256 "${registry_dir}/registryfoo.zip" >"${registry_dir}/checksum.txt"
+}
+
+file_sha256() {
+  local path="$1"
   if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "${registry_dir}/registryfoo.zip" | awk '{print $1}' >"${registry_dir}/checksum.txt"
+    sha256sum "${path}" | awk '{print $1}'
   else
-    shasum -a 256 "${registry_dir}/registryfoo.zip" | awk '{print $1}' >"${registry_dir}/checksum.txt"
+    shasum -a 256 "${path}" | awk '{print $1}'
   fi
 }
 
@@ -408,27 +413,31 @@ swiftpm_accepts_lockfile() {
     resolve >/dev/null 2>&1
 }
 
+# SwiftPM writes the version 1 Package.resolved format (`object.pins`,
+# `repositoryURL`) for packages below tools version 5.6, so the pin helpers
+# read through `normalize_package_resolved_file` instead of the raw file.
 pin_count() {
   local package_dir="$1"
   if [[ ! -f "${package_dir}/Package.resolved" ]]; then
     echo "0"
     return
   fi
-  jq '.pins | length' "${package_dir}/Package.resolved"
+  normalize_package_resolved_file "${package_dir}/Package.resolved" | jq '.pins | length'
 }
 
 pin_state_value() {
   local package_dir="$1"
   local identity="$2"
   local field="$3"
-  jq -r --arg identity "${identity}" --arg field "${field}" \
-    '.pins[] | select(.identity == $identity) | .state[$field] // ""' \
-    "${package_dir}/Package.resolved"
+  normalize_package_resolved_file "${package_dir}/Package.resolved" |
+    jq -r --arg identity "${identity}" --arg field "${field}" \
+      '.pins[] | select(.identity == $identity) | .state[$field] // ""'
 }
 
 resolved_identities() {
   local package_dir="$1"
-  jq -r '.pins[].identity' "${package_dir}/Package.resolved" | sort | tr '\n' ' ' | sed 's/ $//'
+  normalize_package_resolved_file "${package_dir}/Package.resolved" |
+    jq -r '.pins[].identity' | sort | tr '\n' ' ' | sed 's/ $//'
 }
 
 not_darwin() {
@@ -788,6 +797,7 @@ scenario_resolves_pocket_casts_ios() {
 scenario_resolves_locked_swifterpm_fixture() {
   local fixture="$1"
   local expected_pins="$2"
+  shift 2
   local tmp
   tmp="$(mktemp -d)"
   trap 'rm -rf "${tmp}"' RETURN
@@ -795,6 +805,12 @@ scenario_resolves_locked_swifterpm_fixture() {
 
   local package_dir
   package_dir="$(copy_swifterpm_fixture "${fixture}" "${tmp}")" || return 1
+
+  # Remaining arguments name local packages the fixture references as siblings.
+  local sibling
+  for sibling in "$@"; do
+    copy_swifterpm_fixture "${sibling}" "${tmp}" >/dev/null || return 1
+  done
 
   local expected_resolved="${tmp}/Package.expected.resolved"
   cp "${package_dir}/Package.resolved" "${expected_resolved}"
@@ -1137,11 +1153,50 @@ scenario_replace_scm_with_registry_uses_registry() {
   test -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
   test ! -e "${package_dir}/.build/checkouts/RegistryFoo" || return 1
 
+  # The first resolve has no lockfile, so native SwiftPM downloads the release
+  # and SwifterPM seeds its extracted source into the shared cache, tagged with
+  # the checksum the registry declares. No archive is kept on that path.
+  local checksum
+  checksum="$(cat "${registry_dir}/checksum.txt")"
+  local marker
+  marker="$(find "${tmp}/cache/sources/example.registryfoo" -type f -name '.swifterpm-registry-checksum' -print | head -n 1)"
+  test -n "${marker}" || return 1
+  test "$(cat "${marker}")" = "${checksum}" || return 1
+
+  # A seeded entry whose checksum no longer matches the registry is stale, so
+  # the restore downloads the release itself and keeps the archive.
+  printf 'stale checksum' >"${marker}"
+  rm -rf "${package_dir}/.build/registry"
+  restore_registry_package "${tmp}" "${package_dir}" "${registry_url}" || return 1
+  test -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
+  test "$(cat "${marker}")" = "${checksum}" || return 1
+
   local archive
   archive="$(find "${tmp}/cache/registry/archives" -type f -name '*.zip' -print | head -n 1)"
   test -n "${archive}" || return 1
+
+  # A kept archive that fails checksum validation is downloaded again.
   printf 'corrupt archive' >"${archive}"
-  rm -rf "${tmp}/cache/sources/example.registryfoo" "${package_dir}/.build/registry"
+  printf 'stale checksum' >"${marker}"
+  rm -rf "${package_dir}/.build/registry"
+  restore_registry_package "${tmp}" "${package_dir}" "${registry_url}" || return 1
+  test -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
+  test "$(file_sha256 "${archive}")" = "${checksum}" || return 1
+
+  stop_registry_server
+  echo "identity=${identity}"
+  echo "kind=${kind}"
+  echo "registry-download=present"
+  echo "checkout=absent"
+  echo "registry-cache=seeded"
+  echo "stale-cache-redownload=ok"
+  echo "corrupt-archive-redownload=ok"
+}
+
+restore_registry_package() {
+  local tmp="$1"
+  local package_dir="$2"
+  local registry_url="$3"
 
   scoped_env "${tmp}" "${SWIFTERPM_BIN}" \
     --package-path "${package_dir}" \
@@ -1151,15 +1206,6 @@ scenario_replace_scm_with_registry_uses_registry() {
     --disable-package-info-cache \
     --quiet \
     restore >/dev/null
-
-  test -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
-
-  stop_registry_server
-  echo "identity=${identity}"
-  echo "kind=${kind}"
-  echo "registry-download=present"
-  echo "checkout=absent"
-  echo "corrupt-archive-redownload=ok"
 }
 
 scenario_replace_scm_with_registry_falls_back_to_scm_when_registry_has_no_versions() {
@@ -1369,9 +1415,17 @@ scenario_manifest_cache_stays_under_build_directory() {
   trap 'rm -rf "${tmp}"' RETURN
   prepare_isolated_state "${tmp}"
 
-  local package_dir
-  package_dir="$(copy_swifterpm_fixture "Bare" "${tmp}")" || return 1
+  local fixture_dir
+  fixture_dir="$(copy_swiftpm_fixture "Simple" "${tmp}")" || return 1
 
+  init_git_package "${tmp}" "${fixture_dir}/Foo" || return 1
+  tag_git_package "${tmp}" "${fixture_dir}/Foo" "1.0.0" "1.2.3" || return 1
+
+  # Without a lockfile or cached pins the resolve is delegated to native
+  # SwiftPM, which dumps no manifests. The second resolve finds both and
+  # evaluates the manifests itself.
+  local package_dir="${fixture_dir}/Bar"
+  resolve_package "${tmp}" "${package_dir}" "${tmp}/cache" || return 1
   resolve_package "${tmp}" "${package_dir}" "${tmp}/cache" || return 1
 
   test ! -e "${package_dir}/.swifterpm-manifest.json" || return 1
@@ -1405,7 +1459,7 @@ Describe "swifterpm resolve against real-world manifests"
   End
 
   It "resolves the larger external dependencies fixture and preserves its lockfile"
-    When call scenario_resolves_locked_swifterpm_fixture "ExternalDependenciesLarger" "102"
+    When call scenario_resolves_locked_swifterpm_fixture "ExternalDependenciesLarger" "102" "AdaSDK"
     The status should be success
     The output should include "pins=102"
     The output should include "package-resolved=match"
@@ -1531,6 +1585,8 @@ Describe "swifterpm registry integration"
     The output should include "kind=registry"
     The output should include "registry-download=present"
     The output should include "checkout=absent"
+    The output should include "registry-cache=seeded"
+    The output should include "stale-cache-redownload=ok"
     The output should include "corrupt-archive-redownload=ok"
   End
 
