@@ -119,7 +119,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
     summary = Commits.summary(project.id, "abc123")
     assert {summary.schemes, summary.covered_lines, summary.executable_lines} == {["App"], 1, 2}
-    assert {summary.reported_kind, Commits.gap_reasons(summary)} == {"partial", [:dirty_run_excluded]}
+    assert {summary.reported_kind, Commits.gap_reasons(summary)} == {"observed", [:dirty_run_excluded]}
     assert Commits.status(summary) == :in_progress
     assert Commits.status(Commits.signal_complete(project, "abc123")) == :incomplete
 

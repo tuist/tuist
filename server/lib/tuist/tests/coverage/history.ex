@@ -294,7 +294,7 @@ defmodule Tuist.Tests.Coverage.History do
       from(c in query,
         join: m in subquery(measured),
         on: m.sha == c.sha,
-        where: m.complete and m.reported_kind != "partial"
+        where: m.complete and m.reported_kind not in ^Commits.incomplete_kinds()
       )
 
   defp by_status(query, "incomplete", measured),
@@ -302,7 +302,7 @@ defmodule Tuist.Tests.Coverage.History do
       from(c in query,
         join: m in subquery(measured),
         on: m.sha == c.sha,
-        where: m.complete and m.reported_kind == "partial"
+        where: m.complete and m.reported_kind in ^Commits.incomplete_kinds()
       )
 
   defp by_status(query, "in-progress", measured),
@@ -318,8 +318,8 @@ defmodule Tuist.Tests.Coverage.History do
 
     case status do
       "" -> query
-      "complete" -> where(query, [c], c.complete and c.reported_kind != "partial")
-      "incomplete" -> where(query, [c], c.complete and c.reported_kind == "partial")
+      "complete" -> where(query, [c], c.complete and c.reported_kind not in ^Commits.incomplete_kinds())
+      "incomplete" -> where(query, [c], c.complete and c.reported_kind in ^Commits.incomplete_kinds())
       "in-progress" -> where(query, [c], not c.complete)
       _other -> where(query, false)
     end

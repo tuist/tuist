@@ -151,7 +151,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   end
 
   test "tells why a skipped test without evidence of its own is a gap", %{project: project, account: account} do
-    assert %{kind: "partial", carried_tests_count: 0} = reported = missing_evidence_runs(project, account, nil, false)
+    assert %{kind: "observed", carried_tests_count: 0} = reported = missing_evidence_runs(project, account, nil, false)
     assert reasons(reported) == [:collection_off]
   end
 
@@ -228,20 +228,30 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     test_pid = self()
 
-    report = fn rows ->
-      for %{scope_id: _, line_numbers: _, test_run_id: run_id} <- rows, do: send(test_pid, {:evidence_lines, run_id})
-      rows
+    # A read of evidence lines merges them per file in ClickHouse.
+    report = fn query ->
+      query = inspect(query)
+      if query =~ "groupUniqArrayArray", do: send(test_pid, {:evidence_lines, query})
     end
 
-    stub(ClickHouseRepo, :all, fn query -> report.(call_original(ClickHouseRepo, :all, [query])) end)
-    stub(ClickHouseRepo, :all, fn query, opts -> report.(call_original(ClickHouseRepo, :all, [query, opts])) end)
+    stub(ClickHouseRepo, :all, fn query ->
+      report.(query)
+      call_original(ClickHouseRepo, :all, [query])
+    end)
+
+    stub(ClickHouseRepo, :all, fn query, opts ->
+      report.(query)
+      call_original(ClickHouseRepo, :all, [query, opts])
+    end)
 
     assert %{kind: "reported", covered_lines: 5, carried_tests_count: 1, carried_from: ["base"]} =
              Reported.compute(project, "head")
 
-    assert_received {:evidence_lines, _run_id}
-    root_id = root.id
-    refute_received {:evidence_lines, ^root_id}
+    queries = Stream.repeatedly(fn -> receive(do: ({:evidence_lines, query} -> query), after: (0 -> nil)) end)
+    queries = Enum.take_while(queries, & &1)
+
+    assert queries != []
+    refute Enum.any?(queries, &(&1 =~ root.id))
   end
 
   test "carries the tests of a scheme selective testing skipped whole", %{project: project, account: account} do
@@ -503,7 +513,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
   defp target_only_head(project, account, opts) do
     head =
-      CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      CoverageFixtures.run_with_coverage(project, account, head_files(Keyword.take(opts, [:git_blob_id])), %{
         git_commit_sha: "head",
         partial: true,
         test_modules: modules([test_case("testAdd()", "MathTests")]),
@@ -720,19 +730,32 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
            } = Reported.compute(project, "head")
   end
 
+  test "carries no target whose evidence ran a file that changed, even when its inputs hash the same", %{
+    project: project,
+    account: account
+  } do
+    # A file outside what the hash covers changed, which only the evidence says the target ran.
+    target_only_runs(project, account, git_blob_id: "blob-changed")
+
+    assert %{kind: "observed", skipped_tests_count: 1, carried_tests_count: 0} =
+             reported = Reported.compute(project, "head")
+
+    assert reasons(reported) == [:executed_file_changed]
+  end
+
   test "carries no target whose inputs hashed differently where its evidence comes from", %{
     project: project,
     account: account
   } do
     target_only_runs(project, account, head_hash: "text-changed")
 
-    assert %{kind: "partial", skipped_tests_count: 1, carried_tests_count: 0} = Reported.compute(project, "head")
+    assert %{kind: "observed", skipped_tests_count: 1, carried_tests_count: 0} = Reported.compute(project, "head")
   end
 
   test "carries no target a test failed in where its evidence comes from", %{project: project, account: account} do
     target_only_runs(project, account, trim_status: "failure")
 
-    assert %{kind: "partial", skipped_tests_count: 1, carried_tests_count: 0} =
+    assert %{kind: "observed", skipped_tests_count: 1, carried_tests_count: 0} =
              reported = Reported.compute(project, "head")
 
     assert reasons(reported) == [:test_failed]
@@ -917,7 +940,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     base_run(project, account)
     head_run(project, account, head_files(git_blob_id: "blob-changed"))
 
-    assert %{kind: "partial", covered_lines: 2, executable_lines: 7, skipped_tests_count: 1, carried_tests_count: 0} =
+    assert %{kind: "observed", covered_lines: 2, executable_lines: 7, skipped_tests_count: 1, carried_tests_count: 0} =
              reported = Reported.compute(project, "head")
 
     assert reasons(reported) == [:executed_file_changed]
@@ -929,7 +952,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     base_run(project, account, trim_status: "failure")
     head_run(project, account, head_files())
 
-    assert %{kind: "partial", covered_lines: 2, carried_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert %{kind: "observed", covered_lines: 2, carried_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:test_failed]
   end
 
@@ -937,7 +960,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     base_run(project, account, trim_lines: [])
     head_run(project, account, head_files())
 
-    assert %{kind: "partial", covered_lines: 2, carried_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert %{kind: "observed", covered_lines: 2, carried_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:evidence_without_lines]
   end
 
@@ -998,7 +1021,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     GitHistory.record_listing(repository_id, "base", listing.("one"), files_count: 1)
     GitHistory.record_listing(repository_id, "head", listing.("two"), files_count: 1)
 
-    assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert %{kind: "observed", carried_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:tracked_file_changed]
 
     GitHistory.record_listing(repository_id, "head", listing.("one"), files_count: 1)
@@ -1034,7 +1057,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
       call_original(GitHistory, :ancestors, [repository_id, sha])
     end)
 
-    assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert %{kind: "observed", carried_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:tracked_file_changed]
     refute_received :window_walk
   end
@@ -1096,7 +1119,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     listing = [%{path: "Package.resolved", git_blob_id: "one", mode: 0o100644}]
     GitHistory.record_listing(repository_id, "base", listing, files_count: 1)
 
-    assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert %{kind: "observed", carried_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:listing_missing]
   end
 
@@ -1113,7 +1136,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     GitHistory.record_listing(repository_id, "base", listing, files_count: 1)
     GitHistory.record_listing(repository_id, "head", listing, files_count: 1, truncated: true)
 
-    assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert %{kind: "observed", carried_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:listing_missing]
   end
 
@@ -1167,30 +1190,55 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert Commits.summary(project.id, "head").unmeasured_files_count == 2
   end
 
-  test "an unbuilt file whose coverage came from tests the run never listed is a gap", %{
+  test "a file the nearest ancestor covered that no run compiled makes the figure observed", %{
     project: project,
     account: account
   } do
     base_run(project, account)
     CoverageFixtures.seed_listing(account, "head", ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"])
 
+    # Nothing was skipped, yet the base covered Text.swift and no run here
+    # compiled it, as when a module comes from a binary cache uninstrumented.
     CoverageFixtures.run_with_coverage(
       project,
       account,
       [file("Sources/Math.swift", [1, 1, 0]), file("Tests/AppTests.swift", [1, 0], is_test: true)],
       %{
         git_commit_sha: "head",
-        partial: true,
         test_modules: modules([test_case("testAdd()", "MathTests")]),
-        enumerated_tests: [hd(@tests), %{module: "AppTests", suite: "MathTests", name: "testNew()"}]
+        enumerated_tests: [hd(@tests)]
       }
     )
 
-    assert %{kind: "partial", covered_lines: 2, executable_lines: 7, skipped_tests_count: 1, gap_files_count: 1} =
+    assert %{kind: "observed", covered_lines: 2, executable_lines: 3, skipped_tests_count: 0, gap_files_count: 1} =
              reported = Reported.compute(project, "head")
 
-    # testNew() has no evidence, and the base's run didn't say it collected any.
-    assert reasons(reported) == [:collection_off, :unbuilt_file_uncarried]
+    assert reasons(reported) == [:unbuilt_file_uncarried]
+  end
+
+  test "a skipped test that can't be carried makes the figure observed, with what the runs measured", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(
+      project,
+      account,
+      head_files(),
+      %{
+        git_commit_sha: "head",
+        partial: true,
+        test_modules: modules([test_case("testAdd()", "MathTests")]),
+        enumerated_tests: @tests ++ [%{module: "AppTests", suite: "MathTests", name: "testNew()"}]
+      }
+    )
+
+    # testTrim() carries, testNew() has no evidence: nothing is carried.
+    assert %{kind: "observed", covered_lines: 2, executable_lines: 7, skipped_tests_count: 2, carried_tests_count: 1} =
+             reported = Reported.compute(project, "head")
+
+    assert reasons(reported) == [:collection_off]
   end
 
   # base → kit → tip: the base ran App, kit only Kit, and at the tip a
@@ -1248,7 +1296,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   test "a selective commit no ancestor measured the schemes of is partial", %{project: project, account: account} do
     scheme_split_runs(project, account, "AppAll")
 
-    assert %{kind: "partial", carried_tests_count: 1, gap_files_count: 1} = reported = Reported.compute(project, "tip")
+    assert %{kind: "observed", carried_tests_count: 1, gap_files_count: 1} = reported = Reported.compute(project, "tip")
     assert reasons(reported) == [:unbuilt_file_unknown]
   end
 
@@ -1266,7 +1314,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
              History.trend_points(project, "main").points
 
     head_run(project, account, head_files(git_blob_id: "blob-changed"))
-    assert %{reported_kind: "partial"} = Commits.summary(project.id, "head")
+    assert %{reported_kind: "observed"} = Commits.summary(project.id, "head")
   end
 
   test "a carried commit lists its files and targets, and details a file, over its reported coverage", %{
@@ -1303,10 +1351,22 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert Commits.file_detail(project.id, "head", "Sources/Text.swift", measured: true) == nil
   end
 
-  test "is the observed figure when the runs listed no candidates", %{project: project, account: account} do
+  test "is measured when the runs listed no candidates and none left tests out", %{project: project, account: account} do
     CoverageFixtures.run_with_coverage(project, account, [file("Sources/Math.swift", [1, 0])], %{git_commit_sha: "head"})
 
-    assert %{kind: "observed", covered_lines: 1, executable_lines: 2} = Reported.compute(project, "head")
+    assert %{kind: "measured", covered_lines: 1, executable_lines: 2} = Reported.compute(project, "head")
     assert Reported.compute(project, "unknown") == nil
+  end
+
+  test "is the observed figure when the runs listed no candidates and one left tests out", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/Math.swift", [1, 0])], %{
+      git_commit_sha: "head",
+      partial: true
+    })
+
+    assert %{kind: "observed", covered_lines: 1, executable_lines: 2} = Reported.compute(project, "head")
   end
 end

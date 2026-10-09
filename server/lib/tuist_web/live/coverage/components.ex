@@ -404,8 +404,8 @@ defmodule TuistWeb.Coverage.Components do
       else: skipped_title(commit)
   end
 
-  defp skipped_title(%{reported_kind: "partial", skipped_tests_count: skipped, carried_tests_count: carried})
-       when skipped > carried do
+  defp skipped_title(%{reported_kind: kind, skipped_tests_count: skipped, carried_tests_count: carried})
+       when kind in ~w(observed partial) and skipped > carried do
     dngettext(
       "dashboard_tests",
       "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher.",

@@ -64,23 +64,30 @@ defmodule Tuist.Tests.Coverage.Commits do
   def fully_carried?(%{reported_kind: "reported", schemes: []}), do: true
   def fully_carried?(_row), do: false
 
+  @incomplete_kinds ~w(observed partial)
+
   @doc """
-  Whether the commit's figure is incomplete, a lower bound (`reported_kind`
-  `partial`, `gap_reasons` saying why): the coverage of some skipped tests
-  could not be determined, a selective run's skipped tests could not be
-  listed, or a scheme's coverage only came from CI runs on a dirty checkout. The
-  fold decides it, so the actual coverage may be higher. A figure whose
-  skipped tests were all carried forward is complete, as is one nothing
-  skipped in.
+  Whether the commit's figure is incomplete (`reported_kind` `observed`,
+  `gap_reasons` saying why): its runs skipped tests whose coverage could not
+  be carried forward exactly, could not list what they skipped, measured
+  less than the nearest ancestor did of a file they did not compile, or a
+  scheme's coverage only came from CI runs on a dirty checkout. The figure is
+  then what the runs measured, and the actual coverage may be higher. Rows
+  folded before `observed` meant this are `partial`, read the same way. A
+  figure whose skipped tests were all carried forward is complete, as is one
+  nothing skipped in.
   """
-  def incomplete?(%{reported_kind: kind}), do: kind == "partial"
+  def incomplete?(%{reported_kind: kind}), do: kind in @incomplete_kinds
   def incomplete?(_row), do: false
 
   @doc "Why the commit's figure is a lower bound (`Tuist.Tests.Coverage.GapReasons`), none when it is whole."
   def gap_reasons(row), do: GapReasons.decode(Map.get(row, :gap_reasons) || 0)
 
   @doc "Narrows a query over `CoverageCommit` to the commits whose figure is complete (`incomplete?/1`)."
-  def complete_figures(query), do: where(query, [c], c.reported_kind != "partial")
+  def complete_figures(query), do: where(query, [c], c.reported_kind not in @incomplete_kinds)
+
+  @doc false
+  def incomplete_kinds, do: @incomplete_kinds
 
   @doc """
   A commit's status on a branch: `:not_measured` when no run gave it a figure
@@ -258,22 +265,15 @@ defmodule Tuist.Tests.Coverage.Commits do
     end
   end
 
-  # Besides the gaps `Reported` finds, the figure is a lower bound when what a
-  # selective run skipped could not be listed (`observed` with a partial
-  # scheme), or when a scheme's coverage only came from CI runs on a dirty
-  # checkout: the pipeline set out to measure it, and no clean run of it did,
+  # Besides the gaps `Reported` finds, the figure is incomplete when a
+  # scheme's coverage only came from CI runs on a dirty checkout: the pipeline set out to measure it, and no clean run of it did,
   # not even one skipped whole. A local run measures what a developer tried,
   # not what the pipeline owes the commit. Settled on the built row, so the unmeasured
   # files are still read the way the coverage was reached.
   defp lower_bound(row, project_id, sha) do
-    row =
-      if row.reported_kind == "observed" and row.partial_schemes != [],
-        do: %{row | reported_kind: "partial"},
-        else: row
-
     if dirty_only_scheme?(project_id, sha) do
       reasons = GapReasons.decode(row.gap_reasons) ++ [:dirty_run_excluded]
-      %{row | reported_kind: "partial", gap_reasons: GapReasons.encode(reasons)}
+      %{row | reported_kind: "observed", gap_reasons: GapReasons.encode(reasons)}
     else
       row
     end
