@@ -130,6 +130,9 @@ This node covers Helm assets under `infra/helm/`.
   Canary and production enable them fleet-wide after the platform-index
   enablement migration. Self-hosting and staging stay off by default; staging's
   40 GiB cache quota cannot fit the built-in reservation and custom admission floor.
+  Production M4 replacement hosts have a 512 GiB shared cache quota; M2 stays
+  at 80 GiB. Existing APFS quotas are immutable under bootstrap and the fleet
+  uses OnDelete: deploy the host free-space guard before replacing drained M4s.
 - Cache-volume agents expose phase/source/result telemetry on a separate port
   9091. Allow scraping only from `observability`, retain the series in staging,
   and keep runner acquisition on 8090 under its existing pod selector.
