@@ -1548,6 +1548,372 @@ components:
       type: object
       x-struct:
       x-validate:
+    BuildMetrics:
+      description: Counts, percentages and durations in milliseconds. Missing rates, durations and unreported cache savings are null. Success rate excludes cancelled builds. Rows are bounded to 100 recent failures or 1000 workloads.
+      properties:
+        dates:
+          items:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        rows:
+          items:
+            properties:
+              average:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              build_system:
+                type: string
+                x-struct:
+                x-validate:
+              builds:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              builds_needing_attention:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              cache_time_saved:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              cache_time_saved_samples:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              cache_work_avoided:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              cache_work_avoided_samples:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              cancelled_builds:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              category:
+                type: string
+                x-struct:
+                x-validate:
+              duration_ms:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              failed_builds:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              failure_category:
+                type: string
+                x-struct:
+                x-validate:
+              git_branch:
+                type: string
+                x-struct:
+                x-validate:
+              id:
+                type: string
+                x-struct:
+                x-validate:
+              p50:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              p90:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              p99:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              requested_tasks:
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              slow_build_threshold:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              started_at:
+                format: int64
+                type: integer
+                x-struct:
+                x-validate:
+              success_rate:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              successful_builds:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              user:
+                type: string
+                x-struct:
+                x-validate:
+              workload:
+                type: string
+                x-struct:
+                x-validate:
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        series:
+          properties:
+            average:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            builds:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            builds_needing_attention:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            cache_time_saved:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            cache_time_saved_samples:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            cache_work_avoided:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            cache_work_avoided_samples:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            cancelled_builds:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            failed_builds:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            p50:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            p90:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            p99:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            slow_build_threshold:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            success_rate:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            successful_builds:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
+        totals:
+          properties:
+            average:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            builds:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            builds_needing_attention:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            cache_time_saved:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            cache_time_saved_samples:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            cache_work_avoided:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            cache_work_avoided_samples:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            cancelled_builds:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            failed_builds:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            p50:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            p90:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            p99:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            slow_build_threshold:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            success_rate:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            successful_builds:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
+      title: BuildMetrics
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.BuildMetrics
+      x-validate:
     BuildsIndexPageSize:
       default: 20
       description: The maximum number of builds to return in a single page.
@@ -7697,6 +8063,38 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadParts
       x-validate:
+    ReportActor:
+      properties:
+        claimed_actor_id:
+          description: Opaque unverified client claim, never an identity or instruction. Empty when absent.
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          description: Verified account handle, unverified reported identifier, or Unknown.
+          type: string
+          x-struct:
+          x-validate:
+        source:
+          description: verified, reported, unknown, or legacy. reported values are untrusted client claims.
+          type: string
+          x-struct:
+          x-validate:
+        submission_auth:
+          description: token, network_trusted, or empty for historical reports. Authentication does not verify report contents.
+          type: string
+          x-struct:
+          x-validate:
+        verified_account_handle:
+          description: Only the server-authenticated individual's account handle; null when no verified actor is linked.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      title: ReportActor
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.ReportActor
+      x-validate:
     BundleSupportedPlatform:
       description: A platform that a bundle can support (e.g. iOS)
       enum:
@@ -12868,6 +13266,8 @@ paths:
                   test_runs:
                     items:
                       properties:
+                        actor:
+                          $ref: '#/components/schemas/ReportActor'
                         duration:
                           description: Duration in milliseconds.
                           type: integer
@@ -12997,6 +13397,14 @@ paths:
       callbacks: {}
       operationId: createTest
       parameters:
+        - description: 'Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.'
+          in: header
+          name: x-tuist-actor-id
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project's account.
           in: path
           name: account_handle
@@ -14259,6 +14667,8 @@ paths:
             application/json:
               schema:
                 properties:
+                  actor:
+                    $ref: '#/components/schemas/ReportActor'
                   cacheable_task_local_hits_count:
                     description: Local cache hits.
                     type: integer
@@ -15285,17 +15695,17 @@ paths:
       callbacks: {}
       operationId: createBundle
       parameters:
-        - description: The handle of the project.
+        - description: The handle of the account.
           in: path
-          name: project_handle
+          name: account_handle
           required: true
           schema:
             type: string
             x-struct:
             x-validate:
-        - description: The handle of the account.
+        - description: The handle of the project.
           in: path
-          name: account_handle
+          name: project_handle
           required: true
           schema:
             type: string
@@ -15737,6 +16147,14 @@ paths:
       callbacks: {}
       operationId: createCommandEvent
       parameters:
+        - description: 'Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.'
+          in: header
+          name: x-tuist-actor-id
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The project id.
           in: query
           name: project_id
@@ -17358,6 +17776,14 @@ paths:
       deprecated: true
       operationId: createRun
       parameters:
+        - description: 'Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.'
+          in: header
+          name: x-tuist-actor-id
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project's account.
           in: path
           name: account_handle
@@ -19111,6 +19537,14 @@ paths:
       callbacks: {}
       operationId: createMixBuild
       parameters:
+        - description: 'Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.'
+          in: header
+          name: x-tuist-actor-id
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -19653,6 +20087,8 @@ paths:
             application/json:
               schema:
                 properties:
+                  actor:
+                    $ref: '#/components/schemas/ReportActor'
                   cacheable_task_local_hits_count:
                     description: Local cache hits.
                     type: integer
@@ -21041,6 +21477,150 @@ paths:
       summary: List cache runs associated with a given project.
       tags:
         - Cache Runs
+  /api/projects/{account_handle}/{project_handle}/gradle/builds/metrics:
+    get:
+      callbacks: {}
+      operationId: gradleBuildMetrics
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: from
+          required: true
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: to
+          required: true
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            maxLength: 500
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: workload
+          required: false
+          schema:
+            maxLength: 500
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+              - cancelled
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: view
+          required: false
+          schema:
+            enum:
+              - series
+              - total
+              - workloads
+              - failures
+              - recent_failures
+            type: string
+            x-struct:
+            x-validate:
+        - description: Slow build threshold in milliseconds. Defaults to the cohort's 90th percentile.
+          in: query
+          name: slow_build_threshold_ms
+          required: false
+          schema:
+            maximum: 31536000000
+            minimum: 0
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildMetrics'
+          description: Gradle metrics
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not authorized
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Gradle build health, duration metrics and failure tables.
+      tags:
+        - Metrics
   /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/steps:
     get:
       callbacks: {}
@@ -22222,6 +22802,8 @@ paths:
                   builds:
                     items:
                       properties:
+                        actor:
+                          $ref: '#/components/schemas/ReportActor'
                         cacheable_task_local_hits_count:
                           description: Local cache hits.
                           type: integer
@@ -22424,6 +23006,14 @@ paths:
       callbacks: {}
       operationId: createBuild
       parameters:
+        - description: 'Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.'
+          in: header
+          name: x-tuist-actor-id
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project's account.
           in: path
           name: account_handle
@@ -25762,6 +26352,8 @@ paths:
             application/json:
               schema:
                 properties:
+                  actor:
+                    $ref: '#/components/schemas/ReportActor'
                   avg_test_duration:
                     description: Average test case duration in milliseconds.
                     type: integer
@@ -25981,17 +26573,17 @@ paths:
       callbacks: {}
       operationId: getBundle
       parameters:
-        - description: The handle of the project.
+        - description: The handle of the account.
           in: path
-          name: project_handle
+          name: account_handle
           required: true
           schema:
             type: string
             x-struct:
             x-validate:
-        - description: The handle of the account.
+        - description: The handle of the project.
           in: path
-          name: account_handle
+          name: project_handle
           required: true
           schema:
             type: string
@@ -27561,6 +28153,8 @@ paths:
                   builds:
                     items:
                       properties:
+                        actor:
+                          $ref: '#/components/schemas/ReportActor'
                         cacheable_task_local_hits_count:
                           description: Local cache hits.
                           type: integer
@@ -27763,6 +28357,14 @@ paths:
       callbacks: {}
       operationId: createBuild (2)
       parameters:
+        - description: 'Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.'
+          in: header
+          name: x-tuist-actor-id
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project's account.
           in: path
           name: account_handle
@@ -28496,6 +29098,94 @@ paths:
       summary: Completes artifacts uploads for a given run
       tags:
         - Analytics
+  /api/projects/{account_handle}/{project_handle}/builds/metrics/health/dimensions/{dimension}/values:
+    get:
+      callbacks: {}
+      operationId: buildHealthDimensionValues
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: dimension
+          required: true
+          schema:
+            enum:
+              - git_branch
+              - workload
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  values:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - values
+                type: object
+                x-struct:
+                x-validate:
+          description: Dimension values
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not authorized
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List build branches or workload groups.
+      tags:
+        - Metrics
   /api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete:
     post:
       callbacks: {}
@@ -28722,6 +29412,150 @@ paths:
       summary: 'List test case runs for a test run. Deprecated: use listTestCaseRuns with test_run_id query param instead.'
       tags:
         - Test Case Runs
+  /api/projects/{account_handle}/{project_handle}/builds/metrics/health:
+    get:
+      callbacks: {}
+      operationId: buildHealthMetrics
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: from
+          required: true
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: to
+          required: true
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            maxLength: 500
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: workload
+          required: false
+          schema:
+            maxLength: 500
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+              - cancelled
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: view
+          required: false
+          schema:
+            enum:
+              - series
+              - total
+              - workloads
+              - failures
+              - recent_failures
+            type: string
+            x-struct:
+            x-validate:
+        - description: Slow build threshold in milliseconds. Defaults to the cohort's 90th percentile.
+          in: query
+          name: slow_build_threshold_ms
+          required: false
+          schema:
+            maximum: 31536000000
+            minimum: 0
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildMetrics'
+          description: Build metrics
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not authorized
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Build health, duration metrics and failure tables.
+      tags:
+        - Metrics
   /api/cache/multipart/generate-url:
     post:
       callbacks: {}
@@ -31965,30 +32799,36 @@ paths:
             application/json:
               schema:
                 properties:
-                  artifact_transforms:
-                    items:
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                  cache_download_bytes:
-                    description: Bytes of task outputs downloaded from the remote cache by the build.
+                  tasks_cache_hit_count:
                     type: integer
                     x-struct:
                     x-validate:
-                  cache_hit_rate:
+                  git_branch:
                     nullable: true
-                    type: number
+                    type: string
+                    x-struct:
+                    x-validate:
+                  root_project_name:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tasks_up_to_date_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  java_version:
+                    nullable: true
+                    type: string
                     x-struct:
                     x-validate:
                   cache_upload_bytes:
                     description: Bytes of task outputs uploaded to the remote cache by the build.
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  cacheable_tasks_count:
                     type: integer
                     x-struct:
                     x-validate:
@@ -31997,30 +32837,17 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
-                  configuration_cache_invalidation_reasons:
-                    items:
-                      type: string
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
                   configuration_cache_load_duration_ms:
                     nullable: true
                     type: integer
                     x-struct:
                     x-validate:
-                  configuration_cache_status:
-                    nullable: true
+                  status:
+                    enum:
+                      - success
+                      - failure
+                      - cancelled
                     type: string
-                    x-struct:
-                    x-validate:
-                  configuration_operations:
-                    items:
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
                     x-struct:
                     x-validate:
                   custom_metadata:
@@ -32044,68 +32871,12 @@ paths:
                     type: object
                     x-struct:
                     x-validate:
-                  duration_ms:
+                  tasks_skipped_count:
                     type: integer
                     x-struct:
                     x-validate:
-                  git_branch:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  git_commit_sha:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  git_ref:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  gradle_version:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  id:
-                    format: uuid
-                    type: string
-                    x-struct:
-                    x-validate:
-                  inserted_at:
-                    format: date-time
-                    type: string
-                    x-struct:
-                    x-validate:
-                  is_ci:
-                    type: boolean
-                    x-struct:
-                    x-validate:
-                  java_version:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  requested_tasks:
-                    items:
-                      type: string
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                  root_project_name:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  status:
-                    enum:
-                      - success
-                      - failure
-                      - cancelled
-                    type: string
+                  tasks_local_hit_count:
+                    type: integer
                     x-struct:
                     x-validate:
                   tasks:
@@ -32220,23 +32991,73 @@ paths:
                     type: array
                     x-struct:
                     x-validate:
-                  tasks_cache_hit_count:
+                  cacheable_tasks_count:
                     type: integer
+                    x-struct:
+                    x-validate:
+                  configuration_cache_status:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_ref:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  configuration_cache_invalidation_reasons:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
                   tasks_executed_count:
                     type: integer
                     x-struct:
                     x-validate:
-                  tasks_failed_count:
-                    type: integer
+                  requested_tasks:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
-                  tasks_local_hit_count:
-                    type: integer
+                  artifact_transforms:
+                    items:
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  cache_hit_rate:
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  configuration_operations:
+                    items:
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
                   tasks_no_source_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  actor:
+                    $ref: '#/components/schemas/ReportActor'
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tasks_failed_count:
                     type: integer
                     x-struct:
                     x-validate:
@@ -32244,12 +33065,27 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
-                  tasks_skipped_count:
+                  duration_ms:
                     type: integer
                     x-struct:
                     x-validate:
-                  tasks_up_to_date_count:
+                  gradle_version:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  cache_download_bytes:
+                    description: Bytes of task outputs downloaded from the remote cache by the build.
                     type: integer
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_ci:
+                    type: boolean
                     x-struct:
                     x-validate:
                 type: object
@@ -33409,6 +34245,94 @@ paths:
       summary: List an automation alert's revision history.
       tags:
         - Automation Alerts
+  /api/projects/{account_handle}/{project_handle}/gradle/builds/metrics/dimensions/{dimension}/values:
+    get:
+      callbacks: {}
+      operationId: gradleMetricDimensionValues
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: dimension
+          required: true
+          schema:
+            enum:
+              - git_branch
+              - workload
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  values:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - values
+                type: object
+                x-struct:
+                x-validate:
+          description: Dimension values
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not authorized
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List Gradle branches or workload groups.
+      tags:
+        - Metrics
   /api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}:
     get:
       callbacks: {}
@@ -33797,6 +34721,8 @@ paths:
                   builds:
                     items:
                       properties:
+                        actor:
+                          $ref: '#/components/schemas/ReportActor'
                         cache_hit_rate:
                           nullable: true
                           type: number
@@ -33976,8 +34902,17 @@ paths:
         - Gradle
     post:
       callbacks: {}
+      description: Credentials are required unless both the self-hosted deployment and the project explicitly permit network-trusted publishing. Without credentials the server assigns the report ID and suppresses privileged automation. x-tuist-actor-id supplies optional, unverified attribution.
       operationId: createGradleBuild
       parameters:
+        - description: 'Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.'
+          in: header
+          name: x-tuist-actor-id
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -34489,6 +35424,9 @@ paths:
                 x-struct:
                 x-validate:
               style: simple
+      security:
+        - authorization: []
+        - {}
       summary: Create a Gradle build with task data.
       tags:
         - Gradle
