@@ -42,17 +42,22 @@ enum PeerClientTimeouts {
 #[derive(Clone)]
 pub struct PeerClientFactory {
     identity: Arc<ArcSwapOption<PeerIdentity>>,
+    topology_routing: bool,
 }
 
 impl PeerClientFactory {
     pub fn plain() -> Self {
         Self {
             identity: Arc::new(ArcSwapOption::const_empty()),
+            topology_routing: false,
         }
     }
 
     pub async fn from_config(config: &Config) -> Result<Self, String> {
-        let factory = Self::plain();
+        let factory = Self {
+            topology_routing: config.peer_topology.is_some(),
+            ..Self::plain()
+        };
         if config.peer_tls.is_some() {
             factory.reload_from_config(config).await?;
         }
@@ -113,6 +118,11 @@ impl PeerClientFactory {
 
     fn builder(&self, timeouts: PeerClientTimeouts) -> Result<reqwest::ClientBuilder, String> {
         let mut builder = Client::builder().connect_timeout(Duration::from_secs(5));
+        if self.topology_routing {
+            builder = builder
+                .redirect(reqwest::redirect::Policy::none())
+                .no_proxy();
+        }
         if timeouts == PeerClientTimeouts::Download {
             // Idle/read timeout, NOT a total request timeout. A backfill
             // artifact streams its whole body over this client; under
@@ -451,6 +461,59 @@ mod tests {
             peer_identity_from_der(client_b_cert.der()).0.as_ref()
         );
         assert_ne!(identity_a, identity_b);
+
+        let private_url = format!("https://localhost:{}", addr.port());
+        let topology = crate::peer_topology::PeerTopology {
+            canonical_networks: Vec::new(),
+            provider: "ovh".into(),
+            private_network: Some("verified-vrack".into()),
+            private_url: Some(private_url.clone()),
+        };
+        let ctx = crate::test_support::test_context(|config| {
+            config.peer_topology = Some(topology.clone());
+            config.peer_tls = Some(PeerTlsConfig {
+                ca_cert_path: peer_tls.ca_cert_path.clone(),
+                cert_path: write_pem(dir.path(), "client.crt", &client_a_cert.pem()),
+                key_path: write_pem(dir.path(), "client.key", &client_a_key.serialize_pem()),
+            });
+        })
+        .await;
+        let factory = PeerClientFactory::from_config(&ctx.state.config)
+            .await
+            .unwrap();
+        ctx.state.client.store(Arc::new(factory.build().unwrap()));
+        for (provider, canonical) in [
+            ("ovh", "https://public.invalid:7443".to_owned()),
+            ("vultr", private_url),
+        ] {
+            let mut remote = topology.clone();
+            remote.provider = provider.into();
+            ctx.state
+                .apply_peer_views(vec![crate::sync::roles::PeerView {
+                    private_healthy: true,
+                    url: canonical.clone(),
+                    region: "remote".into(),
+                    topology: Some(remote),
+                    serving: true,
+                    draining: false,
+                }]);
+            let response = ctx
+                .state
+                .peer_request(
+                    reqwest::Method::GET,
+                    &canonical,
+                    &format!("{canonical}/identity"),
+                )
+                .unwrap()
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(
+                response.text().await.unwrap(),
+                identity_a,
+                "{provider} routing preserves authenticated mTLS"
+            );
+        }
 
         handle.shutdown();
         let _ = server.await;

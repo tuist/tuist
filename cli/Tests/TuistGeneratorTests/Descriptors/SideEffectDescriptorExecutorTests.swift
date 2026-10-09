@@ -81,6 +81,221 @@ struct SideEffectDescriptorExecutorTests {
         #expect(try await fileSystem.resolveSymbolicLink(link) == newDestination)
     }
 
+    @Test(.inTemporaryDirectory) func execute_createsSymbolicLinkWithoutListingItsDirectory() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let destination = temporaryDirectory.appending(components: "Artifacts", "Module.framework")
+        let directory = temporaryDirectory.appending(components: "Derived", "FrameworkSearchPaths", "Swift", "App")
+        let existingLink = directory.appending(component: "Existing.framework")
+        let link = directory.appending(component: "Module.framework")
+        try await fileSystem.makeDirectory(at: destination)
+        try await fileSystem.makeDirectory(at: directory)
+        try await fileSystem.createSymbolicLink(from: existingLink, to: destination)
+        // Write and search permissions only: entries can be created and looked up, but listing the directory fails.
+        try FileManager.default.setAttributes([.posixPermissions: 0o300], ofItemAtPath: directory.pathString)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: directory.pathString) }
+
+        try await subject.execute(sideEffects: [
+            .symbolicLink(SymbolicLinkDescriptor(path: link, destination: destination)),
+        ])
+
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: link.pathString) == destination.pathString)
+    }
+
+    @Test(.inTemporaryDirectory) func execute_replacesDirectoryWithSymbolicLink() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let destination = temporaryDirectory.appending(components: "Artifacts", "Module.framework")
+        let link = temporaryDirectory.appending(components: "Derived", "Module.framework")
+        try await fileSystem.makeDirectory(at: destination)
+        try await fileSystem.makeDirectory(at: link)
+
+        try await subject.execute(sideEffects: [
+            .symbolicLink(SymbolicLinkDescriptor(path: link, destination: destination)),
+        ])
+
+        #expect(try await fileSystem.resolveSymbolicLink(link) == destination)
+        #expect(try await fileSystem.exists(destination, isDirectory: true))
+    }
+
+    @Test(.inTemporaryDirectory) func execute_removesDanglingSymbolicLink() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let destination = temporaryDirectory.appending(components: "Artifacts", "Module.framework")
+        let link = temporaryDirectory.appending(components: "Derived", "Module.framework")
+        try await fileSystem.makeDirectory(at: link.parentDirectory)
+        try await fileSystem.createSymbolicLink(from: link, to: destination)
+
+        try await subject.execute(sideEffects: [
+            .symbolicLink(SymbolicLinkDescriptor(path: link, destination: destination, state: .absent)),
+        ])
+
+        #expect(try FileManager.default.contentsOfDirectory(atPath: link.parentDirectory.pathString).isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory) func execute_createsSymbolicLinksAcrossManyDirectories() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let artifacts = temporaryDirectory.appending(component: "Artifacts")
+        let staleDestination = temporaryDirectory.appending(component: "Stale.framework")
+        let linksDirectory = temporaryDirectory.appending(components: "Derived", "FrameworkSearchPaths", "Swift")
+        var descriptors: [SideEffectDescriptor] = []
+        var expectedDestinations: [AbsolutePath: AbsolutePath] = [:]
+        for frameworkIndex in 0 ..< 40 {
+            try await fileSystem.makeDirectory(at: artifacts.appending(component: "Module\(frameworkIndex).framework"))
+        }
+        for targetIndex in 0 ..< 30 {
+            let targetDirectory = linksDirectory.appending(component: "Target\(targetIndex)")
+            if targetIndex.isMultiple(of: 3) {
+                try await fileSystem.makeDirectory(at: targetDirectory)
+                try await fileSystem.createSymbolicLink(
+                    from: targetDirectory.appending(component: "Module0.framework"),
+                    to: staleDestination
+                )
+            }
+            for frameworkIndex in 0 ..< 40 {
+                let destination = artifacts.appending(component: "Module\(frameworkIndex).framework")
+                let link = targetDirectory.appending(component: destination.basename)
+                expectedDestinations[link] = destination
+                descriptors.append(.symbolicLink(SymbolicLinkDescriptor(path: link, destination: destination)))
+            }
+        }
+
+        try await subject.execute(sideEffects: descriptors)
+
+        for (link, destination) in expectedDestinations {
+            #expect(try await fileSystem.resolveSymbolicLink(link) == destination)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func execute_writesFilesAfterTheGeneratedFilesCleanupThatPrecedesThem() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory).appending(component: "FrameworkSearchPaths")
+        let responseFiles = (0 ..< 20).map { directory.appending(component: "Target\($0).resp") }
+        let links = (0 ..< 20).map { directory.appending(components: "Swift", "Target\($0)", "Module.framework") }
+        let destination = try #require(FileSystem.temporaryTestDirectory).appending(component: "Module.framework")
+        try await fileSystem.makeDirectory(at: destination)
+        for responseFile in responseFiles {
+            try await fileSystem.makeDirectory(at: responseFile.parentDirectory)
+            try await fileSystem.writeText("stale", at: responseFile)
+        }
+
+        try await subject.execute(sideEffects: [
+            .generatedFilesCleanup(.init(directories: [directory], activeFilesByDirectory: [:], include: ["*.resp"])),
+            .generatedFilesCleanup(.init(
+                directories: [directory],
+                activeFilesByDirectory: [:],
+                include: ["Swift/*/*.framework"]
+            )),
+        ] + responseFiles.map { .file(FileDescriptor(path: $0, contents: Data("active".utf8))) }
+            + links.map { .symbolicLink(SymbolicLinkDescriptor(path: $0, destination: destination)) })
+
+        for responseFile in responseFiles {
+            #expect(try await fileSystem.readTextFile(at: responseFile) == "active")
+        }
+        for link in links {
+            #expect(try await fileSystem.resolveSymbolicLink(link) == destination)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func execute_keepsTheOrderOfOverlappingDescriptors() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let recreatedDirectory = temporaryDirectory.appending(component: "Recreated")
+        let removedDirectory = temporaryDirectory.appending(component: "Removed")
+        let rewrittenFile = temporaryDirectory.appending(component: "Rewritten.txt")
+        try await fileSystem.makeDirectory(at: recreatedDirectory)
+        try await fileSystem.writeText("stale", at: recreatedDirectory.appending(component: "Stale.txt"))
+
+        try await subject.execute(sideEffects: [
+            .directory(DirectoryDescriptor(path: recreatedDirectory, state: .absent)),
+            .file(FileDescriptor(path: recreatedDirectory.appending(component: "File.txt"), contents: Data("new".utf8))),
+            .file(FileDescriptor(path: removedDirectory.appending(component: "File.txt"), contents: Data("new".utf8))),
+            .directory(DirectoryDescriptor(path: removedDirectory, state: .absent)),
+            .file(FileDescriptor(path: rewrittenFile, contents: Data("first".utf8))),
+            .file(FileDescriptor(path: rewrittenFile, contents: Data("second".utf8))),
+        ])
+
+        #expect(try await fileSystem.readTextFile(at: recreatedDirectory.appending(component: "File.txt")) == "new")
+        #expect(try await !fileSystem.exists(recreatedDirectory.appending(component: "Stale.txt")))
+        #expect(try await !fileSystem.exists(removedDirectory))
+        #expect(try await fileSystem.readTextFile(at: rewrittenFile) == "second")
+    }
+
+    @Test(.inTemporaryDirectory) func execute_keepsTheOrderOfWritesThroughSymbolicLinkAliases() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let real = temporaryDirectory.appending(component: "Real")
+        let alias = temporaryDirectory.appending(component: "Alias")
+        let nestedAlias = temporaryDirectory.appending(component: "NestedAlias")
+        try await fileSystem.makeDirectory(at: real)
+        try await fileSystem.createSymbolicLink(from: alias, to: real)
+        try await fileSystem.createSymbolicLink(from: nestedAlias, to: alias)
+        let fileNames = (0 ..< 100).map { "File\($0).txt" }
+        let firstContents = Data(repeating: UInt8(ascii: "a"), count: 1_000_000)
+
+        try await subject.execute(sideEffects: fileNames.flatMap { fileName -> [SideEffectDescriptor] in
+            [
+                .file(FileDescriptor(path: real.appending(component: fileName), contents: firstContents)),
+                .file(FileDescriptor(path: alias.appending(component: fileName), contents: Data("second".utf8))),
+                .file(FileDescriptor(path: nestedAlias.appending(component: fileName), contents: Data("third".utf8))),
+            ]
+        })
+
+        for fileName in fileNames {
+            #expect(try await fileSystem.readTextFile(at: real.appending(component: fileName)) == "third")
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func execute_keepsTheOrderOfReplacingASymbolicLinkAndWritingThroughIt() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let oldDirectory = temporaryDirectory.appending(component: "Old")
+        let newDirectory = temporaryDirectory.appending(component: "New")
+        let intermediate = temporaryDirectory.appending(component: "Intermediate")
+        let alias = temporaryDirectory.appending(component: "Alias")
+        try await fileSystem.makeDirectory(at: oldDirectory)
+        try await fileSystem.makeDirectory(at: newDirectory)
+        try await fileSystem.makeDirectory(at: intermediate)
+        try await fileSystem.createSymbolicLink(from: intermediate.appending(component: "Link"), to: oldDirectory)
+        try await fileSystem.createSymbolicLink(from: alias, to: intermediate)
+
+        try await subject.execute(sideEffects: [
+            .symbolicLink(SymbolicLinkDescriptor(path: intermediate.appending(component: "Link"), destination: newDirectory)),
+            .file(FileDescriptor(path: alias.appending(components: "Link", "File.txt"), contents: Data("new".utf8))),
+        ])
+
+        #expect(try await fileSystem.readTextFile(at: newDirectory.appending(component: "File.txt")) == "new")
+        #expect(try await !fileSystem.exists(oldDirectory.appending(component: "File.txt")))
+    }
+
+    @Test(.inTemporaryDirectory) func execute_runsCommandsInOrder() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        commandRunner.succeedCommand(["first"])
+        commandRunner.succeedCommand(["second"])
+
+        try await subject.execute(sideEffects: [
+            .command(CommandDescriptor(command: "first")),
+            .file(FileDescriptor(path: temporaryDirectory.appending(component: "A.txt"))),
+            .file(FileDescriptor(path: temporaryDirectory.appending(component: "B.txt"))),
+            .command(CommandDescriptor(command: "second")),
+        ])
+
+        #expect(commandRunner.calls == ["first", "second"])
+    }
+
+    @Test(.inTemporaryDirectory) func execute_matchesGlobDotsLiterallyWhenCleaningGeneratedFiles() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let matchingFile = directory.appending(components: "Swift", "App", "Module.framework")
+        let literalDotFile = directory.appending(components: "Swift", "App", "ModuleXframework")
+        try await fileSystem.makeDirectory(at: matchingFile.parentDirectory)
+        try await fileSystem.writeText("", at: matchingFile)
+        try await fileSystem.writeText("", at: literalDotFile)
+
+        try await subject.execute(sideEffects: [
+            .generatedFilesCleanup(.init(
+                directories: [directory],
+                activeFilesByDirectory: [:],
+                include: ["Swift/*/*.framework"]
+            )),
+        ])
+
+        #expect(try await !fileSystem.exists(matchingFile))
+        #expect(try await fileSystem.exists(literalDotFile))
+    }
+
     @Test(.inTemporaryDirectory) func execute_cleansStaleGeneratedFiles() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory).appending(component: "ModuleMaps")
         let activeFile = directory.appending(component: "App-deps.modulemap")

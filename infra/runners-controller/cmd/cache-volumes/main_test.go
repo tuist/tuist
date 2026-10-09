@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tuist/tuist/infra/runners-controller/internal/cachevolumes"
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -21,7 +21,7 @@ import (
 
 type testBackend struct{}
 
-func (testBackend) Attach(cachevolumes.Slot, string) error                  { return nil }
+func (testBackend) Attach(context.Context, cachevolumes.Slot, string) error { return nil }
 func (testBackend) Seal(cachevolumes.Slot, string) error                    { return nil }
 func (testBackend) Delete(cachevolumes.Slot, string) error                  { return nil }
 func (testBackend) Measure(cachevolumes.Slot, string) (int64, int64, error) { return 0, 100, nil }

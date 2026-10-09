@@ -3,8 +3,11 @@
 Linux custom volumes use the same storage model as the automatic macOS cache:
 persistent local masters, private copy-on-write branches, immutable object-storage
 images, and generation-checked publication. No Ceph cluster, credentials, RBD
-images or network block devices are required. Custom key/path volumes remain
-Linux-only; the existing automatic macOS repository cache is unchanged.
+images or network block devices are required.
+
+This runbook covers the Linux backend. macOS custom volumes use the shared
+lifecycle with an [APFS backend](../tart-kubelet/custom-cache-volumes.md);
+the existing automatic macOS repository cache remains unchanged.
 
 The feature is disabled by default for self-hosted installs. Staging is enabled
 for the validation below. The managed production overlay enables it through the
@@ -41,7 +44,9 @@ key/path pair per action, before any tool populates that directory. Absolute,
 relative and `~/` paths work. Existing nonempty directories cause an error.
 `cache-hit` is `true` when attached from a published snapshot, otherwise `false`.
 Do not restore an archive into the same path. A missing agent or failed attachment
-warns and creates ordinary job-local directories; errors after attachment may
+warns and creates ordinary job-local directories. Acquisition waits at most 30 seconds;
+the host has a 25-second budget for authorization and restoration. Expired
+restores are cancelled and remain ineligible for publication. Errors after attachment may
 fail the build. No workflow OIDC permission or privileged container is required.
 
 Keys allow 1–200 ASCII letters, digits, dots, underscores, slashes and hyphens,
@@ -63,7 +68,7 @@ Linux storage names are `linux-<hash of volume UUID and clear generation>`;
 macOS dispatch names still accept only `tuist-cache` and repository names. A Linux
 custom volume cannot be selected as a macOS cache by widening storage validation.
 
-The filesystem-specific implementation lives in `internal/cachevolumes/local.go`:
+The filesystem-specific implementation lives in `../runner-cache/local.go`:
 
 - A dedicated XFS filesystem with reflinks (or another validated reflink-capable
   filesystem) holds immutable masters and sparse, 20 decimal GB ext4 images.
@@ -219,7 +224,7 @@ orphaned images and still enforce teardown fences. See
 
 The normal controller release publishes its cache-volume agent with the same
 semantic version and checks both registry images before creating the release tag.
-Production inherits that version from `runnersController.image.tag`; an explicit
+Managed staging and production inherit that version from `runnersController.image.tag`; an explicit
 `cacheVolumes.image.tag` remains available for staging and self-hosted deployments.
 No separate production kubectl elevation is part of the merge/deploy path.
 
@@ -317,3 +322,49 @@ storage was exhausted. Sealing rejected that branch, freeing space and restartin
 the backend could not publish it, and an independent restore retained the previous
 good contents. This covers isolated filesystem exhaustion, not fleet-wide capacity
 planning, physical host loss or reboot.
+
+## Restoration and locality telemetry
+
+The agent exports `/metrics` on port 9091, separate from runner acquisition on
+8090. Alloy discovers the annotated pods; only the observability namespace is
+allowed to scrape. Series have bounded operation, source and result labels, with
+no repository keys, lease IDs, paths or signed URLs. Structured logs provide the
+same phase, source, result and duration in milliseconds. Successful periodic
+maintenance is counted without producing a log line every 30 seconds.
+
+- `tuist_runner_cache_volume_operations_total`: successes, timeouts, cancellations,
+  conflicts, invalid images and capacity rejection, split by phase and source.
+- `tuist_runner_cache_volume_operation_duration_seconds`: phase timing, including
+  unsuccessful attempts. Attach sources distinguish `empty`, `local`, `remote`
+  and `unknown` (a failure before the source was determined).
+- `tuist_runner_cache_volume_filesystem_{available,capacity,reserve}_bytes`: actual
+  dedicated-filesystem headroom rather than summed logical image sizes.
+- `tuist_runner_cache_volume_maintenance_last_success_timestamp_seconds`: detects
+  stalled cleanup/publication even when the process remains ready.
+
+For p95 attachment time in production (non-production retains counts and sums,
+but the existing fleet policy drops histogram buckets):
+
+```promql
+histogram_quantile(0.95, sum by (le, source) (
+  rate(tuist_runner_cache_volume_operation_duration_seconds_bucket{operation="attach"}[30m])
+))
+```
+
+For acquisition failures and cold fallback, compare non-success results against
+all `operation="acquire"` attempts. An acquisition timeout does not mean a failed
+job. A warm snapshot also does not mean its image was already on this host.
+
+After a timed-out warm acquisition, one background prefetch per node may restore
+that immutable master for later jobs. It has a two-minute deadline, no queue, and
+the same filesystem reserve. It never creates a private image, mounts into a job,
+or publishes the cold job's changes. The original restoration is still cancelled;
+the separate background attempt can incur another download. Foreground acquisition
+remains bounded to 25 seconds on the host and 30 seconds on the client. A newer
+HEAD or a clear can make the prefetched generation obsolete; normal generation
+selection and maintenance prevent it from being served as the new HEAD.
+
+This favors warming hosts after an observed miss over predicting cache keys in the
+scheduler. It preserves ordinary placement and does not replicate every volume to
+every host. The `prefetch` results and subsequent `attach{source="local"}` observations
+should determine whether its bounded extra bandwidth earns enough later hits.

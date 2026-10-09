@@ -6,10 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -18,7 +20,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tuist/tuist/infra/runners-controller/internal/cachevolumes"
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	corev1 "k8s.io/api/core/v1"
@@ -38,6 +40,8 @@ type agent struct {
 	requests                               chan struct{}
 	tokenPath                              string
 	runtime                                runtimeapi.RuntimeServiceClient
+	observe                                cachevolumes.Observer
+	prefetch                               *prefetcher
 }
 type request struct {
 	PodName      string `json:"pod_name"`
@@ -48,26 +52,30 @@ type request struct {
 }
 
 func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" || r.URL.Path != "/acquire" {
+		http.NotFound(w, r)
+		return
+	}
+	outcome := errors.New("invalid acquisition")
+	acquired := a.observe.Start("acquire", "none")
+	defer func() { acquired(outcome) }()
 	if a.requests != nil {
 		select {
 		case a.requests <- struct{}{}:
 			defer func() { <-a.requests }()
 		default:
+			outcome = cachevolumes.ErrBusy
 			http.Error(w, "unavailable", http.StatusServiceUnavailable)
 			return
 		}
 	}
 
-	if r.Method != "POST" || r.URL.Path != "/acquire" {
-		http.NotFound(w, r)
-		return
-	}
 	var input request
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&input); err != nil {
 		http.Error(w, "invalid request", 400)
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 6*time.Minute)
+	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
 	pod, err := a.kube.CoreV1().Pods(a.namespace).Get(ctx, input.PodName, metav1.GetOptions{})
 	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
@@ -78,13 +86,20 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	// The agent authenticates to the server. Repository and publication rights
 	// come from the job GitHub actually assigned to this live runner.
 	body, _ := json.Marshal(map[string]any{"pod_name": input.PodName, "pod_uid": input.PodUID, "node_name": a.node, "key": input.Key, "architecture": input.Architecture, "uid": input.UID})
+	authorized := a.observe.Start("authorize", "none")
 	identity, err := a.authorize(ctx, body)
+	authorized(err)
+	outcome = err
 	if err != nil {
 		http.Error(w, "unavailable", 403)
 		return
 	}
-	warm, err := a.store.Acquire(identity, input.PodName, input.PodUID)
+	warm, err := a.store.Acquire(ctx, identity, input.PodName, input.PodUID)
+	outcome = err
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			a.prefetch.start(identity)
+		}
 		log.Printf("cache acquire failed: %v", err)
 		http.Error(w, "unavailable", 503)
 		return
@@ -166,7 +181,8 @@ func main() {
 	}
 	client := &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	transfer := &imageTransfer{URL: strings.TrimSuffix(*url, "/authorize") + "/image", Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: int64(*sizeGB) * 1_000_000_000}
-	backend := &cachevolumes.LocalImages{Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}
+	metrics := newVolumeMetrics(slog.New(slog.NewJSONHandler(os.Stderr, nil)), uint64(*minFreeGB)*1_000_000_000)
+	backend := &cachevolumes.LocalImages{Observe: metrics.observe, Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}
 	store, err := cachevolumes.Open(*root, backend)
 	if err != nil {
 		log.Fatal(err)
@@ -186,7 +202,7 @@ func main() {
 		log.Fatal(err)
 	}
 	store.MaxSlots = *maxSlots
-	a := &agent{tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
+	a := &agent{prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
 	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
@@ -201,11 +217,22 @@ func main() {
 	}
 	go func() {
 		for {
-			if err := a.reconcile(); err != nil {
+			start := time.Now()
+			err := a.reconcile()
+			metrics.observe(cachevolumes.Observation{Operation: "maintenance", Source: "none", Duration: time.Since(start), Err: err})
+			if available, capacity, e := cachevolumes.FilesystemSpace(*root); e == nil {
+				metrics.free.Set(float64(available))
+				metrics.capacity.Set(float64(capacity))
+			}
+			if err != nil {
 				log.Printf("cache maintenance failed: %v", err)
 			}
 			time.Sleep(30 * time.Second)
 		}
+	}()
+	go func() {
+		metricsServer := &http.Server{Addr: ":9091", Handler: metrics.handler(), ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 10 * time.Second}
+		log.Fatal(metricsServer.ListenAndServe())
 	}()
 	server := &http.Server{Addr: ":8090", Handler: http.HandlerFunc(a.serve), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 20 * time.Second, WriteTimeout: 7 * time.Minute, MaxHeaderBytes: 32768}
 	log.Fatal(server.ListenAndServe())

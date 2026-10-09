@@ -3,8 +3,9 @@ defmodule TuistWeb.Helpers.TestLabels do
   Provides build system-specific label helpers for test-related pages.
 
   Different build systems use different terminology (e.g. Gradle calls suites
-  "classes" and schemes "projects"). This module centralises those translations
-  so the naming stays consistent across all dashboard pages.
+  "classes" and schemes "projects", and neither Bazel nor Once has schemes at
+  all). This module centralises those translations so the naming stays
+  consistent across all dashboard pages.
   """
 
   use Gettext, backend: TuistWeb.Gettext
@@ -12,12 +13,15 @@ defmodule TuistWeb.Helpers.TestLabels do
   alias Tuist.Projects.Project
 
   def module_label(%Project{build_system: :bazel}), do: dgettext("dashboard_tests", "Test target")
+  def module_label(%Project{build_system: :once}), do: dgettext("dashboard_tests", "Target")
   def module_label(_), do: dgettext("dashboard_tests", "Module")
 
   def modules_label(%Project{build_system: :bazel}), do: dgettext("dashboard_tests", "Test Targets")
+  def modules_label(%Project{build_system: :once}), do: dgettext("dashboard_tests", "Targets")
   def modules_label(_), do: dgettext("dashboard_tests", "Modules")
 
   def test_modules_label(%Project{build_system: :bazel}), do: dgettext("dashboard_tests", "Test Targets")
+  def test_modules_label(%Project{build_system: :once}), do: dgettext("dashboard_tests", "Test Targets")
   def test_modules_label(_), do: dgettext("dashboard_tests", "Test Modules")
 
   def suite_label(%Project{build_system: :gradle}), do: dgettext("dashboard_tests", "Class")
@@ -29,13 +33,37 @@ defmodule TuistWeb.Helpers.TestLabels do
   def test_suites_label(%Project{build_system: :gradle}), do: dgettext("dashboard_tests", "Test Classes")
   def test_suites_label(_), do: dgettext("dashboard_tests", "Test Suites")
 
+  # Mix names runs after the command, with an optional execution-variant label.
+  # It does not offer scheme-based filtering or grouping (see `schemes?/1`).
+  def scheme_label(%Project{build_system: :mix}), do: dgettext("dashboard_tests", "Command")
   def scheme_label(%Project{build_system: :bazel}), do: dgettext("dashboard_tests", "Invocation")
   def scheme_label(%Project{build_system: :gradle}), do: dgettext("dashboard_tests", "Project")
+  # Once has no schemes. The shared `scheme` column carries the command the
+  # run was invoked with, which is what every other Once page calls a Run.
+  def scheme_label(%Project{build_system: :once}), do: dgettext("dashboard_tests", "Run")
   def scheme_label(_), do: dgettext("dashboard_tests", "Scheme")
+
+  # What a covered file's coverage is grouped by: the target that compiled it,
+  # or for Mix the OTP application whose source it is.
+  def coverage_target_label(%Project{build_system: :mix}), do: dgettext("dashboard_tests", "Application")
+  def coverage_target_label(_), do: dgettext("dashboard_tests", "Target")
+
+  def coverage_targets_label(%Project{build_system: :mix}), do: dgettext("dashboard_tests", "Applications")
+  def coverage_targets_label(_), do: dgettext("dashboard_tests", "Targets")
 
   def test_run_label(%Project{build_system: :bazel}, scheme) when scheme not in [nil, ""], do: "bazel test #{scheme}"
 
   def test_run_label(%Project{build_system: :bazel}, _scheme), do: "bazel test"
+  def test_run_label(%Project{build_system: :mix}, scheme) when scheme not in [nil, ""], do: "mix test · #{scheme}"
+
+  def test_run_label(%Project{build_system: :mix}, _scheme), do: "mix test"
   def test_run_label(_project, scheme) when scheme not in [nil, ""], do: scheme
   def test_run_label(_project, _scheme), do: dgettext("dashboard_tests", "Unknown")
+
+  @doc """
+  Whether the project's test runs are told apart by a scheme (or its
+  equivalent), and so whether filtering and grouping by it means anything.
+  """
+  def schemes?(%Project{build_system: :mix}), do: false
+  def schemes?(_project), do: true
 end

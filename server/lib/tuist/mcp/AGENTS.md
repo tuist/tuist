@@ -3,8 +3,11 @@
 This directory contains the Tuist [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) implementation:
 
 - JSON-RPC request handling
+- The transport routes `2026-07-28` requests to `Transport.Stateless` and preserves the EMCP session transport for older clients. The modern route has no session identifier and adds result discriminators, cache hints, and server identity to existing tool and prompt responses. Keep both paths tested when changing protocol handling.
+- Event subscriptions, callback verification, and delivery live under `events/`; see `events/AGENTS.md`.
 - MCP tools and prompts
 - MCP authorization/serialization helpers
+- Operator reads: for calls proxied by Atlas (`x-tuist-atlas-identity`, verified by `TuistWeb.OperatorGrant.accept_atlas_identity_header/2`), `Tuist.MCP.Authorization.authorize_request/4` falls back to a grant-free read for the resource's account. It goes through the `:ops_access` policies and never applies to writes. There is no MCP operator-grant header; grants from ops.tuist.dev only apply to the browser session.
 - Xcode build-step list/detail tools share `Tuist.Builds.Steps` with the HTTP API. Lists omit logs, IDs are decimal strings scoped to a build, and details expose bounded logs separately after build-read authorization. The `compare_builds` prompt includes these tools; the flaky-test and integration skills intentionally do not use build-step data.
 
 ## Prompt/Skill Sync
@@ -18,7 +21,8 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 ## Documentation Sync
 
 - When MCP server behavior or capabilities change, update `server/priv/docs/en/guides/features/agentic-coding/mcp.md` in the same pull request.
-- Keep Model Context Protocol authentication guidance aligned with the current WorkOS auth.md discovery and assertion-exchange flow served by `/auth.md`.
+- Server initialization and server-card instructions describe OAuth 2.0 with dynamic client registration and the standard browser authorization flow inline. Keep workflow guidance generic; tool-specific setup and authentication checks belong in integration guides and prompts. Do not direct clients to fetch or follow external authentication documents from this instructions block.
+- The separate `auth_md` field in unauthorized responses and `agent_auth.skill` authorization-server metadata continue to expose the WorkOS auth.md flow served by `/auth.md`; keep documentation for those capabilities aligned with their implementation.
 
 ## Versioning
 
@@ -42,3 +46,8 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
   derive schemas from `Runners.CacheVolumes.Schemas`. Reads require runners-read;
   clearing requires account-update and carries destructive annotations. Keep
   account scoping, unknown values and the runners feature gate intact.
+
+- Organization invitation tools reuse `Accounts.invite_user_to_organization/3`
+  and the `:invitation` policies, matching the dashboard and REST API. They
+  never return invitation tokens or links; `email_sent` tells the agent when
+  the link has to be copied from the dashboard instead.

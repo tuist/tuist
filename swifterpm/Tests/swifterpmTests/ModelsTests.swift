@@ -18,7 +18,7 @@ struct ModelsTests {
 
         #expect(try pin.revision() == "abcdef1234567890")
         #expect(try pin.versionString() == "1.2.3")
-        #expect(PinKind.checkoutDirectoryName(pin) == "foo")
+        #expect(PinKind.checkoutDirectoryName(pin, mirrors: MirrorConfig()) == "foo")
         #expect(PinKind.isSourceControl(pin.kind))
         #expect(!PinKind.isRegistry(pin.kind))
 
@@ -66,7 +66,7 @@ struct ModelsTests {
             state: ResolvedState(branch: nil, revision: nil, version: "1.2.3\nbeta")
         )
 
-        #expect(PinKind.checkoutDirectoryName(sourcePin) == "Foo_0ABar")
+        #expect(PinKind.checkoutDirectoryName(sourcePin, mirrors: MirrorConfig()) == "Foo_0ABar")
         #expect(try PinKind.registryDownloadSubpath(registryPin) == "example/bad_package/1.2.3_beta")
     }
 
@@ -89,7 +89,7 @@ struct ModelsTests {
                 version: 3
             )
 
-            try await ResolvedFile.write(packageDir: root, resolved: resolved)
+            try await ResolvedFile.write(packageDir: root, resolved: resolved, mirrors: MirrorConfig())
             #expect(try await ResolvedFile.read(packageDir: root).pins == resolved.pins)
             #expect(try await ResolvedFile.read(packageDir: root).originHash == resolved.originHash)
             #expect(try await ResolvedFile.readIfCurrent(packageDir: root)?.pins == resolved.pins)
@@ -103,7 +103,7 @@ struct ModelsTests {
     }
 
     @Test
-    func registryPinNormalizesOriginalLocationFromReplaceSCMWithRegistry() async throws {
+    func registryPinPreservesOriginalLocationFromReplaceSCMWithRegistry() async throws {
         // SwiftPM emits `originalLocation` on pins it rewrote via
         // --replace-scm-with-registry so the next resolve can skip the
         // registry identifier lookup. Dropping it on the read/write
@@ -132,13 +132,13 @@ struct ModelsTests {
                 version: 3
             )
 
-            try await ResolvedFile.write(packageDir: root, resolved: resolved)
+            try await ResolvedFile.write(packageDir: root, resolved: resolved, mirrors: MirrorConfig())
             let readBack = try await ResolvedFile.read(packageDir: root)
             let readBackByIdentity = Dictionary(uniqueKeysWithValues: readBack.pins.map {
                 ($0.identity, $0)
             })
-            #expect(readBackByIdentity["apple.swift-log"]?.originalLocation == "https://github.com/Apple/swift-log")
-            #expect(readBackByIdentity["example.package"]?.originalLocation == "https://source.example.com/Tuist/SwifterPM.git")
+            #expect(readBackByIdentity["apple.swift-log"]?.originalLocation == "https://github.com/Apple/swift-log.git")
+            #expect(readBackByIdentity["example.package"]?.originalLocation == "HTTPS://Source.Example.com/Tuist/SwifterPM.git")
 
             let resolvedFilePath = root.appendingPathComponent("Package.resolved")
             let rawData = try await fileSystem.readFile(at: resolvedFilePath.absolutePath)
@@ -152,14 +152,15 @@ struct ModelsTests {
                     return (identity, pin)
                 }
             )
-            #expect(rawPinsByIdentity["apple.swift-log"]?["originalLocation"] as? String == "https://github.com/Apple/swift-log")
+            #expect(rawPinsByIdentity["apple.swift-log"]?["originalLocation"] as? String ==
+                "https://github.com/Apple/swift-log.git")
             #expect(rawPinsByIdentity["example.package"]?["originalLocation"] as? String ==
-                "https://source.example.com/Tuist/SwifterPM.git")
+                "HTTPS://Source.Example.com/Tuist/SwifterPM.git")
         }
     }
 
     @Test
-    func writeNormalizesRemoteLocationsAndSkipsIdenticalRewrites() async throws {
+    func writePreservesRemoteLocationsAndSkipsIdenticalRewrites() async throws {
         try await withTemporaryDirectory { root in
             try await writeMinimalPackageManifest(at: root, name: "Fixture")
             let pins = [
@@ -210,7 +211,7 @@ struct ModelsTests {
                 version: 3
             )
 
-            try await ResolvedFile.write(packageDir: root, resolved: resolved)
+            try await ResolvedFile.write(packageDir: root, resolved: resolved, mirrors: MirrorConfig())
             let resolvedFilePath = try root.appendingPathComponent("Package.resolved").absolutePath
             let rawData = try await fileSystem.readFile(at: resolvedFilePath)
             let rawPayload = try #require(
@@ -226,7 +227,7 @@ struct ModelsTests {
             let rawLocations = Set(rawPins.compactMap { $0["location"] as? String })
             #expect(
                 try await ResolvedFile.read(packageDir: root).pins
-                    == resolved.normalizedForResolvedFile().pins)
+                    == resolved.normalizedForResolvedFile(mirrors: MirrorConfig()).pins)
             #expect(Set(rawPinsByIdentity.keys) == Set([
                 "LocalPackage",
                 "combineext",
@@ -234,19 +235,12 @@ struct ModelsTests {
                 "generic",
                 "swifterpm",
             ]))
-            #expect(rawPinsByIdentity["combineext"]?["location"] as? String == "https://github.com/CombineCommunity/CombineExt")
-            #expect(rawPinsByIdentity["dd-sdk-ios"]?["location"] as? String == "git@github.com:DataDog/dd-sdk-ios")
-            #expect(rawPinsByIdentity["swifterpm"]?["location"] as? String == "https://gitlab.com/Tuist/SwifterPM")
-            #expect(rawPinsByIdentity["generic"]?["location"] as? String == "https://source.example.com/Tuist/SwifterPM.git")
-            #expect(rawPinsByIdentity["LocalPackage"]?["location"] as? String == "file:///tmp/LocalPackage.git")
-            #expect(!rawLocations.contains("https://github.com/CombineCommunity/CombineExt.git"))
-            #expect(!rawLocations.contains("git@github.com:DataDog/dd-sdk-ios.git"))
-            #expect(!rawLocations.contains("HTTPS://Source.Example.com/Tuist/SwifterPM.git"))
+            #expect(rawLocations == Set(pins.map(\.location)))
 
             // Rewriting unchanged content must leave the file untouched.
             let modificationDate = try await fileSystem.fileMetadata(at: resolvedFilePath)?
                 .lastModificationDate
-            try await ResolvedFile.write(packageDir: root, resolved: resolved)
+            try await ResolvedFile.write(packageDir: root, resolved: resolved, mirrors: MirrorConfig())
             #expect(
                 try await fileSystem.fileMetadata(at: resolvedFilePath)?.lastModificationDate
                     == modificationDate)
@@ -286,7 +280,7 @@ struct ModelsTests {
             #expect(pin.kind == "localSourceControl")
             #expect(pin.location == "/tmp/deck-of-playing-cards")
 
-            try await ResolvedFile.write(packageDir: root, resolved: resolved)
+            try await ResolvedFile.write(packageDir: root, resolved: resolved, mirrors: MirrorConfig())
             let rawData = try await fileSystem.readFile(
                 at: root.appendingPathComponent("Package.resolved").absolutePath
             )
@@ -303,7 +297,8 @@ struct ModelsTests {
             try await writeMinimalPackageManifest(at: root, name: "Fixture")
             try await ResolvedFile.write(
                 packageDir: root,
-                resolved: ResolvedPins(originHash: "stale", pins: [], version: 3)
+                resolved: ResolvedPins(originHash: "stale", pins: [], version: 3),
+                mirrors: MirrorConfig()
             )
 
             #expect(try await ResolvedFile.readIfCurrent(packageDir: root) == nil)

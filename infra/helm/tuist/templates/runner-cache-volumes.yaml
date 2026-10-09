@@ -1,13 +1,15 @@
-{{- if and .Values.runnersFleetLinux.enabled .Values.runnersFleetLinux.cacheVolumes.enabled }}
+{{- if or (and .Values.runnersFleetLinux.enabled .Values.runnersFleetLinux.cacheVolumes.enabled) .Values.runnersFleet.customCacheVolumes.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "runner-cache-volumes") }}
-{{- $namespace := .Values.runnersFleetLinux.namespace | default .Values.runnersFleet.namespace | default "tuist-runners" }}
+{{- $namespace := include "tuist.runnerCacheVolumesNamespace" . }}
 {{- $volumes := .Values.runnersFleetLinux.cacheVolumes }}
-{{- $imageTag := required "cacheVolumes.image.tag or runnersController.image.tag is required" ($volumes.image.tag | default .Values.runnersController.image.tag) }}
+
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ $name }}
   namespace: {{ $namespace }}
+{{- if and .Values.runnersFleetLinux.enabled .Values.runnersFleetLinux.cacheVolumes.enabled }}
+{{- $imageTag := required "cacheVolumes.image.tag or runnersController.image.tag is required" ($volumes.image.tag | default .Values.runnersController.image.tag) }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -86,6 +88,10 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/component: runner-cache-volumes
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: /metrics
     spec:
       serviceAccountName: {{ $name }}
       {{- if $volumes.provisioning.enabled }}
@@ -136,6 +142,8 @@ spec:
                   fieldPath: spec.nodeName
           ports:
             - containerPort: 8090
+            - name: metrics
+              containerPort: 9091
           securityContext:
             runAsUser: 0
             privileged: true
@@ -204,6 +212,12 @@ spec:
               tuist.dev/runner: "true"
       ports:
         - {protocol: TCP, port: 8090}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - {protocol: TCP, port: 9091}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -222,4 +236,6 @@ spec:
               app.kubernetes.io/component: runner-cache-volumes
       ports:
         - {protocol: TCP, port: 8090}
+{{- end }}
+
 {{- end }}

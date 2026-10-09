@@ -1,8 +1,10 @@
 import Config
 
 alias Atlas.Config.DevInstance
+alias Atlas.Demo.Config, as: DemoConfig
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Mailgun
+alias Ueberauth.Strategy.Google
 alias Ueberauth.Strategy.Google.OAuth
 
 # dev_instance.exs is only shipped in non-prod (it isn't copied into the
@@ -115,6 +117,13 @@ boolean_env = fn name, default ->
   end
 end
 
+demo_mode = boolean_env.("ATLAS_DEMO_MODE", false)
+
+if demo_mode do
+  DemoConfig.validate!(System.get_env())
+  config :atlas, Atlas.Repo, url: System.fetch_env!("DATABASE_URL")
+end
+
 support_chat_parent_origins =
   case System.get_env("ATLAS_SUPPORT_CHAT_PARENT_ORIGINS") do
     value when is_binary(value) and value != "" ->
@@ -134,6 +143,7 @@ support_chat_parent_origins =
   end
 
 config :atlas, AtlasWeb.Endpoint, endpoint_config
+config :atlas, :demo_mode, demo_mode
 
 config :atlas, :gtm_email,
   from_name: System.get_env("ATLAS_GTM_EMAIL_FROM_NAME", "Tuist"),
@@ -148,7 +158,15 @@ config :atlas, :invoice_footer, System.get_env("ATLAS_INVOICE_FOOTER", "")
 config :atlas, :support,
   from_name: System.get_env("ATLAS_SUPPORT_FROM_NAME", "Tuist Support"),
   from_email: System.get_env("ATLAS_SUPPORT_FROM_EMAIL", "contact@tuist.dev"),
-  slack_channel_id: System.get_env("ATLAS_SUPPORT_SLACK_CHANNEL_ID")
+  slack_channel_id: System.get_env("ATLAS_SUPPORT_SLACK_CHANNEL_ID"),
+  # Env var wins in every environment. In production only, fall back to the
+  # shared `#support-filtered` channel in the Tuist workspace so silenced
+  # classifications still land somewhere without manual wiring. Dev, test,
+  # and any downstream fork stay unset unless they set the env explicitly —
+  # otherwise a locally booted Atlas could cross-post into prod Slack.
+  slack_filtered_channel_id:
+    System.get_env("ATLAS_SUPPORT_FILTERED_SLACK_CHANNEL_ID") ||
+      if(config_env() == :prod, do: "C0C5LBMM278")
 
 config :atlas, :support_chat, parent_origins: support_chat_parent_origins
 
@@ -167,6 +185,30 @@ if mailgun_api_key = System.get_env("MAILGUN_API_KEY") do
     base_url: System.get_env("ATLAS_MAILGUN_BASE_URL", "https://api.eu.mailgun.net/v3")
 end
 
+allowed_email_domain =
+  case System.get_env("ATLAS_ALLOWED_EMAIL_DOMAIN") do
+    nil ->
+      if config_env() == :prod and System.get_env("GOOGLE_CLIENT_ID") do
+        IO.puts(
+          :stderr,
+          "ATLAS_ALLOWED_EMAIL_DOMAIN is unset; sign-in retains the configured Tuist domain. Set it explicitly for your organization."
+        )
+      end
+
+      Application.fetch_env!(:atlas, :allowed_email_domain)
+
+    value ->
+      domain = value |> String.trim() |> String.downcase()
+
+      if Regex.match?(~r/\A[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+\z/, domain) do
+        domain
+      else
+        raise "ATLAS_ALLOWED_EMAIL_DOMAIN must be a non-empty email domain"
+      end
+  end
+
+config :atlas, :allowed_email_domain, allowed_email_domain
+
 # Atlas uses a dedicated Finch pool for all Req traffic so production can tune
 # connection checkout behaviour independently of Req's shared defaults.
 config :atlas, :http,
@@ -180,6 +222,8 @@ config :atlas, :http,
       start_pool_metrics?: true
     ]
   }
+
+config :ueberauth, Ueberauth, providers: [google: {Google, [default_scope: "email profile", hd: allowed_email_domain]}]
 
 # Configure Google OAuth if env vars are set
 if google_client_id = System.get_env("GOOGLE_CLIENT_ID") do
@@ -404,7 +448,12 @@ config :atlas, :tax_certificate_profile,
       "ATLAS_TAX_CERTIFICATE_TAX_OFFICE_POSTAL_CODE",
       :tax_office_postal_code
     ),
-  tax_office_city: tax_certificate_profile_value.("ATLAS_TAX_CERTIFICATE_TAX_OFFICE_CITY", :tax_office_city)
+  tax_office_city: tax_certificate_profile_value.("ATLAS_TAX_CERTIFICATE_TAX_OFFICE_CITY", :tax_office_city),
+  signature_jpeg_base64:
+    tax_certificate_profile_value.(
+      "ATLAS_TAX_CERTIFICATE_SIGNATURE_JPEG_BASE64",
+      :signature_jpeg_base64
+    )
 
 if vector_url = System.get_env("ATLAS_VECTOR_URL") do
   config :atlas, :vector, base_url: vector_url
@@ -451,6 +500,9 @@ end
 # optional headers, bearer_token or OAuth fields, and receive_timeout.
 case System.get_env("MCP_PROXY_SERVERS") do
   value when value in [nil, ""] ->
+    config :atlas, :mcp_proxy, servers: []
+
+  "tuist-managed" ->
     if config_env() in [:dev, :prod] do
       grafana_headers =
         case System.get_env("GRAFANA_MCP_STACK_URL") do
@@ -485,12 +537,10 @@ case System.get_env("MCP_PROXY_SERVERS") do
             # cannot reach here by saying nothing — which is what lets this
             # stand on its own without also enumerating the tools by name.
             read_only: true,
-            # Operator grants are minted per human at ops.tuist.dev and elevate
-            # a session past the user's own memberships, so they travel per
-            # request from each user's stored grant rather than from config.
-            # Only read-tier grants are forwarded, so the credential — not this
-            # list of tools — is what bounds the request upstream.
-            operator_grant_header: "x-tuist-operator-grant"
+            # Atlas' ServiceAccount token, so the Tuist server knows the call
+            # came through Atlas' audit log and lets operators read any
+            # account without a grant.
+            atlas_identity_header: "x-tuist-atlas-identity"
           },
           %{
             name: "grafana",
@@ -700,10 +750,6 @@ clickhouse_enabled? =
 # read-only database access. Atlas authenticates with a projected ServiceAccount
 # token (audience `tuist-server`) read from `token_path`; the file is absent in
 # dev/test, so the tools report the database as unreachable there.
-# Where operators justify access to a customer account. Atlas sends them here
-# with a return destination that receives the minted grant.
-config :atlas, :ops, reason_form_url: System.get_env("ATLAS_OPS_REASON_FORM_URL") || "https://ops.tuist.dev/grants/new"
-
 config :atlas, :tuist_server,
   base_url: System.get_env("TUIST_SERVER_INTERNAL_URL") || "https://tuist.dev",
   token_path: System.get_env("TUIST_SERVER_TOKEN_PATH") || "/var/run/secrets/tuist/token"

@@ -1,0 +1,267 @@
+<main
+  id="marketing-globe"
+  phx-hook="CacheGlobe"
+  data-snapshot={JSON.encode!(@snapshot)}
+  data-server-now={@server_now}
+  data-demo={to_string(@demo)}
+  data-illustrative-arcs="true"
+>
+  <%!-- A display page for a screen: the layout is authored on the Figma's
+  1920×1080 frame (72px gutters around an outlined stage) and scaled to fill
+  the viewport (see globe.css), so a TV and a laptop show the same
+  proportions. The only chrome is the wordmark
+  linking home; the data status and display controls sit on the right of
+  the same bar. --%>
+  <div data-part="stage">
+    <header data-part="navbar">
+      <.link
+        href={TuistWeb.Marketing.MarketingHTML.localized_href("/")}
+        data-part="tuist"
+        aria-label="Tuist"
+      >
+        <TuistWeb.Marketing.MarketingComponents.wordmark
+          data-part="logo"
+          role="img"
+          aria-hidden="true"
+        />
+      </.link>
+
+      <div data-part="toolbar">
+        <div id="globe-status" data-part="status" phx-update="ignore" role="status">
+          <span data-part="dot" aria-hidden="true"></span>
+          <span data-status="live" hidden>{dgettext(
+            "marketing",
+            "Cache activity"
+          )}</span>
+          <span data-status="demo" hidden>{dgettext("marketing", "Demo · illustrative data")}</span>
+          <span data-status="waiting">{dgettext("marketing", "Waiting for cache activity")}</span>
+          <span data-status="idle" hidden>{dgettext("marketing", "Waiting for new cache activity")}</span>
+          <span data-status="stale" hidden>{dgettext(
+            "marketing",
+            "Activity delayed · showing last update"
+          )}</span>
+          <span data-status="unavailable" hidden>{dgettext(
+            "marketing",
+            "Live activity temporarily unavailable"
+          )}</span>
+          <span data-status="offline" hidden>{dgettext(
+            "marketing",
+            "Reconnecting · showing last update"
+          )}</span>
+        </div>
+        <.link
+          href={if @demo, do: @current_path, else: @current_path <> "?demo=true"}
+          data-part="mode"
+        >
+          {if @demo,
+            do: dgettext("marketing", "View live activity"),
+            else: dgettext("marketing", "Try demo")}
+        </.link>
+        <div id="globe-controls" data-part="controls" phx-update="ignore">
+          <button type="button" data-action="motion" aria-pressed="false">
+            <span data-motion="pause">{dgettext("marketing", "Pause motion")}</span>
+            <span data-motion="resume" hidden>{dgettext("marketing", "Resume motion")}</span>
+          </button>
+          <button
+            type="button"
+            data-action="fullscreen"
+            aria-label={dgettext("marketing", "Enter full screen")}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              aria-hidden="true"
+            ><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5" /></svg>
+            <span>{dgettext("marketing", "Full screen")}</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <section data-part="hero" aria-labelledby="globe-title">
+      <%!-- Left column: the counter, two supporting figures, the reuse
+    breakdown and one line of copy, stacked as hairline blocks. The hook
+    fills every number (phx-update="ignore" keeps them through LiveView
+    patches); the server only ships the snapshot on the main element. --%>
+      <div data-part="panel">
+        <div data-part="counter">
+          <h1 data-part="eyebrow" id="globe-title">
+            {dgettext("marketing", "Cache download requests today")}
+          </h1>
+          <%!-- The counter tiles: the SplitFlap hook draws the row in WebGL,
+        pixel for pixel from the Figma export; the CacheGlobe hook feeds it
+        the digits through "split-flap:value" events and mirrors them into
+        the screen-reader readout. --%>
+          <div id="globe-digits" data-part="digits" phx-update="ignore">
+            <canvas
+              id="globe-flaps"
+              data-part="flaps"
+              phx-hook="SplitFlap"
+              data-value="0000000"
+              role="img"
+              aria-label="0000000"
+            ></canvas>
+            <span data-part="readout" class="sr-only">0000000</span>
+          </div>
+        </div>
+
+        <div data-part="stats">
+          <div data-part="stat">
+            <span data-part="value" id="globe-bytes" phx-update="ignore">—</span>
+            <span data-part="label">{dgettext("marketing", "of cache data delivered today")}</span>
+          </div>
+          <div data-part="stat">
+            <span data-part="value" id="globe-region-count" phx-update="ignore">
+              {length(@snapshot.regions)}
+            </span>
+            <span data-part="label">{dgettext("marketing", "serving regions")}</span>
+          </div>
+        </div>
+
+        <%!-- Cache hit rate, overall and for Xcode, Gradle and Bazel.
+      The snapshot carries measured daily rates; caches without observations
+      keep a dash. Demo mode uses illustrative rates. --%>
+        <div data-part="breakdown" id="globe-breakdown" phx-update="ignore">
+          <h2 data-part="eyebrow">{dgettext("marketing", "Cache hit rate")}</h2>
+          <div data-part="rows">
+            <div
+              :for={
+                {kind, label} <- [
+                  {"all", dgettext("marketing", "All caches")},
+                  {"module", dgettext("marketing", "Xcode")},
+                  {"gradle", dgettext("marketing", "Gradle")},
+                  {"bazel", dgettext("marketing", "Bazel")}
+                ]
+              }
+              data-part="row"
+              data-kind={kind}
+            >
+              <div data-part="text">
+                <span data-part="label">{label}</span>
+                <span data-part="bar" aria-hidden="true"></span>
+              </div>
+              <span data-part="value">—</span>
+            </div>
+          </div>
+        </div>
+
+        <p data-part="copy">
+          {dgettext(
+            "marketing",
+            "Cache downloads served today, including repeated and partial requests. Counters are estimated between reports using recent activity. Totals reset at midnight UTC."
+          )}
+        </p>
+      </div>
+
+      <%!-- Right column: the cache page's DitherGlobe, the stippled sphere on
+    the marketing dither ramp, centred in its column, with the same specks
+    lifting off the land as on the cache page. Its markers are the
+    seven public serving regions; the CacheGlobe hook lights the ones with
+    recent activity. --%>
+      <figure data-part="illustration" aria-hidden="true">
+        <canvas
+          id="marketing-globe-canvas"
+          data-part="globe"
+          phx-hook="DitherGlobe"
+          phx-update="ignore"
+          data-size="0.86"
+          data-pitch="2"
+          data-tilt-x="0.12"
+          data-tilt-z="-0.26"
+          data-speed="0.12"
+          data-meridians="0"
+          data-parallels="0"
+          data-density="85"
+          data-shade="13"
+          data-land="55"
+          data-ocean="18"
+          data-emit="70"
+          data-emit-speed="55"
+          data-emit-life="5"
+          data-emit-opacity="75"
+          data-emit-direction="radial"
+          data-offset-x="0"
+          data-offset-y="0"
+          data-markers={@markers}
+        ></canvas>
+        <%!-- Instant first paint: a tiny inline dot-sphere drawn while the
+      HTML streams in, so the column never sits empty waiting for the
+      marketing bundle. The DitherGlobe hook repaints the full globe over
+      it as soon as it mounts. The CSP nonce is required — without it the
+      browser blocks the inline script. --%>
+        <script nonce={@csp_nonce}>
+          (() => {
+            var c = document.getElementById("marketing-globe-canvas");
+            if (!c || c.getAttribute("width")) return;
+            var host = c.parentElement;
+            var r = host.getBoundingClientRect();
+            var w = Math.round(r.width);
+            var h = Math.round(r.height);
+            if (!w || !h) return;
+            var dpr = Math.min(devicePixelRatio || 1, 2);
+            c.width = w * dpr;
+            c.height = h * dpr;
+            var x = c.getContext("2d");
+            x.setTransform(dpr, 0, 0, dpr, 0, 0);
+            var d = c.dataset;
+            var rad = (Math.min(w, h) / 2) * (+d.size || 1);
+            var cx = w / 2 + (+d.offsetX || 0);
+            var cy = h / 2 + (+d.offsetY || 0);
+            var probe = document.createElement("span");
+            probe.style.color = "var(--marketing-cache-globe-dither-mid)";
+            host.appendChild(probe);
+            x.fillStyle = getComputedStyle(probe).color;
+            probe.remove();
+            var ga = Math.PI * (3 - Math.sqrt(5));
+            var seed = 7;
+            for (var i = 0; i < 6000; i++) {
+              var y = 1 - ((i + 0.5) * 2) / 6000;
+              var rr = Math.sqrt(1 - y * y);
+              var t = ga * i;
+              var px = Math.cos(t) * rr;
+              var pz = Math.sin(t) * rr;
+              if (pz < 0.05) continue;
+              seed = (seed * 1103515245 + 12345) & 2147483647;
+              if (seed / 2147483647 > 0.4) continue;
+              var gx = Math.round((cx + px * rad) / 2) * 2;
+              var gy = Math.round((cy - y * rad) / 2) * 2;
+              x.fillRect(gx, gy, 2, 2);
+            }
+          })();
+        </script>
+      </figure>
+    </section>
+
+    <%!-- Bottom row: one label cell, then a cell per serving region with its
+  request count since midnight UTC, estimated between reports using recent activity.
+  Recent activity also shows on the globe's markers. --%>
+    <section
+      data-part="regions"
+      hidden={
+        not @demo and
+          (@snapshot.downloads == nil or not Enum.any?(@snapshot.regions, &(&1.downloads > 0)))
+      }
+      role="list"
+      aria-label={dgettext("marketing", "Cache serving regions")}
+    >
+      <div data-part="legend" aria-hidden="true">
+        <span>{dgettext("marketing", "Region")}</span>
+        <span data-part="unit">{dgettext("marketing", "Requests")}</span>
+      </div>
+      <div
+        :for={region <- @snapshot.regions}
+        data-part="region"
+        role="listitem"
+        data-region={region.id}
+        id={"globe-region-#{region.id}"}
+        hidden={not @demo and (@snapshot.downloads == nil or region.downloads == 0)}
+        phx-update="ignore"
+      >
+        <span data-part="name">{region.id}</span>
+        <span data-part="value">—</span>
+      </div>
+    </section>
+  </div>
+</main>

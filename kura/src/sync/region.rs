@@ -39,6 +39,29 @@ fn tuning(app: &SharedState, source: PassSource) -> BackfillPassTuning {
     tuning
 }
 
+fn has_preferred_remote_donor(app: &SharedState, peer: &str) -> bool {
+    !app.prefers_peer(peer)
+        && app
+            .peer_views
+            .load()
+            .iter()
+            .any(|view| view.region != app.config.region && app.prefers_peer(&view.url))
+}
+
+async fn wait_for_preferred_donor(
+    app: &SharedState,
+    peer: &str,
+    cancel: &CancellationToken,
+    source: &PassSource,
+) {
+    if matches!(source, PassSource::PeerIndex) && has_preferred_remote_donor(app, peer) {
+        tokio::select! {
+            _ = cancel.cancelled() => {}
+            _ = tokio::time::sleep(Duration::from_millis(200)) => {}
+        }
+    }
+}
+
 async fn run_pass(
     app: &SharedState,
     peer: &str,
@@ -46,6 +69,7 @@ async fn run_pass(
     source: PassSource,
     window: BackfillWindow,
 ) -> BackfillPassOutcome {
+    wait_for_preferred_donor(app, peer, cancel, &source).await;
     let guard = app.backfill_claims.register_pass();
     run_backfill_pass_with_tuning(app, peer, window, guard, cancel, tuning(app, source)).await
 }
@@ -73,8 +97,7 @@ async fn request_page(
         url.push_str(&format!("&wait={}", app.config.sync_long_poll_secs));
     }
     let response = app
-        .client()
-        .get(&url)
+        .peer_request(reqwest::Method::GET, peer, &url)?
         .send()
         .await
         .map_err(|error| format!("region listing request failed: {error}"))?;
@@ -98,6 +121,17 @@ async fn request_page(
         return Err(format!("{PEER_UNSUPPORTED}: listing carries no clock"));
     }
     Ok(page)
+}
+
+/// Replication lag in seconds of origin version time: how far the newest
+/// version the remote gateway lists sits above the newest one applied here.
+fn lag_seconds(newest_version_ms: u64, applied_through_ms: u64) -> u64 {
+    newest_version_ms.saturating_sub(applied_through_ms) / 1000
+}
+
+fn record_lag(app: &SharedState, status: &LinkStatusCell, region: &str, lag_seconds: u64) {
+    status.update(|status| status.lag_seconds = Some(lag_seconds));
+    app.metrics.set_region_sync_lag(region, lag_seconds);
 }
 
 /// The watermark to read from: the persisted one, else the highest legacy
@@ -127,7 +161,7 @@ async fn backward_pass(
     region: &str,
     cancel: &CancellationToken,
     status: &LinkStatusCell,
-) -> Result<(), String> {
+) -> Result<Option<u64>, String> {
     status.update(|status| status.phase = LinkPhase::Bootstrapping);
     let started = Instant::now();
     let probe = request_page(app, peer, region, 0, None, false).await?;
@@ -137,6 +171,9 @@ async fn backward_pass(
         app.metrics.set_peer_clock_skew(peer, skew / 1000);
     }
     let watermark = seed_watermark(app, region)?;
+    if let (Some(newest), Some(watermark)) = (probe.newest_version_ms, watermark) {
+        record_lag(app, status, region, lag_seconds(newest, watermark));
+    }
     let buffered =
         watermark.map(|watermark| watermark.saturating_sub(app.config.sync_pass_start_buffer_ms));
     let window = compute_window(
@@ -174,7 +211,9 @@ async fn backward_pass(
             )
             .await?;
     }
-    Ok(())
+    // The pass applied everything the peer listed when it started; the
+    // watermark sits a buffer below that, which is not lag.
+    Ok(peer_now)
 }
 
 pub async fn run(
@@ -185,21 +224,21 @@ pub async fn run(
     status: Arc<LinkStatusCell>,
     pass_failures: Arc<AtomicU32>,
 ) {
-    loop {
+    let covered_through_ms = loop {
         let outcome = tokio::select! {
             biased;
             _ = cancel.cancelled() => return,
             outcome = backward_pass(&app, &peer, &region, &cancel, &status) => outcome,
         };
         match outcome {
-            Ok(()) => {
+            Ok(covered_through_ms) => {
                 pass_failures.store(0, Ordering::Relaxed);
                 status.update(|status| {
                     status.settled = true;
                     status.unsupported = false;
                     status.last_success = Some(Instant::now());
                 });
-                break;
+                break covered_through_ms.unwrap_or_default();
             }
             Err(error) => {
                 if error == "cancelled" {
@@ -245,7 +284,7 @@ pub async fn run(
                 }
             }
         }
-    }
+    };
 
     status.update(|status| status.phase = LinkPhase::Forward);
     let mut after: Option<String> = None;
@@ -363,10 +402,90 @@ pub async fn run(
                 );
             }
         }
+        let applied = from_version_ms
+            .max(highest.unwrap_or_default())
+            .max(covered_through_ms);
+        match page.newest_version_ms {
+            Some(newest) => record_lag(&app, &status, &region, lag_seconds(newest, applied)),
+            // An older source reports nothing; a caught-up page is all it
+            // can tell.
+            None if page.entries.is_empty() && page.next_after.is_none() => {
+                record_lag(&app, &status, &region, 0);
+            }
+            None => {}
+        }
         // The page cursor only moves when the peer scanned something; a
         // caught-up long-poll answers without one and we keep ours.
         if page.next_after.is_some() {
             after = page.next_after;
         }
+    }
+}
+
+#[cfg(test)]
+mod topology_tests {
+    use super::*;
+    use crate::{peer_topology::PeerTopology, sync::roles::PeerView, test_support::test_context};
+
+    #[tokio::test]
+    async fn only_backward_passes_yield_to_healthy_remote_private_donors() {
+        let own = PeerTopology {
+            canonical_networks: Vec::new(),
+            provider: "ovh".into(),
+            private_network: Some("verified".into()),
+            private_url: Some("https://private.example:7443".into()),
+        };
+        let ctx = test_context(|config| {
+            config.region = "local".into();
+            config.peer_topology = Some(own.clone());
+        })
+        .await;
+        tokio::time::pause();
+        let preferred = "https://preferred.example:7443";
+        let other = "https://cross-provider.example:7443";
+        let cancel = CancellationToken::new();
+        for (region, healthy, source, target, expected_ms) in [
+            ("remote", true, PassSource::PeerIndex, other, 200),
+            ("remote", true, PassSource::Entries(vec![]), other, 0),
+            ("local", true, PassSource::PeerIndex, other, 0),
+            ("remote", false, PassSource::PeerIndex, other, 0),
+            ("remote", true, PassSource::PeerIndex, preferred, 0),
+        ] {
+            ctx.state.apply_peer_views(vec![PeerView {
+                url: preferred.into(),
+                region: region.into(),
+                topology: Some(own.clone()),
+                private_healthy: healthy,
+                serving: true,
+                draining: false,
+            }]);
+            let start = tokio::time::Instant::now();
+            wait_for_preferred_donor(&ctx.state, target, &cancel, &source).await;
+            if expected_ms == 0 {
+                assert_eq!(start.elapsed(), Duration::ZERO);
+            } else {
+                // Tokio rounds timer deadlines up to its next millisecond tick.
+                assert!(
+                    (Duration::from_millis(200)..=Duration::from_millis(201))
+                        .contains(&start.elapsed())
+                );
+            }
+        }
+        cancel.cancel();
+        let start = tokio::time::Instant::now();
+        wait_for_preferred_donor(&ctx.state, other, &cancel, &PassSource::PeerIndex).await;
+        assert_eq!(start.elapsed(), Duration::ZERO);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lag_is_zero_at_or_past_the_newest_version() {
+        assert_eq!(lag_seconds(10_000, 10_000), 0);
+        assert_eq!(lag_seconds(10_000, 20_000), 0);
+        assert_eq!(lag_seconds(310_000, 10_000), 300);
     }
 }

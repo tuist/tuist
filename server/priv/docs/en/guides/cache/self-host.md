@@ -308,6 +308,20 @@ These variables configure every node, regardless of topology (peer TLS is the ex
 
 Bridged nodes additionally set `KURA_ENROLL_ON_BOOT`, `KURA_CONTROL_PLANE_URL`, and the control-plane client credentials. `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` register a node so it appears on the **Cache** page and so Kura-enabled CLI clients can be routed to it (see [How clients reach your nodes](#routing)).
 
+## Storage and eviction {#storage}
+
+A node stores artifacts under `KURA_DATA_DIR` up to a CAS storage budget, which you can set with an optional variable:
+
+| Variable | Description |
+|---|---|
+| `KURA_CAS_CAPACITY_BYTES` | The node's CAS storage budget in bytes. Must be a positive integer. When unset, the budget is 50% of the size of the filesystem that holds `KURA_DATA_DIR`. |
+
+Whether you set it or not, the budget is capped at 80% of the filesystem that holds `KURA_DATA_DIR`, so that rotation, which writes a new segment before evicting the oldest one, cannot fill the disk. The budget is rounded to whole 512 MiB segments, with a minimum of 2.5 GiB. The node logs the resolved budget at startup (`resolved CAS segment ring limits`).
+
+Eviction is automatic. Artifacts are stored in a ring of segments, and once the budget is reached the oldest segment is evicted. Artifacts read from older segments are promoted into the current one, so frequently used artifacts are kept and eviction behaves close to least-recently-used.
+
+Put `KURA_DATA_DIR` on a dedicated volume. Both the default budget and the cap are percentages of the filesystem's total size, not its free space, so other data on the same filesystem can leave less room than the budget assumes.
+
 ## Authentication of cache requests {#cache-auth}
 
 By default a node serves its HTTP cache API to anything that can reach it on your network. To require that callers present a valid Tuist token, so that only authenticated members of your organization can read and write, point the node at your Tuist server. The standalone setup above does this.

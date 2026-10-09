@@ -317,10 +317,12 @@ defmodule Tuist.Runners.RunnerSessions do
   `fleet_names` pools since `since`, most first, at most `limit`. A macOS host
   prefetches the cache masters these jobs use, so the next one it is handed can
   start warm.
+
+  `:node_names` limits it to jobs that ran on those Nodes.
   """
-  def recent_demand(fleet_names, %DateTime{} = since, limit)
+  def recent_demand(fleet_names, %DateTime{} = since, limit, opts \\ [])
       when is_list(fleet_names) and is_integer(limit) and limit > 0 do
-    Repo.all(
+    query =
       from(s in RunnerSession,
         where: s.fleet_name in ^fleet_names and s.started_at >= ^since and not is_nil(s.account_id),
         group_by: [s.account_id, s.repository],
@@ -328,7 +330,14 @@ defmodule Tuist.Runners.RunnerSessions do
         limit: ^limit,
         select: %{account_id: s.account_id, repository: s.repository}
       )
-    )
+
+    query =
+      case Keyword.fetch(opts, :node_names) do
+        {:ok, node_names} -> where(query, [s], s.node_name in ^node_names)
+        :error -> query
+      end
+
+    Repo.all(query)
   end
 
   @doc """
@@ -544,6 +553,25 @@ defmodule Tuist.Runners.RunnerSessions do
   end
 
   def record_execution(_runner_name, _executed_workflow_job_id, _account_id, _job_window), do: :unknown_runner
+
+  @doc """
+  The workflow_job that ran on the runner named `runner_name` within
+  `account_id`: the one `record_execution/4` bound, or, until GitHub reports
+  it, the one the runner was minted for.
+
+  Reads the session because it is the one record of a runner that a later
+  mint never rewrites. `runner_workflow_jobs.runner_name` is overwritten each
+  time a job's row is minted again, so it cannot say which runner ran a job.
+  """
+  def workflow_job_id_for_runner(runner_name, account_id)
+      when is_binary(runner_name) and runner_name != "" and is_integer(account_id) do
+    case session_for_runner(runner_name, account_id) do
+      nil -> :error
+      %RunnerSession{} = session -> {:ok, session.executed_workflow_job_id || session.workflow_job_id}
+    end
+  end
+
+  def workflow_job_id_for_runner(_runner_name, _account_id), do: :error
 
   # Prefer the open session; fall back to the most recent closed one so a
   # `completed` backstop can still bind after a fast job's pod is gone.

@@ -13,7 +13,7 @@ defmodule Mix.Tasks.Billing.ProvisionUsageMeters do
   charged on, and the environment's key decides which mode is reached.
   """
   use Mix.Task
-  use Boundary, classify_to: Tuist.Mix
+  use Boundary, classify_to: Tuist.MixTasks
 
   alias Tuist.Billing.UsageMeterProvisioning
 

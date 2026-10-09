@@ -349,6 +349,7 @@ public struct XcodeBuildController: XcodeBuildControlling {
         // no-output timeout. NSUnbufferedIO makes it flush in real time.
         var environment = Environment.current.variables
         environment["NSUnbufferedIO"] = "YES"
+        environment.merge(XcodeBuildEnvironment.additionalVariables) { _, new in new }
         for try await event in commandRunner.run(arguments: command, environment: environment) {
             switch event {
             case let .standardOutput(bytes):

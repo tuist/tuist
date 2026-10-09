@@ -5394,6 +5394,12 @@ end
 
 seed_providers = [
   %{
+    key: "typesafe",
+    base_url: "https://api.typesafe.ai/v1",
+    decision_path: "systemone",
+    timeout: 45_000
+  },
+  %{
     key: "openai",
     base_url: "https://api.openai.com/v1",
     api_key: "sk-seed-openai-placeholder",
@@ -5415,6 +5421,15 @@ for attrs <- seed_providers do
 end
 
 seed_profiles = [
+  %{
+    name: "pr-quality",
+    description: "Jev decision profile for pull request quality reviews.",
+    upstream_provider: "typesafe",
+    upstream_model: "jev-latest",
+    input_cost_per_million: Decimal.new("0.042"),
+    output_cost_per_million: Decimal.new("0"),
+    enabled: true
+  },
   %{
     name: "atlas-inference",
     description: "Default profile Atlas uses for its own inference calls.",

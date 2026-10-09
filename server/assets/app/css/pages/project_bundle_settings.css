@@ -114,15 +114,15 @@
   }
 
   & .noora-modal {
-    & [data-part="content"] {
+    & > [data-part="positioner"] > [data-part="content"] {
       max-width: 500px;
-    }
 
-    & [data-part="content"] > [data-part="body"] {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-8);
-      min-width: 420px;
+      & > [data-part="body"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-8);
+        min-width: 420px;
+      }
     }
 
     & [data-part="alert-description"] {
@@ -136,9 +136,60 @@
     }
   }
 
-  /* The threshold modals open with a description whose padding separates the
-     header from the first field. This one puts its explanation in the header
-     instead, so the form supplies that spacing itself. */
+  & .noora-modal[data-threshold-modal] {
+    & > [data-part="positioner"] > [data-part="content"] {
+      width: min(500px, calc(100dvw - var(--noora-spacing-9)));
+      max-height: calc(100dvh - var(--noora-spacing-9));
+      overflow-y: auto;
+
+      & > [data-part="body"] {
+        min-width: 0;
+      }
+    }
+
+    & [data-part="alert-description"] {
+      margin: 0;
+      padding: var(--noora-spacing-4) var(--noora-spacing-0);
+    }
+
+    & [data-part="schedule-row"] {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 250px;
+      align-items: start;
+
+      & [data-part="schedule-label"] {
+        padding-top: var(--noora-spacing-3);
+      }
+
+      & .noora-dropdown,
+      & .noora-text-input {
+        width: 100%;
+        min-width: 0;
+      }
+
+      & .noora-text-input input {
+        width: 100%;
+        min-width: 0;
+      }
+    }
+
+    @media (max-width: 600px) {
+      & [data-part="schedule-row"] {
+        grid-template-columns: minmax(0, 1fr);
+
+        & [data-part="schedule-label"] {
+          padding-top: 0;
+        }
+
+        & .noora-dropdown-content {
+          width: 100%;
+        }
+      }
+    }
+  }
+
+  /* The approver modal puts its explanation in the header instead of the body,
+     so the form supplies the spacing after the divider itself. */
   & #add-approver-modal [data-part="alert-form"] {
     padding-top: var(--noora-spacing-9);
   }

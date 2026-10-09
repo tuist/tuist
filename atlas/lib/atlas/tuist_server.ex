@@ -29,6 +29,14 @@ defmodule Atlas.TuistServer do
   end
 
   @doc """
+  The projected ServiceAccount token Atlas authenticates to the Tuist server
+  with, read fresh from disk.
+  """
+  def workload_identity_token(opts \\ []) do
+    opts |> client() |> fetch_token()
+  end
+
+  @doc """
   Run a read-only SQL query. `:limit` caps returned rows (Tuist clamps it).
   Returns `{:ok, %{"columns" => ..., "rows" => ..., "num_rows" => ..., "truncated" => ...}}`
   where `rows` are objects keyed by column name.

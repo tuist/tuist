@@ -15,6 +15,7 @@ struct PackageInfoCacheTests {
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -51,13 +52,14 @@ struct PackageInfoCacheTests {
                 try JSONFormatter.prettyData(emptyManifest(name: "CachedRoot")),
                 to: cacheDir.appendingPathComponent("root.json"))
             if let rootPath = try? cacheDir.appendingPathComponent("root.json").absolutePath {
-                try await ManifestEnvironmentFingerprint.write(forCacheFile: rootPath)
+                try await ManifestEnvironmentFingerprint.write(forCacheFile: rootPath, packageDir: package)
             }
 
             try await PackageInfoCacheWriter.write(
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -99,13 +101,14 @@ struct PackageInfoCacheTests {
                 try JSONFormatter.prettyData(emptyManifest(name: "CachedDependency")),
                 to: packageInfoPath)
             if let packageInfoAbsolute = try? packageInfoPath.absolutePath {
-                try await ManifestEnvironmentFingerprint.write(forCacheFile: packageInfoAbsolute)
+                try await ManifestEnvironmentFingerprint.write(forCacheFile: packageInfoAbsolute, packageDir: checkout)
             }
 
             try await PackageInfoCacheWriter.write(
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [pin], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -138,6 +141,7 @@ struct PackageInfoCacheTests {
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -184,6 +188,7 @@ struct PackageInfoCacheTests {
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -248,6 +253,7 @@ struct PackageInfoCacheTests {
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -295,6 +301,7 @@ struct PackageInfoCacheTests {
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -308,7 +315,10 @@ struct PackageInfoCacheTests {
 
             let sidecar = try await fileSystem.readFile(
                 at: ManifestEnvironmentFingerprint.sidecarPath(forCacheFile: rootAbsolutePath))
-            #expect(String(data: sidecar, encoding: .utf8) == ManifestEnvironmentFingerprint.current())
+            #expect(
+                String(data: sidecar, encoding: .utf8)
+                    == (await ManifestEnvironmentFingerprint.current(packageDir: package))
+            )
         }
     }
 
@@ -320,7 +330,8 @@ struct PackageInfoCacheTests {
     }
 
     private func entryHashForTest(_ pin: ResolvedPin) -> String {
-        let input = "\(pin.location):\(pin.state.version ?? ""):\(pin.state.revision ?? "")"
+        let location = SourceControlLocations.canonicalLocation(pin.location)
+        let input = "\(location):\(pin.state.version ?? ""):\(pin.state.revision ?? "")"
         return String(Hashing.stable(input).prefix(16))
     }
 }

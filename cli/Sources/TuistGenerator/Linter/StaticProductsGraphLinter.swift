@@ -172,6 +172,8 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
         graphTraverser: GraphTraversing,
         configGeneratedProjectOptions: TuistGeneratedProjectOptions
     ) -> [StaticDependencyWarning] {
+        guard linkedBy.count > 1 else { return [] }
+
         if shouldSkipDependency(staticProduct, configGeneratedProjectOptions: configGeneratedProjectOptions) {
             return []
         }
@@ -240,9 +242,10 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
             return true
         case let .packageProduct(_, _, type):
             switch type {
-            // Swift package products are currently assumed to be static
+            // Preserve the static assumption for products without a linkage hint.
             case .runtime: return true
             case .runtimeEmbedded: return true
+            case .runtimeDynamic, .runtimeDynamicEmbedded: return false
             case .macro: return false
             case .plugin: return false
             }

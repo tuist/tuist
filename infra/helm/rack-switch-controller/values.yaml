@@ -1,5 +1,9 @@
-# Defaults shared by every environment. Which rack, which Omada site and which
-# 1Password items live in values-<env>.yaml.
+# Defaults shared by every environment. Which rack, which Omada site, the
+# controller's address and which 1Password items come from the rack's site
+# definition (infra/rack-switch-fleet/sites/<site>.json), which
+# omada-deployment.yml reads and passes with --set: kubernetes.namespace and
+# management.controller. Nothing here restates them, so moving the rack between
+# clusters is an edit to that file alone.
 
 image:
   repository: ghcr.io/tuist/rack-switch-controller
@@ -53,9 +57,9 @@ credentials:
 
 # Labels of the nodes that sit behind the rack's switches. The pod never
 # schedules onto a node carrying any of these values: it would be
-# reconciling its own path to the Omada controller. The edge node
-# (rack:edge-join) is instance type rack; a rack node of another kind joining
-# the cluster adds its label here.
+# reconciling its own path to the Omada controller. Rack Linux nodes
+# (RackLinuxMachine) are instance type rack; a rack node of another kind
+# joining the cluster adds its label here.
 rackNodeLabels:
   - key: kubernetes.io/os
     values: [darwin]

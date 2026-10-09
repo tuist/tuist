@@ -74,6 +74,8 @@ pub struct BuildEventService {
 
 #[derive(Clone)]
 struct InvocationStart {
+    detected_failure_category: Option<&'static str>,
+    reported_user: String,
     account_handle: String,
     project_handle: String,
     invocation_id: String,
@@ -220,6 +222,8 @@ struct BazelTestSummaryId {
 
 #[derive(Clone, PartialEq, Message)]
 struct BazelBuildStarted {
+    #[prost(string, tag = "11")]
+    user: String,
     #[prost(string, tag = "1")]
     uuid: String,
     #[prost(int64, tag = "2")]
@@ -242,6 +246,8 @@ struct BazelProgress {
 
 #[derive(Clone, PartialEq, Message)]
 struct BazelActionExecuted {
+    #[prost(message, optional, tag = "11")]
+    failure_detail: Option<BazelFailureDetail>,
     #[prost(bool, tag = "1")]
     success: bool,
     #[prost(message, optional, tag = "3")]
@@ -314,6 +320,8 @@ struct BazelTimingMetrics {
 
 #[derive(Clone, PartialEq, Message)]
 struct BazelBuildFinished {
+    #[prost(message, optional, tag = "6")]
+    failure_detail: Option<BazelFailureDetail>,
     #[prost(bool, tag = "1")]
     overall_success: bool,
     #[prost(int64, tag = "2")]
@@ -322,6 +330,97 @@ struct BazelBuildFinished {
     exit_code: Option<BazelExitCode>,
     #[prost(message, optional, tag = "5")]
     finish_time: Option<Timestamp>,
+}
+
+// Decode only structured category codes; diagnostic messages remain unretained.
+#[derive(Clone, PartialEq, Message)]
+struct BazelFailureCode {
+    #[prost(int32, tag = "1")]
+    code: i32,
+}
+
+#[derive(Clone, PartialEq, Message)]
+struct BazelFailureDetail {
+    #[prost(message, optional, tag = "103")]
+    external_repository: Option<BazelFailureCode>,
+    #[prost(message, optional, tag = "108")]
+    crash: Option<BazelFailureCode>,
+    #[prost(message, optional, tag = "115")]
+    remote_execution: Option<BazelFailureCode>,
+    #[prost(message, optional, tag = "119")]
+    filesystem: Option<BazelFailureCode>,
+    #[prost(message, optional, tag = "123")]
+    spawn: Option<BazelFailureCode>,
+    #[prost(message, optional, tag = "134")]
+    action_cache: Option<BazelFailureCode>,
+    #[prost(message, optional, tag = "137")]
+    sandbox: Option<BazelFailureCode>,
+    #[prost(message, optional, tag = "159")]
+    java_compile: Option<BazelFailureCode>,
+    #[prost(message, optional, tag = "161")]
+    cpp_compile: Option<BazelFailureCode>,
+    #[prost(message, optional, tag = "168")]
+    cpp_link: Option<BazelFailureCode>,
+    #[prost(message, optional, tag = "172")]
+    test_action: Option<BazelFailureCode>,
+    #[prost(message, optional, tag = "173")]
+    worker: Option<BazelFailureCode>,
+    #[prost(message, optional, tag = "177")]
+    toolchain: Option<BazelFailureCode>,
+    #[prost(message, optional, tag = "181")]
+    external_deps: Option<BazelFailureCode>,
+}
+
+fn record_failure_category(
+    start: &mut InvocationStart,
+    detail: Option<&BazelFailureDetail>,
+    mnemonic: Option<&str>,
+) {
+    let Some(detail) = detail else {
+        return;
+    };
+    let infrastructure = detail.external_repository.is_some()
+        || detail.crash.is_some()
+        || detail.remote_execution.is_some()
+        || detail.filesystem.is_some()
+        || detail.action_cache.is_some()
+        || detail.sandbox.is_some()
+        || detail.worker.is_some()
+        || detail.toolchain.is_some()
+        || detail.external_deps.is_some()
+        || detail
+            .spawn
+            .as_ref()
+            .is_some_and(|v| matches!(v.code, 3..=6 | 8 | 10..=12 | 14..=15))
+        || detail
+            .java_compile
+            .as_ref()
+            .is_some_and(|v| matches!(v.code, 3 | 4))
+        || detail
+            .cpp_compile
+            .as_ref()
+            .is_some_and(|v| matches!(v.code, 1..=3 | 9 | 12));
+    let verification = detail.test_action.as_ref().is_some_and(|v| v.code == 1)
+        || detail.cpp_compile.as_ref().is_some_and(|v| v.code == 8)
+        || (detail.spawn.as_ref().is_some_and(|v| v.code == 1)
+            && matches!(
+                mnemonic,
+                Some(
+                    "CppCompile"
+                        | "CppLink"
+                        | "Javac"
+                        | "JavaCompile"
+                        | "KotlinCompile"
+                        | "SwiftCompile"
+                        | "SwiftLink"
+                        | "TestRunner"
+                )
+            ));
+    if infrastructure {
+        start.detected_failure_category = Some("infrastructure_tooling");
+    } else if verification && start.detected_failure_category.is_none() {
+        start.detected_failure_category = Some("verification");
+    }
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -484,69 +583,85 @@ impl PublishBuildEvent for BuildEventService {
         let service = self.clone();
         let (sender, receiver) = mpsc::channel(64);
 
-        tokio::spawn(async move {
-            let mut invocation_id = None;
-            loop {
-                let request = match requests.message().await {
-                    Ok(Some(request)) => request,
-                    Ok(None) => break,
-                    Err(error) => {
-                        let _ = sender.send(Err(error)).await;
-                        break;
-                    }
-                };
-
-                let Some(event) = request.ordered_build_event else {
-                    let _ = sender
-                        .send(Err(Status::invalid_argument(
-                            "ordered_build_event is required",
-                        )))
-                        .await;
-                    break;
-                };
-
-                let response = PublishBuildToolEventStreamResponse {
-                    stream_id: event.stream_id.clone(),
-                    sequence_number: event.sequence_number,
-                };
-                if let Some(event_invocation_id) = event
-                    .stream_id
-                    .as_ref()
-                    .map(|stream_id| stream_id.invocation_id.as_str())
-                    .filter(|invocation_id| !invocation_id.is_empty())
-                {
-                    let event_invocation_id =
-                        truncate_wire_string(event_invocation_id, MAX_INVOCATION_ID_BYTES);
-                    if invocation_id
-                        .as_ref()
-                        .is_some_and(|invocation_id| invocation_id != &event_invocation_id)
-                    {
+        let serving_permit = crate::serving_authority::current_permit();
+        tokio::spawn(crate::serving_authority::scope(
+            serving_permit.clone(),
+            async move {
+                let mut invocation_id = None;
+                loop {
+                    if serving_permit.as_ref().is_some_and(|p| p.check().is_err()) {
                         let _ = sender
-                            .send(Err(Status::invalid_argument(
-                                "stream_id.invocation_id must remain constant within a stream",
-                            )))
+                            .send(Err(Status::unavailable("serving grant expired")))
                             .await;
                         break;
                     }
-                    invocation_id = Some(event_invocation_id);
+                    let request = match requests.message().await {
+                        Ok(Some(request)) => request,
+                        Ok(None) => break,
+                        Err(error) => {
+                            let _ = sender.send(Err(error)).await;
+                            break;
+                        }
+                    };
+
+                    let Some(event) = request.ordered_build_event else {
+                        let _ = sender
+                            .send(Err(Status::invalid_argument(
+                                "ordered_build_event is required",
+                            )))
+                            .await;
+                        break;
+                    };
+
+                    let response = PublishBuildToolEventStreamResponse {
+                        stream_id: event.stream_id.clone(),
+                        sequence_number: event.sequence_number,
+                    };
+                    if let Some(event_invocation_id) = event
+                        .stream_id
+                        .as_ref()
+                        .map(|stream_id| stream_id.invocation_id.as_str())
+                        .filter(|invocation_id| !invocation_id.is_empty())
+                    {
+                        let event_invocation_id =
+                            truncate_wire_string(event_invocation_id, MAX_INVOCATION_ID_BYTES);
+                        if invocation_id
+                            .as_ref()
+                            .is_some_and(|invocation_id| invocation_id != &event_invocation_id)
+                        {
+                            let _ = sender
+                                .send(Err(Status::invalid_argument(
+                                    "stream_id.invocation_id must remain constant within a stream",
+                                )))
+                                .await;
+                            break;
+                        }
+                        invocation_id = Some(event_invocation_id);
+                    }
+                    service
+                        .process_event(&account_handle, &project_handle, event)
+                        .await;
+
+                    if serving_permit.as_ref().is_some_and(|p| p.check().is_err()) {
+                        let _ = sender
+                            .send(Err(Status::unavailable("serving grant expired")))
+                            .await;
+                        break;
+                    }
+                    if sender.send(Ok(response)).await.is_err() {
+                        break;
+                    }
                 }
+
                 service
-                    .process_event(&account_handle, &project_handle, event)
+                    .finalize_finished_invocation(
+                        &account_handle,
+                        &project_handle,
+                        invocation_id.as_deref(),
+                    )
                     .await;
-
-                if sender.send(Ok(response)).await.is_err() {
-                    break;
-                }
-            }
-
-            service
-                .finalize_finished_invocation(
-                    &account_handle,
-                    &project_handle,
-                    invocation_id.as_deref(),
-                )
-                .await;
-        });
+            },
+        ));
 
         Ok(Response::new(Box::pin(ReceiverStream::new(receiver))))
     }
@@ -645,6 +760,8 @@ impl BuildEventService {
                 git_commit_sha: String::new(),
                 is_ci: false,
                 custom_values: BTreeMap::new(),
+                detected_failure_category: None,
+                reported_user: truncate_wire_string(&started.user, 128),
                 bazel_version: truncate_wire_string(&started.build_tool_version, MAX_COMMAND_BYTES),
                 cpu_time_ms: 0,
                 actions_created: 0,
@@ -725,6 +842,15 @@ impl BuildEventService {
         }
 
         if let Some(action) = event.action {
+            if !action.success
+                && let Some(start) = self.invocations.lock().await.get_mut(&key)
+            {
+                record_failure_category(
+                    start,
+                    action.failure_detail.as_ref(),
+                    Some(&action.action_type),
+                );
+            }
             if let Some(delivery) = self.state.bazel_test_artifacts.as_ref()
                 && let Some(id) = event
                     .id
@@ -901,6 +1027,7 @@ impl BuildEventService {
             let mut invocations = self.invocations.lock().await;
 
             if let Some(start) = invocations.get_mut(&key) {
+                record_failure_category(start, finished.failure_detail.as_ref(), None);
                 start.completion = Some(completion);
             } else {
                 warn!(
@@ -935,6 +1062,8 @@ impl BuildEventService {
                         git_commit_sha: String::new(),
                         is_ci: false,
                         custom_values: BTreeMap::new(),
+                        detected_failure_category: None,
+                        reported_user: String::new(),
                         bazel_version: String::new(),
                         cpu_time_ms: 0,
                         actions_created: 0,
@@ -1535,13 +1664,25 @@ fn invocation_key(account_handle: &str, project_handle: &str, invocation_id: &st
 }
 
 fn completed_invocation_event(
-    start: InvocationStart,
+    mut start: InvocationStart,
     status: &str,
     exit_code: Option<i32>,
     finished_at_ms: u64,
 ) -> BazelInvocationAnalyticsEvent {
     let timeline = build_timeline(&start, finished_at_ms);
+    if let Some(category) = start.detected_failure_category
+        && start.custom_values.len() < MAX_CUSTOM_METADATA_ENTRIES
+    {
+        start
+            .custom_values
+            .insert("tuist.detected_failure_category".into(), category.into());
+    }
 
+    if !start.reported_user.is_empty() && start.custom_values.len() < MAX_CUSTOM_METADATA_ENTRIES {
+        start
+            .custom_values
+            .insert("tuist.reported_user".into(), start.reported_user);
+    }
     BazelInvocationAnalyticsEvent {
         account_handle: start.account_handle,
         project_handle: start.project_handle,
@@ -1682,6 +1823,7 @@ mod tests {
                 id: None,
                 progress: None,
                 started: Some(BazelBuildStarted {
+                    user: "builder".into(),
                     uuid: "started-uuid".into(),
                     start_time_millis: 1_700_000_000_000,
                     build_tool_version: "9.1.0".into(),
@@ -1721,6 +1863,7 @@ mod tests {
                 test_summary: None,
                 test_result: None,
                 finished: Some(BazelBuildFinished {
+                    failure_detail: None,
                     overall_success: true,
                     finish_time_millis: 1_700_000_001_000,
                     exit_code: Some(BazelExitCode {
@@ -1874,6 +2017,7 @@ mod tests {
                         id: None,
                         progress: None,
                         started: Some(BazelBuildStarted {
+                            user: "builder".into(),
                             uuid: "started-uuid".into(),
                             start_time_millis: 1_700_000_000_000,
                             build_tool_version: "9.1.0".into(),
@@ -1943,6 +2087,7 @@ mod tests {
                         test_summary: None,
                         test_result: None,
                         finished: Some(BazelBuildFinished {
+                            failure_detail: None,
                             overall_success: true,
                             finish_time_millis: 1_700_000_015_000,
                             exit_code: Some(BazelExitCode {
@@ -2055,6 +2200,8 @@ mod tests {
                 git_commit_sha: "abc123".into(),
                 is_ci: false,
                 custom_values: BTreeMap::from([("environment".into(), "local".into())]),
+                detected_failure_category: None,
+                reported_user: String::new(),
                 bazel_version: "9.1.0".into(),
                 cpu_time_ms: 1_250,
                 actions_created: 11,
@@ -2460,6 +2607,85 @@ mod tests {
         assert!(!invocation.custom_values.contains_key("oversized-value"));
     }
 
+    #[test]
+    fn classifies_structured_failures_without_guessing_arbitrary_commands() {
+        let mut invocation = test_invocation_start();
+        let compile = BazelFailureDetail {
+            spawn: Some(BazelFailureCode { code: 1 }),
+            ..Default::default()
+        };
+        record_failure_category(&mut invocation, Some(&compile), Some("Genrule"));
+        assert_eq!(invocation.detected_failure_category, None);
+        record_failure_category(&mut invocation, Some(&compile), Some("CppCompile"));
+        assert_eq!(invocation.detected_failure_category, Some("verification"));
+        let remote = BazelFailureDetail {
+            spawn: Some(BazelFailureCode { code: 6 }),
+            ..Default::default()
+        };
+        record_failure_category(&mut invocation, Some(&remote), Some("CppCompile"));
+        record_failure_category(&mut invocation, Some(&compile), Some("TestRunner"));
+        assert_eq!(
+            invocation.detected_failure_category,
+            Some("infrastructure_tooling")
+        );
+        let event = completed_invocation_event(invocation, "failure", Some(1), 2000);
+        assert_eq!(
+            event.custom_values["tuist.detected_failure_category"],
+            "infrastructure_tooling"
+        );
+    }
+
+    #[test]
+    fn failure_detail_decodes_real_wire_tags_and_leaves_unknown_categories_unknown() {
+        // FailureDetail.spawn (123), Spawn.code (1): remote-cache failure (6).
+        let detail = BazelFailureDetail::decode(&[0xda, 0x07, 0x02, 0x08, 0x06][..]).unwrap();
+        let mut invocation = test_invocation_start();
+        record_failure_category(&mut invocation, Some(&detail), None);
+        assert_eq!(
+            invocation.detected_failure_category,
+            Some("infrastructure_tooling")
+        );
+        let unknown = BazelFailureDetail::decode(&[0xb2, 0x0b, 0x02, 0x08, 0x01][..]).unwrap();
+        let mut invocation = test_invocation_start();
+        record_failure_category(&mut invocation, Some(&unknown), None);
+        assert_eq!(invocation.detected_failure_category, None);
+    }
+
+    #[test]
+    fn compiler_failure_codes_distinguish_source_errors_from_tooling_errors() {
+        // Bazel 9.1.1 failure_details.proto: CppCompile field 161, JavaCompile field 159.
+        for (tag, code, expected) in [
+            ([0x8a, 0x0a], 8, Some("verification")), // Undeclared inclusions.
+            ([0x8a, 0x0a], 9, Some("infrastructure_tooling")), // Dependency-file parsing.
+            ([0x8a, 0x0a], 3, Some("infrastructure_tooling")), // Dependency-file read.
+            ([0xfa, 0x09], 1, None), // Reduced classpath failure is not a compiler verdict.
+            ([0xfa, 0x09], 3, Some("infrastructure_tooling")), // Dependency metadata read.
+        ] {
+            let detail = BazelFailureDetail::decode(&[tag[0], tag[1], 2, 8, code][..]).unwrap();
+            let mut invocation = test_invocation_start();
+            record_failure_category(&mut invocation, Some(&detail), None);
+            assert_eq!(invocation.detected_failure_category, expected);
+        }
+    }
+
+    #[test]
+    fn decodes_compiler_failure_shape_emitted_by_real_bazel() {
+        // Captured from a failed C++ build. Keep only the mnemonic and the
+        // structured failure, omitting the build's diagnostic message/paths.
+        let wire = [
+            0x42, 10, b'C', b'p', b'p', b'C', b'o', b'm', b'p', b'i', b'l', b'e', 0x5a, 7, 0xda,
+            0x07, 4, 0x08, 1, 0x18, 1,
+        ];
+        let action = BazelActionExecuted::decode(&wire[..]).unwrap();
+        let mut invocation = test_invocation_start();
+        record_failure_category(
+            &mut invocation,
+            action.failure_detail.as_ref(),
+            Some(&action.action_type),
+        );
+        assert_eq!(invocation.detected_failure_category, Some("verification"));
+    }
+
     fn test_invocation_start() -> InvocationStart {
         InvocationStart {
             account_handle: "acme".into(),
@@ -2471,6 +2697,8 @@ mod tests {
             git_commit_sha: String::new(),
             is_ci: false,
             custom_values: BTreeMap::new(),
+            detected_failure_category: None,
+            reported_user: String::new(),
             bazel_version: "9.1.0".into(),
             cpu_time_ms: 0,
             actions_created: 0,

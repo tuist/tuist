@@ -264,10 +264,7 @@ defmodule Tuist.Bundles do
           path: a.path,
           size: a.size,
           shasum: a.shasum,
-          artifact_id: a.artifact_id,
-          bundle_id: a.bundle_id,
-          inserted_at: a.inserted_at,
-          updated_at: a.updated_at
+          artifact_id: a.artifact_id
         }
       )
       |> ClickHouseRepo.all()
@@ -353,13 +350,13 @@ defmodule Tuist.Bundles do
 
   def install_size_deviation(%Bundle{} = bundle) do
     project = Repo.preload(bundle, :project).project
-    last_bundle = last_project_bundle(project, git_branch: project.default_branch, bundle: bundle)
+    install_size_deviation(bundle, last_project_bundle(project, git_branch: project.default_branch, bundle: bundle))
+  end
 
-    if is_nil(last_bundle) do
-      0.0
-    else
-      bundle.install_size / last_bundle.install_size - 1
-    end
+  def install_size_deviation(%Bundle{}, nil), do: 0.0
+
+  def install_size_deviation(%Bundle{} = bundle, %Bundle{} = last_bundle) do
+    bundle.install_size / last_bundle.install_size - 1
   end
 
   def distinct_project_app_bundles(%Project{} = project) do
@@ -377,6 +374,22 @@ defmodule Tuist.Bundles do
     |> ClickHouseRepo.all()
     |> decode_bundles()
     |> Enum.uniq_by(& &1.name)
+  end
+
+  def project_app_bundle_options(%Project{} = project) do
+    from(b in Bundle,
+      where: b.project_id == ^project.id,
+      where: b.inserted_at > ^DateTime.add(DateTime.utc_now(), -365, :day),
+      group_by: b.name,
+      order_by: [desc: max(b.inserted_at), asc: b.name],
+      limit: 50,
+      select: %{
+        name: b.name,
+        supported_platforms: fragment("argMax(?, ?)", b.supported_platforms, b.inserted_at)
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.map(fn app -> %{app | supported_platforms: decode_platforms(app.supported_platforms)} end)
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
@@ -558,6 +571,8 @@ defmodule Tuist.Bundles do
     name = Keyword.get(opts, :name)
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
 
+    bucket = date_bucket(date_period)
+
     query =
       from(b in Bundle)
       |> where([b], b.project_id == ^project.id)
@@ -565,11 +580,12 @@ defmodule Tuist.Bundles do
       |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [b], b.git_branch == ^git_branch)))
       |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^Atom.to_string(type))))
       |> then(&if(is_nil(name), do: &1, else: where(&1, [b], b.name == ^name)))
+      |> group_by(^bucket)
       |> select([b], %{
-        id: b.id,
-        inserted_at: b.inserted_at,
-        install_size: b.install_size,
-        download_size: b.download_size
+        id: fragment("argMax(?, ?)", b.id, b.inserted_at),
+        inserted_at: max(b.inserted_at),
+        install_size: fragment("argMax(?, ?)", b.install_size, b.inserted_at),
+        download_size: fragment("tupleElement(argMax(tuple(?), ?), 1)", b.download_size, b.inserted_at)
       })
 
     query
@@ -589,6 +605,10 @@ defmodule Tuist.Bundles do
     end)
     |> Enum.group_by(fn bundle -> bundle.date end)
   end
+
+  defp date_bucket(:hour), do: dynamic([b], fragment("toStartOfHour(?, 'UTC')", b.inserted_at))
+  defp date_bucket(:day), do: dynamic([b], fragment("toStartOfDay(?, 'UTC')", b.inserted_at))
+  defp date_bucket(:month), do: dynamic([b], fragment("toStartOfMonth(?, 'UTC')", b.inserted_at))
 
   defp truncate_to_hour(%DateTime{} = dt) do
     %{dt | minute: 0, second: 0, microsecond: {0, 0}}
@@ -742,17 +762,25 @@ defmodule Tuist.Bundles do
         :download_size -> {bundle.download_size, baseline.download_size}
       end
 
-    if is_nil(current_size) || is_nil(baseline_size) || baseline_size == 0 do
+    if is_nil(current_size) || is_nil(baseline_size) do
       :ok
     else
-      deviation = (current_size - baseline_size) / baseline_size * 100
+      growth = current_size - baseline_size
 
-      if deviation > threshold.deviation_percentage do
+      if threshold_exceeded?(threshold, growth, baseline_size) do
+        deviation = if baseline_size == 0, do: nil, else: growth / baseline_size * 100
         {:violated, threshold, %{current_size: current_size, baseline_size: baseline_size, deviation: deviation}}
       else
         :ok
       end
     end
+  end
+
+  defp threshold_exceeded?(%{deviation_bytes: bytes}, growth, _baseline_size) when is_integer(bytes), do: growth > bytes
+  defp threshold_exceeded?(_threshold, _growth, 0), do: false
+
+  defp threshold_exceeded?(%{deviation_percentage: percentage}, growth, baseline_size) do
+    growth / baseline_size * 100 > percentage
   end
 
   def list_bundle_size_approvers(%Project{} = project) do

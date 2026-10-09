@@ -33,6 +33,7 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
       conn = PublicPageHeaderPlug.mark_public_project_page(conn, [])
 
       assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+      assert conn.private[:tuist_public_project]
     end
 
     test "allows indexing for a public project on the hosted production site", %{conn: conn} do
@@ -53,11 +54,55 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
       }
 
       conn =
-        conn
+        %{conn | request_path: "/#{project.account.name}/#{project.name}/builds"}
         |> Plug.Conn.put_resp_header("x-robots-tag", "noindex, nofollow")
         |> PublicPageHeaderPlug.mark_public_project_page([])
 
       assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["index, follow"]
+    end
+
+    test "settings and downloads remain non-indexable even for public projects", %{conn: conn} do
+      stub(Tuist.Environment, :prod?, fn -> true end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      project = Repo.preload(ProjectsFixtures.project_fixture(visibility: :public), :account)
+
+      for suffix <- ["settings", "settings/automations", "runs/123/download", "connect"] do
+        conn = %{
+          conn
+          | request_path: "/#{project.account.name}/#{project.name}/#{suffix}",
+            path_params: %{"account_handle" => project.account.name, "project_handle" => project.name}
+        }
+
+        conn =
+          conn
+          |> Plug.Conn.put_resp_header("x-robots-tag", "noindex, nofollow")
+          |> PublicPageHeaderPlug.mark_public_project_page([])
+
+        assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+        assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["noindex, nofollow"]
+      end
+    end
+
+    test "redirects and failed responses do not advertise indexing", %{conn: conn} do
+      stub(Tuist.Environment, :prod?, fn -> true end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      project = Repo.preload(ProjectsFixtures.project_fixture(visibility: :public), :account)
+
+      for status <- [302, 403, 404, 500] do
+        conn = %{
+          conn
+          | request_path: "/#{project.account.name}/#{project.name}/builds",
+            path_params: %{"account_handle" => project.account.name, "project_handle" => project.name}
+        }
+
+        conn =
+          conn
+          |> Plug.Conn.put_resp_header("x-robots-tag", "noindex, nofollow")
+          |> PublicPageHeaderPlug.mark_public_project_page([])
+          |> Plug.Conn.send_resp(status, "")
+
+        assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["noindex, nofollow"]
+      end
     end
 
     test "does not set the header when the project is private", %{conn: conn} do
@@ -77,6 +122,7 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
       conn = PublicPageHeaderPlug.mark_public_project_page(conn, [])
 
       assert Plug.Conn.get_resp_header(conn, @header) == []
+      refute conn.private[:tuist_public_project]
     end
 
     test "sets the header regardless of whether the current user is signed in", %{conn: conn, user: user} do
@@ -173,6 +219,27 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
       conn = PublicPageHeaderPlug.mark_public_preview_page(conn, [])
 
       assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+    end
+
+    test "a link-shared public preview in a private project stays non-indexable", %{conn: conn} do
+      stub(Tuist.Environment, :prod?, fn -> true end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      project = Repo.preload(ProjectsFixtures.project_fixture(visibility: :private), :account)
+      preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :public)
+
+      conn = %{
+        conn
+        | request_path: "/#{project.account.name}/#{project.name}/previews/#{preview.id}",
+          path_params: %{"id" => preview.id}
+      }
+
+      conn =
+        conn
+        |> Plug.Conn.put_resp_header("x-robots-tag", "noindex, nofollow")
+        |> PublicPageHeaderPlug.mark_public_preview_page([])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+      assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["noindex, nofollow"]
     end
 
     test "sets the header when the parent project is public", %{conn: conn} do

@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -265,6 +266,10 @@ type VolumeManager struct {
 	// keeps the quota volume above by dropping whole masters LRU.
 	LowWatermarkFraction float64
 
+	// HostDiskSpace bounds cache growth by physical host headroom in addition
+	// to the APFS quota. Tests with an injected backend can supply a probe.
+	HostDiskSpace func() (hostdisk.Stats, error)
+
 	backend volumeBackend
 
 	// mu serializes disk-mutating operations and the branch reservations. Every
@@ -276,7 +281,8 @@ type VolumeManager struct {
 	// reserved holds the branch directories admission has reserved CapGiB for:
 	// branches materialized and not yet finalized. A warm standby's branch is
 	// not in it, because it writes nothing until it has a job.
-	reserved map[string]bool
+	reserved       map[string]bool
+	CustomReserved func() uint64
 
 	// converging is the space the in-flight convergence download still needs, or
 	// nil. Admission counts it, so a job admitted mid-download is not promised
@@ -312,14 +318,17 @@ func NewVolumeManager(root string, capGiB int, backend volumeBackend) *VolumeMan
 	if capGiB <= 0 {
 		capGiB = 20
 	}
+	var hostSpace func() (hostdisk.Stats, error)
 	if backend == nil {
 		backend = newVolumeBackend()
+		hostSpace = func() (hostdisk.Stats, error) { return hostdisk.Root("/") }
 	}
 	return &VolumeManager{
 		Root:                 root,
 		CapGiB:               capGiB,
 		LowWatermarkFraction: 0.20,
 		backend:              backend,
+		HostDiskSpace:        hostSpace,
 		now:                  time.Now,
 	}
 }
@@ -574,6 +583,9 @@ func (m *VolumeManager) reserveLocked(att VolumeAttachment, keep masterKey) erro
 		return nil
 	}
 	want := m.capBytes() * uint64(len(m.reserved)+1)
+	if m.CustomReserved != nil {
+		want += m.CustomReserved()
+	}
 	free, err := m.admitBesideConvergenceLocked(want, keep)
 	if errors.Is(err, errNoRoom) && m.dropConvergeStagingLocked() {
 		free, err = m.ensureFreeLocked(want, keep)
@@ -684,6 +696,18 @@ func joinFallback(err, fallbackErr error) error {
 // head.Generation > this; a promote installs its branch only when the accepted
 // generation exceeds this. Both comparisons are against the same monotonic
 // counter the server assigns, so the local master and the HEAD stay on one scale.
+// MasterInstalledAt reports when the (account, volume) master was last installed,
+// by a promote or a convergence: the mtime of its generation sidecar, which only
+// InstallMaster writes. The image's own mtime is touched on every materialize
+// for LRU, so it says when the master was last used, not how old it is.
+func (m *VolumeManager) MasterInstalledAt(account, volume string) (time.Time, error) {
+	info, err := os.Stat(m.masterGenerationPath(account, volume))
+	if err != nil {
+		return time.Time{}, err
+	}
+	return info.ModTime(), nil
+}
+
 func (m *VolumeManager) MasterGeneration(account, volume string) (int, error) {
 	if volume == "" {
 		volume = ReservedTuistCacheVolume
@@ -1291,7 +1315,7 @@ func (m *VolumeManager) EvictToWatermark() (evicted int, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	free, err := m.backend.freeBytes(m.Root)
+	free, err := m.availableBytes()
 	if err != nil {
 		return 0, err
 	}
@@ -1319,7 +1343,7 @@ func (m *VolumeManager) EvictToWatermark() (evicted int, err error) {
 			continue
 		}
 		evicted++
-		f, ferr := m.backend.freeBytes(m.Root)
+		f, ferr := m.availableBytes()
 		if ferr != nil {
 			return evicted, ferr
 		}
@@ -1423,8 +1447,12 @@ func (m *VolumeManager) PrepareConvergeSpace(key masterKey, total, remaining uin
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	custom := uint64(0)
+	if m.CustomReserved != nil {
+		custom = m.CustomReserved()
+	}
 	headroom := watermark
-	if admission := m.capBytes() * uint64(len(m.reserved)+1); admission > headroom {
+	if admission := m.capBytes()*uint64(len(m.reserved)+1) + custom; admission > headroom {
 		headroom = admission
 	}
 	// Two states must fit. While it downloads, the transfer must leave every
@@ -1433,12 +1461,12 @@ func (m *VolumeManager) PrepareConvergeSpace(key masterKey, total, remaining uin
 	// the new master would be the evictor's first victim. Requiring the headroom
 	// on top of both images at once would refuse every refresh of a master
 	// larger than a third of what the watermark leaves (22 GiB on an M2-L).
-	want := remaining + m.capBytes()*uint64(len(m.reserved))
+	want := remaining + m.capBytes()*uint64(len(m.reserved)) + custom
 	if afterInstall := saturatingSub(remaining+headroom, m.refreshCreditLocked(key)); afterInstall > want {
 		want = afterInstall
 	}
 	if !mayEvict {
-		free, err := m.backend.freeBytes(m.Root)
+		free, err := m.availableBytes()
 		if err != nil {
 			return nil, err
 		}
@@ -1513,7 +1541,7 @@ func (m *VolumeManager) reservedBranches() int {
 // value is the space available after any eviction, so the caller can log why a
 // decline happened without a second statfs.
 func (m *VolumeManager) ensureFreeLocked(want uint64, keep masterKey) (uint64, error) {
-	free, err := m.backend.freeBytes(m.Root)
+	free, err := m.availableBytes()
 	if err != nil {
 		return 0, err
 	}
@@ -1534,7 +1562,7 @@ func (m *VolumeManager) ensureFreeLocked(want uint64, keep masterKey) (uint64, e
 		if err := os.RemoveAll(mm.path); err != nil {
 			continue
 		}
-		f, ferr := m.backend.freeBytes(m.Root)
+		f, ferr := m.availableBytes()
 		if ferr != nil {
 			return free, ferr
 		}

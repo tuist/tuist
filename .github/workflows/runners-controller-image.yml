@@ -15,10 +15,12 @@ on:
       - feat/runners-shape-2
     paths:
       - infra/runners-controller/**
+      - infra/runner-cache/**
       - .github/workflows/runners-controller-image.yml
   pull_request:
     paths:
       - infra/runners-controller/**
+      - infra/runner-cache/**
       - .github/workflows/runners-controller-image.yml
   workflow_dispatch: {}
 
@@ -43,7 +45,7 @@ jobs:
       - name: Check formatting
         working-directory: infra/runners-controller
         run: |
-          files="$(gofmt -l .)"
+          files="$(gofmt -l . ../runner-cache)"
           if [ -n "$files" ]; then
             echo "$files"
             exit 1
@@ -52,18 +54,29 @@ jobs:
   test:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     runs-on: tuist-linux
+    env:
+      GOMODCACHE: ${{ github.workspace }}/../tuist-go-mod
+      GOCACHE: ${{ github.workspace }}/../tuist-go-build
     steps:
       - uses: actions/checkout@v4
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-runners-controller-go-mod-v1
+          path: ${{ env.GOMODCACHE }}
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-runners-controller-go-build-v1
+          path: ${{ env.GOCACHE }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: infra/runners-controller/go.mod
-          cache-dependency-path: infra/runners-controller/go.sum
+          cache: false
       - name: Test
         working-directory: infra/runners-controller
-        run: go test ./...
+        run: go test -count=1 ./... ../runner-cache/...
       - name: Vet
         working-directory: infra/runners-controller
-        run: go vet ./...
+        run: go vet ./... ../runner-cache/...
 
   test-filesystems:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')

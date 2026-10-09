@@ -22,9 +22,21 @@
 # Limiting and any custom rule that matches its path.
 # https://developers.cloudflare.com/waf/custom-rules/skip/options/
 #
+# Public project roots also skip SBFM so search and social crawlers
+# (including unverified unfurlers) can fetch their initial HTML. The
+# positive and negative wildcards require exactly two non-empty segments;
+# exclude sockets, authentication, operator paths and scanner-shaped URLs.
+# Other two-segment application routes retain their origin authorization
+# or Turnstile gate. Filtered roots are still challenged by the origin.
+# This does not exempt any deeper project dashboard path or rate limit.
+# Deploy the cached public overview before rolling out this root exemption.
+#
 # Path list justification (see server/lib/tuist_web/router.ex):
 #   /api/*             CLI OpenAPI client (auth, cache, builds, tests,
 #                      previews, runners) — every managed-CI call.
+#   /open-graph-images/* Signed social-preview images; crawlers cannot
+#                      solve JavaScript challenges. The application
+#                      verifies signatures and current project visibility.
 #   /webhooks/*        Third-party webhook receivers (GitHub, Stripe,
 #                      Slack event webhooks).
 #   /scim/v2/*         System for Cross-domain Identity Management
@@ -61,7 +73,7 @@ metadata:
   name: skip-sbfm-api-paths
 spec:
   zoneId: 4421110085237b867a891bd0a40da106
-  description: "Skip SBFM on machine/CLI paths"
+  description: "Skip SBFM on machine paths and cached project roots"
   # Super Bot Fight Mode applies to every hostname proxied through the
   # tuist.dev zone, not just the browser dashboard host. The path list
   # below is derived from `tuist.dev`'s Phoenix router and does not
@@ -77,6 +89,21 @@ spec:
   expression: |-
     (http.host ne "tuist.dev") or
     starts_with(http.request.uri.path, "/api/") or
+    starts_with(http.request.uri.path, "/open-graph-images/") or
+    (
+      http.request.method in {"GET" "HEAD"} and
+      http.request.uri.path wildcard "/*/*" and
+      not http.request.uri.path wildcard "/*/*/*" and
+      not ends_with(http.request.uri.path, "/") and
+      not starts_with(http.request.uri.path, "//") and
+      not http.request.uri.path contains "." and
+      not http.request.uri.path contains "%" and
+      not starts_with(http.request.uri.path, "/live/") and
+      not starts_with(http.request.uri.path, "/socket/") and
+      not starts_with(http.request.uri.path, "/users/") and
+      not starts_with(http.request.uri.path, "/auth/") and
+      not starts_with(http.request.uri.path, "/ops/")
+    ) or
     starts_with(http.request.uri.path, "/webhooks/") or
     starts_with(http.request.uri.path, "/scim/v2/") or
     starts_with(http.request.uri.path, "/oauth2/") or

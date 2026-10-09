@@ -22,6 +22,8 @@ on:
     paths:
       - infra/rack-switch-controller/**
       - infra/helm/rack-switch-controller/**
+      - infra/rack-switch-fleet/sites/**
+      - infra/rack-switch-fleet/lib/config.sh
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - mise/tasks/rack-switch-controller/**
       - .github/workflows/rack-switch-controller-image.yml
@@ -75,15 +77,22 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked helm"
+          install_args: "--locked helm jq"
           cache: "false"
-      - name: The chart renders with the staging values
+      # With the values omada-deployment.yml takes from each site definition
+      # that has a controller.
+      - name: The chart renders with each site's values
         run: |
           set -euo pipefail
           chart=infra/helm/rack-switch-controller
-          helm lint "$chart" -f "$chart/values.yaml" -f "$chart/values-staging.yaml"
-          helm template rack-switch-controller "$chart" --namespace omada \
-            -f "$chart/values.yaml" -f "$chart/values-staging.yaml" > /dev/null
+          for site in infra/rack-switch-fleet/sites/*.json; do
+            jq -e '.management.controller != null' "$site" >/dev/null || continue
+            values="$RUNNER_TEMP/$(basename "$site" .json).yaml"
+            infra/rack-switch-fleet/fleet.sh --site "$(basename "$site" .json)" helm-values rack-switch-controller > "$values"
+            helm lint "$chart" -f "$chart/values.yaml" -f "$values"
+            helm template rack-switch-controller "$chart" --namespace omada \
+              -f "$chart/values.yaml" -f "$values" > /dev/null
+          done
 
   generated:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')

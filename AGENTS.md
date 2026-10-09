@@ -30,6 +30,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `infra/cluster-api-provider-tuist/` - Cluster API infrastructure provider that joins Scaleway nodes as workers into the existing caph/Hetzner clusters. Watches two machine kinds — `ScalewayAppleSiliconMachine` (Mac minis/Tart) and `ScalewayElasticMetalMachine` (Linux bare metal, e.g. the `kura-scw-fr-par` runner-cache node) — orders/releases via Scaleway's API, and bootstraps each with an operator-minted kubelet identity + SSH self-join. Scaling a fleet is `kubectl scale machinedeployment`. See `infra/cluster-api-provider-tuist/AGENTS.md`.
 - `infra/stable-egress-controller/` - Go controller (Hetzner Cloud) that makes the hosted server's stable egress IP highly available: keeps the Floating IP + active gateway label on one Ready node of the ≥2-node `md-egress` pool and fails over on node loss, so the Cilium egress gateway has no single-node SPOF. See `infra/stable-egress-controller/AGENTS.md`.
 - `infra/egress-tree-agent/` - Go DaemonSet enforcing kura per-tenant egress floors/ceilings and the node box cap via a shared per-node HTB tree (tcx BPF veth trampoline that keeps Cilium's datapath applied to shaped traffic). Consumes the `tuist.dev/egress-class` pod annotation rendered by the kura-controller. See `infra/egress-tree-agent/AGENTS.md`.
+- `infra/rack-nodes/` - Install sticks for the BER1 rack's x86 Linux machines: unattended Ubuntu that joins the tailnet on first boot, after which the CAPI provider's `RackLinuxMachine` joins it to the cluster. See `infra/rack-nodes/AGENTS.md`.
 - `infra/rack-switch-controller/` - Go controller that adopts `RackSwitch` objects marked `managedBy: controller` into the Omada SDN controller and writes their configuration through its Open API, one switch at a time in the site's apply order. Owns the generated RackSwitch CRD. See `infra/rack-switch-controller/AGENTS.md`.
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `status/` - Public status page (Cloudflare Worker + Hono) backed by Grafana IRM - see `status/AGENTS.md`
@@ -180,7 +181,7 @@ Tuist Server is an Elixir/Phoenix web application that extends the functionality
 **Prerequisites:**
 - PostgreSQL 16
 - Mise development environment manager
-- Private key from 1Password for `priv/secrets/dev.key`
+- Optional: 1Password access to the `Development` vault via fnox (`op signin` or `OP_SERVICE_ACCOUNT_TOKEN`), installed by `mise install`; the server boots without it with OAuth/Stripe/etc. disabled
 
 **Setup Commands:**
 ```bash
@@ -237,7 +238,7 @@ mise run dev                   # Start development server
 - `mix.exs` - Elixir project configuration and dependencies
 - `package.json` - JavaScript dependencies managed by aube
 - `config/` directory - Phoenix application configuration
-- `priv/secrets/dev.key` - Development secrets encryption key (not in repo)
+- `server/fnox.toml` - Dev secrets sourced from 1Password (`Development` vault) at runtime via fnox
 
 ## Testing Patterns
 
@@ -515,3 +516,6 @@ This documentation is critical for:
 
 **Failure to keep this documentation current could result in incomplete data exports for legal requests, potentially leading to compliance violations.**
 - Don't modify content in languages other than English (source language)
+
+- `infra/tart-kubelet/` — current macOS Pod-to-Tart runtime and APFS caches; see `infra/tart-kubelet/AGENTS.md`.
+- `infra/runner-cache/` — shared Linux/macOS custom-volume journal, image lifecycle and transfer; see `infra/runner-cache/AGENTS.md`.

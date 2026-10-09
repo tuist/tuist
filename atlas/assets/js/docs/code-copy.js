@@ -1,0 +1,57 @@
+import { copyTextToClipboard } from "./clipboard.js";
+
+function flashCopyCheck(button) {
+  button.setAttribute("data-copied", "");
+  button.setAttribute("aria-label", "Copied");
+  // Repeated clicks restart the flash instead of letting the first click's
+  // timer strip the checkmark mid-spam.
+  clearTimeout(button.copyResetTimer);
+  button.copyResetTimer = setTimeout(() => {
+    button.removeAttribute("data-copied");
+    button.setAttribute("aria-label", "Copy code");
+  }, 2000);
+}
+
+function copySourceText(container) {
+  return container?.querySelector('[data-part="copy-source"]')?.content?.textContent;
+}
+
+function setupCodeCopy(el) {
+  el.querySelectorAll('[data-part=code-window] [data-part="copy"]').forEach((button) => {
+    // Guards re-runs on LiveView `updated()` from stacking click listeners
+    // (each would copy and flash again).
+    if (button.dataset.codeCopyReady) return;
+    button.dataset.codeCopyReady = "true";
+
+    button.setAttribute("role", "button");
+    button.setAttribute("tabindex", "0");
+    button.setAttribute("aria-label", "Copy code");
+
+    button.addEventListener("click", () => {
+      const codeWindow = button.closest("[data-part=code-window]");
+      const codeBlock = codeWindow?.querySelector('[data-part="code"]');
+      if (!codeBlock) return;
+      copyTextToClipboard(copySourceText(codeWindow) ?? codeBlock.textContent.trim())
+        .then(() => flashCopyCheck(button))
+        .catch((err) => console.error("Failed to copy code:", err));
+    });
+
+    button.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        button.click();
+      }
+    });
+  });
+}
+
+const CodeCopy = {
+  mounted() {
+    setupCodeCopy(this.el);
+  },
+  updated() {
+    setupCodeCopy(this.el);
+  },
+};
+
+export { CodeCopy, setupCodeCopy, flashCopyCheck, copySourceText };

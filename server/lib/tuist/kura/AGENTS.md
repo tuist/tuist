@@ -1,5 +1,17 @@
 # Kura control plane
 
+- `kura_positive_fence` is default off and changes both `servingMode` and the
+  manifest revision. Controller activation is sticky: disabling the account
+  flag cannot remove the serving rollback floor or restore legacy selection.
+  See [serving authority](../../../../../infra/kura-controller/serving-authority.md).
+
+- Storage sizing counts `disk_pressure` events as eviction activity to block occupancy shrink, but excludes their bytes from turnover and invalidates all retention ages for the affected account-region-day. Keep snapshots reporting configured ring budgets; runtime pressure caps belong to backfill, not the resize denominator.
+
+- Region location metadata follows the active fleet's physical datacenter:
+  production EU-West is OVH Gravelines (`FR-HDF`); the Paris Mac runner cache
+  remains `FR-IDF`. Keep physical OTel location separate from stable region IDs,
+  pool/storage identifiers, and Route53 latency-region mappings.
+
 - Every managed public host-network region needs a distinct Route53 `aws_region`
   mapping. Stable-enabled retirement requires a supported, fresh stable-ready
   survivor; unsupported destinations must never allow the last advertiser to

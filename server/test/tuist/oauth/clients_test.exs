@@ -2,9 +2,11 @@ defmodule Tuist.OAuth.ClientsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Boruta.Ecto.Clients, as: EctoClients
   alias Boruta.Oauth.Client
   alias Tuist.Environment
   alias Tuist.OAuth.Clients
+  alias Tuist.Repo
 
   setup :set_mimic_from_context
 
@@ -22,9 +24,27 @@ defmodule Tuist.OAuth.ClientsTest do
       assert created_client.authorization_code_ttl == 300
       assert Clients.get_client(client_id).authorization_code_ttl == 300
     end
+
+    test "restricts the requested grant types" do
+      assert {:ok, %Client{} = client} =
+               Clients.create_client(%{
+                 redirect_uris: ["http://localhost:3000/callback"],
+                 supported_grant_types: ["password", "authorization_code", "refresh_token"]
+               })
+
+      assert client.supported_grant_types == ["authorization_code", "refresh_token"]
+    end
   end
 
   describe "get_client/1" do
+    test "restricts the grant types of previously registered clients" do
+      assert {:ok, %Client{id: client_id}} =
+               EctoClients.create_client(%{redirect_uris: ["http://localhost:3000/callback"]})
+
+      assert "password" in Repo.get!(Boruta.Ecto.Client, client_id).supported_grant_types
+      assert Clients.get_client(client_id).supported_grant_types == ["authorization_code", "refresh_token", "revoke"]
+    end
+
     test "returns the dedicated Kura control-plane client" do
       stub(Environment, :kura_control_plane_configured?, fn -> true end)
       stub(Environment, :kura_control_plane_client_id, fn -> "00000000-0000-0000-0000-000000000001" end)
@@ -48,7 +68,7 @@ defmodule Tuist.OAuth.ClientsTest do
 
       assert %Client{} = client = Clients.get_client("tuist-cli")
       assert client.id == "tuist-cli"
-      refute "introspect" in client.supported_grant_types
+      assert client.supported_grant_types == ["authorization_code", "refresh_token", "revoke"]
     end
   end
 end

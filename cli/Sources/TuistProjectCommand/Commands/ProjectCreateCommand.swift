@@ -33,7 +33,7 @@ public struct ProjectCreateCommand: AsyncParsableCommand {
         help: "The build system used by the project.",
         envKey: .projectCreateBuildSystem
     )
-    var buildSystem: Components.Schemas.Project.build_systemPayload?
+    var buildSystem: ServerProjectBuildSystem?
 
     public func run() async throws {
         try await ProjectCreateService().run(
@@ -44,8 +44,8 @@ public struct ProjectCreateCommand: AsyncParsableCommand {
     }
 }
 
-extension Components.Schemas.Project.build_systemPayload: @retroactive ExpressibleByArgument {}
-extension Components.Schemas.Project.build_systemPayload: @retroactive CustomStringConvertible {
+extension ServerProjectBuildSystem: @retroactive ExpressibleByArgument {}
+extension ServerProjectBuildSystem: @retroactive CustomStringConvertible {
     public var description: String {
         rawValue.capitalized
     }

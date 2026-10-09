@@ -15,6 +15,9 @@ defmodule Tuist.Oban.RuntimeConfig do
   """
 
   alias Tuist.Bazel.Workers.DeleteExpiredTestIngestionRecordsWorker
+  alias Tuist.MCP.Events.Workers.PruneExpiredSubscriptionsWorker
+  alias Tuist.MCP.Events.Workers.PruneJobKeysWorker
+  alias Tuist.OpenGraph.Workers.DeleteExpiredImagesWorker
   alias Tuist.Registry.Swift.SyncWorker
   alias Tuist.Runners.Workers.CacheVolumeCleanupWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
@@ -24,18 +27,23 @@ defmodule Tuist.Oban.RuntimeConfig do
   alias Tuist.Storage.Workers.DeleteExpiredXcodeCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredXcodeModuleCacheArtifactsWorker
   alias Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker
+  alias Tuist.Storage.Workers.SweepExpiredRunArtifactsWorker
 
   @shared_crons [
     {"@hourly", Tuist.Slack.Workers.ReportWorker},
     {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
     {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
+    {"@hourly", Tuist.OnceEvents.Workers.ExpireStaleRunsWorker},
     {"*/5 * * * *", Tuist.Tests.Workers.SweepPendingTestCaseRunFlakyCorrectionsWorker},
     {"@daily", DeleteExpiredTestIngestionRecordsWorker},
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
     {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker},
+    {"10 5 * * *", Tuist.Tests.Coverage.Workers.RetentionWorker},
     {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},
     {"@daily", CacheVolumeCleanupWorker},
-    {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker}
+    {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker},
+    {"@daily", PruneExpiredSubscriptionsWorker},
+    {"@hourly", PruneJobKeysWorker}
   ]
 
   @swift_registry_sync_cron {"*/10 * * * *", SyncWorker}
@@ -44,12 +52,14 @@ defmodule Tuist.Oban.RuntimeConfig do
   ]
 
   @hosted_only_crons [
+    {"* * * * *", Tuist.Marketing.Workers.CacheGlobeRefreshWorker},
     {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
     {"@hourly", Tuist.Ops.HourlySlackReportWorker},
     {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
     {"20 4 * * *", Tuist.Accounts.Workers.DormantOperatorAccountsWorker},
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
     {"30 3 * * *", Tuist.Billing.Workers.SwitchUsageBasedPricingWorker},
+    {"10 4 * * *", DeleteExpiredImagesWorker},
     {"* * * * *", Tuist.Kura.Reconciler},
     {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},
     {"*/5 * * * *", Tuist.Kura.Workers.StaleSelfHostedPeersWorker},
@@ -82,6 +92,7 @@ defmodule Tuist.Oban.RuntimeConfig do
 
   @schedule_expired_artifacts_cron {"30 2 * * *", ScheduleExpiredArtifactsWorker}
   @legacy_build_artifact_retention_cron {"0 4 * * *", DeleteExpiredLegacyBuildArtifactsWorker}
+  @run_artifact_retention_cron {"30 4 * * *", SweepExpiredRunArtifactsWorker}
 
   @cache_artifact_retention_crons [
     {"0 3 * * *", DeleteExpiredXcodeCacheArtifactsWorker},
@@ -97,6 +108,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   @hosted_artifact_retention_crons [
                                      @schedule_expired_artifacts_cron,
                                      @legacy_build_artifact_retention_cron,
+                                     @run_artifact_retention_cron,
                                      @gitlab_cache_artifact_retention_cron
                                    ] ++ @cache_artifact_retention_crons
 
@@ -197,6 +209,13 @@ defmodule Tuist.Oban.RuntimeConfig do
         []
       end
 
+    run_artifact_crons =
+      if Map.has_key?(artifact_retention_days, :run_artifacts) do
+        [self_hosted_cron(@run_artifact_retention_cron)]
+      else
+        []
+      end
+
     cache_crons =
       if Map.has_key?(artifact_retention_days, :cache_artifacts) do
         Enum.map(@cache_artifact_retention_crons, &self_hosted_cron/1)
@@ -204,7 +223,7 @@ defmodule Tuist.Oban.RuntimeConfig do
         []
       end
 
-    database_crons ++ legacy_build_crons ++ cache_crons
+    database_crons ++ legacy_build_crons ++ run_artifact_crons ++ cache_crons
   end
 
   defp self_hosted_cron({schedule, worker}), do: {schedule, worker, args: @self_hosted_args}

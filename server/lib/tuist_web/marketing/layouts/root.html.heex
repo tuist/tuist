@@ -65,14 +65,28 @@
           return resolved;
         }
 
+        let appliedPreference = preferredTheme();
+
+        function reapplyTheme() {
+          const before = document.documentElement.getAttribute("data-theme");
+          const preference = preferredTheme();
+          const after = applyTheme();
+          if (before !== after || preference !== appliedPreference) {
+            appliedPreference = preference;
+            window.dispatchEvent(new CustomEvent("tuist:theme-change", { detail: { theme: after, preference } }));
+          }
+        }
+
         applyTheme();
 
-        systemDark.addEventListener("change", function() {
-          const before = document.documentElement.getAttribute("data-theme");
-          const after = applyTheme();
-          if (before !== after) {
-            window.dispatchEvent(new CustomEvent("tuist:theme-change", { detail: { theme: after } }));
-          }
+        systemDark.addEventListener("change", reapplyTheme);
+
+        // A back/forward navigation can restore this document from the
+        // browser's page cache with its DOM frozen as it was left, so a
+        // preference changed on another page would otherwise show the old
+        // theme until the next full load.
+        window.addEventListener("pageshow", function(event) {
+          if (event.persisted) reapplyTheme();
         });
       })();
     </script>
@@ -82,6 +96,24 @@
     <TuistWeb.LayoutComponents.head_favicon_links />
     <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
     <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
+    <link
+      :if={
+        TuistWeb.Utilities.MarketingMarkdown.alternate_path(
+          TuistWeb.Marketing.Localization.current_path(assigns)
+        )
+      }
+      rel="alternate"
+      type="text/markdown"
+      hreflang="en"
+      href={
+        Tuist.Environment.app_url(
+          path:
+            TuistWeb.Utilities.MarketingMarkdown.alternate_path(
+              TuistWeb.Marketing.Localization.current_path(assigns)
+            )
+        )
+      }
+    />
     <!-- Language alternates for SEO -->
     <%= for locale <- TuistWeb.Marketing.Localization.all_locales() do %>
       <link
@@ -195,6 +227,9 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
       rel="stylesheet"
     />
+    <%!-- Stylesheets a single page asks for (a font only it uses), so they
+    never load site-wide. --%>
+    <link :for={href <- assigns[:head_stylesheets] || []} href={href} rel="stylesheet" />
 
     <!-- Analytics -->
     <TuistWeb.LayoutComponents.head_analytics_scripts page_section="marketing" {assigns} />
@@ -203,7 +238,7 @@
     <script nonce={get_csp_nonce()} src="https://js.hcaptcha.com/1/api.js" async defer>
     </script>
     <TuistWeb.LayoutComponents.head_support_chat_script {assigns} />
-    <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
+    <TuistWeb.LayoutComponents.head_canonical_link {assigns} />
   </head>
   <body data-scrollable="true">
     <TuistWeb.GoogleOneTap.prompt current_user={assigns[:current_user]} />

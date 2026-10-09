@@ -1066,6 +1066,246 @@ struct TreeShakePrunedTargetsGraphMapperSchemeReparentingTests {
     }
 }
 
+struct TreeShakePrunedTargetsGraphMapperEmptiedProjectSchemesTests {
+    private let subject = TreeShakePrunedTargetsGraphMapper()
+
+    @Test func map_keeps_an_emptied_project_hosting_a_hand_written_test_plan_scheme_that_references_kept_targets() throws {
+        // Given: a test-plan-only scheme declared on the app project, whose referenced plan also lists a
+        // test target of another project. The app's test target is a selective-testing cache hit, and the
+        // app target only reached the plan through it, so the app project loses every target.
+        let appProjectPath = try AbsolutePath(validating: "/App")
+        let featureProjectPath = try AbsolutePath(validating: "/Feature")
+
+        let app = Target.test(name: "App", product: .app, metadata: .metadata(tags: ["tuist:prunable"]))
+        let appTests = Target.test(
+            name: "AppTests",
+            product: .unitTests,
+            metadata: .metadata(tags: ["tuist:prunable"])
+        )
+        let featureTests = Target.test(name: "FeatureTests", product: .unitTests)
+        let testPlanPath = try AbsolutePath(validating: "/App/AllUnitTests.xctestplan")
+
+        let appProject = Project.test(
+            path: appProjectPath,
+            targets: [app, appTests],
+            schemes: [
+                Scheme.test(
+                    name: "AllUnitTests",
+                    buildAction: nil,
+                    testAction: .test(
+                        targets: [],
+                        testPlans: [
+                            TestPlan(
+                                path: testPlanPath,
+                                testTargets: [
+                                    .test(target: .init(projectPath: appProjectPath, name: appTests.name)),
+                                    .test(target: .init(projectPath: featureProjectPath, name: featureTests.name)),
+                                ],
+                                isDefault: true
+                            ),
+                        ]
+                    ),
+                    runAction: nil
+                ),
+            ]
+        )
+        let featureProject = Project.test(path: featureProjectPath, targets: [featureTests])
+
+        let graph = Graph.test(
+            path: appProjectPath,
+            workspace: Workspace.test(projects: [appProjectPath, featureProjectPath]),
+            projects: [
+                appProjectPath: appProject,
+                featureProjectPath: featureProject,
+            ],
+            dependencies: [:]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let gotAppProject = try #require(gotGraph.projects[appProjectPath])
+        #expect(gotAppProject.targets.isEmpty)
+        #expect(gotAppProject.schemes.map(\.name) == ["AllUnitTests"])
+        #expect(
+            gotAppProject.schemes.first?.testAction?.testPlans?.first?.testTargets.map(\.target.name) == ["FeatureTests"]
+        )
+        #expect(Set(gotGraph.workspace.projects) == [appProjectPath, featureProjectPath])
+        #expect(gotGraph.workspace.schemes.isEmpty)
+    }
+
+    @Test func map_only_rewrites_a_pruned_action_target_of_an_emptied_project_scheme_to_a_target_of_that_project() throws {
+        // Given: the scheme of the emptied project runs a pre-action against the app target. Its only
+        // surviving test plan target lives in another project, which a project scheme can't reference.
+        let appProjectPath = try AbsolutePath(validating: "/App")
+        let featureProjectPath = try AbsolutePath(validating: "/Feature")
+
+        let app = Target.test(name: "App", product: .app, metadata: .metadata(tags: ["tuist:prunable"]))
+        let featureTests = Target.test(name: "FeatureTests", product: .unitTests)
+
+        let appProject = Project.test(
+            path: appProjectPath,
+            targets: [app],
+            schemes: [
+                Scheme.test(
+                    name: "AllUnitTests",
+                    buildAction: nil,
+                    testAction: .test(
+                        targets: [],
+                        preActions: [
+                            ExecutionAction(
+                                title: "Pre-action",
+                                scriptText: "echo pre",
+                                target: .init(projectPath: appProjectPath, name: app.name),
+                                shellPath: nil
+                            ),
+                        ],
+                        testPlans: [
+                            TestPlan(
+                                path: try AbsolutePath(validating: "/App/AllUnitTests.xctestplan"),
+                                testTargets: [.test(target: .init(projectPath: featureProjectPath, name: featureTests.name))],
+                                isDefault: true
+                            ),
+                        ]
+                    ),
+                    runAction: nil
+                ),
+            ]
+        )
+        let featureProject = Project.test(path: featureProjectPath, targets: [featureTests])
+
+        let graph = Graph.test(
+            path: appProjectPath,
+            workspace: Workspace.test(projects: [appProjectPath, featureProjectPath]),
+            projects: [
+                appProjectPath: appProject,
+                featureProjectPath: featureProject,
+            ],
+            dependencies: [:]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let gotScheme = try #require(gotGraph.projects[appProjectPath]?.schemes.first)
+        let gotPreAction = try #require(gotScheme.testAction?.preActions.first)
+        #expect(gotPreAction.scriptText == "echo pre")
+        #expect(gotPreAction.target == nil)
+    }
+
+    @Test func map_moves_a_generated_test_plan_scheme_of_an_emptied_project_to_the_workspace() throws {
+        // Given: Tuist regenerates a generated test plan for the container that ends up owning the scheme,
+        // so the scheme can move to the workspace, whose generated plan can reference every project.
+        let appProjectPath = try AbsolutePath(validating: "/App")
+        let featureProjectPath = try AbsolutePath(validating: "/Feature")
+
+        let app = Target.test(name: "App", product: .app, metadata: .metadata(tags: ["tuist:prunable"]))
+        let featureTests = Target.test(name: "FeatureTests", product: .unitTests)
+
+        let appProject = Project.test(
+            path: appProjectPath,
+            targets: [app],
+            schemes: [
+                Scheme.test(
+                    name: "AllUnitTests",
+                    buildAction: nil,
+                    testAction: .test(
+                        targets: [],
+                        preActions: [
+                            ExecutionAction(
+                                title: "Pre-action",
+                                scriptText: "echo pre",
+                                target: .init(projectPath: appProjectPath, name: app.name),
+                                shellPath: nil
+                            ),
+                        ],
+                        testPlans: [
+                            TestPlan(
+                                path: try AbsolutePath(validating: "/App/Derived/TestPlans/AllUnitTests.xctestplan"),
+                                testTargets: [.test(target: .init(projectPath: featureProjectPath, name: featureTests.name))],
+                                isDefault: true,
+                                kind: .generated
+                            ),
+                        ]
+                    ),
+                    runAction: nil
+                ),
+            ]
+        )
+        let featureProject = Project.test(path: featureProjectPath, targets: [featureTests])
+
+        let graph = Graph.test(
+            path: appProjectPath,
+            workspace: Workspace.test(projects: [appProjectPath, featureProjectPath]),
+            projects: [
+                appProjectPath: appProject,
+                featureProjectPath: featureProject,
+            ],
+            dependencies: [:]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        #expect(gotGraph.projects[appProjectPath] == nil)
+        let gotScheme = try #require(gotGraph.workspace.schemes.first(where: { $0.name == "AllUnitTests" }))
+        #expect(
+            gotScheme.testAction?.preActions.first?.target
+                == TargetReference(projectPath: featureProjectPath, name: featureTests.name)
+        )
+    }
+
+    @Test func map_removes_an_emptied_project_when_none_of_its_schemes_survive() throws {
+        // Given
+        let appProjectPath = try AbsolutePath(validating: "/App")
+        let featureProjectPath = try AbsolutePath(validating: "/Feature")
+
+        let appTests = Target.test(
+            name: "AppTests",
+            product: .unitTests,
+            metadata: .metadata(tags: ["tuist:prunable"])
+        )
+        let featureTests = Target.test(name: "FeatureTests", product: .unitTests)
+
+        let appProject = Project.test(
+            path: appProjectPath,
+            targets: [appTests],
+            schemes: [
+                Scheme.test(
+                    name: "AppTests",
+                    buildAction: nil,
+                    testAction: .test(
+                        targets: [TestableTarget(target: .init(projectPath: appProjectPath, name: appTests.name))]
+                    ),
+                    runAction: nil
+                ),
+            ]
+        )
+        let featureProject = Project.test(path: featureProjectPath, targets: [featureTests])
+
+        let graph = Graph.test(
+            path: appProjectPath,
+            workspace: Workspace.test(projects: [appProjectPath, featureProjectPath]),
+            projects: [
+                appProjectPath: appProject,
+                featureProjectPath: featureProject,
+            ],
+            dependencies: [:]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        #expect(gotGraph.projects[appProjectPath] == nil)
+        #expect(gotGraph.workspace.projects == [featureProjectPath])
+        #expect(GraphTraverser(graph: gotGraph).schemes().contains(where: { $0.name == "AppTests" }) == false)
+    }
+}
+
 struct TreeShakePrunedTargetsGraphMapperPackageTests {
     private let subject = TreeShakePrunedTargetsGraphMapper()
 

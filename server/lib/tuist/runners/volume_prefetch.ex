@@ -59,16 +59,23 @@ defmodule Tuist.Runners.VolumePrefetch do
     with {:ok, node} <- K8sClient.get_node(node_name),
          labels when is_map(labels) <- get_in(node, ["metadata", "labels"]),
          fleet when is_binary(fleet) <- labels[@fleet_label],
-         [_ | _] = pools <- macos_pools_scheduling_onto(fleet) do
-      %{masters: resident, repository_volumes?: repository_volumes?} =
-        VolumeAffinities.cache_volumes_from_node_labels(labels)
-
+         [_ | _] = pools <- macos_pools_scheduling_onto(fleet),
+         {:ok, peers} <- class_peers(node, fleet),
+         true <- Enum.any?(peers, &(&1.name == node_name)) do
+      %{repository_volumes?: repository_volumes?} = VolumeAffinities.cache_volumes_from_node_labels(labels)
       repository_volumes? = repository_volumes? and FeatureFlags.runner_cache_volumes_per_repository_enabled?()
 
+      context = %{
+        node_name: node_name,
+        peer_names: Enum.map(peers, & &1.name),
+        held_in_class: Enum.reduce(peers, MapSet.new(), &MapSet.union(&1.masters, &2)),
+        repository_volumes?: repository_volumes?
+      }
+
       pools
-      |> demand()
+      |> demand(context.peer_names)
       |> Stream.uniq_by(&{&1.account_id, Map.get(&1, :repository)})
-      |> Stream.map(&volume_to_prefetch(&1, resident, repository_volumes?))
+      |> Stream.map(&volume_to_prefetch(&1, context))
       |> Stream.reject(&is_nil/1)
       |> Stream.uniq_by(&{&1.account_id, &1.volume})
       |> Enum.take(@limit)
@@ -96,7 +103,38 @@ defmodule Tuist.Runners.VolumePrefetch do
     end
   end
 
-  defp demand(pools) do
+  # The Nodes of the fleet in the same host class as `node`, itself included,
+  # with the masters each advertises. SKU groups of one fleet share its label,
+  # and the Node carries nothing naming its group, but each class advertises its
+  # own capacity (an M2-L 8 CPU and 14 GiB, an M4-XL 12 CPU and 28 GiB), which
+  # is what decides how many masters it can keep and which jobs land on it.
+  defp class_peers(node, fleet) do
+    class = node_class(node)
+
+    case K8sClient.list_nodes("#{@fleet_label}=#{fleet}") do
+      {:ok, %{"items" => items}} ->
+        {:ok,
+         for peer <- items,
+             node_class(peer) == class,
+             name = get_in(peer, ["metadata", "name"]),
+             is_binary(name) do
+           labels = get_in(peer, ["metadata", "labels"]) || %{}
+           %{name: name, masters: VolumeAffinities.cache_volumes_from_node_labels(labels).masters}
+         end}
+
+      _ ->
+        :error
+    end
+  end
+
+  defp node_class(node) do
+    {get_in(node, ["status", "capacity", "cpu"]), get_in(node, ["status", "capacity", "memory"])}
+  end
+
+  # Queued jobs may land on any class, so they count wherever they are queued.
+  # Recent demand counts only the jobs that ran on this class: an account whose
+  # jobs run on the M4-XL hosts is not worth a copy on every M2-L.
+  defp demand(pools, peer_names) do
     queued =
       pools
       |> Enum.flat_map(fn pool ->
@@ -109,17 +147,24 @@ defmodule Tuist.Runners.VolumePrefetch do
       |> Enum.take(@queued_candidates)
 
     since = DateTime.add(DateTime.utc_now(), -@recent_window_seconds, :second)
-    Stream.concat(queued, RunnerSessions.recent_demand(pools, since, @recent_candidates))
+    Stream.concat(queued, RunnerSessions.recent_demand(pools, since, @recent_candidates, node_names: peer_names))
   end
 
   # The volume a job would materialize from on this Node, as dispatch resolves
   # it: its repository's when the Node reads repository volumes, otherwise the
-  # account's. Nil when the Node already holds it or nothing is published.
-  defp volume_to_prefetch(%{account_id: account_id} = job, resident, repository_volumes?) do
+  # account's. Nil when a Node of this class already holds it, when another Node
+  # of the class is the one to fetch it, or when nothing is published.
+  #
+  # One copy per class is the prefetch's job. Dispatch prefers a Node holding
+  # the master, so that copy takes the account's jobs, and each Node a job lands
+  # on without it converges its own copy afterwards. Every idle Node fetching the
+  # same master at once would spend the class's disk and bandwidth on copies
+  # nothing reads.
+  defp volume_to_prefetch(%{account_id: account_id} = job, context) do
     account_volume = VolumeHeads.reserved_tuist_cache()
 
     volumes =
-      if repository_volumes? do
+      if context.repository_volumes? do
         [VolumeHeads.volume_name_for_repository(Map.get(job, :repository)), account_volume]
       else
         [account_volume]
@@ -127,7 +172,10 @@ defmodule Tuist.Runners.VolumePrefetch do
 
     Enum.reduce_while(Enum.uniq(volumes), nil, fn volume, nil ->
       cond do
-        MapSet.member?(resident, {account_id, volume}) ->
+        MapSet.member?(context.held_in_class, {account_id, volume}) ->
+          {:halt, nil}
+
+        not assigned_here?(account_id, volume, context) ->
           {:halt, nil}
 
         head = Runners.host_volume_head(account_id, volume) ->
@@ -137,5 +185,12 @@ defmodule Tuist.Runners.VolumePrefetch do
           {:cont, nil}
       end
     end)
+  end
+
+  # Rendezvous hashing: every server replica picks the same Node of the class for
+  # a volume, without coordinating, and a Node joining or leaving moves only the
+  # volumes it wins or held.
+  defp assigned_here?(account_id, volume, %{node_name: node_name, peer_names: peer_names}) do
+    Enum.max_by(peer_names, &:erlang.phash2({account_id, volume, &1})) == node_name
   end
 end

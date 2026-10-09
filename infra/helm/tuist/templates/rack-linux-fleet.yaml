@@ -1,0 +1,173 @@
+{{- if and .Values.capi.enabled .Values.rackLinuxFleet.enabled }}
+{{- $fleetName := include "tuist.rackLinuxFleetName" . }}
+{{- /*
+Rack-owned Linux machines: one RackLinuxHost per box, rendered from
+`rackLinuxFleet.hosts` and named after the machine's SMBIOS UUID, which
+`kubectl get rlc` lists once the box's install stick has announced it. The
+operator keeps a CAPI Machine for each host, which makes it a node. A role's
+labels and taints come from `rackLinuxFleet.roles.<role>` and reach the Node at
+its first registration. A host with an `address` on the site's machines segment
+also labels its Node `tuist.dev/pn-ipv4` with it: the address the segment's
+clients reach a host-network gateway on.
+
+The pods that run on these nodes, the rack node agent and the boot server, are
+the rack-nodes chart's (infra/helm/rack-nodes), a release this one's deploy
+does not wait on.
+*/ -}}
+{{- range $host := .Values.rackLinuxFleet.hosts }}
+{{- $uuid := lower (required "each rackLinuxFleet.hosts entry needs the machine's uuid" $host.uuid) }}
+{{- if not (regexMatch "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" $uuid) }}
+{{- fail (printf "rackLinuxFleet.hosts[].uuid %q is not an SMBIOS UUID" $host.uuid) }}
+{{- end }}
+{{- $hostname := required (printf "rackLinuxFleet.hosts[%s].hostname is required" $uuid) $host.hostname }}
+{{- $role := required (printf "rackLinuxFleet.hosts[%s].role is required" $hostname) $host.role }}
+{{- $roleConfig := get $.Values.rackLinuxFleet.roles $role | default dict }}
+{{- $tags := $host.tailnetTags | default $roleConfig.tailnetTags | default $.Values.rackLinuxFleet.tailnetTags }}
+{{- $nodeLabels := deepCopy ($roleConfig.nodeLabels | default dict) }}
+{{- with $host.address }}
+{{- $_ := set $nodeLabels "tuist.dev/pn-ipv4" . }}
+{{- end }}
+{{- if empty $tags }}
+{{- fail (printf "rackLinuxFleet.hosts[%s].tailnetTags (or its role's, or rackLinuxFleet.tailnetTags) is required: a device is only this host when it carries them" $hostname) }}
+{{- end }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: RackLinuxHost
+metadata:
+  name: {{ $uuid }}
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: rack-linux-fleet
+spec:
+  hostname: {{ $hostname }}
+  role: {{ $role }}
+  sshUser: {{ $host.sshUser | default $.Values.rackLinuxFleet.sshUser | default "tuist" }}
+  location:
+    site: {{ required (printf "rackLinuxFleet.hosts[%s].site is required; it composes the providerID" $hostname) (coalesce $host.site $.Values.rackLinuxFleet.site) | quote }}
+    {{- with $host.rack }}
+    rack: {{ . | quote }}
+    {{- end }}
+    {{- with $host.positionU }}
+    positionU: {{ . }}
+    {{- end }}
+  tailnet:
+    tags:
+      {{- toYaml $tags | nindent 6 }}
+  {{- with $host.bootMAC }}
+  bootMAC: {{ lower . | quote }}
+  {{- end }}
+  {{- if or $nodeLabels $roleConfig.nodeTaints }}
+  node:
+    {{- with $nodeLabels }}
+    labels:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $roleConfig.nodeTaints }}
+    taints:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+  online: {{ ternary $host.online true (hasKey $host "online") }}
+  {{- with $host.reinstallGeneration }}
+  reinstallGeneration: {{ . }}
+  {{- end }}
+  {{- with $host.amt }}
+  amt:
+    {{- if hasKey . "activate" }}
+    activate: {{ .activate }}
+    {{- end }}
+    {{- with .address }}
+    address: {{ . | quote }}
+    {{- end }}
+    {{- with .gateway }}
+    gateway: {{ . | quote }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- if .Values.rackLinuxFleet.sshExternalSecret.enabled }}
+---
+# The rack's fleet key. The install stick authorizes its public half, and the
+# operator logs in with the private half. Never minted in-cluster.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $fleetName }}-ssh
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-linux-fleet
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  target:
+    name: {{ $fleetName }}-ssh
+    creationPolicy: Owner
+  data:
+    - secretKey: id_ed25519
+      remoteRef:
+        key: "{{ required "rackLinuxFleet.sshExternalSecret.item is required when sshExternalSecret.enabled" .Values.rackLinuxFleet.sshExternalSecret.item }}/private-key"
+{{- end }}
+{{- if .Values.rackLinuxFleet.tailscale.externalSecret.enabled }}
+---
+# The Tailscale OAuth client (Auth Keys and Devices Core, scoped to the rack
+# tags). The operator uses it to find each host's device, remove the device a
+# reinstall replaced, name the new one after the host, and mint each netboot
+# install's single-use join key; rack:write-install-usb mints each stick's from
+# the same 1Password item.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $fleetName }}-tailscale
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-linux-fleet
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  target:
+    name: {{ $fleetName }}-tailscale
+    creationPolicy: Owner
+  data:
+    - secretKey: client-id
+      remoteRef:
+        key: "{{ required "rackLinuxFleet.tailscale.externalSecret.item is required when enabled" .Values.rackLinuxFleet.tailscale.externalSecret.item }}/client-id"
+    - secretKey: client-secret
+      remoteRef:
+        key: "{{ .Values.rackLinuxFleet.tailscale.externalSecret.item }}/client-secret"
+{{- end }}
+{{- if .Values.rackLinuxFleet.amt.provisioningExternalSecret.enabled }}
+---
+# Intel AMT's provisioning certificate, which the operator activates the AMT of
+# a host setting amt.activate with, in admin control mode. The key stays in
+# 1Password and here; hosts receive it only for the activation, through rpc's
+# environment.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $fleetName }}-amt-provisioning
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-linux-fleet
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  target:
+    name: {{ $fleetName }}-amt-provisioning
+    creationPolicy: Owner
+  data:
+    - secretKey: pfx
+      remoteRef:
+        key: "{{ required "rackLinuxFleet.amt.provisioningExternalSecret.item is required when enabled" .Values.rackLinuxFleet.amt.provisioningExternalSecret.item }}/pfx"
+    - secretKey: password
+      remoteRef:
+        key: "{{ .Values.rackLinuxFleet.amt.provisioningExternalSecret.item }}/pfx-password"
+{{- end }}
+{{- end }}

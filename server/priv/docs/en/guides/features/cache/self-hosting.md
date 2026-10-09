@@ -74,6 +74,102 @@ Then configure the Tuist server with the URLs that clients can reach:
 TUIST_CACHE_ENDPOINTS=https://kura-1.example.com,https://kura-2.example.com
 ```
 
+## Put nodes behind a load balancer {#load-balancers}
+
+Clients use each cache endpoint URL for both HTTP and gRPC: HTTP for health checks and the HTTP cache API, and gRPC for the module cache and Bazel's remote cache. Any ingress, load balancer, or CDN between clients and Kura must forward both on the same hostname and port. This applies to every endpoint clients receive, because the CLI picks whichever one responds fastest. If gRPC does not reach Kura, the CLI warns that remote module caching is unavailable and uses only the local module cache.
+
+Route these path prefixes to Kura as gRPC over HTTP/2, and everything else as HTTP:
+
+| Path prefix | Used by |
+| --- | --- |
+| `/build.bazel.remote.execution.v2.` | Module cache, Bazel |
+| `/google.bytestream.` | Module cache, Bazel |
+| `/build.bazel.remote.asset.v1.` | Bazel |
+| `/google.devtools.build.v1.` | Bazel build events |
+
+Kura accepts plaintext HTTP/2 (h2c) on `KURA_PORT`, and HTTP/2 over TLS on `KURA_HTTPS_PORT` when `KURA_PUBLIC_TLS_CERT_PATH` and `KURA_PUBLIC_TLS_KEY_PATH` are set. If your proxy reuses upstream connections across requests, as ingress-nginx does, set `KURA_GATEWAY_GRPC_PORT` and send gRPC traffic to that port instead. It serves only gRPC, so HTTP/1.1 and gRPC requests never share a connection.
+
+Configure the gRPC routes with:
+
+- No request body size limit. An upload sends one file in a single request, up to 2 GiB.
+- Request and response buffering turned off.
+- Read, send, and idle timeouts of at least 300 seconds.
+
+Kura does not serve the gRPC health checking service. Health-check nodes over HTTP at `/ready`. If your load balancer requires a gRPC health check, call `/build.bazel.remote.execution.v2.Capabilities/GetCapabilities` and accept the gRPC status codes `0` and `16`. A node with authorization enabled answers a request without a token with `16` (`UNAUTHENTICATED`).
+
+### ingress-nginx {#load-balancers-ingress-nginx}
+
+With the Helm chart, keep the HTTP ingress on `/` and add a gRPC ingress for the same host. Only the HTTP ingress declares TLS:
+
+```yaml
+service:
+  gatewayGrpcPort: 4001
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: kura.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - kura.example.com
+      secretName: kura-tls
+
+grpcIngress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: kura.example.com
+      paths:
+        - path: /build\.bazel\.remote\.execution\.v2\.
+          pathType: ImplementationSpecific
+        - path: /google\.bytestream\.
+          pathType: ImplementationSpecific
+        - path: /build\.bazel\.remote\.asset\.v1\.
+          pathType: ImplementationSpecific
+        - path: /google\.devtools\.build\.v1\.
+          pathType: ImplementationSpecific
+```
+
+### AWS Application Load Balancer {#load-balancers-aws-alb}
+
+gRPC target groups need an HTTPS listener. On that listener:
+
+1. Forward the default rule to a target group with protocol version `HTTP1` on `KURA_PORT`, health-checked over HTTP at `/ready`.
+2. Create a second target group with protocol version `gRPC`, using protocol `HTTP` on `KURA_GATEWAY_GRPC_PORT` (or `KURA_PORT`), or protocol `HTTPS` on `KURA_HTTPS_PORT`. Configure its health check as described above.
+3. Add a rule that forwards the path patterns `/build.bazel.remote.execution.v2.*`, `/google.bytestream.*`, `/build.bazel.remote.asset.v1.*`, and `/google.devtools.build.v1.*` to the second target group.
+4. Raise the load balancer's idle timeout to at least 300 seconds.
+
+### CDNs {#load-balancers-cdns}
+
+A CDN in front of a node must support gRPC and must not block the gRPC paths in its firewall rules. Clients upload large artifacts in chunks of at most 2 MiB and have the node assemble them, so no request needs a large body or a long upload. The module cache and the Xcode compilation cache do this, and Bazel does when built with `--experimental_remote_cache_chunking` (Bazel 8.7, and 9.1 or later). Without that flag, Bazel uploads each output in a single request, so the CDN must also allow large request bodies and uploads that take as long as your largest outputs need on your slowest link. If your CDN cannot meet these requirements, give clients a hostname that bypasses it, for example a DNS-only record.
+
+#### Cloudflare {#load-balancers-cloudflare}
+
+Module caching works through a proxied Cloudflare hostname on any plan. In the zone:
+
+1. Under **Network**, turn on **gRPC**.
+2. Under **SSL/TLS**, set the encryption mode to **Full** or **Full (strict)**. Cloudflare connects to the origin on port 443, so the origin must serve TLS there and offer HTTP/2 through ALPN.
+3. Make sure no WAF custom rule or managed rule blocks the gRPC paths listed above.
+
+Cloudflare ends a request when the origin has not started responding after about two minutes. A Bazel upload without `--experimental_remote_cache_chunking` is answered only once its last byte arrives, so on Cloudflare such uploads fail when they take longer than that.
+
 ## Connect nodes to Tuist {#connect-nodes-to-tuist}
 
 Running a node is only half of the setup. Tuist also has to know the node exists before it can hand the endpoint to clients. How that happens depends on which Tuist server you use.
@@ -221,6 +317,7 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_PUBLIC_TLS_CERT_PATH` | Certificate used to terminate TLS on the co-hosted HTTPS listener (`KURA_HTTPS_PORT`). | No | Disabled | `extraEnv` |
 | `KURA_PUBLIC_TLS_KEY_PATH` | Private key paired with `KURA_PUBLIC_TLS_CERT_PATH`. | No | Disabled | `extraEnv` |
 | `KURA_HTTPS_PORT` | TLS port serving the same co-hosted HTTP + gRPC surface (ALPN-negotiated). Only bound when the public TLS paths are set. | No | `4443` | `extraEnv` |
+| `KURA_GATEWAY_GRPC_PORT` | Plaintext HTTP/2 port that serves only the gRPC APIs, for proxies that reuse upstream connections. See [Put nodes behind a load balancer](#load-balancers). | No | Disabled | `service.gatewayGrpcPort` |
 | `KURA_FILE_DESCRIPTOR_POOL_SIZE` | File-descriptor budget for request and background I/O. | No | Auto-derived | `config.fileDescriptors.poolSize` |
 | `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` | How long a request waits before FD backpressure fails the checkout. | No | `5000` | `config.fileDescriptors.acquireTimeoutMs` |
 | `KURA_SEGMENT_HANDLE_CACHE_SIZE` | Maximum number of pinned segment read handles. | No | Auto-derived | `config.fileDescriptors.segmentHandleCacheSize` |

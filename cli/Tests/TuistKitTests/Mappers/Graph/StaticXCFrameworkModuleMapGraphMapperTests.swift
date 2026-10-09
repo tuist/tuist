@@ -2725,6 +2725,77 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_removeOtherSwiftDuplicates_preservesCASPluginOptions() {
+        // Given
+        let settings: SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": .array(
+                [
+                    "$(inherited)",
+                    "-cas-plugin-option", "tuist-instance=tuist/tuist",
+                    "-cas-plugin-option", "tuist-upload=false",
+                    "-cas-plugin-option", "tuist-instance=tuist/tuist",
+                ]
+            ),
+        ]
+
+        // When
+        let got = settings.removeOtherSwiftFlagsDuplicates()
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                "OTHER_SWIFT_FLAGS": .array(
+                    [
+                        "$(inherited)",
+                        "-cas-plugin-option", "tuist-instance=tuist/tuist",
+                        "-cas-plugin-option", "tuist-upload=false",
+                    ]
+                ),
+            ]
+        )
+    }
+
+    func test_removeOtherSwiftDuplicates_preservesRepeatedFlagsWithSeparateArguments() {
+        // Given
+        let settings: SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": .array(
+                [
+                    "$(inherited)",
+                    "-module-alias", "Alpha=PackageAlpha",
+                    "-module-alias", "Beta=PackageBeta",
+                    "-D", "FOO",
+                    "-D", "BAR",
+                    "-module-alias", "Alpha=PackageAlpha",
+                    "-D", "FOO",
+                    "-warnings-as-errors",
+                    "$(inherited)",
+                    "-warnings-as-errors",
+                ]
+            ),
+        ]
+
+        // When
+        let got = settings.removeOtherSwiftFlagsDuplicates()
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                "OTHER_SWIFT_FLAGS": .array(
+                    [
+                        "$(inherited)",
+                        "-module-alias", "Alpha=PackageAlpha",
+                        "-module-alias", "Beta=PackageBeta",
+                        "-D", "FOO",
+                        "-D", "BAR",
+                        "-warnings-as-errors",
+                    ]
+                ),
+            ]
+        )
+    }
+
     func test_removeOtherSwiftDuplicates_when_conditioned_key() {
         // Given
         let settings: SettingsDictionary = [

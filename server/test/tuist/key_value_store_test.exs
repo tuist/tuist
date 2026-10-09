@@ -93,6 +93,20 @@ defmodule Tuist.KeyValueStoreTest do
       assert result == expected_value
     end
 
+    test "falls back to the selected Cachex cache on returned Redis connection errors" do
+      cache = :"redis_read_fallback_#{System.unique_integer([:positive])}"
+      start_supervised!({Cachex, [cache, []]})
+      value = %{data: "fallback"}
+      Cachex.put(cache, "fallback", value)
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+
+      expect(Redix, :command, fn _conn, ["GET", "fallback"] ->
+        {:error, %Redix.ConnectionError{reason: :closed}}
+      end)
+
+      assert KeyValueStore.get("fallback", cache: cache, persist_across_deployments: true) == value
+    end
+
     test "uses custom cache when specified" do
       # Given
       cache_key = [:custom, "cache_key"]
@@ -133,6 +147,23 @@ defmodule Tuist.KeyValueStoreTest do
 
       assert {:ok, true} = KeyValueStore.put(cache_key, value, cache: cache)
       assert KeyValueStore.get(cache_key, cache: cache) == value
+    end
+
+    test "writes through to the selected Cachex cache on returned Redis connection errors" do
+      cache = :"redis_write_fallback_#{System.unique_integer([:positive])}"
+      start_supervised!({Cachex, [cache, []]})
+      value = %{data: "fallback"}
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+
+      expect(Redix, :command, fn _conn, ["SET", "fallback", _value, "EX", 120] ->
+        {:error, %Redix.ConnectionError{reason: :closed}}
+      end)
+
+      assert {:ok, true} =
+               KeyValueStore.put("fallback", value, cache: cache, ttl: 120_000, persist_across_deployments: true)
+
+      assert KeyValueStore.get("fallback", cache: cache) == value
+      assert Cachex.ttl(cache, "fallback") > 60_000
     end
 
     test "stores a value in redis when persistence is enabled" do
@@ -199,6 +230,70 @@ defmodule Tuist.KeyValueStoreTest do
                [persist_across_deployments: true, locking: false],
                fn -> flunk("a valid cached nil must not be rebuilt") end
              ) == nil
+    end
+
+    test "a slow miss does not block callers of other keys" do
+      test_process = self()
+      slow_key = [:slow, System.unique_integer([:positive])]
+
+      slow =
+        Task.async(fn ->
+          KeyValueStore.get_or_update(slow_key, fn ->
+            send(test_process, {:slow_started, self()})
+
+            receive do
+              :release -> "slow"
+            end
+          end)
+        end)
+
+      assert_receive {:slow_started, worker}
+
+      other =
+        Task.async(fn ->
+          KeyValueStore.get_or_update([:other, System.unique_integer([:positive])], fn -> "other" end)
+        end)
+
+      assert Task.yield(other, 1_000) == {:ok, "other"}
+
+      send(worker, :release)
+      assert Task.await(slow) == "slow"
+    end
+
+    test "concurrent callers of one key run the function once" do
+      test_process = self()
+      key = [:shared, System.unique_integer([:positive])]
+
+      callers =
+        for _ <- 1..5 do
+          Task.async(fn ->
+            KeyValueStore.get_or_update(key, fn ->
+              send(test_process, :computed)
+              Process.sleep(100)
+              "value"
+            end)
+          end)
+        end
+
+      assert Enum.map(callers, &Task.await/1) == List.duplicate("value", 5)
+      assert_received :computed
+      refute_received :computed
+    end
+
+    test "caches the value the function returns, whatever its shape" do
+      for value <- [{:error, :unavailable}, {:ignore, "value"}] do
+        key = [:shape, System.unique_integer([:positive])]
+
+        assert KeyValueStore.get_or_update(key, fn -> value end) == value
+        assert KeyValueStore.get_or_update(key, fn -> flunk("#{inspect(value)} was not cached") end) == value
+      end
+    end
+
+    test "does not cache nil" do
+      key = [:uncached, System.unique_integer([:positive])]
+
+      assert KeyValueStore.get_or_update(key, fn -> nil end) == nil
+      assert KeyValueStore.get_or_update(key, fn -> "computed" end) == "computed"
     end
   end
 end

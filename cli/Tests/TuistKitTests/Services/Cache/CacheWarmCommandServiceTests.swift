@@ -129,6 +129,7 @@
                 )
                 .willReturn([externalGraphTarget: .test(hash: "external-hash")])
             given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
+            given(cacheStorage).republishIfNeeded(.any, cacheCategory: .value(.binaries)).willReturn()
             given(generatorFactory)
                 .binaryCacheWarming(
                     config: .any,
@@ -178,6 +179,86 @@
                 .called(0)
             verify(cacheStorageFactory)
                 .cacheLocalStorage()
+                .called(0)
+        }
+
+        @Test(.inTemporaryDirectory) func run_republishesLocalHits_whenUploading() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let path = temporaryDirectory.appending(components: "Binaries", "Fixtures.bundle")
+            let fingerprints = ["ios-simulator": "simulator-hash"]
+
+            try await run(
+                noUpload: false,
+                fingerprints: fingerprints,
+                fetched: [CacheItem(name: "Fixtures", hash: "fixtures-hash", source: .local, cacheCategory: .binaries): path]
+            )
+
+            verify(cacheStorage)
+                .republishIfNeeded(
+                    .matching { items in
+                        items.count == 1 && items.first?.key.hash == "fixtures-hash"
+                            && items.first?.key.metadata.binaryCacheFingerprints == fingerprints && items.first?.value == path
+                    },
+                    cacheCategory: .value(.binaries)
+                )
+                .called(1)
+        }
+
+        @Test(.inTemporaryDirectory) func run_storesMissesBeforeRepublishingLocalHits() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let path = temporaryDirectory.appending(components: "Binaries", "Cached.bundle")
+            let failure = CacheUploadFailure(
+                item: CacheStorableItem(name: "Cached", hash: "cached-hash"),
+                reason: "request timed out"
+            )
+
+            let error = await #expect(throws: CacheWarmCommandServiceError.self) {
+                try await run(
+                    noUpload: false,
+                    fetched: [CacheItem(name: "Cached", hash: "cached-hash", source: .local, cacheCategory: .binaries): path],
+                    cachedTarget: true,
+                    republishError: CacheUploadError(failures: [failure])
+                )
+            }
+
+            #expect(error?.errorDescription?.contains("  - Cached (cached-hash): request timed out") == true)
+            verify(cacheStorage)
+                .store(.any, cacheCategory: .value(.binaries))
+                .called(1)
+            verify(cacheStorage)
+                .republishIfNeeded(
+                    .matching { $0.keys.map(\.name) == ["Cached"] },
+                    cacheCategory: .value(.binaries)
+                )
+                .called(1)
+        }
+
+        @Test(.inTemporaryDirectory) func run_doesNotRepublishLocalHits_whenNoUpload() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let path = temporaryDirectory.appending(components: "Binaries", "Fixtures.bundle")
+
+            try await run(
+                noUpload: true,
+                fetched: [CacheItem(name: "Fixtures", hash: "fixtures-hash", source: .local, cacheCategory: .binaries): path]
+            )
+
+            verify(cacheStorage)
+                .republishIfNeeded(.any, cacheCategory: .any)
+                .called(0)
+        }
+
+        @Test(.inTemporaryDirectory) func run_doesNotRepublishLocalHits_whenGenerateOnly() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let path = temporaryDirectory.appending(components: "Binaries", "Fixtures.bundle")
+
+            try await run(
+                noUpload: false,
+                fetched: [CacheItem(name: "Fixtures", hash: "fixtures-hash", source: .local, cacheCategory: .binaries): path],
+                generateOnly: true
+            )
+
+            verify(cacheStorage)
+                .republishIfNeeded(.any, cacheCategory: .any)
                 .called(0)
         }
 
@@ -381,6 +462,135 @@
             }
         }
 
+        @Test(.inTemporaryDirectory) func run_bundlesDSYMsIntoXCFrameworks_whenWarmingAReleaseConfiguration() async throws {
+            stubFrameworkBuilds()
+            given(xcodeBuildController)
+                .createXCFramework(arguments: .any, output: .any)
+                .willReturn()
+
+            try await run(
+                noUpload: true,
+                configuration: "Release",
+                schemes: [.test(name: "Binaries-Cache-iOS")],
+                targetProduct: .framework,
+                projectSettings: .test(defaultSettings: .recommended)
+            )
+
+            verify(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .any,
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .matching { $0.contains(.xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym")) },
+                    passthroughXcodeBuildArguments: .any
+                )
+                .called(2)
+            verify(xcodeBuildController)
+                .createXCFramework(
+                    arguments: .matching { arguments in
+                        let slices = Self.xcframeworkSlices(arguments)
+                        return slices.count == 2 && slices.allSatisfy { $0.debugSymbols == "\($0.framework).dSYM" }
+                    },
+                    output: .any
+                )
+                .called(1)
+        }
+
+        @Test(.inTemporaryDirectory) func run_doesNotBundleDSYMsIntoXCFrameworks_whenWarmingADebugConfiguration() async throws {
+            stubFrameworkBuilds()
+            given(xcodeBuildController)
+                .createXCFramework(arguments: .any, output: .any)
+                .willReturn()
+
+            try await run(
+                noUpload: true,
+                schemes: [.test(name: "Binaries-Cache-iOS")],
+                targetProduct: .framework,
+                projectSettings: .test(defaultSettings: .recommended)
+            )
+
+            verify(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .any,
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .matching { $0.contains(.xcarg("DEBUG_INFORMATION_FORMAT", "dwarf")) },
+                    passthroughXcodeBuildArguments: .any
+                )
+                .called(2)
+            verify(xcodeBuildController)
+                .createXCFramework(
+                    arguments: .matching { arguments in
+                        let slices = Self.xcframeworkSlices(arguments)
+                        return slices.count == 2 && slices.allSatisfy { $0.debugSymbols == nil }
+                    },
+                    output: .any
+                )
+                .called(1)
+        }
+
+        /// Stubs builds to lay out a `Fixtures.framework` in the products directory, plus its dSYM when the build asks
+        /// for one, as Xcode does.
+        private func stubFrameworkBuilds() {
+            given(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .any,
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .any,
+                    passthroughXcodeBuildArguments: .any
+                )
+                .willProduce { _, _, _, _, derivedDataPath, _, arguments, _ in
+                    let fileManager = FileManager.default
+                    let derivedDataPath = try #require(derivedDataPath)
+                    let configuration = try #require(arguments.lazy.compactMap { argument -> String? in
+                        if case let .configuration(configuration) = argument { return configuration }
+                        return nil
+                    }.first)
+                    let sdk = arguments.contains(.destination("generic/platform=iOS Simulator")) ? "iphonesimulator" : "iphoneos"
+                    let productsDirectory = derivedDataPath.appending(components: [
+                        "Build", "Products", "\(configuration)-\(sdk)",
+                    ])
+                    var products = ["Fixtures.framework"]
+                    if arguments.contains(.xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym")) {
+                        products.append("Fixtures.framework.dSYM")
+                    }
+                    for product in products {
+                        try fileManager.createDirectory(
+                            atPath: productsDirectory.appending(component: product).pathString,
+                            withIntermediateDirectories: true
+                        )
+                    }
+                }
+        }
+
+        private static func xcframeworkSlices(_ arguments: [String]) -> [(framework: String, debugSymbols: String?)] {
+            var slices: [(framework: String, debugSymbols: String?)] = []
+            var index = arguments.startIndex
+            while index < arguments.endIndex - 1 {
+                switch arguments[index] {
+                case "-framework":
+                    slices.append((framework: arguments[index + 1], debugSymbols: nil))
+                case "-debug-symbols":
+                    guard !slices.isEmpty else { return [] }
+                    slices[slices.count - 1].debugSymbols = arguments[index + 1]
+                default:
+                    break
+                }
+                index += 2
+            }
+            return slices
+        }
+
         private final class BuildRecorder: Sendable {
             private struct State {
                 var iOSOutputAtLastBuild: [AbsolutePath]?
@@ -408,13 +618,29 @@
             schemes: [Scheme] = [],
             foreignBuild: ForeignBuild? = nil,
             storeError: Error? = nil,
-            fingerprints: [String: String] = [:]
+            fingerprints: [String: String] = [:],
+            targetProduct: Product = .bundle,
+            projectSettings: Settings = .test(),
+            fetched: [CacheItem: AbsolutePath] = [:],
+            generateOnly: Bool = false,
+            cachedTarget: Bool = false,
+            republishError: Error? = nil
         ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let resolvedConfiguration = configuration ?? "Debug"
-            let target = Target.test(name: "Fixtures", product: .bundle, foreignBuild: foreignBuild)
-            let project = Project.test(path: temporaryDirectory, targets: [target], schemes: [])
+            let target = Target.test(name: "Fixtures", product: targetProduct, foreignBuild: foreignBuild)
+            let cached = Target.test(name: "Cached", product: .bundle)
+            let project = Project.test(
+                path: temporaryDirectory,
+                settings: projectSettings,
+                targets: cachedTarget ? [target, cached] : [target],
+                schemes: []
+            )
             let graphTarget = GraphTarget(path: temporaryDirectory, target: target, project: project)
+            var hashes: [GraphTarget: TargetContentHash] = [:]
+            if cachedTarget {
+                hashes[GraphTarget(path: temporaryDirectory, target: cached, project: project)] = .test(hash: "cached-hash")
+            }
             let graph = Graph.test(
                 path: temporaryDirectory,
                 workspace: .test(path: temporaryDirectory, schemes: schemes),
@@ -448,6 +674,7 @@
                 .willReturn(resolvedConfiguration)
             var targetHash = TargetContentHash.test(hash: "fixtures-hash")
             targetHash.binaryCacheFingerprints = fingerprints
+            hashes[graphTarget] = targetHash
             given(cacheGraphContentHasher)
                 .contentHashes(
                     for: .value(graph),
@@ -456,10 +683,19 @@
                     excludedTargets: .value([]),
                     destination: .value(nil)
                 )
-                .willReturn([graphTarget: targetHash])
+                .willReturn(hashes)
             given(cacheStorage)
                 .fetch(.any, cacheCategory: .value(.binaries))
-                .willReturn([:])
+                .willReturn(fetched)
+            if let republishError {
+                given(cacheStorage)
+                    .republishIfNeeded(.any, cacheCategory: .value(.binaries))
+                    .willThrow(republishError)
+            } else {
+                given(cacheStorage)
+                    .republishIfNeeded(.any, cacheCategory: .value(.binaries))
+                    .willReturn()
+            }
             given(generatorFactory)
                 .binaryCacheWarming(
                     config: .value(config),
@@ -493,7 +729,7 @@
                 configuration: configuration,
                 targetsToBinaryCache: [],
                 externalOnly: false,
-                generateOnly: false,
+                generateOnly: generateOnly,
                 noUpload: noUpload,
                 cacheProfile: nil,
                 scratchDirectory: scratchDirectory?.pathString

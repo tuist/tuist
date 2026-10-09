@@ -100,6 +100,7 @@
   & [data-part="prepaid-empty"],
   & [data-part="standing-prepaid-description"],
   & [data-part="standing-prepaid-next"],
+  & [data-part="prepaid-pool-description"],
   & [data-part="free-tier-description"],
   & [data-part="kura-egress-limits-description"] {
     margin: var(--noora-spacing-0);
@@ -134,7 +135,8 @@
   }
 
   & #prepaid-minutes-form,
-  & #standing-prepaid-minutes-form {
+  & #standing-prepaid-minutes-form,
+  & #prepaid-pool-form {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
@@ -143,6 +145,8 @@
 
   & [data-part="prepaid-quote"],
   & [data-part="standing-prepaid-quote"],
+  & [data-part="prepaid-pool-quote"],
+  & [data-part="prepaid-pool-coverage"],
   & [data-part="free-tier-usage"] {
     display: flex;
     flex-direction: column;

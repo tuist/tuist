@@ -57,12 +57,13 @@ enum GitFetchFailure {
 }
 
 enum SystemProcess {
-    /// swifterpm invokes git non-interactively: output is captured and fetches run
-    /// in parallel, so a built-in credential prompt (git opens /dev/tty directly)
-    /// would block invisibly in any environment, not just CI. Force git to fail fast
-    /// on a missing credential instead. Credential helpers, ssh-agent, and ~/.netrc
-    /// are unaffected, so configured authentication still works.
-    static let nonInteractiveGitEnvironment = ["GIT_TERMINAL_PROMPT": "0"]
+    /// Match SwiftPM's Git environment defaults without replacing user configuration.
+    static var nonInteractiveGitEnvironment: [String: String] {
+        [
+            "GIT_TERMINAL_PROMPT": Environment.current["GIT_TERMINAL_PROMPT"] ?? "0",
+            "GIT_SSH_COMMAND": Environment.current["GIT_SSH_COMMAND"] ?? "ssh -oBatchMode=yes",
+        ]
+    }
 
     struct Result {
         let stdout: Data
@@ -88,17 +89,29 @@ enum SystemProcess {
         outputLimit: Int = 64 * 1024 * 1024
     ) async throws -> Result {
         if forwardOutput {
-            let result = try await Subprocess.run(
+            // Standard error is teed rather than inherited so a failure can report what the
+            // child printed, not only its exit status.
+            let outcome = try await Subprocess.run(
                 subprocessExecutable(executable),
                 arguments: Arguments(arguments),
                 environment: subprocessEnvironment(environment, customEnvironment: customEnvironment),
                 workingDirectory: workingDirectory.map { FilePath($0.path) },
-                output: .standardOutput,
-                error: .standardError
-            )
+                output: .standardOutput
+            ) { _, errorSequence in
+                var captured = Data()
+                for try await buffer in errorSequence {
+                    let chunk = buffer.withUnsafeBytes { Data($0) }
+                    FileHandle.standardError.write(chunk)
+                    captured.append(chunk.prefix(max(0, outputLimit - captured.count)))
+                }
+                return captured
+            }
 
-            guard result.terminationStatus.isSuccess else {
-                throw ToolError.message(result.terminationStatus.description)
+            guard outcome.terminationStatus.isSuccess else {
+                let stderrText = String(decoding: outcome.value, as: UTF8.self)
+                throw ToolError.message(
+                    stderrText.isEmpty ? outcome.terminationStatus.description : stderrText
+                )
             }
 
             return Result(stdout: Data(), stderr: Data())
@@ -381,55 +394,32 @@ enum HTTPAuthorization {
     static func header(for url: URL) async -> String? {
         let environment = Environment.current
 
-        // Explicit, host-scoped credentials win over an ambient GitHub token. A
-        // `machine api.github.com` entry in a netrc file is a deliberate per-host
-        // credential, so it must beat a generic SWIFTERPM_GITHUB_TOKEN /
-        // GITHUB_TOKEN / GH_TOKEN that may be scoped to an unrelated repository — otherwise a
-        // repo-scoped CI token shadows the netrc credential that can actually read
-        // a private release asset. SwiftPM's makeAuthorizationProvider actually
-        // ranks its environment token above netrc, but we keep netrc first here
-        // because GITHUB_TOKEN in CI is often repo-scoped and not valid for the
-        // host a netrc entry deliberately targets.
         let netrc = Environment.netrc
-        if let header = await prioritizedHeader(
-            isGitHub: isGitHub(url),
+        return await prioritizedHeader(
+            sourceControlToken: environment["SWIFTPM_SOURCE_CONTROL_TOKEN"],
             netrcCredential: netrc.credential(for: url),
             keychain: {
                 netrc.keychainDisabled ? nil : await KeychainAuthorization.credential(for: url)
-            },
-            gitHubEnvToken: GitHubAuth.envToken(from: environment)
-        ) {
-            return header
-        }
-
-        if isGitHub(url), let token = await GitHubAuth.token() {
-            return bearerHeader(token)
-        }
-
-        return nil
+            }
+        )
     }
 
     static func prioritizedHeader(
-        isGitHub: Bool,
+        sourceControlToken: String?,
         netrcCredential: RegistryCredential?,
-        keychain: () async -> RegistryCredential?,
-        gitHubEnvToken: String?
+        keychain: () async -> RegistryCredential?
     ) async -> String? {
+        // SwiftPM's source-control environment provider is deliberately not host-scoped.
+        if let token = sourceControlToken, !token.isEmpty {
+            return basicHeader(RegistryCredential(user: "token", password: token))
+        }
         if let credential = netrcCredential {
             return basicHeader(credential)
         }
         if let credential = await keychain() {
             return basicHeader(credential)
         }
-        if isGitHub, let token = gitHubEnvToken {
-            return bearerHeader(token)
-        }
         return nil
-    }
-
-    private static func isGitHub(_ url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return false }
-        return host == "github.com" || host == "api.github.com"
     }
 
     private static func basicHeader(_ credential: RegistryCredential) -> String {
@@ -437,9 +427,6 @@ enum HTTPAuthorization {
         return "Basic \(token)"
     }
 
-    private static func bearerHeader(_ token: String) -> String {
-        "Bearer \(token)"
-    }
 }
 
 enum Hashing {

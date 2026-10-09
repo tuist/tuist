@@ -1,0 +1,158 @@
+<div id="coverage">
+  <.coverage_filters
+    branch={@branch}
+    branches={@branches}
+    uri={@uri}
+    preset={@coverage_preset}
+    period={@coverage_period}
+  />
+
+  <div :if={@loading} data-part="loading">
+    <.skeleton_box width="100%" height="320px" />
+    <.skeleton_box width="100%" height="240px" />
+  </div>
+
+  <%= if not @loading do %>
+    <%!-- Analytics --%>
+    <.coverage_analytics_card
+      branch={@branch}
+      latest={@latest}
+      trends={@trends}
+      points={@points}
+      grouping={@grouping}
+      selected_widget={@selected_widget}
+      point_href={&commit_href(assigns, &1.git_commit_sha)}
+    >
+      <:actions>
+        <.button
+          :if={@latest}
+          variant="secondary"
+          label={dgettext("dashboard_tests", "View more")}
+          size="medium"
+          navigate={branch_href(assigns, "overview")}
+          data-part="view-more"
+        />
+      </:actions>
+    </.coverage_analytics_card>
+
+    <%!-- Coverage Changes --%>
+    <.coverage_changes_card
+      files={@changed_files}
+      targets={@changed_targets}
+      files_href={branch_href(assigns, "files")}
+      targets_href={branch_href(assigns, "targets")}
+      targets_title={coverage_targets_label(@selected_project)}
+      empty_title={
+        dgettext("dashboard_tests", "No coverage changed on %{branch} in this period",
+          branch: @branch
+        )
+      }
+      data-part="coverage-changes"
+    />
+
+    <%!-- Recent commits --%>
+    <.card
+      title={dgettext("dashboard_tests", "Recent Commits")}
+      icon="git_commit"
+      data-part="recent-commits"
+    >
+      <:actions>
+        <.button
+          :if={@commit_rows != []}
+          variant="secondary"
+          label={dgettext("dashboard_tests", "View more")}
+          size="medium"
+          navigate={branch_href(assigns, "commits")}
+          data-part="view-more"
+        />
+      </:actions>
+      <.card_section data-part="commits-section">
+        <div :if={@commit_rows != []} data-part="commits-table">
+          <.table
+            id="coverage-recent-commits-table"
+            rows={@commit_rows}
+            row_navigate={&commit_href(assigns, &1.git_commit_sha)}
+          >
+            <:col :let={row} label={dgettext("dashboard_tests", "Commit")}>
+              <.text_cell label={short_sha(row.git_commit_sha)} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
+              <.coverage_cell covered={row.covered_lines} executable={row.executable_lines} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_tests", "Change")}>
+              <.change_cell delta={row.change} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
+              <.text_cell sublabel={
+                Tuist.Utilities.DateFormatter.from_now(Map.get(row, :committed_at) || row.ran_at)
+              } />
+            </:col>
+          </.table>
+        </div>
+        <.coverage_empty
+          :if={@commit_rows == []}
+          title={
+            dgettext("dashboard_tests", "No complete commits on %{branch} in this period",
+              branch: @branch
+            )
+          }
+          image="table"
+          data-part="empty-commits"
+        />
+      </.card_section>
+    </.card>
+
+    <%!-- Recent Test Runs --%>
+    <.card
+      title={dgettext("dashboard_tests", "Recent Test Runs")}
+      icon="dashboard"
+      data-part="recent-runs"
+    >
+      <:actions>
+        <.button
+          :if={@run_rows != []}
+          variant="secondary"
+          label={dgettext("dashboard_tests", "View more")}
+          size="medium"
+          navigate={branch_href(assigns, "runs")}
+          data-part="view-more"
+        />
+      </:actions>
+      <.card_section data-part="runs-section">
+        <div :if={@run_rows != []} data-part="runs-table">
+          <.table
+            id="coverage-recent-runs-table"
+            rows={@run_rows}
+            row_navigate={
+              fn run ->
+                url(
+                  ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs/#{run.test_run_id}"
+                )
+              end
+            }
+          >
+            <:col :let={run} label={scheme_label(@selected_project)}>
+              <.text_cell label={run.scheme} />
+            </:col>
+            <:col :let={run} label={dgettext("dashboard_tests", "Coverage")}>
+              <.coverage_cell covered={run.covered_lines} executable={run.executable_lines} />
+            </:col>
+            <:col :let={run} label={dgettext("dashboard_tests", "Ran at")}>
+              <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(run.ran_at)} />
+            </:col>
+          </.table>
+        </div>
+        <.coverage_empty
+          :if={@run_rows == []}
+          title={
+            dgettext("dashboard_tests", "No run gathered coverage on %{branch} in this period",
+              branch: @branch
+            )
+          }
+          image="table"
+          data-part="empty-runs"
+        />
+      </.card_section>
+    </.card>
+  <% end %>
+</div>

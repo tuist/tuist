@@ -8,6 +8,7 @@ defmodule Tuist.Gradle.Build do
   @derive {
     Flop.Schema,
     filterable: [
+      :failure_category,
       :project_id,
       :status,
       :is_ci,
@@ -19,7 +20,7 @@ defmodule Tuist.Gradle.Build do
       :custom_tags,
       :inserted_at
     ],
-    sortable: [:inserted_at, :duration_ms, :status],
+    sortable: [:failure_category, :id, :inserted_at, :duration_ms, :status],
     default_order: %{
       order_by: [:inserted_at],
       order_directions: [:desc]
@@ -28,6 +29,7 @@ defmodule Tuist.Gradle.Build do
 
   @primary_key false
   schema "gradle_builds" do
+    field :failure_category, :string, virtual: true, default: ""
     field :id, Ch, type: "UUID"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
