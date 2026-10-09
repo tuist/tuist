@@ -1555,7 +1555,7 @@ runnersFleet:
         # hostMemoryMB is a scheduling PROMISE, not an allocation, so
         # the unadvertised ~36 GB is not idle — macOS spends it on the
         # unified buffer cache, which on this SKU backs two guests' CoW
-        # disk images and a 240 GiB cache volume on a 2 TB disk. That is
+        # disk images and a 512 GiB cache volume on a 2 TB disk. That is
         # the best available use of it.
         #
         # That is also why the M4's headroom is monetized as CORES and
@@ -1590,22 +1590,17 @@ runnersFleet:
         # across all 15 macOS Nodes.
         maxPods: 5
         guestCapacity: 2
-        # 240 GiB against the M2-L's 80. Not a nicety: admission reserves
-        # masterCapGib for every branch running a job, and two guests run
-        # two, so at 80 GiB and a 30 GiB cap only 20 GiB would be left for
-        # masters. At 240 GiB it is 180 GiB, with masters counted at what
-        # they hold.
-        #
-        # The M2-L cannot simply be raised to match; that is the point
-        # of the SKU. Its 460 GiB container has ~330 GiB free idle and
-        # a single job VM transiently takes 42-61 GiB on top of ~85 GB
-        # goldens (two mid digest-roll), which is why the quota has sat
-        # at 80. Worst case here is ~240 (volume) + ~340 (two pools'
-        # goldens, doubled through a roll) + ~280 (two clones at the
-        # 140 GB virtual ceiling) = well under half of ~1.8 TiB, and
-        # the 15% free floor that drives golden reclaim is a
-        # percentage, so it scales with the disk rather than binding.
-        runnerCacheVolumeGiB: 240
+        # Shared built-in/custom cache ceiling on the 2 TB M4. Two running
+        # built-in branches reserve 60 GiB; custom writers and restore staging
+        # use the same budget. Individual custom volumes remain 20 GB.
+        # Cache admission also preserves 15% physical host free space, so this
+        # quota is a ceiling, not guaranteed space or a preallocation.
+        # Planning allowance: 512 GiB cache + 340 GiB overlapping goldens +
+        # 280 GiB guest disks + 100 GiB host data + ~300 GiB free reserve.
+        # Keep M2 at 80 GiB: its ~460 GiB container also holds VM images and
+        # transient clones. Existing M4 Machines are OnDelete: changing this
+        # template alone does not resize them; follow the cache-volume runbook.
+        runnerCacheVolumeGiB: 512
   networkPolicy:
     enabled: true
     exceptCIDRs:
