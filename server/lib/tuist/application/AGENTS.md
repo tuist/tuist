@@ -6,3 +6,5 @@
 - `RuntimeChildren` derives role-specific children without starting processes.
 
 Use the standard [application shutdown callback](https://hexdocs.pm/elixir/Application.html#c:prep_stop/1) and [socket drainer specifications](https://hexdocs.pm/phoenix/Phoenix.Socket.Transport.html#c:drainer_spec/1). The server child identifiers follow Bandit's Phoenix adapter.
+
+- Start configured cluster discovery regardless of hosted licensing, before consumers of distributed state. Start `Tuist.TaskSupervisor` and `TaskDrainer` after the endpoint and before Oban so tasks drain while endpoint configuration, publish/subscribe, caches, and ingestion buffers remain available. Supervision does not make tasks or buffers durable after a hard node failure.

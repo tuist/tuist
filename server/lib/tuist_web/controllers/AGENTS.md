@@ -64,3 +64,5 @@ This area owns Phoenix controllers for HTML and API endpoints.
   `tuist-runner-host` audience, derives the node from its ServiceAccount, and
   delegates session/job binding to `CacheVolumes.Builtin`. Workflow tokens and
   body-supplied account/node/repository fields cannot authorize these reports.
+
+- Cache controller authorization always rechecks permissions. Do not pass obsolete caching options to `AuthorizationPlug`; router cache assigns still control non-security loader and billing caches.

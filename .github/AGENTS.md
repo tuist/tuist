@@ -78,6 +78,8 @@ Always run dependency resolution and compilation on hits. Never retain ~/.hex
 or authentication configuration. Preserve setup-server-mix's explicit
 restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
 
+The server build-plan and unsharded fallback jobs run `verification/bcrypt_load.exs` in an isolated VM at production bcrypt cost. Preserve this guard alongside token-cache regression tests; the normal test profile's reduced bcrypt rounds hid the scale-out brownout.
+
 ## Server test sharding
 
 `server.yml` compiles the test build once and creates separate four-shard plans
@@ -107,3 +109,5 @@ must stay disabled in the repository settings, or uploads from this workflow
 are rejected.
 
 - Runner-controller checks, image builds and release path filters include the shared `infra/runner-cache` module.
+
+Helm validation includes two self-hosted server replicas with Erlang discovery, the private network policy, and custom distribution-port/cookie-key settings. Keep that profile alongside the production render when changing server clustering.

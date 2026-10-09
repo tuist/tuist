@@ -70,6 +70,7 @@ defmodule Tuist.Marketing.Stats do
       flaky_tests_last_24h: 0
     }
 
+    Tuist.PubSub.subscribe(@topic)
     send(self(), :poll)
     send(self(), :poll_globe)
     {:ok, Map.put(stats, :globe, CacheGlobe.empty())}
@@ -86,17 +87,24 @@ defmodule Tuist.Marketing.Stats do
 
   @impl true
   def handle_info(:poll, previous_stats) do
-    stats = %{
-      cache_artifacts_last_24h: Tuist.Cache.last_24h_artifacts_count(),
-      builds_last_24h: Tuist.Builds.last_24h_build_count(),
-      test_case_runs_last_24h: Tuist.Tests.last_24h_test_case_run_count(),
-      test_runs_last_24h: Tuist.Tests.last_24h_test_run_count(),
-      flaky_tests_last_24h: Tuist.Tests.last_24h_flaky_test_case_run_count(),
-      globe: previous_stats.globe
-    }
+    leader = :global.whereis_name({__MODULE__, :poller})
 
-    stats = Map.merge(previous_stats, stats)
-    Tuist.PubSub.broadcast(Map.take(stats, Map.keys(@default_stats)), @topic, :marketing_stats_updated)
+    stats =
+      if leader == self() or (leader == :undefined and :global.register_name({__MODULE__, :poller}, self()) == :yes) do
+        stats = %{
+          cache_artifacts_last_24h: Tuist.Cache.last_24h_artifacts_count(),
+          builds_last_24h: Tuist.Builds.last_24h_build_count(),
+          test_case_runs_last_24h: Tuist.Tests.last_24h_test_case_run_count(),
+          test_runs_last_24h: Tuist.Tests.last_24h_test_run_count(),
+          flaky_tests_last_24h: Tuist.Tests.last_24h_flaky_test_case_run_count()
+        }
+
+        Phoenix.PubSub.broadcast_from(Tuist.PubSub, self(), @topic, {:marketing_stats_updated, stats})
+        Map.merge(previous_stats, stats)
+      else
+        previous_stats
+      end
+
     Process.send_after(self(), :poll, @poll_interval)
     {:noreply, stats}
   end
@@ -121,4 +129,6 @@ defmodule Tuist.Marketing.Stats do
       Process.send_after(self(), :poll_globe, @globe_poll_interval)
       {:noreply, Map.put(stats, :globe, globe)}
   end
+
+  def handle_info({:marketing_stats_updated, stats}, previous_stats), do: {:noreply, Map.merge(previous_stats, stats)}
 end

@@ -77,3 +77,7 @@ This directory contains ExUnit tests for the Tuist Server.
 - Verify that detail classification matches listing/Grafana evidence and is project scoped, while default run tables omit category columns and retain filters. Cumulative task-time widgets use one label with no repeated caption. The standard Grafana dashboard tests keep total failures separate and pair each cache value with its coverage.
 
 - Cumulative task-time comparisons cover positive, zero and missing previous estimates with neutral styling, matching environment filters and custom range boundaries. Failure-category hints must be focusable and use the shared Noora tooltip interaction.
+
+- Authentication efficiency coverage must count the expensive primitive through the real authentication context and database: 400 requests over 20 distinct project/account credentials require exactly 20 bcrypt verifications. Do not replace authoritative subject loading with a mock or use wall-clock timing as the assertion; retain scope, expiry, deactivation and revocation checks after warm proofs.
+- Standalone cluster verification belongs in [`../verification/`](../verification/AGENTS.md), outside the shared ExUnit environment. Keep the prohibition on configuration mutation in ordinary tests.
+- Agent-auth credential coverage must preserve legacy initialization without requiring a session identifier; the transport intentionally allocates no session state. Keep server-version assertions aligned with the advertised server version.
