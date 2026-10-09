@@ -105,7 +105,10 @@ defmodule TuistWeb.OverviewLive do
     socket =
       socket
       |> assign(:selected_project, project)
-      |> assign(:cached_public_overview, PublicOverviewCache.public_root?(project, request_uri))
+      |> assign(
+        :cached_public_overview,
+        is_nil(socket.assigns[:current_user]) and PublicOverviewCache.public_root?(project, request_uri)
+      )
 
     socket =
       cond do

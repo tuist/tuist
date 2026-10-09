@@ -10,6 +10,7 @@ defmodule TuistWeb.PublicProjectOverviewLiveTest do
   alias Tuist.Bundles
   alias Tuist.CommandEvents
   alias Tuist.FeatureFlags
+  alias Tuist.KeyValueStore.LoadLimiter
   alias Tuist.Mix, as: TuistMix
   alias Tuist.Mix.Build.Buffer, as: MixBuildBuffer
   alias Tuist.OnceEvents
@@ -55,6 +56,36 @@ defmodule TuistWeb.PublicProjectOverviewLiveTest do
 
       assert get_resp_header(conn, "x-robots-tag") == ["index, follow"]
       refute get_session(conn, "public_page_challenge_verified_at")
+    end
+  end
+
+  for build_system <- [:xcode, :gradle, :bazel, :mix, :once] do
+    @build_system build_system
+    test "signed-in users get fresh #{@build_system} analytics instead of the anonymous cache", %{
+      conn: conn,
+      user: user
+    } do
+      project =
+        ProjectsFixtures.project_fixture(account_id: user.account.id, visibility: :public, build_system: @build_system)
+
+      path = "/#{user.account.name}/#{project.name}"
+      insert_build(@build_system, project, user)
+      assert conn |> get(path) |> html_response(200) =~ "5.0s"
+      insert_build(@build_system, project, user, 15_000)
+
+      reject(LoadLimiter, :run, 4)
+      reject(&Bundles.project_app_bundle_options/1)
+      {:ok, view, _html} = live(log_in_user(conn, user), path)
+      html = render_async(view, 5_000)
+
+      widget =
+        case @build_system do
+          :bazel -> "#bazel-average-build-time"
+          :once -> "#once-average-build-time"
+          _ -> "#widget-average-build-time"
+        end
+
+      assert html |> Floki.parse_document!() |> Floki.find(widget) |> Floki.text() =~ "10.0s"
     end
   end
 
@@ -222,19 +253,21 @@ defmodule TuistWeb.PublicProjectOverviewLiveTest do
              catch_exit(render_patch(view, path <> "?utm_source=share"))
   end
 
-  defp insert_build(:xcode, project, _user) do
+  defp insert_build(build_system, project, user, duration \\ 5_000)
+
+  defp insert_build(:xcode, project, _user, duration) do
     RunsFixtures.build_fixture(
       project_id: project.id,
-      duration: 5_000,
+      duration: duration,
       inserted_at: DateTime.add(DateTime.utc_now(), -60, :second)
     )
   end
 
-  defp insert_build(:gradle, project, user) do
-    GradleFixtures.build_fixture(project_id: project.id, account_id: user.account.id, duration_ms: 5_000)
+  defp insert_build(:gradle, project, user, duration) do
+    GradleFixtures.build_fixture(project_id: project.id, account_id: user.account.id, duration_ms: duration)
   end
 
-  defp insert_build(:bazel, project, _user) do
+  defp insert_build(:bazel, project, _user, duration) do
     now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second) |> NaiveDateTime.add(-60, :second)
 
     Bazel.create_invocations([
@@ -246,28 +279,28 @@ defmodule TuistWeb.PublicProjectOverviewLiveTest do
         command: "build",
         status: "success",
         exit_code: 0,
-        started_at: NaiveDateTime.add(now, -5, :second),
+        started_at: NaiveDateTime.add(now, -div(duration, 1_000), :second),
         finished_at: now,
-        duration_ms: 5_000,
+        duration_ms: duration,
         cache_endpoint: "cache.tuist.dev"
       }
     ])
   end
 
-  defp insert_build(:mix, project, user) do
+  defp insert_build(:mix, project, user, duration) do
     {:ok, _id} =
       TuistMix.create_build(%{
         id: UUIDv7.generate(),
         project_id: project.id,
         account_id: user.account.id,
-        duration_ms: 5_000,
+        duration_ms: duration,
         status: "success"
       })
 
     MixBuildBuffer.flush()
   end
 
-  defp insert_build(:once, project, _user) do
+  defp insert_build(:once, project, _user, duration) do
     now = DateTime.add(DateTime.utc_now(), -60, :second)
 
     {:ok, run} =
@@ -279,6 +312,6 @@ defmodule TuistWeb.PublicProjectOverviewLiveTest do
         started_at: now
       })
 
-    OnceEvents.finalize_run(run, %{finalization: "finalized", exit_status: 0, wall_ms: 5_000, finalized_at: now})
+    OnceEvents.finalize_run(run, %{finalization: "finalized", exit_status: 0, wall_ms: duration, finalized_at: now})
   end
 end
