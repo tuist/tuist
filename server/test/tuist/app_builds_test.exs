@@ -1202,6 +1202,50 @@ defmodule Tuist.AppBuildsTest do
       assert result.git_branch == "main"
     end
 
+    test "returns the latest branchless preview when the app build's preview has no git branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440005"
+      build_version = "1"
+
+      preview_one =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: nil,
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build_one =
+        AppBuildsFixtures.app_build_fixture(preview: preview_one, binary_id: binary_id, build_version: build_version)
+
+      preview_two =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: nil,
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      _app_build_two = AppBuildsFixtures.app_build_fixture(preview: preview_two)
+
+      preview_main =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-03 00:00:00Z]
+        )
+
+      _app_build_main = AppBuildsFixtures.app_build_fixture(preview: preview_main)
+
+      # When
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
+
+      # Then
+      assert result.id == preview_two.id
+    end
+
     test "returns not_found when binary_id does not exist" do
       # Given
       project = ProjectsFixtures.project_fixture()
