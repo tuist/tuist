@@ -168,11 +168,31 @@ The installer can get its default route from its provisioning lease, through
 the edge, as well as from the uplinks' DHCP, so each edge translates the
 provisioning range onto its uplinks as well as into the tailnet.
 
-**Racking an MS-01** is its cables and the install stick. Its firmware stays as
-it ships: with its disk empty it boots the stick, which installs it once the
-host is declared. Netbooting instead needs, once, in Setup: Advanced → Network
-Stack Configuration → Network Stack and IPv4 PXE Support enabled; Secure Boot
-stays on. Then it netboots whenever its disk does not boot.
+**Racking an MS-01** is its cables and the install stick. Its i226-LM is cabled
+to the management switch, the port AMT answers on. With its disk empty it boots
+the stick, which installs it once the host is declared, and the operator
+activates its AMT. From then on AMT powers it on after a power loss (below), so
+a host that is not an edge needs nothing in Setup.
+
+**An edge needs one visit to Setup**, because AMT is reached through an edge and
+nothing powers on an edge while no edge is up: Advanced → ACPI Settings →
+Restore On AC Power Loss: **Always On**. The MS-01 ships with Always Off. Always
+On, not Last State: `online` decides whether a host stays off, and the operator
+shuts down one that comes back on against it. Setting it on another host as
+well brings that host back without waiting for an edge and AMT.
+
+Netbooting needs the same kind of visit, on any host: Advanced → Network Stack
+Configuration → Network Stack and IPv4 PXE Support enabled. Then it netboots
+whenever its disk does not boot. Secure Boot stays on either way.
+
+An installed host reboots straight into Setup, over a console such as a JetKVM
+on its HDMI and USB:
+
+```
+ssh tuist@<host> sudo systemctl reboot --firmware-setup
+```
+
+Save & Exit applies the change and boots the installed system.
 
 **The stick is the MS-01's route, a workaround for its firmware.** The MS-01 ships
 with its network stack off, and nothing but a person in Setup turns it on:
@@ -181,9 +201,10 @@ firmware's Setup variables from the OS means poking an undocumented AMI
 variable layout that changes between firmware releases, where a wrong write
 can leave the box unbootable, and changing a security setting behind the
 person racking it. A stick boots with the firmware's defaults, Secure Boot
-included, so a factory box needs no one in Setup: it announces itself,
-installs once declared, and is reinstalled through `BootNext` to the stick.
-Netboot, with its one Setup visit, is what AMT's recovery of a box that no
+included, so a factory box needs no one in Setup to install: it announces
+itself, installs once declared, and is reinstalled through `BootNext` to the
+stick. Restore On AC Power Loss is the same kind of Setup setting, which is why
+an edge's is set by hand. Netboot is what AMT's recovery of a box that no
 longer boots needs; a box without it is recovered by booting its stick. Every
 box needs its stick left plugged in, so the next machine model should be
 something like an ASRock Rack board, whose BMC sets the boot order and firmware
@@ -224,6 +245,16 @@ powered off (below) and not rebooted into an install.
 through AMT when it is not on the tailnet, and `true` powers it back on through
 AMT. A one-off reboot through AMT is the `tuist.dev/reboot` annotation (`cycle`,
 `reset` or `pxe`).
+
+**After a power loss** a host whose firmware restores comes back by itself. One
+that does not is off, and the operator powers it on through AMT once a host
+that should be on is off the tailnet and AMT reports it off, retrying with a
+backoff (`PowerMatchesOnline`, `PowerChanged` events). AMT is reached through an
+edge, so this needs an edge back first: with both edges off, only an edge's own
+Restore On AC Power Loss brings the rack back, which is why every edge has it
+(above). `PowerReachable` (in `kubectl get rlh -o wide`) shows, before it is
+needed, whether a host could be powered on that way; `AMTLinkDown` is a
+management port with no link, a cable to look at.
 
 Watch it with:
 
