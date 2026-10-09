@@ -96,47 +96,50 @@
     <TuistWeb.LayoutComponents.head_favicon_links />
     <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
     <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
-    <link
-      :if={
-        TuistWeb.Utilities.MarketingMarkdown.alternate_path(
-          TuistWeb.Marketing.Localization.current_path(assigns)
-        )
-      }
-      rel="alternate"
-      type="text/markdown"
-      hreflang="en"
-      href={
-        Tuist.Environment.app_url(
-          path:
-            TuistWeb.Utilities.MarketingMarkdown.alternate_path(
-              TuistWeb.Marketing.Localization.current_path(assigns)
-            )
-        )
-      }
-    />
-    <!-- Language alternates for SEO -->
-    <%= for locale <- TuistWeb.Marketing.Localization.all_locales() do %>
+    <meta :if={assigns[:head_noindex]} name="robots" content="noindex, nofollow" />
+    <%= unless assigns[:head_noindex] do %>
       <link
+        :if={
+          TuistWeb.Utilities.MarketingMarkdown.alternate_path(
+            TuistWeb.Marketing.Localization.current_path(assigns)
+          )
+        }
         rel="alternate"
-        hreflang={locale}
+        type="text/markdown"
+        hreflang="en"
         href={
           Tuist.Environment.app_url(
             path:
-              TuistWeb.Marketing.Localization.localized_href(
-                TuistWeb.Marketing.Localization.current_path(assigns),
-                locale
+              TuistWeb.Utilities.MarketingMarkdown.alternate_path(
+                TuistWeb.Marketing.Localization.current_path(assigns)
               )
           )
         }
       />
+      <!-- Language alternates for SEO -->
+      <%= for locale <- TuistWeb.Marketing.Localization.all_locales() do %>
+        <link
+          rel="alternate"
+          hreflang={locale}
+          href={
+            Tuist.Environment.app_url(
+              path:
+                TuistWeb.Marketing.Localization.localized_href(
+                  TuistWeb.Marketing.Localization.current_path(assigns),
+                  locale
+                )
+            )
+          }
+        />
+      <% end %>
+      <link
+        rel="alternate"
+        hreflang="x-default"
+        href={
+          Tuist.Environment.app_url(path: TuistWeb.Marketing.Localization.current_path(assigns))
+        }
+      />
     <% end %>
-    <link
-      rel="alternate"
-      hreflang="x-default"
-      href={
-        Tuist.Environment.app_url(path: TuistWeb.Marketing.Localization.current_path(assigns))
-      }
-    />
     <script
       :for={
         structured_data <-
@@ -238,7 +241,7 @@
     <script nonce={get_csp_nonce()} src="https://js.hcaptcha.com/1/api.js" async defer>
     </script>
     <TuistWeb.LayoutComponents.head_support_chat_script {assigns} />
-    <TuistWeb.LayoutComponents.head_canonical_link {assigns} />
+    <TuistWeb.LayoutComponents.head_canonical_link :if={!assigns[:head_noindex]} {assigns} />
   </head>
   <body data-scrollable="true">
     <TuistWeb.GoogleOneTap.prompt current_user={assigns[:current_user]} />
