@@ -100,6 +100,10 @@ CNPG restore drills resolve production to namespace `tuist`, not `tuist-producti
 
 Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials. Deployment validation pins Helm, mikefarah yq, and jq and runs the rendering and fake-kubectl retirement checks before the image build. Managed deployment checks live legacy namespace retention after stuck-release recovery, because rollback can remove its retention annotation. Keep that read-only guard before upgrades that disable the legacy sandbox objects.
 
+## Cloudflare configuration
+
+`workflows/cloudflare-config-tests.yml` runs the crawler-exemption scope regressions without credentials on pull requests and main changes. These tests do not validate Cloudflare's API expression parser or modify the live zone.
+
 ## CodeQL
 
 `workflows/codeql.yml` replaces GitHub's CodeQL default setup. Default setup

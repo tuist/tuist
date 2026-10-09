@@ -11,6 +11,7 @@ This directory contains the core business logic and domain modules for the serve
 - Machine metrics retain nullable `offset_ms` from the activity log start during archive processing, independently of the upload timestamp, so recorded samples align with build steps. Older samples without offsets keep their standalone charts.
 - `Tuist.Builds.Steps` serves paginated, filtered metadata and individual logs to the HTTP API and MCP. Both transports authorize build-read access first. IDs are decimal strings scoped to a build, and list queries never select log text. Availability distinguishes absent step data from a search with no matches.
 
+- Public overview values use `KeyValueStore`, opting into shared Redis with a bounded Cachex fallback. `KeyValueStore.LoadLimiter` only admits and coalesces misses; it never stores values. Soft timeouts retain worker slots until remote work finishes. Propagate `$callers` to workers for sandbox and mock ownership. Keep docs/marketing `ContentCache` independent of analytics.
 - Ecto schemas, contexts, and domain services.
 - `Kura.Origins` discards counts for deleted accounts when persisting a batch. It locks surviving account keys within the write transaction so concurrent deletion cannot invalidate the batch or discard other accounts' counts.
 - External test ingestion uses `Tests.get_test_case_states_at/3` for historical quarantine attribution; current test controls continue using the current-state projection.

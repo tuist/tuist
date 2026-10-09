@@ -93,6 +93,20 @@ defmodule Tuist.KeyValueStoreTest do
       assert result == expected_value
     end
 
+    test "falls back to the selected Cachex cache on returned Redis connection errors" do
+      cache = :"redis_read_fallback_#{System.unique_integer([:positive])}"
+      start_supervised!({Cachex, [cache, []]})
+      value = %{data: "fallback"}
+      Cachex.put(cache, "fallback", value)
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+
+      expect(Redix, :command, fn _conn, ["GET", "fallback"] ->
+        {:error, %Redix.ConnectionError{reason: :closed}}
+      end)
+
+      assert KeyValueStore.get("fallback", cache: cache, persist_across_deployments: true) == value
+    end
+
     test "uses custom cache when specified" do
       # Given
       cache_key = [:custom, "cache_key"]
@@ -133,6 +147,23 @@ defmodule Tuist.KeyValueStoreTest do
 
       assert {:ok, true} = KeyValueStore.put(cache_key, value, cache: cache)
       assert KeyValueStore.get(cache_key, cache: cache) == value
+    end
+
+    test "writes through to the selected Cachex cache on returned Redis connection errors" do
+      cache = :"redis_write_fallback_#{System.unique_integer([:positive])}"
+      start_supervised!({Cachex, [cache, []]})
+      value = %{data: "fallback"}
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+
+      expect(Redix, :command, fn _conn, ["SET", "fallback", _value, "EX", 120] ->
+        {:error, %Redix.ConnectionError{reason: :closed}}
+      end)
+
+      assert {:ok, true} =
+               KeyValueStore.put("fallback", value, cache: cache, ttl: 120_000, persist_across_deployments: true)
+
+      assert KeyValueStore.get("fallback", cache: cache) == value
+      assert Cachex.ttl(cache, "fallback") > 60_000
     end
 
     test "stores a value in redis when persistence is enabled" do
