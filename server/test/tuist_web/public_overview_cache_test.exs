@@ -6,10 +6,12 @@ defmodule TuistWeb.PublicOverviewCacheTest do
   alias Phoenix.LiveView.Socket
   alias Tuist.Accounts
   alias Tuist.Authorization
+  alias Tuist.Bundles
   alias Tuist.KeyValueStore
   alias Tuist.KeyValueStore.LoadLimiter
   alias Tuist.Projects
   alias TuistWeb.PublicOverviewCache
+  alias TuistWeb.XcodeOverviewLive
 
   setup do
     project = %{
@@ -227,6 +229,79 @@ defmodule TuistWeb.PublicOverviewCacheTest do
 
       assert Agent.get(activity, & &1.peak) <= 2
     end
+  end
+
+  for {project_count, delay} <- [{1, 1_100}, {3, 500}] do
+    @project_count project_count
+    @delay delay
+    test "initial HTML resolves eight slow widgets for #{@project_count} cold projects", %{
+      socket: socket,
+      project: project
+    } do
+      {:ok, {_flags, children}} = PublicOverviewCache.init([])
+      %{start: {LoadLimiter, :start_link, [opts]}} = Enum.find(children, &(&1.id == PublicOverviewCache.Loaders))
+      pool = String.to_atom("cold_overview_#{System.unique_integer([:positive])}")
+      start_supervised!({LoadLimiter, Keyword.put(opts, :name, pool)})
+      activity = start_supervised!({Agent, fn -> %{running: 0, peak: 0} end}, id: :activity)
+
+      stub(LoadLimiter, :run, fn _name, key, loader, timeout ->
+        Mimic.call_original(LoadLimiter, :run, [pool, key, loader, timeout])
+      end)
+
+      sockets =
+        Enum.map(1..@project_count, fn index ->
+          %{socket | assigns: Map.put(socket.assigns, :selected_project, %{project | id: project.id + index})}
+        end)
+
+      initial =
+        Task.async_stream(
+          sockets,
+          fn socket ->
+            1..8
+            |> Enum.reduce(socket, fn index, socket ->
+              key = String.to_atom("widget_#{index}")
+
+              PublicOverviewCache.assign_async(socket, key, fn ->
+                Agent.update(activity, fn state ->
+                  %{state | running: state.running + 1, peak: max(state.peak, state.running + 1)}
+                end)
+
+                Process.sleep(@delay)
+                Agent.update(activity, &%{&1 | running: &1.running - 1})
+                {:ok, %{key => 42}}
+              end)
+            end)
+            |> PublicOverviewCache.resolve_pending()
+          end,
+          timeout: :infinity
+        )
+
+      for {:ok, socket} <- initial, index <- 1..8 do
+        result = socket.assigns[String.to_atom("widget_#{index}")]
+        assert result.ok?
+        assert result.result == 42
+        refute result.failed
+      end
+
+      assert Agent.get(activity, & &1.peak) == 2
+    end
+  end
+
+  test "the bundle loader retries failed app options inside its existing admission slot", %{
+    socket: socket,
+    project: project
+  } do
+    expect(LoadLimiter, :run, fn _name, _key, _loader, _timeout -> {:error, :overloaded} end)
+    expect(Bundles, :project_app_bundle_options, fn ^project -> [%{name: "App", supported_platforms: [:ios]}] end)
+
+    expect(Bundles, :project_bundle_install_size_analytics, fn ^project, _opts ->
+      [%{date: "2026-10-08", bundle_install_size: 1_024}]
+    end)
+
+    socket = XcodeOverviewLive.assign_handle_params(socket, %{}, "/account/project")
+    [{keys, loader} | _other_widgets] = socket.private.public_overview_loaders
+    assert keys == [:bundle_size_apps, :bundle_size_analytics]
+    assert {:ok, %{bundle_size_apps: ["App"], bundle_size_analytics: [["2026-10-08", 1_024]]}} = loader.()
   end
 
   @tag capture_log: true

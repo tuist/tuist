@@ -98,10 +98,15 @@ defmodule TuistWeb.XcodeOverviewLive do
     |> PublicOverviewCache.assign_async(
       [:bundle_size_apps, :bundle_size_analytics],
       fn ->
-        case bundle_size_apps_result do
-          {:ok, apps} -> fetch_bundles_data(project, bundle_size_period, apps)
-          {:error, _reason} = error -> error
-        end
+        apps =
+          case bundle_size_apps_result do
+            {:ok, apps} -> apps
+            # This loader already owns an admission slot. Retrying through
+            # PublicOverviewCache.load/3 would wait for a nested slot.
+            {:error, _reason} -> Bundles.project_app_bundle_options(project)
+          end
+
+        fetch_bundles_data(project, bundle_size_period, apps)
       end
     )
   end

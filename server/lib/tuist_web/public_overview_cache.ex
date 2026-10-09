@@ -28,7 +28,8 @@ defmodule TuistWeb.PublicOverviewCache do
   def init(opts) do
     children = [
       {Cachex, [@values, [hooks: [hook(module: Cachex.Limit.Evented, args: {256, []})]]]},
-      {LoadLimiter, Keyword.merge([name: @loaders, on_error: &report_error/1], opts)}
+      {LoadLimiter,
+       Keyword.merge([name: @loaders, queue_timeout: to_timeout(second: 30), on_error: &report_error/1], opts)}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)
