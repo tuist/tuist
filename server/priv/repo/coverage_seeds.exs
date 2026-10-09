@@ -585,7 +585,7 @@ if previous_repository_id do
   Repo.delete_all(from(r in GitHistory.Repository, where: r.id == ^previous_repository_id))
 end
 
-for table <- ["coverage_files", "coverage_runs", "test_run_enumerated_tests", "test_run_changed_files"] do
+for table <- ["coverage_files", "coverage_runs", "test_run_changed_files"] do
   IngestRepo.query!("DELETE FROM #{table} WHERE project_id = {project_id:Int64}", %{project_id: project.id})
 end
 
@@ -974,9 +974,10 @@ create_run = fn entry, scheme, mode, opts ->
       git_object_format: "sha1",
       history_source: "client",
       test_modules: modules,
-      enumerated_tests:
+      skip_test_identifiers:
         if(recent?,
-          do: Enum.map(run.candidates, &%{module: &1.module, suite: &1.suite, name: &1.name, enabled: true})
+          do: Enum.map(run.candidates -- run.ran, &"#{&1.module}/#{&1.suite}/#{&1.name}"),
+          else: []
         ),
       coverage_evidence: if(recent?, do: run.evidence),
       changed_files: if(pull_request, do: CoverageSeed.changed_files(entry.base, entry.state), else: []),
