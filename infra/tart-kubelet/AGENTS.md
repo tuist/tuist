@@ -53,6 +53,7 @@ workflow code runs in the guest. Never expose host credentials or masters.
   (wireguard-go on `utun<100+index>`); it never touches pf. The kubelet is the
   only writer of the `com.apple/0.tuist.egress` anchor, whose name must keep
   sorting ahead of `com.apple/tuist.sshguard`. Never flush the VM tables:
-  `-T replace` only, add to `egress_all` before routing, and drop a VM from
-  the tables before stopping it. The Pod condition `tuist.dev/RunnerEgressReady`
+  `-T replace` only, add to `egress_all` before routing, stop a VM before
+  dropping it from the tables, kill its pf states before deleting it, and take
+  the Pod snapshot under the same lock as the table update. The Pod condition `tuist.dev/RunnerEgressReady`
   (`armed <ip>`) is the durable record of what is routed; never withdraw it.

@@ -47,6 +47,15 @@ func (f *fakePF) ReplaceTable(_ context.Context, _ string, table string, address
 	return nil
 }
 
+func (f *fakePF) TableAddresses(_ context.Context, _ string, table string) ([]string, error) {
+	return append([]string(nil), f.tables[table]...), nil
+}
+
+func (f *fakePF) KillStates(_ context.Context, address string) error {
+	f.calls = append(f.calls, pfCall{op: "kill", addresses: []string{address}})
+	return nil
+}
+
 func (f *fakePF) ShowRules(context.Context, string) (string, error) {
 	if f.hideRule {
 		return "", nil
@@ -423,4 +432,77 @@ func contains(values []string, value string) bool {
 		}
 	}
 	return false
+}
+
+func killed(calls []pfCall) []string {
+	var out []string
+	for _, call := range calls {
+		if call.op == "kill" {
+			out = append(out, call.addresses...)
+		}
+	}
+	return out
+}
+
+func TestSyncKillsStatesOfReleasedAddressesOnly(t *testing.T) {
+	pf := &fakePF{}
+	m, dir := newManager(t, pf)
+	writeHealthyStatus(t, dir, "dedicated-1", 0)
+	ctx := context.Background()
+	if err := m.Sync(ctx, []PodState{
+		{Key: "ns/a", Gateway: "dedicated-1", IP: "192.168.64.5"},
+		{Key: "ns/b", Gateway: "dedicated-1", IP: "192.168.64.6"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := killed(pf.calls); len(got) != 0 {
+		t.Fatalf("killed states while arming: %v", got)
+	}
+
+	pf.calls = nil
+	if err := m.Sync(ctx, []PodState{{Key: "ns/b", Gateway: "dedicated-1", IP: "192.168.64.6"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := killed(pf.calls); !reflect.DeepEqual(got, []string{"192.168.64.5"}) {
+		t.Fatalf("killed %v, want only the released address", got)
+	}
+	last := pf.calls[len(pf.calls)-1]
+	if last.op != "kill" {
+		t.Fatalf("states must be killed after the tables drop the address: %+v", pf.calls)
+	}
+}
+
+func TestSyncAfterRestartKillsStatesOfAddressesNoLongerBound(t *testing.T) {
+	pf := &fakePF{tables: map[string][]string{allTable: {"192.168.64.9"}}}
+	m, _ := newManager(t, pf)
+	if err := m.Sync(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := killed(pf.calls); !reflect.DeepEqual(got, []string{"192.168.64.9"}) {
+		t.Fatalf("killed %v after restart", got)
+	}
+}
+
+func TestSyncKeepsAnArmBeforeItsConditionIsCached(t *testing.T) {
+	pf := &fakePF{}
+	m, dir := newManager(t, pf)
+	writeHealthyStatus(t, dir, "dedicated-1", 0)
+	ctx := context.Background()
+	pod := PodState{Key: "ns/a", Gateway: "dedicated-1", IP: "192.168.64.5"}
+	if err := m.Sync(ctx, []PodState{pod}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := WriteStatus(dir, Status{Gateway: "dedicated-1", Index: 0, Interface: InterfaceName(0), UpdatedUnix: now.Unix()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Sync(ctx, []PodState{pod}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := m.Armed("ns/a"); !ok {
+		t.Fatal("arm lost while the tunnel was unhealthy")
+	}
+	if !reflect.DeepEqual(pf.tables["egress_dedicated-1"], []string{"192.168.64.5"}) {
+		t.Fatalf("gateway table = %v, the armed VM must stay routed", pf.tables["egress_dedicated-1"])
+	}
 }

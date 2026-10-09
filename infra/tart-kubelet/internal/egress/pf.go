@@ -66,6 +66,8 @@ func RenderAnchor(gateways []AnchorGateway, tailnetIP string, exclude []string) 
 type PF interface {
 	LoadAnchor(ctx context.Context, anchor, rules string) error
 	ReplaceTable(ctx context.Context, anchor, table string, addresses []string) error
+	TableAddresses(ctx context.Context, anchor, table string) ([]string, error)
+	KillStates(ctx context.Context, address string) error
 	ShowRules(ctx context.Context, anchor string) (string, error)
 }
 
@@ -108,4 +110,27 @@ func (p SudoPFCtl) ReplaceTable(ctx context.Context, anchor, table string, addre
 
 func (p SudoPFCtl) ShowRules(ctx context.Context, anchor string) (string, error) {
 	return p.run(ctx, "", "-a", anchor, "-s", "rules")
+}
+
+func (p SudoPFCtl) TableAddresses(ctx context.Context, anchor, table string) ([]string, error) {
+	out, err := p.run(ctx, "", "-a", anchor, "-t", table, "-T", "show")
+	if err != nil {
+		return nil, err
+	}
+	var addresses []string
+	for _, line := range strings.Split(out, "\n") {
+		if address := strings.TrimSpace(line); address != "" {
+			addresses = append(addresses, address)
+		}
+	}
+	return addresses, nil
+}
+
+// KillStates removes every pf state from and to an address.
+func (p SudoPFCtl) KillStates(ctx context.Context, address string) error {
+	if _, err := p.run(ctx, "", "-k", address); err != nil {
+		return err
+	}
+	_, err := p.run(ctx, "", "-k", "0.0.0.0/0", "-k", address)
+	return err
 }

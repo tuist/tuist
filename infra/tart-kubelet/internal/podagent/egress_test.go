@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,8 +19,39 @@ import (
 )
 
 type recordingPF struct {
+	mu     sync.Mutex
 	rules  string
 	tables map[string][]string
+	log    string
+}
+
+func (p *recordingPF) record(line string) {
+	if p.log == "" {
+		return
+	}
+	f, err := os.OpenFile(p.log, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_, _ = f.WriteString(line + "\n")
+}
+
+func (p *recordingPF) TableAddresses(_ context.Context, _ string, table string) ([]string, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.tables[table]...), nil
+}
+
+func (p *recordingPF) KillStates(_ context.Context, address string) error {
+	p.record("pf kill " + address)
+	return nil
+}
+
+func (p *recordingPF) table(name string) []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.tables[name]...)
 }
 
 func (p *recordingPF) LoadAnchor(_ context.Context, _ string, rules string) error {
@@ -27,6 +60,9 @@ func (p *recordingPF) LoadAnchor(_ context.Context, _ string, rules string) erro
 }
 
 func (p *recordingPF) ReplaceTable(_ context.Context, _ string, table string, addresses []string) error {
+	p.record("pf replace " + table + " " + strings.Join(addresses, ","))
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if p.tables == nil {
 		p.tables = map[string][]string{}
 	}
@@ -169,5 +205,82 @@ func TestEgressReadyCondition(t *testing.T) {
 	got, _ = r.egressReadyCondition(egressPod("disabled", "mini-1", "dedicated-1"))
 	if got.Status != corev1.ConditionFalse || got.Reason != "EgressDisabled" {
 		t.Fatalf("disabled condition = %+v", got)
+	}
+}
+
+// A sync that took its Pod snapshot before a VM was released must not land
+// after the release and route the address again.
+func TestSyncEgressSnapshotCannotLandAfterARelease(t *testing.T) {
+	since := time.Now().Add(-time.Minute).Truncate(time.Second)
+	r, pf := newEgressTestReconciler(t,
+		egressPod("armed", "mini-1", "dedicated-1", armedCondition("192.168.64.20", since)),
+		egressPod("fresh", "mini-1", "dedicated-1"),
+	)
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "slept")
+	script := "#!/bin/sh\nif [ \"$1\" = ip ]; then\n  if [ ! -e " + marker + " ]; then touch " + marker + "; sleep 1; fi\n  echo 192.168.64.7\nfi\nexit 0\n"
+	if err := os.WriteFile(r.Tart.Binary, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	armed := &Entry{VMName: "vm-armed"}
+	r.Store.Put("tuist-runners", "armed", armed)
+	r.Store.Put("tuist-runners", "fresh", &Entry{VMName: "vm-fresh"})
+
+	done := make(chan error, 1)
+	go func() { done <- r.syncEgress(context.Background()) }()
+	for {
+		if _, err := os.Stat(marker); err == nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	r.releaseEgress(context.Background(), armed)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"egress_all", "egress_dedicated-1"} {
+		for _, address := range pf.table(table) {
+			if address == "192.168.64.20" {
+				t.Fatalf("%s routes a released address again: %v", table, pf.table(table))
+			}
+		}
+	}
+}
+
+// Teardown stops the VM before it loses its route and backstop, and only
+// deletes it once its address and states are gone.
+func TestDeleteByKeyStopsBeforeReleasingAndReleasesBeforeDeleting(t *testing.T) {
+	since := time.Now().Add(-time.Minute).Truncate(time.Second)
+	r, pf := newEgressTestReconciler(t, egressPod("armed", "mini-1", "dedicated-1", armedCondition("192.168.64.20", since)))
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "calls.log")
+	pf.log = logPath
+	script := "#!/bin/sh\ncase \"$1\" in stop|delete) echo \"tart $1\" >> " + logPath + " ;; esac\nexit 0\n"
+	if err := os.WriteFile(r.Tart.Binary, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r.Tart.UserDataDir = dir
+	r.Store.Put("tuist-runners", "armed", &Entry{VMName: "vm-armed"})
+	if err := r.syncEgress(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(logPath, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := r.deleteByKey(context.Background(), "tuist-runners", "armed"); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := string(data)
+	stop := strings.Index(log, "tart stop")
+	release := strings.Index(log, "pf replace egress_dedicated-1 \n")
+	kill := strings.Index(log, "pf kill 192.168.64.20")
+	del := strings.Index(log, "tart delete")
+	if stop < 0 || release < 0 || kill < 0 || del < 0 || !(stop < release && release < kill && kill < del) {
+		t.Fatalf("teardown order is wrong:\n%s", log)
 	}
 }

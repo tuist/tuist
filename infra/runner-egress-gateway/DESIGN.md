@@ -227,11 +227,14 @@ SNATing straight to the /24 address.
 5. **A Pod with the egress label counts as committed.** If it polls again it
    gets 410 and is recycled. A VM that was armed for account A never runs
    account B's job.
-6. **Teardown.** tart-kubelet drops the VM's IP from the gateway table, then
-   from the backstop, and only then stops or deletes the VM. That way a
-   recycled DHCP lease can't inherit the route. A VM whose `tart run` has
-   exited is dropped on the next sync, and a sync runs every 5s and after a
-   restart.
+6. **Teardown.** tart-kubelet stops the VM first, so a guest still running
+   through a graceful stop keeps its route and backstop. It then drops the
+   VM's IP from the gateway table and the backstop, kills the address's pf
+   states (pf matches a state before any rule, so a recycled address could
+   otherwise inherit a routed flow), and only then deletes the VM. A VM whose
+   `tart run` has exited is dropped on the next sync, and a sync runs every 5s
+   and after a restart. Syncs are serialized end to end, Pod snapshot
+   included, so an older snapshot can never undo a newer arm.
 
 The JIT config is the only credential that lets the job run. The guest gets it
 only after the host has enforced the route, so the account's job never runs

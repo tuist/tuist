@@ -177,6 +177,11 @@ type Reconciler struct {
 	// labelled Pod there is never reported ready, so it is never handed a job.
 	Egress *egress.Manager
 
+	// egressMu makes taking the Pod snapshot and applying it to the egress
+	// tables one step, so a sync holding an older snapshot can never land
+	// after a newer one and undo a route that was already acknowledged.
+	egressMu sync.Mutex
+
 	// ConvergeHeadWaitInterval / ConvergeHeadWaitAttempts bound how long a
 	// background convergence waits for the guest to stage the cache-volume HEAD.
 	// Zero values use the package defaults; injectable so tests don't wait real
@@ -1313,9 +1318,12 @@ func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) er
 	// account), discard it so it never leaks. No-op once consumed.
 	r.finalizeVolume(entry, "", false)
 
-	r.releaseEgress(ctx, entry)
-
+	// The VM keeps its egress route and backstop until it is stopped, so a
+	// guest still running during a graceful stop can't reach the shared host
+	// address. Its address leaves the tables, and its pf states are killed,
+	// before the delete frees it for another VM.
 	_ = r.Tart.Stop(ctx, entry.VMName, 30*time.Second)
+	r.releaseEgress(ctx, entry)
 	if err := r.Tart.Delete(ctx, entry.VMName); err != nil {
 		return fmt.Errorf("tart delete: %w", err)
 	}

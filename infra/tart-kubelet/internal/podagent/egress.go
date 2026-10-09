@@ -47,6 +47,12 @@ func (r *Reconciler) syncEgress(ctx context.Context) error {
 	if r.Egress == nil {
 		return nil
 	}
+	r.egressMu.Lock()
+	defer r.egressMu.Unlock()
+	return r.syncEgressLocked(ctx)
+}
+
+func (r *Reconciler) syncEgressLocked(ctx context.Context) error {
 	pods := &corev1.PodList{}
 	if err := r.CachedClient.List(ctx, pods, client.HasLabels{egress.PodLabel}); err != nil {
 		egressSyncErrorsTotal.Inc()
@@ -100,14 +106,17 @@ func (r *Reconciler) recordEgressMetrics() {
 	}
 }
 
-// releaseEgress drops a VM from the egress tables before its teardown stops
-// it, so the address can't stay routed for whatever VM gets it next.
+// releaseEgress drops a stopped VM from the egress tables and kills its pf
+// states before teardown deletes it, so the address can't stay routed for
+// whatever VM gets it next.
 func (r *Reconciler) releaseEgress(ctx context.Context, entry *Entry) {
 	if r.Egress == nil {
 		return
 	}
+	r.egressMu.Lock()
+	defer r.egressMu.Unlock()
 	entry.EgressReleased = true
-	if err := r.syncEgress(ctx); err != nil {
+	if err := r.syncEgressLocked(ctx); err != nil {
 		log.FromContext(ctx).Error(err, "release VM from egress tables", "vm", entry.VMName)
 	}
 }

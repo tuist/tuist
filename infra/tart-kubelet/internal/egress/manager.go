@@ -109,6 +109,11 @@ func (m *Manager) desired(pods []PodState, statuses map[string]Status, canArm bo
 	}
 	armed := map[string]Arm{}
 	for _, pod := range pods {
+		// An arm from an earlier sync stands until the Pod is gone, even before
+		// its condition reaches the informer cache.
+		if prev, ok := m.armed[pod.Key]; ok && pod.ArmedIP == "" && prev.Gateway == pod.Gateway {
+			pod.ArmedIP, pod.ArmedSince = prev.IP, prev.Since
+		}
 		_, known := statuses[pod.Gateway]
 		switch {
 		case pod.ArmedIP != "":
@@ -134,10 +139,16 @@ func (m *Manager) desired(pods []PodState, statuses map[string]Status, canArm bo
 
 // applyTables adds to the backstop table before routing anything new and
 // shrinks it only after the per-gateway tables have dropped an address, so a
-// bound VM is never in neither.
+// bound VM is never in neither. An address that leaves the tables also loses
+// its pf states: pf matches an existing state before any rule, so a VM that
+// later gets the same address could otherwise inherit a routed flow.
 func (m *Manager) applyTables(ctx context.Context, want desiredTables) error {
 	if m.applied == nil {
 		m.applied = map[string][]string{}
+	}
+	previous, known := m.applied[allTable]
+	if !known {
+		previous, _ = m.PF.TableAddresses(ctx, Anchor, allTable)
 	}
 	widened := union(want.all, m.applied[allTable])
 	if err := m.replace(ctx, allTable, widened); err != nil {
@@ -157,7 +168,20 @@ func (m *Manager) applyTables(ctx context.Context, want desiredTables) error {
 		return err
 	}
 	m.armed = want.armed
-	return nil
+
+	keep := map[string]bool{}
+	for _, address := range want.all {
+		keep[address] = true
+	}
+	var errs []error
+	for _, address := range previous {
+		if !keep[address] {
+			if err := m.PF.KillStates(ctx, address); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (m *Manager) replace(ctx context.Context, table string, addresses []string) error {
