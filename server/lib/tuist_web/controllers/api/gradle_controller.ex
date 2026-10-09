@@ -269,15 +269,12 @@ defmodule TuistWeb.API.GradleController do
 
   defp build_attributes(conn, project, body) do
     metadata = body[:custom_metadata] || %{}
+    {id, account_id} = report_identity(conn, body)
 
     %{
-      id: if(TuistWeb.Authentication.authenticated?(conn), do: body[:id] || UUIDv7.generate(), else: UUIDv7.generate()),
+      id: id,
       project_id: project.id,
-      account_id:
-        case TuistWeb.Authentication.authenticated_subject_account(conn) do
-          nil -> 0
-          account -> account.id
-        end,
+      account_id: account_id,
       actor_account_id: conn.assigns.report_actor.actor_account_id,
       claimed_actor_id: conn.assigns.report_actor.claimed_actor_id,
       submission_auth: conn.assigns.report_actor.submission_auth,
@@ -300,6 +297,18 @@ defmodule TuistWeb.API.GradleController do
       tasks: build_tasks(body.tasks),
       machine_metrics: Map.get(body, :machine_metrics, [])
     }
+  end
+
+  defp report_identity(conn, body) do
+    id = if TuistWeb.Authentication.authenticated?(conn), do: body[:id] || UUIDv7.generate(), else: UUIDv7.generate()
+
+    account_id =
+      case TuistWeb.Authentication.authenticated_subject_account(conn) do
+        nil -> 0
+        account -> account.id
+      end
+
+    {id, account_id}
   end
 
   defp build_tasks(tasks) do

@@ -726,6 +726,11 @@ defmodule TuistWeb.API.TestsController do
     }
   )
 
+  defp notify_connected(conn, project) do
+    if Project.mix_project?(project) and not ReportPublishingPlug.network_publisher?(conn),
+      do: Projects.notify_connected(project, Authentication.current_user(conn))
+  end
+
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
     body_params = conn |> ReportPublishingPlug.parameters(body_params) |> RemoteURL.strip_credentials_from_params()
 
@@ -737,8 +742,7 @@ defmodule TuistWeb.API.TestsController do
 
     case get_or_create_test(run_params) do
       {:ok, test_run} ->
-        if Project.mix_project?(selected_project) and not ReportPublishingPlug.network_publisher?(conn),
-          do: Projects.notify_connected(selected_project, Authentication.current_user(conn))
+        notify_connected(conn, selected_project)
 
         vcs_comment_params = %{
           git_commit_sha: Map.get(body_params, :git_commit_sha),

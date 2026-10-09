@@ -7,6 +7,7 @@ defmodule TuistWeb.Plugs.ReportPublishingPlug do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Plug.Conn.Utils
   alias Tuist.Environment
   alias TuistWeb.API.Authorization.AuthorizationPlug
   alias TuistWeb.Authentication
@@ -83,7 +84,7 @@ defmodule TuistWeb.Plugs.ReportPublishingPlug do
       Authentication.authenticated?(conn) ->
         AuthorizationPlug.authorize_project(conn, if(kind == :test, do: :test, else: :build), action: :create)
 
-      not enabled?(project) or not compatible?(project, kind, conn.body_params) ->
+      not eligible_project?(project, kind, conn.body_params) ->
         deny_publication(conn)
 
       not json_report?(conn) ->
@@ -104,6 +105,8 @@ defmodule TuistWeb.Plugs.ReportPublishingPlug do
     end
   end
 
+  defp eligible_project?(project, kind, body), do: enabled?(project) and compatible?(project, kind, body)
+
   defp compatible?(project, :test, body) do
     system = value(body, :build_system) || "xcode"
     system in [project.build_system, Atom.to_string(project.build_system)]
@@ -113,7 +116,7 @@ defmodule TuistWeb.Plugs.ReportPublishingPlug do
 
   defp json_report?(conn) do
     case get_req_header(conn, "content-type") do
-      [value] -> match?({:ok, "application", "json", _}, Plug.Conn.Utils.media_type(value))
+      [value] -> match?({:ok, "application", "json", _}, Utils.media_type(value))
       _ -> false
     end
   end
