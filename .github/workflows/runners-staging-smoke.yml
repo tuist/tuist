@@ -121,6 +121,9 @@ jobs:
           echo "Public IPv4: ${observed} (second source: ${second})"
           if curl -6 -fsS -m 10 -o /dev/null https://api64.ipify.org; then
             echo "::warning::This VM has a working IPv6 path, which does not use the dedicated address."
+            ifconfig en0 | grep inet6 || true
+            netstat -rn -f inet6 | grep -E "^default" || true
+            echo "Public IPv6: $(curl -6 -fsS -m 10 https://api64.ipify.org || true)"
           else
             echo "No IPv6 path."
           fi
