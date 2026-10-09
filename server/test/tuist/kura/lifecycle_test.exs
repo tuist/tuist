@@ -865,6 +865,60 @@ defmodule Tuist.Kura.LifecycleTest do
     end
   end
 
+  describe "record_ready/2" do
+    defp record_ready_cold_return(account, server, returned_at, deployment_inserted_at) do
+      {:ok, _} = Demand.upsert(account.id, @region, ago(0))
+
+      account
+      |> reload_lifecycle()
+      |> Ecto.Changeset.change(%{last_returned_at: returned_at})
+      |> Repo.update!()
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :ready]])
+
+      Lifecycle.record_ready(server, %Deployment{inserted_at: deployment_inserted_at})
+
+      assert_received {[:tuist, :kura, :lifecycle, :ready], ^ref, %{count: 1}, %{cold_return: cold_return}}
+      cold_return
+    end
+
+    test "reports a return whose deployment was inserted in the same second the return was stamped" do
+      # `last_returned_at` is stamped after the return's deployment is inserted
+      # and truncated to the second, so it reads as earlier than the deployment
+      # whenever both land in the same second.
+      account = account()
+      server = active_instance(account)
+      returned_at = DateTime.truncate(DateTime.utc_now(), :second)
+
+      assert record_ready_cold_return(account, server, returned_at, DateTime.add(returned_at, 308_723, :microsecond)) ==
+               "true"
+    end
+
+    test "reports a return whose deployment was inserted in the second before the return was stamped" do
+      account = account()
+      server = active_instance(account)
+      returned_at = DateTime.truncate(DateTime.utc_now(), :second)
+
+      assert record_ready_cold_return(account, server, returned_at, DateTime.add(returned_at, -400_000, :microsecond)) ==
+               "true"
+    end
+
+    test "does not report a rollout after the return as a return" do
+      account = account()
+      server = active_instance(account)
+      returned_at = DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
+
+      assert record_ready_cold_return(account, server, returned_at, DateTime.utc_now()) == "false"
+    end
+
+    test "does not report an instance that was never archived as a return" do
+      account = account()
+      server = active_instance(account)
+
+      assert record_ready_cold_return(account, server, nil, DateTime.utc_now()) == "false"
+    end
+  end
+
   describe "open rollouts" do
     test "are cancelled when an instance enters drain, so no rollout can act on it" do
       account = account()

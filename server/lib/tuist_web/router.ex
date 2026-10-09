@@ -34,6 +34,7 @@ defmodule TuistWeb.Router do
 
   pipeline :open_graph_image do
     plug :put_request_kind, "open_graph_image"
+    plug :rate_limit, limit: 60
     # Open Graph images belong to the marketing and docs sites, which are not served
     # on-premise. Forward these requests away there instead of spinning up a
     # headless browser render the deployment does not need.
@@ -1517,7 +1518,7 @@ defmodule TuistWeb.Router do
       get "/invocations", RedirectPlug, to: "/builds"
       live "/invocations/:invocation_id", BazelBuildInvocationLive, metadata: @public_project_route_metadata
       live "/", OverviewLive, metadata: @public_project_route_metadata
-      live "/analytics", OverviewLive, metadata: @public_project_route_metadata
+      live "/analytics", OverviewLive, :analytics, metadata: @public_project_route_metadata
       live "/bundles", BundlesLive, metadata: @public_project_route_metadata
       live "/bundles/:bundle_id", BundleLive, metadata: @public_project_route_metadata
       live "/builds", BuildsLive, metadata: @public_project_route_metadata

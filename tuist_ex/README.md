@@ -45,6 +45,9 @@ you provide only `--email` or `--password`, it prompts for the missing value.
 On a continuous integration provider, it exchanges an
 [OpenID Connect](https://openid.net/developers/how-connect-works/) identity token
 from GitHub Actions, CircleCI, or Bitrise, matching the Tuist command line flow.
+On those providers a login step is optional: when no other credentials are
+available, the reporting tasks make the same exchange the first time they need
+a token. On GitHub Actions the job needs the `id-token: write` permission.
 
 Credentials are saved under the Tuist configuration directory. The task writes
 them atomically with access restricted to the current user. Refreshes take a
@@ -75,8 +78,9 @@ CI run.
 
 Analytics submission never changes the exit code of `mix test`. If a request
 fails, set `TUIST_DEBUG=1` to print the reason to standard error. Authentication
-reuses the credentials from `mix tuist.login`, or the `TUIST_TOKEN` environment
-variable if set.
+uses the `TUIST_TOKEN` environment variable if set, then the credentials from
+`mix tuist.login`, then an OpenID Connect exchange on a supported continuous
+integration provider.
 
 ## Keep using `mix test` and `mix compile`
 
@@ -167,6 +171,35 @@ to `mix tuist.test.build` if you would rather have each shard compile.
 Test paths given on a shard's command line narrow what that shard runs. Run
 both commands inside an application: sharding from an umbrella's root is not
 supported yet.
+
+## Report code coverage
+
+Pass `--cover` and the run's line coverage is reported with it:
+
+```sh
+mix tuist.test --cover
+```
+
+Tuist reads the counters Erlang's `cover` collected once the suite finishes,
+so your coverage tool keeps working as before: `mix test`'s HTML report and
+threshold, or excoveralls. Each covered file is reported with the OTP
+application it belongs to and the Git blob it had, and files under your test
+paths count as test code, which no figure includes. A run that picks its tests
+(`--only`, `--exclude`, `--failed`, `--stale`, or test files on the command
+line) is reported as partial and stays out of the branch's coverage trend.
+Shards each report their share and Tuist merges them.
+
+With coverage, the run also reports its Git history: the merge base with the
+branch a pull request merges into, the files it changed, and the commits Tuist
+does not have yet. A shallow clone is deepened, within a time budget, until
+the merge base is found. Once every job of the pipeline that measures coverage
+has finished, tell Tuist the commit's coverage is complete:
+
+```sh
+mix tuist.coverage.complete
+```
+
+Until then the commit is shown as in progress and stays out of the trend.
 
 ## Tag runs with custom metadata
 

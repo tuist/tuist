@@ -13,12 +13,28 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
   alias Tuist.Projects.Project
   alias Tuist.Storage
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.RateLimit
 
   @endpoint TuistWeb.Endpoint
 
   setup do
     stub(Environment, :tuist_hosted?, fn -> true end)
     %{conn: build_conn()}
+  end
+
+  test "throttles images before storage or rendering work", %{conn: conn} do
+    %{path: path} = image_request()
+
+    expect(RateLimit, :hit, fn key, opts ->
+      assert key =~ "/open-graph-images/:key"
+      assert opts[:limit] == 60
+      assert opts[:window] == to_timeout(minute: 1)
+      {:deny, 60}
+    end)
+
+    reject(&Storage.object_exists?/2)
+    reject(&OpenGraphImageRenderer.render/2)
+    assert_error_sent(429, fn -> get(conn, path) end)
   end
 
   test "serves a cached image without rendering it again", %{conn: conn} do

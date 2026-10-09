@@ -25,7 +25,13 @@ a passing retry can turn the exit code green, merges the attempts as
 repetitions and submits once. Sharding (`Shards`, `mix tuist.test.build`) plans with ExUnit modules, since
 that is what runs report timings for, discovered by parsing the test files
 without loading them, and runs test files, since that is what Mix can
-select. The build archive materializes dependency `deps/*/priv` directories whose
+select. Each reported module carries an `execution_mode` (`parallel` for
+`async: true`, `serial` otherwise, from the test's `:async` tag). The plan
+request declares `concurrent_modules`, the units whose module says
+`use ..., async: true`, read from the same parse, as the Xcode CLI declares
+`parallelizable_modules`; the server measures how many ran at once from
+earlier shards' reported modes and durations, and balances the shards' wall
+clock rather than their summed module durations. The build archive materializes dependency `deps/*/priv` directories whose
 real paths stay inside the checkout, including native libraries generated in
 `deps/` that are absent on cold workers. Preserve project `priv` links so nested
 checkout-relative resources (such as published agent skills) keep their original
@@ -63,7 +69,32 @@ applications that are already running, and `Application.ensure_all_started/1`
 does not restore them. Put every OTP application used from a task back on the
 path with `Mix.ensure_application!/1` before starting it (`:inets` and `:ssl`
 in `TuistEx.HTTP`, `:os_mon` in `MachineMetrics`). It shares the Tuist credential
-file and uses the command line tool's refresh lock path. Server ingestion and
+file and uses the command line tool's refresh lock path. With `--cover`, `mix tuist.test` reports line coverage (`Analytics.Coverage`)
+and the Git history with every run, so the formatter always runs in
+`{:defer, owner}` mode then. The formatter reads `cover`'s counters at
+`suite_finished`: every test has run, and Mix's coverage tool has neither
+written its report nor, in an umbrella, restarted `cover` for the next
+application. It never wraps or replaces the project's `test_coverage` tool,
+so `mix test`'s report, threshold and excoveralls keep working. A run is
+partial only when its own arguments pick tests; the files a shard appends are
+not counted. Paths are relative to the Git root, a build compiled elsewhere is
+matched by path suffix, the OTP application is the target, and files under the
+test paths are test code. Coverage that compresses past the server's inline
+threshold is uploaded first (`/tests/coverage/uploads`). Retries never carry
+`--cover`. `mix tuist.coverage.complete` signals the commit's coverage
+complete, as `tuist coverage complete` does. Tests that start or stop `cover`
+must leave a running cover server alone: under `mix test --cover` it is Mix's.
+`Git` and `Analytics.GitHistory` port the command line tool's Git history
+collection (`GitController+History.swift`, `GitHistoryParser.swift`,
+`GitHistoryService.swift`) and must stay in step with it, since the server
+compares what both report: the merge base with the CI provider's base branch
+(fetching it and deepening a shallow clone within the server's budget), the
+changed files and hunks since, the commits within the window (a shallow
+boundary's parents read from the commit objects), whether the checkout is
+dirty (`git status --porcelain`, untracked files included), and after the run
+the commits the server lacks, the branch head, and a clean checkout's file
+listing. Git's standard error is discarded and nothing here ever fails a run.
+Server ingestion and
 dashboard presentation belong in `server/`.
 
 - `lib/tuist_ex/analytics/contract.ex` carries the wire contract version the
@@ -89,7 +120,14 @@ dashboard presentation belong in `server/`.
   it samples as options. Tests give payload builders a fixed environment so
   none of them asks git about the checkout. Keep it that way: a test that
   needs `async: false` is a sign that state leaked somewhere global, and
-  `compile_profile_install_test.exs` is the one place that is expected.
+  `compile_profile_install_test.exs` and `http_test.exs` (which prunes the
+  VM's code path) are the places where it is expected.
+- `TuistEx.Auth.token/1` tries `TUIST_TOKEN`, then the stored credentials, then
+  an OpenID Connect exchange on GitHub Actions, CircleCI or Bitrise, so CI needs
+  no login step. The exchanged token is kept in memory for the VM and never
+  written to the shared credentials file: a runner that outlives the job would
+  otherwise hand it to the next repository's job. Every failure on that path is
+  an `{:error, message}`, never a raise, because reporting must stay silent.
 - Validate with `mix format --check-formatted`, `mix compile --warnings-as-errors`,
   `mix test --warnings-as-errors`, `mix hex.build`, and `mix docs --warnings-as-errors`.
 - The user guides are the Elixir pages under `server/priv/docs/en/guides/`
