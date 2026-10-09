@@ -90,11 +90,18 @@
   gap: var(--noora-spacing-5);
 }
 
+#note-editor [data-pane] {
+  min-width: 0;
+}
+
 #note-editor [data-part="pane"] {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-4);
   min-width: 0;
+}
+
+#note-editor[data-part="note-reader"] > [data-part="pane"] {
   box-shadow: var(--noora-border-light-default);
   border-radius: var(--noora-radius-4);
   background: var(--noora-surface-background-primary);
@@ -106,10 +113,9 @@
   background: var(--noora-surface-background-primary);
 }
 
-#note-editor [data-part="pane-title"] {
-  margin: 0;
-  color: var(--noora-surface-label-primary);
-  font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+#note-editor [data-pane="source"] textarea {
+  font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+  line-height: 1.75;
 }
 
 #note-editor [data-part="editor-actions"] {
@@ -117,19 +123,9 @@
   justify-content: flex-end;
 }
 
-#note-editor [data-part="markdown-preview"] {
+#note-editor [data-part="note-body"] {
   min-height: 32rem;
-  color: var(--noora-surface-label-primary);
-  font: var(--noora-font-body-medium);
   overflow-wrap: anywhere;
-}
-
-#note-editor [data-part="markdown-preview"] :first-child {
-  margin-top: 0;
-}
-
-#note-editor [data-part="markdown-preview"] :last-child {
-  margin-bottom: 0;
 }
 
 @media (max-width: 800px) {

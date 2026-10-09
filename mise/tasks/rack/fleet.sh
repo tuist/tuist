@@ -22,6 +22,8 @@
 #   mise run rack:fleet backup [device]         # startup config into the repo
 #   mise run rack:fleet drift                   # every switch; non-zero on drift
 #   mise run rack:fleet probe-tftp <device>     # is the TFTP export text?
+#   mise run rack:fleet env                     # the env whose cluster the rack is in
+#   mise run rack:fleet helm-values <chart>     # rack-switch-controller or rack-edge values
 #
 # --site selects the rack (default ber1). Switches are reached by the SSH key
 # named in the site definition; the admin password stays in 1Password and is

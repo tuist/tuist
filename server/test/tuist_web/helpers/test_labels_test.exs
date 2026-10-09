@@ -126,6 +126,15 @@ defmodule TuistWeb.Helpers.TestLabelsTest do
     end
   end
 
+  describe "coverage_target_label/1 and coverage_targets_label/1" do
+    test "call a Mix project's targets applications" do
+      assert TestLabels.coverage_target_label(%Project{build_system: :mix}) == "Application"
+      assert TestLabels.coverage_targets_label(%Project{build_system: :mix}) == "Applications"
+      assert TestLabels.coverage_target_label(%Project{build_system: :xcode}) == "Target"
+      assert TestLabels.coverage_targets_label(%Project{build_system: :xcode}) == "Targets"
+    end
+  end
+
   describe "schemes?/1" do
     test "is false only for mix projects" do
       refute TestLabels.schemes?(%Project{build_system: :mix})

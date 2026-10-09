@@ -2254,6 +2254,13 @@ defmodule Tuist.Kura do
   that were coming up during a rollout, which is itself a reason a cold start
   is slow. The percentile would be pulled down exactly where a regression shows.
 
+  A deployment from before the last return belongs to the instance that was
+  archived, so it is never a new instance, even when it finished inside the
+  window. The return is compared against with a minute of slack because
+  `last_returned_at` is stamped after the return's deployment is inserted and
+  truncated to the second, so the two can straddle a second boundary. Nothing
+  else is deployed in that minute: an archived server is outside every rollout.
+
   Read from `kura_deployments` rather than from the `time_to_ready`
   distribution, which is per pod and only holds what the pod that activated the
   instance scraped.
@@ -2268,7 +2275,7 @@ defmodule Tuist.Kura do
         where: e.inserted_at < parent_as(:deployment).inserted_at,
         where:
           is_nil(parent_as(:lifecycle).last_returned_at) or
-            e.inserted_at >= parent_as(:lifecycle).last_returned_at,
+            e.inserted_at >= fragment("? - interval '1 minute'", parent_as(:lifecycle).last_returned_at),
         select: 1
       )
 
@@ -2279,6 +2286,10 @@ defmodule Tuist.Kura do
       on: l.account_id == s.account_id and l.service_region == s.region
     )
     |> where([d], d.status == :succeeded and not is_nil(d.finished_at) and d.finished_at >= ^since)
+    |> where(
+      [d, _s, l],
+      is_nil(l.last_returned_at) or d.inserted_at >= fragment("? - interval '1 minute'", l.last_returned_at)
+    )
     |> where(not exists(earlier_deployment))
     |> select([d], %{
       count: count(d.id),

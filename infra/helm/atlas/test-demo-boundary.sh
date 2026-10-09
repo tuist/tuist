@@ -32,9 +32,25 @@ if helm template atlas-demo "$chart" -f "$chart/values-demo.yaml" --set migratio
   echo "Demo unexpectedly accepted shared write credentials" >&2
   exit 1
 fi
+for value in true TRUE 1 yes YES; do
+  if helm template standalone "$chart" --set-string "env.ATLAS_DEMO_MODE=$value" > /dev/null 2>&1; then
+    echo "Non-demo chart unexpectedly accepted ATLAS_DEMO_MODE=$value" >&2
+    exit 1
+  fi
+done
+if helm template atlas-demo "$chart" -f "$chart/values-demo.yaml" --set-string env.ATLAS_DEMO_MODE=false > /dev/null 2>&1; then
+  echo "Demo chart unexpectedly accepted a disabled runtime guard" >&2
+  exit 1
+fi
+helm template managed "$chart" -f "$chart/values-managed-production.yaml" > "$work/managed.yaml"
 helm template standalone "$chart" > "$work/standalone.yaml"
+for manifest in standalone managed; do
+  for container in containers initContainers; do
+    yq -e "select(.kind == \"Deployment\") | .spec.template.spec.$container[].env[] | select(.name == \"ATLAS_DEMO_MODE\") | .value == \"false\"" "$work/$manifest.yaml" > /dev/null
+  done
+done
 if yq 'select(.kind == "NetworkPolicy") | .metadata.name' "$work/standalone.yaml" | grep -q .; then
   echo "Demo network policy leaked into standalone deployment" >&2
   exit 1
 fi
-printf '%s\n' 'Atlas demo boundary passed: separate credentials, fictional seeds, no connectors, restricted egress.'
+printf '%s\n' 'Atlas demo boundary passed: production auth enforced, separate credentials, fictional seeds, no connectors, restricted egress.'

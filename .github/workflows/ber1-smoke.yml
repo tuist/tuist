@@ -1,11 +1,12 @@
 # Runs GitHub Actions jobs on the Mac minis we own, in the BER1 rack, to prove
 # the machines are working CI runners and not merely registered Nodes.
 #
-# `runs-on` targets the `tuist-ber1-smoke` dispatch label. That label reaches
-# the STAGING Tuist server's webhook handler, which matches it to the rack pool
-# in values-managed-staging.yaml and dispatches a runner onto a rack Node.
-# Production receives the same webhook, has no pool with this label, and ignores
-# it.
+# `runs-on` targets the `tuist-ber1-smoke` dispatch label. Every env's server
+# receives the webhook, and the one whose values-managed-<env>.yaml declares the
+# rack pool with this label matches it and dispatches a runner onto a rack Node;
+# the others have no pool with this label and ignore it. That env is the one the
+# rack is in (infra/rack-switch-fleet/sites/ber1.json, kubernetes.namespace),
+# and the cache job talks to its server.
 #
 # Manual dispatch only: the rack sits behind a home subnet router, so this must
 # never sit in a repository's automatic path.
@@ -32,6 +33,29 @@ permissions:
   contents: read
 
 jobs:
+  # The server of the env the rack is in, by the tuist chart's convention:
+  # production at tuist.dev, every other env at <env>.tuist.dev.
+  server:
+    name: Find the rack's server
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      url: ${{ steps.server.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: server
+        run: |
+          set -euo pipefail
+          environment="$(infra/rack-switch-fleet/fleet.sh --site ber1 env)"
+          case "$environment" in
+            production) url=https://tuist.dev;;
+            *) url="https://$environment.tuist.dev";;
+          esac
+          echo "ber1 is in $environment, served by $url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
   smoke:
     name: Run on rack hardware
     runs-on: tuist-ber1-smoke
@@ -61,13 +85,14 @@ jobs:
   # token minted from its GitHub OIDC identity.
   cache:
     name: Pull from the rack's cache
+    needs: server
     runs-on: tuist-ber1-smoke
     timeout-minutes: 10
     permissions:
       contents: read
       id-token: write
     env:
-      TUIST_URL: https://staging.tuist.dev
+      TUIST_URL: ${{ needs.server.outputs.url }}
       RACK_CACHE_ADDRESS: 10.10.0.11
     steps:
       - name: The dispatched endpoint is the rack's cache
@@ -89,7 +114,7 @@ jobs:
           endpoint="${TUIST_CACHE_ENDPOINT%/}"
           oidc="$(curl -sS -m 10 -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=tuist" | sed -n 's/.*"value":"\([^"]*\)".*/\1/p')"
           token="$(curl -sS -m 10 -X POST -H 'content-type: application/json' -d "{\"token\":\"$oidc\"}" "$TUIST_URL/api/auth/oidc/token" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')"
-          [ -n "$token" ] || { echo "::error::staging minted no token for this repository's OIDC identity"; exit 1; }
+          [ -n "$token" ] || { echo "::error::$TUIST_URL minted no token for this repository's OIDC identity"; exit 1; }
           key="ber1-smoke-$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d -)"
           query="tenant_id=tuist&namespace_id=tuist"
           head -c 1048576 /dev/urandom > /tmp/blob

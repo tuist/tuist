@@ -39,7 +39,21 @@ common=(env -i "PATH=$PATH" "HOME=$HOME" 'ERL_FLAGS=+S 2:2' RELEASE_DISTRIBUTION
   "SECRET_KEY_BASE=$secret" "GUARDIAN_SECRET_KEY=$secret" "ENCRYPTION_KEY=$key" "PORT=$http_port")
 owner_url="ecto://$(id -un)@127.0.0.1:$pg_port/atlas_demo"
 reader_url="ecto://atlas_demo_reader@127.0.0.1:$pg_port/atlas_demo"
-if ! "${common[@]}" "DATABASE_URL=$owner_url" "$release/bin/atlas" eval 'Atlas.Release.migrate(); Atlas.Release.seed_demo()' > "$work/seed.log" 2>&1; then
+if "${common[@]}" "DATABASE_URL=${reader_url%/atlas_demo}/atlas" "$release/bin/atlas" eval ':ok' > "$work/production-database.log" 2>&1; then
+  echo 'Demo release unexpectedly accepted a production database name' >&2
+  exit 1
+fi
+grep -q 'dedicated DATABASE_URL' "$work/production-database.log"
+if ! "${common[@]}" "DATABASE_URL=$owner_url" "$release/bin/atlas" eval 'Atlas.Release.migrate()' > "$work/migrate.log" 2>&1; then
+  tail -100 "$work/migrate.log" >&2
+  exit 1
+fi
+if "${common[@]}" "DATABASE_URL=$reader_url" "$release/bin/atlas" eval '{:ok, _} = Application.ensure_all_started(:atlas)' > "$work/empty-dataset.log" 2>&1; then
+  echo 'Demo release unexpectedly accepted an unseeded database' >&2
+  exit 1
+fi
+grep -q 'Seed the isolated Atlas demo database' "$work/empty-dataset.log"
+if ! "${common[@]}" "DATABASE_URL=$owner_url" "$release/bin/atlas" eval 'Atlas.Release.seed_demo()' > "$work/seed.log" 2>&1; then
   tail -100 "$work/seed.log" >&2
   exit 1
 fi
@@ -55,6 +69,20 @@ if "${common[@]}" "DATABASE_URL=$reader_url" "$release/bin/atlas" eval '{:ok, _}
 fi
 grep -q 'SELECT-only role' "$work/column-grant.log"
 psql -h 127.0.0.1 -p "$pg_port" -d atlas_demo -v ON_ERROR_STOP=1 -c 'REVOKE UPDATE (name) ON users FROM atlas_demo_reader' > /dev/null
+psql -h 127.0.0.1 -p "$pg_port" -d atlas_demo -v ON_ERROR_STOP=1 -c 'CREATE ROLE demo_write_role; GRANT UPDATE ON users TO demo_write_role; GRANT demo_write_role TO atlas_demo_reader' > /dev/null
+if "${common[@]}" "DATABASE_URL=$reader_url" "$release/bin/atlas" eval '{:ok, _} = Application.ensure_all_started(:atlas)' > "$work/role-membership.log" 2>&1; then
+  echo 'Demo release unexpectedly accepted inherited write privileges' >&2
+  exit 1
+fi
+grep -q 'SELECT-only role' "$work/role-membership.log"
+psql -h 127.0.0.1 -p "$pg_port" -d atlas_demo -v ON_ERROR_STOP=1 -c 'REVOKE demo_write_role FROM atlas_demo_reader' > /dev/null
+psql -h 127.0.0.1 -p "$pg_port" -d atlas_demo -v ON_ERROR_STOP=1 -c "INSERT INTO users (id, email, inserted_at, updated_at) VALUES (gen_random_uuid(), 'non-demo@example.invalid', now(), now())" > /dev/null
+if "${common[@]}" "DATABASE_URL=$reader_url" "$release/bin/atlas" eval '{:ok, _} = Application.ensure_all_started(:atlas)' > "$work/foreign-dataset.log" 2>&1; then
+  echo 'Demo release unexpectedly served a non-demo user record' >&2
+  exit 1
+fi
+grep -q 'non-demo records' "$work/foreign-dataset.log"
+psql -h 127.0.0.1 -p "$pg_port" -d atlas_demo -v ON_ERROR_STOP=1 -c "DELETE FROM users WHERE email = 'non-demo@example.invalid'" > /dev/null
 if "${common[@]}" "DATABASE_URL=$reader_url" STRIPE_API_KEY=forbidden "$release/bin/atlas" eval ':ok' > "$work/credential.log" 2>&1; then
   echo 'Demo release unexpectedly accepted Stripe credentials' >&2
   exit 1
@@ -84,4 +112,4 @@ for path in /mcp /admin/users /auth/google /inference/v1/models; do
 done
 status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST -H 'X-Forwarded-Proto: https' "http://127.0.0.1:$http_port/api/slack/events")"
 test "$status" = 403
-printf '%s\n' 'Atlas demo release passed: migrations, seeds, reader boot, anonymous pages, rejected owner/column-write/integration credentials, denied APIs.'
+printf '%s\n' 'Atlas demo release passed: migrations, seeds, reader boot, anonymous pages; rejected production database, empty/foreign data, owner/column/inherited write privileges, and integration credentials; denied APIs.'

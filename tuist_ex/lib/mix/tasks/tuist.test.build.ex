@@ -13,7 +13,10 @@ defmodule Mix.Tasks.Tuist.Test.Build do
   part of one test run.
 
   Tuist balances the shards with how long each test module took in earlier
-  runs. Modules it has not seen yet get an estimate.
+  runs. Modules it has not seen yet get an estimate. Modules that `use` a
+  case with `async: true` run alongside each other and the others one at a
+  time, and the shards are balanced by that, with how many ran at once in
+  earlier shards.
 
   ## Options
 
@@ -84,12 +87,12 @@ defmodule Mix.Tasks.Tuist.Test.Build do
     reference = unwrap(Shards.reference(options))
 
     # Before compiling: a test file that cannot be parsed stops the plan here.
-    units = Shards.test_units()
+    {units, concurrent} = Shards.scan()
     if units == %{}, do: Mix.raise("No test files found, so there is nothing to shard.")
 
     Mix.Task.run("compile", compile_args)
 
-    plan = unwrap(Shards.create_plan(reference, Map.keys(units), options))
+    plan = unwrap(Shards.create_plan(reference, Map.keys(units), concurrent, options))
     shards = plan["shards"] || []
 
     Mix.shell().info(

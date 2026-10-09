@@ -42,7 +42,7 @@ defmodule AtlasWeb.DemoLiveTest do
   test "normal deployments do not grant anonymous dashboard access", %{conn: conn} do
     stub(Demo, :enabled?, fn -> false end)
     assert conn |> get("/demo") |> redirected_to() == "/login"
-    assert conn |> recycle() |> get("/") |> redirected_to() == "/docs"
+    assert conn |> recycle() |> get("/") |> redirected_to() == "/login"
   end
 
   test "demo users never have write or administrator scopes" do

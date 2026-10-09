@@ -100,7 +100,7 @@ import TuistServer
         @ViewBuilder
         private var content: some View {
             switch authenticationService.authenticationState {
-            case let .loggedIn(account):
+            case let .loggedIn(account, _):
                 TabView(selection: $activeTab) {
                     PreviewsView()
                         .tabItem {

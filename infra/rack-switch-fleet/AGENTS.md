@@ -607,9 +607,16 @@ login and never carries the login.
 
 **They live in the rack's cluster.** Each site names its namespace
 (`kubernetes.namespace`); BER1 is `tuist-staging`, beside its `RackHost`, while
-the rack is at home, and moves to production with the rack. On a merge to
-`main`, the Rack Switches workflow applies the CRD and each site's rendered
-objects there, so the cluster's desired state follows git.
+the rack is at home, and moves to production with the rack. The namespace is
+also what names the rack's env, by the tuist chart's convention (`tuist-<env>`,
+or `tuist` for production; `mise run rack:fleet env`): the Rack Switches
+workflow's objects, `omada-deployment.yml`, the install stick, the card
+passwords and the chart values the render reads all follow it, and
+`fleet_check_env` in the tests fails when the controller's vault and tailnet
+name, or the tuist chart values declaring the rack's hosts and runner pools,
+disagree with it. On a merge to `main`, the Rack Switches workflow applies the
+CRD and each site's rendered objects there, so the cluster's desired state
+follows git.
 
 **Status is pushed by an operator**, with `rack:fleet publish`, into the site's namespace in
 the cluster `--context` names (never whatever context happens to be current), which runs a
