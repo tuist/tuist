@@ -81,7 +81,8 @@ public struct LogInView: View {
                 errorHandler.fireAndHandleError { try await authenticationService.signIn() }
             }
 
-            // Self-hosted servers can't redeem Apple authorization codes issued for Tuist's bundle ID.
+            // A self-hosted server's login page lists the providers it has configured, and it can't
+            // redeem Apple authorization codes issued for Tuist's bundle ID.
             if authenticationService.selfHostedServerURL == nil {
                 SocialButton(
                     title: "Sign in with Apple",
@@ -100,22 +101,22 @@ public struct LogInView: View {
                     controller.presentationContextProvider = appleSignInDelegate
                     controller.performRequests()
                 }
-            }
 
-            SocialButton(
-                title: "Sign in with Google",
-                style: .secondary,
-                icon: "GoogleLogo"
-            ) {
-                errorHandler.fireAndHandleError { try await authenticationService.signInWithGoogle() }
-            }
+                SocialButton(
+                    title: "Sign in with Google",
+                    style: .secondary,
+                    icon: "GoogleLogo"
+                ) {
+                    errorHandler.fireAndHandleError { try await authenticationService.signInWithGoogle() }
+                }
 
-            SocialButton(
-                title: "Sign in with GitHub",
-                style: .secondary,
-                icon: "GitHubLogo"
-            ) {
-                errorHandler.fireAndHandleError { try await authenticationService.signInWithGitHub() }
+                SocialButton(
+                    title: "Sign in with GitHub",
+                    style: .secondary,
+                    icon: "GitHubLogo"
+                ) {
+                    errorHandler.fireAndHandleError { try await authenticationService.signInWithGitHub() }
+                }
             }
 
             divider
@@ -181,7 +182,10 @@ public struct LogInView: View {
 
     private func presentSelfHostedServerAlert() {
         SelfHostedServerAlert.present(serverURL: authenticationService.selfHostedServerURL ?? "") { serverURL in
-            errorHandler.fireAndHandleError { try await authenticationService.selectServer(serverURL) }
+            errorHandler.fireAndHandleError {
+                try await authenticationService.selectServer(serverURL)
+                try await authenticationService.signIn()
+            }
         }
     }
 }

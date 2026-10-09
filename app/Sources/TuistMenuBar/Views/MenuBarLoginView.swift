@@ -94,19 +94,22 @@ struct MenuBarLoginView: View {
             }
             .padding(.bottom, 8)
 
-            secondaryButton("Sign in with Google", icon: "GoogleLogo") {
-                errorHandling.fireAndHandleError {
-                    try await authenticationService.signInWithGoogle()
+            // A self-hosted server's login page lists the providers it has configured.
+            if authenticationService.selfHostedServerURL == nil {
+                secondaryButton("Sign in with Google", icon: "GoogleLogo") {
+                    errorHandling.fireAndHandleError {
+                        try await authenticationService.signInWithGoogle()
+                    }
                 }
-            }
-            .padding(.bottom, 8)
+                .padding(.bottom, 8)
 
-            secondaryButton("Sign in with GitHub", icon: "GitHubLogo") {
-                errorHandling.fireAndHandleError {
-                    try await authenticationService.signInWithGitHub()
+                secondaryButton("Sign in with GitHub", icon: "GitHubLogo") {
+                    errorHandling.fireAndHandleError {
+                        try await authenticationService.signInWithGitHub()
+                    }
                 }
+                .padding(.bottom, 12)
             }
-            .padding(.bottom, 12)
 
             divider
                 .padding(.bottom, 12)
@@ -210,6 +213,7 @@ struct MenuBarLoginView: View {
         errorHandling.fireAndHandleError {
             try await authenticationService.selectServer(serverURL)
             step = .signIn
+            try await authenticationService.signIn()
         }
     }
 }
