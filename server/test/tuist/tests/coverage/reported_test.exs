@@ -380,6 +380,15 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     })
   end
 
+  # Targets the run took from the binary cache: prebuilt, without coverage counters.
+  defp binary_cache(project, run, targets) do
+    event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run.id)
+
+    for target <- targets do
+      XcodeFixtures.xcode_target_fixture(command_event_id: event.id, name: target, binary_cache_hit: :local)
+    end
+  end
+
   defp selective_testing(project, run, hits) do
     event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run.id)
 
@@ -550,8 +559,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     target_only_runs(project, account)
 
     report = fn
-      %Ecto.Query{from: %{source: {"xcode_targets", _schema}}, joins: joins} ->
-        send(self(), {:xcode_targets_query, joins})
+      %Ecto.Query{from: %{source: {"xcode_targets", _schema}}, joins: joins} = query ->
+        if inspect(query) =~ "selective_testing_hash", do: send(self(), {:xcode_targets_query, joins})
 
       _query ->
         :ok
@@ -1190,30 +1199,24 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert Commits.summary(project.id, "head").unmeasured_files_count == 2
   end
 
-  test "a file the nearest ancestor covered that no run compiled makes the figure observed", %{
+  test "a scheme whose runs took targets from the binary cache, none of them from sources, is observed", %{
     project: project,
     account: account
   } do
-    base_run(project, account)
-    CoverageFixtures.seed_listing(account, "head", ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"])
+    head = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
+    binary_cache(project, head, ["Core"])
 
-    # Nothing was skipped, yet the base covered Text.swift and no run here
-    # compiled it, as when a module comes from a binary cache uninstrumented.
-    CoverageFixtures.run_with_coverage(
-      project,
-      account,
-      [file("Sources/Math.swift", [1, 1, 0]), file("Tests/AppTests.swift", [1, 0], is_test: true)],
-      %{
-        git_commit_sha: "head",
-        test_modules: modules([test_case("testAdd()", "MathTests")]),
-        enumerated_tests: [hd(@tests)]
-      }
-    )
+    assert %{kind: "observed", covered_lines: 2, executable_lines: 7} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:uninstrumented_code]
+  end
 
-    assert %{kind: "observed", covered_lines: 2, executable_lines: 3, skipped_tests_count: 0, gap_files_count: 1} =
-             reported = Reported.compute(project, "head")
+  test "a scheme with a run that ran every test from sources is measured, whatever its other runs took from the cache",
+       %{project: project, account: account} do
+    cached = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head", partial: true})
+    binary_cache(project, cached, ["Core"])
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
 
-    assert reasons(reported) == [:unbuilt_file_uncarried]
+    assert %{kind: "measured", gap_reasons: 0} = Reported.compute(project, "head")
   end
 
   test "a skipped test that can't be carried makes the figure observed, with what the runs measured", %{

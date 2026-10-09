@@ -53,6 +53,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.GapReasons
+  alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.EnumeratedTest
   alias Tuist.Tests.Test
@@ -80,14 +81,13 @@ defmodule Tuist.Tests.Coverage.Reported do
   @doc """
   The commit's reported coverage, or nil when no run measured it.
 
-  `kind` is `measured` when the runs listed their candidates, skipped none
-  of them, and measured every
-  file the nearest ancestor that measured the same schemes covered;
-  `reported` when every skipped test was carried forward exactly and no file
-  is left out; and `observed` otherwise, the figure being what the runs
-  measured. Carrying is all or nothing: one test or file that can't be
-  accounted for exactly makes the figure `observed`, with `gap_reasons`
-  saying why.
+  `kind` is `measured` when the runs listed their candidates and skipped
+  none of them; `reported` when every skipped test was carried forward
+  exactly and no file is left out; and `observed` otherwise, the figure
+  being what the runs measured. Carrying is all or nothing: one test or file
+  that can't be accounted for exactly makes the figure `observed`, with
+  `gap_reasons` saying why. So does a scheme whose runs reused code they
+  couldn't measure (`Tuist.Tests.Coverage.Instrumentation`).
   """
   def compute(%Project{} = project, sha, opts \\ []) do
     runs = Keyword.get_lazy(opts, :runs, fn -> Commits.runs(project.id, sha) end)
@@ -117,25 +117,38 @@ defmodule Tuist.Tests.Coverage.Reported do
       hits = selective_testing_hits(project.id, repository_id, Enum.uniq(run_ids ++ Enum.map(clean, & &1.test_run_id)))
 
       place = %{project: project, repository_id: repository_id, sha: sha, observed: observed, excluded: excluded}
-      skipped = skipped_tests(project, repository_id, sha, {run_ids, hits, clean}, schemes)
-      settle(skipped, place, runs, {run_ids, hits, covered_schemes})
+      decide(place, runs, {run_ids, hits, clean}, {schemes, covered_schemes})
+    end
+  end
+
+  # Prebuilt code without coverage counters ran in a scheme no run of which
+  # executed every test from sources: what its tests executed there is
+  # unknown, so nothing else needs deciding.
+  defp decide(place, runs, {run_ids, hits, clean}, {schemes, covered_schemes}) do
+    case Instrumentation.incomplete_schemes(place.project.id, runs) do
+      [] ->
+        place.project
+        |> skipped_tests(place.repository_id, place.sha, {run_ids, hits, clean}, schemes)
+        |> settle(place, {run_ids, hits, covered_schemes})
+
+      _schemes ->
+        result(place.observed, "observed", [], [], {0, [:uninstrumented_code]}, [])
     end
   end
 
   # The runs listed no candidates, so what they skipped can't be told.
-  defp settle({:not_enumerated, _ancestry}, place, _runs, _runs_context),
-    do: result(place.observed, "observed", [], [], {0, []}, [])
+  defp settle({:not_enumerated, _ancestry}, place, _runs), do: result(place.observed, "observed", [], [], {0, []}, [])
 
   # Nothing listed was skipped, but a target selective testing skipped whose
   # tests no run listed (pruned from the workspace, and no ancestor run
   # listed them) still left its coverage out.
-  defp settle({[], _ancestry}, place, _runs, {run_ids, hits, schemes}) do
+  defp settle({[], _ancestry}, place, {run_ids, hits, _schemes}) do
     if unlisted_hits?(place.project.id, run_ids, hits),
       do: result(place.observed, "observed", [], [], {0, [:no_evidence]}, []),
-      else: measured(place, schemes)
+      else: result(place.observed, "measured", [], [], {0, []}, [])
   end
 
-  defp settle({skipped, ancestry}, place, _runs, runs) do
+  defp settle({skipped, ancestry}, place, runs) do
     context = %{repository_id: place.repository_id, sha: place.sha, ancestry: ancestry}
     carry(place.project, context, runs, place.observed, skipped, place.excluded)
   end
@@ -262,44 +275,6 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     Enum.any?(modules, &(not MapSet.member?(ran, &1)))
   end
-
-  # Nothing was skipped, so the runs measured everything, unless a file the
-  # nearest ancestor that measured the same schemes covered was not compiled
-  # here: a module the build took from a binary cache runs uninstrumented, so
-  # what the tests executed in it is unknown, and the figure is the observed
-  # one. Without that ancestor or the commit's listing, nothing says a file
-  # is missing.
-  defp measured(place, schemes) do
-    case uninstrumented(place, schemes) do
-      [] ->
-        result(place.observed, "measured", [], [], {0, []}, [])
-
-      gaps ->
-        reasons = gaps |> Enum.map(fn {_file, status} -> unbuilt_reason(status) end) |> Enum.uniq()
-        result(place.observed, "observed", [], [], {length(gaps), reasons}, [])
-    end
-  end
-
-  defp uninstrumented(%{repository_id: repository_id}, _schemes) when repository_id in [nil, 0], do: []
-  defp uninstrumented(_place, []), do: []
-
-  defp uninstrumented(place, schemes) do
-    case basis_run_ids(place, schemes) do
-      [] ->
-        []
-
-      basis_run_ids ->
-        excluded = ExcludedPaths.compile(place.excluded)
-        skip? = &(Map.has_key?(place.observed, &1) or ExcludedPaths.excluded?(excluded, &1))
-
-        place.project.id
-        |> unbuilt_files(place.repository_id, place.sha, basis_run_ids, skip?)
-        |> Enum.filter(fn {file, status} -> status in [:kept, :changed] and file.covered_lines > 0 end)
-    end
-  end
-
-  defp unbuilt_reason(:kept), do: :unbuilt_file_uncarried
-  defp unbuilt_reason(:changed), do: :unbuilt_file_changed
 
   # A commit whose tracked files differ from every parent's carries nothing:
   # every ancestor's evidence predates the change, so it is decided before
