@@ -217,7 +217,10 @@ Each file is a `dashboard.grafana.app/v1` or `dashboard.grafana.app/v2` resource
 
 `processor-service.json` compares application database queues and query phases
 across the web and processor runtimes using the shared `tuist_repo_*` metrics
-and the `workload` label. Its background job panels use the shared Oban
+and the `workload` label. Cloud, shadow, and ops pools have distinct repository
+labels; include all physical pools when investigating routed ClickHouse reads.
+The idle-time panel measures time before checkout, not connection occupancy.
+Its background job panels use the shared Oban
 metrics and an independent queue selector. Do not reintroduce the retired
 standalone service's `processor_*` metrics or `job="processor"` selectors.
 

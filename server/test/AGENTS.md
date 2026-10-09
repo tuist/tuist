@@ -8,6 +8,10 @@ This directory contains ExUnit tests for the Tuist Server.
 - Search-indexing coverage verifies crawlable public project HTML, noindex for sensitive routes and failures, query-free canonical URLs, and bounded public-only project sitemaps. Keep private-project authorization unchanged.
 - Tests are `async: true` by default; avoid global state and make architectural changes to support concurrency.
 - Tests run with a clean database.
+- Repository monitoring tests cover all six physical pool/query labels, optional
+  pool absence, dynamic-repository telemetry, and absent timing phases. Missing
+  `idle_time` is not zero; it is not part of total query duration. Read-outcome
+  forwarding ignores ops and shadow-write events, even when they carry a result.
 - GitHub Enterprise API-override coverage spans signed-state compatibility, schema validation, proxy token/comment/App-JWT requests, canonical pagination rebasing, SSRF/redirect guards (including runner-log archive hops), tenant-isolated caches, browser links, and account-scoped edits that preserve installations and project connections.
 - Successful Mix compile-reporter ingestion fixtures must include a profiled file; idle compiles intentionally emit no report. Error diagnostics still report without profiled files.
 - Open Graph regressions cover published legacy URLs, stable marketing/docs tokens, project-token expiry, handle reuse, visibility rechecks (including 304s and transient images), project-only retention, and exclusion of restricted automation configuration.
