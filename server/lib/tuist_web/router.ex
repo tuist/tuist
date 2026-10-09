@@ -713,6 +713,11 @@ defmodule TuistWeb.Router do
   scope "/api", TuistWeb.API, assigns: %{caching: not Tuist.Environment.test?(), cache_ttl: to_timeout(minute: 1)} do
     pipe_through [:open_api, :report_publishing_api, :on_premise_api]
     post "/projects/:account_handle/:project_handle/gradle/builds", GradleController, :create_build
+    post "/projects/:account_handle/:project_handle/builds", BuildsController, :create
+    post "/projects/:account_handle/:project_handle/xcode/builds", BuildsController, :create
+    post "/projects/:account_handle/:project_handle/mix/builds", MixController, :create_build
+    post "/projects/:account_handle/:project_handle/tests", TestsController, :create
+    post "/projects/:account_handle/:project_handle/bazel/publishing", BazelPublishingController, :create
   end
 
   scope path: "/api",
@@ -843,7 +848,6 @@ defmodule TuistWeb.Router do
           get "/:test_run_id/targets", SelectiveTestingTargetsController, :index
           get "/:test_run_id", TestsController, :show
           get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
-          post "/", TestsController, :create
           post "/stress-new-tests/plan", StressNewTestsController, :plan
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
@@ -893,7 +897,6 @@ defmodule TuistWeb.Router do
           end
 
           get "/:build_id", BuildsController, :show
-          post "/", BuildsController, :create
           post "/upload/start", BuildsController, :multipart_start
           post "/upload/generate-url", BuildsController, :multipart_generate_url
           post "/upload/complete", BuildsController, :multipart_complete
@@ -914,7 +917,6 @@ defmodule TuistWeb.Router do
             get "/:build_id/cache-tasks", BuildCacheTasksController, :index
             get "/:build_id/cas-outputs", BuildCASOutputsController, :index
             get "/:build_id", BuildsController, :show
-            post "/", BuildsController, :create
           end
         end
 
@@ -925,10 +927,6 @@ defmodule TuistWeb.Router do
           get "/builds/:build_id", GradleController, :get_build
           get "/builds/:build_id/steps", GradleBuildStepsController, :index
           get "/builds/:build_id/steps/:step_id", GradleBuildStepsController, :show
-        end
-
-        scope "/mix" do
-          post "/builds", MixController, :create_build
         end
 
         scope "/bazel" do

@@ -18,6 +18,7 @@ defmodule Tuist.Shards do
   alias Tuist.Shards.ShardPlanModule
   alias Tuist.Shards.ShardPlanTestSuite
   alias Tuist.Storage
+  alias Tuist.Tests.Test
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
 
@@ -633,6 +634,7 @@ defmodule Tuist.Shards do
     #{unrestricted_runs_join(restricted_runs)}
     WHERE module_runs.project_id = {project_id:Int64}
       AND module_runs.is_ci = true
+      AND module_runs.test_run_id NOT IN (#{network_test_run_ids_sql()})
       AND module_runs.ran_at >= {cutoff:DateTime64(6)}
       AND module_runs.name IN {modules:Array(String)}
       AND module_runs.test_suite_count > 0
@@ -680,6 +682,16 @@ defmodule Tuist.Shards do
     end
   end
 
+  # Retain orphaned historical child rows, but never use an unsigned parent's
+  # client-supplied inventory, timing or parallelism to shape authenticated CI.
+  defp network_test_run_ids_sql do
+    "SELECT id FROM test_runs WHERE project_id = {project_id:Int64} AND submission_auth = 'network_trusted'"
+  end
+
+  defp network_test_run_ids(project_id) do
+    from(t in Test, where: t.project_id == ^project_id and t.submission_auth == "network_trusted", select: t.id)
+  end
+
   defp fetch_timing_data(_project, _granularity, []), do: %{}
 
   defp fetch_timing_data(project, "module", modules) do
@@ -688,6 +700,7 @@ defmodule Tuist.Shards do
     from(mr in TestModuleRun,
       where: mr.project_id == ^project.id,
       where: mr.is_ci == true,
+      where: mr.test_run_id not in subquery(network_test_run_ids(project.id)),
       where: mr.ran_at >= ^cutoff,
       where: mr.name in ^modules,
       group_by: mr.name,
@@ -712,6 +725,7 @@ defmodule Tuist.Shards do
       AND sr.ran_at >= {cutoff:DateTime64(6)}
       AND mr.project_id = {project_id:Int64}
       AND mr.is_ci = true
+      AND mr.test_run_id NOT IN (#{network_test_run_ids_sql()})
       AND mr.ran_at >= {cutoff:DateTime64(6)}
       AND mr.name IN {modules:Array(String)}
       AND concat(mr.name, '/', sr.name) IN {units:Array(String)}
@@ -842,6 +856,7 @@ defmodule Tuist.Shards do
         where: sr.ran_at >= ^cutoff,
         where: mr.project_id == ^project.id,
         where: mr.is_ci == true,
+        where: mr.test_run_id not in subquery(network_test_run_ids(project.id)),
         where: mr.ran_at >= ^cutoff,
         where: mr.name in ^modules,
         group_by: [mr.name, mr.id, sr.id],

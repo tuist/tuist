@@ -220,11 +220,11 @@ defmodule TuistWeb.API.NetworkTrustedGradleReportsTest do
     end
   end
 
-  test "does not make read, test, cache or archive endpoints anonymous", %{conn: conn, project: project} do
+  test "does not make reads, cache or archive endpoints anonymous", %{conn: conn, project: project} do
     path = "/api/projects/#{project.account.name}/#{project.name}"
     assert conn |> get(path <> "/gradle/builds") |> json_response(401)
 
-    for suffix <- ["/tests", "/builds/upload/start", "/runs"] do
+    for suffix <- ["/tests/shards", "/builds/upload/start", "/runs"] do
       assert conn |> put_req_header("content-type", "application/json") |> post(path <> suffix, %{}) |> json_response(401)
     end
   end

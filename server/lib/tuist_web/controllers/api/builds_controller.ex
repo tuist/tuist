@@ -19,6 +19,9 @@ defmodule TuistWeb.API.BuildsController do
   alias TuistWeb.API.Schemas.ReportActor
   alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
+  alias TuistWeb.Plugs.ReportPublishingPlug
+
+  plug(ReportPublishingPlug, {:preflight, :xcode} when action == :create)
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -26,8 +29,9 @@ defmodule TuistWeb.API.BuildsController do
   )
 
   plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :build)
+  plug(ReportPublishingPlug, :xcode when action == :create)
+  plug(TuistWeb.Plugs.LoaderPlug when action != :create)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :build when action != :create)
 
   tags ["Builds"]
 
@@ -889,7 +893,7 @@ defmodule TuistWeb.API.BuildsController do
   )
 
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
-    body_params = RemoteURL.strip_credentials_from_params(body_params)
+    body_params = conn |> ReportPublishingPlug.parameters(body_params) |> RemoteURL.strip_credentials_from_params()
 
     run_params =
       body_params
@@ -899,7 +903,8 @@ defmodule TuistWeb.API.BuildsController do
 
     case get_or_create_build(run_params) do
       {:ok, build} ->
-        if build.status not in ["processing", "failed_processing"] do
+        if not ReportPublishingPlug.network_publisher?(conn) and
+             build.status not in ["processing", "failed_processing"] do
           Tuist.VCS.enqueue_vcs_pull_request_comment(%{
             git_commit_sha: build.git_commit_sha,
             git_ref: build.git_ref,
@@ -944,7 +949,7 @@ defmodule TuistWeb.API.BuildsController do
           scheme: Map.get(params, :scheme),
           configuration: Map.get(params, :configuration),
           project_id: params.project.id,
-          account_id: params.ran_by_account.id,
+          account_id: if(params.ran_by_account, do: params.ran_by_account.id, else: 0),
           actor_account_id: params.actor_account_id,
           claimed_actor_id: params.claimed_actor_id,
           submission_auth: params.submission_auth,

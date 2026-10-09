@@ -73,7 +73,8 @@ defmodule TuistWeb.ProjectSettingsLive do
     %{current_user: user, selected_project: project} = socket.assigns
     Authorization.authorize!(:project_update, user, project)
 
-    if Tuist.Environment.network_trusted_build_publishing_enabled?() and project.build_system == :gradle do
+    if Tuist.Environment.network_trusted_build_publishing_enabled?() and
+         project.build_system in [:xcode, :gradle, :mix, :bazel] do
       {:ok, project} = Projects.update_project(project, %{network_trusted_builds: not project.network_trusted_builds})
 
       Logger.warning(

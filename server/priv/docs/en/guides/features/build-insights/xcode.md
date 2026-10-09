@@ -70,6 +70,22 @@ For Xcodebuild-driven CI you need to:
 
 Without `-resultBundlePath`, required activity logs and result bundles are not generated and `tuist inspect build` cannot analyze the build.
 
+## Credential-free reporting on a private network {#network-trusted-publishing}
+
+A self-hosted deployment can allow developers to publish completed reports without signing in. An administrator must enable the deployment and project gates in the <.localized_link href="/guides/server/self-host/server#network-trusted-build-publishing">self-hosting guide</.localized_link>. Configure the self-hosted URL and project, then opt in in the environment used by your scheme post-action or terminal:
+
+```sh
+export TUIST_URL="https://tuist.internal.example"
+export TUIST_NETWORK_TRUSTED_PUBLISHING=true
+tuist inspect build
+# To publish local test results:
+tuist inspect test
+```
+
+With genuinely absent credentials, activity logs and XCResult bundles are parsed locally and sent as structured reports. No raw archive, attachment, coverage/history upload, remote processor, shard reference, or selective-execution evidence is submitted. Reports remain visible but cannot update authenticated testcase state or drive quarantine/failure automations. Dashboards, cache, and other authenticated commands still require sign-in. Keep any cache integration disabled if credentials are not provisioned.
+
+Present credentials remain authenticated. Invalid, corrupt, blank, or rejected-refresh credentials fail closed and remain on disk, so later commands do not silently become unsigned. Sign in again or explicitly sign out as a deliberate recovery action. Older servers reject unsigned reports. Set `TUIST_NETWORK_TRUSTED_PUBLISHING=false` to disable the client opt-in and `TUIST_ACTOR_ID=""` independently to omit the username claim; verified credential identity is unaffected.
+
 ## Machine metrics {#machine-metrics}
 
 Build insights can include machine-level performance metrics (CPU, memory, network, and disk usage) captured during the build. To enable this, set up a lightweight background daemon that continuously samples system metrics:

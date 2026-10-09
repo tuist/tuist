@@ -59,9 +59,9 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
     refute Projects.get_project_by_id(project.id).network_trusted_builds
   end
 
-  test "non-Gradle projects ignore forged publishing toggle events", %{conn: conn, organization: organization} do
+  test "unsupported projects ignore forged publishing toggle events", %{conn: conn, organization: organization} do
     stub(Tuist.Environment, :network_trusted_build_publishing_enabled?, fn -> true end)
-    project = ProjectsFixtures.project_fixture(account_id: organization.account.id, build_system: :xcode)
+    project = ProjectsFixtures.project_fixture(account_id: organization.account.id, build_system: :once)
     {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
     render_click(lv, "toggle_network_trusted_builds")
     refute Projects.get_project_by_id(project.id).network_trusted_builds

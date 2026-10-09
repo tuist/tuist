@@ -165,7 +165,7 @@ defmodule Tuist.Builds do
         )
       end
 
-      if build.status == "failure",
+      if build.status == "failure" and build.submission_auth != "network_trusted",
         do:
           Publisher.publish(
             "build.failed",

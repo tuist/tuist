@@ -21,7 +21,13 @@ defmodule TuistWeb.Plugs.DeflateBodyReader do
 
   defp network_report?(conn) do
     conn.method == "POST" and Plug.Conn.get_req_header(conn, "authorization") == [] and
-      match?(["api", "projects", _, _, "gradle", "builds"], conn.path_info)
+      case conn.path_info do
+        ["api", "projects", _, _, "builds"] -> true
+        ["api", "projects", _, _, "tests"] -> true
+        ["api", "projects", _, _, system, "builds"] when system in ["gradle", "xcode", "mix"] -> true
+        ["api", "projects", _, _, "bazel", "publishing"] -> true
+        _ -> false
+      end
   end
 
   defp read_deflated_body(conn, opts) do

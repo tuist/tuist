@@ -20,8 +20,11 @@ defmodule TuistWeb.API.TestsController do
   alias TuistWeb.API.Schemas.Tests.Test
   alias TuistWeb.API.Schemas.Tests.XcodeCoverage
   alias TuistWeb.Authentication
+  alias TuistWeb.Plugs.ReportPublishingPlug
 
   require Logger
+
+  plug(ReportPublishingPlug, {:preflight, :test} when action == :create)
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -29,8 +32,9 @@ defmodule TuistWeb.API.TestsController do
   )
 
   plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :test)
+  plug(ReportPublishingPlug, :test when action == :create)
+  plug(TuistWeb.Plugs.LoaderPlug when action != :create)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :test when action != :create)
 
   tags ["Tests"]
 
@@ -750,7 +754,7 @@ defmodule TuistWeb.API.TestsController do
   )
 
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
-    body_params = RemoteURL.strip_credentials_from_params(body_params)
+    body_params = conn |> ReportPublishingPlug.parameters(body_params) |> RemoteURL.strip_credentials_from_params()
 
     run_params =
       body_params
@@ -760,7 +764,7 @@ defmodule TuistWeb.API.TestsController do
 
     case get_or_create_test(run_params) do
       {:ok, test_run} ->
-        if Project.mix_project?(selected_project),
+        if Project.mix_project?(selected_project) and not ReportPublishingPlug.network_publisher?(conn),
           do: Projects.notify_connected(selected_project, Authentication.current_user(conn))
 
         vcs_comment_params = %{
@@ -847,7 +851,9 @@ defmodule TuistWeb.API.TestsController do
               vcs_comment_params: vcs_comment_params
             })
           else
-            Tuist.VCS.enqueue_vcs_pull_request_comment(vcs_comment_params)
+            if !ReportPublishingPlug.network_publisher?(conn),
+              do: Tuist.VCS.enqueue_vcs_pull_request_comment(vcs_comment_params)
+
             :ok
           end
 
@@ -1067,7 +1073,7 @@ defmodule TuistWeb.API.TestsController do
           model_identifier: Map.get(params, :model_identifier),
           scheme: Map.get(params, :scheme),
           project_id: params.project.id,
-          account_id: params.ran_by_account.id,
+          account_id: if(params.ran_by_account, do: params.ran_by_account.id, else: 0),
           actor_account_id: params.actor_account_id,
           claimed_actor_id: params.claimed_actor_id,
           submission_auth: params.submission_auth,

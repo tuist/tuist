@@ -55,6 +55,54 @@ defmodule Tuist.ShardsTest do
     RunsFixtures.optimize_test_runs()
   end
 
+  test "unsigned CI inventory and timings cannot change authenticated shard plans" do
+    project = ProjectsFixtures.project_fixture()
+
+    RunsFixtures.test_fixture(
+      project_id: project.id,
+      is_ci: true,
+      git_branch: project.default_branch,
+      test_modules: [
+        %{
+          name: "AppTests",
+          status: "success",
+          duration: 100,
+          test_cases: [],
+          test_suites: [%{name: "VerifiedSuite", duration: 100, status: "success"}]
+        }
+      ]
+    )
+
+    RunsFixtures.optimize_test_runs()
+    params = %{reference: "before-network", modules: ["AppTests"], granularity: "suite", shard_max: 2}
+    before = Shards.create_shard_plan(project, params)
+
+    RunsFixtures.test_fixture(
+      project_id: project.id,
+      is_ci: true,
+      git_branch: project.default_branch,
+      submission_auth: "network_trusted",
+      ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), 86_400),
+      test_modules: [
+        %{
+          name: "AppTests",
+          status: "success",
+          duration: 999_999,
+          test_cases: [],
+          test_suites: [
+            %{name: "ClaimedSuite", duration: 999_999, status: "success"},
+            %{name: "VerifiedSuite", duration: 999_999, status: "success"}
+          ]
+        }
+      ]
+    )
+
+    RunsFixtures.optimize_test_runs()
+    after_network = Shards.create_shard_plan(project, %{params | reference: "after-network"})
+    assert after_network.shard_assignments == before.shard_assignments
+    assert planned_suite_durations(after_network.plan) == %{"AppTests/VerifiedSuite" => 100}
+  end
+
   describe "create_shard_plan/2" do
     test "creates a shard plan with module-level granularity" do
       project = ProjectsFixtures.project_fixture()

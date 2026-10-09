@@ -496,8 +496,8 @@ msgstr ""
 msgid "Set your previews to be public or private by default."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:29
-#: lib/tuist_web/live/project_settings_live.ex:32
+#: lib/tuist_web/live/project_settings_live.ex:31
+#: lib/tuist_web/live/project_settings_live.ex:34
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -546,7 +546,7 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.ex:25
 #: lib/tuist_web/live/project_bundle_settings_live.ex:19
 #: lib/tuist_web/live/project_notifications_live.ex:27
-#: lib/tuist_web/live/project_settings_live.ex:17
+#: lib/tuist_web/live/project_settings_live.ex:19
 #: lib/tuist_web/live/projects_live.ex:500
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
@@ -1582,7 +1582,7 @@ msgstr ""
 msgid "Default branch"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:145
+#: lib/tuist_web/live/project_settings_live.ex:153
 #, elixir-autogen, elixir-format
 msgid "Default branch updated."
 msgstr ""
@@ -1597,7 +1597,7 @@ msgstr ""
 msgid "The branch Tuist treats as the baseline for analytics, insights, and comparisons."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:132
+#: lib/tuist_web/live/project_settings_live.ex:140
 #, elixir-autogen, elixir-format
 msgid "can't be blank"
 msgstr ""
@@ -2007,23 +2007,23 @@ msgstr ""
 msgid "Current project logo"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:255
+#: lib/tuist_web/live/project_settings_live.ex:263
 #, elixir-autogen, elixir-format
 msgid "Logo must be 2 MB or smaller."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:213
-#: lib/tuist_web/live/project_settings_live.ex:259
+#: lib/tuist_web/live/project_settings_live.ex:221
+#: lib/tuist_web/live/project_settings_live.ex:267
 #, elixir-autogen, elixir-format
 msgid "Logo must be a PNG, JPEG, or WebP image."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:240
+#: lib/tuist_web/live/project_settings_live.ex:248
 #, elixir-autogen, elixir-format
 msgid "Logo removed."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:204
+#: lib/tuist_web/live/project_settings_live.ex:212
 #, elixir-autogen, elixir-format
 msgid "Logo updated."
 msgstr ""
@@ -2033,7 +2033,7 @@ msgstr ""
 msgid "No file chosen"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:263
+#: lib/tuist_web/live/project_settings_live.ex:271
 #, elixir-autogen, elixir-format
 msgid "Only one logo can be uploaded at a time."
 msgstr ""
@@ -2053,12 +2053,12 @@ msgstr ""
 msgid "Remove the current project logo?"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:229
+#: lib/tuist_web/live/project_settings_live.ex:237
 #, elixir-autogen, elixir-format
 msgid "Select a logo before uploading."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:266
+#: lib/tuist_web/live/project_settings_live.ex:274
 #, elixir-autogen, elixir-format
 msgid "The selected file couldn't be uploaded."
 msgstr ""
@@ -2074,12 +2074,12 @@ msgstr ""
 msgid "Upload"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:249
+#: lib/tuist_web/live/project_settings_live.ex:257
 #, elixir-autogen, elixir-format
 msgid "We couldn't remove the logo. Please try again."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:221
+#: lib/tuist_web/live/project_settings_live.ex:229
 #, elixir-autogen, elixir-format
 msgid "We couldn't save the logo. Please try again."
 msgstr ""
@@ -3334,11 +3334,6 @@ msgid_plural "%{display_count} more files"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:41
-#, elixir-autogen, elixir-format
-msgid "Allow Gradle build reports without credentials. Protect this instance with a VPN or private ingress. Reported actor identifiers are unverified. Dashboard and cache access still require authorization."
-msgstr ""
-
 #: lib/tuist_web/live/project_settings_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Disable publishing without credentials"
@@ -3349,7 +3344,12 @@ msgstr ""
 msgid "Enable publishing without credentials"
 msgstr ""
 
+#: lib/tuist_web/live/project_settings_live.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "Allow completed build and test reports without credentials. Protect this instance with a VPN or private ingress. Reported actor identifiers are unverified. Archives, attachments, dashboard, and cache access still require authorization."
+msgstr ""
+
 #: lib/tuist_web/live/project_settings_live.html.heex:39
 #, elixir-autogen, elixir-format
-msgid "Network-trusted build publishing"
+msgid "Network-trusted report publishing"
 msgstr ""

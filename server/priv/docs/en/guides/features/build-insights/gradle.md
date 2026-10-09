@@ -51,7 +51,7 @@ Actor identifiers are 1–128 bytes of non-space printable ASCII. They are visib
 
 ## Network-trusted publishing {#network-trusted-publishing}
 
-Self-hosted deployments can explicitly allow Gradle build reports from their trusted network without developer credentials. An administrator must enable both the deployment policy and the project's setting first. See <.localized_link href="/guides/server/self-host/server#network-trusted-build-publishing">the self-hosting guide</.localized_link>.
+Self-hosted deployments can explicitly allow Gradle build and test reports from their trusted network without developer credentials. An administrator must enable both the deployment policy and the project's setting first. See <.localized_link href="/guides/server/self-host/server#network-trusted-build-publishing">the self-hosting guide</.localized_link>.
 
 Configure the destination once in the repository:
 
@@ -66,7 +66,7 @@ tuist {
 }
 ```
 
-Build reporting no longer requires authenticated cache endpoint discovery. Cache access and test reporting still require credentials. Disable the cache if developers are not provisioning tokens; test insights will log a warning rather than publish without credentials when a test task runs. If credentials are present, they are still used and invalid credentials fail rather than falling back to credential-free publishing. Older servers reject credential-free reports with their normal authentication error; authenticated publishing remains compatible. An explicitly empty `TUIST_TOKEN` fails closed rather than enabling credential-free publication. For fork or Dependabot jobs without secrets, remove that variable instead of defining it as an empty string.
+Build and test reporting do not require authenticated cache endpoint discovery. Cache access still requires credentials: disable the cache if developers are not provisioning tokens. Unsigned test reports omit shard and existing-build references and do not drive quarantine or flakiness automations. Quarantine lookup is skipped when credentials are genuinely absent; with valid credentials, existing authenticated behavior is preserved. If credentials are present, they are still used and invalid credentials fail rather than falling back to credential-free publishing. Older servers reject credential-free reports with their normal authentication error; authenticated publishing remains compatible. Set `TUIST_NETWORK_TRUSTED_PUBLISHING=true` as an alternative client opt-in, or `false` to override the configuration and disable credential-free reporting. An explicitly empty `TUIST_TOKEN` fails closed rather than enabling credential-free publication. For fork or Dependabot jobs without secrets, remove that variable instead of defining it as an empty string.
 
 The server assigns credential-free report IDs. Repeating a submission can create a second report; this mode does not promise idempotent retries or correlation with authenticated test reports. Such reports cannot trigger VCS comments or automatic failure-agent events. Network access is the publishing trust boundary, not proof of the reported actor's identity.
 

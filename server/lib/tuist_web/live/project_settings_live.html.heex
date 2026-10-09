@@ -33,14 +33,14 @@
   </.tab_menu_horizontal>
   <.card_section :if={
     Tuist.Environment.network_trusted_build_publishing_enabled?() and
-      @selected_project.build_system == :gradle
+      @selected_project.build_system in [:xcode, :gradle, :mix, :bazel]
   }>
     <div data-part="header">
-      <span data-part="title">{dgettext("dashboard_projects", "Network-trusted build publishing")}</span>
+      <span data-part="title">{dgettext("dashboard_projects", "Network-trusted report publishing")}</span>
       <span data-part="description">
         {dgettext(
           "dashboard_projects",
-          "Allow Gradle build reports without credentials. Protect this instance with a VPN or private ingress. Reported actor identifiers are unverified. Dashboard and cache access still require authorization."
+          "Allow completed build and test reports without credentials. Protect this instance with a VPN or private ingress. Reported actor identifiers are unverified. Archives, attachments, dashboard, and cache access still require authorization."
         )}
       </span>
     </div>
