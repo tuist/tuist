@@ -612,6 +612,65 @@ ciliumEgressGateway:
       tuist.dev/stable-egress-gateway: server
     egressIP: ""
 
+# Dedicated runner egress gateways (infra/runner-egress-gateway/DESIGN.md).
+# Each enabled entry renders a WireGuard gateway DaemonSet on the egress
+# candidates, its private key ExternalSecret and a CiliumEgressGatewayPolicy
+# that sends its traffic out from `egressIP`. The host-configurer configures
+# every `egressIP` on the candidates and the failover controller keeps every
+# `floatingIpName` on the active node together with the server's.
+#
+# Entry shape (the key is the gateway name, e.g. dedicated-1; it must match
+# the gateway name in the macOS fleet values and on the account):
+#   enabled: true
+#   index: 1                  # 0-99, unique; tunnel pair 198.18.<index>.2 -> .1
+#   egressIP: ""              # the Hetzner Floating IP's address
+#   floatingIpName: ""        # the Hetzner Floating IP's name
+#   port: 51821               # unique UDP port, hostPort on the egress nodes
+#   publicKey: ""             # the gateway's WireGuard public key
+#   privateKeySecret:
+#     item: ""                # 1Password item holding the private key
+#     property: private-key
+runnerEgressGateways: {}
+
+runnerEgressGatewaysNamespace: tuist-runner-egress
+
+runnerEgressGatewayImage:
+  repository: ghcr.io/tuist/tuist-runner-egress-gateway
+  # Resolved at deploy time by k8s:install-platform from the latest
+  # runner-egress-gateway@<semver> tag. Empty fails the render when a gateway
+  # is enabled.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+runnerEgressGatewaySettings:
+  # Destinations the gateway never forwards to, so it can't relay into private
+  # networks or the cluster.
+  excludedCIDRs:
+    - 0.0.0.0/8
+    - 10.0.0.0/8
+    - 100.64.0.0/10
+    - 127.0.0.0/8
+    - 169.254.0.0/16
+    - 172.16.0.0/12
+    - 192.0.0.0/24
+    - 192.168.0.0/16
+    - 198.18.0.0/15
+    - 224.0.0.0/4
+    - 240.0.0.0/4
+  # The workload clusters' pod and Service CIDRs (clusterNetwork in
+  # infra/k8s/clusters/workloads/*/cluster.yaml).
+  clusterCIDRs:
+    - 192.168.0.0/16
+    - 10.128.0.0/12
+  externalSecret:
+    storeName: onepassword
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
 # Optional in-cluster cleanup loop for the managed preview cluster. Disabled
 # by default so ordinary platform installs do not get cluster-wide delete
 # permissions. The tuist-preview overlay enables it.

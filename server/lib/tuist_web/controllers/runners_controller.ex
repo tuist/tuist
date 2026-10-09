@@ -71,6 +71,13 @@ defmodule TuistWeb.RunnersController do
         # second account on the cache materialized for the first.
         conn |> put_status(:gone) |> json(%{error: "drain", reason: "pod already committed"})
 
+      {:error, :egress_aborted} ->
+        # 410 Gone: the Pod was bound to an account's dedicated egress gateway
+        # but the host did not confirm the route in time, so the claim was
+        # released. The VM's routing belongs to that account now, so it is
+        # recycled rather than offered another job.
+        conn |> put_status(:gone) |> json(%{error: "drain", reason: "egress not ready"})
+
       {:error, :missing_bearer} ->
         conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
 

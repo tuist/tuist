@@ -42,6 +42,24 @@ var (
 		Name:      "health_check_failures_total",
 		Help:      "Total number of failed direct gateway node health checks.",
 	}, []string{"node"})
+	additionalFloatingIPOnActive = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tuist",
+		Subsystem: "stable_egress",
+		Name:      "additional_floating_ip_on_active",
+		Help:      "Whether an additional Floating IP is assigned to the active gateway node.",
+	}, []string{"floating_ip"})
+	additionalFloatingIPAssignments = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tuist",
+		Subsystem: "stable_egress",
+		Name:      "additional_floating_ip_assignments_total",
+		Help:      "Total number of additional Floating IP assignments to the active gateway node.",
+	}, []string{"floating_ip"})
+	additionalFloatingIPFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tuist",
+		Subsystem: "stable_egress",
+		Name:      "additional_floating_ip_failures_total",
+		Help:      "Total number of failed reads or assignments of an additional Floating IP.",
+	}, []string{"floating_ip"})
 )
 
 func init() {
@@ -52,5 +70,8 @@ func init() {
 		gatewayFailovers,
 		gatewayNodeHealthy,
 		gatewayHealthCheckFailures,
+		additionalFloatingIPOnActive,
+		additionalFloatingIPAssignments,
+		additionalFloatingIPFailures,
 	)
 }

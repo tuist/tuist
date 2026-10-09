@@ -40,6 +40,20 @@ ciliumEgressGateway:
       egressIpAllowlist:
         - 78.47.186.71/32
 
+# Dedicated runner egress. The Mac hosts' side of each gateway is
+# macosFleet.runnerEgressGateways in the tuist chart's values-managed-staging.yaml.
+runnerEgressGateways:
+  dedicated-1:
+    enabled: true
+    index: 1
+    egressIP: 91.98.100.217
+    floatingIpName: tuist-staging-runner-egress-1
+    port: 51821
+    publicKey: "bVDq9t1Fouzu66d5nTcjZVjRcBoZ4EV1I8R9DjwZcS0="
+    privateKeySecret:
+      item: tuist-staging-runner-egress-1
+      property: private-key
+
 ingress-nginx:
   controller:
     service:

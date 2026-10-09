@@ -47,6 +47,7 @@ var fleetWideConfigFields = map[string]bool{
 	// fleet config, so it is hashed like every other field here.
 	"TailscalePersistentDevice": true,
 	"VMCacheGatewayCIDRs":       true,
+	"RunnerEgressGateways":      true,
 }
 
 // Every Config field is either fleet-wide or per-host, and PerHost is the

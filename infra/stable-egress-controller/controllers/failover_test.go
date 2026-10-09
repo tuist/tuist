@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"net/netip"
 	"testing"
 	"time"
@@ -77,6 +78,17 @@ type fakeFIP struct {
 	assignErr error
 	assigns   []int64
 	onAssign  func()
+
+	// additional holds Floating IPs other than the primary, keyed by name.
+	additional map[string]*fakeAdditionalFIP
+}
+
+type fakeAdditionalFIP struct {
+	server    int64
+	getErr    error
+	assignErr error
+	assigns   []int64
+	gets      int
 }
 
 type fakeNodeHealth struct {
@@ -90,8 +102,23 @@ func (f fakeNodeHealth) Healthy(_ context.Context, node *corev1.Node) (bool, err
 	return true, nil
 }
 
-func (f *fakeFIP) Get(context.Context, string) (string, int64, error) { return f.addr, f.server, nil }
-func (f *fakeFIP) Assign(_ context.Context, _ string, serverID int64) error {
+func (f *fakeFIP) Get(_ context.Context, name string) (string, int64, error) {
+	if extra, ok := f.additional[name]; ok {
+		extra.gets++
+		return "203.0.113.20", extra.server, extra.getErr
+	}
+	return f.addr, f.server, nil
+}
+
+func (f *fakeFIP) Assign(_ context.Context, name string, serverID int64) error {
+	if extra, ok := f.additional[name]; ok {
+		if extra.assignErr != nil {
+			return extra.assignErr
+		}
+		extra.assigns = append(extra.assigns, serverID)
+		extra.server = serverID
+		return nil
+	}
 	if f.assignErr != nil {
 		return f.assignErr
 	}
@@ -723,5 +750,127 @@ func TestReconcileNormalizesDuplicateSelectorsWithoutProviderMove(t *testing.T) 
 	}
 	if got := activeNames(t, r); len(got) != 1 || got[0] != "egress-a" {
 		t.Fatalf("active selectors after normalization = %v, want [egress-a]", got)
+	}
+}
+
+func reconcileOnce(t *testing.T, r *FailoverReconciler) (reconcile.Result, error) {
+	t.Helper()
+	return r.Reconcile(context.Background(), reconcile.Request{NamespacedName: types.NamespacedName{Name: reconcileName}})
+}
+
+func TestReconcileAdditionalFloatingIPsSteadyStateIsNoOp(t *testing.T) {
+	active := candidateNode("egress-a", "hcloud://111", true, true)
+	standby := candidateNode("egress-b", "hcloud://222", true, false)
+	fip := &fakeFIP{server: 111, additional: map[string]*fakeAdditionalFIP{
+		"gateway-1": {server: 111},
+		"gateway-2": {server: 111},
+	}}
+	r := newReconciler(fip, active, standby)
+	r.AdditionalFloatingIPNames = []string{"gateway-1", "gateway-2"}
+
+	result, err := reconcileOnce(t, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.RequeueAfter != r.ResyncInterval {
+		t.Fatalf("RequeueAfter = %s, want %s", result.RequeueAfter, r.ResyncInterval)
+	}
+	if len(fip.assigns) != 0 {
+		t.Fatalf("unexpected primary assignments: %v", fip.assigns)
+	}
+	for name, extra := range fip.additional {
+		if len(extra.assigns) != 0 {
+			t.Fatalf("unexpected assignments of %s: %v", name, extra.assigns)
+		}
+		if extra.gets != 1 {
+			t.Fatalf("%s read %d times, want 1", name, extra.gets)
+		}
+	}
+}
+
+func TestReconcileFailoverMovesAdditionalFloatingIPs(t *testing.T) {
+	dead := candidateNode("egress-a", "hcloud://111", false, true)
+	alive := candidateNode("egress-b", "hcloud://222", true, false)
+	fip := &fakeFIP{server: 111, additional: map[string]*fakeAdditionalFIP{
+		"gateway-1": {server: 111},
+		"gateway-2": {server: 111},
+	}}
+	r := newReconciler(fip, dead, alive)
+	r.AdditionalFloatingIPNames = []string{"gateway-1", "gateway-2"}
+	r.NodeHealthChecker = fakeNodeHealth{healthy: map[string]bool{"egress-a": false}}
+
+	if _, err := reconcileOnce(t, r); err != nil {
+		t.Fatal(err)
+	}
+	if fip.server != 222 {
+		t.Fatalf("primary Floating IP on server %d, want 222", fip.server)
+	}
+	for name, extra := range fip.additional {
+		if extra.server != 222 || len(extra.assigns) != 1 {
+			t.Fatalf("%s on server %d after assigns %v, want a single move to 222", name, extra.server, extra.assigns)
+		}
+	}
+	if got := activeNames(t, r); len(got) != 1 || got[0] != "egress-b" {
+		t.Fatalf("active nodes = %v, want [egress-b]", got)
+	}
+}
+
+func TestReconcileMovesDriftedAdditionalFloatingIPBack(t *testing.T) {
+	active := candidateNode("egress-a", "hcloud://111", true, true)
+	standby := candidateNode("egress-b", "hcloud://222", true, false)
+	fip := &fakeFIP{server: 111, additional: map[string]*fakeAdditionalFIP{
+		"gateway-1": {server: 111},
+		"gateway-2": {server: 222},
+	}}
+	r := newReconciler(fip, active, standby)
+	r.AdditionalFloatingIPNames = []string{"gateway-1", "gateway-2"}
+
+	if _, err := reconcileOnce(t, r); err != nil {
+		t.Fatal(err)
+	}
+	if len(fip.assigns) != 0 {
+		t.Fatalf("drift on an additional Floating IP moved the primary: %v", fip.assigns)
+	}
+	if got := fip.additional["gateway-2"]; got.server != 111 || len(got.assigns) != 1 {
+		t.Fatalf("gateway-2 on server %d after assigns %v, want a single move to 111", got.server, got.assigns)
+	}
+	if got := fip.additional["gateway-1"].assigns; len(got) != 0 {
+		t.Fatalf("gateway-1 was already on the active server but got assigns %v", got)
+	}
+	if got := activeNames(t, r); len(got) != 1 || got[0] != "egress-a" {
+		t.Fatalf("active nodes = %v, want [egress-a]", got)
+	}
+}
+
+func TestReconcilePrimaryMovesWhenAdditionalAssignFails(t *testing.T) {
+	dead := candidateNode("egress-a", "hcloud://111", false, true)
+	alive := candidateNode("egress-b", "hcloud://222", true, false)
+	fip := &fakeFIP{server: 111, additional: map[string]*fakeAdditionalFIP{
+		"gateway-1": {server: 111, assignErr: errors.New("rate limited")},
+		"gateway-2": {server: 111, getErr: errors.New("unavailable")},
+		"gateway-3": {server: 111},
+	}}
+	r := newReconciler(fip, dead, alive)
+	r.AdditionalFloatingIPNames = []string{"gateway-1", "gateway-2", "gateway-3"}
+	r.NodeHealthChecker = fakeNodeHealth{healthy: map[string]bool{"egress-a": false}}
+
+	result, err := reconcileOnce(t, r)
+	if err != nil {
+		t.Fatalf("an additional Floating IP failure must not fail the reconcile: %v", err)
+	}
+	if result.RequeueAfter != additionalFloatingIPRetryInterval {
+		t.Fatalf("RequeueAfter = %s, want %s", result.RequeueAfter, additionalFloatingIPRetryInterval)
+	}
+	if fip.server != 222 {
+		t.Fatalf("primary Floating IP on server %d, want 222", fip.server)
+	}
+	if got := activeNames(t, r); len(got) != 1 || got[0] != "egress-b" {
+		t.Fatalf("active nodes = %v, want [egress-b]", got)
+	}
+	if got := fip.additional["gateway-3"]; got.server != 222 {
+		t.Fatalf("gateway-3 on server %d, want 222 despite the other failures", got.server)
+	}
+	if got := fip.additional["gateway-1"].server; got != 111 {
+		t.Fatalf("gateway-1 on server %d, want it left on 111 after the failed assign", got)
 	}
 }

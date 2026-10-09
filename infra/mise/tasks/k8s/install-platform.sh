@@ -75,9 +75,28 @@ HELM_SET_ARGS=(
 EGRESS_CONTROLLER_TAG="$(git -C "$REPO_ROOT" tag --list 'stable-egress-controller@*' --merged HEAD \
   | sed 's|^stable-egress-controller@||' \
   | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)"
+# A pre-release pin (server-deployment.yml stable_egress_controller_image_tag)
+# wins over the resolved release.
+if [ -n "${STABLE_EGRESS_CONTROLLER_IMAGE_TAG:-}" ]; then
+  EGRESS_CONTROLLER_TAG="$STABLE_EGRESS_CONTROLLER_IMAGE_TAG"
+fi
 if [ -n "$EGRESS_CONTROLLER_TAG" ]; then
   log "Resolved stable-egress-controller image tag: $EGRESS_CONTROLLER_TAG"
   HELM_SET_ARGS+=(--set "ciliumEgressGateway.server.failoverController.image.tag=$EGRESS_CONTROLLER_TAG")
+fi
+
+# Same resolution for the runner-egress-gateway image, which the per-account
+# dedicated egress DaemonSets run. No tag reachable falls back to the chart
+# default.
+RUNNER_EGRESS_GATEWAY_TAG="$(git -C "$REPO_ROOT" tag --list 'runner-egress-gateway@*' --merged HEAD \
+  | sed 's|^runner-egress-gateway@||' \
+  | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)"
+if [ -n "${RUNNER_EGRESS_GATEWAY_IMAGE_TAG:-}" ]; then
+  RUNNER_EGRESS_GATEWAY_TAG="$RUNNER_EGRESS_GATEWAY_IMAGE_TAG"
+fi
+if [ -n "$RUNNER_EGRESS_GATEWAY_TAG" ]; then
+  log "Resolved runner-egress-gateway image tag: $RUNNER_EGRESS_GATEWAY_TAG"
+  HELM_SET_ARGS+=(--set "runnerEgressGatewayImage.tag=$RUNNER_EGRESS_GATEWAY_TAG")
 fi
 HELM_VALUES_ARGS=(-f "$CHART_PATH/values-hetzner.yaml")
 CLUSTER_VALUES_FILE="$CHART_PATH/values-${CLUSTER_NAME}.yaml"

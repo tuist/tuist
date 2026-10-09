@@ -28,6 +28,17 @@ defmodule Tuist.Runners.Telemetry do
   # the two answers call for opposite fixes. Emitted on the macOS fleet only,
   # where cache volumes exist.
   def event_name_dispatch_affinity, do: [:tuist, :runners, :dispatch, :affinity]
+
+  # A queued job held back because its account has a dedicated egress gateway
+  # this poll cannot honour: the fleet is not macOS, or the polling host has no
+  # healthy tunnel to the gateway. Tagged per account and gateway; both are
+  # bounded by the handful of accounts with a dedicated gateway.
+  def event_name_dispatch_egress_held, do: [:tuist, :runners, :dispatch, :egress_held]
+
+  # How a claim bound to a dedicated egress gateway ended: `ready` once the host
+  # confirmed the route, or the reason the claim was released and the Pod
+  # recycled. Carries the wait for the host's confirmation.
+  def event_name_dispatch_egress_commit, do: [:tuist, :runners, :dispatch, :egress_commit]
   def event_name_recovery, do: [:tuist, :runners, :recovery]
   def event_name_webhook, do: [:tuist, :runners, :webhook]
 

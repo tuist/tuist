@@ -552,6 +552,7 @@ func TestHostConfigHash_FoldsARenderFailureAsItsInputs(t *testing.T) {
 		"firewall":          {VMKuraEgressCIDR: "10.96.0.0/99"},
 		"ssh-ingress-guard": {SSHIngressAllowCIDRs: []string{"10.0.0.0/99"}},
 		"cache-gateway":     {VMCacheGatewayCIDRs: []string{"10.0.0.0/99"}},
+		"runner-egress":     {RunnerEgressGateways: []RunnerEgressGateway{{Name: "dedicated-1", Endpoint: "10.0.0.0/99"}}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			material := hostConfigMaterial(broken)
@@ -1374,6 +1375,7 @@ var hashPartInstaller = map[string]string{
 	"tart-kubelet-install":    "installTartKubelet",
 	"ssh-reachability":        "installSSHReachability",
 	"ssh-ingress-guard":       "installSSHIngressGuard",
+	"runner-egress":           "installRunnerEgress",
 
 	"tart-kubelet":         "installTartKubelet",
 	"tailscale-binaries":   "installTailscale",

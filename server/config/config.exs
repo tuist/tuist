@@ -267,6 +267,8 @@ config :logger, :console,
     :body,
     :url,
     :dispatch_label,
+    :gateway,
+    :outcome,
     # Tuist.Kura runner-cache reconciler structured fields
     :region,
     :cap,

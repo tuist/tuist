@@ -329,6 +329,22 @@ defmodule TuistWeb.RunnersControllerTest do
 
       assert response["cache_endpoint_url"] == "https://acme-ber1-runners.kura.tuist.dev"
     end
+
+    test "recycles a pod whose dedicated egress route was not confirmed", %{conn: conn} do
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" -> {:error, :egress_aborted} end)
+
+      response =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/dispatch")
+        |> json_response(410)
+
+      assert response == %{"error" => "drain", "reason" => "egress not ready"}
+    end
   end
 
   describe "POST /api/internal/runners/volume-head/upload-url" do

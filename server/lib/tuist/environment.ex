@@ -1987,6 +1987,13 @@ defmodule Tuist.Environment do
   def runner_cache_volumes_enabled?(:macos), do: Application.get_env(:tuist, :runner_macos_cache_volumes, false)
 
   @doc """
+  How long dispatch waits for a runner host to confirm a dedicated egress route
+  before it releases the claim. The guest's dispatch request gives up after 10
+  seconds, so this stays well below that.
+  """
+  def runner_egress_ready_timeout_ms, do: Application.get_env(:tuist, :runner_egress_ready_timeout_ms, 5_000)
+
+  @doc """
   Kubernetes namespace customer runner Pods live in. The
   webhook handler writes RunnerAssignment CRs into this
   namespace; the runners-controller reconciles them into Pods.

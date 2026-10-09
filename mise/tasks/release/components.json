@@ -233,6 +233,14 @@
       "include_paths": ["infra/egress-tree-agent/**/*"]
     },
     {
+      "name": "runner-egress-gateway",
+      "tag_prefix": "runner-egress-gateway@",
+      "tag_regex": "^runner-egress-gateway@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "infra/runner-egress-gateway/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["infra/runner-egress-gateway/**/*"]
+    },
+    {
       "name": "grafana-datasource",
       "tag_prefix": "grafana-datasource@",
       "tag_regex": "^grafana-datasource@[0-9]+\\.[0-9]+\\.[0-9]+$",

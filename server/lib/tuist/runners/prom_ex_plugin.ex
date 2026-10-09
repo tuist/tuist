@@ -224,6 +224,35 @@ defmodule Tuist.Runners.PromExPlugin do
                 "share that tracks the hosts' warm materialize share means the model matches " <>
                 "reality.",
             tags: [:fleet, :outcome]
+          ),
+          counter(
+            @metric_prefix ++ [:dispatch, :egress_held, :count],
+            event_name: Telemetry.event_name_dispatch_egress_held(),
+            measurement: :count,
+            description:
+              "Dispatch polls that skipped an account because its dedicated egress gateway could not be " <>
+                "honoured. `reason` is `platform` (the fleet is not macOS) or `gateway_not_ready` (the " <>
+                "polling host has no healthy tunnel to the gateway). A sustained rate means the account's " <>
+                "jobs are queued behind it.",
+            tags: [:fleet, :account_id, :gateway, :reason]
+          ),
+          counter(
+            @metric_prefix ++ [:dispatch, :egress_commit, :count],
+            event_name: Telemetry.event_name_dispatch_egress_commit(),
+            measurement: :count,
+            description:
+              "Claims bound to a dedicated egress gateway, by outcome: `ready` when the host confirmed " <>
+                "the route, otherwise the reason the claim was released and the Pod recycled.",
+            tags: [:fleet, :gateway, :outcome]
+          ),
+          distribution(
+            @metric_prefix ++ [:dispatch, :egress_wait, :duration, :milliseconds],
+            event_name: Telemetry.event_name_dispatch_egress_commit(),
+            measurement: :wait_ms,
+            description: "Time from stamping the egress gateway on the Pod until the host confirmed the route.",
+            reporter_options: [buckets: @dispatch_duration_buckets],
+            tags: [:fleet, :gateway, :outcome],
+            unit: :millisecond
           )
         ]
       ),

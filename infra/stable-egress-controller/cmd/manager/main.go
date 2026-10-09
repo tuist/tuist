@@ -10,6 +10,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"net/netip"
 	"os"
 	"strings"
@@ -51,6 +52,7 @@ func main() {
 		preparedPodLabel  string
 		preparedPodNS     string
 		floatingIPName    string
+		additionalFIPs    string
 		tokenPath         string
 		egressIPAllowlist string
 		resyncInterval    time.Duration
@@ -75,6 +77,8 @@ func main() {
 		"Namespace containing the host-configurer Pods")
 	flag.StringVar(&floatingIPName, "floating-ip-name", "",
 		"Name of the Hetzner Cloud Floating IP to keep on the active node (required)")
+	flag.StringVar(&additionalFIPs, "additional-floating-ip-names", "",
+		"Comma-separated Hetzner Cloud Floating IP names kept on the same active node as --floating-ip-name")
 	flag.StringVar(&tokenPath, "hcloud-token-path", "/etc/hcloud/token",
 		"Path to the file holding the Hetzner Cloud API token (mounted from kube-system/hcloud)")
 	flag.StringVar(&egressIPAllowlist, "egress-ip-allowlist", "",
@@ -141,6 +145,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	additionalFloatingIPNames, err := parseAdditionalFloatingIPNames(additionalFIPs, floatingIPName)
+	if err != nil {
+		setupLog.Error(err, "invalid --additional-floating-ip-names", "value", additionalFIPs)
+		os.Exit(1)
+	}
+
 	allowlist, err := parsePrefixes(egressIPAllowlist)
 	if err != nil {
 		setupLog.Error(err, "invalid --egress-ip-allowlist", "value", egressIPAllowlist)
@@ -174,17 +184,18 @@ func main() {
 	}
 
 	if err := (&controllers.FailoverReconciler{
-		Client:                mgr.GetClient(),
-		FIP:                   hcloud.New(strings.TrimSpace(string(token))),
-		FloatingIPName:        floatingIPName,
-		CandidateLabelKey:     candKey,
-		CandidateLabelValue:   candVal,
-		ActiveLabelKey:        actKey,
-		ActiveLabelValue:      actVal,
-		PreparedPodNamespace:  preparedPodNS,
-		PreparedPodLabelKey:   preparedKey,
-		PreparedPodLabelValue: preparedVal,
-		EgressIPAllowlist:     allowlist,
+		Client:                    mgr.GetClient(),
+		FIP:                       hcloud.New(strings.TrimSpace(string(token))),
+		FloatingIPName:            floatingIPName,
+		AdditionalFloatingIPNames: additionalFloatingIPNames,
+		CandidateLabelKey:         candKey,
+		CandidateLabelValue:       candVal,
+		ActiveLabelKey:            actKey,
+		ActiveLabelValue:          actVal,
+		PreparedPodNamespace:      preparedPodNS,
+		PreparedPodLabelKey:       preparedKey,
+		PreparedPodLabelValue:     preparedVal,
+		EgressIPAllowlist:         allowlist,
 		NodeHealthChecker: controllers.DirectNodeHealthChecker{
 			Port:    nodeHealthPort,
 			Timeout: nodeHealthTimeout,
@@ -207,6 +218,7 @@ func main() {
 	}
 
 	setupLog.Info("starting manager", "floatingIP", floatingIPName,
+		"additionalFloatingIPs", additionalFloatingIPNames,
 		"candidateLabel", candidateLabel, "activeLabel", activeLabel,
 		"preparedPodLabel", preparedPodLabel, "preparedPodNamespace", preparedPodNS)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
@@ -235,6 +247,27 @@ func parsePrefixes(csv string) ([]netip.Prefix, error) {
 			return nil, err
 		}
 		out = append(out, p)
+	}
+	return out, nil
+}
+
+func parseAdditionalFloatingIPNames(csv, primary string) ([]string, error) {
+	csv = strings.TrimSpace(csv)
+	if csv == "" {
+		return nil, nil
+	}
+	seen := map[string]bool{primary: true}
+	var out []string
+	for _, part := range strings.Split(csv, ",") {
+		name := strings.TrimSpace(part)
+		if name == "" {
+			return nil, fmt.Errorf("empty Floating IP name")
+		}
+		if seen[name] {
+			return nil, fmt.Errorf("Floating IP %q is listed more than once or repeats --floating-ip-name", name)
+		}
+		seen[name] = true
+		out = append(out, name)
 	}
 	return out, nil
 }

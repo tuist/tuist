@@ -46,3 +46,13 @@ workflow code runs in the guest. Never expose host credentials or masters.
   Join workers before closing the store, preserve in-flight admission reservations
   during recovery scans, and never hold the global store lock across writer-fence
   API calls. Slow publication or restoration must not starve another guest.
+
+- Dedicated egress lives in `internal/egress` (design:
+  [`runner-egress-gateway/DESIGN.md`](../runner-egress-gateway/DESIGN.md)).
+  `tart-kubelet egress-tunnel` is the root launchd daemon per gateway
+  (wireguard-go on `utun<100+index>`); it never touches pf. The kubelet is the
+  only writer of the `com.apple/0.tuist.egress` anchor, whose name must keep
+  sorting ahead of `com.apple/tuist.sshguard`. Never flush the VM tables:
+  `-T replace` only, add to `egress_all` before routing, and drop a VM from
+  the tables before stopping it. The Pod condition `tuist.dev/RunnerEgressReady`
+  (`armed <ip>`) is the durable record of what is routed; never withdraw it.

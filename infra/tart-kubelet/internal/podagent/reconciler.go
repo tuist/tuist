@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/egress"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
@@ -170,6 +171,11 @@ type Reconciler struct {
 	// Converge fast-forwards the masters in Volumes to their volumes' HEADs off
 	// every job's critical path. Nil when Volumes is.
 	Converge *ConvergeWorker
+
+	// Egress routes VMs of accounts with a dedicated egress address through
+	// their gateway's tunnel. Nil on hosts without configured gateways; a
+	// labelled Pod there is never reported ready, so it is never handed a job.
+	Egress *egress.Manager
 
 	// ConvergeHeadWaitInterval / ConvergeHeadWaitAttempts bound how long a
 	// background convergence waits for the guest to stage the cache-volume HEAD.
@@ -398,6 +404,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// account is known, clonefile its cache master into the VM's branch and
 	// signal the guest. Idempotent: runs at most once per VM.
 	r.maybeMaterializeVolume(pod)
+
+	// The server stamps the egress label right before it mints the job's
+	// credential and waits for the ready condition below, so arm the VM on
+	// this reconcile rather than on the next periodic sync.
+	if _, labelled := pod.Labels[egress.PodLabel]; labelled {
+		if err := r.syncEgress(ctx); err != nil {
+			logger.Error(err, "egress sync")
+		}
+	}
 
 	status, err := r.podStatus(ctx, pod)
 	if err != nil || status == nil {
@@ -1298,6 +1313,8 @@ func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) er
 	// account), discard it so it never leaks. No-op once consumed.
 	r.finalizeVolume(entry, "", false)
 
+	r.releaseEgress(ctx, entry)
+
 	_ = r.Tart.Stop(ctx, entry.VMName, 30*time.Second)
 	if err := r.Tart.Delete(ctx, entry.VMName); err != nil {
 		return fmt.Errorf("tart delete: %w", err)
@@ -1448,6 +1465,9 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		// runner Pods take this same path.
 		status.Conditions = []corev1.PodCondition{
 			{Type: corev1.PodReady, Status: corev1.ConditionTrue},
+		}
+		if condition, ok := r.egressReadyCondition(pod); ok {
+			status.Conditions = append(status.Conditions, condition)
 		}
 		// tart-kubelet runs the Pod as a single VM with no per-container
 		// CRI, so the API server receives no containerStatuses on its own
@@ -1829,6 +1849,10 @@ type Entry struct {
 	// VolumeStatusDir is the host path of the writable share the guest
 	// writes its cache dirty marker into. Empty when no volume was attached.
 	VolumeStatusDir string
+
+	// EgressReleased is set when teardown starts, so the egress sync stops
+	// routing the VM's address before the VM is stopped.
+	EgressReleased bool
 }
 
 // Store is a tiny thread-safe map. Backed by in-memory state — on

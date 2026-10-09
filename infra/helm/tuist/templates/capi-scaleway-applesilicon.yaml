@@ -590,6 +590,9 @@ spec:
             {{- with .Values.macosFleet.vmCachePrivateNetwork.cidr }}
             - --vm-cache-pn-cidr={{ . }}
             {{- end }}
+            {{- with .Values.macosFleet.runnerEgressGateways }}
+            - {{ printf "--runner-egress-gateways=%s" (toJson .) | quote }}
+            {{- end }}
             {{- with .Values.macosFleet.sshIngressAllowCIDRs }}
             # Sources allowed to reach :22 on the minis on top of the
             # tailnet and loopback. A pf anchor drops the rest, so the

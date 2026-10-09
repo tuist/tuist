@@ -65,7 +65,8 @@ The Deployment + RBAC are rendered by the platform Helm chart
 | Flag | Default | Purpose |
 |---|---|---|
 | `--floating-ip-name` | (required) | Hetzner Cloud Floating IP to keep on the active node |
-| `--egress-ip-allowlist` | (empty) | Comma-separated CIDRs of the documented egress set customers allowlist. When set, the controller **fails closed** if the Floating IP's address is outside it — so an un-allowlisted egress IP is never activated. Keep in lockstep with the customer network guide. |
+| `--additional-floating-ip-names` | (empty) | Comma-separated Hetzner Cloud Floating IPs (the dedicated runner egress gateways) kept on the same active node as `--floating-ip-name`. Election, grace periods and `--egress-ip-allowlist` apply to the primary only. Each one is read once per reconcile and assigned only when it is on another server. A failed read or assignment is logged, counted and retried after 10s without blocking the primary. |
+| `--egress-ip-allowlist` | (empty) | Comma-separated CIDRs of the documented egress set customers allowlist. When set, the controller **fails closed** if the primary Floating IP's address is outside it — so an un-allowlisted egress IP is never activated. Keep in lockstep with the customer network guide. |
 | `--candidate-label` | `tuist.dev/stable-egress-candidate=server` | egress candidate pool selector |
 | `--active-label` | `tuist.dev/stable-egress-gateway=server` | label placed on the single active node selected by Cilium |
 | `--prepared-pod-label` | `tuist.dev/stable-egress-host-configurer=true` | Ready Pod label proving a candidate has the outbound address configured |
@@ -89,7 +90,10 @@ Covers `selectGateway` (sticky / failover / lexical / none), prepared-candidate
 gating, `providerID` parsing, the egress-IP allowlist guard, the Node event
 predicate (heartbeats dropped, eligibility changes let through), the
 host-configurer Pod event predicate, and full reconcile (failover moves IP +
-label, stale cluster-wide labels are stripped, steady state is no-op) against
+label, stale cluster-wide labels are stripped, steady state is no-op), and the
+additional Floating IPs (steady state reads once and writes nothing, failover
+moves all of them, a drifted one is moved back, a failing one never blocks the
+primary) against
 controller-runtime's fake client + a fake Floating IP manager.
 
 ## Releasing
@@ -113,9 +117,12 @@ Keep `failoverController.enabled: false` in prod until the image is released
 
 The controller exposes `tuist_stable_egress_gateway_available`,
 `tuist_stable_egress_gateway_prepared`,
-`tuist_stable_egress_gateway_active`, and
+`tuist_stable_egress_gateway_active`,
 `tuist_stable_egress_failovers_total`,
-`tuist_stable_egress_gateway_node_healthy`, and
-`tuist_stable_egress_health_check_failures_total` alongside controller-runtime
-reconcile metrics. The platform chart annotates the metrics port for Alloy
+`tuist_stable_egress_gateway_node_healthy`,
+`tuist_stable_egress_health_check_failures_total`,
+`tuist_stable_egress_additional_floating_ip_on_active{floating_ip}`,
+`tuist_stable_egress_additional_floating_ip_assignments_total{floating_ip}`, and
+`tuist_stable_egress_additional_floating_ip_failures_total{floating_ip}` alongside
+controller-runtime reconcile metrics. The platform chart annotates the metrics port for Alloy
 discovery.

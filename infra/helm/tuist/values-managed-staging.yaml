@@ -739,6 +739,14 @@ ovhFleets:
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
 macosFleet:
+  # Mirrors runnerEgressGateways.dedicated-1 in the platform chart's
+  # values-tuist-staging.yaml: same name and index, its Floating IP and port
+  # as the endpoint, and its public key.
+  runnerEgressGateways:
+    - name: dedicated-1
+      index: 1
+      endpoint: "91.98.100.217:51821"
+      publicKey: "bVDq9t1Fouzu66d5nTcjZVjRcBoZ4EV1I8R9DjwZcS0="
   # The cluster's own tag, for a proxy the Tailscale operator runs for one
   # Service (values.yaml).
   tailscaleEgress:

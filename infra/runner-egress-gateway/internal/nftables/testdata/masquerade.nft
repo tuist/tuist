@@ -1,0 +1,31 @@
+table inet tuist_egress
+delete table inet tuist_egress
+
+table inet tuist_egress {
+	set excluded_v4 {
+		type ipv4_addr
+		flags interval
+		elements = { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.0.0.0/24, 192.168.0.0/16, 198.18.0.0/15, 224.0.0.0/4, 240.0.0.0/4 }
+	}
+
+	chain input {
+		type filter hook input priority filter; policy accept;
+		iifname "wg0" ct state established,related accept
+		iifname "wg0" ip saddr 100.64.0.0/10 ip daddr 198.18.0.1 tcp dport 8080 accept
+		iifname "wg0" drop
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy accept;
+		iifname "wg0" meta nfproto ipv6 drop
+		oifname "wg0" iifname "eth0" ct state established,related accept
+		oifname "wg0" drop
+		iifname "wg0" oifname "eth0" ip saddr 100.64.0.0/10 ip daddr != @excluded_v4 accept
+		iifname "wg0" drop
+	}
+
+	chain postrouting {
+		type nat hook postrouting priority srcnat; policy accept;
+		oifname "eth0" ip saddr 100.64.0.0/10 masquerade
+	}
+}

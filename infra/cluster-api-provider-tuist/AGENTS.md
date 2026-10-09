@@ -225,6 +225,14 @@ backlog blocks the tailnet fallback exactly as hard as the public path. That is
 how a host stops accepting config pushes on every path at once and drifts on a
 stale tart-kubelet until someone consoles in over VNC.
 
+`installRunnerEgress` (bootstrap + drift, right after the tart-kubelet binary
+lands) installs one root `dev.tuist.runner-egress.<name>` LaunchDaemon per
+`--runner-egress-gateways` entry (chart: `macosFleet.runnerEgressGateways`),
+retires removed ones, and kickstarts them when the tart-kubelet binary changed.
+With no gateways it flushes the `com.apple/0.tuist.egress` anchor; otherwise
+tart-kubelet owns that anchor. See
+[`runner-egress-gateway/DESIGN.md`](../runner-egress-gateway/DESIGN.md).
+
 `installSSHIngressGuard` (bootstrap + drift, right after `installTailscale`)
 drops inbound `:22` at the pf edge from everything except the tailnet
 (`100.64.0.0/10`), loopback, `--ssh-ingress-allow-cidrs`, and the live session's

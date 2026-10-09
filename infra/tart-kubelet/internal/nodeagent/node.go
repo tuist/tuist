@@ -83,6 +83,13 @@ type Maintainer struct {
 	// answer that differently, so it belongs with each provider rather than
 	// here.
 	DynamicLabels []LabelAdvertisement
+
+	// DynamicAnnotations, when set, returns the annotations under
+	// ManagedAnnotationPrefix to publish this heartbeat. Annotations under
+	// the prefix that it stops returning are removed. A probe error leaves
+	// the existing annotations untouched.
+	DynamicAnnotations      DynamicLabelProvider
+	ManagedAnnotationPrefix string
 }
 
 // LabelAdvertisement is one named source of dynamic Node labels. The name is
@@ -178,6 +185,7 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 	// then update status.
 	base := node.DeepCopy()
 	m.configureNode(node, m.evalDynamicLabels(ctx))
+	m.applyDynamicAnnotations(ctx, node)
 
 	// configureNode just set this Node's desired status (Ready=True,
 	// capacity, node info). client.Patch below replaces the in-memory node
@@ -231,6 +239,30 @@ func (m *Maintainer) evalDynamicLabels(ctx context.Context) map[string]string {
 		}
 	}
 	return merged
+}
+
+func (m *Maintainer) applyDynamicAnnotations(ctx context.Context, node *corev1.Node) {
+	if m.DynamicAnnotations == nil || m.ManagedAnnotationPrefix == "" {
+		return
+	}
+	annotations, err := m.DynamicAnnotations(ctx)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "dynamic node annotations")
+		return
+	}
+	if node.Annotations == nil {
+		node.Annotations = map[string]string{}
+	}
+	for k := range node.Annotations {
+		if _, kept := annotations[k]; strings.HasPrefix(k, m.ManagedAnnotationPrefix) && !kept {
+			delete(node.Annotations, k)
+		}
+	}
+	for k, v := range annotations {
+		if strings.HasPrefix(k, m.ManagedAnnotationPrefix) {
+			node.Annotations[k] = v
+		}
+	}
 }
 
 // applyDiskPressure refreshes the DiskPressure condition from the probe.
