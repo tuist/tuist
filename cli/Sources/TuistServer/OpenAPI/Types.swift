@@ -7893,6 +7893,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/granularity`.
             public var granularity: Components.Schemas.CreateShardPlanParams.granularityPayload?
+            /// How many modules reported as `parallel` the test runner executes at once, running `serial` ones one at a time, as ExUnit does with `max_cases` and `async`. With it, a module plan balances the shards' estimated wall clock instead of their summed durations.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/module_concurrency`.
+            public var module_concurrency: Swift.Int?
             /// Test module names (for module-level granularity).
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/modules`.
@@ -7936,6 +7940,7 @@ public enum Components {
             ///   - git_branch: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
             ///   - gradle_build_id: The UUID of the associated Gradle build.
             ///   - granularity: Sharding granularity level.
+            ///   - module_concurrency: How many modules reported as `parallel` the test runner executes at once, running `serial` ones one at a time, as ExUnit does with `max_cases` and `async`. With it, a module plan balances the shards' estimated wall clock instead of their summed durations.
             ///   - modules: Test module names (for module-level granularity).
             ///   - parallelizable_modules: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
             ///   - reference: A unique shard plan reference, typically derived from CI environment.
@@ -7950,6 +7955,7 @@ public enum Components {
                 git_branch: Swift.String? = nil,
                 gradle_build_id: Swift.String? = nil,
                 granularity: Components.Schemas.CreateShardPlanParams.granularityPayload? = nil,
+                module_concurrency: Swift.Int? = nil,
                 modules: [Swift.String]? = nil,
                 parallelizable_modules: [Swift.String]? = nil,
                 reference: Swift.String,
@@ -7964,6 +7970,7 @@ public enum Components {
                 self.git_branch = git_branch
                 self.gradle_build_id = gradle_build_id
                 self.granularity = granularity
+                self.module_concurrency = module_concurrency
                 self.modules = modules
                 self.parallelizable_modules = parallelizable_modules
                 self.reference = reference
@@ -7979,6 +7986,7 @@ public enum Components {
                 case git_branch
                 case gradle_build_id
                 case granularity
+                case module_concurrency
                 case modules
                 case parallelizable_modules
                 case reference
@@ -69252,6 +69260,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/granularity`.
                     public var granularity: Operations.createShardPlan.Input.Body.jsonPayload.granularityPayload?
+                    /// How many modules reported as `parallel` the test runner executes at once, running `serial` ones one at a time, as ExUnit does with `max_cases` and `async`. With it, a module plan balances the shards' estimated wall clock instead of their summed durations.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/module_concurrency`.
+                    public var module_concurrency: Swift.Int?
                     /// Test module names (for module-level granularity).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/modules`.
@@ -69295,6 +69307,7 @@ public enum Operations {
                     ///   - git_branch: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
                     ///   - gradle_build_id: The UUID of the associated Gradle build.
                     ///   - granularity: Sharding granularity level.
+                    ///   - module_concurrency: How many modules reported as `parallel` the test runner executes at once, running `serial` ones one at a time, as ExUnit does with `max_cases` and `async`. With it, a module plan balances the shards' estimated wall clock instead of their summed durations.
                     ///   - modules: Test module names (for module-level granularity).
                     ///   - parallelizable_modules: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
                     ///   - reference: A unique shard plan reference, typically derived from CI environment.
@@ -69309,6 +69322,7 @@ public enum Operations {
                         git_branch: Swift.String? = nil,
                         gradle_build_id: Swift.String? = nil,
                         granularity: Operations.createShardPlan.Input.Body.jsonPayload.granularityPayload? = nil,
+                        module_concurrency: Swift.Int? = nil,
                         modules: [Swift.String]? = nil,
                         parallelizable_modules: [Swift.String]? = nil,
                         reference: Swift.String,
@@ -69323,6 +69337,7 @@ public enum Operations {
                         self.git_branch = git_branch
                         self.gradle_build_id = gradle_build_id
                         self.granularity = granularity
+                        self.module_concurrency = module_concurrency
                         self.modules = modules
                         self.parallelizable_modules = parallelizable_modules
                         self.reference = reference
@@ -69338,6 +69353,7 @@ public enum Operations {
                         case git_branch
                         case gradle_build_id
                         case granularity
+                        case module_concurrency
                         case modules
                         case parallelizable_modules
                         case reference

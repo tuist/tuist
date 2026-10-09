@@ -3005,6 +3005,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        module_concurrency:
+          description: How many modules reported as `parallel` the test runner executes at once, running `serial` ones one at a time, as ExUnit does with `max_cases` and `async`. With it, a module plan balances the shards' estimated wall clock instead of their summed durations.
+          minimum: 1
+          type: integer
+          x-struct:
+          x-validate:
         modules:
           description: Test module names (for module-level granularity).
           items:
@@ -27185,6 +27191,12 @@ paths:
                     - module
                     - suite
                   type: string
+                  x-struct:
+                  x-validate:
+                module_concurrency:
+                  description: How many modules reported as `parallel` the test runner executes at once, running `serial` ones one at a time, as ExUnit does with `max_cases` and `async`. With it, a module plan balances the shards' estimated wall clock instead of their summed durations.
+                  minimum: 1
+                  type: integer
                   x-struct:
                   x-validate:
                 modules:
