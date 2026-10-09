@@ -94,7 +94,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.35.0"
+      assert server.version == "1.36.0"
 
       assert server.instructions =~
                "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."

@@ -3,7 +3,7 @@
 This directory contains the Tuist [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) implementation:
 
 - JSON-RPC request handling
-- The transport routes `2026-07-28` requests to `Transport.Stateless` and preserves the EMCP session transport for older clients. The modern route has no session identifier and adds result discriminators, cache hints, and server identity to existing tool and prompt responses. Keep both paths tested when changing protocol handling.
+- The transport routes `2026-07-28` requests to `Transport.Stateless` and handles older clients without allocating sessions. The modern route has no session identifier and adds result discriminators, cache hints, and server identity to existing tool and prompt responses. Keep both paths tested when changing protocol handling.
 - Event subscriptions, callback verification, and delivery live under `events/`; see `events/AGENTS.md`.
 - MCP tools and prompts
 - MCP authorization/serialization helpers
@@ -51,3 +51,5 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
   and the `:invitation` policies, matching the dashboard and REST API. They
   never return invitation tokens or links; `email_sent` tells the agent when
   the link has to be copied from the dashboard instead.
+
+- The endpoint implements the stateless 2026-07-28 transport and `server/discover`. Every modern request validates protocol metadata and mirrored headers. Legacy 2025-06-18 and 2025-03-26 clients remain supported without allocating sessions. Catalogs do not advertise change subscriptions.
