@@ -606,8 +606,8 @@ the committed objects are stale. The object names the 1Password item holding the
 login and never carries the login.
 
 **They live in the rack's cluster.** Each site names its namespace
-(`kubernetes.namespace`); BER1 is `tuist-staging`, beside its `RackHost`, while
-the rack is at home, and moves to production with the rack. The namespace is
+(`kubernetes.namespace`); BER1 is `tuist`, production's, beside its `RackHost`
+(it was `tuist-staging` while the rack was built at home). The namespace is
 also what names the rack's env, by the tuist chart's convention (`tuist-<env>`,
 or `tuist` for production; `mise run rack:fleet env`): the Rack Switches
 workflow's objects, `omada-deployment.yml`, the install stick, the card

@@ -399,7 +399,7 @@ the node's first boot. `/` stays ext4 because a stick finds the install it made
 by mounting the ext4 partitions. Changing the layout is a reinstall.
 
 Every rack Linux node runs the local CNI and carries `cilium.io/no-schedule=true`,
-because the rack's networks at home sit inside staging's pod CIDR. A storage node
+because the rack's networks at home sit inside the cluster's pod CIDR (192.168.0.0/16 in staging and production alike). A storage node
 that serves pods through Services needs the cluster's CNI, which is a
 `RackLinuxMachine` change to make once the rack's networks no longer overlap.
 
@@ -539,24 +539,36 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
 3. **Stand up production's Omada controller** (remote). Dispatch
    `omada-deployment.yml` with `environment: production`, which installs the
    controller alone, as `omada-production` on the tailnet. Its tailnet IP is in
-   `tailscale status | grep omada-production`. This uses TP-Link's Controller
-   Migration ([how to migrate an Omada controller](https://www.omadanetworks.com/us/document/13126/)).
-   In the staging controller (`https://omada.taild6d7bb.ts.net:8043`), open
-   Global View, Settings, Migration, the Controller Migration tab, start it and
-   export the backup. Restore it on production's controller at
-   `https://omada-production.taild6d7bb.ts.net:8043` (Settings, Maintenance,
-   Backup & Restore, or the first-boot wizard's restore), so it knows the site,
-   the device account and the three switches as adopted. A restore takes only
-   a backup of the same Major.Minor.Patch, so both controllers run the chart's
-   pinned `6.3.0.45` (staging did on 2026-10-09). Leave staging's migration
-   at its Confirm step until step 7. A controller without the backup sees each
-   switch as managed by another controller and has to adopt it afresh, which
-   needs it forgotten in staging first, and forgetting a switch its controller
-   still manages factory-resets it: ToR A carries the rack's uplinks. Then make
-   an Open API client on the production controller (Client mode,
-   Administrator over site `ber1`) and store it in `tuist-k8s-production` as
-   `omada production open api`, with `client-id` and `client-secret` fields;
-   delete the restored staging client from it.
+   `tailscale status | grep omada-production` (`100.91.73.50`, done on
+   2026-10-09). This uses TP-Link's Controller Migration
+   ([how to migrate an Omada controller](https://www.omadanetworks.com/us/document/13126/)),
+   which takes only a backup of the same Major.Minor.Patch, so both
+   controllers run the chart's pinned `6.3.0.45`.
+   - In the staging controller (`https://omada.taild6d7bb.ts.net:8043`),
+     Global View, Settings, Migration, Controller Migration, Start Export:
+     every Backup Contents box, 7 days, Export to Local File. Leave it at the
+     next step, Migrate Controller, until step 7.
+   - In production's first-boot wizard
+     (`https://omada-production.taild6d7bb.ts.net:8043`), Create a Local
+     Account (not a TP-Link ID, which binds the controller to TP-Link's
+     cloud) and save it in 1Password's Infrastructure vault: the import does
+     not carry the controller's own logins over, so this account is
+     production's. Finish the wizard, then Global View, Settings, Migration,
+     Controller Migration, Start Import with the exported file. Production
+     then knows the site, the device account and the three switches, shown
+     disconnected.
+   - The import does carry staging's Open API client, so `omada production
+     open api` is a byte-for-byte copy of `omada staging open api` in
+     `tuist-k8s-production`.
+   - The import also carries staging's address for the switches to connect
+     back to. From the cutover branch, `mise run rack:omada controller` sets
+     it to production's, and `mise run rack:omada devices` lists the three
+     switches.
+
+   A controller without the backup sees each switch as managed by another
+   controller and has to adopt it afresh, which needs it forgotten in staging
+   first, and forgetting a switch its controller still manages factory-resets
+   it: ToR A carries the rack's uplinks.
 
 4. **Finish the cutover branch** (remote): set `management.controller.address`
    in `ber1.json` to the production controller's tailnet IP, run
@@ -601,19 +613,20 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
    case a switch has to be reached by its console). Stop staging's rack switch
    controller so it reports nothing and writes nothing meanwhile:
    `kubectl $S -n omada scale deployment rack-switch-controller --replicas=0`.
-   Then, in staging's Controller Migration from step 3, click Confirm, enter
-   production's controller tailnet IP in Controller IP/Inform URL (an address:
-   the switches resolve no tailnet names), and migrate the switches smallest
-   blast radius first: `ber1-mgmt` alone (deselect the others), then
-   `ber1-tor-b`, then `ber1-tor-a`. Each reaches the new controller through
-   the edge, which the ACL lets reach `tag:tuist-k8s-production` on the Omada
-   ports. Each shows connected in production's Devices page and in
-   `mise run rack:omada devices` from the cutover branch. Only once all three
-   are connected there, click Forget Devices in staging, which finishes the
-   migration; forgetting one staging still manages resets it. Not measured on
-   these switches yet. If a switch does not come over, `mise run rack:omada
-   inform <device>` from the cutover branch tells it the new controller
-   directly.
+   Check the path first: the switches reach the controller through the edge
+   holding `192.168.0.10`, so from it
+   `nc -z 100.91.73.50 29811` through `29817` should all answer. Then, in
+   staging's Controller Migration from step 3 (Start Export, Skip), click
+   Confirm, enter production's controller tailnet IP in Controller IP/Inform
+   URL (an address: the switches resolve no tailnet names), and Migrate
+   Devices. The controller warns that it may push each switch its full
+   configuration and drop it briefly. Done on 2026-10-09 with all three at
+   once: production showed them adopting, configuring, then connected within
+   90 seconds, and the rack kept every node Ready. One at a time limits a
+   blip to half the rack, for when it carries jobs. Do not click Forget
+   Devices in staging; its controller is uninstalled in step 17. If a switch
+   does not come over, `mise run rack:omada inform <device>` from the cutover
+   branch tells it the new controller directly.
 
 8. **Retire the rack from staging** (remote), in this order. First delete its
    objects while staging still runs the deploy from `main`: the operator's
@@ -676,13 +689,23 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
 
 ### Into production
 
-11. **Merge the cutover** (remote). Production's deploy declares the hosts,
-    the pool, the region, `alloy-rack` and the cache gateway;
+11. **Merge the cutover** (remote), only once production deploys no longer wait
+    on rack nodes (the change that keeps them independent of the rack's
+    health merges first): from here on the rack's Linux nodes are
+    production's, and a Helm wait on a DaemonSet with pods on dark nodes
+    would roll every production deploy back. Production's deploy declares
+    the hosts, the pool, the region, `alloy-rack` and the cache gateway;
     `omada-deployment.yml` deploys the rack switch controller, watching `tuist`,
     and the edge DaemonSet, which has no node yet; the Rack Switches workflow
     applies the objects to `tuist`. Paste the ACL again: the cutover drops
     staging's rack grants. `kubectl $P -n tuist get rlh` shows each host
     waiting: no device, and for the edges, no other edge to serve a netboot.
+    Production's egress proxies now accept the tailnet's subnet routes,
+    staging's Connector's `10.128.0.0/12` among them, which is production's
+    Service CIDR too: once they have rolled, check that the Scaleway minis'
+    jobs still start and that
+    `kubectl $P -n tailscale-operator exec macmini-egress-0 -- ip route show table 52`
+    lists the routes while the proxies keep answering.
 
 12. **Reinstall `ber1-edge-a` from a stick** (hands-on). On `main`, the env
     is production:

@@ -185,6 +185,10 @@ kura-ap-southeast-ingress-nginx:
 kura-runners-ingress-nginx:
   enabled: true
 
+# The BER1 rack's cache gateway, on its storage node (values.yaml).
+kura-ber1-runners-ingress-nginx:
+  enabled: true
+
 # South America West (Santiago, Vultr). Same host-network shape as the other
 # bare-metal regions: the region's gateway binds the box's public IP, and Vultr
 # has no cloud LoadBalancer to put in front of it.
