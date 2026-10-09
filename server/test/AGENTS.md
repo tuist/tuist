@@ -83,3 +83,9 @@ This directory contains ExUnit tests for the Tuist Server.
 - Verify that detail classification matches listing/Grafana evidence and is project scoped, while default run tables omit category columns and retain filters. Cumulative task-time widgets use one label with no repeated caption. The standard Grafana dashboard tests keep total failures separate and pair each cache value with its coverage.
 
 - Cumulative task-time comparisons cover positive, zero and missing previous estimates with neutral styling, matching environment filters and custom range boundaries. Failure-category hints must be focusable and use the shared Noora tooltip interaction.
+
+- Production-cost token-cache coverage runs in ExUnit with an explicit rounds-12 hash: 2,000 lookups at concurrency 64 require exactly one real bcrypt verification. Use `Mimic.call_original/3` and an isolated cache, without shared configuration changes, VM-wide tracing or wall-clock assertions.
+
+- Authentication fills must have no cache-wide dispatch/fan-out mailbox. Test direct reads and per-key fills with the ETS owner and Cachex Courier suspended; cover concurrent production-cost proofs, independent keys, worker/coordinator death, bounded timeouts, owner loss and recovery without retaining errors.
+
+- Authentication availability regressions cover real project/account credential lookups with injected proof failure: strict HTTP returns 503, cached authentication retains no errors, and Once returns gRPC unavailable with refusal telemetry. Suspend the per-key coordinator to test deadline/restart publication races, and independently restart only Cachex to prove writes target the captured data generation even when claim checks still succeed.
