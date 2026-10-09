@@ -22,10 +22,9 @@ defmodule Tuist.OnceEvents.RunEventService do
   alias Once.Events.V1.ServerCapabilities
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
-  alias Tuist.Authentication
+  alias Tuist.Authentication.SubjectCache
   alias Tuist.Authorization
   alias Tuist.Environment
-  alias Tuist.KeyValueStore
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Projector
   alias Tuist.Projects
@@ -50,8 +49,6 @@ defmodule Tuist.OnceEvents.RunEventService do
   @argv_hash_key_grace_ms 24 * 60 * 60 * 1000
   @project_header "once-project-id"
   @max_project_id_bytes 256
-  @reauthenticate_after_ms to_timeout(minute: 5)
-  @subject_cache_ttl_ms to_timeout(minute: 1)
 
   # ---- GetServerCapabilities -----------------------------------------
 
@@ -92,19 +89,17 @@ defmodule Tuist.OnceEvents.RunEventService do
 
   # ---- PublishRunEvents ---------------------------------------------
 
-  # A run's stream can stay open for hours, and the credential is only read when
-  # it opens. Checking again every few minutes keeps a revoked token, a removed
-  # member or a deactivated user from writing until the client disconnects, as
-  # the per-request HTTP API would not allow.
+  # Recheck by the original subject deadline, never by a new stream-relative
+  # interval. Hot batches cannot renew stale permissions or credential expiry.
   def publish_run_events(request_stream, stream) do
-    {project, account_id} =
+    {project, account_id, freshness} =
       case resolve_identity(stream, nil) do
-        {:ok, project, account_id} -> {project, account_id}
+        {:ok, project, account_id, freshness} -> {project, account_id, freshness}
         {:error, reason} -> refuse!(:publish_run_events, :admission, reason)
       end
 
     _last_check =
-      Enum.reduce(request_stream, now_ms(), fn batch, checked_at ->
+      Enum.reduce(request_stream, freshness, fn batch, checked_at ->
         checked_at = reauthenticate!(stream, project, checked_at)
         ack = handle_batch(batch, project, account_id)
         GRPC.Server.send_reply(stream, ack)
@@ -114,17 +109,16 @@ defmodule Tuist.OnceEvents.RunEventService do
     :ok
   end
 
-  defp reauthenticate!(stream, project, checked_at) do
-    now = now_ms()
-
-    if now - checked_at < @reauthenticate_after_ms do
-      checked_at
+  defp reauthenticate!(stream, project, freshness) do
+    if now_ms() < freshness.valid_until and
+         (is_nil(freshness.expires_at) or System.system_time(:millisecond) < freshness.expires_at * 1_000) do
+      freshness
     else
-      if require_project!(stream, :publish_run_events, :recheck).id != project.id do
-        refuse!(:publish_run_events, :recheck, "no access to the requested project")
+      case resolve_identity(stream, nil) do
+        {:ok, refreshed, _account_id, snapshot} when refreshed.id == project.id -> snapshot
+        {:error, reason} -> refuse!(:publish_run_events, :recheck, reason)
+        _ -> refuse!(:publish_run_events, :recheck, "missing or invalid bearer or project access")
       end
-
-      now
     end
   end
 
@@ -264,18 +258,24 @@ defmodule Tuist.OnceEvents.RunEventService do
   # counter keeps a spike of refusals, such as tokens expiring under long runs,
   # visible and alertable.
   defp refuse!(rpc, stage, reason) do
+    {status, reason} =
+      case reason do
+        {:unavailable, message} -> {:unavailable, message}
+        message -> {:unauthenticated, message}
+      end
+
     :telemetry.execute(Telemetry.event_name_once_events_refused(), %{count: 1}, %{
       rpc: rpc,
       stage: stage,
-      status: :unauthenticated
+      status: status
     })
 
-    raise GRPC.RPCError, status: :unauthenticated, message: to_string(reason)
+    raise GRPC.RPCError, status: status, message: to_string(reason)
   end
 
   defp resolve_project(stream, hint_project_id) do
     case resolve_identity(stream, hint_project_id) do
-      {:ok, project, _account_id} -> {:ok, project}
+      {:ok, project, _account_id, _freshness} -> {:ok, project}
       error -> error
     end
   end
@@ -293,32 +293,19 @@ defmodule Tuist.OnceEvents.RunEventService do
       end
 
     with token when is_binary(token) <- extract_bearer(headers),
-         subject when not is_nil(subject) <- authenticated_subject(token) do
+         {:ok, snapshot} when not is_nil(snapshot) <- SubjectCache.fetch(token) do
+      subject = snapshot.subject
+
       case project_for(subject, present(hint_project_id) || present(header_value(headers, @project_header))) do
-        {:ok, project} -> {:ok, project, actor_account_id(subject)}
+        {:ok, project} -> {:ok, project, actor_account_id(subject), snapshot}
         error -> error
       end
     else
-      _ -> {:error, "missing or invalid bearer"}
-    end
-  end
+      {:error, :unavailable} ->
+        {:error, {:unavailable, "Authentication temporarily unavailable."}}
 
-  # Same short cache as the HTTP API, so a long run does not pay for password
-  # checks and membership reads on every reconnect. Only a successful lookup is
-  # stored, so a token that does not exist yet is not remembered as invalid, and
-  # the key holds a hash instead of the token.
-  defp authenticated_subject(token) do
-    key = [__MODULE__, "authenticated_subject", Base.encode16(:crypto.hash(:sha256, token))]
-    opts = [ttl: @subject_cache_ttl_ms, cache: :tuist]
-
-    case KeyValueStore.get(key, opts) do
-      nil ->
-        subject = Authentication.authenticated_subject(token)
-        if subject, do: KeyValueStore.put(key, subject, opts)
-        subject
-
-      subject ->
-        subject
+      _ ->
+        {:error, "missing or invalid bearer"}
     end
   end
 

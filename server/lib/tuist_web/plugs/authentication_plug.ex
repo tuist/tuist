@@ -9,11 +9,35 @@ defmodule TuistWeb.AuthenticationPlug do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
+  alias Tuist.Authentication.SubjectCache
+  alias Tuist.Authentication.UnavailableError
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias TuistWeb.API.CacheController
+  alias TuistWeb.Errors.ServiceUnavailableError
   alias TuistWeb.Headers
   alias TuistWeb.RequestOrigin
   alias TuistWeb.WarningsHeaderPlug
+
+  @bounded_write_controllers [
+    TuistWeb.API.AnalyticsController,
+    TuistWeb.API.BuildsController,
+    TuistWeb.API.TestsController,
+    TuistWeb.API.GradleController,
+    TuistWeb.API.MixController,
+    TuistWeb.API.BazelController,
+    TuistWeb.API.BundlesController
+  ]
+
+  @bounded_read_controllers @bounded_write_controllers ++
+                              [
+                                CacheController,
+                                TuistWeb.API.PreviewsController,
+                                TuistWeb.API.ProjectsController,
+                                TuistWeb.API.GradleTasksController,
+                                TuistWeb.API.GradleBuildStepsController,
+                                TuistWeb.API.BazelBuildStepsController
+                              ]
 
   @mcp_resource_metadata_path "/.well-known/oauth-protected-resource/mcp"
 
@@ -21,6 +45,7 @@ defmodule TuistWeb.AuthenticationPlug do
   def init({:require_authentication, _} = opts), do: opts
 
   def call(conn, :load_authenticated_subject) do
+    conn = configure_caching(conn)
     token = TuistWeb.Authentication.get_authorization_token_from_conn(conn)
 
     if token do
@@ -28,6 +53,9 @@ defmodule TuistWeb.AuthenticationPlug do
     else
       conn
     end
+  rescue
+    UnavailableError ->
+      reraise ServiceUnavailableError, [message: "Authentication temporarily unavailable."], __STACKTRACE__
   end
 
   def call(conn, {:require_authentication, opts}) do
@@ -65,26 +93,10 @@ defmodule TuistWeb.AuthenticationPlug do
   end
 
   defp get_authenticated_subject(conn, token) do
-    cache_key = [Atom.to_string(__MODULE__), "authenticated_subject", token]
+    bounded = bounded?(conn)
+    conn = assign(conn, :auth_freshness, if(bounded, do: :bounded, else: :strict))
 
-    cache_opts = [
-      ttl: Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1)),
-      cache: Map.get(conn.assigns, :cache, :tuist),
-      locking: true
-    ]
-
-    get_authenticated_subject = fn ->
-      Tuist.Authentication.authenticated_subject(token)
-    end
-
-    authenticated_subject =
-      if Map.get(conn.assigns, :caching, false) do
-        Tuist.KeyValueStore.get_or_update(cache_key, cache_opts, get_authenticated_subject)
-      else
-        get_authenticated_subject.()
-      end
-
-    case authenticated_subject do
+    case resolve_subject(conn, token, bounded) do
       %Project{} = project ->
         %{account: account} = project
 
@@ -113,6 +125,60 @@ defmodule TuistWeb.AuthenticationPlug do
 
       nil ->
         conn
+    end
+  end
+
+  defp resolve_subject(_conn, token, false), do: Tuist.Authentication.authenticated_subject(token)
+
+  defp resolve_subject(conn, token, true) do
+    case SubjectCache.fetch(token, Map.get(conn.assigns, :auth_cache_opts, [])) do
+      {:ok, nil} -> nil
+      {:ok, snapshot} -> snapshot.subject
+      {:error, :unavailable} -> raise ServiceUnavailableError, "Authentication temporarily unavailable."
+    end
+  end
+
+  defp bounded?(conn) do
+    {controller, action} = route(conn)
+
+    cache_write? =
+      controller == CacheController and
+        action in [:upload_cache_action_item, :multipart_start, :multipart_generate_url, :multipart_complete]
+
+    Map.get(conn.assigns, :caching, false) and conn.assigns[:auth_freshness] != :strict and
+      (bounded_read?(conn, controller, action) or cache_write? or bounded_write?(conn, controller, action))
+  end
+
+  defp bounded_read?(conn, controller, action) do
+    conn.method in ["GET", "HEAD"] and controller in @bounded_read_controllers and action != :token
+  end
+
+  defp bounded_write?(conn, controller, action) do
+    conn.method == "POST" and controller in @bounded_write_controllers and
+      action in [
+        :create,
+        :create_build,
+        :multipart_start,
+        :multipart_generate_url,
+        :multipart_complete,
+        :multipart_start_project,
+        :multipart_generate_url_project,
+        :multipart_complete_project
+      ]
+  end
+
+  defp route(conn) do
+    case Phoenix.Router.route_info(TuistWeb.Router, conn.method, conn.request_path, conn.host) do
+      %{plug: controller, plug_opts: action} -> {controller, action}
+      _ -> {conn.private[:phoenix_controller], conn.private[:phoenix_action]}
+    end
+  end
+
+  defp configure_caching(conn) do
+    if conn.assigns[:auth_cache_default] do
+      assign(conn, :caching, Map.get(conn.assigns, :caching, not Tuist.Environment.test?()))
+    else
+      conn
     end
   end
 
