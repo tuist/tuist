@@ -1221,7 +1221,7 @@ and it is installed from a stick. `storage` has no layout yet. The `Installed`
 condition says which step a host is on.
 
 **The rack's boot server** (`cmd/rack-boot`, `internal/rackboot`) runs from the
-operator's image as the chart's `<fleet>-boot` DaemonSet on each edge node of
+operator's image as the rack-nodes chart's `<fleet>-boot` DaemonSet on each edge node of
 the site, with host networking. It binds TFTP and HTTP to the provisioning
 address with `IP_FREEBIND`, so the edge holding the address (keepalived's
 master) answers and the other takes over the moment the address moves. It
@@ -1343,7 +1343,7 @@ The operator runs it over SSH (`rack-node apply`, the request on stdin and the
 result on stdout, the binary uploaded under `/usr/local/lib/tuist/` by its
 digest when the host lacks it) to join a host, for a new tailnet device, a
 rename, and a Node NotReady for five minutes. Once a node is joined, the node
-agent, the chart's `<fleet>-node-agent` DaemonSet running `rack-node agent`
+agent, the rack-nodes chart's `<fleet>-node-agent` DaemonSet running `rack-node agent`
 privileged in the host's PID namespace on every rack Linux node, keeps it: it
 finds its machine from its Node's providerID, applies the published
 configuration within 30 s of a change and every five minutes otherwise, and

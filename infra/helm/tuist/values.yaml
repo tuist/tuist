@@ -1805,6 +1805,8 @@ rackLinuxFleet:
   # is not on the tailnet yet, or whose reinstallGeneration asks for one, and
   # the host installs itself when it netboots or boots its stick. The site
   # definition's management.edge.netboot points the edge node's DHCP here.
+  # The rack-nodes chart (infra/helm/rack-nodes) renders its DaemonSet, and the
+  # rack node agent's, from these values; this chart configures the operator.
   boot:
     enabled: false
     site: ""           # default: rackLinuxFleet.site; the tuist.dev/rack-edge value

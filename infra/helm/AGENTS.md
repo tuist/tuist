@@ -55,6 +55,14 @@ This node covers Helm assets under `infra/helm/`.
   Machine's `egressBudgetMbps` from its reviewed OnDelete fleet template).
   Staging has standing write access; canary/production require human elevation.
 - Kura archival defaults to hourly sweeps with a 24-hour never-used Air window. Canary inherits the hourly default; staging keeps its five-minute sweep override for lifecycle drills.
+- Deploys wait on the tuist, k8s-monitoring and platform releases (Helm 4's
+  kstatus wait: a DaemonSet is ready only when every pod it wants is). Nothing
+  in them may run a pod on a rack node, which can be dark for days: rack-node
+  workloads go in `rack-nodes` or `rack-cache-gateways`, installed with
+  `--wait=hookOnly` from the tuist and platform charts' values. Run
+  `mise -C infra run helm:rack-independence` after adding a DaemonSet or
+  tolerations; the Helm workflow runs it too. See "Deploys and the rack's
+  health" in `../rack-nodes/AGENTS.md`.
 - Prefer one umbrella chart that models deployable capabilities, not implementation brands.
 - When a workload needs an independent workflow and release cadence, give it its own chart
   rather than adding it to `helm/tuist/`.
