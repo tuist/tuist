@@ -9,6 +9,9 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   publication permit on spawned work, or release a retained-corpus hold before
   authoritative abort/completed transfer. Default-off legacy mode must remain
   compatible with the preceding runtime.
+  Handover rejections must identify the verification stage and record on both
+  peers, with bounded reasons and no artifact bodies in logs. Preserve rejection
+  details across mixed runtime versions without weakening the retained-data barrier.
   Qualification fixtures and their simulator limits are documented in
   [`test/e2e/serving-authority/AGENTS.md`](test/e2e/serving-authority/AGENTS.md).
 - High-level architecture overview: `docs/architecture.md` — start here when onboarding or reasoning about how subsystems interact
