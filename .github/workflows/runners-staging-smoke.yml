@@ -138,11 +138,29 @@ jobs:
         if: >-
           github.event_name == 'workflow_dispatch' &&
           inputs.hold_seconds != '' && inputs.hold_seconds != '0'
+        env:
+          EXPECTED_EGRESS_IP: ${{ inputs.expected_egress_ip }}
         run: |
           set -euo pipefail
           seconds="${{ inputs.hold_seconds }}"
           echo "Holding this runner for ${seconds}s so the job window is billable."
-          sleep "${seconds}"
+          if [ -z "${EXPECTED_EGRESS_IP}" ]; then
+            sleep "${seconds}"
+            exit 0
+          fi
+          # While holding, keep probing the public IPv4. With a dedicated
+          # address the only acceptable answers are that address or no
+          # answer at all (the tunnel is down); anything else is a leak.
+          end=$(( $(date +%s) + seconds ))
+          while [ "$(date +%s)" -lt "${end}" ]; do
+            ip=$(curl -4 -fsS -m 5 https://api.ipify.org 2>/dev/null || echo unreachable)
+            echo "$(date -u +%H:%M:%S) public IPv4: ${ip}"
+            case "${ip}" in
+              "${EXPECTED_EGRESS_IP}"|unreachable) ;;
+              *) echo "::error::egress leaked from ${ip}"; exit 1 ;;
+            esac
+            sleep 10
+          done
 
       - name: Kura runner-cache reachable over the PN
         run: |
