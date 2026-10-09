@@ -1014,7 +1014,10 @@ addresses and the gateways.
 - **The standby goes out through the master.** Every edge routes out through
   the other's VRRP address at metric 200, which keepalived's default route
   beats on the master; the master translates the VRRP prefix onto the WAN.
-  That is how the standby stays on the tailnet and in the cluster.
+  That is how the standby stays on the tailnet and in the cluster. The route
+  is `proto static`, the protocol networkd gives the same route on an edge
+  installed with it (below): with any other, a networkd restart adds a second
+  copy beside the pod's.
 - **No DHCP on the uplinks.** The operator's converge gives an edge's X710
   uplinks no address and no DHCP, global resolvers and no router
   advertisements (see "Rack-owned Linux hosts" in
@@ -1023,6 +1026,18 @@ addresses and the gateways.
   it on its uplinks, and `mgmt-path.sh` routes the ToRs' management addresses
   over both uplinks, the node skipping a nexthop whose link is down. The
   management segment reaches the internet translated onto the WAN.
+- **A reinstalled edge goes out through the other one.** With no DHCP
+  anywhere, a fresh install would reach nothing, the tailnet included, and so
+  never be converged. `render` also writes `infra/helm/tuist/rack-sites/<site>.yaml`
+  (`fleet_edge_install`): each edge's uplinks, in the order its data links are
+  listed (the order `mgmt-path.sh` stacks the edge VLANs in), the VRRP VLAN,
+  its VRRP address and the other edge's. The tuist chart puts that on the
+  edge's RackLinuxHost (`spec.edge`), and the operator's install builds the
+  VRRP bond from it the way `edge_vlan_bond` does, with the standby's default
+  route through the master, so the pod later finds it in place. A site with no
+  WAN lists no edges there, and its edges' installs keep DHCP on their
+  uplinks. It needs the other edge up as master: reinstall one edge at a
+  time.
 - **Closed from outside.** `tuist_rack_wan` lets in replies to what the rack
   started, ICMP and ICMPv6 (neighbour discovery included) and tailscaled's UDP
   41641 for direct tailnet paths, and drops everything else arriving on

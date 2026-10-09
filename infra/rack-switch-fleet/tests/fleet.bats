@@ -2448,7 +2448,7 @@ STUB
     [[ "$output" == *"ip link set enp2s0f0np0 up"* ]]
     [[ "$output" == *"ip link add link enp2s0f1np1 name wan0-1 type vlan id 4001"* ]]
     # the standby's way out is the master, at a metric keepalived's route beats
-    [[ "$output" == *"ip route replace default via 10.255.255.1 dev vrrp0 metric 200"* ]]
+    [[ "$output" == *"ip route replace default via 10.255.255.1 dev vrrp0 metric 200 proto static"* ]]
     # the ToRs' management addresses over whichever uplink has link, and the
     # switch behind the edge left to keepalived's host route
     [[ "$output" == *"ip route replace 192.168.0.11/32 nexthop dev enp2s0f1np1 nexthop dev enp2s0f0np0"* ]]
@@ -2476,7 +2476,7 @@ STUB
     run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" NODE_NAME=ber1-edge-a sh "$bin/mgmt-path.sh"
     [ "$status" -eq 0 ]
     run cat "$bin/log"
-    [[ "$output" == *"ip route replace default via 10.255.255.2 dev vrrp0 metric 200"* ]]
+    [[ "$output" == *"ip route replace default via 10.255.255.2 dev vrrp0 metric 200 proto static"* ]]
     # a site without a WAN routes nothing of its own and filters nothing
     run fleet_edge_path "$(site_without_wan)"
     [[ "$output" != *"ip route replace"* ]]
@@ -2711,6 +2711,64 @@ STUB
     run env RACK_SITE=ber1 FLEET_EDGE_CHART="$chart" "$FLEET_ROOT/fleet.sh" render --check
     [ "$status" -ne 0 ]
     [[ "$output" == *"stale: "*"/sites/ber1/dnsmasq.conf"* ]]
+}
+
+@test "a freshly installed edge goes out over the VRRP VLAN the way its rack-edge pod later builds it" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_install "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    install="$output"
+    [[ "$install" == *"  ber1-edge-b:
+    uplinks: [enp2s0f1np1, enp2s0f0np0]
+    vrrp:
+      vlan: 4000
+      address: 10.255.255.2/29
+      peer: 10.255.255.1"* ]]
+    # every edge gets the pod's uplinks in the pod's order (vrrp0-<n> rides
+    # the n-th), the pod's address and the pod's peer
+    run fleet_edge_path "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    local edges=0 line node address peer uplinks
+    while IFS= read -r line; do
+        node="$(sed -E 's/^  ([a-z0-9-]+)\) .*/\1/' <<<"$line")"
+        address="$(sed -E 's/.* vrrp_address=([^ ]+) .*/\1/' <<<"$line")"
+        peer="$(sed -E 's/.* peer_address=([^ ]+) .*/\1/' <<<"$line")"
+        uplinks="$(sed -E 's/.* uplinks="([^"]*)".*/\1/' <<<"$line")"
+        [[ "$install" == *"  $node:
+    uplinks: [${uplinks// /, }]
+    vrrp:
+      vlan: 4000
+      address: $address
+      peer: $peer"* ]]
+        edges=$((edges + 1))
+    done < <(grep -E '^  ber1-edge-[a-z]+\) vrrp_address=' <<<"$output")
+    [ "$edges" -eq 2 ]
+    # and the route the pod puts back is the one networkd gives the install,
+    # protocol included, so a restart of networkd adds no second one
+    [[ "$output" == *'ip route replace default via "$peer_address" dev vrrp0 metric 200 proto static'* ]]
+    [ "$(grep -c '^  ber1-edge-' <<<"$install")" -eq 2 ]
+}
+
+@test "a site with no WAN gives its edges' installs no way out over VRRP, so they keep DHCP on their uplinks" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_install "$(site_without_wan)"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"edges: {}"* ]]
+    [[ "$output" != *"vrrp"* ]]
+}
+
+@test "render --check notices an edge install the tuist chart reads that no longer matches the site" {
+    chart="$BATS_TEST_TMPDIR/chart"
+    sites="$BATS_TEST_TMPDIR/rack-sites"
+    mkdir -p "$chart/sites" "$sites"
+    cp -R "$FLEET_ROOT/../helm/rack-edge/sites/ber1" "$chart/sites/"
+    cp "$FLEET_ROOT/../helm/tuist/rack-sites/ber1.yaml" "$sites/"
+    run env RACK_SITE=ber1 FLEET_EDGE_CHART="$chart" FLEET_RACK_SITES="$sites" "$FLEET_ROOT/fleet.sh" render --check
+    [ "$status" -eq 0 ]
+    sed -i.bak 's/peer: 10.255.255.1$/peer: 10.255.255.3/' "$sites/ber1.yaml"
+    run env RACK_SITE=ber1 FLEET_EDGE_CHART="$chart" FLEET_RACK_SITES="$sites" "$FLEET_ROOT/fleet.sh" render --check
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"stale: "*"/rack-sites/ber1.yaml"* ]]
 }
 
 # --- the machines segment ----------------------------------------------------

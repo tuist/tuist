@@ -75,7 +75,7 @@ private-network guide above.
 | `RackPDU` | One switched PDU in a rack we operate, rendered from the site definition in `infra/rack-switch-fleet`: model, the MAC its address is reserved against, address, chain, `managedBy`, the outlets' startup state. Its controller adopts the card and owns its credentials, certificate pin and egress Service. See "RackPDU" below. |
 | `RackATS` | One automatic transfer switch (EATS16N) in a rack we operate, rendered from the site definition: model, MAC, address, `managedBy`, `preferredSource`. Its controller adopts the card like a RackPDU's, keeps the preferred source, and every minute records which source powers the load and each source's state in status, metrics and events. See "RackATS" below. |
 | `RackLinuxMachine` | One rack Linux node, created by the operator with its CAPI Machine under its host's name: the host it is, the name it joined under, its converge state. |
-| `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`) and its AMT. Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
+| `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`), its AMT and, for an edge, its way out on its first boot (`edge`). Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
 | `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, its TPM's endorsement key, the `bootMAC` to declare (its i226-LM), the edge that heard it, the host that declares it, if any, and the last announcement that conflicted with the first. The boot servers write it and the operator marks it. |
 | `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
 | `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Reinstall-on-release. |
@@ -1359,14 +1359,23 @@ converge writes:
   `RequiredForOnline=no`, so the uplinks are up with no address and boot does
   not wait for them. networkd applies the first `.network` file that matches a
   link, in filename order across directories, so it shadows the install's
-  netplan (`/run/systemd/network/10-netplan-uplinks.network`, DHCP on the
-  uplinks).
+  netplan (`/run/systemd/network/10-netplan-*.network`).
+- with `spec.edge`, `/etc/systemd/network/05-tuist-edge-uplink-<n>.network`
+  for each uplink it names, matching the interface by name, which sorts before
+  the driver's file: the same settings plus `VLAN=vrrp0-<n>`. The install's
+  netplan stacks the VRRP VLAN's members on the uplinks in its own uplink
+  files, which these shadow, so without them networkd would stop creating the
+  members on the next boot and an edge rebooted before its rack-edge pod was
+  installed would be cut off. networkd ignores the line on a host whose
+  install defined no `vrrp0-<n>`, where the pod creates them. An uplink the
+  spec no longer names, or a host with no `spec.edge`, gets its file removed.
 - `/etc/systemd/networkd.conf.d/10-tuist-edge.conf`:
   `ManageForeignRoutes=no` and `ManageForeignRoutingPolicyRules=no`, so
   networkd never removes the routes and rules keepalived and the rack-edge pod
   add. The routes on the uplinks belong to them.
 - `/etc/systemd/resolved.conf.d/10-tuist-edge.conf`: global resolvers
-  (`DNS=1.1.1.1 8.8.8.8`). An uplink with no address gives systemd-resolved no
+  (`DNS=1.1.1.1 8.8.8.8`, `rackinstall.EdgeResolvedConf`, which an edge's
+  install writes too). An uplink with no address gives systemd-resolved no
   resolver of its own.
 - `/etc/sysctl.d/99-tuist-edge.conf`:
   `net.ipv4.conf.all.ignore_routes_with_linkdown = 1`, since the pod's routes
@@ -1378,11 +1387,37 @@ converge writes:
 Another role gets these files removed, so a role change cleans up; the
 sysctls' values stay in the kernel until the host reboots.
 
-Not yet done: a freshly installed edge's first boot still takes DHCP on its
-uplinks from the install's netplan (`internal/rackinstall/seed.go`). At the
-colo nothing serves DHCP there (VLAN 1), so a reinstalled edge has no internet,
-and so no tailnet, until it is converged, and it cannot be converged without
-the tailnet.
+**A freshly installed edge goes out through the other edge.** At the colo
+nothing serves DHCP on the management VLAN, and an edge is converged over the
+tailnet, so its first boot needs a way out that neither DHCP nor its own
+rack-edge pod gives it. An edge's `spec.edge` names its uplinks, the site's
+VRRP VLAN, its VRRP address and the other edge's (`peer`); the chart renders it
+from `infra/helm/tuist/rack-sites/<site>.yaml`, which `rack:fleet render`
+writes from the site definition (`fleet_edge_install`), and fails for an edge
+the site has no VRRP member for. With it the install's netplan
+(`rackinstall.EdgeNetwork`) builds the VRRP VLAN exactly as the pod's
+`edge_vlan_bond` does: an active-backup bond `vrrp0` (MII every 100 ms) over
+`vrrp0-<n>`, the VLAN on the n-th uplink, with the edge's VRRP address and
+`default via <peer> metric 200`, the route the pod adds (`proto static` from
+both, so a networkd restart adds no second copy); the uplinks themselves
+take no address, no DHCP and no link-local, and `network-online.target` waits
+for `vrrp0` alone. It also writes the converge's global resolvers. The master
+translates the VRRP prefix onto `wan0`, so the new edge reaches the tailnet,
+joins, and is converged; the pod later finds the bond, its members, the address
+and the route in place and changes nothing, and the converge's per-uplink
+files keep networkd building them. netplan's output is tested with netplan
+1.x on Ubuntu 24.04 (`TestNetplanGeneratesTheEdgesVRRPBond`, skipped where
+netplan is not installed). On 2026-10-09 the rendered netplan ran under
+systemd-networkd in a container with dummy uplinks: the pod's `edge_vlan_bond`
+found everything in place and changed nothing, and after the converge's files
+and a simulated reboot networkd rebuilt the bond, which it did not without the
+per-uplink files. Not yet run: an install of a real edge at the colo.
+
+This needs the other edge up as master: reinstall the edges one at a time.
+Without `spec.edge`, as at a site with no WAN, an edge's install takes DHCP on
+its uplinks. A per-host stick (`cmd/rack-seed`) renders no edge network; an
+edge at the colo is installed from the operator's install, netbooted or
+through the site's stick.
 
 The operator runs it over SSH (`rack-node apply`, the request on stdin and the
 result on stdout, the binary uploaded under `/usr/local/lib/tuist/` by its

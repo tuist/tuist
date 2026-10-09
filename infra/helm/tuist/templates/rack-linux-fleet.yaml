@@ -9,6 +9,9 @@ labels and taints come from `rackLinuxFleet.roles.<role>` and reach the Node at
 its first registration. A host with an `address` on the site's machines segment
 also labels its Node `tuist.dev/pn-ipv4` with it: the address the segment's
 clients reach a host-network gateway on.
+An edge takes `spec.edge`, its way out on the first boot of an install, from
+`rack-sites/<site>.yaml`, which `rack:fleet render` writes from the site
+definition.
 */ -}}
 {{- range $host := .Values.rackLinuxFleet.hosts }}
 {{- $uuid := lower (required "each rackLinuxFleet.hosts entry needs the machine's uuid" $host.uuid) }}
@@ -17,6 +20,17 @@ clients reach a host-network gateway on.
 {{- end }}
 {{- $hostname := required (printf "rackLinuxFleet.hosts[%s].hostname is required" $uuid) $host.hostname }}
 {{- $role := required (printf "rackLinuxFleet.hosts[%s].role is required" $hostname) $host.role }}
+{{- $site := required (printf "rackLinuxFleet.hosts[%s].site is required; it composes the providerID" $hostname) (coalesce $host.site $.Values.rackLinuxFleet.site) }}
+{{- $edge := dict }}
+{{- if eq $role "edge" }}
+{{- with $.Files.Get (printf "rack-sites/%s.yaml" $site) }}
+{{- $edges := (fromYaml .).edges | default dict }}
+{{- $edge = get $edges $hostname | default dict }}
+{{- if and $edges (not $edge) }}
+{{- fail (printf "rackLinuxFleet.hosts[%s] is an edge of %s, whose site definition has no VRRP member by that name" $hostname $site) }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- $roleConfig := get $.Values.rackLinuxFleet.roles $role | default dict }}
 {{- $tags := $host.tailnetTags | default $roleConfig.tailnetTags | default $.Values.rackLinuxFleet.tailnetTags }}
 {{- $nodeLabels := deepCopy ($roleConfig.nodeLabels | default dict) }}
@@ -42,7 +56,7 @@ spec:
   role: {{ $role }}
   sshUser: {{ $host.sshUser | default $.Values.rackLinuxFleet.sshUser | default "tuist" }}
   location:
-    site: {{ required (printf "rackLinuxFleet.hosts[%s].site is required; it composes the providerID" $hostname) (coalesce $host.site $.Values.rackLinuxFleet.site) | quote }}
+    site: {{ $site | quote }}
     {{- with $host.rack }}
     rack: {{ . | quote }}
     {{- end }}
@@ -81,6 +95,10 @@ spec:
     {{- with .gateway }}
     gateway: {{ . | quote }}
     {{- end }}
+  {{- end }}
+  {{- with $edge }}
+  edge:
+    {{- toYaml . | nindent 4 }}
   {{- end }}
 {{- end }}
 {{- if .Values.rackLinuxFleet.sshExternalSecret.enabled }}

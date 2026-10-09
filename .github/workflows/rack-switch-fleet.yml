@@ -34,6 +34,7 @@ on:
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackatses.yaml
       - infra/helm/omada/**
       - infra/helm/rack-edge/sites/**
+      - infra/helm/tuist/rack-sites/**
       - mise/tasks/rack/**
       - .github/workflows/rack-switch-fleet.yml
   pull_request:
@@ -50,6 +51,7 @@ on:
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackatses.yaml
       - infra/helm/omada/**
       - infra/helm/rack-edge/sites/**
+      - infra/helm/tuist/rack-sites/**
       - mise/tasks/rack/**
       - .github/workflows/rack-switch-fleet.yml
   merge_group: {}
