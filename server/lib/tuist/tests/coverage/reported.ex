@@ -44,7 +44,6 @@ defmodule Tuist.Tests.Coverage.Reported do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
-  alias Tuist.CommandEvents.Event
   alias Tuist.Environment
   alias Tuist.GitHistory
   alias Tuist.KeyValueStore
@@ -55,10 +54,11 @@ defmodule Tuist.Tests.Coverage.Reported do
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.GapReasons
   alias Tuist.Tests.Coverage.Instrumentation
+  alias Tuist.Tests.Coverage.TargetSources
+  alias Tuist.Tests.Coverage.Xcode
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseRun
-  alias Tuist.Xcode.XcodeTarget
 
   # A lookup scoped to runs binds every run id as a query parameter too, so the
   # run ids are chunked first and each chunk is kept small enough that the ids
@@ -176,6 +176,7 @@ defmodule Tuist.Tests.Coverage.Reported do
       run_ids: run_ids,
       hits: hits,
       hashes: skipping.hashes,
+      indexed: skipping.indexed,
       observed: observed,
       blobs: run_blobs(project.id, run_ids),
       excluded: ExcludedPaths.compile(excluded),
@@ -432,24 +433,30 @@ defmodule Tuist.Tests.Coverage.Reported do
     %{skipping | gaps: skipping.gaps ++ selected}
   end
 
-  defp tuist_skipped(_context, {_runs, [], [], _clean}), do: %{skipped: [], gaps: [], ancestry: nil, hashes: %{}}
+  defp tuist_skipped(_context, {_runs, [], [], _clean}),
+    do: %{skipped: [], gaps: [], ancestry: nil, hashes: %{}, indexed: %{}}
 
   defp tuist_skipped(%{project: project, repository_id: repository_id, sha: sha} = context, runs) do
     # A commit that changes a tracked file carries nothing.
     if changes_tracked_files?(context),
-      do: %{skipped: [], gaps: [:tracked_file_changed], ancestry: [], hashes: %{}},
+      do: %{skipped: [], gaps: [:tracked_file_changed], ancestry: [], hashes: %{}, indexed: %{}},
       else: skipped_tests(project, repository_id, sha, runs)
   end
 
   defp skipped_tests(_project, repository_id, _sha, _runs) when repository_id in [nil, 0],
-    do: %{skipped: [], gaps: [:no_ancestor], ancestry: [], hashes: %{}}
+    do: %{skipped: [], gaps: [:no_ancestor], ancestry: [], hashes: %{}, indexed: %{}}
 
   defp skipped_tests(project, repository_id, sha, {runs, hits, skips, clean}) do
     modules = Enum.uniq(Enum.map(hits, & &1.name) ++ Enum.map(skips, &hd/1))
     ancestry = ancestor_runs(project.id, repository_id, sha)
     schemes = runs |> Enum.concat(clean) |> Map.new(&{&1.test_run_id, &1.scheme})
-    {sources, hashes} = sources(project.id, ancestry, modules, preferences(hits, skips, schemes))
-    inventory = inventory(project.id, sources)
+    # A target recorded under the hash it was skipped with needs no walk: that
+    # run executed the same target, so its tests are the target's.
+    indexed = indexed_sources(project.id, repository_id, hits, ancestry)
+    {sources, hashes} = sources(project.id, ancestry, modules -- Map.keys(indexed), preferences(hits, skips, schemes))
+
+    inventory =
+      inventory(project.id, Map.merge(sources, Map.new(indexed, fn {module, source} -> {module, source.run_id} end)))
 
     candidates =
       Enum.flat_map(hits, &Map.get(inventory, &1.name, [])) ++
@@ -470,8 +477,23 @@ defmodule Tuist.Tests.Coverage.Reported do
       skipped: candidates |> Enum.uniq_by(& &1.test_case_id) |> Enum.reject(&MapSet.member?(ran, &1.test_case_id)),
       gaps: gaps,
       ancestry: ancestry,
-      hashes: hashes
+      hashes: hashes,
+      indexed: indexed
     }
+  end
+
+  # The run each hit target was recorded under with the hash it was skipped
+  # with (`Tuist.Tests.Coverage.TargetSources`), with its commit's depth when
+  # it is an ancestor walked: one from another branch has none and ranks
+  # after the ancestors.
+  defp indexed_sources(_project_id, _repository_id, [], _ancestry), do: %{}
+
+  defp indexed_sources(project_id, repository_id, hits, ancestry) do
+    depths = Map.new(ancestry, &{&1.git_commit_sha, &1.depth})
+
+    project_id
+    |> TargetSources.latest(repository_id, hits |> Map.new(&{&1.name, &1.hash}) |> Enum.to_list())
+    |> Map.new(fn {{module, _hash}, source} -> {module, Map.put(source, :depth, Map.get(depths, source.sha))} end)
   end
 
   # The runs' skip identifiers, split into their target, suite and test.
@@ -666,7 +688,7 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   defp selective_testing_hits(project_id, _repository_id, run_ids) do
     project_id
-    |> target_hashes(run_ids)
+    |> Xcode.selective_testing_hashes(run_ids)
     |> Enum.filter(&(&1.hit in ["local", "remote"]))
   end
 
@@ -678,10 +700,18 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp carried(%{repository_id: repository_id}, _skipped) when repository_id in [nil, 0], do: {[], %{}}
 
   defp carried(context, skipped) do
-    source_runs =
+    ancestors =
       Map.new(context.ancestry, &{&1.test_run_id, %{sha: &1.git_commit_sha, depth: &1.depth, ran_at: &1.ran_at}})
 
-    ranked = source_runs |> Enum.sort_by(&source_rank(elem(&1, 1))) |> Enum.map(&elem(&1, 0))
+    # Only the ancestors are walked; a recorded target source may be another
+    # branch's run.
+    ranked = ancestors |> Enum.sort_by(&source_rank(elem(&1, 1))) |> Enum.map(&elem(&1, 0))
+
+    source_runs =
+      Map.merge(
+        ancestors,
+        Map.new(context.indexed, fn {_module, source} -> {source.run_id, Map.delete(source, :run_id)} end)
+      )
 
     tracked_now = tracked(context, context.sha)
     hashes = Map.new(context.hits, &{&1.name, &1.hash})
@@ -715,6 +745,27 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp target_units(by_module, _context, _hashes, _ranked, _source_runs) when by_module == %{}, do: []
 
   defp target_units(by_module, context, hashes, ranked, source_runs) do
+    {indexed, walked} = Enum.split_with(by_module, fn {module, _tests} -> Map.has_key?(context.indexed, module) end)
+
+    indexed
+    |> Enum.map(fn {module, _tests} -> {module, context.indexed[module].run_id} end)
+    |> Enum.concat(walk_target_sources(Map.new(walked), context, hashes, ranked, source_runs))
+    |> Enum.map(fn {module, run_id} ->
+      %{
+        kind: :target,
+        key: {:module, module},
+        module: module,
+        tests: by_module[module],
+        scopes: [{"target", module}],
+        run_id: run_id,
+        source: Map.put(source_runs[run_id], :run_id, run_id)
+      }
+    end)
+  end
+
+  defp walk_target_sources(by_module, _context, _hashes, _ranked, _source_runs) when by_module == %{}, do: %{}
+
+  defp walk_target_sources(by_module, context, hashes, ranked, source_runs) do
     project_id = context.project.id
     modules = Map.keys(by_module)
 
@@ -740,17 +791,6 @@ defmodule Tuist.Tests.Coverage.Reported do
       end
     end)
     |> elem(0)
-    |> Enum.map(fn {module, run_id} ->
-      %{
-        kind: :target,
-        key: {:module, module},
-        module: module,
-        tests: by_module[module],
-        scopes: [{"target", module}],
-        run_id: run_id,
-        source: Map.put(source_runs[run_id], :run_id, run_id)
-      }
-    end)
   end
 
   defp test_units([], _project_id, _ranked, _source_runs), do: []
@@ -997,39 +1037,6 @@ defmodule Tuist.Tests.Coverage.Reported do
     end)
   end
 
-  # The selective-testing hash and hit each run's command event reported per
-  # target. A run that ignored selective testing still hashes its targets,
-  # and reports them as misses. The targets are read by command event, which
-  # their table's `proj_by_command_event` projection is ordered by: joined
-  # to the events, nothing bounded the read of a table ordered by time.
-  defp target_hashes(_project_id, []), do: []
-
-  defp target_hashes(project_id, run_ids) do
-    events = command_events(project_id, run_ids)
-
-    events
-    |> Map.keys()
-    |> Coverage.id_chunks()
-    |> Enum.flat_map(fn ids ->
-      ClickHouseRepo.all(
-        from(t in XcodeTarget,
-          where: t.command_event_id in ^ids and not is_nil(t.selective_testing_hash),
-          distinct: true,
-          select: %{
-            command_event_id: t.command_event_id,
-            name: t.name,
-            hash: t.selective_testing_hash,
-            hit: t.selective_testing_hit
-          }
-        )
-      )
-    end)
-    |> Enum.map(fn target ->
-      target |> Map.delete(:command_event_id) |> Map.put(:test_run_id, events[target.command_event_id])
-    end)
-    |> Enum.uniq()
-  end
-
   # The hashes each run reported for the given targets, by run and target. A
   # run that reported none still gets an entry, so it is not read again.
   defp run_hashes(_project_id, [], _names), do: %{}
@@ -1039,23 +1046,12 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     hashes =
       project_id
-      |> target_hashes(run_ids)
+      |> Xcode.selective_testing_hashes(run_ids)
       |> Enum.filter(&MapSet.member?(names, &1.name))
       |> Enum.group_by(& &1.test_run_id)
       |> Map.new(fn {run_id, targets} -> {run_id, Enum.group_by(targets, & &1.name, & &1.hash)} end)
 
     run_ids |> Map.new(&{&1, %{}}) |> Map.merge(hashes)
-  end
-
-  defp command_events(project_id, run_ids) do
-    run_ids
-    |> Coverage.id_chunks()
-    |> Enum.flat_map(fn runs ->
-      ClickHouseRepo.all(
-        from(e in Event, where: e.project_id == ^project_id and e.test_run_id in ^runs, select: {e.id, e.test_run_id})
-      )
-    end)
-    |> Map.new()
   end
 
   # The targets that had a failing test in the run their evidence comes from.

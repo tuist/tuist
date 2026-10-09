@@ -893,6 +893,91 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{kind: "reported", skipped_tests_count: 2, carried_tests_count: 2} = Reported.compute(project, "tip")
   end
 
+  # TextKitTests run whole on a branch off the base, then folded once its
+  # hashes landed, so the run is recorded as the target's source.
+  defp recorded_source(project, account, text_opts \\ []) do
+    CoverageFixtures.seed_history(account, [CoverageFixtures.commit("s1", ["base"], 2)])
+
+    run =
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [file("Sources/Text.swift", [1, 1, 1, 0], text_opts), file("Tests/AppTests.swift", [1, 1], is_test: true)],
+        %{
+          git_commit_sha: "s1",
+          git_branch: "feature/text",
+          recompute: false,
+          test_modules: [
+            %{name: "TextKitTests", status: "success", duration: 1, test_cases: [test_case("testTrim()", "TextTests")]}
+          ],
+          coverage_evidence: %{
+            paths: ["Sources/Text.swift", "Tests/AppTests.swift"],
+            scopes: [
+              %{kind: "target", module: "TextKitTests", suite: "", name: "", files: [0, 1], lines: [[1, 3], [1, 1]]}
+            ]
+          }
+        }
+      )
+
+    selective_testing(project, run, [{"TextKitTests", :miss, "text"}])
+    CoverageFixtures.recompute_commit(run)
+    run
+  end
+
+  test "carries a target from the run recorded under the hash it was skipped with, on another branch", %{
+    project: project,
+    account: account
+  } do
+    recorded_source(project, account)
+    skipped_head(project, account, [{"TextKitTests", :local, "text"}])
+
+    test_pid = self()
+
+    stub(ClickHouseRepo, :all, fn query ->
+      # Which runs hold the target's evidence: the walk's question.
+      if inspect(query) =~ ~s(scope_kind == ^"target") and inspect(query) =~ "select: {c0.scope_id, c0.test_run_id}",
+        do: send(test_pid, :walked_target_evidence)
+
+      call_original(ClickHouseRepo, :all, [query])
+    end)
+
+    # The branch isn't an ancestor: walking the history alone finds no source.
+    assert %{skipped_tests_count: 1, carried_tests_count: 1, carried_from: ["s1"]} = Reported.compute(project, "head")
+    refute_received :walked_target_evidence
+  end
+
+  test "carries no recorded target whose executed files changed since", %{project: project, account: account} do
+    recorded_source(project, account, git_blob_id: "blob-before")
+    skipped_head(project, account, [{"TextKitTests", :local, "text"}])
+
+    assert %{skipped_tests_count: 1, carried_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert :executed_file_changed in reasons(reported)
+  end
+
+  test "carries no target recorded under another hash", %{project: project, account: account} do
+    recorded_source(project, account)
+    skipped_head(project, account, [{"TextKitTests", :local, "text-changed"}])
+
+    assert %{carried_tests_count: 0} = Reported.compute(project, "head")
+  end
+
+  test "walks the ancestors for a target with no recorded source", %{project: project, account: account} do
+    # The base's hashes landed after its fold, so nothing recorded it.
+    target_only_runs(project, account, head: :skipped)
+
+    test_pid = self()
+
+    stub(ClickHouseRepo, :all, fn query ->
+      if inspect(query) =~ ~s(scope_kind == ^"target") and inspect(query) =~ "select: {c0.scope_id, c0.test_run_id}",
+        do: send(test_pid, :walked_target_evidence)
+
+      call_original(ClickHouseRepo, :all, [query])
+    end)
+
+    assert %{kind: "reported", carried_tests_count: 2, carried_from: ["base"]} = Reported.compute(project, "head")
+    assert_received :walked_target_evidence
+  end
+
   test "carries no target whose inputs hashed differently where its evidence comes from", %{
     project: project,
     account: account

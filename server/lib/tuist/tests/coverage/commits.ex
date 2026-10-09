@@ -37,6 +37,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.GapReasons
   alias Tuist.Tests.Coverage.Reported
+  alias Tuist.Tests.Coverage.TargetSources
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.CoverageRun
@@ -122,6 +123,10 @@ defmodule Tuist.Tests.Coverage.Commits do
       # it) synced no row, and this commit's own advance, observed earlier
       # than that one or finding the branch already holds it, moves nothing.
       if row.git_repository_id > 0, do: GitHistory.sync_coverage_places(row.git_repository_id, [sha])
+
+      # The targets the commit's runs executed whole become carry sources for
+      # the commits that skip them with the same hash.
+      TargetSources.record(project.id, runs)
 
       summary = summary(project.id, sha)
       if Deltas.complete?(summary), do: Deltas.enqueue(project.id, sha)
