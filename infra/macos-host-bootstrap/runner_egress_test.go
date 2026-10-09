@@ -144,3 +144,17 @@ func TestRenderRunnerEgressScriptRunsUnderZshWithNothingInstalled(t *testing.T) 
 		}
 	}
 }
+
+// A runner VM's IPv6 would leave from the host's own address, so the VM
+// egress firewall keeps every VM IPv4-only.
+func TestVMEgressFirewallBlocksVMIPv6(t *testing.T) {
+	for _, cfg := range []Config{{}, {RunnerEgressGateways: []RunnerEgressGateway{testRunnerEgressGateway("dedicated-1", 1)}}} {
+		script, err := renderVMEgressFirewallScript(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(script, "block return in quick inet6 from fc00::/7 to 2000::/3\n") {
+			t.Fatalf("VM IPv6 egress is not blocked:\n%s", script)
+		}
+	}
+}

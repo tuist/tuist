@@ -1841,6 +1841,13 @@ block drop out quick from <vm_sources> to <blocked_dst>
 # carry it. A static rule survives any future routing changes
 # from the cluster operator.
 block drop out quick from <vm_sources> to 169.254.169.254
+
+# Runner VMs are IPv4-only. vmnet hands each guest a ULA address and NAT66es
+# it to the host's own IPv6, which would let a job bound to a dedicated egress
+# address leave from the shared host address instead, and pf can't tell which
+# VM a ULA address belongs to. Matched inbound, before NAT66 rewrites the
+# source; 'return' makes clients fall back to IPv4 at once.
+block return in quick inet6 from fc00::/7 to 2000::/3
 PFCONF
 
 # Manage the anchor block in /etc/pf.conf. Strip-and-append is

@@ -246,7 +246,7 @@ on the shared path.
 | Gateway or tunnel failure mid-job | `route-to` still forces packets into utunG, where they are dropped. In-flight connections fail. Nothing leaves from the host IP. |
 | Host tunnel daemon dies or restarts | The pf rules stay loaded. Packets go to the missing utun or hit the `tuist.runners` backstop. They are dropped and never routed out of en0. The daemon comes back on the same utun name. This needs checking on staging: does a `route-to` that names a missing interface drop the packet? |
 | `md-egress` node failover | stable-egress-controller moves every managed FIP together. The hosts' WireGuard re-handshakes with the standby pod, which has the same key and is already running. In-flight flows reset, the same as server egress today. |
-| IPv6 | Needs checking on staging: does vmnet give guests a routable v6 path? If it does, egress VMs get `block drop in quick inet6` on bridge100. |
+| IPv6 | vmnet gives every guest a ULA address and NAT66es it to the host's own IPv6, and pf can't tie a ULA address to a VM. So every runner VM is IPv4-only: `tuist.runners` carries `block return in quick inet6 from fc00::/7 to 2000::/3`, matched before NAT66 rewrites the source, and clients fall back to IPv4 at once. GitHub-hosted macOS runners are IPv4-only too. |
 
 ## Phase 2: Tuist's own /24
 
@@ -301,6 +301,5 @@ then, Linux dispatch skips dedicated-egress accounts.
 5. Confirm on a real staging host:
    - pf `route-to` plus NAT through the utun
    - the missing-interface behaviour
-   - IPv6
    - throughput through the tunnel (a clone of a large repo, and a Homebrew
      bottle install)
