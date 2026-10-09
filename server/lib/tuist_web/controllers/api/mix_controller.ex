@@ -15,6 +15,7 @@ defmodule TuistWeb.API.MixController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create_build)
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :build)
 
@@ -32,6 +33,7 @@ defmodule TuistWeb.API.MixController do
     summary: "Create a Mix (Elixir) compile build.",
     operation_id: "createMixBuild",
     parameters: [
+      "x-tuist-actor-id": TuistWeb.API.Schemas.ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -340,5 +342,6 @@ defmodule TuistWeb.API.MixController do
       steps: body[:steps] || [],
       machine_metrics: body[:machine_metrics] || []
     })
+    |> Map.merge(Tuist.ReportActor.attributes(conn))
   end
 end

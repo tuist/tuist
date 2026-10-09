@@ -92,6 +92,7 @@ defmodule Tuist do
       Gradle.Analytics,
       Gradle.Metrics,
       BuildMetrics,
+      ReportActor,
       Gradle.TaskAnalytics,
       Gradle.Build,
       Gradle.Timeline,

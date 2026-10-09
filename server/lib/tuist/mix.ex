@@ -24,7 +24,7 @@ defmodule Tuist.Mix do
     with {:ok, uuid} <- Ecto.UUID.cast(id),
          %Build{} = build <-
            ClickHouseRepo.one(from(b in Build, where: b.id == ^uuid and b.project_id == ^project_id, limit: 1)) do
-      {:ok, build}
+      {:ok, Tuist.ReportActor.preload(build)}
     else
       _ -> {:error, :not_found}
     end
@@ -34,24 +34,27 @@ defmodule Tuist.Mix do
   Returns the project's most recent Mix builds, newest first.
   """
   def list_recent_builds(project_id, limit) do
-    ClickHouseRepo.all(
-      from(b in Build,
-        where: b.project_id == ^project_id,
-        order_by: [desc: b.inserted_at],
-        limit: ^limit
-      )
+    from(b in Build,
+      where: b.project_id == ^project_id,
+      order_by: [desc: b.inserted_at],
+      limit: ^limit
     )
+    |> ClickHouseRepo.all()
+    |> Tuist.ReportActor.preload()
   end
 
   @doc """
   Lists a project's Mix builds with Flop pagination, filtering, and sorting.
   """
   def list_builds(project_id, flop_params \\ %{}) do
-    Tuist.ClickHouseFlop.validate_and_run!(
-      from(b in Build, where: b.project_id == ^project_id),
-      flop_params,
-      for: Build
-    )
+    {builds, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(
+        from(b in Build, where: b.project_id == ^project_id),
+        flop_params,
+        for: Build
+      )
+
+    {Tuist.ReportActor.preload(builds), meta}
   end
 
   @doc """
@@ -307,6 +310,9 @@ defmodule Tuist.Mix do
       id: build_id,
       project_id: attrs.project_id,
       account_id: attrs.account_id,
+      actor_account_id: Map.get(attrs, :actor_account_id, 0),
+      claimed_actor_id: Map.get(attrs, :claimed_actor_id, ""),
+      submission_auth: Map.get(attrs, :submission_auth, ""),
       duration_ms: attrs |> Map.get(:duration_ms, 0) |> max(0) |> min(@int64),
       status: attrs.status,
       is_ci: Map.get(attrs, :is_ci, false),

@@ -12,6 +12,27 @@ defmodule TuistWeb.ModuleCacheLiveTest do
   alias TuistWeb.Runs.ModuleCacheTab
 
   describe "module cache page" do
+    test "recent runs hydrate actor metadata from the base table rather than the old view schema", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      stub(DateTime, :utc_now, fn -> ~U[2024-01-01 10:20:30Z] end)
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["Core"],
+        created_at: ~N[2024-01-01 03:00:00],
+        claimed_actor_id: "developer-123",
+        submission_auth: "token"
+      )
+
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache")
+      html = render_async(lv, 5000)
+      assert html =~ "developer-123"
+      assert html =~ "Unverified"
+    end
+
     test "displays analytics widgets", %{
       conn: conn,
       organization: organization,

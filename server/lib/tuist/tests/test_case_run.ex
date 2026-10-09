@@ -8,6 +8,8 @@ defmodule Tuist.Tests.TestCaseRun do
 
   import Ecto.Changeset
 
+  alias Tuist.Accounts.Account
+
   @derive {
     Flop.Schema,
     filterable: [
@@ -23,12 +25,23 @@ defmodule Tuist.Tests.TestCaseRun do
       :duration,
       :is_ci,
       :account_id,
+      :verified_actor,
+      :claimed_actor_id,
       :scheme,
       :git_branch,
       :shard_id,
       :shard_index
     ],
-    sortable: [:inserted_at, :duration, :name, :ran_at, :id]
+    sortable: [:inserted_at, :duration, :name, :ran_at, :id],
+    adapter_opts: [
+      custom_fields: [
+        verified_actor: [
+          filter: {Tuist.ReportActor, :verified_account_filter, []},
+          ecto_type: :integer,
+          operators: [:==, :!=]
+        ]
+      ]
+    ]
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
@@ -42,6 +55,9 @@ defmodule Tuist.Tests.TestCaseRun do
     field :is_ci, :boolean, default: false
     field :scheme, Ch, type: "String"
     field :account_id, Ch, type: "Nullable(Int64)"
+    field :actor_account_id, Ch, type: "Int64", default: 0
+    field :claimed_actor_id, Ch, type: "String", default: ""
+    field :submission_auth, Ch, type: "LowCardinality(String)", default: ""
     field :ran_at, Ch, type: "DateTime64(6)"
     field :git_branch, Ch, type: "String"
     field :is_default_branch, :boolean, default: false
@@ -58,7 +74,8 @@ defmodule Tuist.Tests.TestCaseRun do
     field :shard_id, Ch, type: "Nullable(UUID)"
     field :shard_index, Ch, type: "Nullable(Int32)"
 
-    belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
+    belongs_to :ran_by_account, Account, foreign_key: :account_id, define_field: false
+    belongs_to :actor_account, Account, foreign_key: :actor_account_id, define_field: false
 
     has_one :crash_report, Tuist.Tests.CrashReport, foreign_key: :test_case_run_id
     has_many :attachments, Tuist.Tests.TestCaseRunAttachment, foreign_key: :test_case_run_id
@@ -80,6 +97,9 @@ defmodule Tuist.Tests.TestCaseRun do
       :is_ci,
       :scheme,
       :account_id,
+      :actor_account_id,
+      :claimed_actor_id,
+      :submission_auth,
       :ran_at,
       :git_branch,
       :is_default_branch,

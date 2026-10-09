@@ -19,6 +19,7 @@ defmodule Tuist.Gradle do
   alias Tuist.Ingestion.DedupToken
   alias Tuist.IngestRepo
   alias Tuist.MCP.Events.Publisher
+  alias Tuist.Repo
 
   require Tuist.BuildMetrics
 
@@ -65,7 +66,7 @@ defmodule Tuist.Gradle do
       create_configuration_operations(build_id, attrs.project_id, Map.get(attrs, :configuration_operations, []), now)
       create_artifact_transforms(build_id, attrs.project_id, Map.get(attrs, :artifact_transforms, []), now)
 
-      if attrs.status == "failure",
+      if attrs.status == "failure" and Map.get(attrs, :submission_auth) != "network_trusted",
         do:
           Publisher.publish(
             "build.failed",
@@ -90,6 +91,9 @@ defmodule Tuist.Gradle do
       id: build_id,
       project_id: attrs.project_id,
       account_id: attrs.account_id,
+      actor_account_id: Map.get(attrs, :actor_account_id, 0),
+      claimed_actor_id: Map.get(attrs, :claimed_actor_id, ""),
+      submission_auth: Map.get(attrs, :submission_auth, ""),
       tasks_cache_hit_count: task_counts.cache_hit,
       duration_ms: attrs.duration_ms,
       started_at: to_naive_datetime(Map.get(attrs, :started_at)),
@@ -273,7 +277,7 @@ defmodule Tuist.Gradle do
 
         case ClickHouseRepo.one(query) do
           nil -> {:error, :not_found}
-          build -> {:ok, build}
+          build -> {:ok, Repo.preload(build, [:actor_account, :built_by_account])}
         end
 
       :error ->
@@ -307,7 +311,8 @@ defmodule Tuist.Gradle do
         do: Tuist.BuildMetrics.with_failure_category(base_query, "gradle", project_id),
         else: base_query
 
-    ClickHouseFlop.validate_and_run!(base_query, flop_params, for: Build)
+    {builds, meta} = ClickHouseFlop.validate_and_run!(base_query, flop_params, for: Build)
+    {Repo.preload(builds, [:actor_account, :built_by_account]), meta}
   end
 
   defp pop_custom_tag_filters(flop_params) do
@@ -375,10 +380,12 @@ defmodule Tuist.Gradle do
   @doc """
   Lists tasks for a specific Gradle build.
   """
-  def list_tasks(build_id) do
+  def list_tasks(build_id), do: list_tasks_for_project(build_project_id(build_id), build_id)
+
+  def list_tasks_for_project(project_id, build_id) do
     query =
       from(t in Task,
-        where: t.gradle_build_id == ^build_id,
+        where: t.project_id == ^project_id and t.gradle_build_id == ^build_id,
         order_by: [asc: t.task_path]
       )
 
@@ -390,18 +397,21 @@ defmodule Tuist.Gradle do
 
   Returns `{tasks, meta}` where `meta` contains pagination info.
   """
-  def list_tasks(build_id, flop_params) do
-    base_query = from(t in Task, where: t.gradle_build_id == ^build_id)
+  def list_tasks(build_id, flop_params, project_id \\ nil) do
+    project_id = project_id || build_project_id(build_id)
+    base_query = from(t in Task, where: t.project_id == ^project_id and t.gradle_build_id == ^build_id)
     ClickHouseFlop.validate_and_run!(base_query, flop_params, for: Task)
   end
 
   @doc """
   Lists the slowest configuration operations for a Gradle build.
   """
-  def list_configuration_operations(build_id, limit \\ 100) do
+  def list_configuration_operations(build_id, limit \\ 100, project_id \\ nil) do
+    project_id = project_id || build_project_id(build_id)
+
     ClickHouseRepo.all(
       from(operation in ConfigurationOperation,
-        where: operation.gradle_build_id == ^build_id,
+        where: operation.project_id == ^project_id and operation.gradle_build_id == ^build_id,
         order_by: [desc: operation.duration_ms],
         limit: ^limit
       )
@@ -411,17 +421,25 @@ defmodule Tuist.Gradle do
   @doc """
   Returns whether a Gradle build has configuration operations.
   """
-  def has_configuration_operations?(build_id) do
-    ClickHouseRepo.exists?(from(operation in ConfigurationOperation, where: operation.gradle_build_id == ^build_id))
+  def has_configuration_operations?(build_id, project_id \\ nil) do
+    project_id = project_id || build_project_id(build_id)
+
+    ClickHouseRepo.exists?(
+      from(operation in ConfigurationOperation,
+        where: operation.project_id == ^project_id and operation.gradle_build_id == ^build_id
+      )
+    )
   end
 
   @doc """
   Lists the slowest artifact transforms for a Gradle build.
   """
-  def list_artifact_transforms(build_id, limit \\ 100) do
+  def list_artifact_transforms(build_id, limit \\ 100, project_id \\ nil) do
+    project_id = project_id || build_project_id(build_id)
+
     ClickHouseRepo.all(
       from(transform in ArtifactTransform,
-        where: transform.gradle_build_id == ^build_id,
+        where: transform.project_id == ^project_id and transform.gradle_build_id == ^build_id,
         order_by: [desc: transform.duration_ms],
         limit: ^limit
       )
@@ -431,8 +449,14 @@ defmodule Tuist.Gradle do
   @doc """
   Returns whether a Gradle build has artifact transforms.
   """
-  def has_artifact_transforms?(build_id) do
-    ClickHouseRepo.exists?(from(transform in ArtifactTransform, where: transform.gradle_build_id == ^build_id))
+  def has_artifact_transforms?(build_id, project_id \\ nil) do
+    project_id = project_id || build_project_id(build_id)
+
+    ClickHouseRepo.exists?(
+      from(transform in ArtifactTransform,
+        where: transform.project_id == ^project_id and transform.gradle_build_id == ^build_id
+      )
+    )
   end
 
   @doc """
@@ -440,10 +464,12 @@ defmodule Tuist.Gradle do
 
   Used as the reference point for computing "started after" offsets.
   """
-  def build_started_at(build_id) do
+  def build_started_at(build_id, project_id \\ nil) do
+    project_id = project_id || build_project_id(build_id)
+
     query =
       from(t in Task,
-        where: t.gradle_build_id == ^build_id and not is_nil(t.started_at),
+        where: t.project_id == ^project_id and t.gradle_build_id == ^build_id and not is_nil(t.started_at),
         select: min(t.started_at)
       )
 
@@ -455,10 +481,12 @@ defmodule Tuist.Gradle do
 
   Used for cache summary widgets (download/upload bytes, throughput).
   """
-  def task_cache_aggregates(build_id) do
+  def task_cache_aggregates(build_id, project_id \\ nil) do
+    project_id = project_id || build_project_id(build_id)
+
     ClickHouseRepo.one(
       from(t in Task,
-        where: t.gradle_build_id == ^build_id,
+        where: t.project_id == ^project_id and t.gradle_build_id == ^build_id,
         select: %{
           cache_download_bytes: fragment("sumIf(ifNull(?, 0), ? = 'remote_hit')", t.cache_artifact_size, t.outcome),
           cache_upload_bytes: fragment("sumIf(ifNull(?, 0), ? = true)", t.cache_artifact_size, t.remote_cache_stored),
@@ -559,6 +587,13 @@ defmodule Tuist.Gradle do
 
       _ ->
         fallback
+    end
+  end
+
+  defp build_project_id(build_id) do
+    case get_build(build_id) do
+      {:ok, build} -> build.project_id
+      {:error, :not_found} -> -1
     end
   end
 

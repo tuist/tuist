@@ -17,7 +17,7 @@ defmodule TuistWeb.GradleTaskExecutionLive do
     project = socket.assigns.selected_project
 
     with {:ok, task} <- Gradle.get_task(project.id, build_id, task_id),
-         {:ok, build} <- Gradle.get_build(build_id),
+         {:ok, build} <- Gradle.get_build(build_id, project_id: project.id),
          true <- build.project_id == project.id do
       {:ok,
        socket

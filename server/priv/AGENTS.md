@@ -28,6 +28,7 @@ This directory contains database migrations and other private assets.
 - The standard `repo/seeds.exs` creates `tuist/xcode-comparison` and `tuist/bazel-comparison` with matching test histories, including healthy, flaky, muted, and skipped cases. Keep their scenarios aligned for visual comparison; rerunning seeds preserves existing comparison runs.
 
 ## Guardrails
+- Actor attribution adds sentinel-backed ClickHouse columns to build/test/command-event reports and child test-case rows. Historical rows retain empty provenance; no identity backfill is valid. Network-trusted publishing adds a default-false project policy; deployment enablement alone is insufficient. Keep compatibility/privacy/trust-boundary guidance in the English build-insights and self-hosting guides, and include actor fields and anonymous publisher IDs in data-export documentation.
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
 - REAPI cache output hints default to empty strings for historical rows and older Kura nodes. Append physical ClickHouse columns in schema order; these identifiers correlate profile descriptions and are never repository source links.

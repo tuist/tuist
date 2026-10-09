@@ -22,6 +22,7 @@ defmodule Tuist.Projects.Project do
     field :name, :string
     field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
     field :default_branch, :string, default: "main"
+    field :network_trusted_builds, :boolean, default: false
     field :last_interacted_at, :naive_datetime, virtual: true
     field :default_previews_visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
     field :slack_channel_id, :string
@@ -96,6 +97,7 @@ defmodule Tuist.Projects.Project do
     |> cast(attrs, [
       :name,
       :default_branch,
+      :network_trusted_builds,
       :visibility,
       :default_previews_visibility,
       :slack_channel_id,

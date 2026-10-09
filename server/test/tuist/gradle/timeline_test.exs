@@ -1,6 +1,7 @@
 defmodule Tuist.Gradle.TimelineTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  alias Tuist.Builds.BuildMachineMetric
   alias Tuist.Builds.RecordedSteps
   alias Tuist.ClickHouseRepo
   alias Tuist.Gradle
@@ -8,8 +9,67 @@ defmodule Tuist.Gradle.TimelineTest do
   alias Tuist.Gradle.Timeline
   alias Tuist.IngestRepo
   alias TuistTestSupport.Fixtures.GradleFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   @start ~U[2026-09-09 10:00:00.123000Z]
+
+  test "identical client UUIDs in two projects cannot mix operations or machine samples" do
+    id = UUIDv7.generate()
+
+    first =
+      GradleFixtures.build_fixture(
+        id: id,
+        started_at: @start,
+        duration_ms: 1000,
+        tasks: [task(":own", "executed", @start)],
+        machine_metrics: [metric(DateTime.to_unix(@start) + 1.0)]
+      )
+
+    {:ok, first_build} = Gradle.get_build(first)
+    second_project = ProjectsFixtures.project_fixture()
+
+    GradleFixtures.build_fixture(
+      id: id,
+      project_id: second_project.id,
+      started_at: @start,
+      tasks: [task(":foreign", "executed", @start)],
+      machine_metrics: [metric(DateTime.to_unix(@start) + 10.0)]
+    )
+
+    {:ok, build} = Gradle.get_build(id, project_id: first_build.project_id)
+    assert Enum.map(Gradle.list_tasks_for_project(build.project_id, id), & &1.task_path) == [":own"]
+    assert {[%{task_path: ":own"}], _} = Gradle.list_tasks(id, %{}, build.project_id)
+    timeline = Timeline.load(build)
+    assert timeline.total_count == 1
+    assert [%{offset_ms: offset}] = timeline.machine_metrics
+    assert offset < 2000
+    assert Timeline.bootstrap(build).machine_metrics == timeline.machine_metrics
+    assert Timeline.load(build, include_metrics: false).duration < 10_000
+  end
+
+  test "legacy samples remain visible only while their UUID has an unambiguous project" do
+    id = GradleFixtures.build_fixture(started_at: @start)
+    {:ok, build} = Gradle.get_build(id)
+
+    row =
+      Map.merge(Map.put(metric(DateTime.to_unix(@start) + 1.0), :cpu_usage_percent, 42.0), %{
+        gradle_build_id: id,
+        project_id: nil,
+        inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+      })
+
+    stale = %{row | inserted_at: NaiveDateTime.add(row.inserted_at, -3600, :second)}
+    IngestRepo.insert_all(BuildMachineMetric, [stale])
+    assert Timeline.bootstrap(build).machine_metrics == []
+    IngestRepo.insert_all(BuildMachineMetric, [row])
+    assert [%{}] = Timeline.bootstrap(build).machine_metrics
+    assert Timeline.available?(build)
+    other_project = ProjectsFixtures.project_fixture()
+    GradleFixtures.build_fixture(id: id, project_id: other_project.id, started_at: @start)
+    assert Timeline.bootstrap(build).machine_metrics == []
+    {:ok, other} = Gradle.get_build(id, project_id: other_project.id)
+    assert Timeline.bootstrap(other).machine_metrics == []
+  end
 
   test "availability accepts aligned samples but not samples entirely before the build" do
     for {offset, available} <- [{-1, false}, {1, true}] do

@@ -30,6 +30,14 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 
 ## Exportable Data
 
+### Report actor attribution and publishing policy
+
+ClickHouse `build_runs`, `gradle_builds`, `mix_builds`, `test_runs`, `test_case_runs`, and `command_events` store `actor_account_id` (the server-authenticated individual account, or 0), `claimed_actor_id` (an optional opaque identifier supplied by the reporting client), and `submission_auth` (server-set publishing provenance: `token` or `network_trusted`; empty for historical records). Test-case rows inherit the parent test report's attribution. Existing publisher `account_id`/user relationships remain unchanged. Claims are unverified, organization-scoped attribution, not credentials; identifiers may contain personal data such as a local username. They are never automatically matched to user records.
+
+Export these fields with every applicable report, selected by `project_id` for projects belonging to the requesting account. Do not select only by `account_id`: credential-free Gradle reports have publisher and actor account IDs of 0. Include associated verified account details through the existing account export rules. The fields have the same retention/deletion lifecycle as their parent reports; no separate actor directory is retained. They are exposed to permitted project viewers through dashboard, API, and MCP responses with explicit attribution provenance; public project pages can expose them to unauthenticated viewers.
+
+PostgreSQL `projects.network_trusted_builds` records the administrator's default-off project publishing policy. Include it in project exports; it persists until the project is deleted or the setting changes. The deployment-level `TUIST_NETWORK_TRUSTED_BUILD_PUBLISHING` switch is installation configuration, not customer authentication material. Per-project publishing quotas are ephemeral rate-limit state, not a separate customer dataset. Successful policy changes also emit operational logs with the authenticated user ID, account ID, project ID, new enabled state, and log timestamp. These logs contain no credentials or reported actor identifiers, follow the installation's application-log retention, and can be retrieved by project/account ID for a legal request when retained; they do not create a separate persistent audit table.
+
 ### Atlas inference decision usage
 
 Atlas's internal inference relay can proxy Jev decision calls, including pull

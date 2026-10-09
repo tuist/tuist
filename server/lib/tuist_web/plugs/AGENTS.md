@@ -3,6 +3,7 @@
 This area owns Plug middleware for request processing.
 
 ## Responsibilities
+- `ReportActorPlug` derives verified account/provenance from server authentication and accepts one bounded opaque actor header. Never resolve a claim to a user. `ReportPublishingAuthPlug` permits missing credentials only for the dedicated Gradle publishing pipeline, and invalid or duplicate supplied credentials fail. `GradleReportPublishingPlug` checks default-off self-hosted deployment and project gates with uncached policy reads, then bounds child records and applies project quotas before anonymous schema validation. Missing/disabled projects receive the same denial; authenticated lookup caching remains unchanged. Invalid optional actor headers are discarded with a generic warning, never allowed to suppress otherwise valid reports. Configured shared-quota failures fail closed; no broad build authorization exception is allowed.
 - `PublicPageHeaderPlug` keeps public-response classification separate from indexing. Project indexing overrides noindex only for opted-in public project HTML on hosted production; redirects and failures reset it. Public-account indexing retains its separate existing policy. Settings and download routes must remain non-indexable even under a public project.
 - Implement request/response middleware (auth, analytics, rate limiting).
 - Handle cross-cutting response negotiation, such as alternate agent-friendly representations.

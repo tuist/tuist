@@ -9,21 +9,31 @@ defmodule TuistWeb.API.GradleController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.GradleExecution
   alias TuistWeb.API.Schemas.PaginationMetadata
+  alias TuistWeb.API.Schemas.ReportActor
+  alias TuistWeb.Plugs.GradleReportPublishingPlug
+
+  plug(GradleReportPublishingPlug, :preflight when action == :create_build)
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :build)
+  plug(TuistWeb.Plugs.LoaderPlug when action != :create_build)
+  plug(GradleReportPublishingPlug when action == :create_build)
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create_build)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :build when action != :create_build)
 
   tags ["Gradle"]
 
   operation(:create_build,
     summary: "Create a Gradle build with task data.",
+    description:
+      "Credentials are required unless both the self-hosted deployment and the project explicitly permit network-trusted publishing. Without credentials the server assigns the report ID and suppresses privileged automation. x-tuist-actor-id supplies optional, unverified attribution.",
+    security: [%{"authorization" => []}, %{}],
     operation_id: "createGradleBuild",
     parameters: [
+      "x-tuist-actor-id": ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -244,7 +254,7 @@ defmodule TuistWeb.API.GradleController do
   def create_build(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
     case Gradle.create_build(build_attributes(conn, project, body)) do
       {:ok, build_id} ->
-        enqueue_vcs_pull_request_comment(body, project)
+        if TuistWeb.Authentication.authenticated?(conn), do: enqueue_vcs_pull_request_comment(body, project)
 
         conn
         |> put_status(:created)
@@ -261,9 +271,16 @@ defmodule TuistWeb.API.GradleController do
     metadata = body[:custom_metadata] || %{}
 
     %{
-      id: body[:id] || UUIDv7.generate(),
+      id: if(TuistWeb.Authentication.authenticated?(conn), do: body[:id] || UUIDv7.generate(), else: UUIDv7.generate()),
       project_id: project.id,
-      account_id: TuistWeb.Authentication.authenticated_subject_account(conn).id,
+      account_id:
+        case TuistWeb.Authentication.authenticated_subject_account(conn) do
+          nil -> 0
+          account -> account.id
+        end,
+      actor_account_id: conn.assigns.report_actor.actor_account_id,
+      claimed_actor_id: conn.assigns.report_actor.claimed_actor_id,
+      submission_auth: conn.assigns.report_actor.submission_auth,
       duration_ms: body.duration_ms,
       started_at: body[:started_at],
       status: body.status,
@@ -381,6 +398,7 @@ defmodule TuistWeb.API.GradleController do
                  type: :object,
                  properties: %{
                    id: %Schema{type: :string, format: :uuid},
+                   actor: ReportActor,
                    duration_ms: %Schema{type: :integer},
                    status: %Schema{type: :string, enum: ["success", "failure", "cancelled"]},
                    gradle_version: %Schema{type: :string, nullable: true},
@@ -462,6 +480,7 @@ defmodule TuistWeb.API.GradleController do
         Enum.map(builds, fn build ->
           %{
             id: build.id,
+            actor: Tuist.ReportActor.actor(build),
             duration_ms: build.duration_ms,
             status: build.status,
             gradle_version: build.gradle_version,
@@ -527,6 +546,7 @@ defmodule TuistWeb.API.GradleController do
            type: :object,
            properties: %{
              id: %Schema{type: :string, format: :uuid},
+             actor: ReportActor,
              duration_ms: %Schema{type: :integer},
              status: %Schema{type: :string, enum: ["success", "failure", "cancelled"]},
              gradle_version: %Schema{type: :string, nullable: true},
@@ -597,7 +617,7 @@ defmodule TuistWeb.API.GradleController do
   )
 
   def get_build(%{assigns: %{selected_project: project}, params: %{build_id: build_id}} = conn, _params) do
-    case Gradle.get_build(build_id) do
+    case Gradle.get_build(build_id, project_id: project.id) do
       {:error, :not_found} ->
         conn
         |> put_status(:not_found)
@@ -605,13 +625,14 @@ defmodule TuistWeb.API.GradleController do
 
       {:ok, build} ->
         if build.project_id == project.id do
-          tasks = Gradle.list_tasks(build_id)
-          configuration_operations = Gradle.list_configuration_operations(build_id)
-          artifact_transforms = Gradle.list_artifact_transforms(build_id)
-          cache_aggregates = Gradle.task_cache_aggregates(build_id)
+          tasks = Gradle.list_tasks_for_project(project.id, build_id)
+          configuration_operations = Gradle.list_configuration_operations(build_id, 100, project.id)
+          artifact_transforms = Gradle.list_artifact_transforms(build_id, 100, project.id)
+          cache_aggregates = Gradle.task_cache_aggregates(build_id, project.id)
 
           json(conn, %{
             id: build.id,
+            actor: Tuist.ReportActor.actor(build),
             duration_ms: build.duration_ms,
             status: build.status,
             gradle_version: build.gradle_version,

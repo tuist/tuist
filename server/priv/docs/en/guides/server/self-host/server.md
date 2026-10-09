@@ -53,6 +53,22 @@ jobs:
           # Deploy to your infrastructure
 ```
 
+## Network-trusted build publishing {#network-trusted-build-publishing}
+
+Self-hosted installations can opt into accepting **Gradle JSON build reports only** without individual credentials. This policy is off by default and unavailable on hosted Tuist. It does not disable dashboard authentication, administration, reads, remote cache access, test publishing, or archive uploads, and the self-hosting license requirement remains enforced.
+
+1. Restrict the deployment to your trusted network, for example a VPN and ingress firewall. Tuist does not verify VPN membership or infer trust from forwarded IP headers.
+2. Set `TUIST_NETWORK_TRUSTED_BUILD_PUBLISHING=true` on the server deployment.
+3. As an administrator, enable **Network-trusted build publishing** in each Gradle project's settings.
+4. Check in the Gradle destination and `buildInsights.networkTrustedPublishing = true` configuration described in <.localized_link href="/guides/features/build-insights/gradle#network-trusted-publishing">the Gradle guide</.localized_link>.
+
+> [!WARNING]
+> Anyone who can reach the enabled project's publishing endpoint can submit telemetry, consume its quota, and claim an actor identifier. An actor claim is visibly unverified and never establishes identity. Do not enable this policy on an internet-accessible deployment without a separate enforced network boundary. Invalid supplied credentials are rejected, not downgraded.
+
+Credential-free requests are limited to 8 MB of request/decompressed data, 20,000 tasks, and 5,000 each of machine metrics, configuration operations, and artifact transforms. Project quotas are 60 requests per minute and 10,000 per day, independent of VPN NAT addresses. Requests rejected by schema validation also consume quota; authenticated publication is unaffected. Configure shared Valkey for deployment-wide enforcement with multiple replicas; without it, limits are per server process and reset on restart. If the configured shared quota backend is unavailable, credential-free publishing fails closed. Configure ingress limits as an additional defense. The server generates report IDs; repeat submissions may produce duplicate reports. These reports cannot trigger VCS comments or automatic build-failure agent events. Optional `x-tuist-actor-id` identifiers label telemetry but do not grant access or correlate authenticated tests automatically.
+
+Disable the project setting or deployment switch to stop new credential-free publishing; existing reports remain subject to ordinary project visibility and retention.
+
 ## Runtime requirements {#runtime-requirements}
 
 This section outlines the requirements for hosting the Tuist server on your infrastructure.

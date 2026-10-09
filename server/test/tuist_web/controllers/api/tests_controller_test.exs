@@ -4,6 +4,7 @@ defmodule TuistWeb.API.TestsControllerTest do
 
   import Ecto.Query
 
+  alias Tuist.Processor.XCResultProcessor
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Tests.Test
@@ -1094,6 +1095,68 @@ defmodule TuistWeb.API.TestsControllerTest do
       )
     end
 
+    test "async reports retain verified actors and child case attribution", %{conn: conn, user: user, project: project} do
+      id = UUIDv7.generate()
+
+      conn
+      |> Authentication.put_current_user(user)
+      |> put_req_header("content-type", "application/json")
+      |> put_req_header("x-tuist-actor-id", "developer-123")
+      |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+        id: id,
+        duration: 0,
+        is_ci: false,
+        status: "processing",
+        test_modules: []
+      })
+      |> json_response(:ok)
+
+      [job] = all_enqueued(worker: ProcessXcresultWorker)
+      assert job.args["actor_account_id"] == user.account.id
+      assert job.args["claimed_actor_id"] == "developer-123"
+      assert job.args["submission_auth"] == "token"
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+
+      expect(XCResultProcessor, :process_local, fn _, _ ->
+        {:ok,
+         %{
+           "status" => "success",
+           "duration" => 10,
+           "test_modules" => [
+             %{
+               "name" => "ActorModule",
+               "status" => "success",
+               "duration" => 10,
+               "test_suites" => [%{"name" => "ActorSuite", "status" => "success", "duration" => 10}],
+               "test_cases" => [
+                 %{
+                   "name" => "test_actor",
+                   "test_suite_name" => "ActorSuite",
+                   "status" => "success",
+                   "duration" => 10,
+                   "failures" => [],
+                   "repetitions" => [],
+                   "attachments" => []
+                 }
+               ]
+             }
+           ]
+         }}
+      end)
+
+      assert :ok = perform_job(ProcessXcresultWorker, job.args)
+      {:ok, run} = Tests.get_test(id, preload: [:test_case_runs])
+      assert run.actor_account_id == user.account.id
+      assert run.claimed_actor_id == "developer-123"
+      assert run.submission_auth == "token"
+
+      assert [%{actor_account_id: actor_id, claimed_actor_id: "developer-123", submission_auth: "token"} = case_run] =
+               run.test_case_runs
+
+      assert actor_id == user.account.id
+      assert Tuist.ReportActor.actor(case_run).source == :verified
+    end
+
     test "keeps the run's Git history once the processor replaces a remotely processed run", %{
       conn: conn,
       user: user,
@@ -1129,7 +1192,7 @@ defmodule TuistWeb.API.TestsControllerTest do
 
       expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
 
-      expect(Tuist.Processor.XCResultProcessor, :process_local, fn _path, _opts ->
+      expect(XCResultProcessor, :process_local, fn _path, _opts ->
         {:ok, %{"status" => "success", "duration" => 10, "test_modules" => []}}
       end)
 

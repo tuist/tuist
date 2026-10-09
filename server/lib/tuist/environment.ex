@@ -275,6 +275,13 @@ defmodule Tuist.Environment do
     ~s("#{String.replace(to_string(identifier), "\"", "\"\"")}")
   end
 
+  def network_trusted_build_publishing_enabled?(
+        hosted \\ tuist_hosted?(),
+        enabled \\ System.get_env("TUIST_NETWORK_TRUSTED_BUILD_PUBLISHING", "0")
+      ) do
+    not hosted and truthy?(enabled)
+  end
+
   def tuist_hosted? do
     truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) or
       truthy?(System.get_env("TUIST_HOSTED", "0"))

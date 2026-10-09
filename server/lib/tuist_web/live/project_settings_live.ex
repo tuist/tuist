@@ -8,6 +8,8 @@ defmodule TuistWeb.ProjectSettingsLive do
   alias Tuist.Projects.Project
   alias TuistWeb.Helpers.OpenGraph
 
+  require Logger
+
   @logo_max_size 2 * 1024 * 1024
 
   @impl true
@@ -64,6 +66,23 @@ defmodule TuistWeb.ProjectSettingsLive do
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, rename_project_form: to_form(changeset))}
+    end
+  end
+
+  def handle_event("toggle_network_trusted_builds", _params, socket) do
+    %{current_user: user, selected_project: project} = socket.assigns
+    Authorization.authorize!(:project_update, user, project)
+
+    if Tuist.Environment.network_trusted_build_publishing_enabled?() and project.build_system == :gradle do
+      {:ok, project} = Projects.update_project(project, %{network_trusted_builds: not project.network_trusted_builds})
+
+      Logger.warning(
+        "Network-trusted publishing policy changed: actor_user_id=#{user.id} account_id=#{project.account_id} project_id=#{project.id} enabled=#{project.network_trusted_builds}"
+      )
+
+      {:noreply, assign(socket, :selected_project, project)}
+    else
+      {:noreply, socket}
     end
   end
 

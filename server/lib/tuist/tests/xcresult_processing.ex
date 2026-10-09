@@ -64,7 +64,7 @@ defmodule Tuist.Tests.XcresultProcessing do
 
   @carried_keys ~w(stress_mode stress_outcome stress_skip_reason stress_new_count stress_stressed_count stress_excluded_count stress_known_count
                    base_branch merge_base_sha is_pull_request pull_request_number git_object_format history_source
-                   history_fallback_reason git_repository_id git_dirty execution_mode)
+                   history_fallback_reason git_repository_id git_dirty execution_mode actor_account_id claimed_actor_id submission_auth)
 
   # Only what the job carried: a job enqueued without them leaves the columns to
   # their defaults, as for jobs enqueued before these fields rode along.

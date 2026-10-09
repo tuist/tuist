@@ -186,6 +186,7 @@ defmodule Tuist.Tests do
   # ClickHouse table (Ecto metadata + association loaders). Used to scrub the
   # struct when re-inserting an updated row via `IngestRepo.insert_all/2`.
   @test_struct_non_field_keys [
+    :actor_account,
     :__meta__,
     :ran_by_account,
     :build_run,
@@ -317,7 +318,9 @@ defmodule Tuist.Tests do
             test =
               test
               |> Repo.preload(pg_preloads)
+              |> Tuist.ReportActor.preload()
               |> ClickHouseRepo.preload(ch_preloads)
+              |> preload_test_case_actors()
               |> dedupe_run_destinations()
 
             {:ok, test}
@@ -325,6 +328,14 @@ defmodule Tuist.Tests do
 
       :error ->
         {:error, :not_found}
+    end
+  end
+
+  defp preload_test_case_actors(test) do
+    if Ecto.assoc_loaded?(test.test_case_runs) do
+      Map.update!(test, :test_case_runs, &Repo.preload(&1, [:ran_by_account, :actor_account]))
+    else
+      test
     end
   end
 
@@ -368,7 +379,7 @@ defmodule Tuist.Tests do
   def list_test_runs(attrs) do
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(Test, attrs, for: Test)
 
-    results = Repo.preload(results, :ran_by_account)
+    results = Repo.preload(results, [:ran_by_account, :actor_account])
 
     {results, meta}
   end
@@ -1690,7 +1701,14 @@ defmodule Tuist.Tests do
   def list_test_case_runs(attrs, opts \\ []) do
     preloads = Keyword.get(opts, :preload, [])
 
-    case extract_mv_scope_filter(attrs) do
+    actor_filter? =
+      Enum.any?(Map.get(attrs, :filters, []), fn filter ->
+        Map.get(filter, :field) in [:verified_actor, :claimed_actor_id]
+      end)
+
+    scope = if actor_filter?, do: nil, else: extract_mv_scope_filter(attrs)
+
+    case scope do
       {:shard_id, _shard_id} ->
         list_test_case_runs_via_shard_mv(attrs, preloads)
 
@@ -1714,7 +1732,7 @@ defmodule Tuist.Tests do
     results =
       results
       |> ClickHouseRepo.preload(preloads)
-      |> Repo.preload(:ran_by_account)
+      |> Repo.preload([:ran_by_account, :actor_account])
 
     {results, meta}
   end
@@ -1735,7 +1753,7 @@ defmodule Tuist.Tests do
     results =
       ordered
       |> ClickHouseRepo.preload(preloads)
-      |> Repo.preload(:ran_by_account)
+      |> Repo.preload([:ran_by_account, :actor_account])
 
     {results, meta}
   end
@@ -1756,7 +1774,7 @@ defmodule Tuist.Tests do
     results =
       ordered
       |> ClickHouseRepo.preload(preloads)
-      |> Repo.preload(:ran_by_account)
+      |> Repo.preload([:ran_by_account, :actor_account])
 
     {results, meta}
   end
@@ -1777,7 +1795,7 @@ defmodule Tuist.Tests do
     results =
       ordered
       |> ClickHouseRepo.preload(preloads)
-      |> Repo.preload(:ran_by_account)
+      |> Repo.preload([:ran_by_account, :actor_account])
 
     {results, meta}
   end
@@ -2478,6 +2496,9 @@ defmodule Tuist.Tests do
           is_ci: test.is_ci,
           scheme: test.scheme,
           account_id: test.account_id,
+          actor_account_id: test.actor_account_id,
+          claimed_actor_id: test.claimed_actor_id,
+          submission_auth: test.submission_auth,
           ran_at: test.ran_at,
           git_branch: test.git_branch,
           is_default_branch: is_default_branch,
@@ -4126,6 +4147,9 @@ defmodule Tuist.Tests do
       is_ci,
       scheme,
       account_id,
+      actor_account_id,
+      claimed_actor_id,
+      submission_auth,
       ran_at,
       git_branch,
       is_default_branch,
@@ -4152,6 +4176,9 @@ defmodule Tuist.Tests do
       is_ci,
       scheme,
       account_id,
+      actor_account_id,
+      claimed_actor_id,
+      submission_auth,
       ran_at,
       git_branch,
       #{default_branch_match_expr},

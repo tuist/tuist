@@ -33,6 +33,43 @@ The `uploadInBackground` option is available in the `tuist` extension block in `
 
 This setting does not affect remote cache settings in the `buildCache` block.
 
+## Actor attribution {#actor-attribution}
+
+On CI, automatic detection identifies the runner's OS account (such as `runner` or `root`), not the person who triggered the build. Use an explicit identifier when needed.
+
+The plugin reports the local username from `USER`, `USERNAME`, or `LOGNAME` when available. Set `TUIST_ACTOR_ID` to an opaque organization-wide identifier to override it, or configure `buildInsights.actorId` in your settings. The environment override takes precedence. Set either override to an empty string to omit the reported identifier; this does not remove identity established by individual credentials.
+
+```kotlin
+tuist {
+    buildInsights {
+        actorId = providers.environmentVariable("CORPORATE_ACTOR_ID").getOrElse("")
+    }
+}
+```
+
+Actor identifiers are 1–128 bytes of non-space printable ASCII. They are visible to anyone who can view the project's reports, including public viewers when the project is public, and exported with reports. Do not include secrets or personal information you do not want to publish. A verified individual credential takes precedence in the dashboard; identifiers sent by clients are otherwise explicitly **Unverified**. They never grant permissions or automatically link to a Tuist user. Old servers ignore the attribution header, and new servers continue accepting old clients without it. New shared-token reports with no identifier show **Unknown**, rather than the publishing organization; historical reports retain their prior attribution. Build and test listings separate verified-user filters from unverified reported-identifier filters.
+
+## Network-trusted publishing {#network-trusted-publishing}
+
+Self-hosted deployments can explicitly allow Gradle build reports from their trusted network without developer credentials. An administrator must enable both the deployment policy and the project's setting first. See <.localized_link href="/guides/server/self-host/server#network-trusted-build-publishing">the self-hosting guide</.localized_link>.
+
+Configure the destination once in the repository:
+
+```kotlin
+tuist {
+    project = "organization/project"
+    url = "https://tuist.internal.example"
+    buildInsights {
+        networkTrustedPublishing = true
+    }
+    buildCache { enabled = false }
+}
+```
+
+Build reporting no longer requires authenticated cache endpoint discovery. Cache access and test reporting still require credentials. Disable the cache if developers are not provisioning tokens; test insights will log a warning rather than publish without credentials when a test task runs. If credentials are present, they are still used and invalid credentials fail rather than falling back to credential-free publishing. Older servers reject credential-free reports with their normal authentication error; authenticated publishing remains compatible. An explicitly empty `TUIST_TOKEN` fails closed rather than enabling credential-free publication. For fork or Dependabot jobs without secrets, remove that variable instead of defining it as an empty string.
+
+The server assigns credential-free report IDs. Repeating a submission can create a second report; this mode does not promise idempotent retries or correlation with authenticated test reports. Such reports cannot trigger VCS comments or automatic failure-agent events. Network access is the publishing trust boundary, not proof of the reported actor's identity.
+
 ## Custom metadata {#custom-metadata}
 
 Attach tags and key-value data to Gradle builds to compare runs from different teams, hardware, or workflows. Tags are available as dashboard filters, and values appear on each build's detail page and in the application programming interface and Model Context Protocol tools.

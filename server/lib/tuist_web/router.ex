@@ -326,6 +326,15 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
   end
 
+  pipeline :report_publishing_api do
+    plug :put_request_kind, "api"
+    plug :accepts, ["json"]
+    plug TuistWeb.WarningsHeaderPlug
+    plug TuistWeb.Plugs.ReportPublishingAuthPlug
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+  end
+
   pipeline :ops_api do
     plug TuistWeb.Authorization, [:current_user, :read, :ops]
   end
@@ -700,6 +709,11 @@ defmodule TuistWeb.Router do
     patch "/Groups/:id", GroupsController, :patch
   end
 
+  scope "/api", TuistWeb.API, assigns: %{caching: not Tuist.Environment.test?(), cache_ttl: to_timeout(minute: 1)} do
+    pipe_through [:open_api, :report_publishing_api, :on_premise_api]
+    post "/projects/:account_handle/:project_handle/gradle/builds", GradleController, :create_build
+  end
+
   scope path: "/api",
         alias: TuistWeb.API,
         assigns: %{caching: not Tuist.Environment.test?(), cache_ttl: to_timeout(minute: 1)} do
@@ -906,7 +920,6 @@ defmodule TuistWeb.Router do
         scope "/gradle" do
           get "/builds/metrics", MetricsController, :gradle_metrics
           get "/builds/metrics/dimensions/:dimension/values", MetricsController, :gradle_dimension_values
-          post "/builds", GradleController, :create_build
           get "/builds", GradleController, :list_builds
           get "/builds/:build_id", GradleController, :get_build
           get "/builds/:build_id/steps", GradleBuildStepsController, :index

@@ -1,6 +1,7 @@
 defmodule TuistWeb.Runs.RanByBadge do
   @moduledoc """
-  A component used to render a badge indicating who executed the run.
+  Shared actor presentation for reports. A client-reported identifier is never
+  rendered with the same verified-user treatment as a database identity.
   """
   use TuistWeb, :html
   use Noora
@@ -10,26 +11,7 @@ defmodule TuistWeb.Runs.RanByBadge do
 
   def run_ran_by_badge_cell(assigns) do
     ~H"""
-    <.badge_cell
-      :if={@run.is_ci}
-      label={dgettext("dashboard", "CI")}
-      icon="settings"
-      color="information"
-      style="light-fill"
-    />
-    <.badge_cell
-      :if={not @run.is_ci and @ran_by_name}
-      label={@ran_by_name}
-      icon="user"
-      color="primary"
-      style="light-fill"
-    />
-    <.badge_cell
-      :if={!@run.is_ci and !@ran_by_name}
-      label={dgettext("dashboard", "Unknown")}
-      color="neutral"
-      style="light-fill"
-    />
+    <.actor_badge_cell record={@run} legacy_name={@ran_by_name} />
     """
   end
 
@@ -37,20 +19,7 @@ defmodule TuistWeb.Runs.RanByBadge do
 
   def build_ran_by_badge_cell(assigns) do
     ~H"""
-    <.badge_cell
-      :if={@build.is_ci}
-      label={dgettext("dashboard", "CI")}
-      icon="settings"
-      color="information"
-      style="light-fill"
-    />
-    <.badge_cell
-      :if={not @build.is_ci and not is_nil(@build.ran_by_account)}
-      label={@build.ran_by_account.name}
-      icon="user"
-      color="primary"
-      style="light-fill"
-    />
+    <.actor_badge_cell record={@build} />
     """
   end
 
@@ -58,26 +27,7 @@ defmodule TuistWeb.Runs.RanByBadge do
 
   def gradle_build_ran_by_badge_cell(assigns) do
     ~H"""
-    <.badge_cell
-      :if={@build.is_ci}
-      label={dgettext("dashboard", "CI")}
-      icon="settings"
-      color="information"
-      style="light-fill"
-    />
-    <.badge_cell
-      :if={not @build.is_ci and not is_nil(@build.built_by_account)}
-      label={@build.built_by_account.name}
-      icon="user"
-      color="primary"
-      style="light-fill"
-    />
-    <.badge_cell
-      :if={!@build.is_ci and is_nil(@build.built_by_account)}
-      label={dgettext("dashboard", "Unknown")}
-      color="neutral"
-      style="light-fill"
-    />
+    <.actor_badge_cell record={@build} />
     """
   end
 
@@ -85,25 +35,43 @@ defmodule TuistWeb.Runs.RanByBadge do
 
   def test_ran_by_badge_cell(assigns) do
     ~H"""
+    <.actor_badge_cell record={@test} />
+    """
+  end
+
+  attr :record, :map, required: true
+  attr :legacy_name, :string, default: nil
+
+  def actor_badge_cell(assigns) do
+    assigns = assign(assigns, :actor, Tuist.ReportActor.actor(assigns.record, assigns.legacy_name))
+
+    ~H"""
     <.badge_cell
-      :if={@test.is_ci}
+      :if={@record.is_ci}
       label={dgettext("dashboard", "CI")}
       icon="settings"
       color="information"
       style="light-fill"
     />
     <.badge_cell
-      :if={not @test.is_ci and not is_nil(@test.ran_by_account)}
-      label={@test.ran_by_account.name}
-      icon="user"
-      color="primary"
+      :if={not @record.is_ci}
+      label={
+        if @actor.source == :reported,
+          do: @actor.name <> " (" <> dgettext("dashboard", "Unverified") <> ")",
+          else: @actor.name
+      }
+      icon={if @actor.source in [:verified, :legacy] and @actor.name != "Unknown", do: "user"}
+      color={
+        if @actor.source == :verified or (@actor.source == :legacy and @actor.name != "Unknown"),
+          do: "primary",
+          else: "neutral"
+      }
       style="light-fill"
-    />
-    <.badge_cell
-      :if={!@test.is_ci and is_nil(@test.ran_by_account)}
-      label={dgettext("dashboard", "Unknown")}
-      color="neutral"
-      style="light-fill"
+      data-actor-source={@actor.source}
+      title={
+        if @actor.source == :reported,
+          do: dgettext("dashboard", "Reported by the build client, not verified.")
+      }
     />
     """
   end

@@ -21,6 +21,7 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
       "type" => "object",
       "properties" => %{
         "id" => %{"type" => "string"},
+        "actor" => Tuist.MCP.Tool.report_actor_schema(),
         "duration" => %{"type" => "integer"},
         "status" => %{"type" => "string"},
         "category" => %{"type" => ["string", "null"]},
@@ -105,6 +106,7 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
       {:ok,
        %{
          id: build.id,
+         actor: Tuist.ReportActor.actor(build),
          duration: build.duration,
          status: to_string(build.status),
          category: if(build.category != "", do: build.category),
