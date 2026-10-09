@@ -251,6 +251,15 @@ jobs:
       TUIST_DEV_ALL_LOCALES: "1"
     steps:
       - uses: actions/checkout@v4
+      # The shards restore this exact key instead of fetching every dependency
+      # again. mix deps.get still runs on a hit.
+      - name: Cache Mix dependencies
+        uses: actions/cache@v4
+        with:
+          path: server/deps
+          key: server-test-deps-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            server-test-deps-v1-${{ runner.os }}-${{ runner.arch }}-
       - uses: ./.github/actions/setup-server-mix
         with:
           restore-mix-cache: "false"
@@ -303,12 +312,17 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 60
     steps:
       - uses: actions/checkout@v4
+      - name: Restore Mix dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: server/deps
+          key: server-test-deps-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/mix.lock') }}
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
@@ -354,12 +368,17 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 60
     steps:
       - uses: actions/checkout@v4
+      - name: Restore Mix dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: server/deps
+          key: server-test-deps-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/mix.lock') }}
       - uses: ./.github/actions/setup-server-mix
         with:
           restore-mix-cache: "false"
@@ -414,10 +433,10 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 60
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
@@ -708,10 +727,10 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 60
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
