@@ -698,11 +698,6 @@ defmodule Tuist.Shards do
     |> Map.new(fn %{name: name, duration: duration} -> {name, round_timing_duration(duration)} end)
   end
 
-  defp select_timing(query, :p90),
-    do: select(query, [mr], %{name: mr.name, duration: fragment("quantile(?)(?)", ^@timing_quantile, mr.duration)})
-
-  defp select_timing(query, :mean), do: select(query, [mr], %{name: mr.name, duration: avg(mr.duration)})
-
   defp fetch_timing_data(project, "suite", units, :p90) do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
     modules = units |> Enum.map(&suite_module/1) |> Enum.uniq()
@@ -736,6 +731,11 @@ defmodule Tuist.Shards do
 
     Map.new(rows, fn [name, duration] -> {name, round_timing_duration(duration)} end)
   end
+
+  defp select_timing(query, :p90),
+    do: select(query, [mr], %{name: mr.name, duration: fragment("quantile(?)(?)", ^@timing_quantile, mr.duration)})
+
+  defp select_timing(query, :mean), do: select(query, [mr], %{name: mr.name, duration: avg(mr.duration)})
 
   # JVM test runs record a nested class (`Outer$Inner`) as a suite of its own, but a test filter that
   # selects or excludes a class also selects or excludes its nested classes. Planning them as separate
