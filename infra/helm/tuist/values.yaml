@@ -840,6 +840,11 @@ server:
   cluster:
     enabled: false
     applicationName: tuist
+    distributionPort: 9100
+    # Shared across replicas and image versions. When empty, the chart creates
+    # a Secret and preserves its cookie with lookup during upgrades.
+    cookieExistingSecret: ""
+    cookieExistingSecretKey: release-cookie
   serviceAccount:
     # Workload identity / Kubernetes API identity for server pods and the migration job.
     # Set annotations when integrating with a cloud IAM system or custom RBAC.

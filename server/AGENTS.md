@@ -1,4 +1,6 @@
-# Tuist Server (Elixir/Phoenix)
+# Tuist Server
+
+- `verification/cluster_formation.exs` provides isolated two-node discovery checks; see `verification/AGENTS.md`. (Elixir/Phoenix)
 
 This node covers the Tuist Server application under `server/`. Follow downlinks for subsystem boundaries.
 

@@ -48,7 +48,10 @@ registry:
       sentryDsn: SENTRY_DSN_REGISTRY_HIVE
 
 server:
-  replicaCount: 1
+  # Exercise distribution between real replicas before production promotion.
+  replicaCount: 2
+  cluster:
+    enabled: true
 
   kuraCapacityAdmission:
     enabled: true
