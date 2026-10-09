@@ -3,8 +3,8 @@
 # Coverage is a property of a commit: a run measures one scheme of it and the
 # commit's figure is the union of its runs, so the pages need the whole chain:
 # the repository's commit graph, each commit's file listing, runs carrying
-# coverage and per-test evidence, the tests each run could have run, and the
-# per-commit totals every coverage surface reads.
+# coverage and per-test evidence, the tests each selective run skipped, and
+# the per-commit totals every coverage surface reads.
 #
 # Everything is derived from one model of the repository, so the numbers
 # agree wherever they are read:
@@ -1059,8 +1059,7 @@ checks = [
   {"#4321's head reuses its skipped tests' coverage", kinds.("pr-4321-1") == "reported"},
   {"#4330's head cannot reuse a test that failed last time", kinds.("pr-4330-1") == "partial"},
   {"main's selective commits reuse theirs", Enum.all?(selective_days, &(kinds.("main-#{&1}") == "reported"))},
-  {"recent full runs list their tests", kinds.("main-2") == "measured"},
-  {"older runs do not", kinds.("main-90") == "observed"}
+  {"full runs skip nothing", Enum.all?(~w(main-2 main-90), &(kinds.(&1) == "measured"))}
 ]
 
 failed = for {name, false} <- checks, do: name
