@@ -257,6 +257,7 @@ jobs:
         with:
           restore-mix-cache: "false"
           deps-cache-key: server-test-deps-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/mix.lock') }}
+          mise-cache: "false"
           save-deps-cache: "true"
       - name: Restore CLDR locale cache
         uses: actions/cache@v4
@@ -318,6 +319,7 @@ jobs:
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
           restore-mix-cache: "false"
           deps-cache-key: server-test-deps-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/mix.lock') }}
+          mise-cache: "false"
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
       # A checkout newer than the downloaded build makes Mix treat the path
@@ -369,6 +371,7 @@ jobs:
         with:
           restore-mix-cache: "false"
           deps-cache-key: server-test-deps-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/mix.lock') }}
+          mise-cache: "false"
       # This install must be unlocked: mise.lock pins the newer CI release.
       - name: Pin ClickHouse to the oldest supported release
         run: |

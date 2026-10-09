@@ -10,6 +10,10 @@ inputs:
     description: Restore the cached server deps + _build state before fetching dependencies
     required: false
     default: "true"
+  mise-cache:
+    description: Restore and save mise-action's archive cache. Installing Erlang and Elixir from scratch is faster than restoring it.
+    required: false
+    default: "true"
   deps-cache-key:
     description: actions/cache key to restore server/deps from before fetching dependencies. Empty skips it.
     required: false
@@ -36,7 +40,7 @@ runs:
     - uses: ./.github/actions/mise-install
       with:
         install: ${{ inputs.mise-install-args }}
-        cache: "true"
+        cache: ${{ inputs['mise-cache'] }}
         working-directory: server
         github-token: ${{ inputs.github-token || env.MISE_GITHUB_TOKEN }}
     - uses: tuist/cache-volume@v1
