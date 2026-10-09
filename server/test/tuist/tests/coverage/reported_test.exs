@@ -36,6 +36,45 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     %{account: account, project: project}
   end
 
+  test "unsigned runs are not proof that an unmeasured pipeline executed", %{project: project, account: account} do
+    CoverageFixtures.run_with_coverage(project, account, [], %{
+      git_commit_sha: "head",
+      submission_auth: "network_trusted",
+      account_id: 0,
+      xcode_coverage: nil,
+      recompute: false,
+      build_system: "bazel"
+    })
+
+    assert Reported.compute(project, "head") == nil
+    assert Reported.repository_id(project.id, "head") == nil
+    assert Reported.build_system(project.id, "head") == ""
+  end
+
+  test "unsigned outcomes cannot enqueue recomputation or change carried coverage", %{project: project, account: account} do
+    base_run(project, account)
+    head_run(project, account, head_files())
+    before = Reported.compute(project, "head")
+    before_commit = Commits.summary(project.id, "head")
+    assert before
+    assert before.carried_tests_count > 0
+    reject(Commits, :enqueue_recompute, 1)
+
+    CoverageFixtures.run_with_coverage(project, account, [], %{
+      git_commit_sha: "head",
+      submission_auth: "network_trusted",
+      account_id: 0,
+      xcode_coverage: nil,
+      recompute: false,
+      build_system: "bazel",
+      test_modules: modules([test_case("testTrim()", "TextTests", "failure")])
+    })
+
+    assert Reported.compute(project, "head") == before
+    assert Commits.summary(project.id, "head") == before_commit
+    assert Reported.build_system(project.id, "head") == "xcode"
+  end
+
   defp track_default_files, do: stub(GitHistory, :settings, &call_original(GitHistory, :settings, [&1]))
 
   defp file(path, counts, opts \\ []), do: CoverageFixtures.file(path, counts, opts)

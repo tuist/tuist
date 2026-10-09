@@ -22,6 +22,33 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
   defp file(path, counts, opts \\ []), do: CoverageFixtures.file(path, counts, opts)
 
+  test "unsigned clean runs cannot conceal a scheme measured only by dirty CI runs", %{project: project, account: account} do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1, 1])], %{
+      scheme: "DirtyOnly",
+      git_dirty: true
+    })
+
+    before = Commits.recompute(project, "abc123")
+    assert :dirty_run_excluded in Commits.gap_reasons(before)
+
+    CoverageFixtures.run_with_coverage(project, account, [], %{
+      scheme: "DirtyOnly",
+      submission_auth: "network_trusted",
+      account_id: 0,
+      xcode_coverage: nil,
+      recompute: false
+    })
+
+    after_report = Commits.recompute(project, "abc123")
+    assert after_report.reported_kind == before.reported_kind
+    assert Commits.gap_reasons(after_report) == Commits.gap_reasons(before)
+    assert after_report.test_run_ids == before.test_run_ids
+    assert after_report.schemes == before.schemes
+    assert after_report.covered_lines == before.covered_lines
+  end
+
   test "publishes a commit as the union of its runs, a file counted once across schemes", %{
     project: project,
     account: account

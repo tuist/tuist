@@ -705,6 +705,9 @@ defmodule Tuist.Tests do
   # Coverage and the evidence enrich a run: a failure storing one of them
   # costs that data, not the run's test cases, which are written after them
   # and which a retry with the same id would never add.
+  defp record_coverage_data(%{submission_auth: "network_trusted"}, _attrs, _coverage, _shard_index, _expected_shards),
+    do: :ok
+
   defp record_coverage_data(test, attrs, coverage, shard_index, expected_shards) do
     enrich(test, "coverage", fn -> Coverage.publish(test, coverage, shard_index, expected_shards) end)
 

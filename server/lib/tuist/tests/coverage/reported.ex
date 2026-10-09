@@ -139,6 +139,7 @@ defmodule Tuist.Tests.Coverage.Reported do
       from(t in Test,
         where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.git_dirty == false,
         group_by: t.id,
+        having: fragment("argMax(?, ?)", t.submission_auth, t.inserted_at) != "network_trusted",
         select: %{
           test_run_id: t.id,
           scheme: fragment("any(?)", t.scheme),
