@@ -88,6 +88,8 @@ mise run dev
 **Database Utilities**
 - `mix ecto.dump`
 - `mix excellent_migrations.check_safety`
+- Credo's migration-safety check is scoped to `priv/repo/migrations/`. Database-backed
+  migration regression tests are not migration DSL files; other Credo checks still apply.
 
 ## Marketing Site
 

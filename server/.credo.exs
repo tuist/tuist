@@ -27,7 +27,7 @@ alias Credo.Checks.TimestampsType
           {DisallowSpec, []},
           {DisallowDirectivesInFunction, files: %{included: ["lib/", "test/"]}},
           {DisallowJason, []},
-          {ExcellentMigrations.CredoCheck.MigrationsSafety, []},
+          {ExcellentMigrations.CredoCheck.MigrationsSafety, files: %{included: ["priv/repo/migrations/"]}},
           {Credo.Checks.UnusedReturnValue, files: %{excluded: ["priv/repo/migrations/"]}},
           {DisallowGlobalStateMutation, files: %{included: ["test/"]}}
         ],
