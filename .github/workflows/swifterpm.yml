@@ -37,3 +37,20 @@ jobs:
       - name: Test
         working-directory: swifterpm
         run: mise run test:unit
+
+  e2e:
+    name: E2E
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 45
+    if: github.repository == 'tuist/tuist'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "bazel buck2 jq shellspec"
+          working_directory: swifterpm
+          cache: "false"
+          github_token: ${{ github.token }}
+      - name: E2E
+        working-directory: swifterpm
+        run: mise run test:e2e
