@@ -368,7 +368,7 @@ the node's first boot. `/` stays ext4 because a stick finds the install it made
 by mounting the ext4 partitions. Changing the layout is a reinstall.
 
 Every rack Linux node runs the local CNI and carries `cilium.io/no-schedule=true`,
-because the rack's networks at home sit inside staging's pod CIDR. A storage node
+because the rack's networks at home sit inside the cluster's pod CIDR (192.168.0.0/16 in staging and production alike). A storage node
 that serves pods through Services needs the cluster's CNI, which is a
 `RackLinuxMachine` change to make once the rack's networks no longer overlap.
 

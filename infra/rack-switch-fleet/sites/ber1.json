@@ -57,12 +57,12 @@
       }
     },
     "controller": {
-      "url": "https://omada.taild6d7bb.ts.net:8043",
-      "address": "100.84.132.92",
+      "url": "https://omada-production.taild6d7bb.ts.net:8043",
+      "address": "",
       "site": "ber1",
-      "credential_item": "omada staging open api",
+      "credential_item": "omada production open api",
       "device_account_item": "ber1 switch device account",
-      "vault": "tuist-k8s-staging"
+      "vault": "tuist-k8s-production"
     }
   },
   "services": {
@@ -550,7 +550,7 @@
     "ports": "On each ToR, ports 1-23 are for Mac minis, 24 is ber1-tor-a's router uplink, 25-31 are for the x86 nodes and 32 is the ISL. An x86 node takes the same port number on every ToR it reaches: ber1-edge-a 25, ber1-edge-b 26, the storage pair 27 (ber1-store-a on ToR A, ber1-store-b on ToR B). On ber1-mgmt the x86 nodes' i226-LM ports come first, in the same order from port 1, and the edges' i226-V ports come last, ber1-edge-a on 48 and ber1-edge-b on 47. Those serve the segment from whichever edge holds its floating addresses: its DHCP, the netboot and the switches' path to the controller. They are ports of their own because an i226-LM with vPro never puts a DHCP offer it sends on the wire (measured on ber1-edge on 2026-09-24, and a known Intel defect), so an edge cannot serve from the socket that carries its AMT. On ber1-mgmt, ports 41-45 are the power appliances: ber1-ats-1 to ber1-ats-3 on 41-43, ber1-pdu-a on 44 and ber1-pdu-b on 45."
   },
   "kubernetes": {
-    "namespace": "tuist-staging"
+    "namespace": "tuist"
   },
   "vlans": [
     {

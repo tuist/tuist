@@ -197,7 +197,7 @@ render() {
 }
 
 @test "an env without a boot server has no stick for any host" {
-  run rack_boot_server production
+  run rack_boot_server canary
   [ "$status" -ne 0 ]
   [[ "$output" == *"rackLinuxFleet.boot.address"* ]]
 }
