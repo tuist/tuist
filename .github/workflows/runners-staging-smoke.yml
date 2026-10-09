@@ -103,6 +103,18 @@ jobs:
           # somewhere we can curl from the workflow.
           curl -fsSL -o /dev/null -w "github.com → HTTP %{http_code}\n" https://github.com
 
+      # GitHub-hosted runners set ImageOS, and setup actions read it to
+      # pick a prebuilt binary; erlef/setup-beam fails outright without it.
+      - name: ImageOS reaches steps
+        run: |
+          set -euo pipefail
+          echo "ImageOS: ${ImageOS:-<unset>}"
+          [ -n "${ImageOS:-}" ] || { echo "::error::ImageOS is not set in the step environment"; exit 1; }
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
       - name: Hold the runner to produce a billable window
         if: >-
           github.event_name == 'workflow_dispatch' &&
