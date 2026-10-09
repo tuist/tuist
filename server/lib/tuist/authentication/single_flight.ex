@@ -3,8 +3,19 @@ defmodule Tuist.Authentication.SingleFlight do
   Direct ETS cache reads with atomic per-key fill claims. Each cold key has its
   own short-lived coordinator and monitored fill worker, not a shared mailbox.
   The GenServer only owns the claims table; requests never call or message it.
+  Fills capture the data-table ID, so a name-based restart cannot redirect an
+  old write into a new generation, even between the publication check and write.
+  Publication checks the claim and remaining budget independently of coordinator
+  progress. Timeout cancellation still discards unfinished work; no late-fill
+  retention policy is implied. A same-generation write can straddle the final
+  deadline check; immutable proofs remain valid and subject snapshots still
+  enforce their original deadline on every hit.
   """
   use GenServer
+
+  import Cachex.Spec, only: [cache: 2]
+
+  alias Cachex.Services.Overseer
 
   @timeout to_timeout(second: 30)
 
@@ -29,11 +40,13 @@ defmodule Tuist.Authentication.SingleFlight do
 
         context = %{
           cache: cache,
+          data: cache(Overseer.lookup(cache), name: :ets.whereis(cache)),
           key: key,
           table: table,
           fallback: fallback,
           deadline: :erlang.monotonic_time(:millisecond) + Keyword.get(opts, :timeout, @timeout),
-          retries: 2
+          retries: 2,
+          initiator: false
         }
 
         elect(context)
@@ -70,7 +83,7 @@ defmodule Tuist.Authentication.SingleFlight do
     try do
       if :ets.insert_new(context.table, {context.key, pid}) do
         send(pid, {:execute, caller})
-        await(pid, ref, context)
+        await(pid, ref, %{context | initiator: true})
       else
         discard(pid, ref)
         retry(context)
@@ -91,7 +104,7 @@ defmodule Tuist.Authentication.SingleFlight do
       receive do
         {:execute, ^caller} ->
           Process.demonitor(caller_ref, [:flush])
-          run(owner_ref, context)
+          run(owner_ref, Map.put(context, :flight, self()))
 
         {:DOWN, _, :process, _, _} ->
           {:error, :unavailable}
@@ -124,7 +137,7 @@ defmodule Tuist.Authentication.SingleFlight do
   end
 
   defp fill(context) do
-    case Cachex.get(context.cache, context.key, nil, notify: false) do
+    case Cachex.get(context.data, context.key, nil, notify: false) do
       nil -> persist(context, context.fallback.())
       {:error, _} -> {:error, :unavailable}
       value -> value
@@ -136,21 +149,31 @@ defmodule Tuist.Authentication.SingleFlight do
   defp persist(context, {:commit, value}), do: persist(context, {:commit, value, []})
 
   defp persist(context, {:commit, value, options}) do
-    if Cachex.put(context.cache, context.key, value, [notify: false] ++ options) do
+    with true <- publishable?(context),
+         :ok <- Cachex.put(context.data, context.key, value, [notify: false] ++ options) do
       {:commit, value}
     else
-      {:error, :unavailable}
+      _ -> {:error, :unavailable}
     end
   end
 
-  defp persist(_context, {:ignore, value}), do: {:ignore, value}
+  defp persist(context, {:ignore, value}) do
+    if publishable?(context), do: {:ignore, value}, else: {:error, :unavailable}
+  end
+
   defp persist(_context, _error), do: {:error, :unavailable}
+
+  defp publishable?(context) do
+    remaining(context) > 0 and
+      :ets.whereis(table_name(context.cache)) == context.table and
+      :ets.lookup(context.table, context.key) == [{context.key, context.flight}]
+  end
 
   defp await(pid, ref, context) do
     receive do
       {:DOWN, ^ref, :process, ^pid, {:single_flight_result, result}} ->
         release(context, pid)
-        result
+        completed(result, context)
 
       {:DOWN, ^ref, :process, ^pid, :noproc} ->
         release(context, pid)
@@ -158,20 +181,29 @@ defmodule Tuist.Authentication.SingleFlight do
 
       {:DOWN, ^ref, :process, ^pid, _} ->
         release(context, pid)
-        {:error, :unavailable}
+        completed({:error, :unavailable}, context)
     after
       remaining(context) ->
+        if context.initiator do
+          release(context, pid)
+          Process.exit(pid, :kill)
+        end
+
         Process.demonitor(ref, [:flush])
         {:error, :unavailable}
     end
   end
+
+  defp completed({:error, :unavailable}, %{initiator: true}), do: {:error, :unavailable}
+  defp completed({:error, :unavailable}, context), do: retry(context)
+  defp completed(result, _context), do: result
 
   defp retry(%{retries: 0}), do: {:error, :unavailable}
 
   defp retry(context) do
     context = %{context | retries: context.retries - 1}
 
-    case Cachex.get(context.cache, context.key, nil, notify: false) do
+    case Cachex.get(context.data, context.key, nil, notify: false) do
       nil -> elect(context)
       {:error, _} -> {:error, :unavailable}
       value -> value

@@ -10,6 +10,7 @@ defmodule TuistWeb.AuthenticationPlug do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Authentication.SubjectCache
+  alias Tuist.Authentication.UnavailableError
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias TuistWeb.API.CacheController
@@ -52,6 +53,9 @@ defmodule TuistWeb.AuthenticationPlug do
     else
       conn
     end
+  rescue
+    UnavailableError ->
+      reraise ServiceUnavailableError, [message: "Authentication temporarily unavailable."], __STACKTRACE__
   end
 
   def call(conn, {:require_authentication, opts}) do

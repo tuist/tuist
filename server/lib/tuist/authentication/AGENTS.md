@@ -22,3 +22,5 @@ This context owns authentication flows and token handling.
 - Parent: `server/lib/tuist/AGENTS.md`
 - Web: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
+
+- A proof-cache timeout, restart window or failed fill raises `UnavailableError`, never a computed mismatch. Propagate it as HTTP 503 / gRPC unavailable without direct bcrypt fallback. A waiter can retry another flight's failure within its own original budget, with finite retries. Publication checks the claim and deadline in the worker and writes through the captured data-table ID, not a reusable name; a stalled coordinator cannot publish across restart. Cancellation still discards unfinished work, and cold-work reuse is a separate measured policy decision.

@@ -3,6 +3,7 @@ defmodule Tuist.Authentication.TokenVerificationCacheTest do
   use Mimic
 
   alias Tuist.Authentication.TokenVerificationCache
+  alias Tuist.Authentication.UnavailableError
 
   setup :set_mimic_global
 
@@ -115,6 +116,13 @@ defmodule Tuist.Authentication.TokenVerificationCacheTest do
     assert Cachex.size(cache) == 0
   end
 
+  test "an unexpected cached value is unavailable rather than a computed mismatch", %{cache: cache} do
+    key = :crypto.hash(:sha256, :erlang.term_to_binary({"secret", "hash"}))
+    :ok = Cachex.put(cache, key, false)
+    reject(Bcrypt, :verify_pass, 2)
+    assert_raise UnavailableError, fn -> TokenVerificationCache.verify_pass("secret", "hash", cache: cache) end
+  end
+
   test "expired proofs require verification again" do
     cache = String.to_atom("expiring_proofs_#{UUIDv7.generate()}")
     start_supervised!({TokenVerificationCache, cache: cache, ttl: 20}, id: :expiring_proofs)
@@ -134,8 +142,27 @@ defmodule Tuist.Authentication.TokenVerificationCacheTest do
     assert TokenVerificationCache.verify_pass("secret", "hash", cache: cache)
   end
 
+  test "a correct secret is unavailable, never invalid, when its flight cannot complete", %{cache: cache} do
+    secret = Base.encode64(:crypto.strong_rand_bytes(20))
+    stored_hash = Bcrypt.hash_pwd_salt(secret, log_rounds: 12)
+    assert Mimic.call_original(Bcrypt, :verify_pass, [secret, stored_hash])
+    reject(Bcrypt, :verify_pass, 2)
+    key = :crypto.hash(:sha256, :erlang.term_to_binary({secret, stored_hash}))
+    table = String.to_existing_atom("#{cache}_flights")
+    coordinator = spawn(fn -> Process.sleep(:infinity) end)
+    on_exit(fn -> Process.exit(coordinator, :kill) end)
+    :ets.insert(table, {key, coordinator})
+
+    assert_raise UnavailableError, fn ->
+      TokenVerificationCache.verify_pass(secret, stored_hash, cache: cache, timeout: 100)
+    end
+  end
+
   test "cache failure rejects verification instead of rerunning bcrypt" do
     reject(Bcrypt, :verify_pass, 2)
-    refute TokenVerificationCache.verify_pass("secret", "hash", cache: :missing_token_proof_cache)
+
+    assert_raise UnavailableError, fn ->
+      TokenVerificationCache.verify_pass("secret", "hash", cache: :missing_token_proof_cache)
+    end
   end
 end
