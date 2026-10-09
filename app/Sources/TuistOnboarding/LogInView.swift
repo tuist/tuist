@@ -81,22 +81,25 @@ public struct LogInView: View {
                 errorHandler.fireAndHandleError { try await authenticationService.signIn() }
             }
 
-            SocialButton(
-                title: "Sign in with Apple",
-                style: .secondary,
-                icon: "AppleLogo"
-            ) {
-                let request = ASAuthorizationAppleIDProvider().createRequest()
-                request.requestedScopes = [.fullName, .email]
+            // Self-hosted servers can't redeem Apple authorization codes issued for Tuist's bundle ID.
+            if authenticationService.selfHostedServerURL == nil {
+                SocialButton(
+                    title: "Sign in with Apple",
+                    style: .secondary,
+                    icon: "AppleLogo"
+                ) {
+                    let request = ASAuthorizationAppleIDProvider().createRequest()
+                    request.requestedScopes = [.fullName, .email]
 
-                let controller = ASAuthorizationController(authorizationRequests: [request])
-                appleSignInDelegate = AppleSignInDelegate(
-                    authenticationService: authenticationService,
-                    errorHandler: errorHandler
-                )
-                controller.delegate = appleSignInDelegate
-                controller.presentationContextProvider = appleSignInDelegate
-                controller.performRequests()
+                    let controller = ASAuthorizationController(authorizationRequests: [request])
+                    appleSignInDelegate = AppleSignInDelegate(
+                        authenticationService: authenticationService,
+                        errorHandler: errorHandler
+                    )
+                    controller.delegate = appleSignInDelegate
+                    controller.presentationContextProvider = appleSignInDelegate
+                    controller.performRequests()
+                }
             }
 
             SocialButton(
