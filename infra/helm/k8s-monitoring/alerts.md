@@ -3247,6 +3247,42 @@ group by (instance, probe, phase) (probe_http_duration_seconds)
 Every probe location must come back as its own series. A single
 `instance="<aggregated>"` row means the rule is still applied.
 
+### Runner egress gateway unusable
+
+No Mac host can route a dedicated egress gateway's VMs. Every account
+assigned to that gateway (`accounts.runner_egress_gateway`) then has its
+macOS jobs held in the queue: dispatch skips the account until some host
+lists the gateway in `tuist.dev/runner-egress-ready-gateways`. Jobs never
+fall back to the shared host address, so this is an outage for those
+accounts, not a leak. See
+[`runner-egress-gateway/DESIGN.md`](../../runner-egress-gateway/DESIGN.md).
+
+```promql
+max by (cluster, env, gateway) (
+  tart_kubelet_runner_egress_tunnel_healthy
+) < 1
+```
+
+- Pending period: 5 minutes
+- Severity: critical
+- Summary: `No Mac host can route runner egress gateway {{ $labels.gateway }} in {{ $labels.env }}`
+
+A host reports a tunnel healthy only while its WireGuard handshake with
+the gateway is fresh and the gateway's `/healthz` answers through the
+tunnel. When every host fails at once, look at the gateway side first:
+
+1. `kubectl -n tuist-runner-egress get pods,svc` — the DaemonSet pod on
+   the active egress node must be Ready, and the Service must still carry
+   the Floating IP in `externalIPs`.
+2. `hcloud floating-ip describe <floatingIpName>` — the address must be
+   on the node labelled `tuist.dev/stable-egress-gateway=server`.
+3. The active node must carry `tuist.dev/stable-egress-ips`. Cilium only
+   resolves a policy's egress IP when a policy or node changes, so a
+   missing label after a Floating IP change leaves the policy unresolved
+   and every packet from the gateway pod dropped. Look for
+   `Failed to derive policy gateway configuration` in the node's
+   `cilium-agent` log; restarting that agent re-resolves it.
+
 ## Warning alerts
 
 ### CI remote compilation-cache reads slow for an account
@@ -6709,6 +6745,49 @@ the colliding series from the `err-mimir-sample-duplicate-timestamp` lines in
 the `grafanacloud-tuist-usage-insights` Loki data source, then restore the
 rule. Any other series named there means a new relabel rule in this chart is
 collapsing distinct series into one label set.
+
+### Runner egress tunnel unhealthy on a host
+
+One Mac host has lost its tunnel to a dedicated egress gateway while
+others still have it. The host stops advertising the gateway, so the
+gateway's accounts dispatch elsewhere; the fleet just has less room for
+them.
+
+```promql
+min by (cluster, env, instance, gateway) (
+  tart_kubelet_runner_egress_tunnel_healthy
+) < 1
+```
+
+- Pending period: 15 minutes
+- Severity: warning
+- Summary: `Runner egress tunnel to {{ $labels.gateway }} unhealthy on {{ $labels.instance }}`
+
+`tart_kubelet_runner_egress_handshake_age_seconds` says whether WireGuard
+is still handshaking (a stale handshake points at the network between the
+host and the Floating IP); a fresh handshake with the host still
+unhealthy points at the gateway's `/healthz`, which the host reaches
+through the tunnel. On the host, `/var/run/tuist-egress/<gateway>.json`
+holds the last probe error and `/var/log/tuist-runner-egress-<gateway>.log`
+the daemon's log (SSH as described in **Runner host PN VLAN missing**).
+
+### Runner egress account job on a fleet it cannot use
+
+An account with a dedicated egress gateway queued a job for a fleet that
+cannot route through one (today: any non-macOS fleet). Dispatch skips
+that account on such fleets, so the job stays queued until GitHub times
+it out. Tell the account, or move it off dedicated egress if it now
+needs Linux runners.
+
+```promql
+sum by (cluster, env, account_id, gateway, fleet) (
+  increase(tuist_runners_dispatch_egress_held_count{reason="platform"}[15m])
+) > 0
+```
+
+- Pending period: none
+- Severity: warning
+- Summary: `Account {{ $labels.account_id }} (egress gateway {{ $labels.gateway }}) has jobs queued on {{ $labels.fleet }}, which cannot route through a dedicated egress gateway`
 
 ## Useful investigation queries
 

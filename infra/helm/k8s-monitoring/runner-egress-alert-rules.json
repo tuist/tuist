@@ -1,0 +1,203 @@
+[
+  {
+    "annotations": {
+      "description": "Every account assigned to this dedicated egress gateway has its macOS jobs held in the queue: dispatch skips the account until a host lists the gateway in tuist.dev/runner-egress-ready-gateways. Jobs never fall back to the shared host address, so this is an outage for those accounts, not a leak. Check the gateway pod and Service (externalIPs) in tuist-runner-egress, the Floating IP's assignment, and the active egress node's tuist.dev/stable-egress-ips label (an unresolved Cilium egress policy drops all gateway traffic).",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#runner-egress-gateway-unusable",
+      "summary": "No Mac host can route runner egress gateway {{ $labels.gateway }} in {{ $labels.env }}"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "max by (cluster, env, gateway) (tart_kubelet_runner_egress_tunnel_healthy)",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  1
+                ],
+                "type": "lt"
+              }
+            }
+          ],
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Alerting",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "5m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "critical"
+    },
+    "noDataState": "OK",
+    "notification_settings": null,
+    "orgID": 1,
+    "record": null,
+    "ruleGroup": "Runners",
+    "title": "Runner egress gateway unusable",
+    "uid": "bg0q7eilnyj28c"
+  },
+  {
+    "annotations": {
+      "description": "This Mac host lost its tunnel to a dedicated egress gateway while others may still have it. It stops advertising the gateway, so the gateway's accounts dispatch elsewhere with less room. A stale tart_kubelet_runner_egress_handshake_age_seconds points at the network between host and Floating IP; a fresh handshake points at the gateway's /healthz. On the host see /var/run/tuist-egress/<gateway>.json and /var/log/tuist-runner-egress-<gateway>.log.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#runner-egress-tunnel-unhealthy-on-a-host",
+      "summary": "Runner egress tunnel to {{ $labels.gateway }} unhealthy on {{ $labels.instance }}"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "min by (cluster, env, instance, gateway) (tart_kubelet_runner_egress_tunnel_healthy)",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  1
+                ],
+                "type": "lt"
+              }
+            }
+          ],
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "OK",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "15m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "notification_settings": null,
+    "orgID": 1,
+    "record": null,
+    "ruleGroup": "Runners",
+    "title": "Runner egress tunnel unhealthy on a host",
+    "uid": "fg0q7elkwllhcf"
+  },
+  {
+    "annotations": {
+      "description": "Dispatch skips accounts with a dedicated egress gateway on fleets that cannot route through one (today: any non-macOS fleet), so this job stays queued until GitHub times it out. Tell the account, or move it off dedicated egress if it now needs Linux runners.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#runner-egress-account-job-on-a-fleet-it-cannot-use",
+      "summary": "Account {{ $labels.account_id }} (egress gateway {{ $labels.gateway }}) has jobs queued on {{ $labels.fleet }}, which cannot route through a dedicated egress gateway"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum by (cluster, env, account_id, gateway, fleet) (increase(tuist_runners_dispatch_egress_held_count{reason=\"platform\"}[15m]))",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 900,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              }
+            }
+          ],
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "OK",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "0s",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "notification_settings": null,
+    "orgID": 1,
+    "record": null,
+    "ruleGroup": "Runners",
+    "title": "Runner egress account job on a fleet it cannot use",
+    "uid": "cg0q7eop01k3kc"
+  }
+]
