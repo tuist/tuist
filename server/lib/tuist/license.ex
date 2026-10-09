@@ -37,13 +37,18 @@ defmodule Tuist.License do
 
     KeyValueStore.get_or_update(
       [__MODULE__, "license"],
-      [ttl: ttl],
-      fn -> fetch_license() end
+      [ttl: ttl, cache: :license],
+      fn ->
+        case fetch_license() do
+          {:error, _reason} = error -> {:ignore, error}
+          result -> result
+        end
+      end
     )
   end
 
   def get_cached_license do
-    KeyValueStore.get([__MODULE__, "license"])
+    KeyValueStore.get([__MODULE__, "license"], cache: :license)
   end
 
   defp fetch_license do
