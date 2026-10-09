@@ -140,6 +140,9 @@ for the threat model and the separate approved rollout required to add it to pod
 ### `egress-tree-agent/` — per-node shared egress HTB tree
 Go DaemonSet that enforces the kura per-tenant egress floors (`egress_guaranteed_mbps`), ceilings (`egress_burst_mbps`), and the node's advertised egress budget (`tuist.dev/egress-mbps`) with one shared HTB tree per node (tuist/tuist#12363). Shaped packets take a tcx BPF veth-trampoline detour (attached ahead of `cil_from_container`, returned to the same hook afterwards) so Cilium policy/identity/masquerade stay fully applied — the classic ifb detour measurably bypasses NetworkPolicy and must not come back. Consumes the `tuist.dev/egress-class` pod annotation rendered by kura-controller; co-located replica sync takes an unshaped bypass. Deliberately no pod-level qdisc underneath. See `egress-tree-agent/AGENTS.md`.
 
+### `runner-egress-gateway/`: dedicated runner egress gateway
+Go agent, one DaemonSet per gateway on the egress candidates, that terminates kernel WireGuard from Mac runner hosts (peers from the `tuist.dev/runner-egress-public-key` Node annotation) and forwards their traffic to public destinations with nftables SNAT. See [`runner-egress-gateway/AGENTS.md`](runner-egress-gateway/AGENTS.md).
+
 ### `tart-kubelet/` — Mac mini VM kubelet
 Go kubelet-shaped agent that registers a Mac mini as a Kubernetes Node and maps Pods to Tart VMs. Interactive runner VNC is host-controlled here: runner VMs start with Tart's host-owned experimental VNC enabled, generated VNC credentials stay in host-control state, and a relay opens only while either a legacy host-local `vnc-control-dir/requests/<namespace>_<pod>` file exists or the server stamps its session annotation on the runner Pod.
 

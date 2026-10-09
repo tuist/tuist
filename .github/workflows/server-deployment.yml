@@ -623,7 +623,8 @@ jobs:
         with:
           ref: ${{ env.DEPLOY_SHA }}
           # Full history + tags so k8s:install-platform can resolve the
-          # stable-egress-controller@<semver> image tag reachable from this commit.
+          # stable-egress-controller@<semver> and runner-egress-gateway@<semver>
+          # image tags reachable from this commit.
           fetch-depth: 0
       - uses: ./.github/actions/mise
         with:

@@ -150,6 +150,9 @@ jobs:
       egress-tree-agent-should-release: ${{ steps.check.outputs.egress-tree-agent-should-release }}
       egress-tree-agent-next-version: ${{ steps.check.outputs.egress-tree-agent-next-version }}
       egress-tree-agent-next-version-number: ${{ steps.check.outputs.egress-tree-agent-next-version-number }}
+      runner-egress-gateway-should-release: ${{ steps.check.outputs.runner-egress-gateway-should-release }}
+      runner-egress-gateway-next-version: ${{ steps.check.outputs.runner-egress-gateway-next-version }}
+      runner-egress-gateway-next-version-number: ${{ steps.check.outputs.runner-egress-gateway-next-version-number }}
       deployable-changed: ${{ steps.deployable.outputs.deployable-changed }}
       kura-changed: ${{ steps.kura.outputs.kura-changed }}
       # Single source of truth for hotfix routing. "(hotfix)" in the commit
@@ -642,6 +645,84 @@ jobs:
             infra/egress-tree-agent/CHANGELOG.md
           retention-days: 1
 
+  release-runner-egress-gateway:
+    name: Release runner-egress-gateway
+    needs: check-releases
+    if: needs.check-releases.outputs.runner-egress-gateway-should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff"
+          cache: "true"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Get release notes
+        id: release-notes
+        run: |
+          LATEST_VERSION=$(git tag -l | grep -E "^runner-egress-gateway@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+
+          INCLUDE_PATHS=(
+            --include-path "infra/runner-egress-gateway/**/*"
+          )
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/runner-egress-gateway/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/runner-egress-gateway/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Update CHANGELOG.md
+        working-directory: infra/runner-egress-gateway
+        run: |
+          INCLUDE_PATHS=(
+            --include-path "infra/runner-egress-gateway/**/*"
+          )
+
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.runner-egress-gateway-next-version }}" -o CHANGELOG.md 2>/dev/null
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/runner-egress-gateway/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-runner-egress-gateway:${{ needs.check-releases.outputs.runner-egress-gateway-next-version-number }}
+            ghcr.io/tuist/tuist-runner-egress-gateway:latest
+
+      - name: Upload runner-egress-gateway artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          # No values file is packaged: the image version is resolved at
+          # deploy time from this run's `<component>@<semver>` tag (created
+          # by tag-infra-releases), so there is no chart pin to bump.
+          name: runner-egress-gateway-artifacts
+          path: |
+            infra/runner-egress-gateway/CHANGELOG.md
+          retention-days: 1
+
   release-xcresult-processor-image:
     name: Release xcresult processor image
     needs: check-releases
@@ -917,6 +998,7 @@ jobs:
         release-runners-controller,
         release-stable-egress-controller,
         release-egress-tree-agent,
+        release-runner-egress-gateway,
         release-xcresult-processor-image,
         release-linux-runner-image,
         tag-infra-releases,
@@ -929,6 +1011,7 @@ jobs:
         needs.check-releases.outputs.runners-controller-should-release == 'true' ||
         needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
         needs.check-releases.outputs.egress-tree-agent-should-release == 'true' ||
+        needs.check-releases.outputs.runner-egress-gateway-should-release == 'true' ||
         needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
         needs.check-releases.outputs.linux-runner-image-should-release == 'true'
       )
@@ -997,6 +1080,15 @@ jobs:
         with:
           name: egress-tree-agent-artifacts
           path: infra/egress-tree-agent
+
+      - name: Download runner-egress-gateway artifacts
+        # Carries only infra/runner-egress-gateway/CHANGELOG.md; the deploy
+        # resolves the image version from the tag.
+        if: needs.check-releases.outputs.runner-egress-gateway-should-release == 'true' && needs.release-runner-egress-gateway.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: runner-egress-gateway-artifacts
+          path: infra/runner-egress-gateway
 
       - name: Download xcresult-processor-image artifacts
         if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' && needs.release-xcresult-processor-image.result == 'success'
@@ -1097,6 +1189,20 @@ jobs:
 
             ${{ needs.release-egress-tree-agent.outputs.release-notes }}
 
+      - name: Create runner-egress-gateway GitHub Release
+        if: needs.tag-infra-releases.outputs.runner-egress-gateway-tagged == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
+          name: Runner Egress Gateway ${{ needs.check-releases.outputs.runner-egress-gateway-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.runner-egress-gateway-next-version }}
+          body: |
+            Docker image: `ghcr.io/tuist/tuist-runner-egress-gateway:${{ needs.check-releases.outputs.runner-egress-gateway-next-version-number }}`
+
+            ${{ needs.release-runner-egress-gateway.outputs.release-notes }}
+
       - name: Create xcresult-processor-image GitHub Release
         if: needs.tag-infra-releases.outputs.xcresult-processor-image-tagged == 'true'
         uses: softprops/action-gh-release@v2
@@ -1157,6 +1263,7 @@ jobs:
         release-runners-controller,
         release-stable-egress-controller,
         release-egress-tree-agent,
+        release-runner-egress-gateway,
         release-xcresult-processor-image,
         release-linux-runner-image,
       ]
@@ -1175,6 +1282,7 @@ jobs:
       runners-controller-tagged: ${{ steps.tag.outputs.runners-controller-tagged }}
       stable-egress-controller-tagged: ${{ steps.tag.outputs.stable-egress-controller-tagged }}
       egress-tree-agent-tagged: ${{ steps.tag.outputs.egress-tree-agent-tagged }}
+      runner-egress-gateway-tagged: ${{ steps.tag.outputs.runner-egress-gateway-tagged }}
       xcresult-processor-image-tagged: ${{ steps.tag.outputs.xcresult-processor-image-tagged }}
       linux-runner-image-tagged: ${{ steps.tag.outputs.linux-runner-image-tagged }}
     env:
@@ -1271,6 +1379,11 @@ jobs:
             "${{ needs.release-egress-tree-agent.result }}" \
             "${{ needs.check-releases.outputs.egress-tree-agent-next-version }}" \
             tuist/egress-tree-agent
+          tag_release runner-egress-gateway \
+            "${{ needs.check-releases.outputs.runner-egress-gateway-should-release }}" \
+            "${{ needs.release-runner-egress-gateway.result }}" \
+            "${{ needs.check-releases.outputs.runner-egress-gateway-next-version }}" \
+            tuist/tuist-runner-egress-gateway
           tag_release xcresult-processor-image \
             "${{ needs.check-releases.outputs.xcresult-processor-image-should-release }}" \
             "${{ needs.release-xcresult-processor-image.result }}" \
@@ -1328,6 +1441,7 @@ jobs:
         needs.check-releases.outputs.runners-controller-should-release == 'true' ||
         needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
         needs.check-releases.outputs.egress-tree-agent-should-release == 'true' ||
+        needs.check-releases.outputs.runner-egress-gateway-should-release == 'true' ||
         needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
         needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
         needs.check-releases.outputs.kura-changed == 'true'
