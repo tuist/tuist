@@ -19,6 +19,17 @@ struct GitHubTests {
         #expect(repo.repo == "swifterpm")
     }
 
+    @Test(arguments: [
+        "HTTPS://GitHub.com/tuist/swifterpm.git",
+        "git@GitHub.com:tuist/swifterpm.git",
+    ])
+    func parsesGitHubLocationsWithMixedCaseHosts(location: String) throws {
+        let repo = try GitHubRepo(location: location)
+
+        #expect(repo.owner == "tuist")
+        #expect(repo.repo == "swifterpm")
+    }
+
     @Test
     func rejectsNonGitHubLocations() {
         #expect(throws: (any Error).self) {
