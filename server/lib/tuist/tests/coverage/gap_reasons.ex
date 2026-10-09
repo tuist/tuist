@@ -45,6 +45,9 @@ defmodule Tuist.Tests.Coverage.GapReasons do
   - `caller_selected_tests`: every run of a scheme executed only the tests
     its caller selected (`-only-testing`), so what the rest would have
     covered is unknown.
+  - `uninstrumented_code`: a scheme's runs reused prebuilt code without
+    coverage counters (a binary cache), and none of them ran every test from
+    sources (`Tuist.Tests.Coverage.Instrumentation`).
   """
   import Bitwise
 
@@ -65,7 +68,8 @@ defmodule Tuist.Tests.Coverage.GapReasons do
     :overlapped,
     :dirty_run_excluded,
     :target_without_history,
-    :caller_selected_tests
+    :caller_selected_tests,
+    :uninstrumented_code
   ]
 
   @bits @reasons |> Enum.with_index() |> Map.new(fn {reason, index} -> {reason, 1 <<< index} end)
