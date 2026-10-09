@@ -21,3 +21,5 @@ This area owns Plug middleware for request processing.
 ## Related Context
 - Web layer overview: `server/lib/tuist_web/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
+
+- Authorization booleans must not be cached: same-account credentials can have different scopes/project grants. Re-evaluate using the current subject. The initial proof rollout leaves subject caching unchanged until #14033; do not promise immediate revocation.
