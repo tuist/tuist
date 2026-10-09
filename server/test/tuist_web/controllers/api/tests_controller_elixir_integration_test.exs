@@ -186,9 +186,12 @@ defmodule TuistWeb.API.TestsControllerElixirIntegrationTest do
     project: project
   } do
     # How `mix tuist.test --cover` reports: deferred, then completed and sent.
+    # Its own `submit` keeps it from taking the options of the run that tests
+    # this suite, such as its shard plan.
     {:ok, pid} =
       GenServer.start_link(ExUnitFormatter,
         environment: &environment/1,
+        submit: report_to(self()),
         mode: {:defer, self()},
         enumerate: true
       )
