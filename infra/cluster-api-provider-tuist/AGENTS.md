@@ -15,9 +15,10 @@
   root/MTU/probe options explicitly, without rewriting another provider's script.
   Attach/configure only qualified regions without a
   restart, and attest every peer on its current boot before publication. Chicago
-  is physically qualified; Santiago enables attachment and runtime topology with
-  a single-host qualification limit. Validate the physical host pair when another
-  Santiago host arrives. Require reciprocal `canonicalPeers`
+  and Santiago have passed physical host-pair private-path and replication checks;
+  Santiago's checks used controller-converged routes on two enrolled hosts.
+  Revalidate new hosts and retain the qualification limits in the guide below.
+  Require reciprocal `canonicalPeers`
   for every qualified regional pair before provider calls. Resolve approvals to
   retained VPC IDs through read-only inventory checks after local routes converge.
   Missing remote state must never provision that region or block local attachment
@@ -1220,7 +1221,7 @@ and it is installed from a stick. `storage` has no layout yet. The `Installed`
 condition says which step a host is on.
 
 **The rack's boot server** (`cmd/rack-boot`, `internal/rackboot`) runs from the
-operator's image as the chart's `<fleet>-boot` DaemonSet on each edge node of
+operator's image as the rack-nodes chart's `<fleet>-boot` DaemonSet on each edge node of
 the site, with host networking. It binds TFTP and HTTP to the provisioning
 address with `IP_FREEBIND`, so the edge holding the address (keepalived's
 master) answers and the other takes over the moment the address moves. It
@@ -1342,7 +1343,7 @@ The operator runs it over SSH (`rack-node apply`, the request on stdin and the
 result on stdout, the binary uploaded under `/usr/local/lib/tuist/` by its
 digest when the host lacks it) to join a host, for a new tailnet device, a
 rename, and a Node NotReady for five minutes. Once a node is joined, the node
-agent, the chart's `<fleet>-node-agent` DaemonSet running `rack-node agent`
+agent, the rack-nodes chart's `<fleet>-node-agent` DaemonSet running `rack-node agent`
 privileged in the host's PID namespace on every rack Linux node, keeps it: it
 finds its machine from its Node's providerID, applies the published
 configuration within 30 s of a change and every five minutes otherwise, and

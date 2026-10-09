@@ -1916,7 +1916,7 @@ run_resolve() {
     run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_BEFORE="$rendered" FAKE_AFTER="$rendered" \
         FAKE_STARTUP="$rendered" FAKE_REJECT="" "$copy/fleet.sh" publish ber1-tor-b --dry-run
     [ "$status" -eq 0 ]
-    [[ "$output" == *"status in namespace tuist-staging"* ]]
+    [[ "$output" == *"status in namespace tuist:"* ]]
 }
 
 # --- the env the rack belongs to ----------------------------------------------
@@ -2352,7 +2352,7 @@ ADOPTED_FIXTURE="$BATS_TEST_DIRNAME/fixtures/ber1-mgmt-adopted.cfg"
     done
     # the device account lives with the API client, in the vault the cluster reads
     [ "$SWITCH_VAULT" = "$(jq -r '.management.controller.vault' "$SITE_FILE")" ]
-    [ "$SWITCH_VAULT" = "tuist-k8s-staging" ]
+    [ "$SWITCH_VAULT" = "tuist-k8s-production" ]
 }
 
 @test "the jump comes from the site definition, for the devices behind the edge" {
@@ -3203,7 +3203,7 @@ STUB
     cat > "$dir/op" <<'STUB'
 #!/usr/bin/env bash
 case "$2 $3" in
-    "get omada staging open api")
+    "get omada production open api")
         echo '{"fields":[{"label":"client-id","value":"cid"},{"label":"client-secret","value":"csecret"}]}';;
     "get ber1 switch device account")
         [ -f "$FAKE_LOG.account" ] || { echo '"ber1 switch device account" isn'"'"'t an item' >&2; exit 1; }
@@ -3240,7 +3240,7 @@ STUB
         "$FLEET_ROOT/omada.sh" adopt ber1-mgmt
     [ "$status" -eq 0 ]
     [[ "$output" == *"adopted and connected"* ]]
-    run grep -c 'POST https://omada.taild6d7bb.ts.net:8043/openapi/v1/OMC/sites/S1/devices/A8-29-48-FE-B4-BE/start-adopt' "$bin/log"
+    run grep -c "POST $(jq -r '.management.controller.url' "$SITE_FILE")/openapi/v1/OMC/sites/S1/devices/A8-29-48-FE-B4-BE/start-adopt" "$bin/log"
     [ "$output" = "1" ]
     run jq -r '"\(.username) \(.password)"' "$bin/log.adopt"
     [ "$output" = "tuist SwitchNotReal24chars0000" ]
@@ -3440,7 +3440,7 @@ Tq3!nW8e#Yb5Lc2V'
     omada_stub "$bin"
     run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_REFUSE=1 "$FLEET_ROOT/omada.sh" devices
     [ "$status" -ne 0 ]
-    [[ "$output" == *"refused the Open API client in 'omada staging open api'"* ]]
+    [[ "$output" == *"refused the Open API client in 'omada production open api'"* ]]
 }
 
 @test "inform needs the controller's tailnet address, since a switch cannot resolve its name" {

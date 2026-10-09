@@ -298,7 +298,6 @@ import TuistHTTP
                             pull_request_number: networkTrusted ? nil : gitHistory?.pullRequestNumber,
                             stress_new_tests: networkTrusted ? nil : stressNewTests,
                             xcode_coverage_partial: networkTrusted ? nil : coverageUpload?.partial,
-                            enumerated_tests: networkTrusted ? nil : testSummary.enumeratedTestsPayload,
                             macos_version: macOSVersion,
                             id: id,
                             changed_files: networkTrusted ? nil : history.changedFiles,
@@ -592,11 +591,6 @@ private func stressFailures(
 
 #if canImport(TuistXCResultService)
     extension TestSummary {
-        fileprivate var enumeratedTestsPayload: Operations.createTest.Input.Body.jsonPayload.enumerated_testsPayload? {
-            enumeratedTests?
-                .map { .init(enabled: $0.enabled, function: $0.function, module: $0.module, name: $0.name, suite: $0.suite) }
-        }
-
         fileprivate var coverageEvidencePayload: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload? {
             coverageEvidence.map { evidence in
                 .init(

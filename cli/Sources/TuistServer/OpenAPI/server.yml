@@ -283,7 +283,7 @@ components:
           x-struct:
           x-validate:
         skip_test_identifiers:
-          description: The tests the caller asked this run to exclude.
+          description: "The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran."
           items:
             type: string
             x-struct:
@@ -343,45 +343,6 @@ components:
         xcode_coverage_partial:
           description: 'With `xcode_coverage_storage_key`: whether the run left tests out on purpose.'
           type: boolean
-          x-struct:
-          x-validate:
-        enumerated_tests:
-          description: The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.
-          items:
-            properties:
-              enabled:
-                description: False when the scheme or the test plan disables the test.
-                type: boolean
-                x-struct:
-                x-validate:
-              function:
-                description: "The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test(\"…\")`)."
-                type: string
-                x-struct:
-                x-validate:
-              module:
-                description: The test target.
-                type: string
-                x-struct:
-                x-validate:
-              name:
-                description: The test's name as the run reports it, `testExample()`.
-                type: string
-                x-struct:
-                x-validate:
-              suite:
-                description: The suite that declares the test, the innermost one when suites nest; empty outside any suite.
-                type: string
-                x-struct:
-                x-validate:
-            required:
-              - module
-              - name
-            type: object
-            x-struct:
-            x-validate:
-          maxItems: 500000
-          type: array
           x-struct:
           x-validate:
         macos_version:
@@ -13869,7 +13830,7 @@ paths:
                   x-struct:
                   x-validate:
                 skip_test_identifiers:
-                  description: The tests the caller asked this run to exclude.
+                  description: "The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran."
                   items:
                     type: string
                     x-struct:
@@ -13929,45 +13890,6 @@ paths:
                 xcode_coverage_partial:
                   description: 'With `xcode_coverage_storage_key`: whether the run left tests out on purpose.'
                   type: boolean
-                  x-struct:
-                  x-validate:
-                enumerated_tests:
-                  description: The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.
-                  items:
-                    properties:
-                      enabled:
-                        description: False when the scheme or the test plan disables the test.
-                        type: boolean
-                        x-struct:
-                        x-validate:
-                      function:
-                        description: "The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test(\"…\")`)."
-                        type: string
-                        x-struct:
-                        x-validate:
-                      module:
-                        description: The test target.
-                        type: string
-                        x-struct:
-                        x-validate:
-                      name:
-                        description: The test's name as the run reports it, `testExample()`.
-                        type: string
-                        x-struct:
-                        x-validate:
-                      suite:
-                        description: The suite that declares the test, the innermost one when suites nest; empty outside any suite.
-                        type: string
-                        x-struct:
-                        x-validate:
-                    required:
-                      - module
-                      - name
-                    type: object
-                    x-struct:
-                    x-validate:
-                  maxItems: 500000
-                  type: array
                   x-struct:
                   x-validate:
                 macos_version:

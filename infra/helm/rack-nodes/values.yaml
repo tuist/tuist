@@ -1,0 +1,26 @@
+# The chart reads the tuist chart's values: deploys render it with
+# infra/helm/tuist/values.yaml and the env's values-managed-*.yaml, so the
+# rack's hosts, its boot server and the operator's image are declared once,
+# in rackLinuxFleet and macosFleet.image. These defaults only let the chart
+# render on its own.
+
+# The tuist release whose rack Linux fleet this serves. Names follow that
+# fleet's (`rackLinuxFleet.name`, default `<release>-tuist-rack-linux`), which
+# the operator is configured with.
+tuistRelease: tuist
+
+capi:
+  enabled: false
+
+rackLinuxFleet:
+  enabled: false
+  name: ""
+  site: ""
+  boot:
+    enabled: false
+
+macosFleet:
+  image:
+    repository: ghcr.io/tuist/capi-provider-scaleway-applesilicon
+    tag: ""
+    pullPolicy: IfNotPresent

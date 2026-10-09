@@ -172,9 +172,15 @@ through the same drained replacement process; never shrink a live filesystem.
 Keep the host free-space guard in place on hosts already provisioned at 512 GiB.
 
 For deployed GitHub smoke validation, dispatch `macos-cache-volumes-smoke.yml`
-on `main` with a fresh key and phase `seed`. After successful teardown and host
-publication, dispatch `verify` with the same key: it requires a warm APFS volume
-with the original file contents, symlink and xattr. Run `fail` and then `verify`
+on `main` with a fresh key prefix and phase `seed`. The volume retains `.build`
+from the repository's real `tuist install --force-resolved-versions`. Its full key
+includes the runner label and a hash of `.xcode-version`, `Package.swift` and
+`Package.resolved`; use the same inputs and dependency versions for both phases.
+After successful teardown and host publication, dispatch `verify`: it requires
+a warm APFS volume, the original file contents, symlink and xattr, and matching
+dependency manifest checksums before running install again. Job summaries record
+install duration, retained package count and logical size before/after install.
+Run `fail` and then `verify`
 to prove failed-job writes are discarded. Clear that dedicated volume and run
 `seed` again to check invalidation. Do not use a key belonging to a build cache.
 

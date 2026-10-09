@@ -149,6 +149,13 @@ source /etc/tuist.env
 
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
 
+# GitHub-hosted runners set ImageOS (e.g. `macos26`), and setup actions such
+# as erlef/setup-beam read it to pick a prebuilt binary for the OS. Derived
+# from the booted OS so it follows base-image bumps; the runner forwards it
+# to every step.
+ImageOS="macos$(sw_vers -productVersion | cut -d. -f1)"
+export ImageOS
+
 keep_desktop_interactive() {
   # ByHost screensaver preferences are tied to the cloned VM's
   # runtime host UUID, so the image-build defaults alone are not

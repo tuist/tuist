@@ -49,6 +49,26 @@ pub struct VerifyRequest {
     receipt: Option<Receipt>,
 }
 
+fn verification_context(request: &VerifyRequest) -> String {
+    if request.begin {
+        "begin".into()
+    } else if let Some(record) = &request.record {
+        format!(
+            "record kind={} id={:?} version={} size={}",
+            bounded_detail(&record.kind),
+            bounded_detail(&record.id),
+            record.version,
+            record.size
+        )
+    } else {
+        "receipt".into()
+    }
+}
+
+fn bounded_detail(detail: &str) -> String {
+    detail.chars().take(1024).collect()
+}
+
 async fn record(
     state: &SharedState,
     kind: BackfillRecordKind,
@@ -117,10 +137,22 @@ pub async fn verify(
     State(state): State<SharedState>,
     Json(request): Json<VerifyRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let context = verification_context(&request);
+    let id = bounded_detail(&request.intent.id);
     verify_inner(&state, request)
         .await
         .map(Json)
-        .map_err(|e| (StatusCode::CONFLICT, e))
+        .map_err(|error| {
+            let reason = bounded_detail(&error);
+            tracing::warn!(
+                event.name = "kura.handover.verification_rejected",
+                %id,
+                %context,
+                %reason,
+                "Retained-corpus verification rejected"
+            );
+            (StatusCode::CONFLICT, reason)
+        })
 }
 
 async fn verify_inner(
@@ -170,11 +202,32 @@ async fn verify_inner(
     if let Some(expected) = request.record {
         let kind = BackfillRecordKind::from_wire_name(&expected.kind)
             .ok_or("unknown retained record kind")?;
-        let actual = record(state, kind, &expected.id, expected.version)
-            .await?
-            .ok_or("retained record missing or version differs")?;
+        let actual = match record(state, kind, &expected.id, expected.version).await? {
+            Some(actual) => actual,
+            None => {
+                let version = if kind == BackfillRecordKind::NamespaceTombstone {
+                    state.store.namespace_tombstone_version(&expected.id)?
+                } else {
+                    state
+                        .store
+                        .manifest_from_db(&expected.id)?
+                        .as_ref()
+                        .map(manifest_version_ms)
+                };
+                return Err(format!(
+                    "retained record missing or version differs: expected_version={} actual_version={version:?}",
+                    expected.version
+                ));
+            }
+        };
         if actual.size != expected.size || actual.digest != expected.digest {
-            return Err("retained record content mismatch".into());
+            return Err(format!(
+                "retained record content mismatch: expected_size={} actual_size={} expected_digest={} actual_digest={}",
+                expected.size,
+                actual.size,
+                bounded_detail(&expected.digest),
+                actual.digest
+            ));
         }
         return Ok(serde_json::json!({"destination": authority.identity()}));
     }
@@ -222,7 +275,11 @@ async fn send(
     let bytes =
         crate::replication::read_bounded_body(response, 16 * 1024, "handover verification").await?;
     if !status.is_success() {
-        return Err(format!("destination rejected handover: {status}"));
+        return Err(format!(
+            "destination rejected handover: {status}; {}; reason={:?}",
+            verification_context(request),
+            bounded_detail(&String::from_utf8_lossy(&bytes))
+        ));
     }
     serde_json::from_slice(&bytes).map_err(|e| e.to_string())
 }
@@ -391,6 +448,53 @@ mod tests {
     };
 
     #[tokio::test]
+    async fn peer_rejection_keeps_stage_record_and_bounded_reason() {
+        let ctx = test_context(|_| {}).await;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let app = axum::Router::new().route(
+            "/_internal/handover/verify",
+            axum::routing::post(|| async {
+                (
+                    StatusCode::CONFLICT,
+                    format!("version mismatch {}", "é".repeat(2048)),
+                )
+            }),
+        );
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let holder = ctx.state.runtime.authority.identity().clone();
+        let intent = Intent {
+            id: "diagnostics".into(),
+            destination: holder.clone(),
+            destination_url: format!("http://{address}"),
+            source_url: "http://source".into(),
+            deadline_ms: crate::utils::now_ms() + 300_000,
+        };
+        let request = VerifyRequest {
+            begin: false,
+            intent: intent.clone(),
+            source: holder,
+            record: Some(Record {
+                kind: "segment".into(),
+                id: "artifact-id".into(),
+                version: 17,
+                size: 42,
+                digest: "expected-digest".into(),
+            }),
+            receipt: None,
+        };
+        let error = send(&ctx.state, &intent, &request).await.unwrap_err();
+        server.abort();
+        assert!(error.contains("409 Conflict"), "{error}");
+        assert!(
+            error.contains("record kind=segment id=\"artifact-id\" version=17 size=42"),
+            "{error}"
+        );
+        assert!(error.contains("version mismatch"), "{error}");
+        assert!(error.chars().count() < 1200);
+    }
+
+    #[tokio::test]
     async fn named_barrier_checks_inline_segment_tombstone_and_holds_corpus() {
         let ctx = test_context(|config| {
             config.serving_authority = Some(crate::serving_authority::AuthorityConfig {
@@ -527,11 +631,11 @@ mod tests {
             let expected = record(state, kind, id, version).await.unwrap().unwrap();
             let mut wrong = expected.clone();
             wrong.digest.push('0');
-            assert!(
-                verify_inner(state, request(false, Some(wrong), None))
-                    .await
-                    .is_err()
-            );
+            let error = verify_inner(state, request(false, Some(wrong), None))
+                .await
+                .unwrap_err();
+            assert!(error.contains("retained record content mismatch"));
+            assert!(error.contains(&format!("actual_digest={}", expected.digest)));
             verify_inner(state, request(false, Some(expected), None))
                 .await
                 .unwrap();

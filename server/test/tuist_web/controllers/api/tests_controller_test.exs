@@ -334,6 +334,32 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
     end
 
+    test "accepts the enumerated tests an older client still sends, and stores the run without them", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      expect(Tests, :create_test, fn attrs ->
+        refute Map.has_key?(attrs, :enumerated_tests)
+        assert attrs.skip_test_identifiers == ["MyTests/MathTests/testTrim()"]
+        {:ok, %Test{id: attrs.id, duration: attrs.duration, project_id: project.id, test_case_runs: []}}
+      end)
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+        duration: 1000,
+        macos_version: "15.0",
+        xcode_version: "16.0",
+        is_ci: true,
+        status: "success",
+        test_modules: [],
+        skip_test_identifiers: ["MyTests/MathTests/testTrim()"],
+        enumerated_tests: [%{module: "MyTests", suite: "MathTests", name: "testTrim()", enabled: true}]
+      })
+      |> json_response(:ok)
+    end
+
     test "schedules the publication of uploaded coverage under the run's own key", %{
       conn: conn,
       user: user,

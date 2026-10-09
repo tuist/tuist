@@ -36,7 +36,6 @@ defmodule Tuist.Tests do
   alias Tuist.Shards.ShardRun
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.CrashReport
-  alias Tuist.Tests.Enumeration
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.QuarantinedTestCase
@@ -703,9 +702,9 @@ defmodule Tuist.Tests do
 
   defp create_run_changed_files(_test, _files), do: :ok
 
-  # Coverage, the enumerated tests and the evidence enrich a run: a failure
-  # storing one of them costs that data, not the run's test cases, which are
-  # written after them and which a retry with the same id would never add.
+  # Coverage and the evidence enrich a run: a failure storing one of them
+  # costs that data, not the run's test cases, which are written after them
+  # and which a retry with the same id would never add.
   defp record_coverage_data(test, attrs, coverage, shard_index, expected_shards) do
     enrich(test, "coverage", fn -> Coverage.publish(test, coverage, shard_index, expected_shards) end)
 
@@ -714,8 +713,6 @@ defmodule Tuist.Tests do
         Coverage.enqueue_publish(test, uploaded, shard_index, expected_shards)
       end)
     end
-
-    enrich(test, "enumerated tests", fn -> Enumeration.record(test, Map.get(attrs, :enumerated_tests)) end)
 
     enrich(test, "coverage evidence", fn ->
       Coverage.Evidence.record(test, Map.get(attrs, :coverage_evidence), shard_index)

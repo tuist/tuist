@@ -140,7 +140,6 @@ defmodule Tuist do
       Tests.XcresultProcessing,
       Tests.Workers.ProcessXcresultWorker,
       Tests.StressNewTests,
-      Tests.Enumeration,
       Tests.Coverage,
       Tests.Coverage.Commits,
       Tests.Coverage.Deltas,
