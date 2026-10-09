@@ -259,6 +259,13 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert reasons(reported) == [:unbuilt_file_unknown, :uninstrumented_code]
   end
 
+  test "a run that took only remote packages from the binary cache is measured", %{project: project, account: account} do
+    head = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
+    binary_cache(project, head, ["Alamofire"], external_hash: "alamofire-revision")
+
+    assert %{kind: "measured", gap_reasons: 0} = Reported.compute(project, "head")
+  end
+
   test "a scheme with a run that ran every test from sources is measured, whatever its other runs took from the cache",
        %{project: project, account: account} do
     cached = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head", partial: true})
@@ -390,11 +397,13 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   end
 
   # Targets the run took from the binary cache: prebuilt, without coverage counters.
-  defp binary_cache(project, run, targets) do
+  defp binary_cache(project, run, targets, opts \\ []) do
     event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run.id)
 
     for target <- targets do
-      XcodeFixtures.xcode_target_fixture(command_event_id: event.id, name: target, binary_cache_hit: :local)
+      XcodeFixtures.xcode_target_fixture(
+        [command_event_id: event.id, name: target, binary_cache_hit: :local] ++ opts
+      )
     end
   end
 

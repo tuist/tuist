@@ -12,7 +12,12 @@ defmodule Tuist.Tests.Coverage.Xcode do
   alias Tuist.Tests.Coverage
   alias Tuist.Xcode.XcodeTarget
 
-  @doc "The runs, of the given ones, that took at least one target from the binary cache."
+  @doc """
+  The runs, of the given ones, that took at least one of the repository's
+  targets from the binary cache. A remote package's targets carry its
+  revision as their `external_hash`, and no coverage is kept outside the
+  repository anyway; a local package has none, so it counts.
+  """
   def uninstrumented_runs(_project_id, []), do: []
 
   def uninstrumented_runs(project_id, run_ids) do
@@ -32,7 +37,8 @@ defmodule Tuist.Tests.Coverage.Xcode do
     |> Enum.flat_map(fn ids ->
       ClickHouseRepo.all(
         from(t in XcodeTarget,
-          where: t.command_event_id in ^ids and fragment("? != 'miss'", t.binary_cache_hit),
+          where:
+            t.command_event_id in ^ids and fragment("? != 'miss'", t.binary_cache_hit) and t.external_hash == "",
           distinct: true,
           select: t.command_event_id
         )
