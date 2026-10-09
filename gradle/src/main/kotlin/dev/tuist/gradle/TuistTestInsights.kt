@@ -369,6 +369,7 @@ abstract class TuistTestInsightsService :
         val project: Property<String>
         val useEnvironmentProxy: Property<Boolean>
         val actorId: Property<String>
+        val networkTrustedPublishing: Property<Boolean>
         val rootProjectName: Property<String>
         val projectDir: DirectoryProperty
         val gitBranch: Property<String>
@@ -492,7 +493,8 @@ abstract class TuistTestInsightsService :
             project = projectValue,
             serverUrl = parameters.url.get(),
             projectDir = projectDir,
-            httpClients = httpClients
+            httpClients = httpClients,
+            allowNetworkTrustedPublishing = parameters.networkTrustedPublishing.getOrElse(false)
         )
 
         val httpClient = TuistHttpClient(
@@ -533,7 +535,11 @@ abstract class TuistTestInsightsService :
                 }
 
                 OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    Gson().toJson(report, writer)
+                    val outgoingReport = if (config.token.isBlank()) report.copy(
+                        gradleBuildId = null, shardPlanId = null, shardIndex = null, stressNewTests = null,
+                        gitRemoteUrlOrigin = null
+                    ) else report
+                    Gson().toJson(outgoingReport, writer)
                 }
 
                 when (connection.responseCode) {
@@ -594,6 +600,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             config.project?.let { parameters.project.set(it) }
             parameters.useEnvironmentProxy.set(config.network.proxy)
             config.actorId?.let { parameters.actorId.set(it) }
+            parameters.networkTrustedPublishing.set(config.networkTrustedBuildPublishing)
             parameters.rootProjectName.set(project.rootProject.name)
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
             parameters.gitBranch.set(gitInfo.branch())
@@ -628,6 +635,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
                 parameters.serverUrl.set(config.url)
                 config.project?.let { parameters.tuistProject.set(it) }
                 parameters.useEnvironmentProxy.set(config.network.proxy)
+                parameters.networkTrustedPublishing.set(config.networkTrustedBuildPublishing)
                 parameters.projectDir.set(project.rootProject.layout.projectDirectory)
             }
         } else {

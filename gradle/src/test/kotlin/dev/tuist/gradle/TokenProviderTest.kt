@@ -126,7 +126,7 @@ class TokenProviderTest {
     fun `corrupt or empty stored credentials cannot become anonymous publishing`() {
         val file = File(tempDir, "credentials/tuist.dev.json")
         file.parentFile.mkdirs()
-        for (contents in listOf("not-json", "null", "{}", "{\"accessToken\":\"\"}")) {
+        for (contents in listOf("not-json", "null", "{}", "{\"accessToken\":\"\"}", "{\"accessToken\":\"expired\",\"rejected\":true}")) {
             file.writeText(contents)
             assertFailsWith<IllegalStateException> { createProvider().getOptionalToken() }
             assertEquals(contents, file.readText(), "Refusing invalid credentials must not delete them and downgrade on the next build")

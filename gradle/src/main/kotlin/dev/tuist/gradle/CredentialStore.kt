@@ -11,7 +11,8 @@ data class Credentials(
     @SerializedName(value = "accessToken", alternate = ["access_token"])
     val accessToken: String,
     @SerializedName(value = "refreshToken", alternate = ["refresh_token"])
-    val refreshToken: String? = null
+    val refreshToken: String? = null,
+    val rejected: Boolean? = null
 )
 
 class CredentialStore(
@@ -29,7 +30,7 @@ class CredentialStore(
         if (!credFile.exists()) return null
         return try {
             val credentials = Gson().fromJson(credFile.readText(), Credentials::class.java)
-            if (rejectInvalid && credentials?.accessToken.isNullOrBlank()) {
+            if (rejectInvalid && (credentials?.accessToken.isNullOrBlank() || credentials?.rejected == true)) {
                 throw IllegalArgumentException("Missing access token")
             }
             credentials

@@ -26,13 +26,13 @@ internal class ReportConfigurationProvider(
         val token = if (allowNetworkTrustedPublishing) tokenProvider.getOptionalToken(forceRefresh)
             else tokenProvider.getToken(forceRefresh)
         val host = resolvedUrl.host?.trimEnd('.')?.lowercase(Locale.ROOT)
-        check(token != null || (host != null && host !in hostedHosts && !host.endsWith(".tuist.dev"))) {
+        check(token != null || (host != null && host !in hostedHosts && !host.endsWith(".tuist.dev") && !host.endsWith(".tuist.io"))) {
             "Credential-free publishing requires a configured self-hosted Tuist server URL."
         }
         return CacheConfiguration(resolvedUrl.toString(), token ?: "", handle.accountHandle, handle.projectHandle)
     }
 
     private companion object {
-        val hostedHosts = setOf("tuist.dev", "www.tuist.dev", "canary.tuist.dev", "staging.tuist.dev", "cloud.tuist.io")
+        val hostedHosts = setOf("tuist.dev", "www.tuist.dev", "canary.tuist.dev", "staging.tuist.dev", "cloud.tuist.io", "cloud.tuist.dev", "tuist.io")
     }
 }

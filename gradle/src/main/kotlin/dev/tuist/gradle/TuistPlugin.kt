@@ -74,7 +74,8 @@ data class TuistGradleConfig(
                 ),
                 uploadInBackground = extension.uploadInBackground,
                 actorId = extension.buildInsights.actorId,
-                networkTrustedBuildPublishing = extension.buildInsights.networkTrustedPublishing,
+                networkTrustedBuildPublishing = settings.providers.environmentVariable("TUIST_NETWORK_TRUSTED_PUBLISHING")
+                    .orNull?.let { it == "true" } ?: extension.buildInsights.networkTrustedPublishing,
                 testQuarantineEnabled = extension.testQuarantine.enabled,
                 stressNewTestsMode = StressNewTestsMode.resolve(
                     environmentValue = System.getenv(STRESS_MODE_ENV),
