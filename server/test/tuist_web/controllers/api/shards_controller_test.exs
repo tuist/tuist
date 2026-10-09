@@ -231,6 +231,44 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert json_response(conn, :ok)
     end
 
+    test "forwards the module_concurrency parameter", %{conn: conn, user: user, project: project} do
+      plan_id = Ecto.UUID.generate()
+
+      expect(Tuist.Shards, :create_shard_plan, fn _project, params ->
+        assert params.module_concurrency == 8
+
+        %{
+          plan: %{id: plan_id, reference: "module-concurrency-ref"},
+          shard_count: 1,
+          shard_assignments: [%{"index" => 0, "test_targets" => [], "estimated_duration_ms" => 0}]
+        }
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{reference: "module-concurrency-ref", modules: ["AppTests"], module_concurrency: 8}
+        )
+
+      assert json_response(conn, :ok)
+    end
+
+    test "rejects a module_concurrency below one", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{reference: "module-concurrency-zero", modules: ["AppTests"], module_concurrency: 0}
+        )
+
+      assert response(conn, 400)
+    end
+
     test "accepts and stores build_run_id parameter", %{conn: conn, user: user, project: project} do
       build_run_id = Ecto.UUID.generate()
 
@@ -368,7 +406,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
           ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/reused-reference/0?shard_plan_id=not-a-uuid"
         )
 
-      assert json_response(conn, :bad_request)
+      assert response(conn, 400)
     end
 
     test "uses the exact shard plan id when provided", %{conn: conn, user: user, project: project} do

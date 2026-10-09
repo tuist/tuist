@@ -102,6 +102,50 @@ defmodule Tuist.Shards.BinPacker do
   defp makespan(shards), do: shards |> Enum.map(&elem(&1, 2)) |> Enum.max()
 
   @doc """
+  Packs units for a runner that executes up to `concurrency` `:parallel` units
+  at once and runs `:serial` units one after another, as ExUnit does with
+  `async: true` and `async: false` modules.
+
+  A shard then takes `max(parallel total / concurrency, longest parallel unit)`
+  plus its serial total, so summing durations would price a serial unit at a
+  fraction of what it costs. Units are taken longest first and each goes to the
+  shard it lengthens least by that estimate, which is LPT with the runner's
+  cost instead of the sum.
+
+  Units are `{name, duration_ms, :parallel | :serial}`. Returns
+  `{index, [{name, duration_ms}], estimated_duration_ms}` tuples, as `pack/2`.
+  """
+  def pack_concurrent(units, shard_count, concurrency)
+      when is_list(units) and is_integer(shard_count) and shard_count > 0 and is_integer(concurrency) and concurrency > 0 do
+    empty_shards = Enum.map(0..(shard_count - 1), &{&1, [], {0, 0, 0}})
+
+    units
+    |> Enum.sort_by(&elem(&1, 1), :desc)
+    |> Enum.reduce(empty_shards, fn {name, duration, mode}, shards ->
+      {min_index, _units, _load} =
+        Enum.min_by(shards, fn {_index, _units, load} ->
+          load |> add_load(duration, mode) |> concurrent_estimate(concurrency)
+        end)
+
+      List.update_at(shards, min_index, fn {index, shard_units, load} ->
+        {index, [{name, duration} | shard_units], add_load(load, duration, mode)}
+      end)
+    end)
+    |> Enum.map(fn {index, shard_units, load} ->
+      {index, Enum.reverse(shard_units), round(concurrent_estimate(load, concurrency))}
+    end)
+  end
+
+  defp add_load({parallel_total, longest_parallel, serial_total}, duration, :parallel),
+    do: {parallel_total + duration, max(longest_parallel, duration), serial_total}
+
+  defp add_load({parallel_total, longest_parallel, serial_total}, duration, :serial),
+    do: {parallel_total, longest_parallel, serial_total + duration}
+
+  defp concurrent_estimate({parallel_total, longest_parallel, serial_total}, concurrency),
+    do: max(parallel_total / concurrency, longest_parallel) + serial_total
+
+  @doc """
   Determines the optimal shard count from constraints.
 
   Options:

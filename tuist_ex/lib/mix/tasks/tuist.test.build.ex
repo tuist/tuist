@@ -13,7 +13,10 @@ defmodule Mix.Tasks.Tuist.Test.Build do
   part of one test run.
 
   Tuist balances the shards with how long each test module took in earlier
-  runs. Modules it has not seen yet get an estimate.
+  runs. Modules it has not seen yet get an estimate. `async: true` modules
+  run alongside each other, up to ExUnit's `:max_cases` from the `:ex_unit`
+  application environment (twice the schedulers by default), and the others
+  one at a time, and the shards are balanced by that.
 
   ## Options
 

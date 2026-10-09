@@ -190,6 +190,7 @@ defmodule TuistEx.Analytics.Shards do
         reference: reference,
         modules: Enum.sort(modules),
         granularity: "module",
+        module_concurrency: max_cases(),
         shard_min: Keyword.get(options, :shard_min),
         shard_max: Keyword.get(options, :shard_max),
         shard_total: Keyword.get(options, :shard_total),
@@ -199,6 +200,16 @@ defmodule TuistEx.Analytics.Shards do
       |> Map.reject(fn {_key, value} -> is_nil(value) end)
 
     HTTP.project_request(:post, "/tests/shards", body, options)
+  end
+
+  # How many `async: true` modules ExUnit runs at once; the others run one at
+  # a time after them. The server balances the shards' wall clock with it.
+  # Read from the `:ex_unit` application environment, so a `--max-cases`
+  # given to the shards, or to `ExUnit.start/1`, is not seen here.
+  defp max_cases do
+    Mix.ensure_application!(:ex_unit)
+    Application.load(:ex_unit)
+    ExUnit.configuration()[:max_cases]
   end
 
   @doc """

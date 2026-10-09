@@ -1,5 +1,6 @@
 defmodule TuistEx.Analytics.ShardsTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   alias Mix.Tasks.Tuist.Test.Build
   alias TuistEx.Analytics.Shards
@@ -27,6 +28,20 @@ defmodule TuistEx.Analytics.ShardsTest do
     assert Shards.reference([], environment(%{"CI_PIPELINE_ID" => "7"})) == {:ok, "gitlab-7"}
     assert {:error, message} = Shards.reference([], environment(%{}))
     assert message =~ "TUIST_SHARD_REFERENCE"
+  end
+
+  test "asks for a plan priced with how many modules ExUnit runs at once" do
+    Mimic.expect(TuistEx.Analytics.HTTP, :project_request, fn :post, "/tests/shards", body, _ ->
+      send(self(), {:body, body})
+      {:ok, %{}}
+    end)
+
+    Shards.create_plan("reference", ["BTest", "ATest"], shard_total: 2)
+
+    assert_received {:body, body}
+    assert body.modules == ["ATest", "BTest"]
+    assert body.module_concurrency == ExUnit.configuration()[:max_cases]
+    assert body.shard_total == 2
   end
 
   test "a run is sharded only when a shard index is given" do

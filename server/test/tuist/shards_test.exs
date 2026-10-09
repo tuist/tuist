@@ -1009,6 +1009,103 @@ defmodule Tuist.ShardsTest do
       assert assignment["estimated_duration_ms"] == 10_000
     end
 
+    test "balances module shards by wall clock when the client declares its concurrency" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{name: "SerialA", status: "success", duration: 30_000, execution_mode: "serial", test_cases: []},
+          %{name: "SerialB", status: "success", duration: 20_000, execution_mode: "serial", test_cases: []},
+          %{name: "Parallel1", status: "success", duration: 20_000, execution_mode: "parallel", test_cases: []},
+          %{name: "Parallel2", status: "success", duration: 20_000, execution_mode: "parallel", test_cases: []},
+          %{name: "Parallel3", status: "success", duration: 10_000, execution_mode: "parallel", test_cases: []}
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      modules = ["SerialA", "SerialB", "Parallel1", "Parallel2", "Parallel3"]
+
+      concurrent =
+        Shards.create_shard_plan(project, %{
+          reference: "module-concurrency",
+          modules: modules,
+          module_concurrency: 4,
+          shard_total: 2
+        })
+
+      assert Enum.map(concurrent.shard_assignments, & &1["estimated_duration_ms"]) == [40_000, 40_000]
+
+      assert [["Parallel3", "SerialA"], ["Parallel1", "Parallel2", "SerialB"]] =
+               Enum.map(concurrent.shard_assignments, &Enum.sort(&1["test_targets"]))
+
+      summed =
+        Shards.create_shard_plan(project, %{reference: "module-summed", modules: modules, shard_total: 2})
+
+      assert Enum.map(summed.shard_assignments, & &1["estimated_duration_ms"]) == [50_000, 50_000]
+    end
+
+    test "prices a module with no reported execution mode as serial" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{name: "UnknownA", status: "success", duration: 20_000, test_cases: []},
+          %{name: "UnknownB", status: "success", duration: 20_000, test_cases: []}
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      result =
+        Shards.create_shard_plan(project, %{
+          reference: "module-concurrency-unknown",
+          modules: ["UnknownA", "UnknownB"],
+          module_concurrency: 8,
+          shard_total: 1
+        })
+
+      assert [%{"estimated_duration_ms" => 40_000}] = result.shard_assignments
+    end
+
+    test "takes a module's execution mode from its latest run" do
+      project = ProjectsFixtures.project_fixture()
+
+      for {mode, ran_at} <- [
+            {"parallel", NaiveDateTime.add(NaiveDateTime.utc_now(), -2, :day)},
+            {"serial", NaiveDateTime.utc_now()}
+          ] do
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          is_ci: true,
+          git_branch: project.default_branch,
+          ran_at: ran_at,
+          test_modules: [
+            %{name: "FlippedA", status: "success", duration: 20_000, execution_mode: mode, test_cases: []},
+            %{name: "FlippedB", status: "success", duration: 20_000, execution_mode: mode, test_cases: []}
+          ]
+        )
+      end
+
+      RunsFixtures.optimize_test_runs()
+
+      result =
+        Shards.create_shard_plan(project, %{
+          reference: "module-concurrency-latest",
+          modules: ["FlippedA", "FlippedB"],
+          module_concurrency: 8,
+          shard_total: 1
+        })
+
+      assert [%{"estimated_duration_ms" => 40_000}] = result.shard_assignments
+    end
+
     test "derives suite units from history when the client does not enumerate" do
       project = ProjectsFixtures.project_fixture()
 

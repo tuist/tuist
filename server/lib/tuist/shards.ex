@@ -43,9 +43,13 @@ defmodule Tuist.Shards do
       |> fold_nested_classes(granularity)
       |> scale_by_module_parallelism(project, params, granularity)
 
+    concurrency = module_concurrency(params, granularity)
+    units_with_modes = assign_execution_modes(units_with_durations, project, concurrency)
+
     shard_count =
-      BinPacker.determine_shard_count(
-        units_with_durations,
+      units_with_modes
+      |> shard_count_units(concurrency)
+      |> BinPacker.determine_shard_count(
         min: Map.get(params, :shard_min, 1),
         max: Map.get(params, :shard_max, 10),
         total: Map.get(params, :shard_total),
@@ -53,10 +57,10 @@ defmodule Tuist.Shards do
       )
 
     assignment_shards =
-      if granularity == "suite" do
-        BinPacker.pack(units_with_durations, shard_count, &suite_module/1)
-      else
-        BinPacker.pack(units_with_durations, shard_count)
+      cond do
+        granularity == "suite" -> BinPacker.pack(units_with_durations, shard_count, &suite_module/1)
+        concurrency -> BinPacker.pack_concurrent(units_with_modes, shard_count, concurrency)
+        true -> BinPacker.pack(units_with_durations, shard_count)
       end
 
     now = NaiveDateTime.utc_now()
@@ -869,6 +873,52 @@ defmodule Tuist.Shards do
     |> Map.new(fn {name, factor} ->
       {name, factor |> max(@min_parallelism_factor) |> min(@max_parallelism_factor)}
     end)
+  end
+
+  # A module plan prices a shard as the sum of its modules' durations, which is its wall clock only
+  # when the runner takes one module at a time. ExUnit runs up to `max_cases` `async: true` modules at
+  # once and the `async: false` ones one by one after them, so a sum prices a serial module at a
+  # fraction of what it costs the shard. A client whose runner works that way declares its
+  # concurrency, and each module is packed by the execution mode its latest run reported. A module
+  # with no reported mode counts as serial, which is what the sum assumes.
+  defp module_concurrency(params, "module"), do: Map.get(params, :module_concurrency)
+  defp module_concurrency(_params, _granularity), do: nil
+
+  defp assign_execution_modes(units_with_durations, _project, nil), do: units_with_durations
+
+  defp assign_execution_modes(units_with_durations, project, _concurrency) do
+    modes = fetch_module_execution_modes(project, Enum.map(units_with_durations, &elem(&1, 0)))
+
+    Enum.map(units_with_durations, fn {name, duration} ->
+      {name, duration, if(Map.get(modes, name) == "parallel", do: :parallel, else: :serial)}
+    end)
+  end
+
+  defp shard_count_units(units, nil), do: units
+
+  defp shard_count_units(units, concurrency) do
+    Enum.map(units, fn
+      {name, duration, :parallel} -> {name, round(duration / concurrency)}
+      {name, duration, :serial} -> {name, duration}
+    end)
+  end
+
+  defp fetch_module_execution_modes(_project, []), do: %{}
+
+  defp fetch_module_execution_modes(project, modules) do
+    cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
+
+    from(mr in TestModuleRun,
+      where: mr.project_id == ^project.id,
+      where: mr.is_ci == true,
+      where: mr.ran_at >= ^cutoff,
+      where: mr.name in ^modules,
+      where: mr.execution_mode != "",
+      group_by: mr.name,
+      select: {mr.name, fragment("argMax(?, ?)", mr.execution_mode, mr.ran_at)}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new()
   end
 
   defp assign_durations(unit_names, timing_data, granularity) do

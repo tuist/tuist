@@ -141,6 +141,46 @@ defmodule Tuist.Shards.BinPackerTest do
     end
   end
 
+  describe "pack_concurrent/3" do
+    test "balances the shards' wall clock rather than their summed durations" do
+      # Summed, the best split is A+P2 (50) against B+P1+P3 (50); but the
+      # parallel units overlap, so that puts 30 + 20 on one shard and 20 + 20
+      # on the other.
+      units = [
+        {"A", 30, :serial},
+        {"B", 20, :serial},
+        {"P1", 20, :parallel},
+        {"P2", 20, :parallel},
+        {"P3", 10, :parallel}
+      ]
+
+      result = BinPacker.pack_concurrent(units, 2, 4)
+
+      assert Enum.map(result, &elem(&1, 2)) == [40, 40]
+      assert shard_of(result, "A") != shard_of(result, "B")
+      assert makespan(BinPacker.pack(Enum.map(units, &Tuple.delete_at(&1, 2)), 2)) == 50
+    end
+
+    test "never estimates a shard shorter than its longest parallel unit" do
+      result = BinPacker.pack_concurrent([{"P1", 100, :parallel}, {"P2", 10, :parallel}], 1, 8)
+
+      assert result == [{0, [{"P1", 100}, {"P2", 10}], 100}]
+    end
+
+    test "prices parallel units by how many run at once" do
+      units = for index <- 1..8, do: {"P#{index}", 100, :parallel}
+
+      assert BinPacker.pack_concurrent(units, 1, 4) == [{0, Enum.map(units, &Tuple.delete_at(&1, 2)), 200}]
+    end
+
+    test "packs serial units as pack/2 does" do
+      units = [{"A", 100}, {"B", 80}, {"C", 60}, {"D", 40}, {"E", 20}]
+
+      assert BinPacker.pack_concurrent(Enum.map(units, fn {name, duration} -> {name, duration, :serial} end), 2, 8) ==
+               BinPacker.pack(units, 2)
+    end
+  end
+
   describe "determine_shard_count/2" do
     test "returns total when specified" do
       units = [{"A", 100}, {"B", 80}]
