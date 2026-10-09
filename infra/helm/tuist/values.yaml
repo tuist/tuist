@@ -1778,6 +1778,9 @@ rackLinuxFleet:
   #       activate: false        # default: amt.products decides
   #       address: 192.168.50.21/24   # default: one from amt.addressRange
   #       gateway: 192.168.50.1  # default: amt.gateway
+  # An edge's way out on the first boot of an install (spec.edge) comes from
+  # rack-sites/<site>.yaml, which `mise run rack:fleet render` writes from the
+  # site definition, not from here.
   hosts: []
 
   # Intel AMT. The operator activates, in admin control mode, the AMT of each

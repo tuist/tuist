@@ -203,6 +203,19 @@ render_edge() {
       echo "rendered ${dir#"$FLEET_ROOT"/}/$file"
     fi
   done
+  # What an edge's install needs, for the tuist chart's RackLinuxHosts.
+  file="$FLEET_RACK_SITES/$(basename "$(site_file)" .json).yaml"
+  fleet_edge_install "$(site_file)" > "$rendered"
+  if (( check )); then
+    if ! diff -q "$rendered" "$file" >/dev/null 2>&1; then
+      echo "stale: ${file#"$FLEET_ROOT"/}" >&2
+      status=1
+    fi
+  else
+    mkdir -p "$FLEET_RACK_SITES"
+    cp "$rendered" "$file"
+    echo "rendered ${file#"$FLEET_ROOT"/}"
+  fi
   rm -f "$rendered"
   return "$status"
 }

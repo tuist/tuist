@@ -131,6 +131,52 @@ spec:
                     machine announced as its management port (status.bootMAC).
                   pattern: ^([0-9a-f]{2}:){5}[0-9a-f]{2}$
                   type: string
+                edge:
+                  description: |-
+                    Edge is how an edge reaches the internet on its first boot, before its
+                    rack-edge pod runs: through the other edge, over the site's VRRP VLAN.
+                    The chart renders it from the site definition
+                    (infra/helm/tuist/rack-sites/<site>.yaml, written by rack:fleet
+                    render). Unset, an edge's install takes DHCP on its uplinks.
+                  properties:
+                    uplinks:
+                      description: |-
+                        Uplinks are the OS names of the interfaces the edge's data links leave
+                        from, in the site's order.
+                      items:
+                        pattern: ^[a-z][a-z0-9]{0,14}$
+                        type: string
+                      maxItems: 2
+                      minItems: 1
+                      type: array
+                    vrrp:
+                      description: VRRP is the edge's address on the site's VRRP VLAN, and its way out.
+                      properties:
+                        address:
+                          description: Address is the edge's VRRP address, with the prefix length.
+                          pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$
+                          type: string
+                        peer:
+                          description: |-
+                            Peer is the other edge's VRRP address, the edge's default route until
+                            keepalived gives it the WAN.
+                          pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}$
+                          type: string
+                        vlan:
+                          description: VLAN is the site's VRRP VLAN.
+                          format: int32
+                          maximum: 4094
+                          minimum: 1
+                          type: integer
+                      required:
+                        - address
+                        - peer
+                        - vlan
+                      type: object
+                  required:
+                    - uplinks
+                    - vrrp
+                  type: object
                 hostname:
                   description: |-
                     Hostname is the name the host runs under: its operating system's, its
@@ -603,6 +649,8 @@ spec:
               rule: self.metadata.name.matches('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
             - message: spec.location.site is required; it composes the providerID
               rule: self.spec.location.site != ''
+            - message: only an edge has spec.edge
+              rule: '!has(self.spec.edge) || self.spec.role == ''edge'''
       served: true
       storage: true
       subresources:

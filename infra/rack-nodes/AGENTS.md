@@ -299,12 +299,22 @@ carries the same guard.
 
 ## What an install carries
 
-- network configuration for the SFP+ uplinks only (DHCP on the X710's `i40e`
-  ports), so the 2.5G ports stay unmanaged for the node's pods: an edge's
-  rack-edge pod owns its switch port. On an edge that lasts until its first
-  converge, which takes DHCP off the uplinks (the WAN is the rack-edge pod's),
-  so a reinstalled edge at a site with no DHCP on the management VLAN reaches
-  nothing until then;
+- network configuration for the SFP+ uplinks only, so the 2.5G ports stay
+  unmanaged for the node's pods: an edge's rack-edge pod owns its switch port.
+  That is DHCP on the X710's `i40e` ports, except on an edge whose
+  RackLinuxHost carries `spec.edge` (rendered from the site definition at a
+  site with a WAN): its uplinks take no address, and it goes out over the
+  site's VRRP VLAN through the other edge, an active-backup bond `vrrp0` over
+  `vrrp0-<n>` on the n-th uplink with its VRRP address and a default route
+  through the other edge at metric 200, built the way the rack-edge pod
+  builds it, plus global resolvers in
+  `/etc/systemd/resolved.conf.d/10-tuist-edge.conf`. Nothing serves DHCP on
+  the management VLAN at the colo, so that is how a reinstalled edge reaches
+  the tailnet and gets converged. It needs the other edge up as master, so the
+  edges are reinstalled one at a time. A per-host stick (`--host`) renders no
+  edge network; install an edge at the colo by netboot or with the site's stick
+  (`--any-host`). See "Rack-owned Linux hosts" in
+  [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md);
 - `blacklist btusb` in `/etc/modprobe.d/tuist-rack.conf`, which the converge
   also keeps: the MS-01's Bluetooth dereferences NULL on a warm boot of the 6.8
   kernel, and the node's `panic_on_oops` turns that into a reboot every 70
