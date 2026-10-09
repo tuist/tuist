@@ -192,6 +192,14 @@ it knew at startup, so it never sees a Floating IP the host-configurer adds
 later. Staging showed exactly that, with handshakes arriving on `eth0` and
 never reaching the pod. The external IP is matched by destination.
 
+Cilium resolves a policy's egress IP to an interface when it sees the policy
+or a node change, not when an address appears. A gateway added in the same
+deploy as its Floating IP therefore starts with an unresolved policy that
+drops the gateway's traffic (seen on staging). stable-egress-controller
+stamps `tuist.dev/stable-egress-ips`, a digest of the active node's egress
+addresses, once the host-configurer reports the node prepared. The label
+change makes Cilium re-resolve.
+
 Phase 2 at BER1 runs the same agent in `address:<ip>` mode on the edge box,
 SNATing straight to the /24 address.
 

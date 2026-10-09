@@ -874,3 +874,86 @@ func TestReconcilePrimaryMovesWhenAdditionalAssignFails(t *testing.T) {
 		t.Fatalf("gateway-1 on server %d, want it left on 111 after the failed assign", got)
 	}
 }
+
+const egressIPsLabel = "tuist.dev/stable-egress-ips"
+
+func nodeLabel(t *testing.T, r *FailoverReconciler, name, key string) (string, string) {
+	t.Helper()
+	var node corev1.Node
+	if err := r.Get(context.Background(), client.ObjectKey{Name: name}, &node); err != nil {
+		t.Fatal(err)
+	}
+	return node.Labels[key], node.ResourceVersion
+}
+
+func preparedReconciler(fip *fakeFIP, objs ...client.Object) *FailoverReconciler {
+	r := newReconciler(fip, objs...)
+	r.PreparedPodNamespace = "kube-system"
+	r.PreparedPodLabelKey = "app.kubernetes.io/name"
+	r.PreparedPodLabelValue = "host-configurer"
+	r.UnpreparedGracePeriod = time.Hour
+	r.EgressIPsLabelKey = egressIPsLabel
+	return r
+}
+
+func TestReconcileStampsEgressIPsLabelOncePrepared(t *testing.T) {
+	active := candidateNode("egress-a", "hcloud://111", true, true)
+	fip := &fakeFIP{server: 111, addr: "198.51.100.7", additional: map[string]*fakeAdditionalFIP{"gateway-1": {server: 111}}}
+	r := preparedReconciler(fip, active, preparedPod("hc-a", "egress-a", true))
+	r.AdditionalFloatingIPNames = []string{"gateway-1"}
+
+	if _, err := reconcileOnce(t, r); err != nil {
+		t.Fatal(err)
+	}
+	label, version := nodeLabel(t, r, "egress-a", egressIPsLabel)
+	if label != egressIPsDigest([]string{"203.0.113.20", "198.51.100.7"}) {
+		t.Fatalf("label = %q", label)
+	}
+
+	if _, err := reconcileOnce(t, r); err != nil {
+		t.Fatal(err)
+	}
+	if _, again := nodeLabel(t, r, "egress-a", egressIPsLabel); again != version {
+		t.Fatal("steady state patched the node")
+	}
+}
+
+func TestReconcileWithholdsEgressIPsLabelUntilPrepared(t *testing.T) {
+	active := candidateNode("egress-a", "hcloud://111", true, true)
+	fip := &fakeFIP{server: 111, addr: "198.51.100.7", additional: map[string]*fakeAdditionalFIP{"gateway-1": {server: 111}}}
+	r := preparedReconciler(fip, active, preparedPod("hc-a", "egress-a", false))
+	r.AdditionalFloatingIPNames = []string{"gateway-1"}
+
+	if _, err := reconcileOnce(t, r); err != nil {
+		t.Fatal(err)
+	}
+	if label, _ := nodeLabel(t, r, "egress-a", egressIPsLabel); label != "" {
+		t.Fatalf("label stamped on an unprepared node: %q", label)
+	}
+}
+
+func TestReconcileWithoutAdditionalFloatingIPsLeavesNodeUnlabelled(t *testing.T) {
+	active := candidateNode("egress-a", "hcloud://111", true, true)
+	fip := &fakeFIP{server: 111, addr: "198.51.100.7"}
+	r := preparedReconciler(fip, active, preparedPod("hc-a", "egress-a", true))
+
+	if _, err := reconcileOnce(t, r); err != nil {
+		t.Fatal(err)
+	}
+	if label, _ := nodeLabel(t, r, "egress-a", egressIPsLabel); label != "" {
+		t.Fatalf("label stamped without additional Floating IPs: %q", label)
+	}
+}
+
+func TestEgressIPsDigestIgnoresOrderAndTracksTheSet(t *testing.T) {
+	a := egressIPsDigest([]string{"198.51.100.7", "203.0.113.20"})
+	if a != egressIPsDigest([]string{"203.0.113.20", "198.51.100.7"}) {
+		t.Fatal("digest depends on order")
+	}
+	if a == egressIPsDigest([]string{"198.51.100.7"}) {
+		t.Fatal("digest ignores a removed address")
+	}
+	if len(a) != 16 {
+		t.Fatalf("digest %q is not a short label value", a)
+	}
+}

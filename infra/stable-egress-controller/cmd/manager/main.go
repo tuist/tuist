@@ -53,6 +53,7 @@ func main() {
 		preparedPodNS     string
 		floatingIPName    string
 		additionalFIPs    string
+		egressIPsLabelKey string
 		tokenPath         string
 		egressIPAllowlist string
 		resyncInterval    time.Duration
@@ -79,6 +80,10 @@ func main() {
 		"Name of the Hetzner Cloud Floating IP to keep on the active node (required)")
 	flag.StringVar(&additionalFIPs, "additional-floating-ip-names", "",
 		"Comma-separated Hetzner Cloud Floating IP names kept on the same active node as --floating-ip-name")
+	flag.StringVar(&egressIPsLabelKey, "egress-ips-label-key", "tuist.dev/stable-egress-ips",
+		"Label stamped on the active node with a digest of its egress addresses once it is prepared, so Cilium "+
+			"re-resolves egress policies whose address appeared after the policy. Only used with "+
+			"--additional-floating-ip-names; empty disables it")
 	flag.StringVar(&tokenPath, "hcloud-token-path", "/etc/hcloud/token",
 		"Path to the file holding the Hetzner Cloud API token (mounted from kube-system/hcloud)")
 	flag.StringVar(&egressIPAllowlist, "egress-ip-allowlist", "",
@@ -188,6 +193,7 @@ func main() {
 		FIP:                       hcloud.New(strings.TrimSpace(string(token))),
 		FloatingIPName:            floatingIPName,
 		AdditionalFloatingIPNames: additionalFloatingIPNames,
+		EgressIPsLabelKey:         egressIPsLabelKey,
 		CandidateLabelKey:         candKey,
 		CandidateLabelValue:       candVal,
 		ActiveLabelKey:            actKey,

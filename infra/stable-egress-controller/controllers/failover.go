@@ -3,6 +3,8 @@ package controllers
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/netip"
 	"sort"
@@ -53,6 +55,15 @@ type FailoverReconciler struct {
 	// node. The allowlist guard and election apply to the primary only, and a
 	// failure to move one of these never blocks the primary.
 	AdditionalFloatingIPNames []string
+
+	// EgressIPsLabelKey is stamped on the active node with a digest of every
+	// egress address it holds, once the node is prepared and every additional
+	// Floating IP is assigned to it. Cilium resolves a policy's egress IP to an
+	// interface only when the policy or a node changes, not when an address
+	// appears, so a policy created before the host-configurer adds its address
+	// stays unresolved and drops traffic until a node update re-derives it.
+	// Empty disables the label.
+	EgressIPsLabelKey string
 
 	CandidateLabelKey   string
 	CandidateLabelValue string
@@ -209,18 +220,26 @@ func (r *FailoverReconciler) Reconcile(ctx context.Context, _ reconcile.Request)
 	gatewayActive.Reset()
 	gatewayActive.WithLabelValues(desiredNode.Name, addr).Set(1)
 
-	if !r.reconcileAdditionalFloatingIPs(ctx, desiredNode.Name, serverID) {
+	allAssigned, additionalAddrs := r.reconcileAdditionalFloatingIPs(ctx, desiredNode.Name, serverID)
+	if !allAssigned {
 		return ctrl.Result{RequeueAfter: min(additionalFloatingIPRetryInterval, r.ResyncInterval)}, nil
+	}
+	if len(r.AdditionalFloatingIPNames) > 0 && prepared[desiredNode.Name] {
+		if err := r.reconcileEgressIPsLabel(ctx, desiredNode.Name, append([]string{addr}, additionalAddrs...)); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 	return ctrl.Result{RequeueAfter: r.ResyncInterval}, nil
 }
 
 // reconcileAdditionalFloatingIPs assigns every additional Floating IP to the
 // active server. It reads each address once and writes only on drift. It
-// reports whether every additional Floating IP is on the active server.
-func (r *FailoverReconciler) reconcileAdditionalFloatingIPs(ctx context.Context, nodeName string, serverID int64) bool {
+// reports whether every additional Floating IP is on the active server, and
+// their addresses.
+func (r *FailoverReconciler) reconcileAdditionalFloatingIPs(ctx context.Context, nodeName string, serverID int64) (bool, []string) {
 	logger := log.FromContext(ctx)
 	allAssigned := true
+	addrs := make([]string, 0, len(r.AdditionalFloatingIPNames))
 	for _, name := range r.AdditionalFloatingIPNames {
 		assigned := false
 		addr, currentServer, err := r.FIP.Get(ctx, name)
@@ -241,10 +260,13 @@ func (r *FailoverReconciler) reconcileAdditionalFloatingIPs(ctx context.Context,
 				assigned = true
 			}
 		}
+		if assigned {
+			addrs = append(addrs, addr)
+		}
 		additionalFloatingIPOnActive.WithLabelValues(name).Set(boolFloat(assigned))
 		allAssigned = allAssigned && assigned
 	}
-	return allAssigned
+	return allAssigned, addrs
 }
 
 func (r *FailoverReconciler) probeNodeHealth(
@@ -615,4 +637,37 @@ func parseHCloudServerID(providerID string) (int64, error) {
 		return 0, fmt.Errorf("parsing server id from %q: %w", providerID, err)
 	}
 	return id, nil
+}
+
+// reconcileEgressIPsLabel keeps the active node's egress-IP digest current, so
+// a change to the set of addresses it holds reaches Cilium as a node update.
+func (r *FailoverReconciler) reconcileEgressIPsLabel(ctx context.Context, nodeName string, addrs []string) error {
+	if r.EgressIPsLabelKey == "" {
+		return nil
+	}
+	want := egressIPsDigest(addrs)
+	var node corev1.Node
+	if err := r.Get(ctx, client.ObjectKey{Name: nodeName}, &node); err != nil {
+		return fmt.Errorf("reading active node %q: %w", nodeName, err)
+	}
+	if node.Labels[r.EgressIPsLabelKey] == want {
+		return nil
+	}
+	patch := client.MergeFrom(node.DeepCopy())
+	if node.Labels == nil {
+		node.Labels = map[string]string{}
+	}
+	node.Labels[r.EgressIPsLabelKey] = want
+	if err := r.Patch(ctx, &node, patch); err != nil {
+		return fmt.Errorf("setting egress IPs label on node %q: %w", nodeName, err)
+	}
+	log.FromContext(ctx).Info("egress addresses on the active node changed", "node", nodeName, "addresses", addrs)
+	return nil
+}
+
+func egressIPsDigest(addrs []string) string {
+	sorted := append([]string(nil), addrs...)
+	sort.Strings(sorted)
+	sum := sha256.Sum256([]byte(strings.Join(sorted, ",")))
+	return hex.EncodeToString(sum[:])[:16]
 }
