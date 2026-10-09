@@ -173,6 +173,17 @@ class ProjectFileElements {
 
         fileElements.formUnion(storekitFiles)
 
+        // Add the .xctestplan files. Generated plans are written as side effects after the project,
+        // so without a file element they never appear in the navigator even though the scheme
+        // references them. Plans inside a buildable folder are already surfaced by that folder.
+        let testPlanFiles = project.schemes.flatMap { scheme -> [AbsolutePath] in
+            (scheme.testAction?.testPlans ?? []).map(\.path)
+        }
+        .filter { planPath in !buildableFolderPaths.contains { planPath.isDescendant(of: $0) } }
+        .map { GroupFileElement.file(path: $0, group: project.filesGroup) }
+
+        fileElements.formUnion(testPlanFiles)
+
         // Add the .gpx files if needed. GPS Exchange files must be added to the
         // project/workspace so that the scheme can correctly reference them.
         // In case the configuration already contains such file, we should avoid adding it twice

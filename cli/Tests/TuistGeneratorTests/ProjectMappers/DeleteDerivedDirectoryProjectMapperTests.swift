@@ -17,10 +17,16 @@ struct DeleteDerivedDirectoryProjectMapperTests {
             Constants.DerivedDirectory.sources,
             Constants.DerivedDirectory.infoPlists,
             Constants.DerivedDirectory.entitlements,
+            Constants.DerivedDirectory.testPlans,
         ]
         for directory in preservedDirectories {
             try await fileSystem.makeDirectory(at: derivedDirectory.appending(component: directory))
         }
+        try await fileSystem.touch(
+            derivedDirectory
+                .appending(component: Constants.DerivedDirectory.testPlans)
+                .appending(component: "UnitTests.xctestplan")
+        )
         try await fileSystem.touch(derivedDirectory.appending(component: "TargetA.modulemap"))
         let obsoleteDirectory = derivedDirectory.appending(component: "Obsolete")
         try await fileSystem.makeDirectory(at: obsoleteDirectory)
