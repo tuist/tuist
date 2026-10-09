@@ -13,6 +13,7 @@ This module handles CLI integration with the Tuist Server APIs.
 
 ## Invariants
 - `ServerClientActorHeadersMiddleware` sends `x-tuist-actor-id` only on report creation. `TUIST_ACTOR_ID` overrides automatic username detection; an empty/invalid override omits the claim. Claims are unverified, optional, and never replace authentication. Actor API fields are optional and evolving provenance values remain open strings for older-server compatibility.
+- `Client.reporting` enables absent-credential publication only for structured build/test creates with `TUIST_NETWORK_TRUSTED_PUBLISHING=true` and a validated self-hosted destination. Preserve corrupt/rejected credentials, including refresh rejection outside this mode, so a later opted-in command cannot silently downgrade. Existing credentials and errors must never become anonymous retries; optional cache auth must not suppress report credential errors.
 - `TUIST_URL` overrides config URL and must be a valid URL.
 - OAuth client ID defaults to a built-in value if not provided. OAuth app credentials may carry an issuing `oauthClientID`; refresh uses that server-scoped value and preserves it when rotating tokens. Legacy/API-auth credentials remain compatible without this field.
 - Browser authentication reports OSC 7501 `blocked` with `kind=auth` while waiting for tokens, then restores `working`. This uses the CLI-scoped reporter and is a no-op in other consumers.

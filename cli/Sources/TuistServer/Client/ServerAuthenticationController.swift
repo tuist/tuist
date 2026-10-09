@@ -30,7 +30,7 @@ public enum ServerAuthenticationControllerError: LocalizedError, Equatable {
                 "The refreshing of the access and refresh token pair for the URL \(serverURL.absoluteString) failed running the following command: \(command)"
         case let .timedOut(seconds, serverURL):
             return
-                "The refreshing of the access and refresh token pair for the URL \(serverURL.absoluteString) failed after \(seconds) seconds."
+                "The refreshing of the access and refresh token pair for the URL \(serverURL.absoluteString) failed after \(seconds) seconds. Run 'tuist auth login' to renew your session, or explicitly sign out to remove rejected credentials."
         case .cantRefreshWithLockingAndBackground:
             return
                 "The refreshing with background and locking configurations enabled is not a valid configuration (liley a bug)."
@@ -277,7 +277,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             guard let token = try await authenticationTokenRefreshingIfNeeded(
                 serverURL: serverURL,
                 forceRefresh: false,
-                inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
+                inBackground: ServerReportPublishingMode.enabled ? false : ServerAuthenticationConfig.current.backgroundRefresh,
                 locking: true
             ) else {
                 // An absent result is not memoized, so a fresh login is picked up
@@ -302,7 +302,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         }
     }
 
-    private func deletingCredentialsOnUnauthorizedError<T>(
+    private func preservingCredentialsOnUnauthorizedError<T>(
         serverURL: URL, action: () async throws -> T
     ) async throws -> T {
         // Snapshot the refresh token before the action so we can detect a peer
@@ -330,10 +330,15 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                         )
                     #endif
                 } else {
-                    #if canImport(TuistSupport)
-                        Logger.current.debug("Deleting the credentials for \(serverURL)")
-                    #endif
-                    try? await ServerCredentialsStore.current.delete(serverURL: serverURL)
+                    if let credentials = try await ServerCredentialsStore.current.read(serverURL: serverURL),
+                       credentials.refreshToken == refreshTokenBeforeAction
+                    {
+                        try await ServerCredentialsStore.current.store(credentials: ServerCredentials(
+                            accessToken: credentials.accessToken, refreshToken: credentials.refreshToken,
+                            oauthClientID: credentials.oauthClientID, rejected: true
+                        ), serverURL: serverURL)
+                    }
+                    Logger.current.debug("Marked rejected credentials for \(serverURL); sign in again or sign out explicitly")
                 }
             }
             throw error
@@ -358,7 +363,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         try await authenticationTokenRefreshingIfNeeded(
             serverURL: serverURL,
             forceRefresh: true,
-            inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
+            inBackground: ServerReportPublishingMode.enabled ? false : ServerAuthenticationConfig.current.backgroundRefresh,
             locking: true
         )
     }
@@ -413,10 +418,13 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                         let token = try await fileSystemLocked(
                             serverURL: serverURL,
                             action: { deleteLockfile in
-                                _ = try await executeRefresh(
-                                    serverURL: serverURL, forceRefresh: forceRefresh
-                                )
-                                try await deleteLockfile()
+                                do {
+                                    _ = try await executeRefresh(serverURL: serverURL, forceRefresh: forceRefresh)
+                                    try await deleteLockfile()
+                                } catch {
+                                    try await deleteLockfile()
+                                    throw error
+                                }
                             }, fetchActionResult: fetchActionResult
                         )
                         switch token {
@@ -604,7 +612,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     func executeRefresh(serverURL: URL, forceRefresh: Bool) async throws -> (
         value: AuthenticationToken, expiresAt: Date?
     )? {
-        return try await deletingCredentialsOnUnauthorizedError(serverURL: serverURL) {
+        return try await preservingCredentialsOnUnauthorizedError(serverURL: serverURL) {
             guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
                 return nil
             }
@@ -698,6 +706,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             serverURL: serverURL
         )
         return try credentials.map {
+            guard $0.rejected != true else { throw ServerReportPublishingError.invalidCredentials }
             let accessToken = try JWT.parse($0.accessToken)
             if accessToken.type == "account" {
                 // Account tokens issued by the OAuth authorization server, such as the ones the Tuist app
@@ -707,9 +716,12 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 else { return .account(accessToken) }
                 return .user(accessToken: accessToken, refreshToken: refreshToken)
             } else {
+                guard let refreshToken = $0.refreshToken else {
+                    throw ServerReportPublishingError.invalidCredentials
+                }
                 return .user(
                     accessToken: accessToken,
-                    refreshToken: try JWT.parse($0.refreshToken!)
+                    refreshToken: try JWT.parse(refreshToken)
                 )
             }
         }

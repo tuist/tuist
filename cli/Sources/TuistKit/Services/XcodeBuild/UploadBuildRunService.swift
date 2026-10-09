@@ -51,6 +51,8 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
     private let ciController: CIControlling
     private let generationMetadataStore: GenerationMetadataStoring
     private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
+    private let xcActivityLogController: XCActivityLogControlling
+    private let serverAuthenticationController: ServerAuthenticationControlling
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
@@ -62,7 +64,9 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
         gitController: GitControlling = GitController(),
         ciController: CIControlling = CIController(),
         generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore(),
-        xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator()
+        xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
+        xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
+        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController()
     ) {
         self.fileSystem = fileSystem
         self.machineEnvironment = machineEnvironment
@@ -74,6 +78,8 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
         self.ciController = ciController
         self.generationMetadataStore = generationMetadataStore
         self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
+        self.xcActivityLogController = xcActivityLogController
+        self.serverAuthenticationController = serverAuthenticationController
     }
 
     @discardableResult
@@ -87,6 +93,17 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         guard let fullHandle = config.fullHandle else {
             throw UploadBuildRunServiceError.missingFullHandle
+        }
+
+        if try await ServerReportPublishingMode.usesNetworkTrust(
+            serverURL: serverURL, authenticationController: serverAuthenticationController
+        ) {
+            let build = try await publishNetworkBuild(
+                activityLogPath: activityLogPath, projectPath: projectPath,
+                fullHandle: fullHandle, serverURL: serverURL, scheme: scheme, configuration: configuration
+            )
+            await RunMetadataStorage.current.update(buildRunURL: build.url)
+            return build.url
         }
 
         let buildId = activityLogPath.basenameWithoutExt
@@ -145,6 +162,51 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
         }
         await RunMetadataStorage.current.update(buildRunURL: build.url)
         return build.url
+    }
+
+    private func publishNetworkBuild(
+        activityLogPath: AbsolutePath,
+        projectPath: AbsolutePath,
+        fullHandle: String,
+        serverURL: URL,
+        scheme: String?,
+        configuration: String?
+    ) async throws -> ServerBuild {
+        let log = try await xcActivityLogController.parse(activityLogPath)
+        let gitInfo = try await gitController.gitInfo(workingDirectory: projectPath)
+        let ciInfo = ciController.ciInfo()
+        let duration = max(0, log.mainSection.timeStoppedRecording - log.mainSection.timeStartedRecording)
+        return try await createBuildService.createBuild(
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            id: UUID().uuidString.lowercased(),
+            generationId: nil,
+            category: log.category,
+            configuration: configuration ?? Environment.current.variables["CONFIGURATION"],
+            customMetadata: readCustomMetadata(),
+            duration: Int(duration * 1000),
+            files: log.files,
+            gitBranch: gitInfo.branch,
+            gitCommitSHA: gitInfo.sha,
+            gitRef: gitInfo.ref,
+            gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
+            isCI: Environment.current.isCI,
+            issues: log.issues,
+            modelIdentifier: machineEnvironment.modelIdentifier(),
+            macOSVersion: machineEnvironment.macOSVersion,
+            scheme: scheme ?? Environment.current.schemeName,
+            targets: log.targets,
+            xcodeCacheUploadEnabled: false,
+            xcodeVersion: try await xcodeBuildController.version()?.description,
+            status: log.buildStep.errorCount == 0 ? .success : .failure,
+            ciRunId: ciInfo?.runId,
+            ciProjectHandle: ciInfo?.projectHandle,
+            ciHost: ciInfo?.host,
+            ciProvider: ciInfo?.provider,
+            cacheableTasks: log.cacheableTasks,
+            casOutputs: log.casOutputs,
+            machineMetrics: []
+        )
     }
 
     private func bundleBuild(

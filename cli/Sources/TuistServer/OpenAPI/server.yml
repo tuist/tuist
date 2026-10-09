@@ -497,6 +497,7 @@ components:
             - xcode
             - gradle
             - mix
+            - bazel
           type: string
           x-struct:
           x-validate:
@@ -13318,6 +13319,79 @@ paths:
       summary: Get the Git history settings in effect for a project.
       tags:
         - Tests
+  /api/projects/{account_handle}/{project_handle}/bazel/publishing:
+    post:
+      callbacks: {}
+      operationId: createBazelPublishingSession
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              x-struct:
+              x-validate:
+        description: Publishing request
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  network_trusted:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                required:
+                  - network_trusted
+                type: object
+                x-struct:
+                x-validate:
+          description: Publishing policy
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid credentials
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Publishing disabled
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Publishing quota exceeded
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Publishing quota unavailable
+      summary: Authorize a network-trusted Bazel build-event stream, without cache access.
+      tags:
+        - Bazel
   /api/projects/{account_handle}/{project_handle}/tests:
     get:
       callbacks: {}
@@ -14009,6 +14083,7 @@ paths:
                     - xcode
                     - gradle
                     - mix
+                    - bazel
                   type: string
                   x-struct:
                   x-validate:
