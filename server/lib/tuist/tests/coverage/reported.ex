@@ -614,7 +614,8 @@ defmodule Tuist.Tests.Coverage.Reported do
   # The runs of the commit's ancestors within the window, each with its
   # commit's depth. A skipped test's evidence is in the last run that
   # executed it, however far back, so the walk cannot stop at the nearest
-  # measured ancestor; it is read once per compute instead.
+  # measured ancestor; it is read once per compute instead. A scheme's runs
+  # behind its nearest full run are left out (`behind_full_runs/2`).
   defp ancestor_runs(project_id, repository_id, sha) do
     depths =
       repository_id
@@ -622,9 +623,41 @@ defmodule Tuist.Tests.Coverage.Reported do
       |> Enum.reject(fn {_sha, depth} -> depth == 0 end)
       |> Map.new()
 
-    project_id
-    |> Commits.runs(Map.keys(depths))
-    |> Enum.map(&Map.put(&1, :depth, depths[&1.git_commit_sha]))
+    runs =
+      project_id
+      |> Commits.runs(Map.keys(depths))
+      |> Enum.map(&Map.put(&1, :depth, depths[&1.git_commit_sha]))
+
+    behind = behind_full_runs(repository_id, runs)
+    Enum.reject(runs, &MapSet.member?(behind, {&1.scheme, &1.git_commit_sha}))
+  end
+
+  # The scheme and commit of every run behind its scheme's nearest full run:
+  # one that executed every test (not partial, nothing narrowed or skipped)
+  # and collected evidence. A test that existed at an older commit of the
+  # scheme ran there too, with its evidence, so nothing behind it can be a
+  # source; a run on a branch merged in since is not behind it and stays.
+  # With a full run a day, what a fold reads is bounded by the runs since,
+  # not by the window. A test deleted and later restored is the exception:
+  # it carries from the full run's side only.
+  defp behind_full_runs(repository_id, runs) do
+    runs
+    |> Enum.filter(&full_run?/1)
+    |> Enum.group_by(& &1.scheme)
+    |> Enum.flat_map(fn {scheme, full_runs} ->
+      nearest = Enum.min_by(full_runs, &source_rank/1)
+
+      repository_id
+      |> GitHistory.ancestors(nearest.git_commit_sha)
+      |> Enum.reject(fn {_sha, depth} -> depth == 0 end)
+      |> Enum.map(fn {sha, _depth} -> {scheme, sha} end)
+    end)
+    |> MapSet.new()
+  end
+
+  defp full_run?(run) do
+    not run.partial and run.coverage_evidence_status == "collected" and
+      Map.get(run, :only_test_identifiers, []) == [] and Map.get(run, :skip_test_identifiers, []) == []
   end
 
   # The targets selective testing skipped in the commit's runs, with the hash

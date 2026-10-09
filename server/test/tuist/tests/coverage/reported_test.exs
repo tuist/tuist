@@ -790,6 +790,109 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     refute_received {:nearest_runs, _filtered}
   end
 
+  # A full run of the target at `sha`: every test ran, with its evidence.
+  defp full_run(project, account, sha, module, cases) do
+    run =
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [file("Sources/Math.swift", [1, 1, 0]), file("Tests/AppTests.swift", [1, 1], is_test: true)],
+        %{
+          git_commit_sha: sha,
+          test_modules: [
+            %{name: module, status: "success", duration: 1, test_cases: Enum.map(cases, &test_case(&1, "MathTests"))}
+          ],
+          coverage_evidence: %{
+            status: "collected",
+            paths: ["Sources/Math.swift", "Tests/AppTests.swift"],
+            scopes:
+              Enum.map(
+                cases,
+                &%{kind: "test", module: module, suite: "MathTests", name: &1, files: [0, 1], lines: [[1, 2], [1, 1]]}
+              )
+          }
+        }
+      )
+
+    selective_testing(project, run, [{module, :miss, "#{module}-changed"}])
+    run
+  end
+
+  defp tip(project, account, parents, hits) do
+    CoverageFixtures.seed_history(account, [CoverageFixtures.commit("tip", parents, 10)])
+    CoverageFixtures.seed_listing(account, "tip", ["Sources/Math.swift", "Tests/AppTests.swift"])
+
+    {:ok, tip} =
+      Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1,
+        status: "success",
+        scheme: "App",
+        git_branch: "feature/tip",
+        git_remote_url_origin: CoverageFixtures.remote_url(),
+        git_commit_sha: "tip",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: []
+      })
+
+    selective_testing(project, tip, hits)
+  end
+
+  test "reads no run behind a scheme's nearest full run", %{project: project, account: account} do
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("c0", [], 2),
+      CoverageFixtures.commit("c1", ["c0"], 3)
+    ])
+
+    behind = full_run(project, account, "c0", "AppTests", ["testAdd()"])
+    full_run(project, account, "c1", "AppTests", ["testAdd()"])
+    tip(project, account, ["c1"], [{"AppTests", :local, "AppTests-other"}])
+
+    test_pid = self()
+
+    stub(ClickHouseRepo, :all, fn query ->
+      if inspect(query) =~ behind.id, do: send(test_pid, :read_behind)
+      call_original(ClickHouseRepo, :all, [query])
+    end)
+
+    stub(ClickHouseRepo, :all, fn query, opts ->
+      if inspect(query) =~ behind.id, do: send(test_pid, :read_behind)
+      call_original(ClickHouseRepo, :all, [query, opts])
+    end)
+
+    assert %{kind: "reported", carried_tests_count: 1, carried_from: ["c1"]} = Reported.compute(project, "tip")
+    refute_received :read_behind
+  end
+
+  test "carries from a run on a branch merged in after the nearest full run, however far back", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("c0", [], 2),
+      CoverageFixtures.commit("c1", ["c0"], 3),
+      CoverageFixtures.commit("s1", ["c0"], 4),
+      CoverageFixtures.commit("s2", ["s1"], 5),
+      CoverageFixtures.commit("s3", ["s2"], 6)
+    ])
+
+    full_run(project, account, "c1", "AppTests", ["testAdd()"])
+    # TextKitTests was added on the branch, three commits behind the merge.
+    full_run(project, account, "s1", "TextKitTests", ["testTrim()"])
+
+    tip(project, account, ["c1", "s3"], [
+      {"AppTests", :local, "AppTests-other"},
+      {"TextKitTests", :local, "TextKitTests-other"}
+    ])
+
+    # Both tests ran the same file, so its lines are credited to the nearest
+    # source; testTrim()'s tests are known only from s1.
+    assert %{kind: "reported", skipped_tests_count: 2, carried_tests_count: 2} = Reported.compute(project, "tip")
+  end
+
   test "carries no target whose inputs hashed differently where its evidence comes from", %{
     project: project,
     account: account
