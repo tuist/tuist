@@ -74,11 +74,11 @@ defmodule TuistWeb.API.ShardsController do
              description:
                "Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows."
            },
-           module_concurrency: %Schema{
-             type: :integer,
-             minimum: 1,
+           concurrent_modules: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
              description:
-               "How many modules reported as `parallel` the test runner executes at once, running `serial` ones one at a time, as ExUnit does with `max_cases` and `async`. With it, a module plan balances the shards' estimated wall clock instead of their summed durations."
+               "Test module names the test runner executes alongside other modules, running the rest one at a time after them, as ExUnit does with `async: true` modules. A module plan then balances the shards' wall clock, with the concurrency their history shows, instead of summing durations. `parallelizable_modules` is the same for the suites within a module."
            },
            shard_min: %Schema{type: :integer, description: "Minimum number of shards."},
            shard_max: %Schema{type: :integer, description: "Maximum number of shards."},
@@ -130,7 +130,7 @@ defmodule TuistWeb.API.ShardsController do
       test_suites: Map.get(body_params, :test_suites),
       skipped_test_suites: Map.get(body_params, :skipped_test_suites),
       parallelizable_modules: Map.get(body_params, :parallelizable_modules),
-      module_concurrency: Map.get(body_params, :module_concurrency),
+      concurrent_modules: Map.get(body_params, :concurrent_modules),
       shard_min: Map.get(body_params, :shard_min),
       shard_max: Map.get(body_params, :shard_max),
       shard_total: Map.get(body_params, :shard_total),

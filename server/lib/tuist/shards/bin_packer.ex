@@ -102,9 +102,9 @@ defmodule Tuist.Shards.BinPacker do
   defp makespan(shards), do: shards |> Enum.map(&elem(&1, 2)) |> Enum.max()
 
   @doc """
-  Packs units for a runner that executes up to `concurrency` `:parallel` units
-  at once and runs `:serial` units one after another, as ExUnit does with
-  `async: true` and `async: false` modules.
+  Packs units for a runner that executes `:parallel` units alongside each
+  other, `concurrency` of them at a time on average, and `:serial` units one
+  after another, as ExUnit does with `async: true` and `async: false` modules.
 
   A shard then takes `max(parallel total / concurrency, longest parallel unit)`
   plus its serial total, so summing durations would price a serial unit at a
@@ -116,7 +116,7 @@ defmodule Tuist.Shards.BinPacker do
   `{index, [{name, duration_ms}], estimated_duration_ms}` tuples, as `pack/2`.
   """
   def pack_concurrent(units, shard_count, concurrency)
-      when is_list(units) and is_integer(shard_count) and shard_count > 0 and is_integer(concurrency) and concurrency > 0 do
+      when is_list(units) and is_integer(shard_count) and shard_count > 0 and is_number(concurrency) and concurrency > 0 do
     empty_shards = Enum.map(0..(shard_count - 1), &{&1, [], {0, 0, 0}})
 
     units

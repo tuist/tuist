@@ -2986,6 +2986,15 @@ components:
           type: string
           x-struct:
           x-validate:
+        concurrent_modules:
+          description: "Test module names the test runner executes alongside other modules, running the rest one at a time after them, as ExUnit does with `async: true` modules. A module plan then balances the shards' wall clock, with the concurrency their history shows, instead of summing durations. `parallelizable_modules` is the same for the suites within a module."
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         git_branch:
           description: "The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch."
           type: string
@@ -3003,12 +3012,6 @@ components:
             - module
             - suite
           type: string
-          x-struct:
-          x-validate:
-        module_concurrency:
-          description: How many modules reported as `parallel` the test runner executes at once, running `serial` ones one at a time, as ExUnit does with `max_cases` and `async`. With it, a module plan balances the shards' estimated wall clock instead of their summed durations.
-          minimum: 1
-          type: integer
           x-struct:
           x-validate:
         modules:
@@ -27174,6 +27177,15 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                concurrent_modules:
+                  description: "Test module names the test runner executes alongside other modules, running the rest one at a time after them, as ExUnit does with `async: true` modules. A module plan then balances the shards' wall clock, with the concurrency their history shows, instead of summing durations. `parallelizable_modules` is the same for the suites within a module."
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
                 git_branch:
                   description: "The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch."
                   type: string
@@ -27191,12 +27203,6 @@ paths:
                     - module
                     - suite
                   type: string
-                  x-struct:
-                  x-validate:
-                module_concurrency:
-                  description: How many modules reported as `parallel` the test runner executes at once, running `serial` ones one at a time, as ExUnit does with `max_cases` and `async`. With it, a module plan balances the shards' estimated wall clock instead of their summed durations.
-                  minimum: 1
-                  type: integer
                   x-struct:
                   x-validate:
                 modules:

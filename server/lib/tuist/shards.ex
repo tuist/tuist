@@ -28,6 +28,7 @@ defmodule Tuist.Shards do
   @timing_quantile 0.90
   @min_parallelism_factor 0.5
   @max_parallelism_factor 16.0
+  @concurrency_shard_runs 50
   @nested_jvm_class_regex ~r/^(?<class>[\p{L}_][\p{L}\p{N}_.]*)\$[\p{L}\p{N}_$]+$/u
 
   def create_shard_plan(%Project{} = project, params) do
@@ -43,8 +44,7 @@ defmodule Tuist.Shards do
       |> fold_nested_classes(granularity)
       |> scale_by_module_parallelism(project, params, granularity)
 
-    concurrency = module_concurrency(params, granularity)
-    units_with_modes = assign_execution_modes(units_with_durations, project, concurrency)
+    {units_with_modes, concurrency} = concurrent_modules(units_with_durations, project, params, granularity)
 
     shard_count =
       units_with_modes
@@ -875,23 +875,35 @@ defmodule Tuist.Shards do
     end)
   end
 
-  # A module plan prices a shard as the sum of its modules' durations, which is its wall clock only
-  # when the runner takes one module at a time. ExUnit runs up to `max_cases` `async: true` modules at
-  # once and the `async: false` ones one by one after them, so a sum prices a serial module at a
-  # fraction of what it costs the shard. A client whose runner works that way declares its
-  # concurrency, and each module is packed by the execution mode its latest run reported. A module
-  # with no reported mode counts as serial, which is what the sum assumes.
-  defp module_concurrency(params, "module"), do: Map.get(params, :module_concurrency)
-  defp module_concurrency(_params, _granularity), do: nil
+  # `scale_by_module_parallelism/4` handles a runner that executes a module's suites concurrently while
+  # modules run one after another. ExUnit sits a level above: it runs `async: true` modules alongside
+  # each other and the `async: false` ones one by one after them, so summing durations prices a serial
+  # module at a fraction of what it costs its shard. The split is the same as for suites: the client
+  # declares which modules run concurrently (`concurrent_modules`, read from the source it is about to
+  # run) and history answers how many run at once. `BinPacker.pack_concurrent/3` then packs them, its
+  # floor of a shard's longest concurrent module playing the role `cap_factor/2` plays for suites.
+  # Without a declaration or a measurement the plan sums durations.
+  defp concurrent_modules(units_with_durations, project, params, "module") do
+    declared = params |> Map.get(:concurrent_modules) |> List.wrap() |> MapSet.new()
 
-  defp assign_execution_modes(units_with_durations, _project, nil), do: units_with_durations
+    concurrency =
+      if MapSet.size(declared) > 0,
+        do: fetch_module_concurrency(project, Enum.map(units_with_durations, &elem(&1, 0)))
 
-  defp assign_execution_modes(units_with_durations, project, _concurrency) do
-    modes = fetch_module_execution_modes(project, Enum.map(units_with_durations, &elem(&1, 0)))
+    with_execution_modes(units_with_durations, declared, concurrency)
+  end
 
-    Enum.map(units_with_durations, fn {name, duration} ->
-      {name, duration, if(Map.get(modes, name) == "parallel", do: :parallel, else: :serial)}
-    end)
+  defp concurrent_modules(units_with_durations, _project, _params, _granularity), do: {units_with_durations, nil}
+
+  defp with_execution_modes(units_with_durations, _declared, nil), do: {units_with_durations, nil}
+
+  defp with_execution_modes(units_with_durations, declared, concurrency) do
+    units =
+      Enum.map(units_with_durations, fn {name, duration} ->
+        {name, duration, if(MapSet.member?(declared, name), do: :parallel, else: :serial)}
+      end)
+
+    {units, concurrency}
   end
 
   defp shard_count_units(units, nil), do: units
@@ -903,22 +915,75 @@ defmodule Tuist.Shards do
     end)
   end
 
-  defp fetch_module_execution_modes(_project, []), do: %{}
+  # Concurrency is measured per shard run as its concurrent modules' total duration over the time the
+  # shard spent on them, which is its own duration less its serial modules, then taken as the median
+  # across the project's latest shard runs and clamped as `fetch_module_parallelism/2` is. A shard run
+  # counts only when every module it ran reported an execution mode and is part of this plan, which
+  # leaves out runs from before the client reported modes and another build system's shards. Module
+  # rows are folded to one per id first, since a rewritten row leaves a second copy until parts merge.
+  defp fetch_module_concurrency(_project, []), do: nil
 
-  defp fetch_module_execution_modes(project, modules) do
-    cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
-
-    from(mr in TestModuleRun,
-      where: mr.project_id == ^project.id,
-      where: mr.is_ci == true,
-      where: mr.ran_at >= ^cutoff,
-      where: mr.name in ^modules,
-      where: mr.execution_mode != "",
-      group_by: mr.name,
-      select: {mr.name, fragment("argMax(?, ?)", mr.execution_mode, mr.ran_at)}
+  defp fetch_module_concurrency(project, modules) do
+    query = """
+    WITH latest_shard_runs AS (
+      SELECT
+        toUUIDOrZero(test_run_id) AS test_run_id,
+        toInt32(shard_index) AS shard_index,
+        argMax(duration, inserted_at) AS duration
+      FROM shard_runs
+      WHERE project_id = {project_id:Int64}
+        AND ran_at >= {cutoff:DateTime64(6)}
+      GROUP BY shard_plan_id, test_run_id, shard_index
+      ORDER BY max(ran_at) DESC
+      LIMIT {shard_runs:UInt32}
+    ),
+    module_runs AS (
+      SELECT
+        test_run_id,
+        assumeNotNull(shard_index) AS shard_index,
+        name,
+        argMax(duration, inserted_at) AS duration,
+        argMax(execution_mode, inserted_at) AS execution_mode
+      FROM test_module_runs
+      WHERE project_id = {project_id:Int64}
+        AND test_run_id IN (SELECT test_run_id FROM latest_shard_runs)
+        AND shard_index IS NOT NULL
+      GROUP BY test_run_id, shard_index, id, name
+    ),
+    shards AS (
+      SELECT
+        test_run_id,
+        shard_index,
+        sumIf(duration, execution_mode = 'parallel') AS parallel_total,
+        sumIf(duration, execution_mode = 'serial') AS serial_total,
+        countIf(execution_mode NOT IN ('parallel', 'serial') OR name NOT IN {modules:Array(String)}) AS excluded
+      FROM module_runs
+      GROUP BY test_run_id, shard_index
     )
-    |> ClickHouseRepo.all()
-    |> Map.new()
+    SELECT
+      count() AS measured,
+      median(toFloat64(s.parallel_total) / (toFloat64(r.duration) - toFloat64(s.serial_total))) AS concurrency
+    FROM latest_shard_runs AS r
+    INNER JOIN shards AS s ON s.test_run_id = r.test_run_id AND s.shard_index = r.shard_index
+    WHERE s.excluded = 0
+      AND s.parallel_total > 0
+      AND toFloat64(r.duration) > toFloat64(s.serial_total)
+    """
+
+    params = %{
+      project_id: project.id,
+      cutoff: DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day),
+      shard_runs: @concurrency_shard_runs,
+      modules: modules
+    }
+
+    case ClickHouseRepo.query(query, params) do
+      {:ok, %{rows: [[measured, concurrency]]}} when measured > 0 ->
+        concurrency |> max(@min_parallelism_factor) |> min(@max_parallelism_factor)
+
+      {:ok, _result} ->
+        nil
+    end
   end
 
   defp assign_durations(unit_names, timing_data, granularity) do
