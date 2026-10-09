@@ -19,8 +19,10 @@ This node covers Helm assets under `infra/helm/`.
 - `capi.vultrPrivateNetwork` declares regional networks; the CAPI controller owns
   provider IDs and creation intent in a retained `-state` ConfigMap. Keep that
   state out of Helm-owned data. Production enables Chicago and Santiago; Santiago
-  declares two hosts. Physical host-pair validation is still pending enrollment
-  of the second host. Reciprocal `canonicalPeers` region names
+  has two enrolled hosts with bidirectional physical private-path and isolated
+  replication validation. See the qualification limits in
+  `../kura-controller/vultr-private-networking.md`. Reciprocal `canonicalPeers`
+  region names
   approve canonical mTLS between exact VPC IDs resolved by the controller. Stage
   this policy on existing runtimes before qualifying another region; same-VPC
   traffic remains private-only. Self-hosted defaults stay off.

@@ -15,9 +15,10 @@
   root/MTU/probe options explicitly, without rewriting another provider's script.
   Attach/configure only qualified regions without a
   restart, and attest every peer on its current boot before publication. Chicago
-  is physically qualified; Santiago enables attachment and runtime topology with
-  a single-host qualification limit. Validate the physical host pair when another
-  Santiago host arrives. Require reciprocal `canonicalPeers`
+  and Santiago have passed physical host-pair private-path and replication checks;
+  Santiago's checks used controller-converged routes on two enrolled hosts.
+  Revalidate new hosts and retain the qualification limits in the guide below.
+  Require reciprocal `canonicalPeers`
   for every qualified regional pair before provider calls. Resolve approvals to
   retained VPC IDs through read-only inventory checks after local routes converge.
   Missing remote state must never provision that region or block local attachment
