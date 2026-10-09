@@ -42,6 +42,32 @@ jobs:
         with:
           key: ${{ inputs.cache_key }}-${{ inputs.runner_label }}-${{ hashFiles('.xcode-version', 'Package.swift', 'Package.resolved') }}
           path: .build
+      - uses: tuist/cache-volume@v1
+        id: swifterpm-volume
+        with:
+          key: ${{ inputs.cache_key }}-swifterpm-${{ inputs.runner_label }}-${{ hashFiles('.xcode-version', 'Package.swift', 'Package.resolved') }}
+          path: ~/.cache/swifterpm
+      - name: Verify SwifterPM cache volume
+        shell: bash
+        env:
+          PHASE: ${{ inputs.phase }}
+          CACHE_HIT: ${{ steps.swifterpm-volume.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          target="$HOME/.cache/swifterpm"
+          test -L "$target"
+          device=$(df -P "$target" | awk 'NR == 2 { print $1 }')
+          [[ "$device" == /dev/disk* ]]
+          test "$(diskutil info -plist "$device" | plutil -extract FilesystemType raw -)" = apfs
+          if [ "$PHASE" = seed ]; then
+            test "$CACHE_HIT" = false
+            test ! -e "$target/sources"
+          else
+            test "$CACHE_HIT" = true
+            cd "$target"
+            test -s .tuist-volume-smoke.sha256
+            shasum -a 256 -c .tuist-volume-smoke.sha256
+          fi
       - name: Verify mounted APFS and retained metadata
         shell: bash
         env:
@@ -133,13 +159,17 @@ jobs:
           PHASE: ${{ inputs.phase }}
           CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
           WRITER_ID: ${{ matrix.writer }}
+          SWIFTERPM_CACHE_HIT: ${{ steps.swifterpm-volume.outputs.cache-hit }}
         run: |
           set -euo pipefail
+          swifterpm_cache="$HOME/.cache/swifterpm"
           before=$(du -sk .build/ | awk '{print $1}')
+          swifterpm_before=$(du -sk "$swifterpm_cache/" | awk '{print $1}')
           started=$SECONDS
-          tuist install --force-resolved-versions
+          tuist install --force-resolved-versions --cache-path "$swifterpm_cache"
           elapsed=$((SECONDS - started))
           test -L .build
+          test -L "$swifterpm_cache"
           test -s .build/workspace-state.json
           proof=.build/.tuist-volume-smoke
           if [ "$PHASE" = concurrent ]; then
@@ -149,13 +179,24 @@ jobs:
           test -s "$RUNNER_TEMP/volume-dependency-manifests"
           xargs -0 shasum -a 256 < "$RUNNER_TEMP/volume-dependency-manifests" > "$proof/dependencies.sha256"
           packages=$(wc -l < "$proof/dependencies.sha256" | tr -d ' ')
+          (
+            cd "$swifterpm_cache"
+            find sources -type f \( -name 'Package*.swift' -o -name .swifterpm-registry-checksum \) -print0 > "$RUNNER_TEMP/swifterpm-cache-files"
+            test -s "$RUNNER_TEMP/swifterpm-cache-files"
+            xargs -0 shasum -a 256 < "$RUNNER_TEMP/swifterpm-cache-files" > .tuist-volume-smoke.sha256
+          )
+          swifterpm_files=$(wc -l < "$swifterpm_cache/.tuist-volume-smoke.sha256" | tr -d ' ')
           after=$(du -sk .build/ | awk '{print $1}')
+          swifterpm_after=$(du -sk "$swifterpm_cache/" | awk '{print $1}')
           {
             echo "### CLI dependency volume: $PHASE"
             echo "- Snapshot hit: $CACHE_HIT"
+            echo "- SwifterPM snapshot hit: $SWIFTERPM_CACHE_HIT"
             echo "- Install duration: ${elapsed}s"
             echo "- Retained dependency manifests: $packages"
             echo "- Logical size before/after install: ${before}/${after} KiB"
+            echo "- Retained SwifterPM manifest/checksum files: $swifterpm_files"
+            echo "- SwifterPM directory usage before/after install: ${swifterpm_before}/${swifterpm_after} KiB"
             echo "- Commit: $GITHUB_SHA"
             if [ -f "$proof/concurrent-writer" ]; then
               echo "- Retained writer: $(cat "$proof/concurrent-writer")"

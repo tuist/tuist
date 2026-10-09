@@ -69,6 +69,12 @@ manifest checksums before installing on warm runs. Its key includes the runner
 profile, Xcode version file, package manifest and lockfile; reuse all of them
 across phases. Keep authentication outside the cached directory and do not
 restore an archive cache into the same path.
+Retain `~/.cache/swifterpm` in a separate volume and pass it explicitly as
+`--cache-path`. A warm `.build` alone leaves SwifterPM's source cache cold and
+can delegate the install back to native SwiftPM. Require both volume hits and
+verify retained source manifests and registry checksum markers before installing.
+Wait for both snapshots to publish before verification. Use a fresh prefix when
+changing the set of retained paths; the two volumes publish independently.
 The optional `concurrent` phase starts two warm writers on the same key. Each
 writes its own marker and waits until both jobs reach the attachment barrier
 before proceeding; dispatching two independent runs alone does not prove overlap.
