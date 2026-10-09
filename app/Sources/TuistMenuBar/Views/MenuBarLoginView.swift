@@ -87,15 +87,32 @@ struct MenuBarLoginView: View {
                 .padding(.bottom, 12)
             }
 
-            primaryButton(authenticationService.isSigningIn ? "Signing in…" : "Sign in") {
+            primaryButton("Sign in with Tuist", icon: "TuistLogo") {
                 errorHandling.fireAndHandleError {
                     try await authenticationService.signIn()
                 }
             }
             .padding(.bottom, 8)
 
+            secondaryButton("Sign in with Google", icon: "GoogleLogo") {
+                errorHandling.fireAndHandleError {
+                    try await authenticationService.signInWithGoogle()
+                }
+            }
+            .padding(.bottom, 8)
+
+            secondaryButton("Sign in with GitHub", icon: "GitHubLogo") {
+                errorHandling.fireAndHandleError {
+                    try await authenticationService.signInWithGitHub()
+                }
+            }
+            .padding(.bottom, 12)
+
+            divider
+                .padding(.bottom, 12)
+
             if authenticationService.selfHostedServerURL == nil {
-                secondaryButton("Self-hosted server") {
+                secondaryButton("Self-hosted server", icon: "ServerIcon") {
                     editSelfHostedServer()
                 }
                 .padding(.bottom, 16)
@@ -110,6 +127,24 @@ struct MenuBarLoginView: View {
         }
     }
 
+    private var divider: some View {
+        HStack(spacing: 8) {
+            line
+            Text("or")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            line
+        }
+        .padding(.horizontal, 24)
+        .accessibilityHidden(true)
+    }
+
+    private var line: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.12))
+            .frame(height: 1)
+    }
+
     private func caption(_ text: String) -> some View {
         Text(text)
             .font(.caption)
@@ -118,9 +153,25 @@ struct MenuBarLoginView: View {
             .padding(.bottom, 16)
     }
 
-    private func primaryButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+    private func buttonLabel(_ title: String, icon: String?) -> some View {
+        HStack(spacing: 8) {
+            if let icon {
+                Image(icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+            }
             Text(title)
+        }
+    }
+
+    private func primaryButton(
+        _ title: String,
+        icon: String? = nil,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            buttonLabel(title, icon: icon)
                 .frame(width: 168)
                 .padding(.vertical, 6)
                 .padding(.horizontal, 42)
@@ -132,9 +183,13 @@ struct MenuBarLoginView: View {
         .padding(.horizontal, 12)
     }
 
-    private func secondaryButton(_ title: String, action: @escaping () -> Void) -> some View {
+    private func secondaryButton(
+        _ title: String,
+        icon: String? = nil,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
-            Text(title)
+            buttonLabel(title, icon: icon)
                 .frame(width: 168)
                 .padding(.vertical, 6)
                 .padding(.horizontal, 42)
