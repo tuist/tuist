@@ -158,7 +158,7 @@ gRPC target groups need an HTTPS listener. On that listener:
 
 ### CDNs {#load-balancers-cdns}
 
-A CDN in front of a node must support gRPC and must not block the gRPC paths in its firewall rules. Clients upload large artifacts in chunks of at most 2 MiB and have the node assemble them, so no request needs a large body or a long upload. The module cache and the Xcode compilation cache do this, and Bazel does when built with `--experimental_remote_cache_chunking` (Bazel 8.7, and 9.1 or later). This requires `KURA_REAPI_BLOB_CHUNKING_ENABLED`, which is on by default. Without that flag, Bazel uploads each output in a single request, so the CDN must also allow large request bodies and uploads that take as long as your largest outputs need on your slowest link. If your CDN cannot meet these requirements, give clients a hostname that bypasses it, for example a DNS-only record.
+A CDN in front of a node must support gRPC and must not block the gRPC paths in its firewall rules. Clients upload large artifacts in chunks of at most 2 MiB and have the node assemble them, so no request needs a large body or a long upload. The module cache and the Xcode compilation cache do this, and Bazel does when built with `--experimental_remote_cache_chunking` (Bazel 8.7, and 9.1 or later). Without that flag, Bazel uploads each output in a single request, so the CDN must also allow large request bodies and uploads that take as long as your largest outputs need on your slowest link. If your CDN cannot meet these requirements, give clients a hostname that bypasses it, for example a DNS-only record.
 
 #### Cloudflare {#load-balancers-cloudflare}
 
@@ -307,7 +307,6 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_REGION` | Region label used in metrics and replication state. | Yes | No default | `config.region` |
 | `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | Yes | No default | Fixed to `/var/cache/kura/tmp` |
 | `KURA_TMP_DIR_MAX_BYTES` | Maximum staged bytes admitted into `KURA_TMP_DIR` before requests receive backpressure. | No | `8589934592` | `config.tmpDirMaxBytes` |
-| `KURA_REAPI_BLOB_CHUNKING_ENABLED` | Accepts large REAPI blobs uploaded as content-defined chunks and serves their chunk lists. The module cache, the Xcode compilation cache, and Bazel with `--experimental_remote_cache_chunking` use it for large artifacts, and CDNs in front of the node depend on it. Blobs already stored as chunks stay readable when it is off. | No | `true` | `config.reapi.blobChunkingEnabled` |
 | `KURA_DATA_DIR` | Persistent directory for metadata state and segment files. | Yes | No default | Fixed to `/var/cache/kura` |
 | `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | Yes | No default | Derived from the pod DNS name and `peerTls.internalPort` |
 | `KURA_PEERS` | Seed peer list used before discovery converges. | No | `KURA_NODE_URL` | Derived from the StatefulSet replicas |
