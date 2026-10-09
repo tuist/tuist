@@ -605,8 +605,12 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
 
 ### Into production
 
-11. **Merge the cutover** (remote). Production's deploy declares the hosts,
-    the pool, the region, `alloy-rack` and the cache gateway;
+11. **Merge the cutover** (remote), only once production deploys no longer wait
+    on rack nodes (the change that keeps them independent of the rack's
+    health merges first): from here on the rack's Linux nodes are
+    production's, and a Helm wait on a DaemonSet with pods on dark nodes
+    would roll every production deploy back. Production's deploy declares
+    the hosts, the pool, the region, `alloy-rack` and the cache gateway;
     `omada-deployment.yml` deploys the rack switch controller, watching `tuist`,
     and the edge DaemonSet, which has no node yet; the Rack Switches workflow
     applies the objects to `tuist`. Paste the ACL again: the cutover drops
