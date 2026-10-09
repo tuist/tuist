@@ -28,6 +28,10 @@ jobs:
     if: github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-swifterpm-${{ github.job }}-bazel-repository-v1
+          path: ~/.cache/swifterpm/bazel/repository
       - uses: ./.github/actions/mise
         with:
           install_args: "bazel"
@@ -36,7 +40,7 @@ jobs:
           github_token: ${{ github.token }}
       - name: Test
         working-directory: swifterpm
-        run: mise run test:unit
+        run: mise run test:unit -- --config=ci
 
   e2e:
     name: E2E
@@ -45,6 +49,10 @@ jobs:
     if: github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-swifterpm-${{ github.job }}-bazel-repository-v1
+          path: ~/.cache/swifterpm/bazel/repository
       - uses: ./.github/actions/mise
         with:
           install_args: "bazel buck2 jq shellspec"
@@ -53,4 +61,4 @@ jobs:
           github_token: ${{ github.token }}
       - name: E2E
         working-directory: swifterpm
-        run: mise run test:e2e
+        run: mise run test:e2e -- --config=ci
