@@ -44,6 +44,67 @@ defmodule TuistWeb.OnceActionLiveTest do
              6
   end
 
+  test "source search uses the shared compact toolbar without an unsupported shortcut", %{conn: conn, path: path} do
+    {:ok, view, _} = live(conn, path)
+    render_async(view, 5_000)
+    assert has_element?(view, "[data-part=source-files] [data-part=table-toolbar] #once-action-source-search")
+    assert has_element?(view, "#once-action-sources-search[placeholder='Search...']")
+    refute has_element?(view, "#once-action-source-search [data-part=suffix]")
+    view |> form("#once-action-source-search", %{"source-search" => "missing"}) |> render_change()
+    assert has_element?(view, "#once-action-sources-table", "No source files match your search.")
+  end
+
+  test "metadata uses aligned fields and neutral badges without renaming actions to invocations", %{
+    conn: conn,
+    path: path,
+    action: action
+  } do
+    metadata = %{
+      "package" => %{"ecosystem" => "bazel", "name" => "library", "version" => "1.0.0", "origin" => "workspace"},
+      "platforms" => [
+        %{
+          "scheme" => "vendor.platform",
+          "id" => "native-output-variant",
+          "label" => "Output variant",
+          "usage" => "build-tool"
+        }
+      ],
+      "context" => [%{"key" => "vendor.mode", "value" => "custom", "label" => "Producer-owned mode"}]
+    }
+
+    action |> Ecto.Changeset.change(presentation: metadata) |> Repo.update!()
+    {:ok, view, _} = live(conn, path)
+    render_async(view, 5_000)
+    assert has_element?(view, "[data-action-package] .noora-badge[data-color=neutral]", "bazel")
+    assert has_element?(view, "[data-action-platform][data-part=metadata-grid]", "native-output-variant")
+    assert has_element?(view, "[data-action-platform] .noora-badge[data-color=neutral]", "Build tool")
+    assert has_element?(view, "[data-action-context] .noora-badge[data-color=neutral]", "custom")
+    assert has_element?(view, "[data-action-context]", "vendor.mode")
+    assert has_element?(view, "[data-action-context]", "Producer-owned mode")
+    assert has_element?(view, "[data-part=execution-details] .noora-badge[data-color=neutral]", "Local")
+    assert has_element?(view, "[data-part=action-history]", "Recent action executions")
+    refute has_element?(view, "[data-part=action-history]", "invocations")
+  end
+
+  test "long producer-owned badge values and labels remain intact", %{conn: conn, path: path, action: action} do
+    label = String.duplicate("P", 128)
+    value = String.duplicate("V", 256)
+
+    metadata = %{
+      "platforms" => [
+        %{"scheme" => "future.platform", "id" => "native-output", "label" => label, "usage" => "future-role"}
+      ],
+      "context" => [%{"key" => "future.value", "value" => value}]
+    }
+
+    action |> Ecto.Changeset.change(presentation: metadata) |> Repo.update!()
+    {:ok, view, _} = live(conn, path)
+    render_async(view, 5_000)
+    assert has_element?(view, "[data-action-platform] .noora-badge", label)
+    assert has_element?(view, "[data-action-platform] .noora-badge", "future-role")
+    assert has_element?(view, "[data-action-context] .noora-badge", value)
+  end
+
   test "history paginates and shows each occurrence's own display name and package version", %{
     conn: conn,
     path: path,

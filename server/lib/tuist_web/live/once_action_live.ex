@@ -171,14 +171,14 @@ defmodule TuistWeb.OnceActionLive do
   def package_fields(package) do
     Enum.reject(
       [
-        {dgettext("dashboard_projects", "Ecosystem"), package["ecosystem"]},
-        {dgettext("dashboard_projects", "Package"), package["name"]},
-        {dgettext("dashboard_projects", "Version"), package["version"]},
-        {dgettext("dashboard_projects", "Revision"), package["revision"]},
-        {dgettext("dashboard_projects", "Digest"), package["digest"]},
-        {dgettext("dashboard_projects", "Origin"), package["origin"]}
+        {dgettext("dashboard_projects", "Ecosystem"), package["ecosystem"], true},
+        {dgettext("dashboard_projects", "Package"), package["name"], false},
+        {dgettext("dashboard_projects", "Version"), package["version"], false},
+        {dgettext("dashboard_projects", "Revision"), package["revision"], false},
+        {dgettext("dashboard_projects", "Digest"), package["digest"], false},
+        {dgettext("dashboard_projects", "Origin"), package["origin"], true}
       ],
-      fn {_label, value} -> value in [nil, ""] end
+      fn {_label, value, _categorical?} -> value in [nil, ""] end
     )
   end
 

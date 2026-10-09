@@ -258,9 +258,13 @@
           )}</span>
         </div>
         <div data-part="metadata">
-          <span data-part="label">{dgettext("dashboard_projects", "Cache")}</span><span>{OnceActionComponents.cache_status(
-            @action
-          )}</span>
+          <span data-part="label">{dgettext("dashboard_projects", "Cache")}</span>
+          <.badge
+            label={OnceActionComponents.cache_status(@action)}
+            color="neutral"
+            style="light-fill"
+            size="large"
+          />
         </div>
         <div data-part="metadata">
           <span data-part="label">{dgettext("dashboard_projects", "Started")}</span><span>{timestamp(
@@ -276,12 +280,21 @@
             "—"}</span>
         </div>
         <div data-part="metadata">
-          <span data-part="label">{dgettext("dashboard_projects", "Capability")}</span><span>{@action.capability}</span>
+          <span data-part="label">{dgettext("dashboard_projects", "Capability")}</span>
+          <.badge label={@action.capability} color="neutral" style="light-fill" size="large" />
         </div>
         <div data-part="metadata">
-          <span data-part="label">{dgettext("dashboard_projects", "Environment")}</span><span>{if @action.run.is_ci,
-            do: dgettext("dashboard_projects", "CI"),
-            else: dgettext("dashboard_projects", "Local")}</span>
+          <span data-part="label">{dgettext("dashboard_projects", "Environment")}</span>
+          <.badge
+            label={
+              if @action.run.is_ci,
+                do: dgettext("dashboard_projects", "CI"),
+                else: dgettext("dashboard_projects", "Local")
+            }
+            color="neutral"
+            style="light-fill"
+            size="large"
+          />
         </div>
         <div data-part="metadata">
           <span data-part="label">{dgettext("dashboard_projects", "Branch")}</span><.branch_link
@@ -334,25 +347,78 @@
     :if={@tab == "overview" and @action.presentation}
     title={dgettext("dashboard_projects", "Action metadata")}
     icon="file"
+    data-part="action-metadata"
   >
     <.card_section>
       <div :if={@metadata["package"]} data-part="metadata-grid" data-action-package>
-        <div :for={{label, value} <- package_fields(@metadata["package"])} data-part="metadata">
-          <span data-part="label">{label}</span><span>{value}</span>
+        <div
+          :for={{label, value, categorical?} <- package_fields(@metadata["package"])}
+          data-part="metadata"
+        >
+          <span data-part="label">{label}</span>
+          <.badge
+            :if={categorical?}
+            label={value}
+            color="neutral"
+            style="light-fill"
+            size="large"
+          />
+          <span :if={!categorical?}>{value}</span>
         </div>
       </div>
-      <div :for={platform <- @metadata["platforms"]} data-action-platform>
-        <span data-part="label">{platform["label"]}</span><span>{platform["scheme"]}: {platform[
-          "id"
-        ]}</span>
-        <span :if={platform["usage"] != ""}>{case platform["usage"] do
-          "build-tool" -> dgettext("dashboard_projects", "Build tool")
-          "product" -> dgettext("dashboard_projects", "Product")
-          usage -> usage
-        end}</span>
+      <div
+        :for={platform <- @metadata["platforms"]}
+        data-part="metadata-grid"
+        data-action-platform
+      >
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Output platform")}</span>
+          <.badge
+            label={if platform["label"] == "", do: platform["id"], else: platform["label"]}
+            color="neutral"
+            style="light-fill"
+            size="large"
+          />
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Platform scheme")}</span>
+          <.badge label={platform["scheme"]} color="neutral" style="light-fill" size="large" />
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Platform identifier")}</span>
+          <span>{platform["id"]}</span>
+        </div>
+        <div :if={platform["usage"] != ""} data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Usage")}</span>
+          <.badge
+            label={
+              case platform["usage"] do
+                "build-tool" -> dgettext("dashboard_projects", "Build tool")
+                "product" -> dgettext("dashboard_projects", "Product")
+                usage -> usage
+              end
+            }
+            color="neutral"
+            style="light-fill"
+            size="large"
+          />
+        </div>
       </div>
-      <div :for={context <- @metadata["context"]} data-action-context>
-        <span data-part="label">{context["label"]}</span><span>{context["key"]}: {context["value"]}</span>
+      <div :if={@metadata["context"] != []} data-part="metadata-grid">
+        <div :for={context <- @metadata["context"]} data-part="metadata" data-action-context>
+          <span data-part="label">{context["key"]}</span>
+          <.badge
+            label={context["value"]}
+            title={context["label"]}
+            color="neutral"
+            style="light-fill"
+            size="large"
+          />
+          <span
+            :if={context["label"] != "" and context["label"] != context["value"]}
+            data-part="context-description"
+          >{context["label"]}</span>
+        </div>
       </div>
     </.card_section>
   </.card>
@@ -364,22 +430,26 @@
     data-part="source-files"
   >
     <.card_section>
-      <.form
-        for={%{}}
-        id="once-action-source-search"
-        phx-change="source-search"
-        phx-submit="source-search"
-      >
-        <.text_input
-          id="once-action-sources-search"
-          name="source-search"
-          type="search"
-          aria-label={dgettext("dashboard_projects", "Search source files")}
-          value={@source_search}
-          placeholder={dgettext("dashboard_projects", "Search source files...")}
-          phx-debounce="250"
-        />
-      </.form>
+      <div data-part="table-toolbar">
+        <.form
+          for={%{}}
+          id="once-action-source-search"
+          phx-change="source-search"
+          phx-submit="source-search"
+        >
+          <.text_input
+            id="once-action-sources-search"
+            name="source-search"
+            type="search"
+            aria-label={dgettext("dashboard_projects", "Search source files")}
+            value={@source_search}
+            placeholder={dgettext("dashboard_projects", "Search...")}
+            show_suffix={false}
+            data-part="search"
+            phx-debounce="250"
+          />
+        </.form>
+      </div>
       <.table
         id="once-action-sources-table"
         rows={@sources}
@@ -412,7 +482,7 @@
     title={
       if @tab == "history",
         do: dgettext("dashboard_projects", "Action History"),
-        else: dgettext("dashboard_projects", "Recent executions")
+        else: dgettext("dashboard_projects", "Recent action executions")
     }
     icon="history"
     data-part="action-history"
@@ -438,20 +508,24 @@
       />
     </:actions>
     <.card_section>
-      <.form
-        for={%{}}
-        id="once-action-history-filter"
-        phx-change="filter-history"
-        phx-submit="filter-history"
-      >
-        <.text_input
-          id="once-action-branch"
-          name="branch"
-          value={@branch}
-          placeholder={dgettext("dashboard_projects", "Filter by branch...")}
-          phx-debounce="250"
-        />
-      </.form>
+      <div data-part="table-toolbar">
+        <.form
+          for={%{}}
+          id="once-action-history-filter"
+          phx-change="filter-history"
+          phx-submit="filter-history"
+        >
+          <.text_input
+            id="once-action-branch"
+            name="branch"
+            value={@branch}
+            aria-label={dgettext("dashboard_projects", "Filter by branch")}
+            placeholder={dgettext("dashboard_projects", "Filter by branch...")}
+            show_suffix={false}
+            phx-debounce="250"
+          />
+        </.form>
+      </div>
       <%= cond do %>
         <% @occurrences.failed -> %>
           <p>{dgettext("dashboard_projects", "Could not load action history. Try again.")}</p>
