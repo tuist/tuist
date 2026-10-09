@@ -5,7 +5,10 @@ defmodule Tuist.Repo.Migrations.CreateBuildAutomationFindings do
   @disable_migration_lock true
 
   def change do
+    # PostgreSQL 11+ stores this constant JSONB default in the catalog without
+    # rewriting existing rows, requiring only a brief ACCESS EXCLUSIVE lock.
     alter table(:automation_alerts) do
+      # excellent_migrations:safety-assured-for-next-line column_added_with_default
       add :build_scan_state, :map, null: false, default: %{}
     end
 
