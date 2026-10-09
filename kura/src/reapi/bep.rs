@@ -14,7 +14,10 @@ use tonic::{Request, Response, Status, Streaming};
 use tracing::warn;
 
 use crate::{
-    analytics::{BazelInvocationAnalyticsEvent, BazelInvocationLogAnalyticsEvent},
+    analytics::{
+        BazelInvocationAnalyticsEvent, BazelInvocationLogAnalyticsEvent,
+        BazelTestSummaryAnalyticsEvent,
+    },
     bazel_test_artifacts::{
         BazelAction, BazelProfile, BazelTestArtifact, BazelTestArtifactKind,
         BazelTestInvocationFinished, BazelTestResult as DeliveredBazelTestResult,
@@ -70,10 +73,15 @@ const MAX_BUILD_EVENT_MESSAGE_BYTES: usize = 2 * 1_024 * 1_024;
 pub struct BuildEventService {
     state: SharedState,
     invocations: Arc<Mutex<HashMap<String, InvocationStart>>>,
+    network_reports: Arc<tokio::sync::Semaphore>,
+    network_project_reports: Arc<Mutex<HashMap<String, Arc<tokio::sync::Semaphore>>>>,
 }
 
 #[derive(Clone)]
 struct InvocationStart {
+    network_trusted: bool,
+    test_summaries: BTreeMap<String, BazelTestSummaryAnalyticsEvent>,
+    test_summary_bytes: usize,
     detected_failure_category: Option<&'static str>,
     reported_user: String,
     account_handle: String,
@@ -537,8 +545,56 @@ pub fn server(state: SharedState) -> PublishBuildEventServer {
     GeneratedPublishBuildEventServer::new(BuildEventService {
         state,
         invocations: Arc::new(Mutex::new(HashMap::new())),
+        network_reports: Arc::new(tokio::sync::Semaphore::new(16)),
+        network_project_reports: Arc::new(Mutex::new(HashMap::new())),
     })
     .max_decoding_message_size(MAX_BUILD_EVENT_MESSAGE_BYTES)
+}
+
+struct UnsignedInvocationCleanup {
+    invocations: Arc<Mutex<HashMap<String, InvocationStart>>>,
+    key: String,
+}
+
+impl Drop for UnsignedInvocationCleanup {
+    fn drop(&mut self) {
+        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+            let invocations = self.invocations.clone();
+            let key = self.key.clone();
+            runtime.spawn(async move {
+                invocations.lock().await.remove(&key);
+            });
+        }
+    }
+}
+
+fn unsigned_stream_deadline() -> tokio::time::Instant {
+    tokio::time::Instant::now() + Duration::from_secs(6 * 60 * 60)
+}
+
+fn unsigned_io_deadline(absolute: tokio::time::Instant) -> tokio::time::Instant {
+    absolute.min(tokio::time::Instant::now() + Duration::from_secs(5 * 60))
+}
+
+struct StreamResponder {
+    sender: mpsc::Sender<Result<PublishBuildToolEventStreamResponse, Status>>,
+    deadline: Option<tokio::time::Instant>,
+}
+
+impl StreamResponder {
+    async fn send(
+        &self,
+        response: Result<PublishBuildToolEventStreamResponse, Status>,
+    ) -> Result<(), ()> {
+        if let Some(deadline) = self.deadline {
+            tokio::time::timeout_at(unsigned_io_deadline(deadline), self.sender.send(response))
+                .await
+                .map_err(|_| ())?
+                .map_err(|_| ())
+        } else {
+            self.sender.send(response).await.map_err(|_| ())
+        }
+    }
 }
 
 #[tonic::async_trait]
@@ -550,8 +606,13 @@ impl PublishBuildEvent for BuildEventService {
         &self,
         request: Request<PublishLifecycleEventRequest>,
     ) -> Result<Response<()>, Status> {
+        if super::service::network_build_event_request(request.metadata())? {
+            // No report is ingested here. Ignore lifecycle notifications without
+            // consuming publishing quota or accepting client invocation IDs.
+            return Ok(Response::new(()));
+        }
         let project_handle = project_handle(request.metadata())?;
-        let account_handle = super::service::authorize_build_event_request(
+        let publication = super::service::authorize_build_event_request(
             &self.state,
             request.metadata(),
             &project_handle,
@@ -559,8 +620,12 @@ impl PublishBuildEvent for BuildEventService {
         )
         .await?;
 
+        // Lifecycle IDs from unsigned publishers must not reach other invocations.
+        if publication.network_trusted {
+            return Ok(Response::new(()));
+        }
         if let Some(event) = request.into_inner().build_event {
-            self.process_event(&account_handle, &project_handle, event)
+            self.process_event(&publication.account_handle, &project_handle, event)
                 .await;
         }
 
@@ -572,13 +637,40 @@ impl PublishBuildEvent for BuildEventService {
         request: Request<Streaming<PublishBuildToolEventStreamRequest>>,
     ) -> Result<Response<Self::PublishBuildToolEventStreamStream>, Status> {
         let project_handle = project_handle(request.metadata())?;
-        let account_handle = super::service::authorize_build_event_request(
+        let network_permit = if super::service::network_build_event_request(request.metadata())? {
+            Some(
+                self.network_reports
+                    .clone()
+                    .try_acquire_owned()
+                    .map_err(|_| {
+                        Status::resource_exhausted("network reporting streams are at capacity")
+                    })?,
+            )
+        } else {
+            None
+        };
+        let publication = super::service::authorize_build_event_request(
             &self.state,
             request.metadata(),
             &project_handle,
             BUILD_EVENT_SERVICE_ROUTE,
         )
         .await?;
+        let account_handle = publication.account_handle;
+        let network_trusted = publication.network_trusted;
+        let network_project_permit = if network_trusted {
+            Some(
+                self.network_project_permit(&account_handle, &project_handle)
+                    .await?,
+            )
+        } else {
+            None
+        };
+        let server_invocation_id = if network_trusted {
+            uuid::Uuid::now_v7().to_string()
+        } else {
+            String::new()
+        };
         let mut requests = request.into_inner();
         let service = self.clone();
         let (sender, receiver) = mpsc::channel(64);
@@ -587,7 +679,21 @@ impl PublishBuildEvent for BuildEventService {
         tokio::spawn(crate::serving_authority::scope(
             serving_permit.clone(),
             async move {
+                let _network_permit = network_permit;
+                let _network_project_permit = network_project_permit;
+                let _cleanup = network_trusted.then(|| UnsignedInvocationCleanup {
+                    invocations: service.invocations.clone(),
+                    key: invocation_key(&account_handle, &project_handle, &server_invocation_id),
+                });
                 let mut invocation_id = None;
+                let mut bytes_received = 0usize;
+                let mut events_received = 0usize;
+                let mut transport_bytes = 0usize;
+                let deadline = unsigned_stream_deadline();
+                let sender = StreamResponder {
+                    sender,
+                    deadline: network_trusted.then_some(deadline),
+                };
                 loop {
                     if serving_permit.as_ref().is_some_and(|p| p.check().is_err()) {
                         let _ = sender
@@ -595,7 +701,22 @@ impl PublishBuildEvent for BuildEventService {
                             .await;
                         break;
                     }
-                    let request = match requests.message().await {
+                    let message = if network_trusted {
+                        match tokio::time::timeout_at(
+                            unsigned_io_deadline(deadline),
+                            requests.message(),
+                        )
+                        .await
+                        {
+                            Ok(message) => message,
+                            Err(_) => Err(Status::deadline_exceeded(
+                                "network reporting stream expired",
+                            )),
+                        }
+                    } else {
+                        requests.message().await
+                    };
+                    let request = match message {
                         Ok(Some(request)) => request,
                         Ok(None) => break,
                         Err(error) => {
@@ -604,7 +725,27 @@ impl PublishBuildEvent for BuildEventService {
                         }
                     };
 
-                    let Some(event) = request.ordered_build_event else {
+                    if network_trusted {
+                        let bytes = request.encoded_len();
+                        transport_bytes = transport_bytes.saturating_add(bytes);
+                        if retained_network_event(request.ordered_build_event.as_ref()) {
+                            bytes_received = bytes_received.saturating_add(bytes);
+                            events_received += 1;
+                        }
+                    }
+                    if network_trusted
+                        && (bytes_received > 8_000_000
+                            || events_received > 20_000
+                            || transport_bytes > 256 * 1024 * 1024)
+                    {
+                        let _ = sender
+                            .send(Err(Status::resource_exhausted(
+                                "network report exceeds retained data/event or 256 MiB transport limits",
+                            )))
+                            .await;
+                        break;
+                    }
+                    let Some(mut event) = request.ordered_build_event else {
                         let _ = sender
                             .send(Err(Status::invalid_argument(
                                 "ordered_build_event is required",
@@ -638,8 +779,22 @@ impl PublishBuildEvent for BuildEventService {
                         }
                         invocation_id = Some(event_invocation_id);
                     }
+                    if network_trusted {
+                        let Some(stream_id) = event.stream_id.as_mut() else {
+                            let _ = sender
+                                .send(Err(Status::invalid_argument("stream_id is required")))
+                                .await;
+                            break;
+                        };
+                        stream_id.invocation_id = server_invocation_id.clone();
+                    }
                     service
-                        .process_event(&account_handle, &project_handle, event)
+                        .process_event_with_policy(
+                            &account_handle,
+                            &project_handle,
+                            event,
+                            network_trusted,
+                        )
                         .await;
 
                     if serving_permit.as_ref().is_some_and(|p| p.check().is_err()) {
@@ -657,9 +812,20 @@ impl PublishBuildEvent for BuildEventService {
                     .finalize_finished_invocation(
                         &account_handle,
                         &project_handle,
-                        invocation_id.as_deref(),
+                        if network_trusted {
+                            Some(server_invocation_id.as_str())
+                        } else {
+                            invocation_id.as_deref()
+                        },
                     )
                     .await;
+                if network_trusted {
+                    service.invocations.lock().await.remove(&invocation_key(
+                        &account_handle,
+                        &project_handle,
+                        &server_invocation_id,
+                    ));
+                }
             },
         ));
 
@@ -667,7 +833,42 @@ impl PublishBuildEvent for BuildEventService {
     }
 }
 
+fn retained_network_event(event: Option<&OrderedBuildEvent>) -> bool {
+    let Some(BuildEventServiceEvent::BazelEvent(any)) = event
+        .and_then(|event| event.event.as_ref())
+        .and_then(|event| event.event.as_ref())
+    else {
+        return false;
+    };
+    let Ok(event) = BazelBuildEvent::decode(any.value.as_slice()) else {
+        return false;
+    };
+    event.started.is_some()
+        || event.finished.is_some()
+        || event.test_summary.is_some()
+        || event.build_metrics.is_some()
+        || event.build_metadata.is_some()
+        || event.workspace_status.is_some()
+        || event.action.is_some()
+}
+
 impl BuildEventService {
+    async fn network_project_permit(
+        &self,
+        account: &str,
+        project: &str,
+    ) -> Result<tokio::sync::OwnedSemaphorePermit, Status> {
+        let mut projects = self.network_project_reports.lock().await;
+        projects
+            .retain(|_, permits| permits.available_permits() < 4 || Arc::strong_count(permits) > 1);
+        let permits = projects
+            .entry(format!("{account}:{project}"))
+            .or_insert_with(|| Arc::new(tokio::sync::Semaphore::new(4)))
+            .clone();
+        permits.try_acquire_owned().map_err(|_| {
+            Status::resource_exhausted("project network reporting streams are at capacity")
+        })
+    }
     async fn finalize_finished_invocation(
         &self,
         account_handle: &str,
@@ -697,7 +898,8 @@ impl BuildEventService {
             return;
         };
 
-        if invocation.command == "test"
+        if !invocation.network_trusted
+            && invocation.command == "test"
             && let Some(delivery) = self.state.bazel_test_artifacts.as_ref()
         {
             delivery
@@ -725,6 +927,17 @@ impl BuildEventService {
         project_handle: &str,
         ordered_event: OrderedBuildEvent,
     ) {
+        self.process_event_with_policy(account_handle, project_handle, ordered_event, false)
+            .await;
+    }
+
+    async fn process_event_with_policy(
+        &self,
+        account_handle: &str,
+        project_handle: &str,
+        ordered_event: OrderedBuildEvent,
+        network_trusted: bool,
+    ) {
         let Some(BuildEventServiceEvent::BazelEvent(bazel_event)) = ordered_event
             .event
             .as_ref()
@@ -737,10 +950,15 @@ impl BuildEventService {
             return;
         }
 
-        let Ok(event) = BazelBuildEvent::decode(bazel_event.value.as_slice()) else {
+        let Ok(mut event) = BazelBuildEvent::decode(bazel_event.value.as_slice()) else {
             return;
         };
 
+        if network_trusted {
+            // These delivery paths dereference uploaded CAS artifacts. Reporting
+            // is not permission to read or enqueue artifact processing.
+            event.test_result = None;
+        }
         if let Some(started) = event.started {
             let invocation_id = truncate_wire_string(
                 &invocation_id(&ordered_event, &started.uuid),
@@ -751,6 +969,9 @@ impl BuildEventService {
             }
 
             let start = InvocationStart {
+                network_trusted,
+                test_summaries: BTreeMap::new(),
+                test_summary_bytes: 0,
                 account_handle: account_handle.to_owned(),
                 project_handle: project_handle.to_owned(),
                 invocation_id: invocation_id.clone(),
@@ -787,8 +1008,25 @@ impl BuildEventService {
                 .filter(|invocation| {
                     invocation.account_handle == account_handle
                         && invocation.project_handle == project_handle
+                        && invocation.network_trusted == network_trusted
                 })
                 .count();
+            if network_trusted
+                && (project_invocation_count >= 4
+                    || invocations.len() >= MAX_IN_FLIGHT_INVOCATIONS - 16)
+            {
+                return;
+            }
+            // Give authenticated traffic priority at the shared invocation cap.
+            if !network_trusted && invocations.len() >= MAX_IN_FLIGHT_INVOCATIONS {
+                let unsigned_key = invocations
+                    .iter()
+                    .find(|(_, invocation)| invocation.network_trusted)
+                    .map(|(key, _)| key.clone());
+                if let Some(unsigned_key) = unsigned_key {
+                    invocations.remove(&unsigned_key);
+                }
+            }
             if !invocations.contains_key(&key)
                 && (invocations.len() >= MAX_IN_FLIGHT_INVOCATIONS
                     || project_invocation_count >= MAX_IN_FLIGHT_INVOCATIONS_PER_PROJECT)
@@ -814,6 +1052,9 @@ impl BuildEventService {
         let key = invocation_key(account_handle, project_handle, &invocation_id);
 
         if let Some(progress) = event.progress {
+            if network_trusted {
+                return;
+            }
             if let Some(start) = self.invocations.lock().await.get_mut(&key) {
                 let observed_at_ms = ordered_event_timestamp_millis(&ordered_event);
                 append_invocation_log(
@@ -851,7 +1092,8 @@ impl BuildEventService {
                     Some(&action.action_type),
                 );
             }
-            if let Some(delivery) = self.state.bazel_test_artifacts.as_ref()
+            if !network_trusted
+                && let Some(delivery) = self.state.bazel_test_artifacts.as_ref()
                 && let Some(id) = event
                     .id
                     .as_ref()
@@ -897,7 +1139,7 @@ impl BuildEventService {
         }
 
         if let Some(build_tool_logs) = event.build_tool_logs {
-            if let Some(delivery) = self.state.bazel_test_artifacts.as_ref() {
+            if !network_trusted && let Some(delivery) = self.state.bazel_test_artifacts.as_ref() {
                 for log in &build_tool_logs.log {
                     if let Some(profile) =
                         profile_delivery(account_handle, project_handle, &invocation_id, log)
@@ -966,6 +1208,28 @@ impl BuildEventService {
                 return;
             }
 
+            if network_trusted {
+                if let Some(start) = self.invocations.lock().await.get_mut(&key) {
+                    let summary = BazelTestSummaryAnalyticsEvent {
+                        target_label: target_label.clone(),
+                        status: test_status(test_summary.overall_status).to_owned(),
+                        duration_ms: proto_duration_millis(
+                            test_summary.total_run_duration.as_ref(),
+                            test_summary.total_run_duration_millis,
+                        ),
+                    };
+                    let bytes =
+                        serde_json::to_vec(&summary).map_or(usize::MAX, |value| value.len() + 1);
+                    if start.test_summaries.len() < 1000
+                        && !start.test_summaries.contains_key(&target_label)
+                        && start.test_summary_bytes.saturating_add(bytes) <= 32 * 1024
+                    {
+                        start.test_summary_bytes += bytes;
+                        start.test_summaries.insert(target_label, summary);
+                    }
+                }
+                return;
+            }
             if let Some(delivery) = self.state.bazel_test_artifacts.as_ref() {
                 delivery.enqueue_test_summary(test_summary_delivery(
                     account_handle,
@@ -1030,6 +1294,9 @@ impl BuildEventService {
                 record_failure_category(start, finished.failure_detail.as_ref(), None);
                 start.completion = Some(completion);
             } else {
+                if network_trusted {
+                    return;
+                }
                 warn!(
                     account_handle,
                     project_handle,
@@ -1053,6 +1320,9 @@ impl BuildEventService {
                 invocations.insert(
                     key,
                     InvocationStart {
+                        network_trusted,
+                        test_summaries: BTreeMap::new(),
+                        test_summary_bytes: 0,
                         account_handle: account_handle.to_owned(),
                         project_handle: project_handle.to_owned(),
                         invocation_id: invocation_id.clone(),
@@ -1552,6 +1822,16 @@ fn ordered_event_timestamp_millis(event: &OrderedBuildEvent) -> u64 {
 }
 
 fn apply_metadata(invocation: &mut InvocationStart, metadata: &HashMap<String, String>) {
+    if let Some(actor) = metadata.get("TUIST_ACTOR_ID") {
+        invocation.reported_user = if !actor.is_empty()
+            && actor.len() <= 128
+            && actor.bytes().all(|byte| (33..=126).contains(&byte))
+        {
+            actor.clone()
+        } else {
+            String::new()
+        };
+    }
     invocation.is_ci |= metadata.iter().any(|(key, value)| {
         matches!(
             key.to_ascii_uppercase().as_str(),
@@ -1606,6 +1886,7 @@ fn context_metadata_key(key: &str) -> bool {
         key.to_ascii_uppercase().as_str(),
         "CI" | "ROLE"
             | "TUIST_CI"
+            | "TUIST_ACTOR_ID"
             | "BUILD_SCM_BRANCH"
             | "GIT_BRANCH"
             | "BRANCH_NAME"
@@ -1678,12 +1959,18 @@ fn completed_invocation_event(
             .insert("tuist.detected_failure_category".into(), category.into());
     }
 
-    if !start.reported_user.is_empty() && start.custom_values.len() < MAX_CUSTOM_METADATA_ENTRIES {
+    start.custom_values.remove("tuist.reported_user");
+    if !start.reported_user.is_empty() {
+        if start.custom_values.len() >= MAX_CUSTOM_METADATA_ENTRIES {
+            start.custom_values.pop_last();
+        }
         start
             .custom_values
             .insert("tuist.reported_user".into(), start.reported_user);
     }
     BazelInvocationAnalyticsEvent {
+        submission_auth: start.network_trusted.then_some("network_trusted"),
+        test_summaries: start.test_summaries.into_values().collect(),
         account_handle: start.account_handle,
         project_handle: start.project_handle,
         invocation_id: start.invocation_id,
@@ -1741,7 +2028,7 @@ fn truncate_wire_string(value: &str, max_bytes: usize) -> String {
 
     value
         .char_indices()
-        .take_while(|(index, _)| *index < max_bytes)
+        .take_while(|(index, character)| *index + character.len_utf8() <= max_bytes)
         .map(|(_, character)| character)
         .collect()
 }
@@ -2005,6 +2292,8 @@ mod tests {
         let service = BuildEventService {
             state: context.state,
             invocations: Arc::new(Mutex::new(HashMap::new())),
+            network_reports: Arc::new(tokio::sync::Semaphore::new(16)),
+            network_project_reports: Arc::new(Mutex::new(HashMap::new())),
         };
 
         service
@@ -2191,6 +2480,9 @@ mod tests {
     fn maps_a_completed_invocation_to_analytics() {
         let event = completed_invocation_event(
             InvocationStart {
+                network_trusted: false,
+                test_summaries: BTreeMap::new(),
+                test_summary_bytes: 0,
                 account_handle: "acme".into(),
                 project_handle: "ios".into(),
                 invocation_id: "invocation-1".into(),
@@ -2686,8 +2978,189 @@ mod tests {
         assert_eq!(invocation.detected_failure_category, Some("verification"));
     }
 
+    #[tokio::test]
+    async fn unsigned_project_permits_are_bounded_and_released() {
+        let context = test_context(|_| {}).await;
+        let service = BuildEventService {
+            state: context.state,
+            invocations: Arc::new(Mutex::new(HashMap::new())),
+            network_reports: Arc::new(tokio::sync::Semaphore::new(16)),
+            network_project_reports: Arc::new(Mutex::new(HashMap::new())),
+        };
+        let mut permits = Vec::new();
+        for _ in 0..4 {
+            permits.push(service.network_project_permit("acme", "ios").await.unwrap());
+        }
+        assert!(service.network_project_permit("acme", "ios").await.is_err());
+        assert!(
+            service
+                .network_project_permit("acme", "other")
+                .await
+                .is_ok()
+        );
+        drop(permits);
+        assert!(service.network_project_permit("acme", "ios").await.is_ok());
+        assert!(service.network_project_reports.lock().await.len() <= 1);
+    }
+
+    #[test]
+    fn discarded_output_does_not_consume_the_retained_report_budget() {
+        let output = ordered_bazel_event(
+            "invocation-1",
+            BazelBuildEvent {
+                progress: Some(BazelProgress {
+                    stdout: "x".repeat(1024 * 1024),
+                    stderr: String::new(),
+                }),
+                ..Default::default()
+            },
+        );
+        assert!(!retained_network_event(Some(&output)));
+        let summary = ordered_bazel_event(
+            "invocation-1",
+            BazelBuildEvent {
+                test_summary: Some(BazelTestSummary::default()),
+                ..Default::default()
+            },
+        );
+        assert!(retained_network_event(Some(&summary)));
+        assert!(truncate_wire_string(&"界".repeat(500), 1024).len() <= 1024);
+    }
+
+    #[test]
+    fn actor_override_and_opt_out_cannot_be_undone_by_custom_metadata() {
+        for actor in ["", "has spaces", "employee-123"] {
+            let mut invocation = test_invocation_start();
+            invocation.reported_user = "automatic-user".into();
+            let metadata = HashMap::from([
+                ("TUIST_ACTOR_ID".into(), actor.into()),
+                ("tuist.reported_user".into(), "forged-fallback".into()),
+            ]);
+            apply_metadata(&mut invocation, &metadata);
+            apply_custom_metadata(&mut invocation, &metadata);
+            let event =
+                completed_invocation_event(invocation, "success", Some(0), 1_700_000_001_000);
+            assert!(!event.custom_values.contains_key("TUIST_ACTOR_ID"));
+            assert_eq!(
+                event
+                    .custom_values
+                    .get("tuist.reported_user")
+                    .map(String::as_str),
+                if actor == "employee-123" {
+                    Some(actor)
+                } else {
+                    None
+                }
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn unsigned_target_summaries_are_inline_and_never_enqueue_artifact_delivery() {
+        let context = test_context(|_| {}).await;
+        let service = BuildEventService {
+            state: context.state,
+            invocations: Arc::new(Mutex::new(HashMap::new())),
+            network_reports: Arc::new(tokio::sync::Semaphore::new(16)),
+            network_project_reports: Arc::new(Mutex::new(HashMap::new())),
+        };
+        let mut invocation = test_invocation_start();
+        invocation.network_trusted = true;
+        let key = invocation_key("acme", "ios", "invocation-1");
+        service
+            .invocations
+            .lock()
+            .await
+            .insert(key.clone(), invocation);
+        let summary = BazelBuildEvent {
+            id: Some(BazelBuildEventId {
+                test_summary: Some(BazelTestSummaryId {
+                    label: "//app:tests".into(),
+                }),
+                ..Default::default()
+            }),
+            test_summary: Some(BazelTestSummary {
+                overall_status: BazelTestStatus::Failed as i32,
+                total_run_duration_millis: 42,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        service
+            .process_event_with_policy(
+                "acme",
+                "ios",
+                ordered_bazel_event("invocation-1", summary),
+                true,
+            )
+            .await;
+        let invocation = service.invocations.lock().await.get(&key).cloned().unwrap();
+        assert_eq!(invocation.test_summaries["//app:tests"].duration_ms, 42);
+        assert_eq!(invocation.test_summaries["//app:tests"].status, "failure");
+        let event = completed_invocation_event(invocation, "failure", Some(1), 1_700_000_001_000);
+        assert_eq!(event.submission_auth, Some("network_trusted"));
+        assert_eq!(event.test_summaries.len(), 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn long_builds_can_ack_but_stalled_responses_release_stream_permits() {
+        let permits = Arc::new(tokio::sync::Semaphore::new(16));
+        let permit = permits.clone().acquire_owned().await.unwrap();
+        let (sender, _receiver) = mpsc::channel(1);
+        let deadline = unsigned_stream_deadline();
+        tokio::time::advance(Duration::from_secs(20 * 60)).await;
+        let responder = StreamResponder {
+            sender,
+            deadline: Some(deadline),
+        };
+        assert!(
+            responder
+                .send(Ok(PublishBuildToolEventStreamResponse {
+                    stream_id: None,
+                    sequence_number: 1
+                }))
+                .await
+                .is_ok()
+        );
+        let task = tokio::spawn(async move {
+            let _permit = permit;
+            responder
+                .send(Ok(PublishBuildToolEventStreamResponse {
+                    stream_id: None,
+                    sequence_number: 2,
+                }))
+                .await
+        });
+        tokio::task::yield_now().await;
+        tokio::time::advance(Duration::from_secs(5 * 60 + 1)).await;
+        tokio::task::yield_now().await;
+        assert!(task.is_finished());
+        assert!(task.await.unwrap().is_err());
+        assert_eq!(permits.available_permits(), 16);
+    }
+
+    #[tokio::test]
+    async fn unsigned_response_backpressure_is_bounded_by_the_stream_deadline() {
+        let (sender, _receiver) = mpsc::channel(1);
+        let responder = StreamResponder {
+            sender,
+            deadline: Some(tokio::time::Instant::now() + Duration::from_millis(10)),
+        };
+        let response = || {
+            Ok(PublishBuildToolEventStreamResponse {
+                stream_id: None,
+                sequence_number: 1,
+            })
+        };
+        assert!(responder.send(response()).await.is_ok());
+        assert!(responder.send(response()).await.is_err());
+    }
+
     fn test_invocation_start() -> InvocationStart {
         InvocationStart {
+            network_trusted: false,
+            test_summaries: BTreeMap::new(),
+            test_summary_bytes: 0,
             account_handle: "acme".into(),
             project_handle: "ios".into(),
             invocation_id: "invocation-1".into(),

@@ -4748,19 +4748,69 @@ fn usage_tenant_id(metadata: &tonic::metadata::MetadataMap, fallback_tenant_id: 
     tenant_id_from_metadata(metadata).unwrap_or_else(|| fallback_tenant_id.to_owned())
 }
 
+pub(super) struct BuildEventPublication {
+    pub account_handle: String,
+    pub network_trusted: bool,
+}
+
+pub(super) fn network_build_event_request(
+    metadata: &tonic::metadata::MetadataMap,
+) -> Result<bool, Status> {
+    if metadata.contains_key("authorization") {
+        return Ok(false);
+    }
+    let count = metadata
+        .get_all("x-tuist-network-trusted-publishing")
+        .iter()
+        .count();
+    if count == 0 {
+        return Ok(false);
+    }
+    if count != 1
+        || metadata
+            .get("x-tuist-network-trusted-publishing")
+            .and_then(|value| value.to_str().ok())
+            != Some("true")
+    {
+        return Err(Status::invalid_argument(
+            "Invalid network publishing metadata",
+        ));
+    }
+    Ok(true)
+}
+
 pub(super) async fn authorize_build_event_request(
     state: &SharedState,
     metadata: &tonic::metadata::MetadataMap,
     project_handle: &str,
     _route: &str,
-) -> Result<String, Status> {
+) -> Result<BuildEventPublication, Status> {
     if state.runtime.is_draining() {
         return Err(Status::unavailable("server is draining"));
     }
 
     let account_handle = usage_tenant_id(metadata, &state.account_identity.load().handle);
+    let supplied_credentials = metadata.get_all("authorization").iter().count();
+    if supplied_credentials > 1
+        || (supplied_credentials == 1
+            && metadata
+                .get("authorization")
+                .and_then(|value| value.to_str().ok())
+                .is_none_or(|value| value.trim().is_empty()))
+    {
+        return Err(Status::unauthenticated("Invalid authorization metadata"));
+    }
+    let network_trusted = network_build_event_request(metadata)?;
     let Some(auth) = state.auth.as_ref() else {
-        return Ok(account_handle);
+        if network_trusted {
+            return Err(Status::permission_denied(
+                "Network reporting requires a configured control plane",
+            ));
+        }
+        return Ok(BuildEventPublication {
+            account_handle,
+            network_trusted: false,
+        });
     };
 
     let spec = GrpcRequestSpec {
@@ -4770,8 +4820,17 @@ pub(super) async fn authorize_build_event_request(
     let mut context = grpc_request_context(&state.config.tenant_id, &spec, metadata);
     state.canonicalize_auth_context(&mut context);
 
-    match auth.evaluate_access(&context).await {
-        AccessDecision::Allow => Ok(context.server_tenant_id),
+    let decision = if network_trusted {
+        auth.network_build_event_access(&context.server_tenant_id, project_handle)
+            .await
+    } else {
+        auth.evaluate_access(&context).await
+    };
+    match decision {
+        AccessDecision::Allow => Ok(BuildEventPublication {
+            account_handle: context.server_tenant_id,
+            network_trusted,
+        }),
         AccessDecision::Deny(deny) => Err(grpc_status_from_http_status(deny.status, &deny.message)),
     }
 }
