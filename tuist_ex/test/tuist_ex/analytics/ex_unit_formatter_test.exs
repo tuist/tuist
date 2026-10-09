@@ -393,6 +393,42 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     :ok = GenServer.stop(pid)
   end
 
+  test "reports whether ExUnit ran each module alongside others" do
+    parent = self()
+
+    submit = fn payload, _opts ->
+      send(parent, {:submitted, payload})
+      :ok
+    end
+
+    {:ok, pid} =
+      GenServer.start_link(ExUnitFormatter, environment: &environment/1, submit: submit)
+
+    tags = fn async -> %{describe: nil, file: "test/a_test.exs", line: 1, async: async} end
+
+    send_lifecycle(pid, [
+      {:suite_started, []},
+      {:test_finished, new_test(name: :"test a", module: AsyncTest, tags: tags.(true))},
+      {:test_finished, new_test(name: :"test b", module: SyncTest, tags: tags.(false))},
+      {:test_finished,
+       new_test(
+         name: :"test c",
+         module: UnknownTest,
+         tags: %{describe: nil, file: "test/a_test.exs", line: 1}
+       )},
+      {:suite_finished, %{run: 1_000, load: 0}}
+    ])
+
+    assert_receive {:submitted, payload}, 2000
+    modules = Map.new(payload.test_modules, &{&1.name, &1})
+
+    assert modules["AsyncTest"].execution_mode == "parallel"
+    assert modules["SyncTest"].execution_mode == "serial"
+    refute Map.has_key?(modules["UnknownTest"], :execution_mode)
+
+    :ok = GenServer.stop(pid)
+  end
+
   test "aggregates an all-skipped module as success so the server accepts the payload" do
     # The server schema only permits success/failure at the module level, so
     # even when every case is skipped the module aggregate must stay success.
