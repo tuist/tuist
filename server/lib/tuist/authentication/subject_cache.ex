@@ -7,6 +7,7 @@ defmodule Tuist.Authentication.SubjectCache do
   import Cachex.Spec, only: [expiration: 1, hook: 1]
 
   alias Tuist.Authentication
+  alias Tuist.Authentication.SingleFlight
   alias Tuist.Environment
 
   @cache :auth_subjects
@@ -15,13 +16,9 @@ defmodule Tuist.Authentication.SubjectCache do
   def child_spec(opts) do
     cache = Keyword.get(opts, :cache, @cache)
 
-    Supervisor.child_spec(
-      {Cachex,
-       [
-         cache,
-         [expiration: expiration(default: @ttl), hooks: [hook(module: Cachex.Limit.Scheduled, args: {10_000, [], []})]]
-       ]},
-      id: __MODULE__
+    SingleFlight.cache_child_spec(__MODULE__, cache,
+      expiration: expiration(default: @ttl),
+      hooks: [hook(module: Cachex.Limit.Scheduled, args: {10_000, [], []})]
     )
   end
 
@@ -35,7 +32,7 @@ defmodule Tuist.Authentication.SubjectCache do
     }
 
     context.cache
-    |> Cachex.fetch(context.key, fn -> load(token, context) end)
+    |> SingleFlight.fetch(context.key, fn -> load(token, context) end)
     |> result(token, opts, context)
   rescue
     _ -> {:error, :unavailable}

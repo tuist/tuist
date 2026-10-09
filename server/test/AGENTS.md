@@ -87,3 +87,5 @@ This directory contains ExUnit tests for the Tuist Server.
 - Production-cost token-cache coverage runs in ExUnit with an explicit rounds-12 hash: 2,000 lookups at concurrency 64 require exactly one real bcrypt verification. Use `Mimic.call_original/3` and an isolated cache, without shared configuration changes, VM-wide tracing or wall-clock assertions.
 
 - Bounded authentication regression: 400 real-context requests over 20 credentials require exactly 20 authoritative snapshot fills and bcrypt calls. Cover absolute 60-second deadlines, verified expiry with both clocks, revocation/scopes/deactivation by the deadline, failure classification, router-dispatched uploads, strict minting/shell routes and stream deadline inheritance. No machine-sensitive latency assertions or SQL-capacity claims.
+
+- Authentication fills must have no cache-wide dispatch/fan-out mailbox. Test direct reads and per-key fills with the ETS owner and Cachex Courier suspended; cover concurrent production-cost proofs, independent keys, worker/coordinator death, bounded timeouts, owner loss and recovery without retaining errors.

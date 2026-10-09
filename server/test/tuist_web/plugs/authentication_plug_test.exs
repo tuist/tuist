@@ -18,7 +18,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
 
   setup do
     cache = String.to_atom(UUIDv7.generate())
-    {:ok, _} = Cachex.start_link(name: cache)
+    start_supervised!({Tuist.Authentication.SubjectCache, cache: cache})
     {:ok, cache: cache}
   end
 

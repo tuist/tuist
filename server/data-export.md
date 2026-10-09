@@ -30,6 +30,8 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 
 Successful project/account-token bcrypt verification proofs are held only in each server's ephemeral `token_verification` Cachex cache. Each entry contains a SHA-256 digest of the complete verification input and stored bcrypt hash, mapped to `true`, with a one-minute TTL and scheduled pruning to 10,000 entries. No plaintext token, subject, account/project identifier, permissions or request history is retained. These derived authentication proofs are excluded from exports and are lost on process restart; credential state remains in PostgreSQL.
 
+Authentication cache fills use separate ephemeral ETS claim tables containing only digest keys and process identifiers. They store no additional customer records and are discarded on cache restart; completed claims are removed, and abandoned claims are recovered on subsequent access.
+
 Authenticated-subject snapshots are also stored in the separate ephemeral node-local `auth_subjects` Cachex cache. Keys are HMAC digests of full credentials; values contain resolved user/account/project state, scopes and project restrictions, verified credential expiry and an absolute monotonic freshness deadline. Entries are pruned to 10,000 and expire within 60 seconds of fill start or sooner at credential expiry; hits never renew them. Ordinary reads and selected uploads accept that bounded revocation/activity/scope staleness. Credential creation, privilege changes and runner-shell upgrades authenticate fresh. These disposable copies are not exported separately; their underlying customer records are covered below. They do not survive restart and do not depend on cross-node invalidation.
 
 ## Exportable Data

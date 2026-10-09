@@ -98,6 +98,24 @@ defmodule Tuist.Authentication.SubjectCacheTest do
     assert Cachex.size(cache) == 2
   end
 
+  test "subject fills and hits bypass suspended shared processes", %{cache: cache, opts: opts} do
+    owner = :ets.info(String.to_existing_atom("#{cache}_flights"), :owner)
+    courier = Process.whereis(String.to_existing_atom("#{cache}_courier"))
+    :sys.suspend(owner)
+    :sys.suspend(courier)
+
+    try do
+      expect(Authentication, :authenticated_subject_snapshot, 1, fn "token" -> %{subject: :valid, expires_at: nil} end)
+
+      for _ <- 1..100 do
+        assert {:ok, %{subject: :valid}} = SubjectCache.fetch("token", opts)
+      end
+    after
+      :sys.resume(owner)
+      :sys.resume(courier)
+    end
+  end
+
   test "negative authentication is not retained", %{cache: cache, opts: opts} do
     expect(Authentication, :authenticated_subject_snapshot, 2, fn "bad" -> nil end)
     assert SubjectCache.fetch("bad", opts) == {:ok, nil}
