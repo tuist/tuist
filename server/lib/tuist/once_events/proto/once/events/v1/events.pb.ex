@@ -727,6 +727,15 @@ defmodule Once.Events.V1.ActionCompleted do
     enum: true
 
   field :presentation, 18, type: Once.Events.V1.ActionPresentation
+  field :history, 19, type: Once.Events.V1.ActionHistoryKey
+end
+
+defmodule Once.Events.V1.ActionHistoryKey do
+  @moduledoc false
+  use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
+
+  field :namespace, 1, type: :string
+  field :key, 2, type: :string
 end
 
 defmodule Once.Events.V1.ActionAttemptStarted do

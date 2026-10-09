@@ -8,13 +8,11 @@ defmodule TuistWeb.OnceRunLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
-  import TuistWeb.Helpers.VCSLinks, only: [source_file_link: 1]
+  import TuistWeb.OnceActionComponents, only: [action_cell: 1]
   import TuistWeb.Widget
 
   alias Noora.Filter
-  alias Phoenix.LiveView.JS
   alias Tuist.OnceEvents
-  alias Tuist.OnceEvents.Presentation
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
 
@@ -22,7 +20,7 @@ defmodule TuistWeb.OnceRunLive do
   @refresh_interval_ms 1_000
 
   def mount(%{"once_run_id" => run_id}, _session, socket) do
-    project = Tuist.Repo.preload(socket.assigns.selected_project, vcs_connection: :github_app_installation)
+    project = Tuist.Repo.preload(socket.assigns.selected_project, [:account, vcs_connection: :github_app_installation])
 
     case OnceEvents.get_run(project.id, run_id) do
       nil ->
@@ -416,13 +414,11 @@ defmodule TuistWeb.OnceRunLive do
                 >
                   <.action_cell
                     label={action_label(action)}
-                    details_id={"once-action-details-#{action.id}"}
                     target={action.target_execution_id}
                     presentation={action.presentation}
-                    files={action.source_files}
-                    statuses={action.source_file_statuses}
-                    project={@selected_project}
-                    run={@run}
+                    navigate={
+                      ~p"/#{@selected_account.name}/#{@selected_project.name}/once/runs/#{@run.run_id}/actions/#{action.id}"
+                    }
                   />
                 </:col>
                 <:col
@@ -805,13 +801,11 @@ defmodule TuistWeb.OnceRunLive do
             >
               <.action_cell
                 label={event_action_label(event)}
-                details_id={"once-cache-action-details-#{event.id}"}
                 target={event.target_execution_id}
                 presentation={Map.get(event, :presentation)}
-                files={event.source_files}
-                statuses={event.source_file_statuses}
-                project={@project}
-                run={@run}
+                navigate={
+                  ~p"/#{@project.account.name}/#{@project.name}/once/runs/#{@run.run_id}/actions/#{event.id}"
+                }
               />
             </:col>
             <:col
@@ -1296,157 +1290,6 @@ defmodule TuistWeb.OnceRunLive do
   defp action_status_variant(%{result: "succeeded"}), do: "success"
   defp action_status_variant(%{result: "failed"}), do: "error"
   defp action_status_variant(_), do: "in_progress"
-
-  attr :label, :string, required: true
-  attr :details_id, :string, required: true
-  attr :target, :string, required: true
-  attr :presentation, :map, default: nil
-  attr :files, :list, required: true
-  attr :statuses, :list, default: nil
-  attr :project, :map, required: true
-  attr :run, :map, required: true
-
-  defp action_cell(assigns) do
-    presentation = Presentation.normalize(assigns.presentation)
-    metadata = presentation || %{"package" => nil, "platforms" => [], "context" => []}
-    badges = presentation_badges(metadata)
-
-    assigns =
-      assigns
-      |> assign(:metadata, metadata)
-      |> assign(:badges, Enum.take(badges, 2))
-      |> assign(:remaining_badges, max(length(badges) - 2, 0))
-
-    ~H"""
-    <div data-part="cell" data-type="text" data-once-action>
-      <span data-part="label">{@label}</span>
-      <div :if={@badges != []} data-action-badges>
-        <span :for={{label, title} <- @badges} title={title}>
-          <.badge label={label} color="neutral" size="small" style="light-fill" />
-        </span>
-      </div>
-      <.action_source_files
-        :if={@files != []}
-        files={@files}
-        statuses={@statuses}
-        project={@project}
-        run={@run}
-      />
-      <details id={@details_id} data-action-details phx-mounted={JS.ignore_attributes(["open"])}>
-        <summary>
-          {dgettext("dashboard_projects", "Details")}
-          <span :if={@remaining_badges > 0}>+{format_number(@remaining_badges)}</span>
-        </summary>
-        <div data-part="sublabel">{@target}</div>
-        <div :if={@metadata["package"]} data-action-package>
-          <span
-            :for={key <- ["ecosystem", "name", "version", "revision", "digest", "origin"]}
-            :if={@metadata["package"][key] != ""}
-          >
-            {key}: {@metadata["package"][key]}
-          </span>
-        </div>
-        <div :for={platform <- @metadata["platforms"]} data-action-platform>
-          {platform["scheme"]}: {platform["id"]} {platform["usage"]}
-        </div>
-        <div :for={context <- @metadata["context"]} data-action-context>
-          {context["key"]}: {context["value"]}
-        </div>
-      </details>
-    </div>
-    """
-  end
-
-  defp presentation_badges(metadata) do
-    package =
-      case metadata["package"] do
-        nil ->
-          []
-
-        package ->
-          version =
-            Enum.find(
-              [package["version"], short_metadata_id(package["revision"]), short_metadata_id(package["digest"])],
-              &(&1 != "")
-            ) || ""
-
-          name = String.trim(package["name"] <> " " <> version)
-
-          [
-            {name,
-             Enum.join(
-               [package["ecosystem"], package["name"], package["version"], package["revision"], package["digest"]],
-               " "
-             )}
-          ]
-      end
-
-    platforms =
-      Enum.map(metadata["platforms"], fn platform ->
-        label = if platform["label"] == "", do: platform["id"], else: platform["label"]
-
-        label =
-          if platform["usage"] == "build-tool",
-            do: dgettext("dashboard_projects", "Build tool") <> " · " <> label,
-            else: label
-
-        {label, platform["scheme"] <> ":" <> platform["id"]}
-      end)
-
-    context =
-      Enum.map(metadata["context"], fn context ->
-        label = if context["label"] == "", do: context["key"] <> ": " <> context["value"], else: context["label"]
-        {label, context["key"] <> "=" <> context["value"]}
-      end)
-
-    package ++ platforms ++ context
-  end
-
-  defp short_metadata_id(""), do: ""
-  defp short_metadata_id(value), do: String.slice(value, 0, 12)
-
-  attr :files, :list, required: true
-  attr :statuses, :list, default: nil
-  attr :project, :map, required: true
-  attr :run, :map, required: true
-
-  defp action_source_files(assigns) do
-    statuses = assigns.statuses || []
-    legacy? = statuses == []
-    aligned? = length(statuses) == length(assigns.files)
-
-    preview =
-      assigns.files
-      |> Enum.take(3)
-      |> Enum.with_index()
-      |> Enum.map(fn {file, index} ->
-        {file, legacy? or (aligned? and Enum.at(statuses, index) == 1)}
-      end)
-
-    assigns =
-      assigns
-      |> assign(:preview, preview)
-      |> assign(:remaining_count, max(length(assigns.files) - 3, 0))
-
-    ~H"""
-    <div data-source-files>
-      <span :if={@preview == []} data-part="label">—</span>
-      <span :for={{file, link?} <- @preview} data-part="sublabel" title={file}>
-        <.source_file_link :if={link?} project={@project} path={file} commit_sha={@run.git_rev} />
-        <span :if={not link?}>{file}</span>
-      </span>
-      <span :if={@remaining_count > 0} data-part="sublabel">
-        {dngettext(
-          "dashboard_projects",
-          "%{display_count} more file",
-          "%{display_count} more files",
-          @remaining_count,
-          display_count: format_number(@remaining_count)
-        )}
-      </span>
-    </div>
-    """
-  end
 
   defp action_label(%{display_name: name}) when is_binary(name) and name != "", do: name
   defp action_label(%{identifier: identifier}) when is_binary(identifier) and identifier != "", do: identifier

@@ -414,6 +414,16 @@ message ActionCompleted {
   repeated SourceFileStatus source_file_statuses = 17;
   // Optional bounded presentation data. Never action identity or cache inputs.
   ActionPresentation presentation = 18;
+  // Optional producer-owned logical identity for cross-run history.
+  // Never execution identity, observations, or action-result cache inputs.
+  ActionHistoryKey history = 19;
+}
+
+message ActionHistoryKey {
+  // Versioned producer namespace (ASCII token, at most 64 bytes).
+  string namespace = 1;
+  // Opaque stable key (at most 128 bytes); not a cache digest or run id.
+  string key = 2;
 }
 
 // Presentation only: these values must not affect action or cache identity.

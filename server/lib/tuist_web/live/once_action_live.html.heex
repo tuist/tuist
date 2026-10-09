@@ -1,0 +1,447 @@
+<div id="once-action">
+  <.button
+    label={dgettext("dashboard_projects", "Build run")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={run_path(assigns)}
+  >
+    <:icon_left><.icon name="arrow_left" /></:icon_left>
+  </.button>
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <h1 data-part="label">{OnceActionComponents.label(@action)}</h1>
+        <.status_badge
+          label={OnceActionComponents.status(@action.result)}
+          status={OnceActionComponents.status_variant(@action.result)}
+        />
+      </div>
+      <div data-part="badges" data-action-badges>
+        <.badge
+          :for={{label, title} <- @badges}
+          label={label}
+          title={title}
+          color="neutral"
+          style="light-fill"
+          size="large"
+        />
+      </div>
+    </div>
+  </div>
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "Overview")}
+      selected={@tab == "overview"}
+      patch={patch(assigns, %{"tab" => "overview", "page" => "1"})}
+      replace
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "Action History")}
+      selected={@tab == "history"}
+      patch={patch(assigns, %{"tab" => "history", "page" => "1"})}
+      replace
+    />
+  </.tab_menu_horizontal>
+
+  <.async_card
+    :let={ready?}
+    :if={@tab == "overview" and @history_available}
+    results={[@analytics]}
+    title={dgettext("dashboard_projects", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics"
+  >
+    <:actions>
+      <.dropdown
+        id="once-action-period"
+        label={dgettext("dashboard_projects", "Last %{days} days", days: @days)}
+      >
+        <.dropdown_item
+          :for={days <- [7, 30, 90]}
+          value={to_string(days)}
+          label={dgettext("dashboard_projects", "Last %{days} days", days: days)}
+          patch={patch(assigns, %{"days" => to_string(days), "page" => "1"})}
+        />
+      </.dropdown>
+    </:actions>
+    <.card_section data-part="analytics-body" data-chart-frame="standard">
+      <div data-part="analytics-main">
+        <div data-part="widgets">
+          <.widget
+            id="once-action-duration"
+            title={metric_label("duration")}
+            value={if ready?, do: duration(@analytics.result.duration)}
+            selected={@metric == "duration"}
+            loading={!ready?}
+            phx_click="select-metric"
+            phx_value_widget="duration"
+          />
+          <.widget
+            id="once-action-executions"
+            title={metric_label("executions")}
+            value={if ready?, do: format_number(@analytics.result.executions)}
+            selected={@metric == "executions"}
+            loading={!ready?}
+            phx_click="select-metric"
+            phx_value_widget="executions"
+          />
+          <.widget
+            id="once-action-cache"
+            title={metric_label("cache")}
+            value={if ready?, do: cache_rate(@analytics.result)}
+            selected={@metric == "cache"}
+            loading={!ready?}
+            phx_click="select-metric"
+            phx_value_widget="cache"
+          />
+          <.widget
+            id="once-action-failures"
+            title={metric_label("failures")}
+            value={if ready?, do: format_number(@analytics.result.failures)}
+            selected={@metric == "failures"}
+            loading={!ready?}
+            phx_click="select-metric"
+            phx_value_widget="failures"
+          />
+        </div>
+        <div data-part="analytics-chart">
+          <.chart
+            :if={ready? and @analytics.result.total > 0}
+            id="once-action-history-chart"
+            type={chart_type(@metric)}
+            show_legend={false}
+            series={chart_series(@analytics.result, @metric)}
+            labels={chart_labels(@analytics.result)}
+            extra_options={
+              %{
+                grid: %{left: "1%", right: "3%", top: "10%", height: "65%", containLabel: true},
+                yAxis: %{
+                  min: 0,
+                  max: if(@metric == "cache", do: 100),
+                  splitNumber: 4,
+                  axisLabel: %{formatter: if(@metric == "duration", do: "fn:formatMilliseconds")}
+                },
+                tooltip:
+                  if(@metric == "duration",
+                    do: %{valueFormat: "fn:formatMilliseconds"},
+                    else: %{}
+                  ),
+                xAxis: %{type: "time", axisLabel: %{formatter: "fn:toLocaleDate"}}
+              }
+            }
+          />
+          <p :if={ready? and @analytics.result.total == 0} data-part="empty">
+            {dgettext("dashboard_projects", "No observations in this period.")}
+          </p>
+          <.skeleton_chart :if={!ready?} />
+        </div>
+        <p data-part="history-note">
+          {dgettext(
+            "dashboard_projects",
+            "Execution duration and failures exclude cache hits. History covers retained runs that reported this logical identity; history can be scoped to native output variants reported by the producer."
+          )}
+        </p>
+      </div>
+      <div :if={ready?} data-part="observation-summary">
+        <span data-part="label">{if @branch == "",
+          do: dgettext("dashboard_projects", "First observed in retained history"),
+          else:
+            dgettext("dashboard_projects", "First observed on this branch in retained history")}</span>
+        <span data-first-observed>{timestamp(@analytics.result.first_seen, @current_user_timezone)}</span>
+        <span data-part="label">{if @branch == "",
+          do: dgettext("dashboard_projects", "First observed failure"),
+          else: dgettext("dashboard_projects", "First observed failure on this branch")}</span>
+        <span data-first-failure>{timestamp(
+          @analytics.result.first_failure,
+          @current_user_timezone
+        )}</span>
+      </div>
+    </.card_section>
+  </.async_card>
+
+  <.card
+    :if={!@history_available}
+    title={dgettext("dashboard_projects", "Action History")}
+    icon="history"
+  >
+    <.card_section>
+      <p :if={!@action.history_ambiguous} data-history-unavailable>
+        {dgettext(
+          "dashboard_projects",
+          "Cross-run history is unavailable because this action did not report a stable logical identity."
+        )}
+      </p>
+      <p :if={@action.history_ambiguous} data-history-unavailable>
+        {dgettext(
+          "dashboard_projects",
+          "Cross-run history is unavailable because this run reported the same logical identity for multiple actions."
+        )}
+      </p>
+    </.card_section>
+  </.card>
+
+  <.card
+    :if={@tab == "overview"}
+    title={dgettext("dashboard_projects", "Execution details")}
+    icon="file"
+    data-part="execution-details"
+  >
+    <.card_section>
+      <div data-part="metadata-grid">
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Build run")}</span><.link navigate={
+            run_path(assigns)
+          }>{@action.run.command_display || @action.run.run_id}</.link>
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Duration")}</span><span>{duration(
+            @action.duration_ms
+          )}</span>
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Cache")}</span><span>{OnceActionComponents.cache_status(
+            @action
+          )}</span>
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Started")}</span><span>{timestamp(
+            @action.started_at,
+            @current_user_timezone
+          )}</span>
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Target")}</span><span>{@action.target_execution_id}</span>
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Identifier")}</span><span>{@action.identifier ||
+            "—"}</span>
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Capability")}</span><span>{@action.capability}</span>
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Environment")}</span><span>{if @action.run.is_ci,
+            do: dgettext("dashboard_projects", "CI"),
+            else: dgettext("dashboard_projects", "Local")}</span>
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Branch")}</span><.branch_link
+            project={@selected_project}
+            branch={@action.run.git_branch}
+          />
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Commit")}</span><.commit_link
+            project={@selected_project}
+            commit_sha={@action.run.git_rev}
+          />
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Preparation")}</span><span>{duration(
+            @action.prepare_ms
+          )}</span>
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Execution")}</span><span>{duration(
+            @action.execute_ms
+          )}</span>
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Worker")}</span><span>{if @action.worker_id in [
+                                                                                               nil,
+                                                                                               ""
+                                                                                             ],
+                                                                                             do:
+                                                                                               "—",
+                                                                                             else:
+                                                                                               @action.worker_id}</span>
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Exit code")}</span><span>{@action.exit_code}</span>
+        </div>
+        <div :if={@action.cache_key not in [nil, ""]} data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Cache key")}</span><span>{@action.cache_key}</span>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card
+    :if={@tab == "overview" and @action.presentation}
+    title={dgettext("dashboard_projects", "Action metadata")}
+    icon="file"
+  >
+    <.card_section>
+      <div :if={@metadata["package"]} data-part="metadata-grid" data-action-package>
+        <div :for={{label, value} <- package_fields(@metadata["package"])} data-part="metadata">
+          <span data-part="label">{label}</span><span>{value}</span>
+        </div>
+      </div>
+      <div :for={platform <- @metadata["platforms"]} data-action-platform>
+        <span data-part="label">{platform["label"]}</span><span>{platform["scheme"]}: {platform[
+          "id"
+        ]}</span>
+        <span :if={platform["usage"] != ""}>{case platform["usage"] do
+          "build-tool" -> dgettext("dashboard_projects", "Build tool")
+          "product" -> dgettext("dashboard_projects", "Product")
+          usage -> usage
+        end}</span>
+      </div>
+      <div :for={context <- @metadata["context"]} data-action-context>
+        <span data-part="label">{context["label"]}</span><span>{context["key"]}: {context["value"]}</span>
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card
+    :if={@tab == "overview" and @action.source_files != []}
+    title={dgettext("dashboard_projects", "Source files")}
+    icon="file"
+    data-part="source-files"
+  >
+    <.card_section>
+      <.form
+        for={%{}}
+        id="once-action-source-search"
+        phx-change="source-search"
+        phx-submit="source-search"
+      >
+        <.text_input
+          id="once-action-sources-search"
+          name="source-search"
+          type="search"
+          aria-label={dgettext("dashboard_projects", "Search source files")}
+          value={@source_search}
+          placeholder={dgettext("dashboard_projects", "Search source files...")}
+          phx-debounce="250"
+        />
+      </.form>
+      <.table
+        id="once-action-sources-table"
+        rows={@sources}
+        row_key={&"once-action-source-#{&1.index}"}
+      >
+        <:col :let={row} label={dgettext("dashboard_projects", "Source file")}>
+          <OnceActionComponents.source_cell
+            row={row}
+            project={@selected_project}
+            run={@action.run}
+          />
+        </:col>
+        <:empty_state>
+          <.table_empty_state title={
+            dgettext("dashboard_projects", "No source files match your search.")
+          } />
+        </:empty_state>
+      </.table>
+      <.pagination_group
+        :if={@source_pages > 1}
+        current_page={@source_page}
+        number_of_pages={@source_pages}
+        page_patch={&patch(assigns, %{"source-page" => to_string(&1)})}
+      />
+    </.card_section>
+  </.card>
+
+  <.card
+    :if={@history_available}
+    title={
+      if @tab == "history",
+        do: dgettext("dashboard_projects", "Action History"),
+        else: dgettext("dashboard_projects", "Recent executions")
+    }
+    icon="history"
+    data-part="action-history"
+  >
+    <:actions>
+      <.button
+        :if={@tab == "overview" and @history_meta.ok? and @history_meta.result.total_count > 6}
+        label={dgettext("dashboard_projects", "View more")}
+        variant="secondary"
+        patch={patch(assigns, %{"tab" => "history", "page" => "1"})}
+      />
+    </:actions>
+    <.card_section>
+      <.form
+        for={%{}}
+        id="once-action-history-filter"
+        phx-change="filter-history"
+        phx-submit="filter-history"
+      >
+        <.text_input
+          id="once-action-branch"
+          name="branch"
+          value={@branch}
+          placeholder={dgettext("dashboard_projects", "Filter by branch...")}
+          phx-debounce="250"
+        />
+      </.form>
+      <%= cond do %>
+        <% @occurrences.failed -> %>
+          <p>{dgettext("dashboard_projects", "Could not load action history. Try again.")}</p>
+        <% @occurrences.ok? -> %>
+          <.table
+            id="once-action-history-table"
+            rows={@occurrences.result}
+            row_key={& &1.id}
+            row_navigate={&occurrence_path(assigns, &1)}
+          >
+            <:col :let={row} label={dgettext("dashboard_projects", "Action")}>
+              <.text_and_description_cell
+                label={OnceActionComponents.label(row)}
+                description={
+                  OnceActionComponents.summary(row.presentation, row.target_execution_id)
+                }
+              />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_projects", "Status")}>
+              <.status_badge_cell
+                label={OnceActionComponents.status(row.result)}
+                status={OnceActionComponents.status_variant(row.result)}
+              />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_projects", "Cache")}>
+              <.badge_cell
+                label={OnceActionComponents.cache_status(row)}
+                color="neutral"
+                style="light-fill"
+              />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_projects", "Duration")}>
+              <.text_cell label={duration(row.duration_ms)} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_projects", "Branch")}>
+              <.text_cell
+                label={row.run.git_branch}
+                sublabel={String.slice(row.run.git_rev || "", 0, 8)}
+              />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_projects", "Environment")}>
+              <.text_cell label={
+                if row.run.is_ci,
+                  do: dgettext("dashboard_projects", "CI"),
+                  else: dgettext("dashboard_projects", "Local")
+              } />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_projects", "Started")}>
+              <.text_cell label={timestamp(row.started_at, @current_user_timezone)} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state title={
+                dgettext("dashboard_projects", "No observations in this period.")
+              } />
+            </:empty_state>
+          </.table>
+          <.pagination_group
+            :if={@tab == "history" and @history_meta.ok? and @history_meta.result.total_pages > 1}
+            current_page={@history_meta.result.page}
+            number_of_pages={@history_meta.result.total_pages}
+            page_patch={&patch(assigns, %{"page" => to_string(&1)})}
+          />
+        <% true -> %>
+          <p>{dgettext("dashboard_projects", "Loading action history...")}</p>
+      <% end %>
+    </.card_section>
+  </.card>
+</div>

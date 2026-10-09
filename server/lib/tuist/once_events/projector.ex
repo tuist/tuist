@@ -229,6 +229,7 @@ defmodule Tuist.OnceEvents.Projector do
       identifier: nil_if_empty(action.identifier),
       display_name: nil_if_empty(action.display_name),
       presentation: Presentation.normalize(action.presentation),
+      history: Map.get(action, :history),
       source_files: action.source_files || [],
       source_file_statuses: Enum.map(action.source_file_statuses || [], &source_file_status/1),
       result: target_result(action.result),

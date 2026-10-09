@@ -65,28 +65,24 @@ defmodule TuistWeb.OnceRunLiveTest do
       run.run_id
     )
 
-    {:ok, view, _} = live(conn, path)
-    assert has_element?(view, "#once-actions-table", "Compile main.c")
-    assert has_element?(view, "#once-actions-table", "compiler-0")
-    assert has_element?(view, "#once-actions-table", "src/main.c")
-    assert has_element?(view, "#once-actions-table", "include/api.h")
+    [action] = OnceEvents.list_actions(run, search: "Compile main.c")
+    detail_path = path <> "/actions/#{action.id}"
 
-    {:ok, cache_view, _} = live(conn, path <> "/cache?cache_search=Compile+main.c")
-    assert has_element?(cache_view, "#once-cache-table", "Compile main.c")
-    assert has_element?(cache_view, "#once-cache-table", "src/main.c")
-
-    for {action_view, table} <- [{view, "#once-actions-table"}, {cache_view, "#once-cache-table"}] do
-      refute has_element?(action_view, "#{table} th", "Source files")
-      assert has_element?(action_view, "#{table} [data-action-badges]", "1.2")
-      assert has_element?(action_view, "#{table} [data-action-badges]", "Build tool · Target")
-      assert has_element?(action_view, "#{table} summary", "+1")
-      assert has_element?(action_view, "#{table} details[phx-mounted]", "native-target")
-      assert has_element?(action_view, "#{table} [data-action-badges]", "library 1.2")
-      assert has_element?(action_view, "#{table} [data-once-action] > [data-source-files]", "src/main.c")
-      refute has_element?(action_view, "#{table} [data-source-files][data-part=cell]")
-      assert has_element?(action_view, "#{table} details", "custom.mode: release")
-      refute has_element?(action_view, "#{table} [data-once-action] b")
+    for {suffix, table} <- [{"", "#once-actions-table"}, {"/cache?cache_search=Compile+main.c", "#once-cache-table"}] do
+      {:ok, view, _} = live(conn, path <> suffix)
+      assert has_element?(view, ~s(#{table} a[href="#{detail_path}"]), "Compile main.c")
+      assert has_element?(view, "#{table} [data-part=description]", "library 1.2")
+      refute has_element?(view, "#{table} th", "Source files")
+      refute has_element?(view, "#{table} details")
+      refute has_element?(view, "#{table}", "src/main.c")
     end
+
+    {:ok, details, _} = live(conn, detail_path)
+    assert has_element?(details, "#once-action", "src/main.c")
+    assert has_element?(details, "#once-action", "include/api.h")
+    assert has_element?(details, "#once-action", "native-target")
+    assert has_element?(details, "#once-action", "custom.mode")
+    refute has_element?(details, "#once-action b", "Release")
   end
 
   test "source links use the connected repository at the recorded revision", %{
@@ -103,7 +99,7 @@ defmodule TuistWeb.OnceRunLiveTest do
     {:ok, run} =
       OnceEvents.upsert_run(%{project_id: project.id, run_id: UUIDv7.generate(), git_rev: "abc123"})
 
-    {:ok, _} =
+    {:ok, action} =
       OnceEvents.ingest_action(run, %{
         target_execution_id: "app",
         capability: "build",
@@ -116,27 +112,20 @@ defmodule TuistWeb.OnceRunLiveTest do
       })
 
     conn = Plug.Conn.assign(conn, :selected_project, project)
-    path = "/#{organization.account.name}/#{project.name}/once/runs/#{run.run_id}"
+    path = "/#{organization.account.name}/#{project.name}/once/runs/#{run.run_id}/actions/#{action.id}"
     {:ok, view, _} = live(conn, path)
 
-    assert has_element?(view, ~s(#once-actions-table a[href="https://github.com/org/repository/blob/abc123/src/main.c"]))
-    refute has_element?(view, ~s(#once-actions-table a[href*="outside.c"]))
-    refute has_element?(view, ~s(#once-actions-table a[href*="/tmp/host.c"]))
-
-    {:ok, cache_view, _} = live(conn, path <> "/cache")
-
-    assert has_element?(
-             cache_view,
-             ~s(#once-cache-table a[href="https://github.com/org/repository/blob/abc123/src/main.c"])
-           )
+    assert has_element?(view, ~s([data-source-file] a[href="https://github.com/org/repository/blob/abc123/src/main.c"]))
+    refute has_element?(view, ~s([data-source-file] a[href*="outside.c"]))
+    refute has_element?(view, ~s([data-source-file] a[href*="/tmp/host.c"]))
 
     run |> Ecto.Changeset.change(git_rev: nil) |> Tuist.Repo.update!()
     {:ok, view, _} = live(conn, path)
-    assert has_element?(view, "#once-actions-table", "src/main.c")
-    refute has_element?(view, ~s(#once-actions-table a[href*="/blob/"]))
+    assert has_element?(view, "[data-source-file]", "src/main.c")
+    refute has_element?(view, ~s([data-source-file] a[href*="/blob/"]))
   end
 
-  test "source classification controls links identically in actions and cache views", %{
+  test "source classification controls links on the shared action detail page", %{
     conn: conn,
     organization: organization
   } do
@@ -184,19 +173,17 @@ defmodule TuistWeb.OnceRunLiveTest do
       action = Tuist.Repo.get!(Tuist.OnceEvents.Action, action.id)
       action |> Ecto.Changeset.change(source_file_statuses: statuses) |> Tuist.Repo.update!()
 
-      for suffix <- ["", "/cache"] do
-        {:ok, view, _} = live(conn, path <> suffix)
+      {:ok, view, _} = live(conn, path <> "/actions/#{action.id}")
 
-        for file <- files do
-          assert has_element?(view, "[data-source-files]", file)
-          selector = ~s([data-source-files] a[href="https://github.com/org/repository/blob/abc123/#{file}"])
-          assert has_element?(view, selector) == file in linked
-        end
+      for file <- files do
+        assert has_element?(view, "[data-source-file]", file)
+        selector = ~s([data-source-file] a[href="https://github.com/org/repository/blob/abc123/#{file}"])
+        assert has_element?(view, selector) == file in linked
       end
     end
   end
 
-  test "large source lists have a bounded preview and all recorded paths remain searchable", %{
+  test "large source lists stay off the run tables and remain searchable on the detail page", %{
     conn: conn,
     path: path,
     run: run
@@ -220,25 +207,19 @@ defmodule TuistWeb.OnceRunLiveTest do
       run.run_id
     )
 
-    assert [%{source_files: ^files}] = OnceEvents.list_actions(run, search: "src/file-3000.c")
+    assert [%{source_files: ^files} = action] = OnceEvents.list_actions(run, search: "src/file-3000.c")
 
     for suffix <- ["?search=src%2Ffile-3000.c", "/cache?cache_search=src%2Ffile-3000.c"] do
       {:ok, view, _} = live(conn, path <> suffix)
-      assert has_element?(view, "[data-source-files]", "2,997 more files")
-      assert has_element?(view, "[data-source-files]", "src/file-1.c")
-      refute has_element?(view, "[data-source-files]", "src/file-3000.c")
-      labels = view |> render() |> Floki.parse_fragment!() |> Floki.find("[data-source-files] [title]")
-      assert Enum.count(labels, &(Floki.text(&1) != "—")) == 3
+      assert has_element?(view, ~s([data-once-action] a[href="#{path}/actions/#{action.id}"]))
+      refute has_element?(view, "[data-source-file]")
     end
 
-    [action] = OnceEvents.list_actions(run, search: "src/file-3000.c")
-    action |> Ecto.Changeset.change(source_files: Enum.take(files, 4)) |> Tuist.Repo.update!()
-
-    for suffix <- ["?search=src%2Ffile-4.c", "/cache?cache_search=src%2Ffile-4.c"] do
-      {:ok, view, _} = live(conn, path <> suffix)
-      assert has_element?(view, "[data-source-files]", "1 more file")
-      refute has_element?(view, "[data-source-files]", "1 more files")
-    end
+    {:ok, view, _} = live(conn, path <> "/actions/#{action.id}")
+    assert view |> render() |> Floki.parse_fragment!() |> Floki.find("[data-source-file]") |> length() == 20
+    view |> form("#once-action-source-search", %{"source-search" => "src/file-3000.c"}) |> render_change()
+    assert has_element?(view, "[data-source-file]", "src/file-3000.c")
+    refute has_element?(view, "[data-source-file]", "src/file-1.c")
   end
 
   test "actions without presentation metadata retain the original table", %{conn: conn, path: path} do

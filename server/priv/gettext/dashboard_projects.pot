@@ -46,6 +46,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_cache_live.ex:123
 #: lib/tuist_web/live/bazel_invocations_live.ex:259
 #: lib/tuist_web/live/bazel_overview_live.ex:114
+#: lib/tuist_web/live/once_action_live.html.heex:51
 #: lib/tuist_web/live/once_cache_live.ex:171
 #: lib/tuist_web/live/once_overview_live.ex:108
 #: lib/tuist_web/live/once_runs_live.ex:406
@@ -152,6 +153,8 @@ msgstr ""
 #: lib/tuist_web/live/bazel_invocations_live.ex:1011
 #: lib/tuist_web/live/bazel_overview_live.ex:700
 #: lib/tuist_web/live/bazel_overview_live.ex:707
+#: lib/tuist_web/live/once_action_live.html.heex:225
+#: lib/tuist_web/live/once_action_live.html.heex:423
 #: lib/tuist_web/live/once_overview_live.ex:342
 #: lib/tuist_web/live/once_overview_live.ex:681
 #: lib/tuist_web/live/project_notifications_live.ex:763
@@ -332,6 +335,8 @@ msgstr ""
 #: lib/tuist_web/live/bazel_invocations_live.ex:1012
 #: lib/tuist_web/live/bazel_overview_live.ex:701
 #: lib/tuist_web/live/bazel_overview_live.ex:708
+#: lib/tuist_web/live/once_action_live.html.heex:226
+#: lib/tuist_web/live/once_action_live.html.heex:424
 #: lib/tuist_web/live/once_overview_live.ex:350
 #: lib/tuist_web/live/once_overview_live.ex:682
 #: lib/tuist_web/live/once_runs_live.ex:915
@@ -388,7 +393,8 @@ msgid "Only organization members"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:184
-#: lib/tuist_web/live/once_run_live.ex:260
+#: lib/tuist_web/live/once_action_live.html.heex:34
+#: lib/tuist_web/live/once_run_live.ex:258
 #: lib/tuist_web/live/overview_live.ex:15
 #: lib/tuist_web/live/overview_live.ex:19
 #, elixir-autogen, elixir-format
@@ -532,6 +538,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_cache_live.ex:424
 #: lib/tuist_web/live/bazel_overview_live.ex:442
 #: lib/tuist_web/live/bazel_overview_live.ex:507
+#: lib/tuist_web/live/once_action_live.html.heex:360
 #: lib/tuist_web/live/once_cache_live.ex:479
 #: lib/tuist_web/live/once_overview_live.ex:450
 #: lib/tuist_web/live/once_overview_live.ex:537
@@ -706,6 +713,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:607
 #: lib/tuist_web/live/bazel_overview_live.ex:169
+#: lib/tuist_web/live/once_action_live.ex:159
 #: lib/tuist_web/live/project_notifications_live.ex:639
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
@@ -950,6 +958,8 @@ msgid "Alert when the <strong>%{size_label}</strong> of the latest bundle on bra
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:285
+#: lib/tuist_web/live/once_action_live.html.heex:229
+#: lib/tuist_web/live/once_action_live.html.heex:414
 #: lib/tuist_web/live/project_notifications_live.html.heex:372
 #: lib/tuist_web/live/project_notifications_live.html.heex:691
 #, elixir-autogen, elixir-format
@@ -1025,6 +1035,8 @@ msgid "%{scheme} %{environment} %{unit}"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:1007
+#: lib/tuist_web/live/once_action_live.html.heex:224
+#: lib/tuist_web/live/once_action_live.html.heex:420
 #: lib/tuist_web/live/once_runs_live.ex:998
 #: lib/tuist_web/live/project_notifications_live.html.heex:447
 #: lib/tuist_web/live/project_notifications_live.html.heex:782
@@ -1132,9 +1144,10 @@ msgid "Select organization"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:638
-#: lib/tuist_web/live/once_run_live.ex:413
-#: lib/tuist_web/live/once_run_live.ex:804
-#: lib/tuist_web/live/once_run_live.ex:946
+#: lib/tuist_web/live/once_action_live.html.heex:390
+#: lib/tuist_web/live/once_run_live.ex:411
+#: lib/tuist_web/live/once_run_live.ex:800
+#: lib/tuist_web/live/once_run_live.ex:940
 #: lib/tuist_web/live/project_automations_live.html.heex:400
 #, elixir-autogen, elixir-format
 msgid "Action"
@@ -1323,8 +1336,9 @@ msgid "Trigger"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:817
-#: lib/tuist_web/live/once_run_live.ex:1468
-#: lib/tuist_web/live/once_run_live.ex:1470
+#: lib/tuist_web/live/once_action_components.ex:89
+#: lib/tuist_web/live/once_run_live.ex:1311
+#: lib/tuist_web/live/once_run_live.ex:1313
 #: lib/tuist_web/live/project_automations_live.ex:909
 #: lib/tuist_web/live/project_automations_live.ex:920
 #: lib/tuist_web/live/project_automations_live.ex:943
@@ -1387,7 +1401,8 @@ msgstr ""
 msgid "Skip"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1464
+#: lib/tuist_web/live/once_action_components.ex:85
+#: lib/tuist_web/live/once_run_live.ex:1307
 #: lib/tuist_web/live/project_automations_live.ex:962
 #: lib/tuist_web/live/project_automations_live.html.heex:493
 #: lib/tuist_web/live/project_automations_live.html.heex:885
@@ -1617,8 +1632,8 @@ msgstr ""
 msgid "%{actor} created this automation from %{source}"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:341
-#: lib/tuist_web/live/once_run_live.ex:382
+#: lib/tuist_web/live/once_run_live.ex:339
+#: lib/tuist_web/live/once_run_live.ex:380
 #: lib/tuist_web/live/project_automation_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Actions"
@@ -1910,7 +1925,7 @@ msgid "Action cache hit rate"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:509
-#: lib/tuist_web/live/once_run_live.ex:650
+#: lib/tuist_web/live/once_run_live.ex:646
 #, elixir-autogen, elixir-format
 msgid "Action cache lookups"
 msgstr ""
@@ -1929,8 +1944,10 @@ msgstr ""
 
 #: lib/tuist_web/live/bazel_cache_live.ex:507
 #: lib/tuist_web/live/bazel_invocations_live.ex:598
+#: lib/tuist_web/live/once_action_live.html.heex:198
+#: lib/tuist_web/live/once_action_live.html.heex:411
 #: lib/tuist_web/live/once_cache_live.ex:561
-#: lib/tuist_web/live/once_run_live.ex:456
+#: lib/tuist_web/live/once_run_live.ex:452
 #: lib/tuist_web/live/once_runs_live.ex:923
 #, elixir-autogen, elixir-format
 msgid "Duration"
@@ -1938,8 +1955,9 @@ msgstr ""
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:591
 #: lib/tuist_web/live/bazel_invocations_live.ex:987
-#: lib/tuist_web/live/once_run_live.ex:353
-#: lib/tuist_web/live/once_run_live.ex:1463
+#: lib/tuist_web/live/once_action_components.ex:84
+#: lib/tuist_web/live/once_run_live.ex:351
+#: lib/tuist_web/live/once_run_live.ex:1306
 #: lib/tuist_web/live/once_runs_live.ex:885
 #: lib/tuist_web/live/once_runs_live.ex:1343
 #, elixir-autogen, elixir-format
@@ -1965,9 +1983,10 @@ msgstr ""
 #: lib/tuist_web/live/bazel_invocation_live.ex:829
 #: lib/tuist_web/live/bazel_invocations_live.ex:583
 #: lib/tuist_web/live/bazel_invocations_live.ex:982
-#: lib/tuist_web/live/once_run_live.ex:430
-#: lib/tuist_web/live/once_run_live.ex:1026
-#: lib/tuist_web/live/once_run_live.ex:1212
+#: lib/tuist_web/live/once_action_live.html.heex:398
+#: lib/tuist_web/live/once_run_live.ex:426
+#: lib/tuist_web/live/once_run_live.ex:1020
+#: lib/tuist_web/live/once_run_live.ex:1206
 #: lib/tuist_web/live/once_runs_live.ex:874
 #: lib/tuist_web/live/once_runs_live.ex:1338
 #, elixir-autogen, elixir-format
@@ -1976,7 +1995,8 @@ msgstr ""
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:590
 #: lib/tuist_web/live/bazel_invocations_live.ex:986
-#: lib/tuist_web/live/once_run_live.ex:1462
+#: lib/tuist_web/live/once_action_components.ex:83
+#: lib/tuist_web/live/once_run_live.ex:1305
 #, elixir-autogen, elixir-format
 msgid "Succeeded"
 msgstr ""
@@ -2066,9 +2086,9 @@ msgstr ""
 #: lib/tuist_web/live/bazel_invocation_live.ex:824
 #: lib/tuist_web/live/bazel_invocation_live.ex:843
 #: lib/tuist_web/live/bazel_invocation_live.ex:889
-#: lib/tuist_web/live/once_run_live.ex:912
-#: lib/tuist_web/live/once_run_live.ex:1010
-#: lib/tuist_web/live/once_run_live.ex:1033
+#: lib/tuist_web/live/once_run_live.ex:906
+#: lib/tuist_web/live/once_run_live.ex:1004
+#: lib/tuist_web/live/once_run_live.ex:1027
 #: lib/tuist_web/live/project_settings_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Upload"
@@ -2100,19 +2120,19 @@ msgid "Action cache lookups that found a result in the remote cache."
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:501
-#: lib/tuist_web/live/once_run_live.ex:642
+#: lib/tuist_web/live/once_run_live.ex:638
 #, elixir-autogen, elixir-format
 msgid "Action cache lookups:"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:394
-#: lib/tuist_web/live/once_run_live.ex:531
+#: lib/tuist_web/live/once_run_live.ex:527
 #, elixir-autogen, elixir-format
 msgid "Action hits"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:406
-#: lib/tuist_web/live/once_run_live.ex:543
+#: lib/tuist_web/live/once_run_live.ex:539
 #, elixir-autogen, elixir-format
 msgid "Action misses"
 msgstr ""
@@ -2123,13 +2143,13 @@ msgid "Average invocation duration"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:582
-#: lib/tuist_web/live/once_run_live.ex:724
+#: lib/tuist_web/live/once_run_live.ex:720
 #, elixir-autogen, elixir-format
 msgid "Average throughput for downloaded content objects."
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:596
-#: lib/tuist_web/live/once_run_live.ex:735
+#: lib/tuist_web/live/once_run_live.ex:731
 #, elixir-autogen, elixir-format
 msgid "Average throughput for uploaded content objects."
 msgstr ""
@@ -2147,13 +2167,13 @@ msgid "Avg. cache hit rate"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:547
-#: lib/tuist_web/live/once_run_live.ex:688
+#: lib/tuist_web/live/once_run_live.ex:684
 #, elixir-autogen, elixir-format
 msgid "Avg. latency reading cache keys"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:564
-#: lib/tuist_web/live/once_run_live.ex:704
+#: lib/tuist_web/live/once_run_live.ex:700
 #, elixir-autogen, elixir-format
 msgid "Avg. latency writing cache keys"
 msgstr ""
@@ -2183,7 +2203,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bazel_build_invocation_live.ex:10
 #: lib/tuist_web/live/bazel_build_runs_live.ex:10
-#: lib/tuist_web/live/once_run_live.ex:216
+#: lib/tuist_web/live/once_run_live.ex:214
 #: lib/tuist_web/live/once_runs_live.ex:43
 #: lib/tuist_web/live/once_runs_live.ex:43
 #, elixir-autogen, elixir-format
@@ -2205,7 +2225,7 @@ msgid "Build success rate"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:387
-#: lib/tuist_web/live/once_run_live.ex:524
+#: lib/tuist_web/live/once_run_live.ex:520
 #, elixir-autogen, elixir-format
 msgid "Cache Summary"
 msgstr ""
@@ -2217,7 +2237,8 @@ msgid "Cache downloads"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:676
-#: lib/tuist_web/live/once_run_live.ex:840
+#: lib/tuist_web/live/once_action_live.html.heex:264
+#: lib/tuist_web/live/once_run_live.ex:834
 #, elixir-autogen, elixir-format
 msgid "Cache key"
 msgstr ""
@@ -2249,7 +2270,7 @@ msgid "Cache uploads"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:456
-#: lib/tuist_web/live/once_run_live.ex:593
+#: lib/tuist_web/live/once_run_live.ex:589
 #, elixir-autogen, elixir-format
 msgid "Cacheable Actions"
 msgstr ""
@@ -2260,7 +2281,8 @@ msgid "Command-line problem (exit code 2)"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:293
-#: lib/tuist_web/live/once_run_live.ex:360
+#: lib/tuist_web/live/once_action_live.html.heex:235
+#: lib/tuist_web/live/once_run_live.ex:358
 #, elixir-autogen, elixir-format
 msgid "Commit"
 msgstr ""
@@ -2278,19 +2300,19 @@ msgid "Completed commands with a nonzero exit code."
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:461
-#: lib/tuist_web/live/once_run_live.ex:598
+#: lib/tuist_web/live/once_run_live.ex:594
 #, elixir-autogen, elixir-format
 msgid "Content Objects"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:535
-#: lib/tuist_web/live/once_run_live.ex:676
+#: lib/tuist_web/live/once_run_live.ex:672
 #, elixir-autogen, elixir-format
 msgid "Content objects"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:524
-#: lib/tuist_web/live/once_run_live.ex:665
+#: lib/tuist_web/live/once_run_live.ex:661
 #, elixir-autogen, elixir-format
 msgid "Content objects:"
 msgstr ""
@@ -2298,9 +2320,9 @@ msgstr ""
 #: lib/tuist_web/live/bazel_invocation_live.ex:823
 #: lib/tuist_web/live/bazel_invocation_live.ex:841
 #: lib/tuist_web/live/bazel_invocation_live.ex:877
-#: lib/tuist_web/live/once_run_live.ex:913
-#: lib/tuist_web/live/once_run_live.ex:1001
-#: lib/tuist_web/live/once_run_live.ex:1032
+#: lib/tuist_web/live/once_run_live.ex:907
+#: lib/tuist_web/live/once_run_live.ex:995
+#: lib/tuist_web/live/once_run_live.ex:1026
 #, elixir-autogen, elixir-format
 msgid "Download"
 msgstr ""
@@ -2310,7 +2332,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_invocation_live.ex:580
 #: lib/tuist_web/live/once_cache_live.ex:357
 #: lib/tuist_web/live/once_cache_live.ex:740
-#: lib/tuist_web/live/once_run_live.ex:722
+#: lib/tuist_web/live/once_run_live.ex:718
 #, elixir-autogen, elixir-format
 msgid "Download throughput"
 msgstr ""
@@ -2347,19 +2369,20 @@ msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:626
 #: lib/tuist_web/live/bazel_invocations_live.ex:540
-#: lib/tuist_web/live/once_run_live.ex:401
-#: lib/tuist_web/live/once_run_live.ex:762
+#: lib/tuist_web/live/once_run_live.ex:399
+#: lib/tuist_web/live/once_run_live.ex:758
 #: lib/tuist_web/live/once_runs_live.ex:847
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:828
-#: lib/tuist_web/live/once_run_live.ex:448
-#: lib/tuist_web/live/once_run_live.ex:962
-#: lib/tuist_web/live/once_run_live.ex:1028
-#: lib/tuist_web/live/once_run_live.ex:1125
-#: lib/tuist_web/live/once_run_live.ex:1225
+#: lib/tuist_web/live/once_action_components.ex:79
+#: lib/tuist_web/live/once_run_live.ex:444
+#: lib/tuist_web/live/once_run_live.ex:956
+#: lib/tuist_web/live/once_run_live.ex:1022
+#: lib/tuist_web/live/once_run_live.ex:1119
+#: lib/tuist_web/live/once_run_live.ex:1219
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr ""
@@ -2367,7 +2390,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_cache_live.ex:498
 #: lib/tuist_web/live/bazel_invocation_live.ex:418
 #: lib/tuist_web/live/once_cache_live.ex:552
-#: lib/tuist_web/live/once_run_live.ex:555
+#: lib/tuist_web/live/once_run_live.ex:551
 #, elixir-autogen, elixir-format
 msgid "Hit rate"
 msgstr ""
@@ -2388,13 +2411,13 @@ msgid "Invocation ID"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:647
-#: lib/tuist_web/live/once_run_live.ex:820
+#: lib/tuist_web/live/once_run_live.ex:814
 #, elixir-autogen, elixir-format
 msgid "Key"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:695
-#: lib/tuist_web/live/once_run_live.ex:859
+#: lib/tuist_web/live/once_run_live.ex:853
 #, elixir-autogen, elixir-format
 msgid "Latency"
 msgstr ""
@@ -2408,9 +2431,9 @@ msgstr ""
 #: lib/tuist_web/live/bazel_invocation_live.ex:834
 #: lib/tuist_web/live/bazel_invocation_live.ex:842
 #: lib/tuist_web/live/bazel_invocation_live.ex:863
-#: lib/tuist_web/live/once_run_live.ex:963
-#: lib/tuist_web/live/once_run_live.ex:980
-#: lib/tuist_web/live/once_run_live.ex:1126
+#: lib/tuist_web/live/once_run_live.ex:957
+#: lib/tuist_web/live/once_run_live.ex:974
+#: lib/tuist_web/live/once_run_live.ex:1120
 #, elixir-autogen, elixir-format
 msgid "Missed"
 msgstr ""
@@ -2513,7 +2536,7 @@ msgid "No tests found (exit code 4)"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:706
-#: lib/tuist_web/live/once_run_live.ex:865
+#: lib/tuist_web/live/once_run_live.ex:859
 #, elixir-autogen, elixir-format
 msgid "Observed"
 msgstr ""
@@ -2536,7 +2559,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_invocation_live.ex:825
 #: lib/tuist_web/live/bazel_invocation_live.ex:833
 #: lib/tuist_web/live/bazel_invocation_live.ex:854
-#: lib/tuist_web/live/once_run_live.ex:971
+#: lib/tuist_web/live/once_run_live.ex:965
 #, elixir-autogen, elixir-format
 msgid "Remote"
 msgstr ""
@@ -2562,26 +2585,29 @@ msgid "Result publishing failed (exit code 45)"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:689
-#: lib/tuist_web/live/once_run_live.ex:855
+#: lib/tuist_web/live/once_run_live.ex:849
 #, elixir-autogen, elixir-format
 msgid "Size"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:260
+#: lib/tuist_web/live/once_action_live.html.heex:208
+#: lib/tuist_web/live/once_action_live.html.heex:427
 #, elixir-autogen, elixir-format
 msgid "Started"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:827
 #: lib/tuist_web/live/bazel_invocation_live.ex:835
-#: lib/tuist_web/live/once_run_live.ex:964
-#: lib/tuist_web/live/once_run_live.ex:1127
+#: lib/tuist_web/live/once_run_live.ex:958
+#: lib/tuist_web/live/once_run_live.ex:1121
 #, elixir-autogen, elixir-format
 msgid "Stored"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:667
-#: lib/tuist_web/live/once_run_live.ex:833
+#: lib/tuist_web/live/once_action_live.html.heex:214
+#: lib/tuist_web/live/once_run_live.ex:827
 #, elixir-autogen, elixir-format
 msgid "Target"
 msgstr ""
@@ -2669,7 +2695,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_invocation_live.ex:594
 #: lib/tuist_web/live/once_cache_live.ex:367
 #: lib/tuist_web/live/once_cache_live.ex:746
-#: lib/tuist_web/live/once_run_live.ex:733
+#: lib/tuist_web/live/once_run_live.ex:729
 #, elixir-autogen, elixir-format
 msgid "Upload throughput"
 msgstr ""
@@ -2810,13 +2836,13 @@ msgid "Skips the entire target, including healthy tests."
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:430
-#: lib/tuist_web/live/once_run_live.ex:567
+#: lib/tuist_web/live/once_run_live.ex:563
 #, elixir-autogen, elixir-format
 msgid "Content downloaded"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:442
-#: lib/tuist_web/live/once_run_live.ex:579
+#: lib/tuist_web/live/once_run_live.ex:575
 #, elixir-autogen, elixir-format
 msgid "Content uploaded"
 msgstr ""
@@ -2918,55 +2944,59 @@ msgstr ""
 msgid "By default, actions run only when a test starts matching the condition. Tests that currently match won't get them unless they recover and then match again."
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1455
+#: lib/tuist_web/live/once_action_components.ex:77
+#: lib/tuist_web/live/once_run_live.ex:1298
 #, elixir-autogen, elixir-format
 msgid "Action %{index}"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:545
+#: lib/tuist_web/live/once_run_live.ex:541
 #, elixir-autogen, elixir-format
 msgid "Actions that had to execute because the Once cache had no result."
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:533
+#: lib/tuist_web/live/once_run_live.ex:529
 #, elixir-autogen, elixir-format
 msgid "Actions that replayed from the Once cache instead of executing."
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:774
+#: lib/tuist_web/live/once_run_live.ex:770
 #, elixir-autogen, elixir-format
 msgid "All outcomes"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:302
+#: lib/tuist_web/live/once_run_live.ex:300
 #, elixir-autogen, elixir-format
 msgid "Argument values are redacted by Once before this command is sent to Tuist."
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1458
+#: lib/tuist_web/live/once_run_live.ex:1301
 #, elixir-autogen, elixir-format
 msgid "Build"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:926
+#: lib/tuist_web/live/once_run_live.ex:920
 #, elixir-autogen, elixir-format
 msgid "Build script"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:441
-#: lib/tuist_web/live/once_run_live.ex:915
-#: lib/tuist_web/live/once_run_live.ex:1221
+#: lib/tuist_web/live/once_action_live.html.heex:203
+#: lib/tuist_web/live/once_action_live.html.heex:404
+#: lib/tuist_web/live/once_run_live.ex:437
+#: lib/tuist_web/live/once_run_live.ex:909
+#: lib/tuist_web/live/once_run_live.ex:1215
 #, elixir-autogen, elixir-format
 msgid "Cache"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:345
+#: lib/tuist_web/live/once_run_live.ex:343
 #, elixir-autogen, elixir-format
 msgid "Cache hits"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1273
-#: lib/tuist_web/live/once_run_live.ex:1465
+#: lib/tuist_web/live/once_action_components.ex:86
+#: lib/tuist_web/live/once_run_live.ex:1267
+#: lib/tuist_web/live/once_run_live.ex:1308
 #, elixir-autogen, elixir-format
 msgid "Cancelled"
 msgstr ""
@@ -2976,28 +3006,28 @@ msgstr ""
 msgid "Completed once commands in the selected period."
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:349
+#: lib/tuist_web/live/once_run_live.ex:347
 #, elixir-autogen, elixir-format
 msgid "Executed"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:464
+#: lib/tuist_web/live/once_run_live.ex:460
 #, elixir-autogen, elixir-format
 msgid "Finished"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:557
+#: lib/tuist_web/live/once_run_live.ex:553
 #, elixir-autogen, elixir-format
 msgid "Fraction of the run's actions that replayed from the cache."
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1460
+#: lib/tuist_web/live/once_run_live.ex:1303
 #, elixir-autogen, elixir-format
 msgid "Generic"
 msgstr ""
 
 #: lib/tuist_web/live/once_cache_live.ex:397
-#: lib/tuist_web/live/once_run_live.ex:364
+#: lib/tuist_web/live/once_run_live.ex:362
 #: lib/tuist_web/live/once_runs_live.ex:550
 #: lib/tuist_web/live/once_runs_live.ex:940
 #: lib/tuist_web/live/once_runs_live.ex:997
@@ -3005,28 +3035,30 @@ msgstr ""
 msgid "Host"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1467
+#: lib/tuist_web/live/once_action_components.ex:88
+#: lib/tuist_web/live/once_run_live.ex:1310
 #, elixir-autogen, elixir-format
 msgid "Infrastructure error"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:321
+#: lib/tuist_web/live/once_run_live.ex:319
 #, elixir-autogen, elixir-format
 msgid "Kind"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:449
-#: lib/tuist_web/live/once_run_live.ex:1226
+#: lib/tuist_web/live/once_action_components.ex:80
+#: lib/tuist_web/live/once_run_live.ex:445
+#: lib/tuist_web/live/once_run_live.ex:1220
 #, elixir-autogen, elixir-format
 msgid "Miss"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1234
+#: lib/tuist_web/live/once_run_live.ex:1228
 #, elixir-autogen, elixir-format
 msgid "No actions match your search or filters"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1238
+#: lib/tuist_web/live/once_run_live.ex:1232
 #, elixir-autogen, elixir-format
 msgid "No actions recorded"
 msgstr ""
@@ -3041,12 +3073,12 @@ msgstr ""
 msgid "No cache activity associated with a run yet"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:613
+#: lib/tuist_web/live/once_run_live.ex:609
 #, elixir-autogen, elixir-format
 msgid "No cache lookups reported yet"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:614
+#: lib/tuist_web/live/once_run_live.ex:610
 #, elixir-autogen, elixir-format
 msgid "No content transfers reported yet"
 msgstr ""
@@ -3072,29 +3104,29 @@ msgstr ""
 msgid "No once runs in this period"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:265
-#: lib/tuist_web/live/once_run_live.ex:604
+#: lib/tuist_web/live/once_run_live.ex:263
+#: lib/tuist_web/live/once_run_live.ex:600
 #, elixir-autogen, elixir-format
 msgid "Once Cache"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1251
+#: lib/tuist_web/live/once_run_live.ex:1245
 #, elixir-autogen, elixir-format
 msgid "Once build"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1253
+#: lib/tuist_web/live/once_run_live.ex:1247
 #, elixir-autogen, elixir-format
 msgid "Once run"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1252
+#: lib/tuist_web/live/once_run_live.ex:1246
 #, elixir-autogen, elixir-format
 msgid "Once test"
 msgstr ""
 
 #: lib/tuist_web/live/once_cache_live.ex:398
-#: lib/tuist_web/live/once_run_live.ex:368
+#: lib/tuist_web/live/once_run_live.ex:366
 #: lib/tuist_web/live/once_runs_live.ex:551
 #: lib/tuist_web/live/once_runs_live.ex:999
 #, elixir-autogen, elixir-format
@@ -3106,9 +3138,9 @@ msgstr ""
 msgid "Recent Runs"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:914
-#: lib/tuist_web/live/once_run_live.ex:965
-#: lib/tuist_web/live/once_run_live.ex:1128
+#: lib/tuist_web/live/once_run_live.ex:908
+#: lib/tuist_web/live/once_run_live.ex:959
+#: lib/tuist_web/live/once_run_live.ex:1122
 #, elixir-autogen, elixir-format
 msgid "Reused"
 msgstr ""
@@ -3119,23 +3151,23 @@ msgstr ""
 msgid "Run"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:372
+#: lib/tuist_web/live/once_run_live.ex:370
 #, elixir-autogen, elixir-format
 msgid "Run identifier"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:31
+#: lib/tuist_web/live/once_run_live.ex:29
 #, elixir-autogen, elixir-format
 msgid "Run not found"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1281
+#: lib/tuist_web/live/once_run_live.ex:1275
 #: lib/tuist_web/live/once_runs_live.ex:890
 #, elixir-autogen, elixir-format
 msgid "Running"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1459
+#: lib/tuist_web/live/once_run_live.ex:1302
 #, elixir-autogen, elixir-format
 msgid "Test"
 msgstr ""
@@ -3166,27 +3198,28 @@ msgstr ""
 msgid "The percentage of action-cache lookups served from Once's remote cache, measured per run."
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:690
+#: lib/tuist_web/live/once_run_live.ex:686
 #, elixir-autogen, elixir-format
 msgid "Time Once spent reading action cache keys, including hits and misses."
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:706
+#: lib/tuist_web/live/once_run_live.ex:702
 #, elixir-autogen, elixir-format
 msgid "Time Once spent writing action results back into the cache."
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1466
+#: lib/tuist_web/live/once_action_components.ex:87
+#: lib/tuist_web/live/once_run_live.ex:1309
 #, elixir-autogen, elixir-format
 msgid "Timed out"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:569
+#: lib/tuist_web/live/once_run_live.ex:565
 #, elixir-autogen, elixir-format
 msgid "Total bytes moved from the Once cache into this run."
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:581
+#: lib/tuist_web/live/once_run_live.ex:577
 #, elixir-autogen, elixir-format
 msgid "Total bytes this run stored back into the Once cache."
 msgstr ""
@@ -3196,12 +3229,12 @@ msgstr ""
 msgid "Transferred remote-cache bytes divided by measured request time."
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1240
+#: lib/tuist_web/live/once_run_live.ex:1234
 #, elixir-autogen, elixir-format
 msgid "Waiting for actions…"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1245
+#: lib/tuist_web/live/once_run_live.ex:1239
 #, elixir-autogen, elixir-format
 msgid "[redacted]"
 msgstr ""
@@ -3237,12 +3270,12 @@ msgstr ""
 msgid "The share of cacheable actions resolved from cache rather than being rerun."
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:782
+#: lib/tuist_web/live/once_run_live.ex:778
 #, elixir-autogen, elixir-format
 msgid "No cache activity matches your search or filters"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1279
+#: lib/tuist_web/live/once_run_live.ex:1273
 #, elixir-autogen, elixir-format
 msgid "Interrupted"
 msgstr ""
@@ -3316,24 +3349,218 @@ msgstr ""
 msgid "Deviation (MB)"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:393
+#: lib/tuist_web/live/once_run_live.ex:391
 #, elixir-autogen, elixir-format
 msgid "Search actions, targets or files..."
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1439
-#, elixir-autogen, elixir-format
-msgid "%{display_count} more file"
-msgid_plural "%{display_count} more files"
-msgstr[0] ""
-msgstr[1] ""
-
-#: lib/tuist_web/live/once_run_live.ex:1390
+#: lib/tuist_web/live/once_action_components.ex:60
+#: lib/tuist_web/live/once_action_live.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "Build tool"
 msgstr ""
 
-#: lib/tuist_web/live/once_run_live.ex:1337
+#: lib/tuist_web/live/once_action_live.html.heex:40
+#: lib/tuist_web/live/once_action_live.html.heex:165
+#: lib/tuist_web/live/once_action_live.html.heex:351
 #, elixir-autogen, elixir-format
-msgid "Details"
+msgid "Action History"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:272
+#, elixir-autogen, elixir-format
+msgid "Action metadata"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.ex:218
+#, elixir-autogen, elixir-format
+msgid "Action not found."
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:3
+#: lib/tuist_web/live/once_action_live.html.heex:193
+#, elixir-autogen, elixir-format
+msgid "Build run"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:221
+#, elixir-autogen, elixir-format
+msgid "Capability"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:382
+#, elixir-autogen, elixir-format
+msgid "Could not load action history. Try again."
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:170
+#, elixir-autogen, elixir-format
+msgid "Cross-run history is unavailable because this action did not report a stable logical identity."
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "Cross-run history is unavailable because this run reported the same logical identity for multiple actions."
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.ex:169
+#, elixir-autogen, elixir-format
+msgid "Digest"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.ex:165
+#, elixir-autogen, elixir-format
+msgid "Ecosystem"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:246
+#, elixir-autogen, elixir-format
+msgid "Execution"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:186
+#, elixir-autogen, elixir-format
+msgid "Execution details"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.ex:160
+#, elixir-autogen, elixir-format
+msgid "Execution duration"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.ex:157
+#, elixir-autogen, elixir-format
+msgid "Executions"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:261
+#, elixir-autogen, elixir-format
+msgid "Exit code"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.ex:158
+#, elixir-autogen, elixir-format
+msgid "Failures"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:376
+#, elixir-autogen, elixir-format
+msgid "Filter by branch..."
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:153
+#, elixir-autogen, elixir-format
+msgid "First observed failure"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:154
+#, elixir-autogen, elixir-format
+msgid "First observed failure on this branch"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:148
+#, elixir-autogen, elixir-format
+msgid "First observed in retained history"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:150
+#, elixir-autogen, elixir-format
+msgid "First observed on this branch in retained history"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:217
+#, elixir-autogen, elixir-format
+msgid "Identifier"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:58
+#: lib/tuist_web/live/once_action_live.html.heex:63
+#, elixir-autogen, elixir-format
+msgid "Last %{days} days"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:443
+#, elixir-autogen, elixir-format
+msgid "Loading action history..."
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:135
+#: lib/tuist_web/live/once_action_live.html.heex:432
+#, elixir-autogen, elixir-format
+msgid "No observations in this period."
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:334
+#, elixir-autogen, elixir-format
+msgid "No source files match your search."
+msgstr ""
+
+#: lib/tuist_web/live/once_action_components.ex:81
+#, elixir-autogen, elixir-format
+msgid "Not reported"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.ex:170
+#, elixir-autogen, elixir-format
+msgid "Origin"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.ex:166
+#, elixir-autogen, elixir-format
+msgid "Package"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:241
+#, elixir-autogen, elixir-format
+msgid "Preparation"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:287
+#, elixir-autogen, elixir-format
+msgid "Product"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:352
+#, elixir-autogen, elixir-format
+msgid "Recent executions"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.ex:168
+#, elixir-autogen, elixir-format
+msgid "Revision"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:314
+#, elixir-autogen, elixir-format
+msgid "Search source files"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:316
+#, elixir-autogen, elixir-format
+msgid "Search source files..."
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:325
+#, elixir-autogen, elixir-format
+msgid "Source file"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:299
+#, elixir-autogen, elixir-format
+msgid "Source files"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.ex:167
+#, elixir-autogen, elixir-format
+msgid "Version"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:251
+#, elixir-autogen, elixir-format
+msgid "Worker"
+msgstr ""
+
+#: lib/tuist_web/live/once_action_live.html.heex:140
+#, elixir-autogen, elixir-format
+msgid "Execution duration and failures exclude cache hits. History covers retained runs that reported this logical identity; history can be scoped to native output variants reported by the producer."
 msgstr ""

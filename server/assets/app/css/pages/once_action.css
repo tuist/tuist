@@ -1,0 +1,74 @@
+#once-action {
+  & [data-part="metadata-grid"] {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--noora-spacing-7);
+
+    @media (max-width: 1024px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (max-width: 600px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  & [data-part="metadata"],
+  & [data-action-platform],
+  & [data-action-context],
+  & [data-part="observation-summary"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+    min-width: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
+    overflow-wrap: anywhere;
+
+    & [data-part="label"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+  }
+
+  & [data-part="observation-summary"] {
+    flex: 0 1 240px;
+    justify-content: center;
+  }
+
+  & [data-part="history-note"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="badges"] {
+    flex-wrap: wrap;
+
+    & .noora-badge {
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  & [data-action-platform],
+  & [data-action-context] {
+    margin-top: var(--noora-spacing-5);
+  }
+
+  & [data-source-file] {
+    max-width: 50rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+
+    & a,
+    & span {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  & [data-part="source-files"] .noora-card__section,
+  & [data-part="action-history"] .noora-card__section {
+    gap: var(--noora-spacing-6);
+  }
+}
