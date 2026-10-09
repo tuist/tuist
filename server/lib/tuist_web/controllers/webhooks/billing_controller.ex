@@ -12,8 +12,12 @@ defmodule TuistWeb.Webhooks.BillingController do
     customer = event.data.object
 
     case Accounts.get_account_from_customer_id(customer.id) do
-      {:ok, account} ->
+      # A customer's email can be removed, but accounts.billing_email is NOT NULL.
+      {:ok, account} when is_binary(customer.email) ->
         {:ok, _} = Accounts.update_account(account, %{billing_email: customer.email})
+        :ok
+
+      {:ok, _account} ->
         :ok
 
       {:error, :not_found} ->
