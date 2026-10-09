@@ -129,29 +129,29 @@ url_api = "https://api.github.com/repos/cli/cli/releases/assets/407353532"
 provenance = "github-attestations"
 
 [[tools."github:tuist/once"]]
-version = "0.64.2"
+version = "0.66.0"
 backend = "github:tuist/once"
-specifiers = ["0.64.2"]
+specifiers = ["0.66.0"]
 
 [tools."github:tuist/once"."platforms.linux-arm64"]
-checksum = "sha256:0db7a526d8f95025511fa0b2e20e801b319e5ef4194b6c32e173e79abfd74ddf"
-url = "https://github.com/tuist/once/releases/download/0.64.2/once-0.64.2-aarch64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/tuist/once/releases/assets/622205228"
+checksum = "sha256:4b128efd0aeb3a355f3548b4ebae4ac0f5ec0827956db8ed23b989225b8b464a"
+url = "https://github.com/tuist/once/releases/download/0.66.0/once-0.66.0-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/tuist/once/releases/assets/625313237"
 
 [tools."github:tuist/once"."platforms.linux-x64"]
-checksum = "sha256:8b55698a0c3ce8107d603258ff50d5ce8612c316aa9649251eac1cf572a91266"
-url = "https://github.com/tuist/once/releases/download/0.64.2/once-0.64.2-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/tuist/once/releases/assets/622205386"
+checksum = "sha256:7cbc29f5e0fc11b291ba1d4fa6aafb57e25a719ce7dc70f97ee03f1a7f56138c"
+url = "https://github.com/tuist/once/releases/download/0.66.0/once-0.66.0-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/tuist/once/releases/assets/625313350"
 
 [tools."github:tuist/once"."platforms.macos-arm64"]
-checksum = "sha256:b0ee9459b69767e7a46893a3f5e47c132179add1fc40ca4ce4ace872457bed5e"
-url = "https://github.com/tuist/once/releases/download/0.64.2/once-0.64.2-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tuist/once/releases/assets/622205227"
+checksum = "sha256:2042d11053861c08b24007003fbc2b7419a9d3fe935ee2776ce68de7da373aaa"
+url = "https://github.com/tuist/once/releases/download/0.66.0/once-0.66.0-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/tuist/once/releases/assets/625313311"
 
 [tools."github:tuist/once"."platforms.macos-x64"]
-checksum = "sha256:a8d49b3887df734cb61e82d2e2073aa1f17000b64f0f3fc146c73b2d60a5c9fb"
-url = "https://github.com/tuist/once/releases/download/0.64.2/once-0.64.2-x86_64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tuist/once/releases/assets/622205328"
+checksum = "sha256:88a6200ed020b22e298995ed770615b4a070457b01d6ab971eb073462955bb6e"
+url = "https://github.com/tuist/once/releases/download/0.66.0/once-0.66.0-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/tuist/once/releases/assets/625313327"
 
 [[tools.helm]]
 version = "4.3.0"

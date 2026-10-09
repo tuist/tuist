@@ -43,7 +43,7 @@ jobs:
   # can't mint an OIDC token, so they fall back to the local cache.
   build:
     name: Build
-    # The Once 0.64.2 Linux binary needs glibc 2.39, newer than the Ubuntu
+    # The Once Linux binary needs glibc 2.39, newer than the Ubuntu
     # 22.04 image behind tuist-linux. Move back once Once targets an older glibc.
     runs-on: ubuntu-24.04
     permissions:
@@ -109,7 +109,7 @@ jobs:
 
   format:
     name: Format
-    # The Once 0.64.2 Linux binary needs glibc 2.39, newer than the Ubuntu
+    # The Once Linux binary needs glibc 2.39, newer than the Ubuntu
     # 22.04 image behind tuist-linux. Move back once Once targets an older glibc.
     runs-on: ubuntu-24.04
     needs: build
@@ -199,7 +199,7 @@ jobs:
 
   test:
     name: Test
-    # The Once 0.64.2 Linux binary needs glibc 2.39, newer than the Ubuntu
+    # The Once Linux binary needs glibc 2.39, newer than the Ubuntu
     # 22.04 image behind tuist-linux. Move back once Once targets an older glibc.
     runs-on: ubuntu-24.04
     needs: build
@@ -286,7 +286,7 @@ jobs:
   # still happens in atlas-release.yml.
   image:
     name: Image
-    # The Once 0.64.2 Linux binary needs glibc 2.39, newer than the Ubuntu
+    # The Once Linux binary needs glibc 2.39, newer than the Ubuntu
     # 22.04 image behind tuist-linux. Move back once Once targets an older glibc.
     runs-on: ubuntu-24.04
     permissions:
