@@ -56,7 +56,7 @@ defmodule TuistEx.Auth do
               stored_token(server_url, environment)
 
             {:error, :enoent} ->
-              provider_or_network_token(server_url, environment)
+              provider_or_network_token(server_url, environment, options)
 
             {:error, _} ->
               {:error,
@@ -97,7 +97,7 @@ defmodule TuistEx.Auth do
     end
   end
 
-  defp provider_or_network_token(server_url, environment) do
+  defp provider_or_network_token(server_url, environment, options) do
     supplied =
       Enum.any?(
         ~w(ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN
@@ -107,7 +107,7 @@ defmodule TuistEx.Auth do
       )
 
     if supplied do
-      case identity_token(environment) do
+      case identity_token(environment, options) do
         {:ok, identity} -> exchange(server_url, identity)
         {:error, _} = error -> error
         :unsupported -> {:error, "Invalid OpenID Connect environment"}

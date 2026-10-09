@@ -163,6 +163,62 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
              Auth.reporting_token(options(directory, %{"ACTIONS_ID_TOKEN_REQUEST_TOKEN" => ""}))
   end
 
+  test "network reporting retries supplied GitHub identity and propagates the sleep option", %{
+    tmp_dir: directory
+  } do
+    opts =
+      options(directory, %{
+        "GITHUB_ACTIONS" => "true",
+        "ACTIONS_ID_TOKEN_REQUEST_URL" => "https://actions.example/token",
+        "ACTIONS_ID_TOKEN_REQUEST_TOKEN" => "identity-secret"
+      })
+      |> Keyword.put(:sleep, fn delay -> send(self(), {:slept, delay}) end)
+
+    {:ok, attempts} = Agent.start_link(fn -> 0 end)
+
+    expect(HTTP, :request, 2, fn :get,
+                                 "https://actions.example/token?audience=tuist",
+                                 nil,
+                                 headers ->
+      assert headers == [{"authorization", "Bearer identity-secret"}]
+
+      case Agent.get_and_update(attempts, &{&1, &1 + 1}) do
+        0 -> {:ok, 503, %{}}
+        1 -> {:ok, 200, %{"value" => "identity"}}
+      end
+    end)
+
+    expect(HTTP, :request, fn :post, url, body ->
+      assert String.ends_with?(url, "/api/auth/oidc/token")
+      assert body == %{token: "identity"}
+      {:ok, 200, %{"access_token" => "exchanged-access"}}
+    end)
+
+    assert {:ok, "exchanged-access"} = Auth.reporting_token(opts)
+    assert_received {:slept, 1_000}
+  end
+
+  test "exhausted GitHub identity retries never downgrade to an unsigned report", %{
+    tmp_dir: directory
+  } do
+    opts =
+      options(directory, %{
+        "GITHUB_ACTIONS" => "true",
+        "ACTIONS_ID_TOKEN_REQUEST_URL" => "https://actions.example/token",
+        "ACTIONS_ID_TOKEN_REQUEST_TOKEN" => "identity-secret"
+      })
+      |> Keyword.put(:sleep, fn _ -> :ok end)
+
+    expect(HTTP, :request, 5, fn :get, _, nil, headers ->
+      assert headers == [{"authorization", "Bearer identity-secret"}]
+      {:ok, 503, %{}}
+    end)
+
+    reject(HTTP, :request, 3)
+    assert {:error, message} = Auth.reporting_token(opts)
+    assert message =~ "GitHub Actions identity token request"
+  end
+
   test "explicit opt-out keeps ordinary authentication", %{tmp_dir: directory} do
     expect(Auth, :token, fn _ -> {:error, "authentication required"} end)
 
