@@ -40,7 +40,7 @@ enum GitHubAuth {
 }
 
 enum SourceControlLocations {
-    static func canonicalResolvedFileLocation(_ location: String) -> String {
+    static func canonicalLocation(_ location: String) -> String {
         if let shorthandLocation = ColonSeparatedGitLocation(location) {
             return shorthandLocation.canonicalString
         }
