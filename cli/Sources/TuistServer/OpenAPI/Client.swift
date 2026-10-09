@@ -721,7 +721,7 @@ public struct Client: APIProtocol {
     }
     /// Get a signed URL to upload a test run's code coverage.
     ///
-    /// Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `xcode_coverage_storage_key`, and the server reads it back once the run exists.
+    /// Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/uploads`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/uploads/post(createCoverageUpload)`.

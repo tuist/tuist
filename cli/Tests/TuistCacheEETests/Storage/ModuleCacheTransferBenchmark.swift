@@ -27,6 +27,7 @@ struct ModuleCacheTransferBenchmark {
         let metricsURL: URL?
         let runID: String?
         let independentRepetitionInputs: Bool?
+        let models: [String]?
     }
 
     private struct Measurement: Encodable {
@@ -87,7 +88,8 @@ struct ModuleCacheTransferBenchmark {
                         [artifact]
                     )
                 })
-                for model in repetition.isMultiple(of: 2) ? ["archive", "reapi"] : ["reapi", "archive"] {
+                let order = repetition.isMultiple(of: 2) ? ["archive", "reapi"] : ["reapi", "archive"]
+                for model in order where config.models?.contains(model) ?? true {
                     let project = config.project ?? "\(corpus.basename)-\(repetition)-\(model)"
                     let client: REAPICacheClient?
                     if model == "reapi" {

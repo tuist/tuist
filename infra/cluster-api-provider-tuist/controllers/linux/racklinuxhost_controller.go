@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -320,6 +321,7 @@ func (r *RackLinuxHostReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.RackLinuxHost{}).
 		Owns(&clusterv1.Machine{}).
+		Watches(&infrav1.RackLinuxHost{}, handler.EnqueueRequestsFromMapFunc(r.siteHostsOfEdge), builder.WithPredicates(edgeJoinedTailnet())).
 		// A machine's announcement names its host by UUID, the host's name.
 		Watches(&infrav1.RackLinuxCandidate{}, handler.EnqueueRequestsFromMapFunc(func(_ context.Context, o client.Object) []reconcile.Request {
 			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: o.GetNamespace(), Name: o.GetName()}}}

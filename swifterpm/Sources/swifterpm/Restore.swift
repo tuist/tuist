@@ -1273,13 +1273,19 @@ enum WorkspaceRestorer {
                 ])
             } else if PinKind.isRegistry(pin.kind) {
                 let ref = try packageRef(pin, mirrors: mirrors)
+                var state: [String: Any] = try [
+                    "name": "registryDownload",
+                    "version": pin.versionString(),
+                ]
+                // SwiftPM rebuilds every Package.resolved pin from workspace state, taking
+                // `originalLocation` from `scmUrl`.
+                if let originalLocation = pin.originalLocation {
+                    state["scmUrl"] = originalLocation
+                }
                 try dependencies.append([
                     "basedOn": NSNull(),
                     "packageRef": ref,
-                    "state": [
-                        "name": "registryDownload",
-                        "version": pin.versionString(),
-                    ],
+                    "state": state,
                     "subpath": PinKind.registryDownloadSubpath(pin),
                 ])
             }

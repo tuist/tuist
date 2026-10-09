@@ -1356,7 +1356,7 @@ main() {
     esac
   done
   local command="${1:-}"
-  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|resolve|save|replace|backup|drift|ports|locate|recover|sessions|probe-tftp>" >&2; return 2; }
+  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|resolve|save|replace|backup|drift|ports|locate|recover|sessions|probe-tftp|env|helm-values>" >&2; return 2; }
   shift
   [ -f "$(site_file)" ] || { echo "error: no site definition at $(site_file)" >&2; return 2; }
   RACK="$(jq -r '.site // empty' "$(site_file)")"
@@ -1378,6 +1378,13 @@ main() {
     replace)    refuse_adopted "$@" && cmd_replace "$@";;
     drift)      cmd_drift "$@";;
     probe-tftp) cmd_probe_tftp "$@";;
+    env)        fleet_site_env "$(site_file)";;
+    helm-values)
+      case "${1:-}" in
+        rack-switch-controller) fleet_controller_values "$(site_file)";;
+        rack-edge) fleet_edge_values "$(site_file)";;
+        *) echo "usage: rack:fleet helm-values <rack-switch-controller|rack-edge>" >&2; return 2;;
+      esac;;
     *) echo "unknown command: $command" >&2; return 2;;
   esac
 }

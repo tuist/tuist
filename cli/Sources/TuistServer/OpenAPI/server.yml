@@ -275,6 +275,8 @@ components:
           type: string
           x-struct:
           x-validate:
+        coverage:
+          $ref: '#/components/schemas/Coverage'
         build_run_id:
           description: The UUID of an associated build run.
           type: string
@@ -3352,6 +3354,15 @@ components:
           type: string
           x-struct:
           x-validate:
+        concurrent_modules:
+          description: "Test module names the test runner executes alongside other modules, running the rest one at a time after them, as ExUnit does with `async: true` modules. A module plan then balances the shards' wall clock, with the concurrency their history shows, instead of summing durations. `parallelizable_modules` is the same for the suites within a module."
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         git_branch:
           description: "The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch."
           type: string
@@ -5406,6 +5417,141 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ProjectToken
       x-validate:
+    Coverage:
+      description: 'Line coverage from a test run that ran with code coverage enabled: every source file the run instrumented, with its per-line execution counts, inline in `files` or uploaded under `storage_key`.'
+      properties:
+        files:
+          items:
+            properties:
+              covered_lines:
+                description: Executable lines the tests ran at least once.
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                description: Lines the compiler instrumented.
+                type: integer
+                x-struct:
+                x-validate:
+              execution_counts:
+                description: How many times each of `line_numbers` ran, index by index.
+                items:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              functions:
+                items:
+                  properties:
+                    covered_lines:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    executable_lines:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    execution_count:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    line_number:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    name:
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - name
+                    - line_number
+                    - execution_count
+                    - covered_lines
+                    - executable_lines
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              git_blob_id:
+                description: The Git blob object id of the file's contents, absent for files Git does not track.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              is_test:
+                description: Whether only test bundles compiled the file. Test code is stored but left out of coverage figures.
+                type: boolean
+                x-struct:
+                x-validate:
+              line_numbers:
+                description: The executable lines, ascending.
+                items:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              path:
+                description: "The file's path, relative to the repository's root when it lives under it and absolute otherwise."
+                type: string
+                x-struct:
+                x-validate:
+              targets:
+                description: The targets whose binaries compiled the file.
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - targets
+              - covered_lines
+              - executable_lines
+              - line_numbers
+              - execution_counts
+              - functions
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        partial:
+          description: Whether the run left tests out on purpose (filters, selective testing), so its coverage describes only the tests that ran.
+          type: boolean
+          x-struct:
+          x-validate:
+        storage_key:
+          description: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; sent instead of `files` when the coverage is too large to send inline.
+          type: string
+          x-struct:
+          x-validate:
+        tool:
+          description: The tool that measured the coverage, such as `cover` for Mix or `xccov` for Xcode.
+          type: string
+          x-struct:
+          x-validate:
+        tool_version:
+          description: The version of the tool, or of the runtime that provides it, so only like figures are compared.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - tool
+        - partial
+      title: Coverage
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Tests.Coverage
+      x-validate:
     GenerationsIndexBefore:
       description: Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
       title: GenerationsIndexBefore
@@ -7387,7 +7533,7 @@ components:
     CoverageUpload:
       properties:
         storage_key:
-          description: The key to send with the run as `xcode_coverage_storage_key`.
+          description: The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`).
           type: string
           x-struct:
           x-validate:
@@ -11594,7 +11740,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/tests/coverage/uploads:
     post:
       callbacks: {}
-      description: Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `xcode_coverage_storage_key`, and the server reads it back once the run exists.
+      description: Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists.
       operationId: createCoverageUpload
       parameters:
         - description: The handle of the account.
@@ -11639,7 +11785,7 @@ paths:
               schema:
                 properties:
                   storage_key:
-                    description: The key to send with the run as `xcode_coverage_storage_key`.
+                    description: The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`).
                     type: string
                     x-struct:
                     x-validate:
@@ -13641,6 +13787,8 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                coverage:
+                  $ref: '#/components/schemas/Coverage'
                 build_run_id:
                   description: The UUID of an associated build run.
                   type: string
@@ -27758,6 +27906,15 @@ paths:
                   description: The UUID of the associated Xcode build run.
                   format: uuid
                   type: string
+                  x-struct:
+                  x-validate:
+                concurrent_modules:
+                  description: "Test module names the test runner executes alongside other modules, running the rest one at a time after them, as ExUnit does with `async: true` modules. A module plan then balances the shards' wall clock, with the concurrency their history shows, instead of summing durations. `parallelizable_modules` is the same for the suites within a module."
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
                   x-struct:
                   x-validate:
                 git_branch:

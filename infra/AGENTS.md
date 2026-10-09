@@ -71,7 +71,7 @@ regression script uses promtool and amtool to check query behavior and productio
 cert-manager + external-dns + ESO + metrics-server + ingress-nginx controllers, installed once per workload cluster. Kura customer endpoints default to dedicated shared regional Kura ingress controllers rather than the main web ingress dataplane. Enterprise/high-volume exceptions are reconciled dynamically by the Kura controller from `KuraGateway` CRs, not hard-coded as customer-specific platform chart aliases. Provider-specific LB annotations live in per-provider and cluster overlays (e.g., `values-hetzner.yaml`, `values-tuist.yaml`).
 
 ### `helm/omada/` — Omada SDN Controller wrapper (evaluation)
-Wraps mbentley's Omada controller chart. Stood up to answer whether the controller can take over switch management from `rack-switch-fleet`'s SSH driver: TP-Link's own feature list says a controller-managed switch supports everything that directory renders, and under the controller SSH goes read-only, which would delete its write path. Measured 2026-09-22: on 6.3 the Open API can write everything that directory renders (5.15 could not set RSTP or a LAG on a standalone switch, so the image tag is pinned), though spanning-tree state is write-only and still verified over SSH. What adoption does to an already-configured switch is the open question. Deployed to staging, where the rack belongs while it is at home, by `.github/workflows/omada-deployment.yml`, and exposed only on the tailnet; switches reach it through the rack's edge node (the `helm/rack-edge` DaemonSet) and are pointed at it with `controller inform-url`, since L2 discovery does not cross into the cluster. See [`omada/README.md`](helm/omada/README.md) and [`rack-switch-fleet/omada-assessment.md`](rack-switch-fleet/omada-assessment.md).
+Wraps mbentley's Omada controller chart. Stood up to answer whether the controller can take over switch management from `rack-switch-fleet`'s SSH driver: TP-Link's own feature list says a controller-managed switch supports everything that directory renders, and under the controller SSH goes read-only, which would delete its write path. Measured 2026-09-22: on 6.3 the Open API can write everything that directory renders (5.15 could not set RSTP or a LAG on a standalone switch, so the image tag is pinned), though spanning-tree state is write-only and still verified over SSH. What adoption does to an already-configured switch is the open question. Deployed by `.github/workflows/omada-deployment.yml` to the cluster the rack belongs to, the env its site definition's `kubernetes.namespace` names (staging while it is at home), and exposed only on the tailnet; switches reach it through the rack's edge node (the `helm/rack-edge` DaemonSet) and are pointed at it with `controller inform-url`, since L2 discovery does not cross into the cluster. See [`omada/README.md`](helm/omada/README.md) and [`rack-switch-fleet/omada-assessment.md`](rack-switch-fleet/omada-assessment.md).
 
 ### `helm/tailscale-operator/` — Tailscale Kubernetes operator wrapper
 Wraps the upstream `tailscale-operator` chart with ESO-synced OAuth credentials and per-env tag identity (`tag:tuist-k8s-<env>`). Provides three tailnet paths used today: a Connector subnet router (tailnet devices dial in-cluster Services), Mac mini egress (cluster Pods scrape the macOS fleet), and per-Service ingress nodes via `tailscale.com/expose: "true"` (a Service gets its own tailnet name, used by `tuist-ops`). Human kubectl access to workload clusters does NOT flow through the operator's API-server proxy anymore — see `helm/pomerium/` below.
@@ -120,6 +120,8 @@ belongs in this repository. The Cloudflare operator release lives under
 live under `flux/cloudflare-config/`; their separate dependent
 Kustomization ensures the operator and its custom resource definitions
 are ready first.
+See [`flux/cloudflare-config/AGENTS.md`](flux/cloudflare-config/AGENTS.md) for the crawlability and edge-protection boundary.
+`flux/cloudflare-config/skip-sbfm-api-paths.yaml` exempts signed Open Graph images and canonical two-segment public-project root candidates from SBFM. Keep sockets, authentication, operator and scanner-shaped paths excluded; never use an unrestricted `/*/*` wildcard that also admits deeper dashboards. Origin authorization/challenges and edge rate limits remain active. Deploy the bounded cached overview before the root exemption; re-enabling the legacy custom dashboard rule overrides that exemption for unverified crawlers.
 `flux/cloudflare-config/browser-telemetry-bot-filter.yaml` blocks
 Cloudflare-verified bots and explicitly declared crawler/headless user agents
 only when they POST to the production Faro collector;
@@ -217,7 +219,10 @@ Each file is a `dashboard.grafana.app/v1` or `dashboard.grafana.app/v2` resource
 
 `processor-service.json` compares application database queues and query phases
 across the web and processor runtimes using the shared `tuist_repo_*` metrics
-and the `workload` label. Its background job panels use the shared Oban
+and the `workload` label. Cloud, shadow, and ops pools have distinct repository
+labels; include all physical pools when investigating routed ClickHouse reads.
+The idle-time panel measures time before checkout, not connection occupancy.
+Its background job panels use the shared Oban
 metrics and an independent queue selector. Do not reintroduce the retired
 standalone service's `processor_*` metrics or `job="processor"` selectors.
 

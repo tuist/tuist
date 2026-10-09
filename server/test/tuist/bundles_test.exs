@@ -908,6 +908,20 @@ defmodule Tuist.BundlesTest do
   end
 
   describe "bundle_download_size_analytics/2" do
+    test "uses the latest bundle even when its download size is missing" do
+      project = ProjectsFixtures.project_fixture()
+      BundlesFixtures.bundle_fixture(project: project, download_size: 900, inserted_at: ~U[2024-08-09 00:00:00Z])
+      BundlesFixtures.bundle_fixture(project: project, download_size: nil, inserted_at: ~U[2024-08-09 01:00:00Z])
+
+      points =
+        Bundles.bundle_download_size_analytics(project,
+          start_datetime: ~U[2024-08-08 00:00:00Z],
+          end_datetime: ~U[2024-08-10 00:00:00Z]
+        )
+
+      assert Enum.find(points, &(&1.date == ~D[2024-08-09])).bundle_download_size == 0
+    end
+
     test "returns bundle download size analytics for the last three days" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
@@ -1303,6 +1317,50 @@ defmodule Tuist.BundlesTest do
       assert app_bundle.id == newest_app.id
       assert app_bundle.install_size == 3000
       assert Enum.find(bundles, &(&1.name == "Other")).id == other.id
+    end
+  end
+
+  describe "project_app_bundle_options/1" do
+    test "returns narrow options with the latest supported platforms" do
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        supported_platforms: [:macos],
+        inserted_at: ~U[2024-08-01 00:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        supported_platforms: [:ios],
+        inserted_at: ~U[2024-08-02 00:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "Other",
+        supported_platforms: [:tvos],
+        inserted_at: ~U[2024-08-03 00:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(project: project, name: "Expired", inserted_at: ~U[2020-01-01 00:00:00Z])
+
+      assert Bundles.project_app_bundle_options(project) == [
+               %{name: "Other", supported_platforms: [:tvos]},
+               %{name: "App", supported_platforms: [:ios]}
+             ]
+    end
+
+    test "bounds the options to fifty names" do
+      project = ProjectsFixtures.project_fixture()
+
+      for index <- 1..51 do
+        BundlesFixtures.bundle_fixture(project: project, name: "App#{index}")
+      end
+
+      assert length(Bundles.project_app_bundle_options(project)) == 50
     end
   end
 

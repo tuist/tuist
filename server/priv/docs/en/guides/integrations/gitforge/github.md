@@ -31,6 +31,22 @@ Because GitHub Apps are scoped to a single GitHub instance, Tuist cannot reuse i
 
 No additional Tuist server configuration is needed; the manifest flow generates and provisions everything automatically.
 
+#### App permissions and webhook events {#github-app-permissions}
+
+The GitHub Enterprise App manifest requests the following **repository permissions**:
+
+| Permission | Access | Used for |
+|---|---|---|
+| Metadata (`metadata`) | Read-only | Basic repository metadata; required by GitHub for every App |
+| Contents (`contents`) | Read-only | Reading repository contents |
+| Pull requests (`pull_requests`) | Read and write | Accessing pull requests and supporting PR feedback |
+| Issues (`issues`) | Read and write | Posting and updating PR comments through GitHub's issue comments API |
+| Checks (`checks`) | Read and write | Creating and updating check runs, including bundle-size pass/fail checks |
+
+The App subscribes to the `check_run`, `pull_request`, and `issue_comment` webhook events. The manifest flow configures these permissions and subscriptions automatically.
+
+For manual App setup on github.com with a self-hosted Tuist server, see <.localized_link href="/guides/server/self-host/server#platform-github-registering-the-app">the self-hosting guide</.localized_link>.
+
 #### Separate browser and API URLs {#separate-browser-and-api-urls}
 
 If engineers access GitHub Enterprise through an internal hostname while third-party services use an external proxy, configure both addresses before clicking install:

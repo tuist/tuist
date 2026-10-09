@@ -493,7 +493,7 @@ defmodule Tuist.Tests do
   end
 
   def create_test(attrs) do
-    attrs = normalize_string_keys(attrs)
+    attrs = attrs |> normalize_string_keys() |> Coverage.normalize_attrs()
 
     attrs =
       Map.put(attrs, :coverage_evidence_status, Coverage.Evidence.status(Map.get(attrs, :coverage_evidence)))
@@ -526,8 +526,7 @@ defmodule Tuist.Tests do
     has_flaky_tests = has_any_flaky_test_case?(test_modules)
     stress_new_tests = Map.get(attrs, :stress_new_tests)
 
-    xcode_coverage =
-      Coverage.rows(Map.get(attrs, :project_id), Map.get(attrs, :xcode_coverage))
+    coverage = Coverage.rows(Map.get(attrs, :project_id), Map.get(attrs, :coverage))
 
     attrs =
       if has_flaky_tests and is_ci do
@@ -556,7 +555,7 @@ defmodule Tuist.Tests do
       create_run_changed_files(test, Map.get(attrs, :changed_files, []))
       StressNewTests.insert_candidates(test, stress_new_tests)
       expected_shards = (shard_plan && shard_plan.shard_count) || 1
-      record_coverage_data(test, attrs, xcode_coverage, shard_index, expected_shards)
+      record_coverage_data(test, attrs, coverage, shard_index, expected_shards)
 
       {test_case_ids_with_flaky_run, test_case_runs} =
         create_test_modules(
@@ -691,12 +690,12 @@ defmodule Tuist.Tests do
   # Coverage, the enumerated tests and the evidence enrich a run: a failure
   # storing one of them costs that data, not the run's test cases, which are
   # written after them and which a retry with the same id would never add.
-  defp record_coverage_data(test, attrs, xcode_coverage, shard_index, expected_shards) do
-    enrich(test, "coverage", fn -> Coverage.publish(test, xcode_coverage, shard_index, expected_shards) end)
+  defp record_coverage_data(test, attrs, coverage, shard_index, expected_shards) do
+    enrich(test, "coverage", fn -> Coverage.publish(test, coverage, shard_index, expected_shards) end)
 
-    if storage_key = Map.get(attrs, :xcode_coverage_storage_key) do
+    with %{storage_key: storage_key} = uploaded when is_binary(storage_key) <- Map.get(attrs, :coverage) do
       enrich(test, "uploaded coverage", fn ->
-        Coverage.enqueue_publish(test, storage_key, Map.get(attrs, :xcode_coverage_partial), shard_index, expected_shards)
+        Coverage.enqueue_publish(test, uploaded, shard_index, expected_shards)
       end)
     end
 
@@ -902,8 +901,8 @@ defmodule Tuist.Tests do
           stress_new_tests = Map.get(attrs, :stress_new_tests)
           StressNewTests.insert_candidates(existing_test, stress_new_tests)
 
-          xcode_coverage = Coverage.rows(project_id, Map.get(attrs, :xcode_coverage))
-          record_coverage_data(existing_test, attrs, xcode_coverage, shard_index, expected_shard_count)
+          coverage = Coverage.rows(project_id, Map.get(attrs, :coverage))
+          record_coverage_data(existing_test, attrs, coverage, shard_index, expected_shard_count)
 
           updated_test =
             merged_test

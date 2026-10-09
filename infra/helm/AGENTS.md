@@ -11,11 +11,16 @@ This node covers Helm assets under `infra/helm/`.
 
 ## Conventions
 
+- Production enables the Kura authority controller independently of instance
+  activation. Keep it enabled once any instance has a serving rollback floor;
+  disabling it expires live grants. See
+  [serving authority](../kura-controller/serving-authority.md).
+
 - `capi.vultrPrivateNetwork` declares regional networks; the CAPI controller owns
   provider IDs and creation intent in a retained `-state` ConfigMap. Keep that
   state out of Helm-owned data. Production enables Chicago and Santiago; Santiago
-  has one host, so physical host-pair validation is still required when a second
-  host arrives. Reciprocal `canonicalPeers` region names
+  declares two hosts. Physical host-pair validation is still pending enrollment
+  of the second host. Reciprocal `canonicalPeers` region names
   approve canonical mTLS between exact VPC IDs resolved by the controller. Stage
   this policy on existing runtimes before qualifying another region; same-VPC
   traffic remains private-only. Self-hosted defaults stay off.
@@ -62,6 +67,9 @@ This node covers Helm assets under `infra/helm/`.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
   browser LCP p99 also requires distinct affected sessions, not just total samples.
+  ClickHouse read-failure and latency rules aggregate Cloud and shadow physical
+  repos; expanding telemetry coverage can surface previously invisible failures
+  without any threshold change.
 - `k8s-monitoring/kura-availability-alert-rules.json` reflects the enabled rule,
   provisioned separately from Helm. Its zero-ready-replica expression and routing
   are exercised by `test-kura-availability-alert.sh` using Bash, jq, promtool and amtool.
@@ -130,6 +138,9 @@ This node covers Helm assets under `infra/helm/`.
   Canary and production enable them fleet-wide after the platform-index
   enablement migration. Self-hosting and staging stay off by default; staging's
   40 GiB cache quota cannot fit the built-in reservation and custom admission floor.
+  Production M4 replacement hosts have a 512 GiB shared cache quota; M2 stays
+  at 80 GiB. Existing APFS quotas are immutable under bootstrap and the fleet
+  uses OnDelete: deploy the host free-space guard before replacing drained M4s.
 - Cache-volume agents expose phase/source/result telemetry on a separate port
   9091. Allow scraping only from `observability`, retain the series in staging,
   and keep runner acquisition on 8090 under its existing pod selector.

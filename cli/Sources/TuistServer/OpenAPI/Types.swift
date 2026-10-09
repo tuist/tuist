@@ -34,7 +34,7 @@ public protocol APIProtocol: Sendable {
     func getGeneration(_ input: Operations.getGeneration.Input) async throws -> Operations.getGeneration.Output
     /// Get a signed URL to upload a test run's code coverage.
     ///
-    /// Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `xcode_coverage_storage_key`, and the server reads it back once the run exists.
+    /// Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/uploads`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/uploads/post(createCoverageUpload)`.
@@ -1071,7 +1071,7 @@ extension APIProtocol {
     }
     /// Get a signed URL to upload a test run's code coverage.
     ///
-    /// Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `xcode_coverage_storage_key`, and the server reads it back once the run exists.
+    /// Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/uploads`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/uploads/post(createCoverageUpload)`.
@@ -3830,6 +3830,8 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/history_source`.
             public var history_source: Components.Schemas.TestParams.history_sourcePayload?
+            /// - Remark: Generated from `#/components/schemas/TestParams/coverage`.
+            public var coverage: Components.Schemas.Coverage?
             /// The UUID of an associated build run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/build_run_id`.
@@ -4644,6 +4646,7 @@ public enum Components {
             ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
             ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
             ///   - history_source: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+            ///   - coverage:
             ///   - build_run_id: The UUID of an associated build run.
             ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
             ///   - git_ref: The git reference.
@@ -4687,6 +4690,7 @@ public enum Components {
                 coverage_evidence: Components.Schemas.TestParams.coverage_evidencePayload? = nil,
                 git_dirty: Swift.Bool? = nil,
                 history_source: Components.Schemas.TestParams.history_sourcePayload? = nil,
+                coverage: Components.Schemas.Coverage? = nil,
                 build_run_id: Swift.String? = nil,
                 skip_test_identifiers: [Swift.String]? = nil,
                 git_ref: Swift.String? = nil,
@@ -4730,6 +4734,7 @@ public enum Components {
                 self.coverage_evidence = coverage_evidence
                 self.git_dirty = git_dirty
                 self.history_source = history_source
+                self.coverage = coverage
                 self.build_run_id = build_run_id
                 self.skip_test_identifiers = skip_test_identifiers
                 self.git_ref = git_ref
@@ -4774,6 +4779,7 @@ public enum Components {
                 case coverage_evidence
                 case git_dirty
                 case history_source
+                case coverage
                 case build_run_id
                 case skip_test_identifiers
                 case git_ref
@@ -8356,6 +8362,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/build_run_id`.
             public var build_run_id: Swift.String?
+            /// Test module names the test runner executes alongside other modules, running the rest one at a time after them, as ExUnit does with `async: true` modules. A module plan then balances the shards' wall clock, with the concurrency their history shows, instead of summing durations. `parallelizable_modules` is the same for the suites within a module.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/concurrent_modules`.
+            public var concurrent_modules: [Swift.String]?
             /// The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/git_branch`.
@@ -8415,6 +8425,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - build_run_id: The UUID of the associated Xcode build run.
+            ///   - concurrent_modules: Test module names the test runner executes alongside other modules, running the rest one at a time after them, as ExUnit does with `async: true` modules. A module plan then balances the shards' wall clock, with the concurrency their history shows, instead of summing durations. `parallelizable_modules` is the same for the suites within a module.
             ///   - git_branch: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
             ///   - gradle_build_id: The UUID of the associated Gradle build.
             ///   - granularity: Sharding granularity level.
@@ -8429,6 +8440,7 @@ public enum Components {
             ///   - test_suites: Test suite names (for suite-level granularity).
             public init(
                 build_run_id: Swift.String? = nil,
+                concurrent_modules: [Swift.String]? = nil,
                 git_branch: Swift.String? = nil,
                 gradle_build_id: Swift.String? = nil,
                 granularity: Components.Schemas.CreateShardPlanParams.granularityPayload? = nil,
@@ -8443,6 +8455,7 @@ public enum Components {
                 test_suites: [Swift.String]? = nil
             ) {
                 self.build_run_id = build_run_id
+                self.concurrent_modules = concurrent_modules
                 self.git_branch = git_branch
                 self.gradle_build_id = gradle_build_id
                 self.granularity = granularity
@@ -8458,6 +8471,7 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case build_run_id
+                case concurrent_modules
                 case git_branch
                 case gradle_build_id
                 case granularity
@@ -11592,6 +11606,183 @@ public enum Components {
                 case inserted_at
             }
         }
+        /// Line coverage from a test run that ran with code coverage enabled: every source file the run instrumented, with its per-line execution counts, inline in `files` or uploaded under `storage_key`.
+        ///
+        /// - Remark: Generated from `#/components/schemas/Coverage`.
+        public struct Coverage: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload`.
+            public struct filesPayloadPayload: Codable, Hashable, Sendable {
+                /// Executable lines the tests ran at least once.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/covered_lines`.
+                public var covered_lines: Swift.Int
+                /// Lines the compiler instrumented.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/executable_lines`.
+                public var executable_lines: Swift.Int
+                /// How many times each of `line_numbers` ran, index by index.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/execution_counts`.
+                public var execution_counts: [Swift.Int]
+                /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/functionsPayload`.
+                public struct functionsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/functionsPayload/covered_lines`.
+                    public var covered_lines: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/functionsPayload/executable_lines`.
+                    public var executable_lines: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/functionsPayload/execution_count`.
+                    public var execution_count: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/functionsPayload/line_number`.
+                    public var line_number: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/functionsPayload/name`.
+                    public var name: Swift.String
+                    /// Creates a new `functionsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - covered_lines:
+                    ///   - executable_lines:
+                    ///   - execution_count:
+                    ///   - line_number:
+                    ///   - name:
+                    public init(
+                        covered_lines: Swift.Int,
+                        executable_lines: Swift.Int,
+                        execution_count: Swift.Int,
+                        line_number: Swift.Int,
+                        name: Swift.String
+                    ) {
+                        self.covered_lines = covered_lines
+                        self.executable_lines = executable_lines
+                        self.execution_count = execution_count
+                        self.line_number = line_number
+                        self.name = name
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case covered_lines
+                        case executable_lines
+                        case execution_count
+                        case line_number
+                        case name
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/functions`.
+                public typealias functionsPayload = [Components.Schemas.Coverage.filesPayloadPayload.functionsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/functions`.
+                public var functions: Components.Schemas.Coverage.filesPayloadPayload.functionsPayload
+                /// The Git blob object id of the file's contents, absent for files Git does not track.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/git_blob_id`.
+                public var git_blob_id: Swift.String?
+                /// Whether only test bundles compiled the file. Test code is stored but left out of coverage figures.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/is_test`.
+                public var is_test: Swift.Bool?
+                /// The executable lines, ascending.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/line_numbers`.
+                public var line_numbers: [Swift.Int]
+                /// The file's path, relative to the repository's root when it lives under it and absolute otherwise.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/path`.
+                public var path: Swift.String
+                /// The targets whose binaries compiled the file.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Coverage/filesPayload/targets`.
+                public var targets: [Swift.String]
+                /// Creates a new `filesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - covered_lines: Executable lines the tests ran at least once.
+                ///   - executable_lines: Lines the compiler instrumented.
+                ///   - execution_counts: How many times each of `line_numbers` ran, index by index.
+                ///   - functions:
+                ///   - git_blob_id: The Git blob object id of the file's contents, absent for files Git does not track.
+                ///   - is_test: Whether only test bundles compiled the file. Test code is stored but left out of coverage figures.
+                ///   - line_numbers: The executable lines, ascending.
+                ///   - path: The file's path, relative to the repository's root when it lives under it and absolute otherwise.
+                ///   - targets: The targets whose binaries compiled the file.
+                public init(
+                    covered_lines: Swift.Int,
+                    executable_lines: Swift.Int,
+                    execution_counts: [Swift.Int],
+                    functions: Components.Schemas.Coverage.filesPayloadPayload.functionsPayload,
+                    git_blob_id: Swift.String? = nil,
+                    is_test: Swift.Bool? = nil,
+                    line_numbers: [Swift.Int],
+                    path: Swift.String,
+                    targets: [Swift.String]
+                ) {
+                    self.covered_lines = covered_lines
+                    self.executable_lines = executable_lines
+                    self.execution_counts = execution_counts
+                    self.functions = functions
+                    self.git_blob_id = git_blob_id
+                    self.is_test = is_test
+                    self.line_numbers = line_numbers
+                    self.path = path
+                    self.targets = targets
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case covered_lines
+                    case executable_lines
+                    case execution_counts
+                    case functions
+                    case git_blob_id
+                    case is_test
+                    case line_numbers
+                    case path
+                    case targets
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/Coverage/files`.
+            public typealias filesPayload = [Components.Schemas.Coverage.filesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/Coverage/files`.
+            public var files: Components.Schemas.Coverage.filesPayload?
+            /// Whether the run left tests out on purpose (filters, selective testing), so its coverage describes only the tests that ran.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Coverage/partial`.
+            public var partial: Swift.Bool
+            /// The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; sent instead of `files` when the coverage is too large to send inline.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Coverage/storage_key`.
+            public var storage_key: Swift.String?
+            /// The tool that measured the coverage, such as `cover` for Mix or `xccov` for Xcode.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Coverage/tool`.
+            public var tool: Swift.String
+            /// The version of the tool, or of the runtime that provides it, so only like figures are compared.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Coverage/tool_version`.
+            public var tool_version: Swift.String?
+            /// Creates a new `Coverage`.
+            ///
+            /// - Parameters:
+            ///   - files:
+            ///   - partial: Whether the run left tests out on purpose (filters, selective testing), so its coverage describes only the tests that ran.
+            ///   - storage_key: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; sent instead of `files` when the coverage is too large to send inline.
+            ///   - tool: The tool that measured the coverage, such as `cover` for Mix or `xccov` for Xcode.
+            ///   - tool_version: The version of the tool, or of the runtime that provides it, so only like figures are compared.
+            public init(
+                files: Components.Schemas.Coverage.filesPayload? = nil,
+                partial: Swift.Bool,
+                storage_key: Swift.String? = nil,
+                tool: Swift.String,
+                tool_version: Swift.String? = nil
+            ) {
+                self.files = files
+                self.partial = partial
+                self.storage_key = storage_key
+                self.tool = tool
+                self.tool_version = tool_version
+            }
+            public enum CodingKeys: String, CodingKey {
+                case files
+                case partial
+                case storage_key
+                case tool
+                case tool_version
+            }
+        }
         /// Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
         ///
         /// - Remark: Generated from `#/components/schemas/GenerationsIndexBefore`.
@@ -14343,7 +14534,7 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/CoverageUpload`.
         public struct CoverageUpload: Codable, Hashable, Sendable {
-            /// The key to send with the run as `xcode_coverage_storage_key`.
+            /// The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`).
             ///
             /// - Remark: Generated from `#/components/schemas/CoverageUpload/storage_key`.
             public var storage_key: Swift.String
@@ -14354,7 +14545,7 @@ public enum Components {
             /// Creates a new `CoverageUpload`.
             ///
             /// - Parameters:
-            ///   - storage_key: The key to send with the run as `xcode_coverage_storage_key`.
+            ///   - storage_key: The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`).
             ///   - upload_url: A short-lived URL to PUT the compressed coverage to.
             public init(
                 storage_key: Swift.String,
@@ -21323,7 +21514,7 @@ public enum Operations {
     }
     /// Get a signed URL to upload a test run's code coverage.
     ///
-    /// Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `xcode_coverage_storage_key`, and the server reads it back once the run exists.
+    /// Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/uploads`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/uploads/post(createCoverageUpload)`.
@@ -21411,7 +21602,7 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/uploads/POST/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// The key to send with the run as `xcode_coverage_storage_key`.
+                        /// The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`).
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/uploads/POST/responses/200/content/json/storage_key`.
                         public var storage_key: Swift.String
@@ -21422,7 +21613,7 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - storage_key: The key to send with the run as `xcode_coverage_storage_key`.
+                        ///   - storage_key: The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`).
                         ///   - upload_url: A short-lived URL to PUT the compressed coverage to.
                         public init(
                             storage_key: Swift.String,
@@ -27941,6 +28132,8 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/history_source`.
                     public var history_source: Operations.createTest.Input.Body.jsonPayload.history_sourcePayload?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage`.
+                    public var coverage: Components.Schemas.Coverage?
                     /// The UUID of an associated build run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/build_run_id`.
@@ -28755,6 +28948,7 @@ public enum Operations {
                     ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
                     ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
                     ///   - history_source: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+                    ///   - coverage:
                     ///   - build_run_id: The UUID of an associated build run.
                     ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
                     ///   - git_ref: The git reference.
@@ -28798,6 +28992,7 @@ public enum Operations {
                         coverage_evidence: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload? = nil,
                         git_dirty: Swift.Bool? = nil,
                         history_source: Operations.createTest.Input.Body.jsonPayload.history_sourcePayload? = nil,
+                        coverage: Components.Schemas.Coverage? = nil,
                         build_run_id: Swift.String? = nil,
                         skip_test_identifiers: [Swift.String]? = nil,
                         git_ref: Swift.String? = nil,
@@ -28841,6 +29036,7 @@ public enum Operations {
                         self.coverage_evidence = coverage_evidence
                         self.git_dirty = git_dirty
                         self.history_source = history_source
+                        self.coverage = coverage
                         self.build_run_id = build_run_id
                         self.skip_test_identifiers = skip_test_identifiers
                         self.git_ref = git_ref
@@ -28885,6 +29081,7 @@ public enum Operations {
                         case coverage_evidence
                         case git_dirty
                         case history_source
+                        case coverage
                         case build_run_id
                         case skip_test_identifiers
                         case git_ref
@@ -70246,6 +70443,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/build_run_id`.
                     public var build_run_id: Swift.String?
+                    /// Test module names the test runner executes alongside other modules, running the rest one at a time after them, as ExUnit does with `async: true` modules. A module plan then balances the shards' wall clock, with the concurrency their history shows, instead of summing durations. `parallelizable_modules` is the same for the suites within a module.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/concurrent_modules`.
+                    public var concurrent_modules: [Swift.String]?
                     /// The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/git_branch`.
@@ -70305,6 +70506,7 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - build_run_id: The UUID of the associated Xcode build run.
+                    ///   - concurrent_modules: Test module names the test runner executes alongside other modules, running the rest one at a time after them, as ExUnit does with `async: true` modules. A module plan then balances the shards' wall clock, with the concurrency their history shows, instead of summing durations. `parallelizable_modules` is the same for the suites within a module.
                     ///   - git_branch: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
                     ///   - gradle_build_id: The UUID of the associated Gradle build.
                     ///   - granularity: Sharding granularity level.
@@ -70319,6 +70521,7 @@ public enum Operations {
                     ///   - test_suites: Test suite names (for suite-level granularity).
                     public init(
                         build_run_id: Swift.String? = nil,
+                        concurrent_modules: [Swift.String]? = nil,
                         git_branch: Swift.String? = nil,
                         gradle_build_id: Swift.String? = nil,
                         granularity: Operations.createShardPlan.Input.Body.jsonPayload.granularityPayload? = nil,
@@ -70333,6 +70536,7 @@ public enum Operations {
                         test_suites: [Swift.String]? = nil
                     ) {
                         self.build_run_id = build_run_id
+                        self.concurrent_modules = concurrent_modules
                         self.git_branch = git_branch
                         self.gradle_build_id = gradle_build_id
                         self.granularity = granularity
@@ -70348,6 +70552,7 @@ public enum Operations {
                     }
                     public enum CodingKeys: String, CodingKey {
                         case build_run_id
+                        case concurrent_modules
                         case git_branch
                         case gradle_build_id
                         case granularity
