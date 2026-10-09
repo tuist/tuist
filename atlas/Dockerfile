@@ -36,9 +36,19 @@ ENV XDG_DATA_HOME="/aube-data"
 # proven version here keeps this build path stable.
 RUN npm install -g --ignore-scripts=false @endevco/aube@1.6.2
 
-COPY noora /noora
+# Install from the manifest alone so the install layer survives source
+# changes, then copy only what the build reads: the web component generator
+# walks components/ and lib/noora/icons/, and esbuild bundles js/ and css/.
+# A rebuilt stage hands the builder new bytes even when the bundles are the
+# same, so changes to noora's docs, storybook, or tests must not reach it.
 WORKDIR /noora
+COPY noora/package.json noora/aube-lock.yaml ./
 RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install
+COPY noora/scripts scripts
+COPY noora/components components
+COPY noora/lib/noora/icons lib/noora/icons
+COPY noora/js js
+COPY noora/css css
 RUN aube run build
 
 # ========================================
@@ -56,12 +66,10 @@ RUN mix local.hex --force && \
 
 ENV MIX_ENV="prod"
 
-# Copy the path-dependency source before running mix deps.get so mix can
-# resolve `{:noora, path: "../noora"}`. The aube-built priv/static from
-# the noora-assets stage overlays on top so Atlas can serve noora's
-# compiled CSS/JS.
-COPY noora /noora
-COPY --from=noora-assets /noora/priv/static /noora/priv/static
+# Resolving `{:noora, path: "../noora"}` only needs noora's mix files, so
+# its source comes in after the Hex dependencies are fetched and compiled.
+# A noora change then recompiles noora alone instead of every dependency.
+COPY noora/mix.exs noora/mix.lock /noora/
 
 # install mix dependencies
 COPY atlas/mix.exs atlas/mix.lock ./
@@ -70,17 +78,24 @@ RUN mkdir config
 
 # copy compile-time config files before we compile dependencies
 # to ensure any relevant config change will trigger the dependencies
-# to be re-compiled.
-COPY atlas/config/config.exs atlas/config/${MIX_ENV}.exs config/
+# to be re-compiled. Sources are literal paths: Once can't tell which files
+# a COPY with a variable reads, so it keys it on the whole build context,
+# and that differs between checkouts.
+COPY atlas/config/config.exs atlas/config/prod.exs config/
 RUN mix deps.compile
+
+# Noora's modules read README.md and the component contracts at compile
+# time. The aube-built priv/static from the noora-assets stage overlays the
+# source so Atlas can serve noora's compiled CSS/JS.
+COPY noora/README.md /noora/
+COPY noora/components /noora/components
+COPY noora/lib /noora/lib
+COPY --from=noora-assets /noora/priv/static /noora/priv/static
+RUN mix deps.compile noora --force
 
 COPY atlas/priv priv
 COPY atlas/lib lib
 COPY atlas/assets assets
-
-# Version the release independently of the image tag.
-ARG ATLAS_VERSION=0.1.0
-ENV ATLAS_VERSION=${ATLAS_VERSION}
 
 # Compile the project (generates colocated hooks needed by esbuild)
 RUN mix compile
@@ -92,14 +107,25 @@ RUN mix assets.deploy
 COPY atlas/config/runtime.exs config/
 
 COPY atlas/rel rel
-RUN mix release
+
+# Version the release independently of the image tag. mix.exs reads it, but
+# only the .app file carries it, so it's declared after compilation and only
+# the .app file is regenerated. Every release has a new version, and declaring
+# it earlier invalidated every layer above.
+ARG ATLAS_VERSION=0.1.0
+ENV ATLAS_VERSION=${ATLAS_VERSION}
+RUN mix compile.app --force && mix release
 
 # ========================================
 # Stage: Runner
 # ========================================
 FROM ${RUNNER_IMAGE}
 
-RUN apt-get update -y && \
+# The release passes its version as APT_CACHE_BUST so a cached layer never
+# holds back Debian security patches. CI leaves the default and reuses it.
+ARG APT_CACHE_BUST=0
+RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
+  && apt-get update -y && \
   apt-get install -y libstdc++6 openssl libncurses6 locales ca-certificates poppler-utils pandoc chromium fonts-liberation \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
@@ -124,7 +150,7 @@ RUN chown nobody /app
 ENV MIX_ENV="prod"
 
 # Only copy the final release from the build stage
-COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/atlas ./
+COPY --from=builder --chown=nobody:root /app/_build/prod/rel/atlas ./
 
 USER nobody
 
