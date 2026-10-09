@@ -410,10 +410,11 @@ controller's vault, address or tailnet name belong to another env.
 
 Moving the rack is two pull requests. The first is inert while the rack is in
 staging: production's Omada values (its tailnet name is `omada-production`,
-since both controllers run during the move), the ACL grants
-`tag:tuist-k8s-production` has for the rack, and the production egress
-proxies accepting routes. The second, the cutover, moves the inventory from the
-staging values to the production ones and points `ber1.json` at production.
+since both controllers run during the move), and the ACL grants
+`tag:tuist-k8s-production` has for the rack. The second, the cutover, moves the
+inventory from the staging values to the production ones, has production's
+egress proxies accept the edges' subnet routes, and points `ber1.json` at
+production.
 Production's Cilium already excludes `cilium.io/no-schedule=true`
 (`infra/k8s/mgmt/bootstrap/cilium-values.yaml`); the operator refuses to join a
 rack node until it does.
@@ -432,11 +433,7 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
 ### Before the move
 
 1. **Merge the first pull request and paste the ACL** (remote). Paste
-   `infra/tailscale/acls.json` into the admin console's Access controls. Once
-   the production deploy has rolled out the egress proxies, check that the
-   routes they now install leave their Service traffic alone:
-   `kubectl $P -n tailscale-operator exec macmini-egress-0 -- ip route show table 52`
-   lists the tailnet's subnet routes, and the proxies keep answering.
+   `infra/tailscale/acls.json` into the admin console's Access controls.
 
 2. **Copy the rack's 1Password items** (remote) from `tuist-k8s-staging` to
    `tuist-k8s-production`, byte for byte, with 1Password's own copy to another
