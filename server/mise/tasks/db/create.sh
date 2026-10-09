@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-mix ecto.create "$@"
+mix ecto.create

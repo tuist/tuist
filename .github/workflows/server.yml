@@ -320,11 +320,9 @@ jobs:
       - name: Authenticate and download the test build
         run: mix 'do' deps.compile tuist_ex + tuist.login + tuist.test --prepare-only
       # Run migrations in another process so migration regression tests can
-      # require their modules without triggering redefinition warnings. Skip
-      # compilation: Mix treats the downloaded build as stale and would
-      # recompile the whole app in every shard.
+      # require their modules without triggering redefinition warnings.
       - name: Setup database
-        run: mise run --no-deps db:reset -- --no-compile --no-deps-check
+        run: mise run --no-deps db:reset
       - name: Run shard ${{ matrix.shard }}
         run: mix tuist.test --no-download --scheme clickhouse-current --warnings-as-errors
   test-clickhouse-floor:
@@ -378,7 +376,7 @@ jobs:
       - name: Authenticate and download the test build
         run: mix 'do' deps.compile tuist_ex + tuist.login + tuist.test --prepare-only
       - name: Setup database
-        run: mise run --no-deps db:reset -- --no-compile --no-deps-check
+        run: mise run --no-deps db:reset
       - name: Run shard ${{ matrix.shard }}
         run: mix tuist.test --no-download --scheme clickhouse-floor --warnings-as-errors
   test-unsharded:

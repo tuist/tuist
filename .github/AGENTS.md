@@ -89,8 +89,6 @@ Bootstrap only `tuist_ex`, authenticate with `mix tuist.login` using GitHub
 OpenID Connect, and download with `mix tuist.test --prepare-only`. Run `db:reset`
 in a separate process before `mix tuist.test --no-download --warnings-as-errors`,
 so migration regression tests do not redefine modules already loaded by setup.
-Pass `-- --no-compile --no-deps-check` to `db:reset`; otherwise Mix treats the
-downloaded build as stale and recompiles the whole app in every shard.
 Take shard references from the build job's outputs, not the current run attempt,
 so rerunning only failed jobs reuses the original plan. Keep distinct `--scheme`
 labels for ClickHouse variants so their outcomes are not treated as flaky reruns.
