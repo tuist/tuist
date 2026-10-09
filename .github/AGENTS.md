@@ -76,7 +76,8 @@ readable project/job keys. Mix owns compiler and dependency invalidation; do not
 add lockfile-hash keys, compatibility-marker scripts or physical-path rewrites.
 Always run dependency resolution and compilation on hits. Never retain ~/.hex
 or authentication configuration. Preserve setup-server-mix's explicit
-restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
+restore-mix-cache=false callers and its `deps` callers, which attach only the
+`deps` volume. Do not add volume-specific composite wrappers.
 
 ## Server test sharding
 
@@ -93,14 +94,11 @@ so migration regression tests do not redefine modules already loaded by setup.
 Date the shard's checkout to the commit time before `db:reset`: a checkout newer
 than the downloaded build makes Mix treat `noora` and `tuist_common` as changed and
 recompile the app.
-Shards keep `restore-mix-cache: "false"` and instead restore `server/deps`
-read-only from the `actions/cache` entry the build job saves under the `mix.lock`
-key, then still run `mix deps.get`. `setup-server-mix` restores it after the mise
-install: mise-action hashes every `.tool-versions` in the workspace into its cache
-key, and some dependencies ship one. The build job and shards pass
-`mise-cache: "false"`: installing Erlang and Elixir from scratch is faster than
-restoring mise-action's archive. Postgres service health checks poll every
-second as the `postgres` role; probing as `root` logs a FATAL on every check.
+The build job and shards attach only the `deps` volume (`restore-mix-cache: deps`):
+the build job compiles from an empty `_build` and the shards download theirs. They
+also pass `mise-cache: "false"`: installing Erlang and Elixir from scratch is
+faster than restoring mise-action's archive. Postgres service health checks poll
+every second as the `postgres` role; probing as `root` logs a FATAL on every check.
 In CI, `db:reset` creates, migrates and lists migrations in one Mix process.
 Take shard references from the build job's outputs, not the current run attempt,
 so rerunning only failed jobs reuses the original plan. Keep distinct `--scheme`
