@@ -1,5 +1,8 @@
 package dev.tuist.gradle
 
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+
 import com.google.gson.Gson
 import dev.tuist.gradle.api.model.AuthenticationTokens
 import dev.tuist.gradle.services.RefreshAuthTokenService
@@ -61,6 +64,75 @@ class TokenProviderTest {
             envProvider = { envVars[it] },
             tokenCacheFactory = { CachedValueStore() }
         )
+    }
+
+    @Test
+    fun `optional publishing only omits absent credentials and never drops existing tokens`() {
+        assertNull(createProvider().getOptionalToken())
+        assertEquals("revoked-token", createProvider(envVars = mapOf("TUIST_TOKEN" to "revoked-token")).getOptionalToken())
+        assertFailsWith<TokenProvider.NotAuthenticatedException> {
+            createProvider(envVars = mapOf("TUIST_TOKEN" to "")).getOptionalToken()
+        }
+        val store = createCredentialStore()
+        writeCredentials(store, expiredJwt())
+        assertFailsWith<TokenProvider.NotAuthenticatedException> { createProvider(credentialStore = store).getOptionalToken() }
+    }
+
+    @Test
+    fun `network publishing cannot send credential-free reports to the implicit hosted destination`() {
+        for (host in listOf("tuist.dev", "www.tuist.dev", "canary.tuist.dev", "staging.tuist.dev", "cloud.tuist.io", "TUIST.DEV", "tuist.dev.", "other.tuist.dev")) {
+            val provider = ReportConfigurationProvider(
+                "company/mobile", "https://$host", tempDir,
+                TuistHttpClients(useEnvironmentProxy = false), allowNetworkTrustedPublishing = true,
+                tokenProviderFactory = { createProvider() }, serverUrlResolver = { url, _ -> url }
+            )
+            assertFailsWith<IllegalStateException> { provider.getConfiguration() }
+        }
+        val authenticated = ReportConfigurationProvider(
+            "company/mobile", ServerUrlResolver.DEFAULT_URL, tempDir,
+            TuistHttpClients(useEnvironmentProxy = false), allowNetworkTrustedPublishing = true,
+            tokenProviderFactory = { createProvider(envVars = mapOf("TUIST_TOKEN" to "existing-token")) },
+            serverUrlResolver = { url, _ -> url }
+        )
+        val config = authenticated.getConfiguration()
+        assertEquals("existing-token", config.token)
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse().setResponseCode(200))
+            val connection = TuistHttpClient(authenticated).openConnection(URI(server.url("/report").toString()), config)
+            assertEquals(200, connection.responseCode)
+            assertEquals("Bearer existing-token", server.takeRequest().getHeader("Authorization"))
+            connection.disconnect()
+        }
+    }
+
+    @Test
+    fun `host case cannot hide existing credentials including legacy filenames`() {
+        val store = createCredentialStore()
+        store.write(URI("https://tuist.dev"), Credentials("existing-token"))
+        assertEquals("existing-token", store.readValidated(URI("https://tuist.dev"))?.accessToken)
+        val canonical = File(tempDir, "credentials/tuist.dev.json")
+        assertTrue(canonical.renameTo(File(tempDir, "credentials/Tuist.Dev.json")))
+        assertEquals("existing-token", store.readValidated(URI("https://TUIST.DEV"))?.accessToken)
+        assertEquals("existing-token", store.readValidated(URI("https://tuist.dev"))?.accessToken)
+        store.write(URI("https://tuist.dev"), Credentials("refreshed-token"))
+        val files = File(tempDir, "credentials").listFiles()!!.toList()
+        assertEquals(1, files.size)
+        assertEquals("Tuist.Dev.json", files.single().name)
+        assertEquals("refreshed-token", Gson().fromJson(files.single().readText(), Credentials::class.java).accessToken)
+    }
+
+    @Test
+    fun `corrupt or empty stored credentials cannot become anonymous publishing`() {
+        val file = File(tempDir, "credentials/tuist.dev.json")
+        file.parentFile.mkdirs()
+        for (contents in listOf("not-json", "null", "{}", "{\"accessToken\":\"\"}")) {
+            file.writeText(contents)
+            assertFailsWith<IllegalStateException> { createProvider().getOptionalToken() }
+            assertEquals(contents, file.readText(), "Refusing invalid credentials must not delete them and downgrade on the next build")
+        }
+        assertFailsWith<IllegalStateException> { createProvider().getToken() }
+        assertTrue(file.exists())
     }
 
     @Test

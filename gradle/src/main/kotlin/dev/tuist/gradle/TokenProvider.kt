@@ -44,14 +44,21 @@ open class TokenProvider(
         if (!envToken.isNullOrBlank()) return envToken
 
         return try {
-            tokenCache.getValue(forceRefresh, deadlineNanos) { resolveToken(deadlineNanos) }
+            val token = tokenCache.getValue(forceRefresh, deadlineNanos) { resolveToken(deadlineNanos) }
+            if (token.isBlank()) throw NotAuthenticatedException(serverURL)
+            token
         } catch (e: TimeoutException) {
             throw InterruptedIOException("Timed out acquiring a Tuist token").apply { initCause(e) }
         }
     }
 
+    open fun getOptionalToken(forceRefresh: Boolean = false): String? {
+        if (envProvider("TUIST_TOKEN") == null && credentialStore.readValidated(serverURL) == null) return null
+        return getToken(forceRefresh)
+    }
+
     private fun resolveToken(deadlineNanos: Long?): Pair<String, Long?> {
-        val credentials = credentialStore.read(serverURL)
+        val credentials = credentialStore.readValidated(serverURL)
             ?: throw NotAuthenticatedException(serverURL)
 
         val accessToken = credentials.accessToken
