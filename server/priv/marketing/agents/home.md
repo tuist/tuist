@@ -42,7 +42,7 @@ Keep the build systems that fit the organization and use one productivity platfo
 - [Gradle](/marketing-markdown/build-systems/gradle): shared cacheable task outputs and task/test insights.
 - [Bazel](/marketing-markdown/build-systems/bazel): remote action caching and build/test reporting, not a Tuist remote execution service.
 - [Mix / Elixir](/marketing-markdown/build-systems/elixir): compilation insights, ExUnit history, flaky detection, and test sharding, not a general-purpose remote build cache.
-- [Once](/marketing-markdown/build-systems/once): shared action results and live action reporting; Tuist's integration is currently in canary.
+- [Once](/marketing-markdown/build-systems/once): make scripts cacheable and add caching without rewriting project sources or native build definitions, even without a native cache integration; Tuist support is in canary, with remote execution coming soon.
 
 ## Why Tuist
 

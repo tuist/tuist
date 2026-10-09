@@ -59,7 +59,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       markdown = MarketingMarkdown.get(path)
 
       assert String.starts_with?(markdown, "# Tuist")
-      assert markdown =~ "## Limitations"
+      if path != "/build-systems/once", do: assert(markdown =~ "## Limitations")
       refute markdown =~ "](/"
       refute markdown =~ "<script"
       refute markdown =~ "<html"
@@ -160,7 +160,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     for path <- @build_system_paths do
       markdown = MarketingMarkdown.get(path)
       assert markdown =~ "## First experiment"
-      assert markdown =~ "## Limitations"
+      if path != "/build-systems/once", do: assert(markdown =~ "## Limitations")
       assert markdown =~ "2026-10-09"
       assert MarketingMarkdown.get("/") =~ MarketingMarkdown.alternate_path(path)
       assert MarketingMarkdown.source(path) == nil
@@ -185,9 +185,14 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     once = MarketingMarkdown.get("/build-systems/once")
     assert once =~ "https://buildonce.dev/"
     assert once =~ "currently in canary"
-    assert once =~ "Canary availability is not general availability"
-    assert once =~ "Cache configuration does not establish remote execution"
-    assert once =~ "Do not infer general test insights"
+    assert once =~ "Make scripts cacheable"
+    assert once =~ "build systems that do not support it natively"
+    assert once =~ "without rewriting project sources or native build definitions"
+    assert once =~ "Script annotations or wrapper configuration"
+    assert once =~ "without rewriting the project into a new build language"
+    assert once =~ "npm run build"
+    assert once =~ "remote execution coming soon"
+    refute once =~ "## Limitations"
 
     assert MarketingMarkdown.get("/build-systems/index") == nil
     assert MarketingMarkdown.get("/build-systems/AGENTS") == nil
