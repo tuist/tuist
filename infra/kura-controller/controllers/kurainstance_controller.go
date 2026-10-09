@@ -14,6 +14,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"hash/fnv"
+	"math"
 	"math/big"
 	"net"
 	"net/http"
@@ -97,6 +98,11 @@ const (
 	// minPrimaryPodAge gives a restarted pod time to bootstrap from peers
 	// before the public Services can route cache reads to it.
 	minPrimaryPodAge = 10 * time.Minute
+
+	// minUnreadyAgeForImageReplacement separates a pod that cannot become
+	// ready on its image from one that is briefly unready, such as during a
+	// node or network blip. Only the first is replaced on an image change.
+	minUnreadyAgeForImageReplacement = 5 * time.Minute
 
 	sharedSecretsName                           = "kura-shared-secrets"
 	otlpTracesEndpointEnvVar                    = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
@@ -3429,15 +3435,23 @@ func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance 
 
 // replaceUnreadyPodsForImageChange lets a new Kura image escape a rollout that
 // the ordinary StatefulSet readiness gate cannot advance. Ready pods keep
-// serving and roll through the normal ordered path. Pods that are not ready and
-// still run the previous image are deleted in parallel so the StatefulSet
-// recreates them directly on the desired image.
+// serving and roll through the normal ordered path. Pods that have been unready
+// for at least minUnreadyAgeForImageReplacement and still run the previous
+// image are deleted in parallel so the StatefulSet recreates them directly on
+// the desired image.
 //
-// The handled image is recorded on the KuraInstance only after every deletion
-// succeeds. If the controller stops midway, the next pass retries only the
-// remaining old-image pods and ignores pods already recreated on the desired
-// image. This makes the operation safe across retries without repeatedly
-// restarting a new pod that is still bootstrapping.
+// A pod that only just became unready is left alone. The StatefulSet uses
+// Parallel pod management, so its rolling update replaces the other replica
+// without waiting for this one. Deleting a pod that is only briefly unready at
+// the same time takes down every replica for the length of the termination
+// grace period.
+//
+// The handled image is recorded on the KuraInstance only after every old-image
+// unready pod has been deleted or has recovered. If the controller stops
+// midway, the next pass retries only the remaining old-image pods and ignores
+// pods already recreated on the desired image. This makes the operation safe
+// across retries without repeatedly restarting a new pod that is still
+// bootstrapping.
 func (r *KuraInstanceReconciler) replaceUnreadyPodsForImageChange(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	if fencedServing(instance) {
 		return nil
@@ -3466,9 +3480,15 @@ func (r *KuraInstanceReconciler) replaceUnreadyPodsForImageChange(ctx context.Co
 		return err
 	}
 
+	now := time.Now().UTC()
+	waiting := false
 	for i := range pods.Items {
 		pod := &pods.Items[i]
 		if pod.DeletionTimestamp != nil || podReady(pod) || podKuraImage(pod) == instance.Spec.Image {
+			continue
+		}
+		if podUnreadyFor(pod, now) < minUnreadyAgeForImageReplacement {
+			waiting = true
 			continue
 		}
 		if err := r.Delete(ctx, pod, client.Preconditions{UID: &pod.UID, ResourceVersion: &pod.ResourceVersion}); err != nil && !apierrors.IsNotFound(err) {
@@ -3484,6 +3504,9 @@ func (r *KuraInstanceReconciler) replaceUnreadyPodsForImageChange(ctx context.Co
 			instance.Spec.Image,
 		)
 	}
+	if waiting {
+		return nil
+	}
 
 	before := instance.DeepCopy()
 	if instance.Annotations == nil {
@@ -3491,6 +3514,24 @@ func (r *KuraInstanceReconciler) replaceUnreadyPodsForImageChange(ctx context.Co
 	}
 	instance.Annotations[unreadyPodsReplacedForImageAnnotation] = instance.Spec.Image
 	return r.Patch(ctx, instance, client.MergeFrom(before))
+}
+
+// podUnreadyFor reports how long a pod has been unready: since its Ready
+// condition last turned false, or since creation when it has never reported
+// one. A pod with neither timestamp has no evidence of being recent, so it
+// reads as unready for an unbounded time.
+func podUnreadyFor(pod *corev1.Pod, now time.Time) time.Duration {
+	since := pod.CreationTimestamp.Time
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodReady && !condition.LastTransitionTime.IsZero() {
+			since = condition.LastTransitionTime.Time
+			break
+		}
+	}
+	if since.IsZero() {
+		return time.Duration(math.MaxInt64)
+	}
+	return now.Sub(since)
 }
 
 func podKuraImage(pod *corev1.Pod) string {
