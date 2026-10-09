@@ -12,16 +12,26 @@ This directory contains database migrations and other private assets.
   pod index and the open-first/most-recent-closed lookup semantics. Validate
   index write overhead locally; do not replay session-closing writes in production.
 - If `20261009080000_index_closed_runner_sessions_by_pod.exs` is interrupted,
-  a same-named INVALID index may remain and prevent retries. In the affected
-  schema, inspect `pg_index.indisvalid`/`indisready` and
-  `pg_stat_progress_create_index` for
-  `runner_sessions_closed_pod_name_started_at_index`. Only after confirming the
-  index is invalid and no build is active, an explicitly authorized operator
-  should run `DROP INDEX CONCURRENTLY <schema>.runner_sessions_closed_pod_name_started_at_index`
-  outside a transaction, then retry the migration. Never drop a valid or
-  actively building index, and never use `create_if_not_exists` to hide failure.
-  Recovery is intentionally manual so a retry cannot drop another job's active
-  build. Local migration validation does not authorize production recovery.
+  the database build may continue after the migration job disconnects. A retry
+  accepts a valid, ready, live index only when its table, nonunique B-tree keys,
+  collation/operator classes/sort order, lack of included columns, and
+  `ended_at IS NOT NULL` predicate match the full canonical definition.
+  This recovers a completed index whose migration-history entry was not saved,
+  without rebuilding or dropping it. Retrying an invalid/incomplete index or a
+  different definition raises rather than silently marking the migration done.
+- For manual recovery, inspect `pg_index.indisvalid`/`indisready`/`indislive`,
+  `pg_get_indexdef`, and `pg_stat_progress_create_index` in the affected schema
+  for `runner_sessions_closed_pod_name_started_at_index`. The migration hook's
+  retries can be exhausted while the database build continues; a failed hook
+  is the signal to investigate, not permission to remove an active build.
+  Once no build is active, a valid matching index is recovered by retrying the
+  migration. An invalid index requires an explicitly authorized operator using
+  the table owner/migration role, not the runtime role, to run
+  `DROP INDEX CONCURRENTLY <schema>.runner_sessions_closed_pod_name_started_at_index`
+  outside a transaction before retrying. Investigate a mismatched definition
+  separately; never automatically drop a valid or actively building index and
+  never use `create_if_not_exists` to hide failure. Local validation does not
+  authorize production recovery.
 - GitHub Enterprise split-host/proxy setup is documented in `docs/en/guides/integrations/gitforge/github.md`. The nullable installation `api_url` is transport metadata; it does not replace canonical `client_url`, webhook identity, or existing project connections. Its migration uses `20261007160000`; the prototype `20261006110000` collided with main's absolute bundle-threshold migration. Reconcile any locally applied prototype history against the actual columns before migrating.
 - ClickHouse migrations: `server/priv/ingest_repo/migrations`
 - Marketing changelog entries: `server/priv/marketing/changelog`

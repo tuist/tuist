@@ -9,6 +9,12 @@ This directory contains ExUnit tests for the Tuist Server.
 - Public overview coverage exercises populated initial HTML and sharing metadata for all five build systems, tracking-variant cache reuse, HTTP/LiveView challenge scope, and warmed public-to-private authorization. Cache tests use isolated processes or unique project IDs; never clear the shared overview cache in async test setup. Exercise eight-widget initial HTML under slow loads for one and multiple cold projects as well as connected recovery, assert signed-in users bypass warmed anonymous values/admission and bundle app options recover without nested admission, assert retained worker slots and strict loader concurrency, and reject backend calls when unverified visitors apply UI filters or mount with selected-run parameters.
 - Tests are `async: true` by default; avoid global state and make architectural changes to support concurrency.
 - Tests run with a clean database.
+- Concurrent-index migration regression tests use dedicated disposable schemas
+  and `Sandbox.checkout(Repo, sandbox: false)` so concurrent DDL is not hidden
+  inside a transaction or reduced to temporary-table behavior. Cover completed
+  orphan adoption, invalid/mismatched index refusal, prefix resolution, and rollback.
+  Session-setting tests must use test-owned dynamic repo pools so a killed test
+  cannot leak settings into the shared sandbox pool.
 - GitHub Enterprise API-override coverage spans signed-state compatibility, schema validation, proxy token/comment/App-JWT requests, canonical pagination rebasing, SSRF/redirect guards (including runner-log archive hops), tenant-isolated caches, browser links, and account-scoped edits that preserve installations and project connections.
 - Successful Mix compile-reporter ingestion fixtures must include a profiled file; idle compiles intentionally emit no report. Error diagnostics still report without profiled files.
 - Open Graph regressions cover published legacy URLs, stable marketing/docs tokens, project-token expiry, handle reuse, visibility rechecks (including 304s and transient images), project-only retention, and exclusion of restricted automation configuration.
