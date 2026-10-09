@@ -86,6 +86,12 @@ on:
       egress_tree_agent_image_tag:
         description: Pre-built egress-tree-agent image tag to pin (e.g. `sha-537c990cae68`, built by egress-tree-agent-image.yml); wins over the resolved `egress-tree-agent@*` semver. Use to validate an in-flight BPF/HTB change on staging before tagging a release.
         required: false
+      stable_egress_controller_image_tag:
+        description: Pre-built stable-egress-controller image tag to pin (e.g. `sha-1a2b3c4d5e6f`, built by stable-egress-controller-image.yml); wins over the resolved `stable-egress-controller@*` semver in the platform chart.
+        required: false
+      runner_egress_gateway_image_tag:
+        description: Pre-built runner-egress-gateway image tag to pin (e.g. `sha-1a2b3c4d5e6f`, built by runner-egress-gateway-image.yml); wins over the resolved `runner-egress-gateway@*` semver in the platform chart.
+        required: false
   workflow_call:
     inputs:
       staging_platform_revision:
@@ -188,6 +194,20 @@ on:
           unset, the deploy job resolves the latest `egress-tree-agent@*`
           semver tag. Use to validate an in-flight BPF/HTB change on
           staging before tagging a release.
+        required: false
+        type: string
+      stable_egress_controller_image_tag:
+        description: >-
+          Pre-built stable-egress-controller image tag to pin in the
+          platform chart. When unset, k8s:install-platform resolves the
+          latest `stable-egress-controller@*` semver tag.
+        required: false
+        type: string
+      runner_egress_gateway_image_tag:
+        description: >-
+          Pre-built runner-egress-gateway image tag to pin in the platform
+          chart. When unset, k8s:install-platform resolves the latest
+          `runner-egress-gateway@*` semver tag.
         required: false
         type: string
 
@@ -668,6 +688,8 @@ jobs:
         # values it knows are secrets; values derived at runtime aren't).
         env:
           CLUSTER_NAME: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
+          STABLE_EGRESS_CONTROLLER_IMAGE_TAG: ${{ inputs.stable_egress_controller_image_tag }}
+          RUNNER_EGRESS_GATEWAY_IMAGE_TAG: ${{ inputs.runner_egress_gateway_image_tag }}
         run: |
           set -euo pipefail
           CLOUDFLARE_API_TOKEN="$(kubectl -n platform get secret cloudflare-api-token \
