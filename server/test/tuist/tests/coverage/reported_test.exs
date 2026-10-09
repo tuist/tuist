@@ -401,9 +401,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run.id)
 
     for target <- targets do
-      XcodeFixtures.xcode_target_fixture(
-        [command_event_id: event.id, name: target, binary_cache_hit: :local] ++ opts
-      )
+      XcodeFixtures.xcode_target_fixture([command_event_id: event.id, name: target, binary_cache_hit: :local] ++ opts)
     end
   end
 
@@ -747,6 +745,49 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
              carried_tests_count: 2,
              gap_files_count: 0
            } = Reported.compute(project, "head")
+  end
+
+  test "carries each of more skipped tests than one query names, from one read of their runs", %{
+    project: project,
+    account: account
+  } do
+    names = Enum.map(1..600, &"test#{&1}()")
+
+    base =
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [file("Sources/Math.swift", [1, 1, 0]), file("Tests/AppTests.swift", [1, 1], is_test: true)],
+        %{
+          git_commit_sha: "base",
+          test_modules: modules(Enum.map(names, &test_case(&1, "MathTests"))),
+          coverage_evidence: %{
+            paths: ["Sources/Math.swift", "Tests/AppTests.swift"],
+            scopes:
+              Enum.map(
+                names,
+                &%{kind: "test", module: "AppTests", suite: "MathTests", name: &1, files: [0, 1], lines: [[1, 2], [1, 1]]}
+              )
+          }
+        }
+      )
+
+    # The target's inputs changed, so its tests carry one by one.
+    selective_testing(project, base, [{"AppTests", :miss, "app"}])
+    skipped_head(project, account, [{"AppTests", :local, "app-changed"}])
+
+    test_pid = self()
+
+    stub(ClickHouseRepo, :all, fn query ->
+      if inspect(query) =~ "argMin", do: send(test_pid, {:nearest_runs, inspect(query) =~ "scope_id IN"})
+      call_original(ClickHouseRepo, :all, [query])
+    end)
+
+    assert %{kind: "reported", skipped_tests_count: 600, carried_tests_count: 600, carried_from: ["base"]} =
+             Reported.compute(project, "head")
+
+    assert_received {:nearest_runs, false}
+    refute_received {:nearest_runs, _filtered}
   end
 
   test "carries no target whose inputs hashed differently where its evidence comes from", %{

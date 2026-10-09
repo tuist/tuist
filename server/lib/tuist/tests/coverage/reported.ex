@@ -432,31 +432,24 @@ defmodule Tuist.Tests.Coverage.Reported do
     %{skipping | gaps: skipping.gaps ++ selected}
   end
 
-  defp tuist_skipped(_context, {_runs, [], [], _clean}), do: %{skipped: [], gaps: [], ancestry: nil, hashes: nil}
+  defp tuist_skipped(_context, {_runs, [], [], _clean}), do: %{skipped: [], gaps: [], ancestry: nil, hashes: %{}}
 
   defp tuist_skipped(%{project: project, repository_id: repository_id, sha: sha} = context, runs) do
     # A commit that changes a tracked file carries nothing.
     if changes_tracked_files?(context),
-      do: %{skipped: [], gaps: [:tracked_file_changed], ancestry: [], hashes: nil},
+      do: %{skipped: [], gaps: [:tracked_file_changed], ancestry: [], hashes: %{}},
       else: skipped_tests(project, repository_id, sha, runs)
   end
 
   defp skipped_tests(_project, repository_id, _sha, _runs) when repository_id in [nil, 0],
-    do: %{skipped: [], gaps: [:no_ancestor], ancestry: [], hashes: nil}
+    do: %{skipped: [], gaps: [:no_ancestor], ancestry: [], hashes: %{}}
 
   defp skipped_tests(project, repository_id, sha, {runs, hits, skips, clean}) do
     modules = Enum.uniq(Enum.map(hits, & &1.name) ++ Enum.map(skips, &hd/1))
     ancestry = ancestor_runs(project.id, repository_id, sha)
-    executed = executed_modules(project.id, Enum.map(ancestry, & &1.test_run_id), modules)
-    # Only the runs that executed a skipped module can be where its tests or
-    # its evidence come from, so only their hashes are read.
-    hashes =
-      if hits == [],
-        do: nil,
-        else: target_hashes(project.id, executed |> Enum.map(&elem(&1, 0)) |> Enum.uniq())
-
     schemes = runs |> Enum.concat(clean) |> Map.new(&{&1.test_run_id, &1.scheme})
-    inventory = inventory(ancestry, executed, project.id, preferences(hits, skips, schemes, hashes))
+    {sources, hashes} = sources(project.id, ancestry, modules, preferences(hits, skips, schemes))
+    inventory = inventory(project.id, sources)
 
     candidates =
       Enum.flat_map(hits, &Map.get(inventory, &1.name, [])) ++
@@ -501,48 +494,79 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp same_name?(name, name), do: true
   defp same_name?(name, given), do: name == given <> "()"
 
-  defp preferences(hits, skips, schemes, ancestry_hashes) do
-    hit_hashes = Enum.group_by(hits, & &1.name, & &1.hash)
-
-    same_hash =
-      (ancestry_hashes || [])
-      |> Enum.filter(&(&1.hash in Map.get(hit_hashes, &1.name, [])))
-      |> MapSet.new(&{&1.test_run_id, &1.name})
-
+  defp preferences(hits, skips, schemes) do
     skipped_by =
       hits
       |> Enum.map(&{&1.name, schemes[&1.test_run_id]})
       |> Enum.concat(Enum.map(skips, &{hd(&1), nil}))
       |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
 
-    %{same_hash: same_hash, schemes: skipped_by}
+    %{hashes: Enum.group_by(hits, & &1.name, & &1.hash), schemes: skipped_by}
   end
 
-  defp inventory([], _executed, _project_id, _preferences), do: %{}
+  # Each skipped module's source run, and the hashes read along the way, by
+  # run. The ancestors are read nearest first a chunk at a time, keeping the
+  # best run per module, and a module is settled once its best run is as
+  # preferred as any can be: the runs further back only rank lower. Only the
+  # chunks needed are read, and only one run per module is kept.
+  defp sources(_project_id, [], _modules, _preferences), do: {%{}, %{}}
 
-  defp inventory(ancestry, executed, project_id, preferences) do
-    by_id = Map.new(ancestry, &{&1.test_run_id, &1})
+  defp sources(project_id, ancestry, modules, preferences) do
+    ancestry
+    |> Enum.sort_by(&source_rank/1)
+    |> Enum.chunk_every(@run_id_chunk)
+    |> Enum.reduce_while({%{}, %{}, modules}, fn runs, {best, hashes, pending} ->
+      by_id = Map.new(runs, &{&1.test_run_id, &1})
+      executed = executed_modules(project_id, Map.keys(by_id), pending)
 
-    sources =
-      executed
-      |> Enum.group_by(&elem(&1, 1), &by_id[elem(&1, 0)])
-      |> Map.new(fn {module, runs} ->
-        {module, Enum.min_by(runs, &inventory_rank(&1, module, preferences)).test_run_id}
-      end)
+      hashes =
+        if preferences.hashes == %{},
+          do: hashes,
+          else: Map.merge(hashes, run_hashes(project_id, executed |> Enum.map(&elem(&1, 0)) |> Enum.uniq(), modules))
 
+      best =
+        Enum.reduce(executed, best, fn {run_id, module}, best ->
+          candidate = {inventory_rank(by_id[run_id], module, hashes, preferences), run_id}
+          Map.update(best, module, candidate, &min(&1, candidate))
+        end)
+
+      case Enum.reject(pending, &settled?(best[&1], &1, preferences)) do
+        [] -> {:halt, {best, hashes, []}}
+        pending -> {:cont, {best, hashes, pending}}
+      end
+    end)
+    |> then(fn {best, hashes, _pending} ->
+      {Map.new(best, fn {module, {_rank, run_id}} -> {module, run_id} end), hashes}
+    end)
+  end
+
+  defp settled?(nil, _module, _preferences), do: false
+
+  defp settled?({{narrowed, other_hash, other_scheme, _rank}, _run_id}, module, preferences) do
+    not narrowed and other_hash == not Map.has_key?(preferences.hashes, module) and
+      other_scheme == (Map.get(preferences.schemes, module, []) == [])
+  end
+
+  defp inventory(project_id, sources) do
     sources
     |> Enum.group_by(&elem(&1, 1), &elem(&1, 0))
     |> Enum.flat_map(fn {run_id, run_modules} -> run_tests(project_id, run_id, run_modules) end)
     |> Enum.group_by(& &1.module_name)
   end
 
-  defp inventory_rank(run, module, %{same_hash: same_hash, schemes: schemes}) do
-    {Map.get(run, :only_test_identifiers, []) != [], not MapSet.member?(same_hash, {run.test_run_id, module}),
-     run.scheme not in Map.get(schemes, module, []), source_rank(run)}
+  defp inventory_rank(run, module, hashes, %{hashes: hit_hashes, schemes: schemes}) do
+    reported = hashes |> Map.get(run.test_run_id, %{}) |> Map.get(module, [])
+    same_hash = Enum.any?(reported, &(&1 in Map.get(hit_hashes, module, [])))
+
+    {Map.get(run, :only_test_identifiers, []) != [], not same_hash, run.scheme not in Map.get(schemes, module, []),
+     source_rank(run)}
   end
+
+  defp executed_modules(_project_id, _run_ids, []), do: []
 
   defp executed_modules(project_id, run_ids, modules) do
     for runs <- Enum.chunk_every(run_ids, @run_id_chunk),
+        modules <- Coverage.id_chunks(modules, length(runs)),
         pair <-
           ClickHouseRepo.all(
             from(r in TestCaseRun,
@@ -659,27 +683,31 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   defp target_units(by_module, context, hashes, ranked, source_runs) do
     project_id = context.project.id
-    held = evidence_runs(project_id, Map.keys(by_module), ranked, "target")
-    held_runs = MapSet.new(held, &elem(&1, 1))
+    modules = Map.keys(by_module)
 
-    # The ancestry's hashes, when finding what was skipped already read them.
-    known =
-      case context.hashes do
-        nil -> target_hashes(project_id, MapSet.to_list(held_runs))
-        all -> Enum.filter(all, &MapSet.member?(held_runs, &1.test_run_id))
+    # Nearest first, a chunk of runs at a time: a module is settled by the
+    # first run that holds its evidence and hashed it as the hit did. The
+    # hashes finding what was skipped read are reused.
+    ranked
+    |> Enum.chunk_every(@run_id_chunk)
+    |> Enum.reduce_while({%{}, modules, context.hashes}, fn runs, {chosen, pending, known} ->
+      held = evidence_runs(project_id, pending, runs, "target")
+      unread = held |> Enum.map(&elem(&1, 1)) |> Enum.uniq() |> Enum.reject(&Map.has_key?(known, &1))
+      known = Map.merge(known, run_hashes(project_id, unread, modules))
+
+      found =
+        held
+        |> Enum.filter(fn {module, run_id} -> hashes[module] in Map.get(known[run_id], module, []) end)
+        |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+        |> Map.new(fn {module, run_ids} -> {module, Enum.min_by(run_ids, &source_rank(source_runs[&1]))} end)
+
+      case pending -- Map.keys(found) do
+        [] -> {:halt, {Map.merge(chosen, found), [], known}}
+        pending -> {:cont, {Map.merge(chosen, found), pending, known}}
       end
-
-    same_hash =
-      known
-      |> Enum.filter(&(&1.hash == hashes[&1.name]))
-      |> MapSet.new(&{&1.test_run_id, &1.name})
-
-    held
-    |> Enum.filter(fn {module, run_id} -> MapSet.member?(same_hash, {run_id, module}) end)
-    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-    |> Enum.map(fn {module, run_ids} ->
-      run_id = Enum.min_by(run_ids, &source_rank(source_runs[&1]))
-
+    end)
+    |> elem(0)
+    |> Enum.map(fn {module, run_id} ->
       %{
         kind: :target,
         key: {:module, module},
@@ -719,29 +747,37 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   # Each scope's nearest run holding its evidence, picked in ClickHouse a
   # chunk of runs at a time, nearest first, so the scopes found in the
-  # nearest runs are never looked for again further back.
+  # nearest runs are never looked for again further back. The scope ids are
+  # scattered over the runs' sort order, so a query filtered by a slice of
+  # them still reads most of the chunk: past one slice, the chunk is read
+  # once for every scope and the ones not looked for are dropped here.
   defp nearest_runs(_project_id, [], _ranked, _kind), do: %{}
 
   defp nearest_runs(project_id, scope_ids, ranked, kind) do
     ranked
     |> Enum.chunk_every(@run_id_chunk)
     |> Enum.reduce_while({scope_ids, %{}}, fn runs, {pending, found} ->
+      query =
+        from(f in CoverageFile,
+          where: f.project_id == ^project_id and f.scope_kind == ^kind and f.test_run_id in ^runs,
+          group_by: f.scope_id,
+          select:
+            {f.scope_id, fragment("toString(argMin(?, indexOf(?, toString(?))))", f.test_run_id, ^runs, f.test_run_id)}
+        )
+
       chosen =
-        for chunk <- Coverage.id_chunks(pending, 2 * length(runs)),
-            {scope_id, run_id} <-
-              ClickHouseRepo.all(
-                from(f in CoverageFile,
-                  where:
-                    f.project_id == ^project_id and f.scope_kind == ^kind and f.scope_id in ^chunk and
-                      f.test_run_id in ^runs,
-                  group_by: f.scope_id,
-                  select:
-                    {f.scope_id,
-                     fragment("toString(argMin(?, indexOf(?, toString(?))))", f.test_run_id, ^runs, f.test_run_id)}
-                )
-              ),
-            into: %{},
-            do: {scope_id, run_id}
+        case Coverage.id_chunks(pending, 2 * length(runs)) do
+          [ids] ->
+            query |> where([f], f.scope_id in ^ids) |> ClickHouseRepo.all() |> Map.new()
+
+          _slices ->
+            wanted = MapSet.new(pending)
+
+            for {scope_id, _run_id} = row <- ClickHouseRepo.all(query),
+                MapSet.member?(wanted, scope_id),
+                into: %{},
+                do: row
+        end
 
       found = Map.merge(found, chosen)
 
@@ -959,6 +995,23 @@ defmodule Tuist.Tests.Coverage.Reported do
       target |> Map.delete(:command_event_id) |> Map.put(:test_run_id, events[target.command_event_id])
     end)
     |> Enum.uniq()
+  end
+
+  # The hashes each run reported for the given targets, by run and target. A
+  # run that reported none still gets an entry, so it is not read again.
+  defp run_hashes(_project_id, [], _names), do: %{}
+
+  defp run_hashes(project_id, run_ids, names) do
+    names = MapSet.new(names)
+
+    hashes =
+      project_id
+      |> target_hashes(run_ids)
+      |> Enum.filter(&MapSet.member?(names, &1.name))
+      |> Enum.group_by(& &1.test_run_id)
+      |> Map.new(fn {run_id, targets} -> {run_id, Enum.group_by(targets, & &1.name, & &1.hash)} end)
+
+    run_ids |> Map.new(&{&1, %{}}) |> Map.merge(hashes)
   end
 
   defp command_events(project_id, run_ids) do
