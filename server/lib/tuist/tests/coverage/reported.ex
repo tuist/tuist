@@ -199,18 +199,18 @@ defmodule Tuist.Tests.Coverage.Reported do
     |> Map.put(:carried_lines, carried_lines)
   end
 
-  # A commit that changes a tracked file itself carries nothing: every
-  # ancestor's evidence predates the change, so it is decided before any of
-  # it is read. Only an ancestor from before a change this commit undoes
-  # would still qualify, which is not worth carrying for. Without either
-  # listing, each source is checked as usual.
+  # A commit whose tracked files differ from every parent's carries nothing:
+  # every ancestor's evidence predates the change, so it is decided before
+  # any of it is read. Only an ancestor from before a change this commit
+  # undoes would still qualify, which is not worth carrying for. A merge
+  # whose tracked files match one parent's can still carry from that side.
+  # Without the listings, each source is checked as usual.
   defp changes_tracked_files?(%{repository_id: repository_id}) when repository_id in [nil, 0], do: false
 
   defp changes_tracked_files?(context) do
     with now when now != :unknown <- tracked(context, context.sha),
-         parent when is_binary(parent) <- GitHistory.first_parent(context.repository_id, context.sha),
-         before when before != :unknown <- tracked(context, parent) do
-      before != now
+         [_ | _] = parents <- GitHistory.parents(context.repository_id, context.sha) do
+      Enum.all?(parents, &(tracked(context, &1) not in [now, :unknown]))
     else
       _ -> false
     end

@@ -1061,6 +1061,29 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{kind: "reported", carried_tests_count: 1, carried_from: ["root"]} = Reported.compute(project, "head")
   end
 
+  test "a merge commit carries from the merged side that made its tracked-file change", %{
+    project: project,
+    account: account
+  } do
+    track_default_files()
+
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("feature", ["base"], 0),
+      CoverageFixtures.commit("head", ["base", "feature"], 1)
+    ])
+
+    base_run(project, account, sha: "feature")
+    head_run(project, account, head_files())
+
+    repository_id = CoverageFixtures.repository_id(account)
+    listing = fn blob -> [%{path: "Package.resolved", git_blob_id: blob, mode: 0o100644}] end
+    GitHistory.record_listing(repository_id, "base", listing.("one"), files_count: 1)
+    GitHistory.record_listing(repository_id, "feature", listing.("two"), files_count: 1)
+    GitHistory.record_listing(repository_id, "head", listing.("two"), files_count: 1)
+
+    assert %{kind: "reported", carried_tests_count: 1, carried_from: ["feature"]} = Reported.compute(project, "head")
+  end
+
   test "without the head's listing, whether a tracked file changed is unknown and nothing is carried", %{
     project: project,
     account: account

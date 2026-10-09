@@ -773,11 +773,12 @@ defmodule Tuist.GitHistory do
     Repo.exists?(from(c in Commit, where: c.repository_id == ^repository_id and c.sha == ^sha))
   end
 
-  @doc "The commit's first parent, or nil when no edge from it is stored."
-  def first_parent(repository_id, sha) do
-    Repo.one(
+  @doc "The commit's parents in Git's order, as far as their edges are stored."
+  def parents(repository_id, sha) do
+    Repo.all(
       from(p in CommitParent,
-        where: p.repository_id == ^repository_id and p.child_sha == ^sha and p.position == 0,
+        where: p.repository_id == ^repository_id and p.child_sha == ^sha,
+        order_by: p.position,
         select: p.parent_sha
       )
     )
