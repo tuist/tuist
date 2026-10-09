@@ -70,6 +70,11 @@
             resultBundlePath: String? = nil,
             mode: TestProcessingMode? = nil
         ) async throws {
+            if Environment.current.isVariableTruthy(XcodeBuildEnvironment.enumeratingTestsVariable) {
+                Logger.current.debug("Inspect test: skipping the result bundle of a test enumeration")
+                return
+            }
+
             if Environment.current.variables["TUIST_INSPECT_TEST_WAIT"] != "YES",
                Environment.current.workspacePath != nil
             {

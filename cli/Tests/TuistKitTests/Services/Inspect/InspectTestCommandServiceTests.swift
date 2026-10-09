@@ -416,4 +416,25 @@ struct InspectTestCommandServiceTests {
             )
             .called(1)
     }
+
+    @Test(.withMockedEnvironment())
+    func run_does_nothing_from_a_test_enumeration() async throws {
+        // Given
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables = [XcodeBuildEnvironment.enumeratingTestsVariable: "1"]
+        mockedEnvironment.workspacePath = "/tmp/path"
+        mockedEnvironment.currentExecutablePathStub = "/usr/bin/tuist"
+
+        given(backgroundProcessRunner)
+            .runInBackground(.any, environment: .any)
+            .willReturn()
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(backgroundProcessRunner)
+            .runInBackground(.any, environment: .any)
+            .called(0)
+    }
 }

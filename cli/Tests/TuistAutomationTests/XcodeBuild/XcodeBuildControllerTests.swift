@@ -526,6 +526,41 @@ struct XcodeBuildControllerTests {
             passthroughXcodeBuildArguments: ["-xctestrun", xctestrunPath.pathString]
         )
     }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func enumerateTests_tells_the_scheme_actions_it_is_enumerating() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcworkspacePath = temporaryDirectory.appending(component: "Project.xcworkspace")
+        let outputPath = temporaryDirectory.appending(component: "tests.json")
+        let target = XcodeBuildTarget.workspace(xcworkspacePath)
+
+        let command = ["/usr/bin/xcrun", "xcodebuild", "test-without-building", "-scheme", "Project"]
+            + target.xcodebuildArguments
+            + [
+                "-enumerate-tests",
+                "-test-enumeration-style", "flat",
+                "-test-enumeration-format", "json",
+                "-test-enumeration-output-path", outputPath.pathString,
+            ]
+        commandRunner.succeedCommand(command, output: "output")
+
+        // When
+        try await subject.enumerateTests(
+            target,
+            scheme: "Project",
+            destination: nil,
+            rosetta: false,
+            derivedDataPath: nil,
+            testPlan: nil,
+            passthroughXcodeBuildArguments: [],
+            outputPath: outputPath
+        )
+
+        // Then
+        #expect(commandRunner.called(command))
+        #expect(commandRunner.env[XcodeBuildEnvironment.enumeratingTestsVariable] == "1")
+    }
 }
 
 extension AsyncSequence {

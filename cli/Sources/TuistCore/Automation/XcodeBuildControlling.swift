@@ -30,6 +30,10 @@ public enum XcodeBuildTestAction: Equatable {
 /// caller scopes it to one invocation without every `XcodeBuildControlling` method carrying it.
 public enum XcodeBuildEnvironment {
     @TaskLocal public static var additionalVariables: [String: String] = [:]
+
+    /// Set on `xcodebuild -enumerate-tests`, which runs the scheme's test post-actions and leaves a
+    /// result bundle without test results in the derived data, so `tuist inspect test` skips it.
+    public static let enumeratingTestsVariable = "TUIST_ENUMERATING_TESTS"
 }
 
 @Mockable

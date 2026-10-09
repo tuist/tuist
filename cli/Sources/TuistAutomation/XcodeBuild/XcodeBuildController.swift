@@ -461,7 +461,9 @@ extension XcodeBuildController {
 
         let command = ["/usr/bin/xcrun", "xcodebuild"] + arguments
         Logger.current.debug("Enumerating tests: \(command.joined(separator: " "))")
-        _ = try await commandRunner.run(arguments: command, environment: Environment.current.variables)
+        var environment = Environment.current.variables
+        environment[XcodeBuildEnvironment.enumeratingTestsVariable] = "1"
+        _ = try await commandRunner.run(arguments: command, environment: environment)
             .concatenatedString()
     }
 
