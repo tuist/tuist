@@ -209,6 +209,71 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
            ] = ExUnitFormatter.take_deferred()
   end
 
+  describe "enumerated tests" do
+    defp deferred_run(events, opts) do
+      {:ok, pid} =
+        GenServer.start_link(
+          ExUnitFormatter,
+          [environment: &environment/1, mode: {:defer, self()}] ++ opts
+        )
+
+      send_lifecycle(pid, [{:suite_started, []}] ++ events ++ [{:suite_finished, %{run: 1_000}}])
+      :ok = GenServer.stop(pid)
+      assert [{payload, _opts, _aborted?}] = ExUnitFormatter.take_deferred()
+      payload
+    end
+
+    defp described(name, describe) do
+      new_test(
+        name: :"test #{describe} #{name}",
+        tags: %{describe: describe, test_type: :test, file: "test/some_test.exs", line: 1}
+      )
+    end
+
+    test "lists every test of a full run, as its test cases identify it" do
+      payload =
+        deferred_run(
+          [
+            {:test_finished, described("rejects an empty cart", "create_order/2")},
+            {:test_finished, new_test(name: :"test adds", state: {:failed, []})}
+          ],
+          enumerate: true
+        )
+
+      assert %{tests: tests, project: %{files: files}} = payload.enumeration
+      assert is_list(files)
+
+      assert tests == [
+               %{
+                 module: "SomeModuleTest",
+                 suite: "create_order/2",
+                 name: "rejects an empty cart"
+               },
+               %{module: "SomeModuleTest", suite: "", name: "adds"}
+             ]
+    end
+
+    test "lists the tests a filter such as --only left out, without reporting them as run" do
+      payload =
+        deferred_run(
+          [
+            {:test_finished, new_test(name: :"test selected")},
+            {:test_finished, new_test(name: :"test left out", state: {:excluded, "due to only"})}
+          ],
+          enumerate: true
+        )
+
+      assert [%{test_cases: [%{name: "selected"}]}] = payload.test_modules
+
+      assert Enum.map(payload.enumeration.tests, & &1.name) == ["selected", "left out"]
+    end
+
+    test "lists nothing unless asked" do
+      payload = deferred_run([{:test_finished, new_test([])}], [])
+      refute Map.has_key?(payload, :enumeration)
+    end
+  end
+
   test "reports the execution variant as the run scheme" do
     {:ok, pid} =
       GenServer.start_link(ExUnitFormatter,

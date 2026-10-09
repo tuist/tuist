@@ -37,10 +37,11 @@ defmodule TuistEx.Analytics.Coverage do
       end)
   end
 
-  defp files?([switch, _value | rest]) when switch in @value_switches, do: files?(rest)
-  defp files?(["-" <> _ | rest]), do: files?(rest)
-  defp files?([_file | _rest]), do: true
-  defp files?([]), do: false
+  @doc "Whether the arguments name test files or lines."
+  def files?([switch, _value | rest]) when switch in @value_switches, do: files?(rest)
+  def files?(["-" <> _ | rest]), do: files?(rest)
+  def files?([_file | _rest]), do: true
+  def files?([]), do: false
 
   @doc """
   The counters `cover` holds, one entry per source file with its lines and

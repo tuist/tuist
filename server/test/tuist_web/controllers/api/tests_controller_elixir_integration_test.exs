@@ -11,8 +11,10 @@ defmodule TuistWeb.API.TestsControllerElixirIntegrationTest do
   alias Tuist.ClickHouseRepo
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunByTestRun
+  alias TuistEx.Analytics.Enumeration
   alias TuistEx.Analytics.ExUnitFormatter
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
 
@@ -176,6 +178,56 @@ defmodule TuistWeb.API.TestsControllerElixirIntegrationTest do
       )
 
     assert length(projected) == length(test_case_runs)
+  end
+
+  test "records a Mix run's enumerated tests under the ids its test case runs carry", %{
+    conn: conn,
+    user: user,
+    project: project
+  } do
+    # How `mix tuist.test --cover` reports: deferred, then completed and sent.
+    {:ok, pid} =
+      GenServer.start_link(ExUnitFormatter,
+        environment: &environment/1,
+        mode: {:defer, self()},
+        enumerate: true
+      )
+
+    events = [
+      {:suite_started, []},
+      {:test_finished,
+       new_test(
+         name: :"test cart adds an item",
+         module: ShopTest,
+         tags: %{describe: "cart", test_type: :test, file: "test/shop_test.exs", line: 3}
+       )},
+      {:test_finished,
+       new_test(
+         name: :"test ships",
+         module: ShopTest,
+         state: {:excluded, "due to only filter"},
+         tags: %{describe: nil, test_type: :test, file: "test/shop_test.exs", line: 9}
+       )},
+      {:suite_finished, %{run: 1_000}}
+    ]
+
+    Enum.each(events, &GenServer.cast(pid, &1))
+    :ok = GenServer.stop(pid)
+
+    assert [{payload, _opts, false}] = ExUnitFormatter.take_deferred()
+    {%{tests: tests, project: enumeration_project}, payload} = Map.pop(payload, :enumeration)
+    payload = Map.put(payload, :enumerated_tests, Enumeration.complete(tests, enumeration_project, false))
+
+    conn = post(conn, "/api/projects/#{user.account.name}/#{project.name}/tests", payload)
+    assert %{"id" => test_run_id} = json_response(conn, 200)
+
+    assert [
+             %{module_name: "ShopTest", suite_name: "", name: "ships"},
+             %{module_name: "ShopTest", suite_name: "cart", name: "adds an item", test_case_id: ran_id}
+           ] = CoverageFixtures.enumerated_tests(%{id: test_run_id, project_id: project.id})
+
+    assert [%{name: "adds an item", test_case_id: ^ran_id}] =
+             ClickHouseRepo.all(from(r in TestCaseRun, where: r.test_run_id == ^test_run_id))
   end
 
   test "flags a failure as flaky when the same test also passed on the commit in CI", %{

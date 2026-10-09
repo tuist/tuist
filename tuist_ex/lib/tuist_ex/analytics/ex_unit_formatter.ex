@@ -23,6 +23,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
 
   alias TuistEx.Analytics.Contract
   alias TuistEx.Analytics.Coverage
+  alias TuistEx.Analytics.Enumeration
   alias TuistEx.Analytics.Env
   alias TuistEx.Analytics.HTTP
   alias TuistEx.Analytics.Isolated
@@ -38,6 +39,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     {:ok,
      %{
        tests: [],
+       enumerated: [],
        aborted?: false,
        monotonic_start_ns: System.monotonic_time(),
        ran_at: DateTime.utc_now(),
@@ -65,11 +67,12 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
 
   # A test a filter left out, such as `--only` or `file:line`, was not part
   # of the run: reported as skipped, it would look like it was turned off.
-  def handle_cast({:test_finished, %ExUnit.Test{state: {:excluded, _}}}, state),
-    do: {:noreply, state}
+  # It was a candidate, though, which the run's enumerated tests say.
+  def handle_cast({:test_finished, %ExUnit.Test{state: {:excluded, _}} = test}, state),
+    do: {:noreply, enumerate(state, test)}
 
   def handle_cast({:test_finished, test}, state) do
-    {:noreply, %{state | tests: [record(test) | state.tests]}}
+    {:noreply, enumerate(%{state | tests: [record(test) | state.tests]}, test)}
   end
 
   # ExUnit stopped early because of `--max-failures`: tests it never reached
@@ -93,6 +96,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
             tests
             |> build_payload(duration_ms, state.ran_at, state.opts)
             |> put_coverage_snapshot(state.opts)
+            |> put_enumeration(state)
 
           send(owner, {@deferred, {payload, state.opts, state.aborted?}})
 
@@ -122,6 +126,35 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     else
       _ -> payload
     end
+  end
+
+  defp enumerate(state, test) do
+    if Keyword.get(state.opts, :enumerate, false),
+      do: %{state | enumerated: [identity(test) | state.enumerated]},
+      else: state
+  end
+
+  # The owner completes the list once ExUnit is done, in case the run left
+  # tests unreported. The project is read here for the same reason as the
+  # coverage snapshot: in an umbrella, this is the application's own.
+  # A run whose test files could not be listed is sent without its
+  # enumerated tests rather than not at all.
+  defp put_enumeration(payload, state) do
+    if Keyword.get(state.opts, :enumerate, false) do
+      Map.put(payload, :enumeration, %{
+        tests: state.enumerated |> Enum.reverse() |> Enum.uniq(),
+        project: Enumeration.project()
+      })
+    else
+      payload
+    end
+  rescue
+    exception ->
+      state.shell.(
+        "tuist analytics: failed to list the test files: #{Exception.message(exception)}"
+      )
+
+      payload
   end
 
   @doc """
@@ -284,6 +317,15 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       failures: failures(test.state, test.tags[:file]),
       is_quarantined: test.tags[:quarantined] == true
     }
+  end
+
+  @doc """
+  A test as the server identifies it among the enumerated tests: the same
+  module, suite and name its test case runs carry.
+  """
+  def identity(%ExUnit.Test{} = test) do
+    describe = test.tags[:describe]
+    %{module: inspect(test.module), suite: describe || "", name: display_name(test, describe)}
   end
 
   # ExUnit registers a test as "<type> <describe> <name>", for example

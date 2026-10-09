@@ -60,6 +60,7 @@ defmodule Mix.Tasks.Tuist.Test do
   alias TuistEx.Analytics.Args
   alias TuistEx.Analytics.Config
   alias TuistEx.Analytics.Coverage
+  alias TuistEx.Analytics.Enumeration
   alias TuistEx.Analytics.ExUnitFormatter
   alias TuistEx.Analytics.GitHistory
   alias TuistEx.Analytics.Isolated
@@ -89,11 +90,17 @@ defmodule Mix.Tasks.Tuist.Test do
     case System.get_env(@retry_results, "") do
       "" ->
         # Decided on the run's own arguments: those a shard adds below are
-        # its share of the suite, not a filter.
+        # its share of the suite, not a filter. Coverage is what needs the
+        # tests the run could have executed for now, so only it pays for
+        # listing them.
+        coverage? = Coverage.requested?(test_args)
+
         options =
           Keyword.merge(options,
-            coverage: Coverage.requested?(test_args),
-            coverage_partial: Coverage.partial?(test_args)
+            coverage: coverage?,
+            coverage_partial: Coverage.partial?(test_args),
+            enumerate: coverage?,
+            enumerate_load: coverage? and Enumeration.load?(test_args)
           )
 
         case shard(options, test_args) do
@@ -257,9 +264,10 @@ defmodule Mix.Tasks.Tuist.Test do
   end
 
   defp submit_runs(deferred, attempts, options, history) do
-    for {payload, opts, _aborted?} <- deferred do
+    for {payload, opts, aborted?} <- deferred do
       payload
       |> ExUnitFormatter.merge_retries(attempts)
+      |> with_enumerated_tests(options[:enumerate_load] == true or aborted?)
       |> with_coverage(options, opts, history)
       |> ExUnitFormatter.submit(opts)
     end
@@ -291,6 +299,30 @@ defmodule Mix.Tasks.Tuist.Test do
       {:error, reason} ->
         Report.debug("tuist analytics: the Git history could not be read: #{inspect(reason)}")
         nil
+    end
+  end
+
+  # The formatter listed the tests ExUnit reported. When the run kept some
+  # from being reported, the rest are read now that ExUnit is done; a list
+  # that could not be completed is not sent, since the server would take the
+  # missing tests for ones the run was never meant to have.
+  defp with_enumerated_tests(payload, load?) do
+    case Map.pop(payload, :enumeration) do
+      {%{tests: tests, project: project}, payload} ->
+        case Isolated.run(fn -> Enumeration.complete(tests, project, load?) end, 600_000) do
+          tests when is_list(tests) ->
+            Map.put(payload, :enumerated_tests, tests)
+
+          {:error, reason} ->
+            Report.debug(
+              "tuist analytics: the run's enumerated tests could not be listed: #{inspect(reason)}"
+            )
+
+            payload
+        end
+
+      {nil, payload} ->
+        payload
     end
   end
 

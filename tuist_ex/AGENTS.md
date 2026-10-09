@@ -75,7 +75,18 @@ not counted. Paths are relative to the Git root, a build compiled elsewhere is
 matched by path suffix, the OTP application is the target, and files under the
 test paths are test code. Coverage that compresses past the server's inline
 threshold is uploaded first (`/tests/coverage/uploads`). Retries never carry
-`--cover`. `mix tuist.coverage.complete` signals the commit's coverage
+`--cover`. With `--cover` the run also lists its enumerated tests
+(`Analytics.Enumeration`), every test it could have executed, as the
+`xcodebuild -enumerate-tests` list the server keeps: the formatter records the
+tests ExUnit reports, `{:excluded, _}` included (`--only`, `--exclude`,
+`--name-pattern`), and when the run's own arguments keep tests from being
+reported (`--stale`, `--failed`, `--max-failures`, explicit files or lines) or
+the suite stopped early, the task reads the rest after the run from each test
+module's `__ex_unit__/0`, requiring the test files that were not loaded. That
+cannot happen while a suite runs (`ExUnit.Server` refuses new modules), so it
+is tested on a fixture project in a subprocess
+(`test/mix/tasks/tuist.test_enumeration_test.exs`). A list that could not be
+completed is not sent; a shard lists only its share. `mix tuist.coverage.complete` signals the commit's coverage
 complete, as `tuist coverage complete` does. Tests that start or stop `cover`
 must leave a running cover server alone: under `mix test --cover` it is Mix's.
 `Git` and `Analytics.GitHistory` port the command line tool's Git history
