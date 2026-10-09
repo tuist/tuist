@@ -3832,7 +3832,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/build_run_id`.
             public var build_run_id: Swift.String?
-            /// The tests the caller asked this run to exclude.
+            /// The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/skip_test_identifiers`.
             public var skip_test_identifiers: [Swift.String]?
@@ -3885,65 +3885,6 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/xcode_coverage_partial`.
             public var xcode_coverage_partial: Swift.Bool?
-            /// - Remark: Generated from `#/components/schemas/TestParams/enumerated_testsPayload`.
-            public struct enumerated_testsPayloadPayload: Codable, Hashable, Sendable {
-                /// False when the scheme or the test plan disables the test.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/enumerated_testsPayload/enabled`.
-                public var enabled: Swift.Bool?
-                /// The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test("…")`).
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/enumerated_testsPayload/function`.
-                public var function: Swift.String?
-                /// The test target.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/enumerated_testsPayload/module`.
-                public var module: Swift.String
-                /// The test's name as the run reports it, `testExample()`.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/enumerated_testsPayload/name`.
-                public var name: Swift.String
-                /// The suite that declares the test, the innermost one when suites nest; empty outside any suite.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/enumerated_testsPayload/suite`.
-                public var suite: Swift.String?
-                /// Creates a new `enumerated_testsPayloadPayload`.
-                ///
-                /// - Parameters:
-                ///   - enabled: False when the scheme or the test plan disables the test.
-                ///   - function: The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test("…")`).
-                ///   - module: The test target.
-                ///   - name: The test's name as the run reports it, `testExample()`.
-                ///   - suite: The suite that declares the test, the innermost one when suites nest; empty outside any suite.
-                public init(
-                    enabled: Swift.Bool? = nil,
-                    function: Swift.String? = nil,
-                    module: Swift.String,
-                    name: Swift.String,
-                    suite: Swift.String? = nil
-                ) {
-                    self.enabled = enabled
-                    self.function = function
-                    self.module = module
-                    self.name = name
-                    self.suite = suite
-                }
-                public enum CodingKeys: String, CodingKey {
-                    case enabled
-                    case function
-                    case module
-                    case name
-                    case suite
-                }
-            }
-            /// The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/enumerated_tests`.
-            public typealias enumerated_testsPayload = [Components.Schemas.TestParams.enumerated_testsPayloadPayload]
-            /// The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/enumerated_tests`.
-            public var enumerated_tests: Components.Schemas.TestParams.enumerated_testsPayload?
             /// The version of macOS used during the run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/macos_version`.
@@ -4644,7 +4585,7 @@ public enum Components {
             ///   - history_source: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
             ///   - coverage:
             ///   - build_run_id: The UUID of an associated build run.
-            ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
+            ///   - skip_test_identifiers: The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran.
             ///   - git_ref: The git reference.
             ///   - base_branch: The branch the run's commit will merge into: the pull request's base, or the project's default branch.
             ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
@@ -4655,7 +4596,6 @@ public enum Components {
             ///   - gradle_build_id: The UUID of an associated Gradle build.
             ///   - stress_new_tests:
             ///   - xcode_coverage_partial: With `xcode_coverage_storage_key`: whether the run left tests out on purpose.
-            ///   - enumerated_tests: The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.
             ///   - macos_version: The version of macOS used during the run.
             ///   - ran_at: ISO 8601 timestamp for when the test run started.
             ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
@@ -4699,7 +4639,6 @@ public enum Components {
                 gradle_build_id: Swift.String? = nil,
                 stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                 xcode_coverage_partial: Swift.Bool? = nil,
-                enumerated_tests: Components.Schemas.TestParams.enumerated_testsPayload? = nil,
                 macos_version: Swift.String? = nil,
                 ran_at: Foundation.Date? = nil,
                 id: Swift.String? = nil,
@@ -4743,7 +4682,6 @@ public enum Components {
                 self.gradle_build_id = gradle_build_id
                 self.stress_new_tests = stress_new_tests
                 self.xcode_coverage_partial = xcode_coverage_partial
-                self.enumerated_tests = enumerated_tests
                 self.macos_version = macos_version
                 self.ran_at = ran_at
                 self.id = id
@@ -4788,7 +4726,6 @@ public enum Components {
                 case gradle_build_id
                 case stress_new_tests
                 case xcode_coverage_partial
-                case enumerated_tests
                 case macos_version
                 case ran_at
                 case id
@@ -28068,7 +28005,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/build_run_id`.
                     public var build_run_id: Swift.String?
-                    /// The tests the caller asked this run to exclude.
+                    /// The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/skip_test_identifiers`.
                     public var skip_test_identifiers: [Swift.String]?
@@ -28121,65 +28058,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_coverage_partial`.
                     public var xcode_coverage_partial: Swift.Bool?
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/enumerated_testsPayload`.
-                    public struct enumerated_testsPayloadPayload: Codable, Hashable, Sendable {
-                        /// False when the scheme or the test plan disables the test.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/enumerated_testsPayload/enabled`.
-                        public var enabled: Swift.Bool?
-                        /// The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test("…")`).
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/enumerated_testsPayload/function`.
-                        public var function: Swift.String?
-                        /// The test target.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/enumerated_testsPayload/module`.
-                        public var module: Swift.String
-                        /// The test's name as the run reports it, `testExample()`.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/enumerated_testsPayload/name`.
-                        public var name: Swift.String
-                        /// The suite that declares the test, the innermost one when suites nest; empty outside any suite.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/enumerated_testsPayload/suite`.
-                        public var suite: Swift.String?
-                        /// Creates a new `enumerated_testsPayloadPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - enabled: False when the scheme or the test plan disables the test.
-                        ///   - function: The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test("…")`).
-                        ///   - module: The test target.
-                        ///   - name: The test's name as the run reports it, `testExample()`.
-                        ///   - suite: The suite that declares the test, the innermost one when suites nest; empty outside any suite.
-                        public init(
-                            enabled: Swift.Bool? = nil,
-                            function: Swift.String? = nil,
-                            module: Swift.String,
-                            name: Swift.String,
-                            suite: Swift.String? = nil
-                        ) {
-                            self.enabled = enabled
-                            self.function = function
-                            self.module = module
-                            self.name = name
-                            self.suite = suite
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case enabled
-                            case function
-                            case module
-                            case name
-                            case suite
-                        }
-                    }
-                    /// The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/enumerated_tests`.
-                    public typealias enumerated_testsPayload = [Operations.createTest.Input.Body.jsonPayload.enumerated_testsPayloadPayload]
-                    /// The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/enumerated_tests`.
-                    public var enumerated_tests: Operations.createTest.Input.Body.jsonPayload.enumerated_testsPayload?
                     /// The version of macOS used during the run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/macos_version`.
@@ -28880,7 +28758,7 @@ public enum Operations {
                     ///   - history_source: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
                     ///   - coverage:
                     ///   - build_run_id: The UUID of an associated build run.
-                    ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
+                    ///   - skip_test_identifiers: The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran.
                     ///   - git_ref: The git reference.
                     ///   - base_branch: The branch the run's commit will merge into: the pull request's base, or the project's default branch.
                     ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
@@ -28891,7 +28769,6 @@ public enum Operations {
                     ///   - gradle_build_id: The UUID of an associated Gradle build.
                     ///   - stress_new_tests:
                     ///   - xcode_coverage_partial: With `xcode_coverage_storage_key`: whether the run left tests out on purpose.
-                    ///   - enumerated_tests: The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.
                     ///   - macos_version: The version of macOS used during the run.
                     ///   - ran_at: ISO 8601 timestamp for when the test run started.
                     ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
@@ -28935,7 +28812,6 @@ public enum Operations {
                         gradle_build_id: Swift.String? = nil,
                         stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                         xcode_coverage_partial: Swift.Bool? = nil,
-                        enumerated_tests: Operations.createTest.Input.Body.jsonPayload.enumerated_testsPayload? = nil,
                         macos_version: Swift.String? = nil,
                         ran_at: Foundation.Date? = nil,
                         id: Swift.String? = nil,
@@ -28979,7 +28855,6 @@ public enum Operations {
                         self.gradle_build_id = gradle_build_id
                         self.stress_new_tests = stress_new_tests
                         self.xcode_coverage_partial = xcode_coverage_partial
-                        self.enumerated_tests = enumerated_tests
                         self.macos_version = macos_version
                         self.ran_at = ran_at
                         self.id = id
@@ -29024,7 +28899,6 @@ public enum Operations {
                         case gradle_build_id
                         case stress_new_tests
                         case xcode_coverage_partial
-                        case enumerated_tests
                         case macos_version
                         case ran_at
                         case id
