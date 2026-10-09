@@ -19,3 +19,7 @@ This context owns authentication flows and token handling.
 - Parent business logic: `server/lib/tuist/AGENTS.md`
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
+
+## Replica-safety rollout
+
+The dedicated node-local `token_verification` cache stores successful bcrypt proofs only, keyed by the full verification input and stored hash. Its one-minute TTL, per-key single-flight, failure rejection and scheduled 10,000-entry pruning must remain covered by call-count regressions. The initial proof-cache rollout deliberately keeps the HTTP subject cache unchanged; it does not yet promise immediate HTTP revocation. Authentication PromEx metrics count uncached bcrypt calls and duration per replica without credential labels.

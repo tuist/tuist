@@ -88,14 +88,27 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
     end
   end
 
+  test "a privacy change is authoritative after a cached-loader request", %{conn: conn, cache: cache} do
+    project = ProjectsFixtures.project_fixture(visibility: :public)
+    outsider = AccountsFixtures.user_fixture(preload: [:account])
+    request = %{conn | path_params: %{"account_handle" => project.account.name, "project_handle" => project.name}}
+    request = request |> assign(:cache, cache) |> assign(:caching, true)
+    first = LoaderPlug.call(request, [])
+    assert Tuist.Authorization.authorize(:run_read, outsider, first.assigns.selected_project) == :ok
+
+    project |> Ecto.Changeset.change(visibility: :private) |> Tuist.Repo.update!()
+    second = LoaderPlug.call(request, [])
+    assert Tuist.Authorization.authorize(:run_read, outsider, second.assigns.selected_project) == {:error, :forbidden}
+  end
+
   describe "call/2 when the 'account_handle' and 'project_handle' path params are present" do
-    test "caches the responses across consecutive runs", %{conn: conn, cache: cache} do
+    test "reloads projects across consecutive runs", %{conn: conn, cache: cache} do
       # Given
       project = %{account: account} = ProjectsFixtures.project_fixture()
       slug = "#{project.account.name}/#{project.name}"
       plug_opts = LoaderPlug.init([])
 
-      expect(Projects, :get_project_by_slug, 1, fn ^slug, [preload: [:account]] ->
+      expect(Projects, :get_project_by_slug, 2, fn ^slug, [preload: [:account]] ->
         {:ok, project}
       end)
 
@@ -182,13 +195,13 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
   end
 
   describe "call/2 when the 'account_handle' param is present" do
-    test "caches the responses across consecutive runs", %{conn: conn, cache: cache} do
+    test "reloads accounts across consecutive runs", %{conn: conn, cache: cache} do
       # Given
       user = AccountsFixtures.user_fixture()
       plug_opts = LoaderPlug.init([])
       account_handle = user.account.name
 
-      expect(Accounts, :get_account_by_handle, 1, fn ^account_handle ->
+      expect(Accounts, :get_account_by_handle, 2, fn ^account_handle ->
         user.account
       end)
 
@@ -234,13 +247,13 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
   end
 
   describe "call/2 when body_params contains a project_id" do
-    test "caches the responses across consecutive runs", %{conn: conn, cache: cache} do
+    test "reloads projects across consecutive runs", %{conn: conn, cache: cache} do
       # Given
       project = ProjectsFixtures.project_fixture()
       slug = "#{project.account.name}/#{project.name}"
       plug_opts = LoaderPlug.init([])
 
-      expect(Projects, :get_project_by_slug, 1, fn ^slug, [preload: [:account]] ->
+      expect(Projects, :get_project_by_slug, 2, fn ^slug, [preload: [:account]] ->
         {:ok, project}
       end)
 
@@ -279,13 +292,13 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
   end
 
   describe "call/2 when query_params contains a project_id" do
-    test "caches the responses across consecutive runs", %{conn: conn, cache: cache} do
+    test "reloads projects across consecutive runs", %{conn: conn, cache: cache} do
       # Given
       project = ProjectsFixtures.project_fixture()
       slug = "#{project.account.name}/#{project.name}"
       plug_opts = LoaderPlug.init([])
 
-      expect(Projects, :get_project_by_slug, 1, fn ^slug, [preload: [:account]] ->
+      expect(Projects, :get_project_by_slug, 2, fn ^slug, [preload: [:account]] ->
         {:ok, project}
       end)
 

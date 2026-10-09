@@ -625,7 +625,7 @@ defmodule Tuist.OnceEventsTest do
                        %{rpc: :publish_run_events, stage: :recheck, status: :unauthenticated}}
     end
 
-    test "within the check interval the open stream keeps going", %{
+    test "revocation is enforced on the next batch without waiting for a timer", %{
       organization: organization,
       member: member,
       handle: handle,
@@ -634,10 +634,15 @@ defmodule Tuist.OnceEventsTest do
       removing = fn -> :ok = Tuist.Accounts.remove_user_from_organization(member, organization) end
       batches = removing_between_batches(run, removing)
 
-      RunEventService.publish_run_events(batches, stream_with(login_session(member), %{"once-project-id" => handle}))
+      assert unauthenticated?(fn ->
+               RunEventService.publish_run_events(
+                 batches,
+                 stream_with(login_session(member), %{"once-project-id" => handle})
+               )
+             end)
 
       assert_received {:ack, %BatchAck{batch_id: "before"}}
-      assert_received {:ack, %BatchAck{batch_id: "after"}}
+      refute_received {:ack, %BatchAck{batch_id: "after"}}
     end
   end
 
@@ -649,14 +654,14 @@ defmodule Tuist.OnceEventsTest do
       %{member: member, handle: "#{project.account.name}/#{project.name}"}
     end
 
-    test "the same credential is resolved once and then served from the cache", %{
+    test "each call and batch resolves authoritative identity", %{
       member: member,
       handle: handle,
       run: run
     } do
       session = login_session(member)
 
-      expect(Authentication, :authenticated_subject, 1, fn token ->
+      expect(Authentication, :authenticated_subject, 6, fn token ->
         Mimic.call_original(Authentication, :authenticated_subject, [token])
       end)
 

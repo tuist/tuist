@@ -21,3 +21,7 @@ This area owns Plug middleware for request processing.
 ## Related Context
 - Web layer overview: `server/lib/tuist_web/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
+
+## Replica-safety rollout
+
+Authentication, token validity, scopes, account/project visibility and authorization must be read from authoritative storage on each request. Do not cache authenticated subjects or authorization decisions. Successful bcrypt proofs are the only reusable authentication state. The cache-removal rollout follows the proof-cache rollout and needs real CI database query/pool observations.

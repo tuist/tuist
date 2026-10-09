@@ -22,3 +22,7 @@ This subsystem projects Once lifecycle events into run summaries and declared ac
 - Record the authenticated credential account on the first RunStarted in nullable `once_runs.account_id`; project credentials and historical runs remain unattributed. Replays must never replace the original actor, including with a different credential. This is server attribution and does not change the client event protocol.
 
 - Native build listings opt into the virtual failure-category column from `BuildMetrics`. Use the shared classifier before database filtering, sorting and pagination, scope evidence to the selected project, and leave stored records and legacy listing defaults unchanged.
+
+## Replica-safety rollout
+
+Resolve the credential authoritatively for every stream batch, including empty batches, so revocation and role/scope changes do not wait for an interval. Do not cache stream subjects. The separate immutable bcrypt proof cache keeps repeated verification affordable.

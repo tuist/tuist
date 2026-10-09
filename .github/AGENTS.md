@@ -117,3 +117,7 @@ must stay disabled in the repository settings, or uploads from this workflow
 are rejected.
 
 - Runner-controller checks, image builds and release path filters include the shared `infra/runner-cache` module.
+
+## Replica-safety rollout
+
+The server build-plan and unsharded test jobs run `verification/bcrypt_load.exs` after compilation. This isolated, database-free guard uses production bcrypt cost and gates the number of expensive verifications, not machine-sensitive latency.

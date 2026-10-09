@@ -1,6 +1,8 @@
 defmodule TuistWeb.Plugs.LoaderPlug do
   @moduledoc ~S"""
-  This plug is responsible for loading (and caching) the resources pointed by the path or body parameters.
+  Loads resources pointed to by request parameters. Projects and accounts are
+  always authoritative because their visibility participates in authorization.
+  Only regenerable run analytics may be cached.
   """
   use TuistWeb, :controller
 
@@ -44,10 +46,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   end
 
   def call(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
-    account =
-      cached(conn, ["account", account_handle], fn ->
-        Accounts.get_account_by_handle(account_handle)
-      end)
+    account = Accounts.get_account_by_handle(account_handle)
 
     case account do
       nil ->
@@ -113,10 +112,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   end
 
   def assign_selected_project(conn, project_slug) do
-    project =
-      cached(conn, ["project", project_slug], fn ->
-        Projects.get_project_by_slug(project_slug, preload: [:account])
-      end)
+    project = Projects.get_project_by_slug(project_slug, preload: [:account])
 
     case project do
       {:ok, project} ->

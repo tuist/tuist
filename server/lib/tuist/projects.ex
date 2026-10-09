@@ -10,6 +10,7 @@ defmodule Tuist.Projects do
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
+  alias Tuist.Authentication.TokenVerificationCache
   alias Tuist.Automations
   alias Tuist.Base64
   alias Tuist.CommandEvents
@@ -495,7 +496,7 @@ defmodule Tuist.Projects do
   # Bcrypt does CPU-intensive operations and it can easily slow-down requests when
   # there are bursts of requests coming through the API.
   def verify_pass(token, token_hash) do
-    Bcrypt.verify_pass(
+    TokenVerificationCache.verify_pass(
       token_hash <> Tuist.Environment.secret_key_password(),
       token.encrypted_token_hash
     )

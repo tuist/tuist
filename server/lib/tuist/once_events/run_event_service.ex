@@ -25,7 +25,6 @@ defmodule Tuist.OnceEvents.RunEventService do
   alias Tuist.Authentication
   alias Tuist.Authorization
   alias Tuist.Environment
-  alias Tuist.KeyValueStore
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Projector
   alias Tuist.Projects
@@ -50,8 +49,6 @@ defmodule Tuist.OnceEvents.RunEventService do
   @argv_hash_key_grace_ms 24 * 60 * 60 * 1000
   @project_header "once-project-id"
   @max_project_id_bytes 256
-  @reauthenticate_after_ms to_timeout(minute: 5)
-  @subject_cache_ttl_ms to_timeout(minute: 1)
 
   # ---- GetServerCapabilities -----------------------------------------
 
@@ -92,10 +89,8 @@ defmodule Tuist.OnceEvents.RunEventService do
 
   # ---- PublishRunEvents ---------------------------------------------
 
-  # A run's stream can stay open for hours, and the credential is only read when
-  # it opens. Checking again every few minutes keeps a revoked token, a removed
-  # member or a deactivated user from writing until the client disconnects, as
-  # the per-request HTTP API would not allow.
+  # Recheck authoritative identity and access before each batch, including
+  # empty batches. The bcrypt proof cache bounds cryptographic work, not access.
   def publish_run_events(request_stream, stream) do
     {project, account_id} =
       case resolve_identity(stream, nil) do
@@ -114,18 +109,12 @@ defmodule Tuist.OnceEvents.RunEventService do
     :ok
   end
 
-  defp reauthenticate!(stream, project, checked_at) do
-    now = now_ms()
-
-    if now - checked_at < @reauthenticate_after_ms do
-      checked_at
-    else
-      if require_project!(stream, :publish_run_events, :recheck).id != project.id do
-        refuse!(:publish_run_events, :recheck, "no access to the requested project")
-      end
-
-      now
+  defp reauthenticate!(stream, project, _checked_at) do
+    if require_project!(stream, :publish_run_events, :recheck).id != project.id do
+      refuse!(:publish_run_events, :recheck, "no access to the requested project")
     end
+
+    now_ms()
   end
 
   defp now_ms, do: System.monotonic_time(:millisecond)
@@ -303,24 +292,7 @@ defmodule Tuist.OnceEvents.RunEventService do
     end
   end
 
-  # Same short cache as the HTTP API, so a long run does not pay for password
-  # checks and membership reads on every reconnect. Only a successful lookup is
-  # stored, so a token that does not exist yet is not remembered as invalid, and
-  # the key holds a hash instead of the token.
-  defp authenticated_subject(token) do
-    key = [__MODULE__, "authenticated_subject", Base.encode16(:crypto.hash(:sha256, token))]
-    opts = [ttl: @subject_cache_ttl_ms, cache: :tuist]
-
-    case KeyValueStore.get(key, opts) do
-      nil ->
-        subject = Authentication.authenticated_subject(token)
-        if subject, do: KeyValueStore.put(key, subject, opts)
-        subject
-
-      subject ->
-        subject
-    end
-  end
+  defp authenticated_subject(token), do: Authentication.authenticated_subject(token)
 
   defp project_for(%Project{} = project, hint) do
     handle = "#{project.account.name}/#{project.name}"
