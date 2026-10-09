@@ -215,8 +215,8 @@ defmodule TuistWeb.API.TestsControllerElixirIntegrationTest do
     :ok = GenServer.stop(pid)
 
     assert [{payload, _opts, false}] = ExUnitFormatter.take_deferred()
-    {%{tests: tests, project: enumeration_project}, payload} = Map.pop(payload, :enumeration)
-    payload = Map.put(payload, :enumerated_tests, Enumeration.complete(tests, enumeration_project, false))
+    {enumeration, payload} = Map.pop(payload, :enumeration)
+    payload = Map.put(payload, :enumerated_tests, Enumeration.complete(enumeration, false))
 
     conn = post(conn, "/api/projects/#{user.account.name}/#{project.name}/tests", payload)
     assert %{"id" => test_run_id} = json_response(conn, 200)

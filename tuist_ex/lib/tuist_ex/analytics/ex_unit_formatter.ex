@@ -40,6 +40,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
      %{
        tests: [],
        enumerated: [],
+       filters: {[], []},
        aborted?: false,
        monotonic_start_ns: System.monotonic_time(),
        ran_at: DateTime.utc_now(),
@@ -61,8 +62,21 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     if Keyword.has_key?(opts, :submit), do: opts, else: Keyword.merge(configured, opts)
   end
 
-  def handle_cast({:suite_started, _opts}, state) do
-    {:noreply, %{state | monotonic_start_ns: System.monotonic_time(), ran_at: DateTime.utc_now()}}
+  def handle_cast({:suite_started, opts}, state) do
+    filters =
+      Enumeration.config_filters(
+        Keyword.get(opts, :include, []),
+        Keyword.get(opts, :exclude, []),
+        Keyword.get(state.opts, :cli_filters, {[], []})
+      )
+
+    {:noreply,
+     %{
+       state
+       | monotonic_start_ns: System.monotonic_time(),
+         ran_at: DateTime.utc_now(),
+         filters: filters
+     }}
   end
 
   # A test a filter left out, such as `--only` or `file:line`, was not part
@@ -130,7 +144,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
 
   defp enumerate(state, test) do
     if Keyword.get(state.opts, :enumerate, false),
-      do: %{state | enumerated: [identity(test) | state.enumerated]},
+      do: %{state | enumerated: [Enumeration.entry(test, state.filters) | state.enumerated]},
       else: state
   end
 
@@ -142,8 +156,9 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   defp put_enumeration(payload, state) do
     if Keyword.get(state.opts, :enumerate, false) do
       Map.put(payload, :enumeration, %{
-        tests: state.enumerated |> Enum.reverse() |> Enum.uniq(),
-        project: Enumeration.project()
+        tests: state.enumerated |> Enum.reverse() |> Enumeration.uniq(),
+        project: Enumeration.project(),
+        filters: state.filters
       })
     else
       payload

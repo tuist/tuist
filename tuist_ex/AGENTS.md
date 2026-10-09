@@ -82,7 +82,12 @@ tests ExUnit reports, `{:excluded, _}` included (`--only`, `--exclude`,
 `--name-pattern`), and when the run's own arguments keep tests from being
 reported (`--stale`, `--failed`, `--max-failures`, explicit files or lines) or
 the suite stopped early, the task reads the rest after the run from each test
-module's `__ex_unit__/0`, requiring the test files that were not loaded. That
+module's `__ex_unit__/0`, requiring the test files that were not loaded
+(their compile warnings are silenced: those files did not run). A test the
+project's own filters leave out of every run (`ExUnit.start(exclude: ...)`,
+`@tag :skip`) is listed with `enabled: false`, as a test plan disables a test;
+the run's own `--only`/`--exclude`/`--name-pattern`/file:line filters are told
+apart by re-parsing its arguments (`Enumeration.cli_filters/1`). That
 cannot happen while a suite runs (`ExUnit.Server` refuses new modules), so it
 is tested on a fixture project in a subprocess
 (`test/mix/tasks/tuist.test_enumeration_test.exs`). A list that could not be

@@ -30,18 +30,22 @@ defmodule TuistEx.Analytics.Coverage do
   Whether the run's own arguments left tests out on purpose: a filter, or
   explicit test files or lines.
   """
-  def partial?(test_args) do
-    files?(test_args) or
-      Enum.any?(test_args, fn arg ->
-        Enum.any?(@filters, &(arg == &1 or String.starts_with?(arg, &1 <> "=")))
-      end)
+  def partial?(test_args), do: files?(test_args) or option?(test_args, @filters)
+
+  @doc "Whether the arguments give one of `options`, as `--option` or `--option=value`."
+  def option?(test_args, options) do
+    Enum.any?(test_args, fn arg ->
+      Enum.any?(options, &(arg == &1 or String.starts_with?(arg, &1 <> "=")))
+    end)
   end
 
-  @doc "Whether the arguments name test files or lines."
-  def files?([switch, _value | rest]) when switch in @value_switches, do: files?(rest)
-  def files?(["-" <> _ | rest]), do: files?(rest)
-  def files?([_file | _rest]), do: true
-  def files?([]), do: false
+  @doc "The test files or lines the arguments name."
+  def files([switch, _value | rest]) when switch in @value_switches, do: files(rest)
+  def files(["-" <> _ | rest]), do: files(rest)
+  def files([file | rest]), do: [file | files(rest)]
+  def files([]), do: []
+
+  def files?(test_args), do: files(test_args) != []
 
   @doc """
   The counters `cover` holds, one entry per source file with its lines and

@@ -25,6 +25,7 @@ defmodule TuistEx.Analytics.Enumeration do
 
   alias TuistEx.Analytics.Coverage
   alias TuistEx.Analytics.ExUnitFormatter
+  alias TuistEx.Analytics.Isolated
 
   # Options whose tests ExUnit never reports to the formatters.
   @unreported ~w(--stale --failed --max-failures)
@@ -34,11 +35,57 @@ defmodule TuistEx.Analytics.Enumeration do
   formatter's list is not the suite. The files a shard appends are not
   counted: each shard lists its share and the server unions them.
   """
-  def load?(test_args) do
-    Coverage.files?(test_args) or
-      Enum.any?(test_args, fn arg ->
-        Enum.any?(@unreported, &(arg == &1 or String.starts_with?(arg, &1 <> "=")))
-      end)
+  def load?(test_args), do: Coverage.files?(test_args) or Coverage.option?(test_args, @unreported)
+
+  @doc """
+  The include and exclude filters the run's own arguments add, as `mix test`
+  turns them into ExUnit's.
+  """
+  def cli_filters(test_args) do
+    only = ExUnit.Filters.parse(values(test_args, "--only"))
+
+    patterns =
+      for pattern <- values(test_args, "--name-pattern") ++ values(test_args, "-n"),
+          {:ok, regex} <- [Regex.compile(pattern)],
+          do: {:test, regex}
+
+    {_paths, locations} = ExUnit.Filters.parse_paths(Coverage.files(test_args))
+    selected = if only ++ patterns == [], do: [], else: [:test]
+
+    {only ++
+       patterns ++
+       ExUnit.Filters.parse(values(test_args, "--include")) ++ (locations[:include] || []),
+     ExUnit.Filters.parse(values(test_args, "--exclude")) ++
+       selected ++ (locations[:exclude] || [])}
+  end
+
+  defp values([name, value | rest], name), do: [value | values(rest, name)]
+
+  defp values([arg | rest], name) do
+    case String.split(arg, "=", parts: 2) do
+      [^name, value] -> [value | values(rest, name)]
+      _ -> values(rest, name)
+    end
+  end
+
+  defp values([], _name), do: []
+
+  @doc """
+  The filters the project's configuration applies to every run: those the
+  run used, without the ones its arguments added. A test they leave out is
+  disabled, as a test plan disables a test, rather than one the run skipped.
+  """
+  def config_filters(include, exclude, {cli_include, cli_exclude}),
+    do: {include -- cli_include, exclude -- cli_exclude}
+
+  @doc """
+  A test as the server lists it among the enumerated tests: its identity, and
+  whether the project's configuration lets it run.
+  """
+  def entry(%ExUnit.Test{} = test, {include, exclude}) do
+    tags = Map.merge(test.tags, %{test: test.name, module: test.module})
+    enabled? = ExUnit.Filters.eval(include, exclude, tags, []) == :ok
+    Map.put(ExUnitFormatter.identity(test), :enabled, enabled?)
   end
 
   @doc """
@@ -87,34 +134,39 @@ defmodule TuistEx.Analytics.Enumeration do
   end
 
   @doc """
-  The suite's tests: the ones the formatter saw and, when `load?`, every
-  test of the project's test files, requiring those the run did not load.
+  The suite's tests, from what the formatter gathered: the tests it saw and,
+  when `load?`, every test of the project's test files, requiring those the
+  run did not load. `{:error, reason}` when they could not be loaded within
+  `timeout` milliseconds.
   """
-  def complete(reported, project, load?)
+  def complete(enumeration, load?, timeout \\ 600_000)
 
-  def complete(reported, _project, false), do: Enum.uniq(reported)
+  def complete(%{tests: reported}, false, _timeout), do: uniq(reported)
 
-  def complete(reported, %{files: files, elixirc_options: elixirc_options}, true) do
-    files = MapSet.new(files)
+  def complete(%{tests: reported, project: project, filters: filters}, true, timeout) do
+    files = MapSet.new(project.files)
     loaded = MapSet.new(test_modules(), & &1.file)
-
     missing = files |> Enum.reject(&MapSet.member?(loaded, &1)) |> Enum.sort()
-    if missing != [], do: require_files(missing, elixirc_options)
 
-    modules = Enum.filter(test_modules(), &MapSet.member?(files, &1.file))
-    Enum.uniq(reported ++ tests_of(modules))
+    with :ok <- require_files(missing, project.elixirc_options, timeout) do
+      modules = Enum.filter(test_modules(), &MapSet.member?(files, &1.file))
+      uniq(reported ++ tests_of(modules, filters))
+    end
   end
 
   @doc """
-  The identities of the tests of `test_modules`, as the formatter names the
-  tests it reports.
+  The tests of `test_modules`, as the formatter lists the tests it reports.
   """
-  def tests_of(test_modules) do
-    for %ExUnit.TestModule{tests: tests} <- test_modules,
-        %ExUnit.Test{} = test <- tests,
-        uniq: true,
-        do: ExUnitFormatter.identity(test)
+  def tests_of(test_modules, filters) do
+    uniq(
+      for %ExUnit.TestModule{tests: tests} <- test_modules,
+          %ExUnit.Test{} = test <- tests,
+          do: entry(test, filters)
+    )
   end
+
+  @doc "Keeps one entry per test, the first."
+  def uniq(entries), do: Enum.uniq_by(entries, &{&1.module, &1.suite, &1.name})
 
   defp test_modules do
     for {module, _} <- :code.all_loaded(),
@@ -124,8 +176,13 @@ defmodule TuistEx.Analytics.Enumeration do
   end
 
   # With the options `mix test` compiles test files with: without
-  # `infer_signatures: false`, a large suite takes much longer.
-  defp require_files(files, elixirc_options) do
+  # `infer_signatures: false`, a large suite takes much longer. Their warnings
+  # go nowhere: the files did not run, and `mix test` shows them when they
+  # do. Both are global, so they are restored here, in a process that a
+  # compilation past its timeout cannot take down with it.
+  defp require_files([], _elixirc_options, _timeout), do: :ok
+
+  defp require_files(files, elixirc_options, timeout) do
     options =
       Keyword.take(
         Keyword.merge([docs: false, debug_info: false, infer_signatures: false], elixirc_options),
@@ -133,17 +190,29 @@ defmodule TuistEx.Analytics.Enumeration do
       )
 
     previous = Code.compiler_options(options)
+    {:ok, sink} = StringIO.open("")
+    standard_error = swap_standard_error(sink)
 
     try do
-      case Kernel.ParallelCompiler.require(files, return_diagnostics: true) do
-        {:ok, _modules, _diagnostics} ->
-          :ok
-
-        {:error, errors, _diagnostics} ->
-          raise "could not load the test files: #{inspect(errors)}"
+      case Isolated.run(
+             fn -> Kernel.ParallelCompiler.require(files, return_diagnostics: true) end,
+             timeout
+           ) do
+        {:ok, _modules, _diagnostics} -> :ok
+        {:error, errors, _diagnostics} -> {:error, {:compile, errors}}
+        {:error, reason} -> {:error, reason}
       end
     after
+      swap_standard_error(standard_error)
+      StringIO.close(sink)
       Code.compiler_options(previous)
     end
+  end
+
+  defp swap_standard_error(device) do
+    previous = Process.whereis(:standard_error)
+    if previous, do: Process.unregister(:standard_error)
+    if device, do: Process.register(device, :standard_error)
+    previous
   end
 end

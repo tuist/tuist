@@ -210,14 +210,18 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
   end
 
   describe "enumerated tests" do
-    defp deferred_run(events, opts) do
+    defp deferred_run(events, opts, suite_opts \\ []) do
       {:ok, pid} =
         GenServer.start_link(
           ExUnitFormatter,
           [environment: &environment/1, mode: {:defer, self()}] ++ opts
         )
 
-      send_lifecycle(pid, [{:suite_started, []}] ++ events ++ [{:suite_finished, %{run: 1_000}}])
+      send_lifecycle(
+        pid,
+        [{:suite_started, suite_opts}] ++ events ++ [{:suite_finished, %{run: 1_000}}]
+      )
+
       :ok = GenServer.stop(pid)
       assert [{payload, _opts, _aborted?}] = ExUnitFormatter.take_deferred()
       payload
@@ -247,9 +251,10 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
                %{
                  module: "SomeModuleTest",
                  suite: "create_order/2",
-                 name: "rejects an empty cart"
+                 name: "rejects an empty cart",
+                 enabled: true
                },
-               %{module: "SomeModuleTest", suite: "", name: "adds"}
+               %{module: "SomeModuleTest", suite: "", name: "adds", enabled: true}
              ]
     end
 
@@ -265,7 +270,37 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
 
       assert [%{test_cases: [%{name: "selected"}]}] = payload.test_modules
 
-      assert Enum.map(payload.enumeration.tests, & &1.name) == ["selected", "left out"]
+      assert Enum.map(payload.enumeration.tests, &{&1.name, &1.enabled}) == [
+               {"selected", true},
+               {"left out", true}
+             ]
+    end
+
+    test "disables a test the project's configuration leaves out of every run" do
+      integration =
+        new_test(
+          name: :"test calls the gateway",
+          state: {:excluded, "due to integration filter"},
+          tags: %{describe: nil, integration: true, file: "test/some_test.exs", line: 1}
+        )
+
+      # `mix test --only focus` on a project whose helper excludes :integration.
+      payload =
+        deferred_run(
+          [
+            {:test_finished, integration},
+            {:test_finished,
+             new_test(name: :"test left out", state: {:excluded, "due to test filter"})}
+          ],
+          [enumerate: true, cli_filters: {[:focus], [:test]}],
+          include: [:focus],
+          exclude: [:test, :integration]
+        )
+
+      assert Enum.map(payload.enumeration.tests, &{&1.name, &1.enabled}) == [
+               {"calls the gateway", false},
+               {"left out", true}
+             ]
     end
 
     test "lists nothing unless asked" do

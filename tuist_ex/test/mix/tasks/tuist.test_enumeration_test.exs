@@ -27,7 +27,7 @@ defmodule Mix.Tasks.Tuist.TestEnumerationTest do
       def add(a, b), do: a + b
     end
     """,
-    "test/test_helper.exs" => "ExUnit.start()\n",
+    "test/test_helper.exs" => "ExUnit.start(exclude: [:integration])\n",
     "test/cart_test.exs" => """
     defmodule CartTest do
       use ExUnit.Case
@@ -43,15 +43,24 @@ defmodule Mix.Tasks.Tuist.TestEnumerationTest do
     "test/order_test.exs" => """
     defmodule OrderTest do
       use ExUnit.Case
-      test "ships", do: assert(true)
+      test "ships" do
+        unused = 1
+        assert true
+      end
+
+      @tag :integration
+      test "calls the carrier", do: flunk("never runs by default")
     end
     """
   }
 
+  # The project's configuration leaves the integration test out of every run,
+  # as a test plan disables a test.
   @suite [
-    %{"module" => "CartTest", "suite" => "", "name" => "adds"},
-    %{"module" => "CartTest", "suite" => "checkout/1", "name" => "charges"},
-    %{"module" => "OrderTest", "suite" => "", "name" => "ships"}
+    %{"module" => "CartTest", "suite" => "", "name" => "adds", "enabled" => true},
+    %{"module" => "CartTest", "suite" => "checkout/1", "name" => "charges", "enabled" => true},
+    %{"module" => "OrderTest", "suite" => "", "name" => "calls the carrier", "enabled" => false},
+    %{"module" => "OrderTest", "suite" => "", "name" => "ships", "enabled" => true}
   ]
 
   # Outside any Git checkout, so the run reads no history from this one.
@@ -105,8 +114,10 @@ defmodule Mix.Tasks.Tuist.TestEnumerationTest do
     assert names(run["test_modules"]) == ["adds"]
     assert sorted(run["enumerated_tests"]) == @suite
 
-    # An explicit file leaves the other one unloaded: it is read after the run.
-    run = tuist_test(dir, url, ["test/cart_test.exs"])
+    # An explicit file leaves the other one unloaded: it is read after the
+    # run, without showing the warnings of a file that did not run.
+    {run, output} = tuist_test_with_output(dir, url, ["test/cart_test.exs"])
+    refute output =~ ~s(variable "unused" is unused)
     assert names(run["test_modules"]) == ["adds", "charges"]
     assert sorted(run["enumerated_tests"]) == @suite
 
@@ -139,6 +150,11 @@ defmodule Mix.Tasks.Tuist.TestEnumerationTest do
   end
 
   defp tuist_test(dir, url, args, cover \\ ["--cover"]) do
+    {run, _output} = tuist_test_with_output(dir, url, args, cover)
+    run
+  end
+
+  defp tuist_test_with_output(dir, url, args, cover \\ ["--cover"]) do
     {output, status} =
       System.cmd(
         System.find_executable("mix"),
@@ -157,7 +173,7 @@ defmodule Mix.Tasks.Tuist.TestEnumerationTest do
     # A file the run loaded is not required again.
     refute output =~ "redefining module", output
     assert_receive {:request, "/api/projects/acme/fixture/tests", body}, 5_000, output
-    JSON.decode!(body)
+    {JSON.decode!(body), output}
   end
 
   defp names(modules),

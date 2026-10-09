@@ -100,7 +100,8 @@ defmodule Mix.Tasks.Tuist.Test do
             coverage: coverage?,
             coverage_partial: Coverage.partial?(test_args),
             enumerate: coverage?,
-            enumerate_load: coverage? and Enumeration.load?(test_args)
+            enumerate_load: coverage? and Enumeration.load?(test_args),
+            cli_filters: if(coverage?, do: Enumeration.cli_filters(test_args), else: {[], []})
           )
 
         case shard(options, test_args) do
@@ -323,16 +324,17 @@ defmodule Mix.Tasks.Tuist.Test do
   # once per shard.
   defp with_enumerated_tests(payload, load?, shard_files) do
     case Map.pop(payload, :enumeration) do
-      {%{tests: tests, project: project}, payload} ->
-        project =
+      {%{project: project} = enumeration, payload} ->
+        enumeration =
           if shard_files do
             share = MapSet.new(shard_files)
-            %{project | files: Enum.filter(project.files, &MapSet.member?(share, &1))}
+            files = Enum.filter(project.files, &MapSet.member?(share, &1))
+            %{enumeration | project: %{project | files: files}}
           else
-            project
+            enumeration
           end
 
-        case Isolated.run(fn -> Enumeration.complete(tests, project, load?) end, 600_000) do
+        case complete_enumeration(enumeration, load?) do
           tests when is_list(tests) ->
             Map.put(payload, :enumerated_tests, tests)
 
@@ -347,6 +349,14 @@ defmodule Mix.Tasks.Tuist.Test do
       {nil, payload} ->
         payload
     end
+  end
+
+  defp complete_enumeration(enumeration, load?) do
+    Enumeration.complete(enumeration, load?)
+  rescue
+    exception -> {:error, exception}
+  catch
+    kind, reason -> {:error, {kind, reason}}
   end
 
   defp with_coverage(payload, options, opts, history) do
