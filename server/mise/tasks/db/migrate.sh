@@ -3,10 +3,13 @@
 
 set -euo pipefail
 
-# `--create` creates the databases first, in the same Mix process.
-tasks=(ecto.migrate)
+calls="Mix.Tasks.Ecto.Migrate.run([]); Mix.Tasks.Ecto.Migrations.run([])"
+
+# `--create` creates the databases first, in the same Mix process. It calls
+# Ecto's task directly: the project's ecto.create alias also starts the app,
+# which slows down the migrations that follow.
 if [ "${1:-}" = "--create" ]; then
-  tasks=(ecto.create + ecto.migrate)
+  calls="Mix.Tasks.Ecto.Create.run([]); ${calls}"
 fi
 
 # A migration that takes the VM down (rather than raising) can leave Mix
@@ -16,7 +19,7 @@ fi
 output="$(mktemp)"
 trap 'rm -f "${output}"' EXIT
 
-mix 'do' "${tasks[@]}" + ecto.migrations | tee "${output}" | sed '/^Repo: /,$d'
+mix run --no-start -e "${calls}" | tee "${output}" | awk '/^Repo: /{listing=1} !listing {print; fflush()}'
 
 if ! grep -E '^\s+Status\s+Migration ID' "${output}" > /dev/null; then
   echo "The migration status was not listed after migrating." >&2
