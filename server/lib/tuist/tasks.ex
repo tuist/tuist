@@ -7,7 +7,7 @@ defmodule Tuist.Tasks do
       fun.()
       {:ok, self()}
     else
-      Task.start(fun)
+      Task.Supervisor.start_child(Tuist.TaskSupervisor, fun, shutdown: 5_000)
     end
   end
 

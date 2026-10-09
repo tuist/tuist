@@ -169,3 +169,7 @@ Generic build-health dimension lists read the last 90 days and cap output at 100
 - Native build listings opt into the virtual failure-category column from `BuildMetrics`. Use the shared classifier before database filtering, sorting and pagination, scope evidence to the selected project, and leave stored records and legacy listing defaults unchanged.
 
 - BuildMetrics.failure_category looks up one failed build in the authorized project using the same classifier as listing filters and Grafana. Detail evidence reads restrict Gradle tasks and Xcode issues to the requested build identifier. Nonfailed and missing records have no detail category.
+
+## Replica-safety rollout
+
+Stage required test-ingestion rows synchronously before responding. Optional follow-up work uses `Tuist.Tasks` and is drained during shutdown. This does not make in-memory ingestion durable across node loss; observe ingestion request latency as a separate rollout.
