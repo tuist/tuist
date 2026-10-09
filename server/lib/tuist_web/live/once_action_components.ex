@@ -10,7 +10,6 @@ defmodule TuistWeb.OnceActionComponents do
   attr :label, :string, required: true
   attr :target, :string, required: true
   attr :presentation, :map, default: nil
-  attr :navigate, :string, required: true
 
   def action_cell(assigns) do
     assigns = assign(assigns, :description, summary(assigns.presentation, assigns.target))
@@ -18,7 +17,7 @@ defmodule TuistWeb.OnceActionComponents do
     ~H"""
     <div data-part="cell" data-type="text_and_description" data-truncate data-once-action>
       <div data-part="column">
-        <.link data-part="label" navigate={@navigate} title={@label}>{@label}</.link>
+        <span data-part="label" title={@label}>{@label}</span>
         <span data-part="description" title={@description}>{@description}</span>
       </div>
     </div>

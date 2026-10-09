@@ -70,7 +70,16 @@ defmodule TuistWeb.OnceRunLiveTest do
 
     for {suffix, table} <- [{"", "#once-actions-table"}, {"/cache?cache_search=Compile+main.c", "#once-cache-table"}] do
       {:ok, view, _} = live(conn, path <> suffix)
-      assert has_element?(view, ~s(#{table} a[href="#{detail_path}"]), "Compile main.c")
+      assert has_element?(view, ~s(#{table} a[data-part="row-link"][href="#{detail_path}"]), "Compile main.c")
+
+      assert has_element?(
+               view,
+               ~s(#{table} a[data-part="row-link-overlay"][href="#{detail_path}"][tabindex="-1"][aria-hidden="true"])
+             )
+
+      assert has_element?(view, "#{table} [data-once-action] span[data-part=label]", "Compile main.c")
+      refute has_element?(view, "#{table} [data-once-action] a")
+      refute has_element?(view, "#{table} a a")
       assert has_element?(view, "#{table} [data-part=description]", "library 1.2")
       refute has_element?(view, "#{table} th", "Source files")
       refute has_element?(view, "#{table} details")
@@ -83,6 +92,22 @@ defmodule TuistWeb.OnceRunLiveTest do
     assert has_element?(details, "#once-action", "native-target")
     assert has_element?(details, "#once-action", "custom.mode")
     refute has_element?(details, "#once-action b", "Release")
+  end
+
+  test "cache content objects do not navigate to action details", %{conn: conn, path: path, run: run} do
+    OnceEvents.ingest_cache_event(run, %{
+      kind: "download",
+      category: "content",
+      tier: "remote",
+      outcome: "hit",
+      target_execution_id: "compiler-0",
+      content_hash: String.duplicate("b", 64)
+    })
+
+    {:ok, view, _} = live(conn, path <> "/cache?cache_view=content-objects")
+    assert has_element?(view, "#once-cache-table tbody tr")
+    refute has_element?(view, "#once-cache-table [data-part=row-link]")
+    refute has_element?(view, "#once-cache-table [data-part=row-link-overlay]")
   end
 
   test "source links use the connected repository at the recorded revision", %{
@@ -211,7 +236,7 @@ defmodule TuistWeb.OnceRunLiveTest do
 
     for suffix <- ["?search=src%2Ffile-3000.c", "/cache?cache_search=src%2Ffile-3000.c"] do
       {:ok, view, _} = live(conn, path <> suffix)
-      assert has_element?(view, ~s([data-once-action] a[href="#{path}/actions/#{action.id}"]))
+      assert has_element?(view, ~s(a[data-part="row-link"][href="#{path}/actions/#{action.id}"]))
       refute has_element?(view, "[data-source-file]")
     end
 

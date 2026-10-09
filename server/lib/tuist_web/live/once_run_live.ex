@@ -405,7 +405,16 @@ defmodule TuistWeb.OnceRunLive do
               <.active_filter :for={filter <- @active_filters} filter={filter} />
             </div>
             <div :if={Enum.any?(@actions)} data-part="once-actions-table">
-              <.table id="once-actions-table" rows={@actions} row_key={& &1.id}>
+              <.table
+                id="once-actions-table"
+                rows={@actions}
+                row_key={& &1.id}
+                row_navigate={
+                  fn action ->
+                    ~p"/#{@selected_account.name}/#{@selected_project.name}/once/runs/#{@run.run_id}/actions/#{action.id}"
+                  end
+                }
+              >
                 <:col
                   :let={action}
                   label={dgettext("dashboard_projects", "Action")}
@@ -416,9 +425,6 @@ defmodule TuistWeb.OnceRunLive do
                     label={action_label(action)}
                     target={action.target_execution_id}
                     presentation={action.presentation}
-                    navigate={
-                      ~p"/#{@selected_account.name}/#{@selected_project.name}/once/runs/#{@run.run_id}/actions/#{action.id}"
-                    }
                   />
                 </:col>
                 <:col
@@ -793,7 +799,18 @@ defmodule TuistWeb.OnceRunLive do
               />
             </:image>
           </.empty_card_section>
-          <.table :if={@cache_events != []} id="once-cache-table" rows={@cache_events}>
+          <.table
+            :if={@cache_events != []}
+            id="once-cache-table"
+            rows={@cache_events}
+            row_navigate={
+              if @selected_cache_view == "actions" do
+                fn event ->
+                  ~p"/#{@project.account.name}/#{@project.name}/once/runs/#{@run.run_id}/actions/#{event.id}"
+                end
+              end
+            }
+          >
             <:col
               :let={event}
               :if={@selected_cache_view == "actions"}
@@ -803,9 +820,6 @@ defmodule TuistWeb.OnceRunLive do
                 label={event_action_label(event)}
                 target={event.target_execution_id}
                 presentation={Map.get(event, :presentation)}
-                navigate={
-                  ~p"/#{@project.account.name}/#{@project.name}/once/runs/#{@run.run_id}/actions/#{event.id}"
-                }
               />
             </:col>
             <:col
