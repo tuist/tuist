@@ -30,14 +30,20 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{args: args, inserted_at: inserted_at}) do
     %{"test_run_id" => test_run_id, "project_id" => project_id, "storage_key" => storage_key} = args
-    partial = Map.get(args, "partial", false)
+
+    coverage = %{
+      partial: Map.get(args, "partial", false),
+      tool: Map.get(args, "tool") || "xccov",
+      tool_version: Map.get(args, "tool_version") || ""
+    }
+
     shard_index = Map.get(args, "shard_index")
     expected_shards = Map.get(args, "expected_shards", 1)
 
     case Tests.get_test(test_run_id) do
       {:ok, test} ->
         case Accounts.get_account_by_id(Map.get(args, "account_id") || project_account_id(project_id)) do
-          {:ok, account} -> publish(test, account, storage_key, partial, shard_index, expected_shards)
+          {:ok, account} -> publish(test, account, storage_key, coverage, shard_index, expected_shards)
           {:error, :not_found} -> :ok
         end
 
@@ -52,7 +58,7 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
     end
   end
 
-  defp publish(test, account, storage_key, partial, shard_index, expected_shards) do
+  defp publish(test, account, storage_key, coverage, shard_index, expected_shards) do
     unique = System.unique_integer([:positive])
     compressed = Path.join(System.tmp_dir!(), "coverage_#{unique}.deflate")
     inflated = Path.join(System.tmp_dir!(), "coverage_#{unique}.ndjson")
@@ -62,7 +68,7 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
            :ok <- inflate(compressed, inflated, Environment.coverage_max_inflated_bytes()) do
         Coverage.publish(
           test,
-          Coverage.rows(test.project_id, %{path: inflated, partial: partial}),
+          Coverage.rows(test.project_id, Map.put(coverage, :path, inflated)),
           shard_index,
           expected_shards
         )

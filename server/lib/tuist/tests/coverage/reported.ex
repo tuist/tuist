@@ -165,8 +165,6 @@ defmodule Tuist.Tests.Coverage.Reported do
       project: project,
       repository_id: repository_id,
       sha: sha,
-      # Read once: carrying and explaining the gaps both walk the ancestors' runs.
-      ancestry: if(repository_id in [nil, 0], do: [], else: ancestry || ancestor_runs(project.id, repository_id, sha)),
       run_ids: run_ids,
       hits: hits,
       observed: observed,
@@ -174,7 +172,15 @@ defmodule Tuist.Tests.Coverage.Reported do
       excluded: ExcludedPaths.compile(excluded)
     }
 
-    {carried_tests, carried_lines, sources, reasons} = carried(context, skipped)
+    {context, {carried_tests, carried_lines, sources, reasons}} =
+      if changes_tracked_files?(context) do
+        {Map.put(context, :ancestry, []), {[], %{}, %{}, Map.new(skipped, &{&1.test_case_id, :tracked_file_changed})}}
+      else
+        # Read once: carrying and explaining the gaps both walk the ancestors' runs.
+        ancestry = if(repository_id in [nil, 0], do: [], else: ancestry || ancestor_runs(project.id, repository_id, sha))
+        context = Map.put(context, :ancestry, ancestry)
+        {context, carried(context, skipped)}
+      end
 
     {files, gap_files, file_reasons} =
       observed
@@ -191,6 +197,23 @@ defmodule Tuist.Tests.Coverage.Reported do
     files
     |> result(kind, skipped, carried_tests, {gap_files, test_reasons ++ file_reasons}, shas)
     |> Map.put(:carried_lines, carried_lines)
+  end
+
+  # A commit whose tracked files differ from every parent's carries nothing:
+  # every ancestor's evidence predates the change, so it is decided before
+  # any of it is read. Only an ancestor from before a change this commit
+  # undoes would still qualify, which is not worth carrying for. A merge
+  # whose tracked files match one parent's can still carry from that side.
+  # Without the listings, each source is checked as usual.
+  defp changes_tracked_files?(%{repository_id: repository_id}) when repository_id in [nil, 0], do: false
+
+  defp changes_tracked_files?(context) do
+    with now when now != :unknown <- tracked(context, context.sha),
+         [_ | _] = parents <- GitHistory.parents(context.repository_id, context.sha) do
+      Enum.all?(parents, &(tracked(context, &1) not in [now, :unknown]))
+    else
+      _ -> false
+    end
   end
 
   # Why each skipped test that was not carried is a gap: the check its
@@ -563,15 +586,14 @@ defmodule Tuist.Tests.Coverage.Reported do
       )
 
     tests = Map.new(skipped, &{Evidence.test_scope_id(&1.module_name, &1.suite_name, &1.name), &1})
-    rows = evidence_rows(context.project.id, Map.keys(tests), Map.keys(source_runs), "test")
 
     chosen =
-      rows
-      |> Enum.group_by(& &1.scope_id)
-      |> Map.new(fn {scope_id, scope_rows} ->
-        run_id = scope_rows |> Enum.map(& &1.test_run_id) |> Enum.uniq() |> Enum.min_by(&source_rank(source_runs[&1]))
-        {scope_id, %{run_id: run_id, rows: Enum.filter(scope_rows, &(&1.test_run_id == run_id))}}
-      end)
+      nearest_evidence(
+        context.project.id,
+        evidence_runs(context.project.id, Map.keys(tests), Map.keys(source_runs), "test"),
+        source_runs,
+        "test"
+      )
 
     passed = passed(context.project.id, tests, chosen)
     suites = suite_rows(context.project.id, tests, chosen)
@@ -637,22 +659,21 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   defp carry_targets(acc, context, {by_module, hits}, source_runs, {tracked_now, validity}, modules) do
     project_id = context.project.id
-    rows = evidence_rows(project_id, modules, Map.keys(source_runs), "target")
+    held = evidence_runs(project_id, modules, Map.keys(source_runs), "target")
 
     same_hash =
       project_id
-      |> target_hashes(rows |> Enum.map(& &1.test_run_id) |> Enum.uniq())
+      |> target_hashes(held |> Enum.map(&elem(&1, 1)) |> Enum.uniq())
       |> Enum.filter(&(&1.hash == hits[&1.name]))
       |> MapSet.new(&{&1.test_run_id, &1.name})
 
     chosen =
-      rows
-      |> Enum.filter(&MapSet.member?(same_hash, {&1.test_run_id, &1.scope_id}))
-      |> Enum.group_by(& &1.scope_id)
-      |> Map.new(fn {module, module_rows} ->
-        run_id = module_rows |> Enum.map(& &1.test_run_id) |> Enum.uniq() |> Enum.min_by(&source_rank(source_runs[&1]))
-        {module, %{run_id: run_id, rows: Enum.filter(module_rows, &(&1.test_run_id == run_id))}}
-      end)
+      nearest_evidence(
+        project_id,
+        Enum.filter(held, fn {module, run_id} -> MapSet.member?(same_hash, {run_id, module}) end),
+        source_runs,
+        "target"
+      )
 
     failed = failed_targets(project_id, chosen)
     files = source_files(project_id, chosen |> Map.values() |> Enum.map(& &1.run_id) |> Enum.uniq())
@@ -746,6 +767,45 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   defp to_datetime(%DateTime{} = datetime), do: datetime
   defp to_datetime(%NaiveDateTime{} = datetime), do: DateTime.from_naive!(datetime, "Etc/UTC")
+
+  # Which of the given runs hold evidence for each of the given scopes, as
+  # `{scope_id, test_run_id}`, without reading its lines.
+  defp evidence_runs(_project_id, [], _run_ids, _kind), do: []
+  defp evidence_runs(_project_id, _scope_ids, [], _kind), do: []
+
+  defp evidence_runs(project_id, scope_ids, run_ids, kind) do
+    for runs <- Enum.chunk_every(run_ids, @run_id_chunk),
+        chunk <- Coverage.id_chunks(scope_ids, length(runs)),
+        held <-
+          ClickHouseRepo.all(
+            from(f in CoverageFile,
+              where:
+                f.project_id == ^project_id and f.scope_kind == ^kind and f.scope_id in ^chunk and
+                  f.test_run_id in ^runs,
+              distinct: true,
+              select: {f.scope_id, f.test_run_id}
+            )
+          ),
+        do: held
+  end
+
+  # Each scope's evidence from the nearest of the runs holding it, with lines
+  # read only for that run: reading every ancestor run's lines to keep one
+  # run's per scope exhausted the server's memory on large suites.
+  defp nearest_evidence(project_id, held, source_runs, kind) do
+    nearest =
+      held
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+      |> Map.new(fn {scope_id, run_ids} -> {scope_id, Enum.min_by(run_ids, &source_rank(source_runs[&1]))} end)
+
+    rows =
+      nearest
+      |> Enum.group_by(&elem(&1, 1), &elem(&1, 0))
+      |> Enum.flat_map(fn {run_id, scope_ids} -> evidence_rows(project_id, scope_ids, [run_id], kind) end)
+      |> Enum.group_by(& &1.scope_id)
+
+    Map.new(nearest, fn {scope_id, run_id} -> {scope_id, %{run_id: run_id, rows: Map.get(rows, scope_id, [])}} end)
+  end
 
   # Evidence rows of the given scopes in the given runs, each shard's latest
   # report only.

@@ -83,6 +83,7 @@ defmodule TuistWeb.Coverage.Components do
   attr :targets, :list, required: true, doc: "The targets that moved most, as `files`."
   attr :files_href, :string, required: true, doc: "Where the files' View more leads."
   attr :targets_href, :string, required: true, doc: "Where the targets' View more leads."
+  attr :targets_title, :string, required: true, doc: "What the project's build system calls the targets."
   attr :empty_title, :string, required: true
   attr :rest, :global
 
@@ -100,7 +101,7 @@ defmodule TuistWeb.Coverage.Components do
           :for={
             {side, title, items, href} <- [
               {"files", dgettext("dashboard_tests", "Files"), @files, @files_href},
-              {"targets", dgettext("dashboard_tests", "Targets"), @targets, @targets_href}
+              {"targets", @targets_title, @targets, @targets_href}
             ]
           }
           data-part="changes-section"

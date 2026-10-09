@@ -291,9 +291,12 @@ struct REAPICacheClientTests {
             #expect(streamed == [digest])
             #expect(try await FileSystem().readFile(at: AbsolutePath(validating: output.path)) == data)
             #expect(try await client.actionResult(for: digest) == nil)
+            #expect(try await !client.containsActionResult(for: digest))
             let result = REAPI.ActionResult.with { $0.outputFiles = [.with { $0.path = "output"; $0.digest = digest }] }
             try await client.storeActionResult(result, for: digest)
             #expect(try await client.actionResult(for: digest) == result)
+            #expect(try await client.containsActionResult(for: digest))
+            #expect(await state.lookupKinds.suffix(4) == [nil, "presence", nil, "presence"])
             await state.corrupt(digest)
             await #expect(throws: REAPICacheError.self) {
                 try await client.downloadBlob(digest, to: directory.appending(component: "bad").url)
@@ -1399,6 +1402,8 @@ private actor WireCache {
     var actionQueries: [REAPI.Digest: Int] = [:]
     var peakActionQueries = 0
     private var activeActionQueries = 0
+    var lookupKinds: [String?] = []
+    func recordLookup(_ kind: String?) { lookupKinds.append(kind) }
     func lookup(_ digest: REAPI.Digest) async throws -> REAPI.ActionResult? {
         actionQueries[digest, default: 0] += 1
         activeActionQueries += 1
@@ -1499,6 +1504,7 @@ private struct WireActions: Build_Bazel_Remote_Execution_V2_ActionCache.ServiceP
         #expect(Array(request.metadata[stringValues: "x-tuist-account-handle"]).first == "account")
         #expect(request.message.instanceName == "project")
         #expect(request.message.digestFunction == .sha256)
+        await state.recordLookup(Array(request.metadata[stringValues: "x-tuist-lookup"]).first)
         let result = try await state.lookup(request.message.actionDigest)
         if let failure { throw failure }
         guard let result else { throw RPCError(
