@@ -1388,22 +1388,23 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert reasons(reported) == [:no_evidence]
   end
 
-  test "is measured when the runs listed no candidates and none left tests out", %{project: project, account: account} do
-    CoverageFixtures.run_with_coverage(project, account, [file("Sources/Math.swift", [1, 0])], %{git_commit_sha: "head"})
-
-    assert %{kind: "measured", covered_lines: 1, executable_lines: 2} = Reported.compute(project, "head")
-    assert Reported.compute(project, "unknown") == nil
-  end
-
-  test "is the observed figure when the runs listed no candidates and one left tests out", %{
+  test "is the observed figure when the runs listed no candidates, whether or not they left tests out", %{
     project: project,
     account: account
   } do
     CoverageFixtures.run_with_coverage(project, account, [file("Sources/Math.swift", [1, 0])], %{
       git_commit_sha: "head",
-      partial: true
+      enumerated_tests: []
     })
 
     assert %{kind: "observed", covered_lines: 1, executable_lines: 2} = Reported.compute(project, "head")
+
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/Math.swift", [1, 1])], %{
+      git_commit_sha: "other",
+      partial: true
+    })
+
+    assert %{kind: "observed", covered_lines: 2, executable_lines: 2} = Reported.compute(project, "other")
+    assert Reported.compute(project, "unknown") == nil
   end
 end

@@ -119,9 +119,8 @@ The skipped tests are the commit's **candidates** minus the tests its runs execu
 | Situation | Figure (`reported_kind`) | In trends and baselines |
 | --- | --- | --- |
 | The runs skipped nothing, and compiled every file the nearest ancestor that measured the same schemes covered. | `measured`: what the runs measured. | Yes |
-| The runs listed no candidates, but none of them left tests out on purpose (not partial). | `measured`, under the same file check. | Yes |
 | Every skipped test was carried exactly and no file was left out. | `reported`: measured plus carried. | Yes |
-| Anything else: a skipped test or a file that couldn't be accounted for, or partial runs that listed no candidates. | `observed`: what the runs measured. | No |
+| Anything else: a skipped test or a file that couldn't be accounted for, or runs that listed no candidates, so what they skipped can't be told. | `observed`: what the runs measured. | No |
 
 Commits folded before this rule may still be `partial`. They're read like `observed` (`Tuist.Tests.Coverage.Commits.incomplete?/1`) until they're folded again.
 
@@ -276,7 +275,7 @@ Enumerated tests: Tuist lists every test the run could execute with `xcodebuild 
 | `run` | Erlang's `cover`, sent as the `coverage` block (`tool` `cover`). | `--cover`. |
 | `target`, `suite`, `test` | Not collected. | |
 
-A run is marked partial when its arguments leave tests out: `--only`, `--exclude`, `--failed`, `--stale`, `--name-pattern`, `--max-failures`, or explicit test files or lines (`TuistEx.Analytics.Coverage.partial?/1`). A commit where no run was partial is `measured`, with or without an enumeration. A partial run has no evidence to carry from, so its commit is `observed`.
+A run is marked partial when its arguments leave tests out: `--only`, `--exclude`, `--failed`, `--stale`, `--name-pattern`, `--max-failures`, or explicit test files or lines (`TuistEx.Analytics.Coverage.partial?/1`). A commit is `measured` only when its runs list their candidates (the enumerated tests below) and skipped none of them. A partial run has no evidence to carry from, so its commit is `observed`.
 
 ### Enumerated tests
 

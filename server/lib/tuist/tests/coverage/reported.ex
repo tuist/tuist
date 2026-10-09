@@ -80,8 +80,8 @@ defmodule Tuist.Tests.Coverage.Reported do
   @doc """
   The commit's reported coverage, or nil when no run measured it.
 
-  `kind` is `measured` when the runs skipped nothing (or, listing no
-  candidates, none of them left tests out on purpose) and measured every
+  `kind` is `measured` when the runs listed their candidates, skipped none
+  of them, and measured every
   file the nearest ancestor that measured the same schemes covered;
   `reported` when every skipped test was carried forward exactly and no file
   is left out; and `observed` otherwise, the figure being what the runs
@@ -122,13 +122,9 @@ defmodule Tuist.Tests.Coverage.Reported do
     end
   end
 
-  # The runs listed no candidates, so what they skipped can't be told, unless
-  # none of them left tests out on purpose.
-  defp settle({:not_enumerated, _ancestry}, place, runs, {_run_ids, _hits, schemes}) do
-    if runs != [] and not Enum.any?(runs, & &1.partial),
-      do: measured(place, schemes),
-      else: result(place.observed, "observed", [], [], {0, []}, [])
-  end
+  # The runs listed no candidates, so what they skipped can't be told.
+  defp settle({:not_enumerated, _ancestry}, place, _runs, _runs_context),
+    do: result(place.observed, "observed", [], [], {0, []}, [])
 
   # Nothing listed was skipped, but a target selective testing skipped whose
   # tests no run listed (pruned from the workspace, and no ancestor run

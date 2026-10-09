@@ -90,11 +90,15 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
   `attrs` override the run's fields; `:partial` marks the coverage partial.
   The run reports the fixture remote unless `git_remote_url_origin` says
   otherwise, and its commit's coverage is republished at once, as the
-  `CommitWorker` would (`recompute: false` leaves that out).
+  `CommitWorker` would (`recompute: false` leaves that out). A run that is not
+  partial lists the tests it ran as its enumerated tests, as the CLI does,
+  one passing test when it names none, unless `enumerated_tests` says
+  otherwise.
   """
   def run_with_coverage(project, account, files, attrs \\ %{}) do
     {partial, attrs} = Map.pop(attrs, :partial, false)
     {recompute, attrs} = Map.pop(attrs, :recompute, true)
+    attrs = with_enumeration(attrs, partial)
 
     {:ok, run} =
       Tests.create_test(
@@ -121,6 +125,34 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
     {:ok, run} = Tests.get_test(run.id)
     if recompute, do: recompute_commit(run)
     run
+  end
+
+  defp with_enumeration(attrs, true), do: attrs
+  defp with_enumeration(%{enumerated_tests: _} = attrs, false), do: attrs
+
+  defp with_enumeration(attrs, false) do
+    modules =
+      case Map.get(attrs, :test_modules) do
+        modules when modules in [nil, []] ->
+          [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 1,
+              test_cases: [%{name: "test()", test_suite_name: "AppTests", status: "success", duration: 1}]
+            }
+          ]
+
+        modules ->
+          modules
+      end
+
+    enumerated =
+      for module <- modules, test_case <- module.test_cases do
+        %{module: module.name, suite: Map.get(test_case, :test_suite_name, ""), name: test_case.name}
+      end
+
+    Map.merge(attrs, %{test_modules: modules, enumerated_tests: enumerated})
   end
 
   @doc "Republishes the run's commit coverage, as the `CommitWorker` does after a run reports."
