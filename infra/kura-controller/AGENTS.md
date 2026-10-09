@@ -3,9 +3,6 @@
 This module contains the Kubernetes controller that reconciles Kura account endpoint custom resources.
 
 ## Scope
-- First production activation and colocated-volume migration:
-  [production-pilot.md](production-pilot.md). Keep activation instance-scoped
-  until every region belonging to the account is qualified.
 - Opt-in phase-one serving/recovery: [serving-authority.md](serving-authority.md).
   Durable CAS epochs and positive fencing own activated instances. Missing-node
   detection never resets an activated StatefulSet. Legacy instances keep their
