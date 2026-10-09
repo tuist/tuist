@@ -619,6 +619,37 @@ defmodule Tuist.Billing do
     {:ok, stripe_sub}
   end
 
+  @doc """
+  Puts an account with no live subscription on the open source plan.
+
+  The subscription carries only the open source Prices, both $0. It carries
+  no runner or usage meter Prices, so the usage the account reports is never
+  invoiced. An account that already has a live subscription is refused
+  rather than switched, so a paying plan is never replaced from here.
+  """
+  def start_open_source_plan(%Account{} = account) do
+    if is_nil(get_current_active_subscription(account)) do
+      account = Accounts.create_customer_when_absent(account)
+
+      {:ok, stripe_sub} =
+        Stripe.Subscription.create(%{
+          customer: account.customer_id,
+          items: open_source_subscription_items()
+        })
+
+      on_subscription_change(stripe_sub)
+      {:ok, stripe_sub}
+    else
+      {:error, :subscription_exists}
+    end
+  end
+
+  defp open_source_subscription_items do
+    prices = Tuist.Environment.stripe_prices()["open_source"]
+
+    Enum.map(List.wrap(prices["flat_monthly"]) ++ List.wrap(prices["usage"]), &%{price: &1})
+  end
+
   defp enterprise_subscription_items(account) do
     available_prices = Tuist.Environment.stripe_prices()
 

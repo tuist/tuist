@@ -10,6 +10,8 @@ service ContentAddressableStorage {
   rpc BatchReadBlobs(BatchReadBlobsRequest) returns (BatchReadBlobsResponse) {}
   rpc BatchUpdateBlobs(BatchUpdateBlobsRequest) returns (BatchUpdateBlobsResponse) {}
   rpc FindMissingBlobs(FindMissingBlobsRequest) returns (FindMissingBlobsResponse) {}
+  rpc SplitBlob(SplitBlobRequest) returns (SplitBlobResponse) {}
+  rpc SpliceBlob(SpliceBlobRequest) returns (SpliceBlobResponse) {}
 }
 message Digest { string hash = 1; int64 size_bytes = 2; }
 message DigestFunction { enum Value { UNKNOWN = 0; SHA256 = 1; } }
@@ -43,3 +45,12 @@ message BatchUpdateBlobsResponse {
   message Response { Digest digest = 1; BlobStatus status = 2; }
   repeated Response responses = 1;
 }
+
+message ChunkingFunction { enum Value { UNKNOWN = 0; FAST_CDC_2020 = 1; } }
+message SplitBlobRequest { string instance_name = 1; Digest blob_digest = 2; DigestFunction.Value digest_function = 3; ChunkingFunction.Value chunking_function = 4; }
+message SplitBlobResponse { repeated Digest chunk_digests = 1; ChunkingFunction.Value chunking_function = 2; }
+message SpliceBlobRequest {
+  string instance_name = 1; Digest blob_digest = 2; repeated Digest chunk_digests = 3;
+  DigestFunction.Value digest_function = 4; ChunkingFunction.Value chunking_function = 5;
+}
+message SpliceBlobResponse { Digest blob_digest = 1; }

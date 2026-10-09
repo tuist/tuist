@@ -11,6 +11,10 @@ This directory contains ExUnit tests for the Tuist Server.
 - Tests run with a clean database.
 - Migration identity coverage checks both timestamp versions and filename names across each repository, including already-applied files. Distinct module names alone do not prevent Ecto's duplicate migration-name failure on a fresh database.
 - Once action history coverage separates logical keys from occurrences: project/run isolation, idempotent replay, collision suppression, cache-aware denominators and execution metrics, bounded windows/pagination, retained first observations and branch filtering. LiveView coverage checks compact links from Actions/Cache, searchable source pagination with unchanged commitment safety, legacy/ambiguous explanations and coalesced refresh. UI changes also require actual browser captures, including keyboard navigation, chart geometry and responsive overflow checks.
+- Repository monitoring tests cover all six physical pool/query labels, optional
+  pool absence, dynamic-repository telemetry, and absent timing phases. Missing
+  `idle_time` is not zero; it is not part of total query duration. Read-outcome
+  forwarding ignores ops and shadow-write events, even when they carry a result.
 - GitHub Enterprise API-override coverage spans signed-state compatibility, schema validation, proxy token/comment/App-JWT requests, canonical pagination rebasing, SSRF/redirect guards (including runner-log archive hops), tenant-isolated caches, browser links, and account-scoped edits that preserve installations and project connections.
 - Successful Mix compile-reporter ingestion fixtures must include a profiled file; idle compiles intentionally emit no report. Error diagnostics still report without profiled files.
 - Open Graph regressions cover published legacy URLs, stable marketing/docs tokens, project-token expiry, handle reuse, visibility rechecks (including 304s and transient images), project-only retention, and exclusion of restricted automation configuration.
