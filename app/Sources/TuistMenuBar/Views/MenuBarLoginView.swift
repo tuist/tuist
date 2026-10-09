@@ -54,7 +54,7 @@ struct MenuBarLoginView: View {
                 .padding(.horizontal, 12)
                 .padding(.bottom, 12)
 
-            primaryButton("Save & Continue") {
+            primaryButton("Sign in") {
                 selectSelfHostedServer()
             }
             .disabled(invalidServerURL)

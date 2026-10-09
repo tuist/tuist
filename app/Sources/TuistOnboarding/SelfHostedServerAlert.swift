@@ -4,7 +4,7 @@ import TuistNoora
 import UIKit
 
 /// Presents the self-hosted server prompt with UIKit because SwiftUI alerts can't render
-/// "Save & Continue" as the prominent, accent-filled action from the design.
+/// "Sign in" as the prominent, accent-filled action from the design.
 @MainActor
 enum SelfHostedServerAlert {
     static func present(serverURL: String, onSave: @escaping (String) -> Void) {
@@ -15,7 +15,7 @@ enum SelfHostedServerAlert {
             message: "Use the root address of your Tuist server",
             preferredStyle: .alert
         )
-        let save = UIAlertAction(title: "Save & Continue", style: .default) { [weak alert] _ in
+        let save = UIAlertAction(title: "Sign in", style: .default) { [weak alert] _ in
             onSave(alert?.textFields?.first?.text ?? "")
         }
         save.isEnabled = isValid(serverURL)
