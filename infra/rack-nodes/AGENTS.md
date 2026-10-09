@@ -24,7 +24,7 @@ only the first edge of a site is installed from a stick of its own.
 - **The operator** (`infra/cluster-api-provider-tuist`, `controllers/linux`)
   publishes each host's install, finds the host on the tailnet and joins it.
   See "Rack-owned Linux hosts" in its AGENTS.md.
-- **The boot server** (`rackLinuxFleet.boot`, a DaemonSet in the tuist chart
+- **The boot server** (`rackLinuxFleet.boot`, a DaemonSet in the rack-nodes chart
   running the operator's `rack-boot` on both edges) serves what the operator
   publishes, on the site's provisioning address, from whichever edge holds it,
   hands each install's seed to its host alone, and lists the machines sticks
@@ -168,11 +168,31 @@ The installer can get its default route from its provisioning lease, through
 the edge, as well as from the uplinks' DHCP, so each edge translates the
 provisioning range onto its uplinks as well as into the tailnet.
 
-**Racking an MS-01** is its cables and the install stick. Its firmware stays as
-it ships: with its disk empty it boots the stick, which installs it once the
-host is declared. Netbooting instead needs, once, in Setup: Advanced → Network
-Stack Configuration → Network Stack and IPv4 PXE Support enabled; Secure Boot
-stays on. Then it netboots whenever its disk does not boot.
+**Racking an MS-01** is its cables and the install stick. Its i226-LM is cabled
+to the management switch, the port AMT answers on. With its disk empty it boots
+the stick, which installs it once the host is declared, and the operator
+activates its AMT. From then on AMT powers it on after a power loss (below), so
+a host that is not an edge needs nothing in Setup.
+
+**An edge needs one visit to Setup**, because AMT is reached through an edge and
+nothing powers on an edge while no edge is up: Advanced → ACPI Settings →
+Restore On AC Power Loss: **Always On**. The MS-01 ships with Always Off. Always
+On, not Last State: `online` decides whether a host stays off, and the operator
+shuts down one that comes back on against it. Setting it on another host as
+well brings that host back without waiting for an edge and AMT.
+
+Netbooting needs the same kind of visit, on any host: Advanced → Network Stack
+Configuration → Network Stack and IPv4 PXE Support enabled. Then it netboots
+whenever its disk does not boot. Secure Boot stays on either way.
+
+An installed host reboots straight into Setup, over a console such as a JetKVM
+on its HDMI and USB:
+
+```
+ssh tuist@<host> sudo systemctl reboot --firmware-setup
+```
+
+Save & Exit applies the change and boots the installed system.
 
 **The stick is the MS-01's route, a workaround for its firmware.** The MS-01 ships
 with its network stack off, and nothing but a person in Setup turns it on:
@@ -181,9 +201,10 @@ firmware's Setup variables from the OS means poking an undocumented AMI
 variable layout that changes between firmware releases, where a wrong write
 can leave the box unbootable, and changing a security setting behind the
 person racking it. A stick boots with the firmware's defaults, Secure Boot
-included, so a factory box needs no one in Setup: it announces itself,
-installs once declared, and is reinstalled through `BootNext` to the stick.
-Netboot, with its one Setup visit, is what AMT's recovery of a box that no
+included, so a factory box needs no one in Setup to install: it announces
+itself, installs once declared, and is reinstalled through `BootNext` to the
+stick. Restore On AC Power Loss is the same kind of Setup setting, which is why
+an edge's is set by hand. Netboot is what AMT's recovery of a box that no
 longer boots needs; a box without it is recovered by booting its stick. Every
 box needs its stick left plugged in, so the next machine model should be
 something like an ASRock Rack board, whose BMC sets the boot order and firmware
@@ -224,6 +245,16 @@ powered off (below) and not rebooted into an install.
 through AMT when it is not on the tailnet, and `true` powers it back on through
 AMT. A one-off reboot through AMT is the `tuist.dev/reboot` annotation (`cycle`,
 `reset` or `pxe`).
+
+**After a power loss** a host whose firmware restores comes back by itself. One
+that does not is off, and the operator powers it on through AMT once a host
+that should be on is off the tailnet and AMT reports it off, retrying with a
+backoff (`PowerMatchesOnline`, `PowerChanged` events). AMT is reached through an
+edge, so this needs an edge back first: with both edges off, only an edge's own
+Restore On AC Power Loss brings the rack back, which is why every edge has it
+(above). `PowerReachable` (in `kubectl get rlh -o wide`) shows, before it is
+needed, whether a host could be powered on that way; `AMTLinkDown` is a
+management port with no link, a cable to look at.
 
 Watch it with:
 
@@ -388,11 +419,64 @@ the cluster reaches it.
   `nodeLocalNetwork` instances use Tailscale's `100.100.100.100`, which
   answers tailnet names and fails others over, then public resolvers.
 - **Telemetry.** `alloy-rack` (`infra/helm/k8s-monitoring`) on each rack node
-  ships its pods' logs and scrapes its node-local Kura pods, and pushes both to
-  the Alloy receiver at its tailnet name. Kura exports its traces there too.
+  ships its pods' logs, scrapes its node-local Kura pods and exports the
+  host's own metrics, and pushes them to the Alloy receiver at its tailnet
+  name. Kura exports its traces there too.
 - **Being reached.** A pod the cluster has to read from is reached through the
   API server: the Kura controller samples node-local pods through a
   port-forward, which goes through the kubelet.
+
+## Deploys and the rack's health
+
+A rack is dark for days at a time: while it travels to the colo, through a power
+event, whenever its one uplink is down. Deploys go on regardless, and nothing
+needs doing to the cluster first.
+
+Deploys wait on the tuist, k8s-monitoring and platform releases with Helm 4's
+`--wait`, which reads a DaemonSet as ready only when every pod it wants is
+Ready, the pods on dark nodes included, and a Deployment only when all its
+replicas are available. So nothing in those releases runs a pod on a rack
+node:
+
+- The rack node agent and the boot server are the rack-nodes chart's
+  (`infra/helm/rack-nodes`), installed by `server-deployment.yml` after the
+  tuist release, from the tuist chart's values and the operator's image.
+- The Kura gateways on storage nodes are the rack-cache-gateways chart's
+  (`infra/helm/rack-cache-gateways`), installed by `k8s:install-platform` after
+  the platform release, from the platform chart's values.
+- node-exporter skips rack nodes; `alloy-rack`, an Alloy resource the wait does
+  not look through, exports their host metrics.
+
+Both charts install with `--wait=hookOnly`, so a deploy applies them and moves
+on; the DaemonSet controller rolls their pods out on the nodes that are up and
+on the others as they return. A broken rollout there does not fail the deploy:
+check the DaemonSets after one that changes them. Kura instances on rack nodes
+belong to no release. `mise -C infra run helm:rack-independence` (in the Helm
+workflow) renders every env's waited releases and fails when one schedules a
+pod onto a rack node: one per role in `rackLinuxFleet.roles`, a rack Linux node
+with no role, and a rack's Mac mini.
+
+### Downtime
+
+For planned downtime, a move or work on the rack:
+
+1. **The minis** (remote). Cordon each one's Node and let its running jobs
+   finish (`kubectl get rh` names the Machine, which is also the Node), then
+   set `parked: true` on each host in `rackFleet.hosts` and deploy. Parking
+   deletes the Machine and the Node, so the `ber1` pool has no nodes to place
+   runners on and nothing tries to bootstrap a mini that is off. Unparking them
+   afterwards (and deploying) bootstraps each one again.
+2. **The Linux hosts** need nothing. Their Nodes go NotReady and their pods are
+   evicted after five minutes; the Kura pods on a storage node stay Pending,
+   bound to their local volumes, until it is back. A host that comes back on
+   the tailnet keeps its install and its Node, so leave `online` and
+   `reinstallGeneration` alone.
+
+An unplanned outage needs nothing at all. The rack fleet's MachineHealthCheck
+remediates a mini whose Node has been NotReady for 30 minutes, but only while
+at most one is (`unhealthyRange: "[0-1]"`): a rack-wide outage remediates no
+mini, and once the rack is back, a mini that stayed down is remediated on its
+own.
 
 ## Production
 
@@ -698,4 +782,6 @@ them.
 `curl`; it runs in the Rack Switches workflow. The boot server, the netboot
 seed, the iPXE script and the install lifecycle are Go tests in the operator
 (`internal/rackboot`, `internal/rackinstall`,
-`controllers/linux/racklinuxhost_install_test.go`).
+`controllers/linux/racklinuxhost_install_test.go`). `mise -C infra run
+helm:rack-independence` checks that deploys do not wait on rack nodes (see
+"Deploys and the rack's health"); it runs in the Helm workflow.

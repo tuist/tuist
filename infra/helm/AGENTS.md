@@ -19,8 +19,10 @@ This node covers Helm assets under `infra/helm/`.
 - `capi.vultrPrivateNetwork` declares regional networks; the CAPI controller owns
   provider IDs and creation intent in a retained `-state` ConfigMap. Keep that
   state out of Helm-owned data. Production enables Chicago and Santiago; Santiago
-  declares two hosts. Physical host-pair validation is still pending enrollment
-  of the second host. Reciprocal `canonicalPeers` region names
+  has two enrolled hosts with bidirectional physical private-path and isolated
+  replication validation. See the qualification limits in
+  `../kura-controller/vultr-private-networking.md`. Reciprocal `canonicalPeers`
+  region names
   approve canonical mTLS between exact VPC IDs resolved by the controller. Stage
   this policy on existing runtimes before qualifying another region; same-VPC
   traffic remains private-only. Self-hosted defaults stay off.
@@ -53,6 +55,14 @@ This node covers Helm assets under `infra/helm/`.
   Machine's `egressBudgetMbps` from its reviewed OnDelete fleet template).
   Staging has standing write access; canary/production require human elevation.
 - Kura archival defaults to hourly sweeps with a 24-hour never-used Air window. Canary inherits the hourly default; staging keeps its five-minute sweep override for lifecycle drills.
+- Deploys wait on the tuist, k8s-monitoring and platform releases (Helm 4's
+  kstatus wait: a DaemonSet is ready only when every pod it wants is). Nothing
+  in them may run a pod on a rack node, which can be dark for days: rack-node
+  workloads go in `rack-nodes` or `rack-cache-gateways`, installed with
+  `--wait=hookOnly` from the tuist and platform charts' values. Run
+  `mise -C infra run helm:rack-independence` after adding a DaemonSet or
+  tolerations; the Helm workflow runs it too. See "Deploys and the rack's
+  health" in `../rack-nodes/AGENTS.md`.
 - Prefer one umbrella chart that models deployable capabilities, not implementation brands.
 - When a workload needs an independent workflow and release cadence, give it its own chart
   rather than adding it to `helm/tuist/`.
@@ -67,6 +77,9 @@ This node covers Helm assets under `infra/helm/`.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
   browser LCP p99 also requires distinct affected sessions, not just total samples.
+  ClickHouse read-failure and latency rules aggregate Cloud and shadow physical
+  repos; expanding telemetry coverage can surface previously invisible failures
+  without any threshold change.
 - `k8s-monitoring/kura-availability-alert-rules.json` reflects the enabled rule,
   provisioned separately from Helm. Its zero-ready-replica expression and routing
   are exercised by `test-kura-availability-alert.sh` using Bash, jq, promtool and amtool.

@@ -56,9 +56,10 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
   Managed environments enable this for their qualified OVH domain. Canary has
   one OVH host; its colocated fixture does not prove a physical host pair.
   Vultr Chicago also passed physical qualification and activates through current-
-  boot route attestations on merge. Santiago also enables managed topology after
-  no-reboot attachment and regional runtime validation; its single host cannot
-  establish physical host-to-host qualification.
+  boot route attestations on merge. Santiago has two enrolled hosts with matching
+  membership attestations, bidirectional full-MTU private reachability, and
+  checksum-verified isolated replication captured on the private interfaces.
+  This does not establish workload redistribution or host-failure capacity.
   [Vultr private networking](vultr-private-networking.md) covers Kubernetes
   ownership, retained creation intent, isolated tests and rollback. Never enable
   two Vultr domains until all active peers support reciprocal `canonical_networks`.

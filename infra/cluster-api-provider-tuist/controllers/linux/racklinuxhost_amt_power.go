@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"sort"
 	"strings"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/models"
 	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/power"
 	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/client"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +29,10 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 )
@@ -40,17 +46,38 @@ const RebootAnnotation = "tuist.dev/reboot"
 // PowerCondition reports whether the host's power state matches spec.online.
 const PowerCondition clusterv1.ConditionType = "PowerMatchesOnline"
 
+// PowerReachableCondition reports whether the operator can power the host on
+// through AMT: whether AMT answered the last read through an edge.
+const PowerReachableCondition clusterv1.ConditionType = "PowerReachable"
+
 const (
 	amtPowerTimeout = time.Minute
 	// amtPowerObserveInterval is how often the power state of a host the
 	// tailnet cannot vouch for is read from AMT.
 	amtPowerObserveInterval = 10 * time.Minute
-	// amtPowerChangeBackoff spaces the power changes spec.online asks for.
-	amtPowerChangeBackoff = 5 * time.Minute
+	// amtPowerCheckInterval is how often AMT is read for a host on the
+	// tailnet, to keep PowerReachable current.
+	amtPowerCheckInterval = time.Hour
+	// amtPowerChangeBackoff spaces the power changes spec.online asks for,
+	// doubling with each one that does not take, up to amtPowerChangeBackoffMax.
+	amtPowerChangeBackoff    = 5 * time.Minute
+	amtPowerChangeBackoffMax = time.Hour
 
 	rackPowerOn  = "On"
 	rackPowerOff = "Off"
+
+	powerSourceTailnet = "Tailnet"
+	powerSourceAMT     = "AMT"
 )
+
+var rackLinuxHostPowerReachableGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Name: "capt_racklinuxhost_power_reachable",
+	Help: "1 when the RackLinuxHost's AMT answered the last read through an edge, 0 when it did not or cannot be asked. A sustained 0 means that if the host loses power, nothing but its firmware's Restore On AC Power Loss or a person powers it on again. Labels: host, site.",
+}, []string{"host", "site"})
+
+func init() {
+	metrics.Registry.MustRegister(rackLinuxHostPowerReachableGauge)
+}
 
 // amtTLSPinKey holds, in a host's AMT Secret, the SHA-256 of the TLS
 // certificate AMT presented to the first power change.
@@ -122,51 +149,67 @@ func (r *RackLinuxHostReconciler) reconcileReboot(ctx context.Context, host *inf
 }
 
 // reconcilePower holds the host to spec.online. A host connected to the
-// tailnet is on; otherwise AMT is asked, every amtPowerObserveInterval. A host
-// that should be off is shut down over SSH while it is on the tailnet, and
-// powered off through AMT otherwise; one that should be on and is off is
-// powered on through AMT. Changes are spaced by amtPowerChangeBackoff. It
-// returns when to look again.
+// tailnet is on, and its AMT is read every amtPowerCheckInterval to keep
+// PowerReachable current. A host that is not is read from AMT at once, as
+// whatever took it off the tailnet may have taken its power, and every
+// amtPowerObserveInterval after. A host that should be off is shut down over
+// SSH while it is on the tailnet, and powered off through AMT otherwise; one
+// that should be on and is off is powered on through AMT, as after a power
+// loss its firmware does not restore. Changes, reboots included, are spaced
+// by powerChangeWait. It returns when to look again.
 func (r *RackLinuxHostReconciler) reconcilePower(ctx context.Context, host *infrav1.RackLinuxHost) time.Duration {
 	now := r.now()
 	connected := host.Status.Tailnet != nil && host.Status.Tailnet.Connected
+	want := rackPowerOn
+	if !host.Spec.Online {
+		want = rackPowerOff
+	}
+	defer r.reportPowerReachable(host)
 	switch {
 	case connected:
-		host.Status.Power = &infrav1.RackLinuxHostPowerStatus{State: rackPowerOn, ObservedAt: &metav1.Time{Time: now}}
+		observePower(host, rackPowerOn, powerSourceTailnet, now)
+		if r.amtCanPower(host) {
+			if read := host.Status.AMT.LastPowerRead; read == nil || now.Sub(read.At.Time) >= amtPowerCheckInterval {
+				_, _ = r.readAMTPower(ctx, host)
+			}
+		}
 	case r.amtCanPower(host):
-		if p := host.Status.Power; p == nil || p.ObservedAt == nil || now.Sub(p.ObservedAt.Time) >= amtPowerObserveInterval ||
-			(!host.Spec.Online && p.State != rackPowerOff) {
+		p := host.Status.Power
+		fresh := p != nil && p.Source == powerSourceAMT && p.ObservedAt != nil && now.Sub(p.ObservedAt.Time) < amtPowerObserveInterval
+		if !fresh || p.State != want {
+			if wait := r.powerChangeWait(host, now); fresh && wait > 0 {
+				markPowerWaiting(host, wait)
+				return wait
+			}
 			state, err := r.readAMTPower(ctx, host)
 			if err != nil {
 				conditions.MarkFalse(host, PowerCondition, "PowerUnreadable", clusterv1.ConditionSeverityWarning, "%v", err)
-				return amtPowerObserveInterval
+				return time.Minute
 			}
-			host.Status.Power = &infrav1.RackLinuxHostPowerStatus{State: state, ObservedAt: &metav1.Time{Time: now}}
+			observePower(host, state, powerSourceAMT, now)
 		}
 	default:
-		if !host.Spec.Online {
+		switch {
+		case !host.Spec.Online:
 			conditions.MarkFalse(host, PowerCondition, "CannotPowerOff", clusterv1.ConditionSeverityWarning,
-				"spec.online is false, but %s is not on the tailnet to shut down and its AMT is not activated", host.Spec.Hostname)
-		} else {
+				"spec.online is false, but %s is not on the tailnet to shut down and its AMT cannot be asked", host.Spec.Hostname)
+		case host.Status.Tailnet != nil:
+			conditions.MarkFalse(host, PowerCondition, "CannotPowerOn", clusterv1.ConditionSeverityWarning,
+				"%s is off the tailnet and its AMT cannot be asked, so it cannot be powered on remotely", host.Spec.Hostname)
+		default:
 			conditions.Delete(host, PowerCondition)
 		}
 		return 0
 	}
 
-	state := host.Status.Power.State
-	want := rackPowerOn
-	if !host.Spec.Online {
-		want = rackPowerOff
-	}
-	if state == want {
+	if host.Status.Power.State == want {
+		host.Status.Power.Changes = 0
 		conditions.MarkTrue(host, PowerCondition)
 		return amtPowerObserveInterval
 	}
-	if last := host.Status.AMT; last != nil && last.LastPowerAction != nil {
-		if wait := last.LastPowerAction.At.Add(amtPowerChangeBackoff).Sub(now); wait > 0 &&
-			(last.LastPowerAction.Action == "on" || last.LastPowerAction.Action == "off") {
-			return wait
-		}
+	if wait := r.powerChangeWait(host, now); wait > 0 {
+		markPowerWaiting(host, wait)
+		return wait
 	}
 	var err error
 	switch {
@@ -185,9 +228,94 @@ func (r *RackLinuxHostReconciler) reconcilePower(ctx context.Context, host *infr
 		conditions.MarkFalse(host, PowerCondition, "PowerNotChanged", clusterv1.ConditionSeverityWarning, "%v", err)
 		return time.Minute
 	}
-	r.Recorder.Eventf(host, corev1.EventTypeNormal, "PowerChanged", "Powered %s %s to match spec.online", host.Spec.Hostname, strings.ToLower(want))
+	host.Status.Power.Changes++
+	r.Recorder.Eventf(host, corev1.EventTypeNormal, "PowerChanged", "Powered %s %s to match spec.online: it was %s (change %d)",
+		host.Spec.Hostname, strings.ToLower(want), strings.ToLower(host.Status.Power.State), host.Status.Power.Changes)
 	conditions.MarkFalse(host, PowerCondition, "PowerChanging", clusterv1.ConditionSeverityInfo, "powering %s", strings.ToLower(want))
-	return amtPowerChangeBackoff
+	return r.powerChangeWait(host, now)
+}
+
+// observePower records the host's power state, keeping the count of changes
+// made to reach spec.online.
+func observePower(host *infrav1.RackLinuxHost, state, source string, now time.Time) {
+	if host.Status.Power == nil {
+		host.Status.Power = &infrav1.RackLinuxHostPowerStatus{}
+	}
+	host.Status.Power.State = state
+	host.Status.Power.Source = source
+	host.Status.Power.ObservedAt = &metav1.Time{Time: now}
+}
+
+// markPowerWaiting reports a host whose power state does not match
+// spec.online while the next change waits; a warning from the third change
+// on, as a host that does not come on is one to look at.
+func markPowerWaiting(host *infrav1.RackLinuxHost, wait time.Duration) {
+	changes := host.Status.Power.Changes
+	if changes == 0 {
+		conditions.MarkFalse(host, PowerCondition, "WaitingForReboot", clusterv1.ConditionSeverityInfo,
+			"%s is %s; a power change or reboot was asked for less than %s ago", host.Spec.Hostname,
+			strings.ToLower(host.Status.Power.State), amtPowerChangeBackoff)
+		return
+	}
+	severity := clusterv1.ConditionSeverityInfo
+	if changes >= 3 {
+		severity = clusterv1.ConditionSeverityWarning
+	}
+	conditions.MarkFalse(host, PowerCondition, "PowerChanging", severity,
+		"%s is %s after %d power change(s); the next in %s", host.Spec.Hostname, strings.ToLower(host.Status.Power.State),
+		changes, wait.Round(time.Second))
+}
+
+// powerChangeWait is how long the next power change waits: after any power
+// change or reboot, amtPowerChangeBackoff, doubled for each change made since
+// the state last matched spec.online, up to amtPowerChangeBackoffMax.
+func (r *RackLinuxHostReconciler) powerChangeWait(host *infrav1.RackLinuxHost, now time.Time) time.Duration {
+	if host.Status.AMT == nil || host.Status.AMT.LastPowerAction == nil {
+		return 0
+	}
+	backoff := amtPowerChangeBackoff
+	if p := host.Status.Power; p != nil {
+		for i := int32(1); i < p.Changes && backoff < amtPowerChangeBackoffMax; i++ {
+			backoff *= 2
+		}
+	}
+	backoff = min(backoff, amtPowerChangeBackoffMax)
+	return max(host.Status.AMT.LastPowerAction.At.Add(backoff).Sub(now), 0)
+}
+
+// reportPowerReachable records whether the operator can power the host on
+// through AMT, in PowerReachable and capt_racklinuxhost_power_reachable.
+func (r *RackLinuxHostReconciler) reportPowerReachable(host *infrav1.RackLinuxHost) {
+	if r.AMT == nil {
+		conditions.Delete(host, PowerReachableCondition)
+		return
+	}
+	amt := host.Status.AMT
+	reachable := false
+	switch {
+	case amt == nil || (amt.ControlMode != amtAdminControl && amt.ControlMode != amtClientControl):
+		conditions.MarkFalse(host, PowerReachableCondition, "AMTNotActivated", clusterv1.ConditionSeverityWarning,
+			"AMT is not activated, so only the firmware's Restore On AC Power Loss or a person powers %s on", host.Spec.Hostname)
+	case amt.Link == "down":
+		conditions.MarkFalse(host, PowerReachableCondition, "AMTLinkDown", clusterv1.ConditionSeverityWarning,
+			"AMT sees no link on the management port, so it cannot be reached to power %s on; check the port's cable to the management switch", host.Spec.Hostname)
+	case amtPowerAddress(amt) == "":
+		conditions.MarkFalse(host, PowerReachableCondition, "AMTNoAddress", clusterv1.ConditionSeverityWarning,
+			"AMT has no address on the management port")
+	case amt.LastPowerRead == nil:
+		conditions.MarkUnknown(host, PowerReachableCondition, "NotRead", "AMT has not been read through an edge yet")
+	case amt.LastPowerRead.Error != "":
+		conditions.MarkFalse(host, PowerReachableCondition, "AMTUnreachable", clusterv1.ConditionSeverityWarning,
+			"the last read of AMT, at %s, failed: %s", amt.LastPowerRead.At.UTC().Format(time.RFC3339), amt.LastPowerRead.Error)
+	default:
+		reachable = true
+		conditions.MarkTrue(host, PowerReachableCondition)
+	}
+	value := 0.0
+	if reachable {
+		value = 1
+	}
+	rackLinuxHostPowerReachableGauge.WithLabelValues(host.Spec.Hostname, host.Spec.Location.Site).Set(value)
 }
 
 // shutDown powers a host on the tailnet off from its own OS.
@@ -212,11 +340,16 @@ func (r *RackLinuxHostReconciler) recordPowerChange(host *infrav1.RackLinuxHost,
 	host.Status.AMT.LastPowerAction = &infrav1.RackLinuxHostAMTPowerAction{Action: action, At: metav1.NewTime(r.now()), Via: via}
 }
 
-// readAMTPower reads the host's power state from AMT.
+// readAMTPower reads the host's power state from AMT and records the read in
+// status.amt.lastPowerRead.
 func (r *RackLinuxHostReconciler) readAMTPower(ctx context.Context, host *infrav1.RackLinuxHost) (string, error) {
-	record := &infrav1.RackLinuxHostAMTPowerAction{}
+	record := &infrav1.RackLinuxHostAMTPowerAction{Action: "read", At: metav1.NewTime(r.now())}
 	response, err := r.powerAMT(ctx, host, "read", record)
+	if host.Status.AMT != nil {
+		host.Status.AMT.LastPowerRead = record
+	}
 	if err != nil {
+		record.Error = err.Error()
 		return "", err
 	}
 	return response.PowerState, nil
@@ -227,7 +360,23 @@ func (r *RackLinuxHostReconciler) readAMTPower(ctx context.Context, host *infrav
 func (r *RackLinuxHostReconciler) amtCanPower(host *infrav1.RackLinuxHost) bool {
 	amt := host.Status.AMT
 	return r.AMT != nil && amt != nil && (amt.ControlMode == amtAdminControl || amt.ControlMode == amtClientControl) &&
-		amt.Address != "" && amt.Address != "0.0.0.0"
+		amtPowerAddress(amt) != ""
+}
+
+// amtPowerAddress is the address to reach AMT at: the one it last reported,
+// or, while it reports none, as it does while it sees no link, the static
+// address the operator gave it, which AMT keeps.
+func amtPowerAddress(amt *infrav1.RackLinuxHostAMTStatus) string {
+	if amt.Address != "" && amt.Address != "0.0.0.0" {
+		return amt.Address
+	}
+	if amt.AssignedAddress == "" {
+		return ""
+	}
+	if prefix, err := netip.ParsePrefix(amt.AssignedAddress); err == nil {
+		return prefix.Addr().String()
+	}
+	return ""
 }
 
 // recordAMTPower asks host's AMT for action and records it in
@@ -254,7 +403,8 @@ func (r *RackLinuxHostReconciler) powerAMT(ctx context.Context, host *infrav1.Ra
 	if amt == nil || (amt.ControlMode != amtAdminControl && amt.ControlMode != amtClientControl) {
 		return amtResponse{}, fmt.Errorf("AMT is not activated")
 	}
-	if amt.Address == "" || amt.Address == "0.0.0.0" {
+	address := amtPowerAddress(amt)
+	if address == "" {
 		return amtResponse{}, fmt.Errorf("AMT has no address on the management port")
 	}
 	if r.AMT == nil {
@@ -283,7 +433,7 @@ func (r *RackLinuxHostReconciler) powerAMT(ctx context.Context, host *infrav1.Ra
 	}
 	var missed []string
 	for _, via := range vias {
-		response, err := powerFn(ctx, via, amt.Address, creds, change)
+		response, err := powerFn(ctx, via, address, creds, change)
 		if errors.Is(err, errAMTNotOnLink) {
 			missed = append(missed, err.Error())
 			continue
@@ -300,7 +450,7 @@ func (r *RackLinuxHostReconciler) powerAMT(ctx context.Context, host *infrav1.Ra
 		}
 		return response, nil
 	}
-	return amtResponse{}, fmt.Errorf("no edge of site %q reaches AMT at %s: %s", host.Spec.Location.Site, amt.Address, strings.Join(missed, "; "))
+	return amtResponse{}, fmt.Errorf("no edge of site %q reaches AMT at %s: %s", host.Spec.Location.Site, address, strings.Join(missed, "; "))
 }
 
 // errAMTNotOnLink is an edge that cannot put a request on AMT's link: it is
@@ -487,4 +637,42 @@ func amtPowerState(m wsman.Messages) (string, error) {
 		return rackPowerOn, nil
 	}
 	return rackPowerOff, nil
+}
+
+// edgeJoinedTailnet passes an edge that has just connected to the tailnet.
+func edgeJoinedTailnet() predicate.Predicate {
+	connected := func(o ctrlclient.Object) bool {
+		h, ok := o.(*infrav1.RackLinuxHost)
+		return ok && h.Spec.Role == "edge" && h.Status.Tailnet != nil && h.Status.Tailnet.Connected
+	}
+	return predicate.Funcs{
+		CreateFunc:  func(event.CreateEvent) bool { return false },
+		DeleteFunc:  func(event.DeleteEvent) bool { return false },
+		GenericFunc: func(event.GenericEvent) bool { return false },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return connected(e.ObjectNew) && !connected(e.ObjectOld)
+		},
+	}
+}
+
+// siteHostsOfEdge are the other hosts of an edge's site. An edge that comes
+// onto the tailnet is the way to their AMT, so a host its site's power loss
+// left off is powered on without waiting for its next poll.
+func (r *RackLinuxHostReconciler) siteHostsOfEdge(ctx context.Context, o ctrlclient.Object) []reconcile.Request {
+	edge, ok := o.(*infrav1.RackLinuxHost)
+	if !ok {
+		return nil
+	}
+	list := &infrav1.RackLinuxHostList{}
+	if err := r.List(ctx, list, ctrlclient.InNamespace(edge.Namespace)); err != nil {
+		return nil
+	}
+	var requests []reconcile.Request
+	for _, h := range list.Items {
+		if h.Name == edge.Name || h.Spec.Location.Site != edge.Spec.Location.Site {
+			continue
+		}
+		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: h.Namespace, Name: h.Name}})
+	}
+	return requests
 }
