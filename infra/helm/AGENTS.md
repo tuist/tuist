@@ -55,6 +55,7 @@ This node covers Helm assets under `infra/helm/`.
   Machine's `egressBudgetMbps` from its reviewed OnDelete fleet template).
   Staging has standing write access; canary/production require human elevation.
 - Kura archival defaults to hourly sweeps with a 24-hour never-used Air window. Canary inherits the hourly default; staging keeps its five-minute sweep override for lifecycle drills.
+- Production's `node.cluster.x-k8s.io/pool: processor` nodes are untainted and have no memory beyond what the processor's rollout surge needs. Pin other production workloads, in any chart, to `node.cluster.x-k8s.io/pool: general` with a `nodeSelector`. A workload left unpinned can land there and deadlock the processor rollout, and helm then rolls back the whole release. The general pool's limit is CPU requests, not memory: keep one node with room for the server's 1-CPU surge pod, and resize `md-0` in `k8s/clusters/workloads/production/cluster.yaml` rather than squeezing that out.
 - Deploys wait on the tuist, k8s-monitoring and platform releases (Helm 4's
   kstatus wait: a DaemonSet is ready only when every pod it wants is). Nothing
   in them may run a pod on a rack node, which can be dark for days: rack-node

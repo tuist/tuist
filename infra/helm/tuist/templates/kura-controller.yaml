@@ -351,6 +351,10 @@ spec:
       # as environment variables can exceed the process argument limit and
       # prevent the controller from starting when it is most needed.
       enableServiceLinks: false
+      {{- with .Values.kuraController.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.kuraController.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}

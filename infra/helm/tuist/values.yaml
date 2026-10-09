@@ -198,6 +198,7 @@ kuraController:
     enabled: false
   namespace: kura
   replicaCount: 2
+  nodeSelector: {}
   tolerations: []
   image:
     repository: ghcr.io/tuist/kura-controller
@@ -1846,6 +1847,8 @@ macosFleet:
     # but not production.
     tag: ""
     pullPolicy: IfNotPresent
+  # Placement of the provider Deployment, not of the Mac minis.
+  operatorNodeSelector: {}
   # External URL of the cluster API server that Mac minis dial when
   # joining. Auto-discovered from the kube-public/cluster-info
   # ConfigMap that kubeadm/CAPI write during cluster bootstrap; only
@@ -2887,6 +2890,7 @@ runnersController:
     limits:
       cpu: 500m
       memory: 256Mi
+  nodeSelector: {}
 # The standalone cache service is deprecated for new deployments. Hosted
 # Tuist has moved cache serving into Kura (see kuraController / kuraRuntime)
 # and disables this workload (`cache.enabled: false` in
