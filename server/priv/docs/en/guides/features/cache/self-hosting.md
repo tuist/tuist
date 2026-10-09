@@ -293,6 +293,8 @@ Two consequences are worth knowing before you run a mesh:
 
 **Upgrading a mesh across the backfill change.** Kura releases before backfill catch up through a different, now-removed peer protocol. Roll every node onto a release that runs backfill **before** you take a release that only speaks backfill. Nodes on the two protocols cannot catch up from each other: a warm node keeps serving from its volume but stops closing its gap, and a node that starts on an empty volume in that window never becomes Ready. The chart sets `KURA_BACKFILL_ENABLED=true` for you, so a chart-first upgrade covers this. A single `helm upgrade` that moves the chart and the image together does not.
 
+**Upgrading a mesh from a release without chunked blobs.** Kura releases before chunked blobs cannot read a blob stored as chunks, and module cache uploads store large artifacts that way. While some nodes still run such a release, set `KURA_REAPI_BLOB_CHUNKING_ENABLED=false` (`config.reapi.blobChunkingEnabled: false`) on every node. Turn it back on once every node runs a release that reads chunked blobs.
+
 Use network-level restrictions in addition to mTLS. In Kubernetes, run Kura as a `StatefulSet` with one persistent volume per pod and a headless service for peer discovery, then allow the internal peer port only between pods that belong to the same cache deployment, for example with a `NetworkPolicy`. Outside Kubernetes, give each node a stable DNS name or IP address, seed the mesh with the internal URLs of the other nodes, and use firewall rules or security groups so only cache nodes can reach the peer port. Public cache traffic should enter through the public HTTP or gRPC endpoints, not through the internal peer plane.
 
 ## Configuration {#configuration}
@@ -307,6 +309,7 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_REGION` | Region label used in metrics and replication state. | Yes | No default | `config.region` |
 | `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | Yes | No default | Fixed to `/var/cache/kura/tmp` |
 | `KURA_TMP_DIR_MAX_BYTES` | Maximum staged bytes admitted into `KURA_TMP_DIR` before requests receive backpressure. | No | `8589934592` | `config.tmpDirMaxBytes` |
+| `KURA_REAPI_BLOB_CHUNKING_ENABLED` | Accepts large REAPI blobs uploaded as content-defined chunks and serves their chunk lists. Module cache uploads of large artifacts use it, and CDNs in front of the node depend on it. Blobs already stored as chunks stay readable when it is off. | No | `true` | `config.reapi.blobChunkingEnabled` |
 | `KURA_DATA_DIR` | Persistent directory for metadata state and segment files. | Yes | No default | Fixed to `/var/cache/kura` |
 | `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | Yes | No default | Derived from the pod DNS name and `peerTls.internalPort` |
 | `KURA_PEERS` | Seed peer list used before discovery converges. | No | `KURA_NODE_URL` | Derived from the StatefulSet replicas |
