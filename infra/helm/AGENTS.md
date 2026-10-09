@@ -177,3 +177,7 @@ runs the mixed-version latency expression through promtool.
   and keep runner acquisition on 8090 under its existing pod selector.
 
 - `tuist.kuraActivation` is a disabled-by-default, stateless wildcard fallback. Enable exactly one global owner; the matching platform `cacheDNS.activationIngressClass` opt-in reads `nginx-grpc` ingress status for Route53 wildcard DNS. Both activation protocols must use the same dedicated ingress/load balancer; main nginx sends an HTTP/2-forbidden Connection header. The production overlay enables the gateway on the general worker pool; other environments keep it off. Production alone enables wildcard DNS sourcing after pinned production transport validation; other environments remain off. Regional latency records and their withdrawal barriers stay controller-owned. See `../kura-controller/activation.md` before rollout.
+
+## Replica-safety rollout
+
+Cluster formation requires a stable shared cookie Secret, a fixed distribution listener, allowed EPMD/distribution ingress, and a headless service. More than one server replica requires clustering. Managed canary runs two replicas so actual membership is exercised before production promotion. Do not promote until the proof-cache and authoritative authentication rollouts are stable and OAuth entity operations no longer depend on replicated invalidations. Boruta's cache and membership supervision still starts; the entity callbacks, not that lifecycle, are disabled.
