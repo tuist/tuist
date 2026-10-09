@@ -31,6 +31,43 @@ Because GitHub Apps are scoped to a single GitHub instance, Tuist cannot reuse i
 
 No additional Tuist server configuration is needed; the manifest flow generates and provisions everything automatically.
 
+#### App permissions and webhook events {#github-app-permissions}
+
+The GitHub Enterprise App manifest requests the following **repository permissions**:
+
+| Permission | Access | Used for |
+|---|---|---|
+| Metadata (`metadata`) | Read-only | Basic repository metadata; required by GitHub for every App |
+| Contents (`contents`) | Read-only | Reading repository contents |
+| Pull requests (`pull_requests`) | Read and write | Accessing pull requests and supporting PR feedback |
+| Issues (`issues`) | Read and write | Posting and updating PR comments through GitHub's issue comments API |
+| Checks (`checks`) | Read and write | Creating and updating check runs, including bundle-size pass/fail checks |
+
+These are the permissions Tuist currently configures, not a claim that every individual feature requires all five. GitHub's [issue comments API](https://docs.github.com/en/rest/issues/comments#create-an-issue-comment) handles ordinary PR comments too; its comment endpoints can accept either Issues or Pull requests write access. Tuist's manifest requests both.
+
+The App subscribes to the `check_run`, `pull_request`, and `issue_comment` webhook events. The webhook URL is `https://tuist.dev/webhooks/github` on hosted Tuist, or `<TUIST_APP_URL>/webhooks/github` on a self-hosted server.
+
+For security reviews, the relevant configuration can be shared as this JSON excerpt:
+
+```json
+{
+  "default_permissions": {
+    "contents": "read",
+    "issues": "write",
+    "pull_requests": "write",
+    "checks": "write",
+    "metadata": "read"
+  },
+  "default_events": ["check_run", "pull_request", "issue_comment"],
+  "hook_attributes": {
+    "url": "https://tuist.dev/webhooks/github",
+    "active": true
+  }
+}
+```
+
+This is an excerpt, not a standalone registration manifest. GitHub accepts a full JSON manifest through a browser form POST to its App registration page, rather than a JSON import into an existing App's settings. Start installation from Tuist so it supplies the full manifest and signed registration state, then receives and stores the generated credentials. There is no manual App-credentials upload option for the hosted Tuist GHES integration. For manually configuring an App on github.com for a self-hosted Tuist deployment, see <.localized_link href="/guides/server/self-host/server#platform-github-registering-the-app">the self-hosting guide</.localized_link>.
+
 #### Separate browser and API URLs {#separate-browser-and-api-urls}
 
 If engineers access GitHub Enterprise through an internal hostname while third-party services use an external proxy, configure both addresses before clicking install:
