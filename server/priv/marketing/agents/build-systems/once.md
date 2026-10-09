@@ -37,6 +37,12 @@ once connect --provider tuist --create
 
 Configure the intended Tuist URL, account, and project using the provider documentation. Run the action on a first machine, then request the same work on a second authenticated machine whose local cache has never seen the result. Confirm that Once restores the declared outputs from the shared cache and open the printed run URL to follow the action evidence.
 
+## Open infrastructure you can improve
+
+Tuist combines open-source tooling with public infrastructure code. Inspect [Once's implementation](https://github.com/tuist/once) and the [Tuist infrastructure](https://github.com/tuist/tuist), report issues, and [contribute improvements](https://github.com/tuist/tuist/blob/main/CONTRIBUTING.md) to action handling, cache integration, and live reporting. The code gives your team a concrete way to help shape support for its scripts and native project workflows.
+
+A closed hosted service leaves implementation changes entirely with the provider. Tuist and Once give developers a direct path to help improve the infrastructure they depend on. See [Openness](/marketing-markdown/openness) for Tuist's public components and their licenses.
+
 ## Sources and review
 
 Written by Tuist. Sources reviewed on **2026-10-09**: [Once](https://buildonce.dev/), its [Tuist provider](https://buildonce.dev/docs/guide/infrastructure/tuist), [connection guide](https://buildonce.dev/docs/guide/infrastructure/connect), [script caching contract](https://buildonce.dev/docs/guide/scripted/caching), and [execution-provider guide](https://buildonce.dev/docs/guide/infrastructure/remote-execution). The canary status and upcoming remote execution describe Tuist's rollout direction.

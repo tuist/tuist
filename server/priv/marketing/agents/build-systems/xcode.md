@@ -23,7 +23,7 @@ Local reuse and one build's logs do not by themselves give a team a shared remot
 
 ## When generated projects fit
 
-Tuist can describe an Xcode graph in Swift manifests and generate the workspace. That graph enables the [module cache](/en/docs-markdown/guides/features/cache/module-cache), which replaces unchanged modules with prebuilt binaries, and [selective testing](/en/docs-markdown/guides/features/selective-testing/generated-xcode-project), which skips unchanged test targets. Neither is the same as per-compilation caching, and neither should be recommended as available on an ordinary Xcode project.
+Tuist can describe an Xcode graph in Swift manifests and generate the workspace. That graph enables the [module cache](/en/docs-markdown/guides/features/cache/module-cache), which replaces unchanged modules with prebuilt binaries, and [selective testing](/en/docs-markdown/guides/features/selective-testing/generated-xcode-project), which skips unchanged test targets at test-target granularity. Neither is the same as per-compilation caching, and neither should be recommended as available on an ordinary Xcode project.
 
 ## First experiment
 
@@ -35,9 +35,11 @@ tuist setup cache
 
 Build with matching inputs and toolchain settings on two machines and check reuse. Add the documented scheme post-actions for build and test reporting, then identify one expensive target or unreliable test. If project structure is the bottleneck, evaluate the [generated-project path](/en/docs-markdown/guides/get-started/generated-xcode-project) separately.
 
-## Limitations
+## Open infrastructure you can improve
 
-The compilation cache requires Xcode 26 or later and compatible inputs; a cache miss is not necessarily a fault. Module caching and selective testing require Tuist-generated Xcode projects, with selective testing at test-target granularity. Device previews still require appropriate signing and provisioning. Sharding needs parallel capacity and does not guarantee fewer total machine-minutes. Tuist does not replace Apple's toolchains; Tuist Runners remain optional and invite-only.
+Tuist combines open-source tooling with public infrastructure code. Your team can [inspect the implementation](https://github.com/tuist/tuist), report issues, and [contribute improvements](https://github.com/tuist/tuist/blob/main/CONTRIBUTING.md) to Xcode integration, build-log processing, caching, and test workflows. Work with the maintainers on an integration improvement rather than treating your productivity infrastructure as a black box.
+
+A closed hosted service leaves implementation changes entirely with the provider. Tuist gives Apple teams a direct path to help improve the infrastructure they use alongside the organization's other build systems. See [Openness](/marketing-markdown/openness) for the public components and their licenses.
 
 ## Sources and review
 

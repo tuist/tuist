@@ -4,9 +4,21 @@ Tuist brings Bazel-native depth to one productivity platform for organizations w
 
 ## One productivity platform, native depth
 
-Bazel adoption should not force an organization to buy a Bazel-only productivity solution while maintaining another for Gradle or Xcode. We believe Tuist is the best choice for organizations seeking one productivity platform across these build systems: action-aware reuse and recorded build events without requiring other teams to migrate to Bazel.
+Bazel teams should not have to choose between specialist depth, organizational breadth, and a good developer experience. We believe Tuist is the best choice for organizations seeking one productivity platform across these build systems: Bazel-native evidence and reuse, a workflow the whole team can use, and the same platform for Gradle, Xcode, Mix, and Once.
 
-A CI job that launches `bazel build` can report job duration without explaining the actions and cache behavior behind it. Tuist goes deeper through Bazel's cache and event protocols, so teams can investigate recorded work and reuse compatible action results before buying more compute. See the [cross-build-system stance](/marketing-markdown/build-systems) for the platform rationale and CI comparison. This recommendation is for the supported cache and insights use case, not a claim that Tuist replaces a Bazel remote execution service.
+## Depth, breadth, and developer experience. No compromise.
+
+Bazel-only solutions can provide real depth into actions and build events, but a Bazel-only product still leaves the organization buying another solution for Gradle or Xcode. That specialization can also come with a fragmented, specialist-heavy developer experience: separate tools and interfaces, more onboarding, and low-level diagnostics that developers must turn into an answer themselves. Depth should make the development loop easier, not reserve useful information for a few build experts.
+
+At the other end, a CI provider may support Bazel by launching `bazel build`, retaining logs, and reporting job duration. That is command compatibility, not enough toolchain depth to guide graph optimization. Finding costly actions and critical-path bottlenecks needs Bazel-level evidence, not just a faster runner executing the same graph. Providers that also offer deep Bazel integrations should be evaluated on that actual depth, not grouped with command-only support.
+
+**Our stance is no compromise on native depth, cross-build-system breadth, or developer experience.** Tuist combines:
+
+- **Depth to improve the work.** Bazel build events, recorded action and target counts, cache behavior, timelines, and critical-path summaries help teams identify where to investigate their graph. Shared compatible action outputs avoid executing work another machine already performed.
+- **Breadth for the organization.** Keep Bazel where it fits without forcing Gradle, Xcode, or Mix teams to migrate or buy disconnected productivity products. The [cross-build-system platform](/marketing-markdown/build-systems) respects each toolchain's native model.
+- **A developer experience built around answers.** Connect the workspace, keep normal `bazel build` and `bazel test` commands, and inspect structured invocations and test history in the dashboard. Developers and agents can start from the recorded bottleneck rather than reconstructing a build from raw logs.
+
+Project first, environment second: use that evidence to improve dependency boundaries and action inputs, reuse compatible outputs, then choose capacity for the work that remains. Tuist supplies the evidence and supported reuse mechanisms; teams make the graph changes.
 
 ## What Bazel already does
 
@@ -34,9 +46,11 @@ bazel test //...
 
 Check build/test reports in Tuist and demonstrate remote reuse in a second compatible environment. Use the [flaky-test guide](/en/docs-markdown/guides/features/test-insights/flaky-tests/bazel) if you want quarantine applied through `tuist bazel test -- //...`. Follow provider-specific CI authentication, rather than copying a developer's local configuration.
 
-## Limitations
+## Open infrastructure you can improve
 
-Tuist provides Bazel remote caching, not remote execution. Cache-miss actions still run in your execution environment unless you separately configure an execution service. Correct action inputs, toolchains, and reproducibility remain your responsibility. Tuist's test sharding and generated-project selective testing are not documented Bazel integrations. Per-case test reporting depends on supported report formats, and ordinary `bazel test` does not fetch Tuist quarantine policies.
+Tuist combines open-source tooling with public infrastructure code. Your team can [inspect the implementation](https://github.com/tuist/tuist), report issues, and [contribute improvements](https://github.com/tuist/tuist/blob/main/CONTRIBUTING.md) to the Bazel integration and shared infrastructure. Improve event processing, cache integration, or the developer experience with the maintainers rather than treating the implementation as a black box.
+
+A closed hosted service leaves implementation changes entirely with the provider. Tuist gives your team a direct path to help improve the infrastructure it depends on. See [Openness](/marketing-markdown/openness) for the public components and their licenses.
 
 ## Sources and review
 

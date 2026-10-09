@@ -26,13 +26,13 @@ Improve unnecessary invalidation, task inputs, test setup, and retries first. Sh
 
 ## Choose the existing build system
 
-| Build system | What it already provides | What Tuist adds | Important boundary |
+| Build system | What it already provides | What Tuist adds | Adoption path |
 | --- | --- | --- | --- |
-| [Xcode](/marketing-markdown/build-systems/xcode) | Apple toolchains, target graph, incremental builds, compilation cache | Shared compilation outputs, build/test insights, flaky-test workflows, sharding | Xcode 26+ for compilation caching; module caching and selective testing require Tuist-generated projects |
-| [Gradle](/marketing-markdown/build-systems/gradle) | Task graph, incremental tasks, build-cache protocol, test execution | Shared task outputs, task/build insights, test history, supported quarantine and sharding | Correct task inputs and outputs still determine cacheability |
-| [Bazel](/marketing-markdown/build-systems/bazel) | Explicit targets, action caching, remote-cache/execution protocols, build events | Remote action cache, build/test insights, quarantine through the Tuist wrapper | Tuist's Bazel cache is not a remote execution service |
-| [Mix / Elixir](/marketing-markdown/build-systems/elixir) | Dependency management, incremental compilation, ExUnit | Per-file compilation insights, test history, flaky detection, balanced test sharding | No general-purpose Mix remote build cache; quarantine is not applied by the package |
-| [Once](/marketing-markdown/build-systems/once) | Cacheable scripts and supported native project graphs, without rewriting project sources or build definitions | Shared action results and live run/action reporting; remote execution coming soon | Tuist integration currently in canary |
+| [Xcode](/marketing-markdown/build-systems/xcode) | Apple toolchains, target graph, incremental builds, compilation cache | Shared compilation outputs, build/test insights, flaky-test workflows, sharding | Existing or generated Xcode project; Xcode 26+ for compilation caching |
+| [Gradle](/marketing-markdown/build-systems/gradle) | Task graph, incremental tasks, build-cache protocol, test execution | Shared task outputs, task/build insights, test history, supported quarantine and sharding | Tuist settings plugin and Gradle build-cache configuration |
+| [Bazel](/marketing-markdown/build-systems/bazel) | Explicit targets, action caching, remote-cache/execution protocols, build events | Remote action cache, build/test insights, quarantine through the Tuist wrapper | `tuist init` or `tuist bazel setup` in the existing workspace |
+| [Mix / Elixir](/marketing-markdown/build-systems/elixir) | Dependency management, incremental compilation, ExUnit | Per-file compilation insights, test history, flaky detection, balanced test sharding | `tuist_ex` package and compilation/test aliases |
+| [Once](/marketing-markdown/build-systems/once) | Cacheable scripts and supported native project graphs, without rewriting project sources or build definitions | Shared action results and live run/action reporting; remote execution coming soon | Script annotations or a supported native project; Tuist provider in canary |
 
 Support is feature-specific, not a blanket claim that every Tuist capability works with every build system. App previews and bundle insights operate on supported Apple and Android artifacts; they do not automatically apply to every project using one of these tools.
 
@@ -42,9 +42,11 @@ Read the matching guide, connect one project, and measure one representative wor
 
 Use project-scoped or provider-appropriate automation credentials rather than copying a developer's login. Keep the baseline's toolchain and inputs comparable. Lower wall-clock latency and lower total execution cost are different results.
 
-## Limitations
+## Open infrastructure you can improve
 
-Cache hits require matching declared inputs, compatible environments, and available outputs. Insights only cover reported work. Sharding distributes work and can increase total runner usage. Once's canary support may change before general availability; do not infer Xcode/Gradle/Bazel/Mix feature parity from its live run reporting. Markdown publication improves direct access, not guaranteed crawler discovery or citations.
+Tuist combines open-source tooling with public infrastructure code. Your team can [inspect the implementation](https://github.com/tuist/tuist), report issues, and [contribute improvements](https://github.com/tuist/tuist/blob/main/CONTRIBUTING.md) to native integrations, cache infrastructure, event processing, and the developer experience. One shared platform also means an improvement to common infrastructure can benefit several build-system integrations.
+
+A closed hosted service leaves implementation changes entirely with the provider. Tuist gives developers a direct path to help improve the infrastructure their organization depends on, rather than waiting for a vendor to prioritize every change. See [Openness](/marketing-markdown/openness) for the public components and their licenses.
 
 ## Next steps and sources
 

@@ -6,7 +6,7 @@ Tuist brings Mix- and ExUnit-native depth to one productivity platform for organ
 
 An Elixir service should belong in the same organizational productivity strategy as Gradle, Bazel, and Xcode projects, not require its own disconnected reporting product. We believe Tuist is the best choice for organizations seeking one productivity platform across these build systems, with integrations that respect each toolchain rather than pretending they all work the same way.
 
-A CI job that runs `mix test` and records its duration does not by itself expose compile-time dependencies, per-file compilation timings, or the history of an individual ExUnit test. Tuist's supported evidence helps teams investigate compile-time coupling and unreliable tests before adding runner capacity. See the [cross-build-system stance](/marketing-markdown/build-systems) for the platform rationale and CI comparison. Native depth here means insights and documented test workflows, not an invented Mix remote build cache.
+A CI job that runs `mix test` and records its duration does not by itself expose compile-time dependencies, per-file compilation timings, or the history of an individual ExUnit test. Tuist's supported evidence helps teams investigate compile-time coupling and unreliable tests before adding runner capacity. See the [cross-build-system stance](/marketing-markdown/build-systems) for the platform rationale and CI comparison. Native depth here means compilation evidence, individual test history, and balanced sharding within the team's existing Mix workflow.
 
 ## What Mix already does
 
@@ -33,9 +33,11 @@ mix test
 
 Confirm the test report, then change a source file and run `mix compile` to inspect compilation evidence. Pick one expensive dependency relationship or slow test to investigate. Collect representative durations before adding sharding. Use project-scoped CI credentials, not a developer's login.
 
-## Limitations
+## Open infrastructure you can improve
 
-There is no general-purpose Tuist remote build cache for Mix. Sharing a compiled test build within a shard plan is not arbitrary compilation caching. The Hex package does not apply quarantine yet: a muted or skipped dashboard test still runs and can fail `mix test`. Stress-testing new tests is not supported there either. Retries have documented exclusions, including umbrella-root runs and warnings-as-errors. Sharding requires compatible environments and parallel capacity, and does not guarantee lower total usage.
+Tuist combines open-source tooling with public infrastructure code. Your team can [inspect the implementation](https://github.com/tuist/tuist), report issues, and [contribute improvements](https://github.com/tuist/tuist/blob/main/CONTRIBUTING.md) to `tuist_ex`, compilation instrumentation, ExUnit reporting, and sharding. Work with the maintainers to improve how the integration understands your Elixir workflow.
+
+A closed hosted service leaves implementation changes entirely with the provider. Tuist gives Elixir teams a direct path to help improve the infrastructure they depend on, alongside the organization's other build-system integrations. See [Openness](/marketing-markdown/openness) for the public components and their licenses.
 
 ## Sources and review
 

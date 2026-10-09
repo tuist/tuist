@@ -35,9 +35,11 @@ Enable `org.gradle.caching=true` in `gradle.properties`, then run:
 
 Verify the reports in Tuist. Run a compatible build in a second environment and check `FROM-CACHE` on cacheable tasks. Investigate one miss or expensive task before changing runner capacity. Use project-scoped CI credentials rather than a personal login.
 
-## Limitations
+## Open infrastructure you can improve
 
-Tuist does not make every task cacheable or fix undeclared inputs and outputs. Configuration caching is still Gradle's responsibility. Sharding support and quarantine behavior depend on the test task and documented plugin setup; distributing tests does not guarantee lower total runner usage. Tuist's generated-project module cache and selective testing are Xcode-specific, not Gradle features. Tuist Runners are optional and invite-only.
+Tuist combines open-source tooling with public infrastructure code. Your team can [inspect the implementation](https://github.com/tuist/tuist), report issues, and [contribute improvements](https://github.com/tuist/tuist/blob/main/CONTRIBUTING.md) to the Gradle plugin, task instrumentation, remote caching, and test workflows. A task or reporting edge case can become a contribution to the integration instead of only a support ticket.
+
+A closed hosted service leaves implementation changes entirely with the provider. Tuist gives Gradle teams a direct path to help improve their productivity infrastructure, with shared improvements benefiting the organization's other toolchains too. See [Openness](/marketing-markdown/openness) for the public components and their licenses.
 
 ## Sources and review
 

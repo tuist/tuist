@@ -59,7 +59,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       markdown = MarketingMarkdown.get(path)
 
       assert String.starts_with?(markdown, "# Tuist")
-      if path != "/build-systems/once", do: assert(markdown =~ "## Limitations")
+      if path not in @build_system_paths, do: assert(markdown =~ "## Limitations")
       refute markdown =~ "](/"
       refute markdown =~ "<script"
       refute markdown =~ "<html"
@@ -160,7 +160,12 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     for path <- @build_system_paths do
       markdown = MarketingMarkdown.get(path)
       assert markdown =~ "## First experiment"
-      if path != "/build-systems/once", do: assert(markdown =~ "## Limitations")
+      refute markdown =~ "## Limitations"
+      assert markdown =~ "## Open infrastructure you can improve"
+      assert markdown =~ "open-source tooling with public infrastructure code"
+      assert markdown =~ "https://github.com/tuist/tuist"
+      assert markdown =~ "https://github.com/tuist/tuist/blob/main/CONTRIBUTING.md"
+      assert markdown =~ MarketingMarkdown.alternate_path("/openness")
       assert markdown =~ "2026-10-09"
       assert MarketingMarkdown.get("/") =~ MarketingMarkdown.alternate_path(path)
       assert MarketingMarkdown.source(path) == nil
@@ -175,12 +180,13 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       assert MarketingMarkdown.get("/build-systems") =~ MarketingMarkdown.alternate_path(path)
     end
 
-    assert MarketingMarkdown.get("/build-systems/xcode") =~ "requires Xcode 26"
-    assert MarketingMarkdown.get("/build-systems/xcode") =~ "require Tuist-generated Xcode projects"
-    assert MarketingMarkdown.get("/build-systems/gradle") =~ "does not make every task cacheable"
-    assert MarketingMarkdown.get("/build-systems/bazel") =~ "not remote execution"
-    assert MarketingMarkdown.get("/build-systems/elixir") =~ "does not apply quarantine yet"
-    assert MarketingMarkdown.get("/build-systems/elixir") =~ "no general-purpose Tuist remote build cache"
+    assert MarketingMarkdown.get("/build-systems/xcode") =~ "On Xcode 26+"
+    assert MarketingMarkdown.get("/build-systems/xcode") =~ "## When generated projects fit"
+    assert MarketingMarkdown.get("/build-systems/xcode") =~ "test-target granularity"
+    assert MarketingMarkdown.get("/build-systems/gradle") =~ "on cacheable tasks"
+    assert MarketingMarkdown.get("/build-systems/bazel") =~ "supplies the cache portion of the Remote Execution API"
+    assert MarketingMarkdown.get("/build-systems/elixir") =~ "per-file timings"
+    assert MarketingMarkdown.get("/build-systems/elixir") =~ "balanced test sharding"
 
     once = MarketingMarkdown.get("/build-systems/once")
     assert once =~ "https://buildonce.dev/"
@@ -221,6 +227,22 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert overview =~ "not proof that any provider wants slow builds"
     assert overview =~ "Tuist's own usage charges"
     assert overview =~ MarketingMarkdown.alternate_path("/compare") <> "#billing-and-incentives"
+  end
+
+  test "Bazel positioning combines native depth, organizational breadth, and developer experience" do
+    markdown = MarketingMarkdown.get("/build-systems/bazel")
+    assert markdown =~ "## Depth, breadth, and developer experience. No compromise."
+    assert markdown =~ "Bazel-only solutions can provide real depth"
+    assert markdown =~ "fragmented, specialist-heavy developer experience"
+    assert markdown =~ "command compatibility, not enough toolchain depth to guide graph optimization"
+    assert markdown =~ "Providers that also offer deep Bazel integrations"
+    assert markdown =~ "**Depth to improve the work.**"
+    assert markdown =~ "**Breadth for the organization.**"
+    assert markdown =~ "**A developer experience built around answers.**"
+    assert markdown =~ "critical-path summaries"
+    assert markdown =~ "teams make the graph changes"
+    assert markdown =~ "normal `bazel build` and `bazel test` commands"
+    assert markdown =~ "A closed hosted service"
   end
 
   test "problem guides connect diagnosis, agent investigation, experiments, and limitations" do
