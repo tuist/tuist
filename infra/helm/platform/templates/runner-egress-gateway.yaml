@@ -1,0 +1,191 @@
+{{- $gateways := include "platform.runnerEgressGateways" . | fromJsonArray }}
+{{- if $gateways }}
+{{- $namespace := required "runnerEgressGatewaysNamespace is required" .Values.runnerEgressGatewaysNamespace }}
+{{- $image := .Values.runnerEgressGatewayImage }}
+{{- $tag := required "runnerEgressGatewayImage.tag is required when a runner egress gateway is enabled; k8s:install-platform resolves it from the latest runner-egress-gateway release" $image.tag }}
+{{- $settings := .Values.runnerEgressGatewaySettings }}
+{{- $server := .Values.ciliumEgressGateway.server }}
+{{- $excludedCIDRs := concat $settings.excludedCIDRs $settings.clusterCIDRs | uniq }}
+# Dedicated runner egress (infra/runner-egress-gateway/DESIGN.md). Each gateway
+# terminates WireGuard from the macOS fleet on its Floating IP and sends the
+# traffic to the internet through a CiliumEgressGatewayPolicy that SNATs it to
+# that same address on the active egress node.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace | quote }}
+  labels:
+    app.kubernetes.io/component: runner-egress-gateway
+    # NET_ADMIN and hostPort are outside the baseline Pod Security profile.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: runner-egress-gateway
+  namespace: {{ $namespace | quote }}
+  labels:
+    app.kubernetes.io/name: runner-egress-gateway
+    app.kubernetes.io/component: runner-egress-gateway
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: runner-egress-gateway
+  labels:
+    app.kubernetes.io/name: runner-egress-gateway
+    app.kubernetes.io/component: runner-egress-gateway
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: runner-egress-gateway
+  labels:
+    app.kubernetes.io/name: runner-egress-gateway
+    app.kubernetes.io/component: runner-egress-gateway
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: runner-egress-gateway
+subjects:
+  - kind: ServiceAccount
+    name: runner-egress-gateway
+    namespace: {{ $namespace | quote }}
+{{- range $gw := $gateways }}
+{{- $fullName := printf "runner-egress-gateway-%s" $gw.name }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $fullName | quote }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    app.kubernetes.io/name: runner-egress-gateway
+    app.kubernetes.io/component: runner-egress-gateway
+    tuist.dev/runner-egress-gateway-pod: {{ $gw.name | quote }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: {{ $settings.externalSecret.storeName | quote }}
+    kind: ClusterSecretStore
+  target:
+    name: {{ $fullName | quote }}
+    creationPolicy: Owner
+  data:
+    - secretKey: private-key
+      remoteRef:
+        key: {{ printf "%s/%s" $gw.privateKeyItem $gw.privateKeyProperty | quote }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $fullName | quote }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    app.kubernetes.io/name: runner-egress-gateway
+    app.kubernetes.io/component: runner-egress-gateway
+    tuist.dev/runner-egress-gateway-pod: {{ $gw.name | quote }}
+  annotations:
+    tuist.dev/egress-ip: {{ $gw.egressIP | quote }}
+    tuist.dev/floating-ip-name: {{ $gw.floatingIpName | quote }}
+    tuist.dev/wireguard-public-key: {{ $gw.publicKey | quote }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: runner-egress-gateway
+      tuist.dev/runner-egress-gateway-pod: {{ $gw.name | quote }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: runner-egress-gateway
+        app.kubernetes.io/component: runner-egress-gateway
+        tuist.dev/runner-egress-gateway-pod: {{ $gw.name | quote }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port-name: metrics
+        prometheus.io/port: "9090"
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: runner-egress-gateway
+      nodeSelector:
+        {{- toYaml $server.hostConfigurator.nodeSelector | nindent 8 }}
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: gateway
+          image: {{ printf "%s:%s" $image.repository $tag | quote }}
+          imagePullPolicy: {{ $image.pullPolicy | quote }}
+          args:
+            - --gateway-name={{ $gw.name }}
+            - --listen-port={{ $gw.port }}
+            - --tunnel-address=198.18.{{ $gw.index }}.1/32
+            - --private-key-file=/etc/runner-egress/private-key
+            - --snat=masquerade
+            - --excluded-cidrs={{ join "," $excludedCIDRs }}
+          ports:
+            - name: wireguard
+              containerPort: {{ $gw.port }}
+              hostPort: {{ $gw.port }}
+              protocol: UDP
+            - name: probe
+              containerPort: 8081
+            - name: metrics
+              containerPort: 9090
+          readinessProbe:
+            httpGet: { path: /readyz, port: probe }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /livez, port: probe }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            {{- toYaml $settings.resources | nindent 12 }}
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_ADMIN"]
+          volumeMounts:
+            - name: private-key
+              mountPath: /etc/runner-egress
+              readOnly: true
+      volumes:
+        - name: private-key
+          secret:
+            secretName: {{ $fullName | quote }}
+            defaultMode: 0400
+            items:
+              - key: private-key
+                path: private-key
+---
+apiVersion: cilium.io/v2
+kind: CiliumEgressGatewayPolicy
+metadata:
+  name: {{ $fullName | quote }}
+spec:
+  selectors:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ $namespace | quote }}
+      podSelector:
+        matchLabels:
+          tuist.dev/runner-egress-gateway-pod: {{ $gw.name | quote }}
+  destinationCIDRs:
+    - 0.0.0.0/0
+  excludedCIDRs:
+    {{- toYaml $server.excludedCIDRs | nindent 4 }}
+  egressGateway:
+    nodeSelector:
+      matchLabels:
+        {{- toYaml $server.gatewayNodeSelector | nindent 8 }}
+    egressIP: {{ $gw.egressIP | quote }}
+{{- end }}
+{{- end }}

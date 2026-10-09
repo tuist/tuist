@@ -40,6 +40,21 @@ ciliumEgressGateway:
       egressIpAllowlist:
         - 78.47.186.71/32
 
+# Dedicated runner egress. To enable: reserve a Floating IP in fsn1, put the
+# gateway's WireGuard private key in 1Password, then fill in the address, the
+# Floating IP name and the public key below.
+runnerEgressGateways:
+  dedicated-1:
+    enabled: false
+    index: 1
+    egressIP: 192.0.2.10
+    floatingIpName: tuist-staging-runner-egress-1
+    port: 51821
+    publicKey: ""
+    privateKeySecret:
+      item: tuist-staging-runner-egress-1
+      property: private-key
+
 ingress-nginx:
   controller:
     service:

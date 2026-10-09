@@ -185,6 +185,40 @@ kubectl label node "$NEW_NODE" tuist.dev/stable-egress-gateway=server --overwrit
 kubectl -n tuist exec deploy/tuist-tuist-server -- curl -fsS https://api.ipify.org
 ```
 
+## Dedicated Runner Egress
+
+`runnerEgressGateways.<name>` gives macOS runner jobs of selected accounts a
+dedicated egress address (see
+[`infra/runner-egress-gateway/DESIGN.md`](../../runner-egress-gateway/DESIGN.md)).
+Each enabled entry renders, in `runnerEgressGatewaysNamespace`:
+
+- `DaemonSet/runner-egress-gateway-<name>` on the egress candidates. It listens
+  for WireGuard on `hostPort: <port>/UDP` and peers with the darwin Nodes.
+- `ExternalSecret/runner-egress-gateway-<name>` with the WireGuard private key
+  from 1Password (`privateKeySecret.item` / `privateKeySecret.property`).
+- `CiliumEgressGatewayPolicy/runner-egress-gateway-<name>`, which sends the
+  gateway pods' traffic out of the active egress node from `egressIP`.
+
+The gateways ride on the server's stable-egress setup, which must be enabled
+with its host-configurer and failover controller. The host-configurer attaches
+every `egressIP` on each candidate and reports Ready only when all of them are
+present. The failover controller moves every `floatingIpName` onto the active
+node together with the server's Floating IP. `egressIpAllowlist` covers the
+server's Floating IP only.
+
+To add a gateway:
+
+1. Reserve a Floating IP in `fsn1` in the `tuist-workloads` project.
+2. Generate a WireGuard key pair. Store the private key in the cluster's
+   1Password vault and keep the public key for the entry and the macOS fleet
+   values.
+3. Add the entry with a unique `index` (0-99) and a unique `port`, and deploy.
+   The `tuist-workloads` project has no Hetzner Cloud Firewall, and no Cilium
+   host policy selects the egress pool, so the UDP port needs no extra rule.
+
+Removing an entry stops managing its address but leaves it on the candidates'
+`eth0` with its `ip rule` until the nodes are replaced or it is removed by hand.
+
 ## Notes
 
 - The main ingress-nginx LoadBalancer is annotated for Hetzner Cloud (Nuremberg region) by default. Managed Tuist cluster overlays pin it explicitly to `fsn1`, matching the general worker pools; regional Kura LoadBalancers are pinned separately.

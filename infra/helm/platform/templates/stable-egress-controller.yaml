@@ -1,6 +1,10 @@
 {{- with .Values.ciliumEgressGateway.server }}
 {{- if and .enabled .failoverController.enabled }}
 {{- $fipName := required "ciliumEgressGateway.server.failoverController.floatingIpName is required when the failover controller is enabled" .failoverController.floatingIpName }}
+{{- $additionalFipNames := list }}
+{{- range $gw := include "platform.runnerEgressGateways" $ | fromJsonArray }}
+{{- $additionalFipNames = append $additionalFipNames $gw.floatingIpName }}
+{{- end }}
 # Stable-egress failover controller. Keeps the Hetzner Floating IP + the active
 # gateway label (`gatewayNodeSelector`) on a directly reachable node from the
 # egress candidate pool, and fails over to another candidate on node loss, so a node
@@ -135,6 +139,9 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --floating-ip-name={{ $fipName }}
+            {{- if $additionalFipNames }}
+            - --additional-floating-ip-names={{ join "," $additionalFipNames }}
+            {{- end }}
             - --hcloud-token-path=/etc/hcloud/token
             - --node-health-port={{ .failoverController.nodeHealthPort }}
             - --node-health-timeout={{ .failoverController.nodeHealthTimeout }}

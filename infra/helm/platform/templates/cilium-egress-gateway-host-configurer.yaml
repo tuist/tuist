@@ -5,6 +5,10 @@
 {{- fail "ciliumEgressGateway.server.hostConfigurator.nodeSelector must select the candidate pool when the host-configurer is enabled" }}
 {{- end }}
 {{- $nodeSelector := .hostConfigurator.nodeSelector }}
+{{- $additionalEgressIPs := list }}
+{{- range $gw := include "platform.runnerEgressGateways" $ | fromJsonArray }}
+{{- $additionalEgressIPs = append $additionalEgressIPs $gw.egressIP }}
+{{- end }}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -40,6 +44,10 @@ spec:
           env:
             - name: EGRESS_IP
               value: {{ $egressIP | quote }}
+            {{- if $additionalEgressIPs }}
+            - name: ADDITIONAL_EGRESS_IPS
+              value: {{ join " " $additionalEgressIPs | quote }}
+            {{- end }}
             - name: INTERFACE
               value: {{ .hostConfigurator.interface | quote }}
             - name: GATEWAY
@@ -62,6 +70,15 @@ spec:
                 if ! ip rule show | grep -q "from ${EGRESS_IP} lookup ${ROUTE_TABLE}"; then
                   ip rule add from "${EGRESS_IP}/32" table "${ROUTE_TABLE}" priority "${RULE_PRIORITY}" 2>/dev/null || true
                 fi
+              {{- if $additionalEgressIPs }}
+
+                for additional_ip in ${ADDITIONAL_EGRESS_IPS}; do
+                  ip addr replace "${additional_ip}/32" dev "${INTERFACE}"
+                  if ! ip rule show | grep -q "from ${additional_ip} lookup ${ROUTE_TABLE}"; then
+                    ip rule add from "${additional_ip}/32" table "${ROUTE_TABLE}" priority "${RULE_PRIORITY}" 2>/dev/null || true
+                  fi
+                done
+              {{- end }}
 
                 sleep "${RECONCILE_INTERVAL_SECONDS}"
               done
@@ -75,6 +92,12 @@ spec:
                   ip rule show priority "${RULE_PRIORITY}" | grep -Fq "from ${EGRESS_IP}"
                   ip route show table "${ROUTE_TABLE}" | grep -Fq "${GATEWAY} dev ${INTERFACE} scope link"
                   ip route show table "${ROUTE_TABLE}" | grep -F "default via ${GATEWAY} dev ${INTERFACE}" | grep -Fq "src ${EGRESS_IP}"
+                  {{- if $additionalEgressIPs }}
+                  for additional_ip in ${ADDITIONAL_EGRESS_IPS}; do
+                    ip -4 address show dev "${INTERFACE}" | grep -Fq "inet ${additional_ip}/32"
+                    ip rule show priority "${RULE_PRIORITY}" | grep -Fq "from ${additional_ip} lookup ${ROUTE_TABLE}"
+                  done
+                  {{- end }}
             periodSeconds: 2
             failureThreshold: 3
 {{- end }}

@@ -49,6 +49,11 @@ type FailoverReconciler struct {
 
 	FloatingIPName string
 
+	// AdditionalFloatingIPNames follow the primary Floating IP onto the active
+	// node. The allowlist guard and election apply to the primary only, and a
+	// failure to move one of these never blocks the primary.
+	AdditionalFloatingIPNames []string
+
 	CandidateLabelKey   string
 	CandidateLabelValue string
 	ActiveLabelKey      string
@@ -80,6 +85,8 @@ type FailoverReconciler struct {
 // reconcileKey funnels every Node event to one serialized reconcile of the
 // cluster-global gateway state (the controller runs single-concurrency).
 const reconcileName = "stable-egress"
+
+const additionalFloatingIPRetryInterval = 10 * time.Second
 
 func (r *FailoverReconciler) Reconcile(ctx context.Context, _ reconcile.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -202,7 +209,42 @@ func (r *FailoverReconciler) Reconcile(ctx context.Context, _ reconcile.Request)
 	gatewayActive.Reset()
 	gatewayActive.WithLabelValues(desiredNode.Name, addr).Set(1)
 
+	if !r.reconcileAdditionalFloatingIPs(ctx, desiredNode.Name, serverID) {
+		return ctrl.Result{RequeueAfter: min(additionalFloatingIPRetryInterval, r.ResyncInterval)}, nil
+	}
 	return ctrl.Result{RequeueAfter: r.ResyncInterval}, nil
+}
+
+// reconcileAdditionalFloatingIPs assigns every additional Floating IP to the
+// active server. It reads each address once and writes only on drift. It
+// reports whether every additional Floating IP is on the active server.
+func (r *FailoverReconciler) reconcileAdditionalFloatingIPs(ctx context.Context, nodeName string, serverID int64) bool {
+	logger := log.FromContext(ctx)
+	allAssigned := true
+	for _, name := range r.AdditionalFloatingIPNames {
+		assigned := false
+		addr, currentServer, err := r.FIP.Get(ctx, name)
+		switch {
+		case err != nil:
+			logger.Error(err, "reading additional Floating IP", "floatingIP", name)
+			additionalFloatingIPFailures.WithLabelValues(name).Inc()
+		case currentServer == serverID:
+			assigned = true
+		default:
+			logger.Info("reassigning additional Floating IP", "floatingIP", name, "address", addr,
+				"fromServer", currentServer, "toServer", serverID, "node", nodeName)
+			if err := r.FIP.Assign(ctx, name, serverID); err != nil {
+				logger.Error(err, "assigning additional Floating IP", "floatingIP", name, "toServer", serverID)
+				additionalFloatingIPFailures.WithLabelValues(name).Inc()
+			} else {
+				additionalFloatingIPAssignments.WithLabelValues(name).Inc()
+				assigned = true
+			}
+		}
+		additionalFloatingIPOnActive.WithLabelValues(name).Set(boolFloat(assigned))
+		allAssigned = allAssigned && assigned
+	}
+	return allAssigned
 }
 
 func (r *FailoverReconciler) probeNodeHealth(
