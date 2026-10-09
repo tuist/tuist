@@ -77,6 +77,28 @@ defmodule Tuist.OnceEvents.ActionHistoryTest do
     assert stats.first_failure == failed.started_at
   end
 
+  test "terminal metrics exclude skipped and cancelled rows and include execution failures", %{project: project} do
+    now = DateTime.utc_now()
+    timeout = occurrence(project, DateTime.add(now, -3, :day), %{result: "timed_out", duration_ms: 100})
+    _infra = occurrence(project, DateTime.add(now, -2, :day), %{result: "infrastructure_error", duration_ms: 300})
+    current = occurrence(project, DateTime.add(now, -1, :day), %{result: "succeeded", duration_ms: 200})
+
+    for result <- ["skipped", "cancelled"] do
+      occurrence(project, DateTime.add(now, -4, :day), %{result: result, duration_ms: 0})
+    end
+
+    occurrence(project, DateTime.add(now, -5, :day), %{result: "failed", duration_ms: 0, was_cached: true})
+    stats = ActionHistory.analytics(current)
+    assert stats.total == 6
+    assert stats.executions == 3
+    assert stats.failures == 2
+    assert stats.first_failure == timeout.started_at
+    assert Decimal.equal?(stats.duration, 200)
+    assert Enum.sum(Enum.map(stats.series, & &1.executions)) == 3
+    assert Enum.sum(Enum.map(stats.series, & &1.failures)) == 2
+    assert Enum.all?(stats.series, &(&1.executions > 0 or is_nil(&1.duration)))
+  end
+
   test "duplicate completion is idempotent and cannot overwrite the history key", %{project: project} do
     action = occurrence(project, DateTime.utc_now())
     run = Repo.get!(Run, action.once_run_id)

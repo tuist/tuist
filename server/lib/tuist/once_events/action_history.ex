@@ -10,6 +10,19 @@ defmodule Tuist.OnceEvents.ActionHistory do
   alias Tuist.OnceEvents.Run
   alias Tuist.Repo
 
+  defmacrop executed(action) do
+    quote do
+      not unquote(action).was_cached and
+        unquote(action).result in ["succeeded", "failed", "timed_out", "infrastructure_error"]
+    end
+  end
+
+  defmacrop failure(action) do
+    quote do
+      not unquote(action).was_cached and unquote(action).result in ["failed", "timed_out", "infrastructure_error"]
+    end
+  end
+
   def fields(project_id, history, capability \\ "build") do
     case normalize(history) do
       nil ->
@@ -133,7 +146,7 @@ defmodule Tuist.OnceEvents.ActionHistory do
           from([a] in query,
             select: %{
               first_seen: min(a.started_at),
-              first_failure: filter(min(a.started_at), a.result == "failed" and not a.was_cached)
+              first_failure: filter(min(a.started_at), failure(a))
             }
           )
         )
@@ -145,11 +158,11 @@ defmodule Tuist.OnceEvents.ActionHistory do
           from([a] in period,
             select: %{
               total: count(a.id),
-              executions: filter(count(a.id), not a.was_cached),
-              failures: filter(count(a.id), a.result == "failed" and not a.was_cached),
+              executions: filter(count(a.id), executed(a)),
+              failures: filter(count(a.id), failure(a)),
               hits: filter(count(a.id), a.was_cached),
               cache_observations: filter(count(a.id), a.was_cached or (not is_nil(a.cache_key) and a.cache_key != "")),
-              duration: filter(avg(a.duration_ms), not a.was_cached)
+              duration: filter(avg(a.duration_ms), executed(a))
             }
           )
         )
@@ -182,12 +195,12 @@ defmodule Tuist.OnceEvents.ActionHistory do
         limit: 40,
         select: %{
           day: selected_as(fragment("date_trunc(?, ? AT TIME ZONE 'UTC')", ^bucket, a.started_at), :history_bucket),
-          executions: filter(count(a.id), not a.was_cached),
-          failures: filter(count(a.id), a.result == "failed" and not a.was_cached),
+          executions: filter(count(a.id), executed(a)),
+          failures: filter(count(a.id), failure(a)),
           hits: filter(count(a.id), a.was_cached),
           cache_observations: filter(count(a.id), a.was_cached or (not is_nil(a.cache_key) and a.cache_key != "")),
           total: count(a.id),
-          duration: filter(avg(a.duration_ms), not a.was_cached)
+          duration: filter(avg(a.duration_ms), executed(a))
         }
       )
     )

@@ -139,7 +139,7 @@
         <p data-part="history-note">
           {dgettext(
             "dashboard_projects",
-            "Execution duration and failures exclude cache hits. History covers retained runs that reported this logical identity; history can be scoped to native output variants reported by the producer."
+            "Execution metrics exclude cache hits, skipped and cancelled actions. Failures include timeouts and infrastructure errors. History covers retained runs that reported this logical identity; history can be scoped to native output variants reported by the producer."
           )}
         </p>
       </div>
@@ -355,6 +355,18 @@
     data-part="action-history"
   >
     <:actions>
+      <.dropdown
+        :if={@tab == "history"}
+        id="once-action-history-period"
+        label={dgettext("dashboard_projects", "Last %{days} days", days: @days)}
+      >
+        <.dropdown_item
+          :for={days <- [7, 30, 90]}
+          value={to_string(days)}
+          label={dgettext("dashboard_projects", "Last %{days} days", days: days)}
+          patch={patch(assigns, %{"days" => to_string(days), "page" => "1"})}
+        />
+      </.dropdown>
       <.button
         :if={@tab == "overview" and @history_meta.ok? and @history_meta.result.total_count > 6}
         label={dgettext("dashboard_projects", "View more")}

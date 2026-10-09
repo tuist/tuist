@@ -71,6 +71,66 @@ defmodule TuistWeb.OnceActionLiveTest do
     assert render(view) =~ "branch=main"
   end
 
+  test "history exposes its window and older observations become visible when expanded", %{
+    conn: conn,
+    path: path,
+    project: project
+  } do
+    old = occurrence(project, DateTime.add(DateTime.utc_now(), -45, :day), 45)
+    {:ok, view, _} = live(conn, path <> "?tab=history&days=30")
+    render_async(view, 5_000)
+    assert has_element?(view, "#once-action-history-period")
+    assert has_element?(view, "#once-action-history-period-label-portal", "Last 30 days")
+    refute has_element?(view, "#once-action-history-table", old.display_name)
+    refute has_element?(view, "#once-action-history-chart")
+
+    render_patch(view, path <> "?tab=history&days=90&page=2")
+    render_async(view, 5_000)
+    assert has_element?(view, "#once-action-history-period-label-portal", "Last 90 days")
+    assert has_element?(view, "#once-action-history-table", old.display_name)
+  end
+
+  test "malformed query values fall back to defaults", %{conn: conn, path: path} do
+    {:ok, view, _} = live(conn, path <> "?branch[]=x&page[a]=1&source-search[]=x&source-page[a]=1")
+    render_async(view, 5_000)
+    assert has_element?(view, "#once-action-branch[value='']")
+    assert has_element?(view, "#once-action-source-search input[value='']")
+    assert has_element?(view, "#once-action-history-table", "Compile library 1")
+  end
+
+  @tag timeout: 15_000
+  test "large classified source lists render and search with original alignment", %{
+    conn: conn,
+    path: path,
+    action: action
+  } do
+    files = Enum.map(1..50_000, &"src/#{&1}.rs")
+    statuses = Enum.map(1..50_000, &if(rem(&1, 2) == 0, do: 1, else: 2))
+    action |> Ecto.Changeset.change(source_files: files, source_file_statuses: statuses) |> Repo.update!()
+    {:ok, view, _} = live(conn, path)
+    render_async(view, 5_000)
+    assert has_element?(view, "[data-source-file]", "src/1.rs")
+    refute has_element?(view, "[data-source-file]", "src/50000.rs")
+    view |> form("#once-action-source-search", %{"source-search" => "src/50000.rs"}) |> render_change()
+    assert has_element?(view, "[data-source-file]", "src/50000.rs")
+  end
+
+  test "anonymous public readers can open occurrences but private non-members cannot", %{conn: conn} do
+    public = ProjectsFixtures.project_fixture(visibility: :public, build_system: :once)
+    public = Repo.preload(public, :account)
+    action = occurrence(public, DateTime.utc_now(), 1)
+    path = "/#{public.account.name}/#{public.name}/once/runs/#{action.run_id}/actions/#{action.id}"
+    {:ok, view, _} = live(build_conn(), path)
+    render_async(view, 5_000)
+    assert has_element?(view, "#once-action", action.display_name)
+
+    private = ProjectsFixtures.project_fixture(build_system: :once)
+    private = Repo.preload(private, :account)
+    hidden = occurrence(private, DateTime.utc_now(), 1)
+    hidden_path = "/#{private.account.name}/#{private.name}/once/runs/#{hidden.run_id}/actions/#{hidden.id}"
+    assert_raise NotFoundError, fn -> live(conn, hidden_path) end
+  end
+
   test "legacy and ambiguous identities explain missing history without label matching", %{
     conn: conn,
     path: path,

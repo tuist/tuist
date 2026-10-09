@@ -89,19 +89,24 @@ defmodule TuistWeb.OnceActionComponents do
   def status(_), do: dgettext("dashboard_projects", "Unknown")
 
   def status_variant("succeeded"), do: "success"
-  def status_variant("failed"), do: "error"
-  def status_variant(_), do: "in_progress"
+  def status_variant(result) when result in ["failed", "timed_out", "infrastructure_error"], do: "error"
+  def status_variant(result) when result in ["skipped", "cancelled"], do: "disabled"
+  def status_variant(_), do: "attention"
 
   def source_rows(action) do
+    files = action.source_files || []
     statuses = action.source_file_statuses || []
-    legacy? = statuses == []
-    aligned? = length(statuses) == length(action.source_files)
 
-    action.source_files
-    |> Enum.with_index()
-    |> Enum.map(fn {file, index} ->
-      %{file: file, link?: legacy? or (aligned? and Enum.at(statuses, index) == 1), index: index}
-    end)
+    if statuses != [] and length(statuses) == length(files) do
+      files
+      |> Enum.zip(statuses)
+      |> Enum.with_index()
+      |> Enum.map(fn {{file, status}, index} -> %{file: file, link?: status == 1, index: index} end)
+    else
+      files
+      |> Enum.with_index()
+      |> Enum.map(fn {file, index} -> %{file: file, link?: statuses == [], index: index} end)
+    end
   end
 
   attr :row, :map, required: true

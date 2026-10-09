@@ -22,6 +22,7 @@ defmodule Tuist.OnceEvents do
   alias Tuist.OnceEvents.Action
   alias Tuist.OnceEvents.ActionHistory
   alias Tuist.OnceEvents.CacheEvent
+  alias Tuist.OnceEvents.Presentation
   alias Tuist.OnceEvents.Run
   alias Tuist.OnceEvents.SystemSample
   alias Tuist.OnceEvents.TestCaseRun
@@ -216,6 +217,7 @@ defmodule Tuist.OnceEvents do
 
     action_attrs =
       attrs
+      |> Map.put(:presentation, Presentation.normalize(attrs[:presentation]))
       |> Map.merge(ActionHistory.fields(run.project_id, history, attrs[:capability] || ""))
       |> Map.put(:once_run_id, run.id)
       |> Map.put(:run_id, run.run_id)
@@ -1154,18 +1156,21 @@ defmodule Tuist.OnceEvents do
       ilike(a.target_execution_id, ^pattern) or ilike(a.identifier, ^pattern) or ilike(a.display_name, ^pattern) or
         fragment("EXISTS (SELECT 1 FROM unnest(?) AS source_file WHERE source_file ILIKE ?)", a.source_files, ^pattern) or
         fragment(
-          "EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE(NULLIF(?->'package', 'null'::jsonb), '{}'::jsonb)) AS package WHERE package.key IN ('ecosystem', 'name', 'version', 'revision', 'digest') AND package.value ILIKE ?)",
+          "EXISTS (SELECT 1 FROM jsonb_each_text(CASE WHEN jsonb_typeof(?->'package') = 'object' THEN ?->'package' ELSE '{}'::jsonb END) AS package WHERE package.key IN ('ecosystem', 'name', 'version', 'revision', 'digest') AND package.value ILIKE ?)",
+          a.presentation,
           a.presentation,
           ^pattern
         ) or
         fragment(
-          "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(?->'platforms', '[]'::jsonb)) AS platform WHERE platform->>'id' ILIKE ? OR platform->>'label' ILIKE ?)",
+          "EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(?->'platforms') = 'array' THEN ?->'platforms' ELSE '[]'::jsonb END) AS platform WHERE platform->>'id' ILIKE ? OR platform->>'label' ILIKE ?)",
+          a.presentation,
           a.presentation,
           ^pattern,
           ^pattern
         ) or
         fragment(
-          "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(?->'context', '[]'::jsonb)) AS context WHERE context->>'key' ILIKE ? OR context->>'value' ILIKE ? OR context->>'label' ILIKE ?)",
+          "EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(?->'context') = 'array' THEN ?->'context' ELSE '[]'::jsonb END) AS context WHERE context->>'key' ILIKE ? OR context->>'value' ILIKE ? OR context->>'label' ILIKE ?)",
+          a.presentation,
           a.presentation,
           ^pattern,
           ^pattern,

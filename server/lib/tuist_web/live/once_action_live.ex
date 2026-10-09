@@ -6,6 +6,7 @@ defmodule TuistWeb.OnceActionLive do
   import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Widget
 
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.OnceEvents.ActionHistory
   alias Tuist.OnceEvents.Presentation
   alias Tuist.Repo
@@ -26,7 +27,10 @@ defmodule TuistWeb.OnceActionLive do
      |> assign(:action, action)
      |> assign(:current_user_timezone, socket.assigns.user_timezone)
      |> assign(:head_title, "#{OnceActionComponents.label(action)} · #{project.name} · Tuist")
+     |> assign(:analytics, AsyncResult.loading())
      |> assign(:analytics_key, nil)
+     |> assign(:source_rows, searchable_sources(action))
+     |> assign(:source_filter_key, nil)
      |> assign(:history_key, nil)
      |> assign(:history_refresh_ref, nil)}
   end
@@ -39,21 +43,15 @@ defmodule TuistWeb.OnceActionLive do
     metric =
       if params["metric"] in ["executions", "failures", "cache", "duration"], do: params["metric"], else: "duration"
 
-    branch = String.slice(params["branch"] || "", 0, 256)
+    branch = bounded_string(params["branch"])
     until = Date.utc_today() |> Date.add(1) |> DateTime.new!(~T[00:00:00], "Etc/UTC")
     since = DateTime.add(until, -days, :day)
     opts = [since: since, until: until, branch: branch]
     action = socket.assigns.action
     metadata = Presentation.normalize(action.presentation) || %{"package" => nil, "platforms" => [], "context" => []}
-    source_search = String.slice(params["source-search"] || "", 0, 256)
-
-    sources =
-      Enum.filter(
-        OnceActionComponents.source_rows(action),
-        &String.contains?(String.downcase(&1.file), String.downcase(source_search))
-      )
-
+    source_search = bounded_string(params["source-search"])
     source_page = integer(params["source-page"])
+    socket = filter_sources(socket, source_search)
 
     socket =
       socket
@@ -69,14 +67,13 @@ defmodule TuistWeb.OnceActionLive do
       |> assign(:history_available, ActionHistory.available?(action))
       |> assign(:source_search, source_search)
       |> assign(:source_page, source_page)
-      |> assign(:source_pages, max(ceil(length(sources) / 20), 1))
-      |> assign(:source_count, length(sources))
-      |> assign(:sources, Enum.slice(sources, (source_page - 1) * 20, 20))
+      |> assign(:sources, Enum.slice(socket.assigns.source_matches, (source_page - 1) * 20, 20))
 
     analytics_key = {action.id, action.history_ambiguous, days, branch, since, until}
 
     socket =
-      if socket.assigns.analytics_key != analytics_key or async_failed?(socket, :analytics) do
+      if tab == "overview" and
+           (socket.assigns.analytics_key != analytics_key or async_failed?(socket, :analytics)) do
         socket
         |> assign(:analytics_key, analytics_key)
         |> assign_async(:analytics, fn -> {:ok, %{analytics: ActionHistory.analytics(action, opts)}} end)
@@ -115,6 +112,15 @@ defmodule TuistWeb.OnceActionLive do
     if socket.assigns.history_refresh_ref, do: Process.cancel_timer(socket.assigns.history_refresh_ref)
     socket = assign(socket, :history_refresh_ref, nil)
     action = fetch_action!(socket.assigns.selected_project.id, socket.assigns.action.run_id, socket.assigns.action.id)
+
+    socket =
+      if action.source_files != socket.assigns.action.source_files or
+           action.source_file_statuses != socket.assigns.action.source_file_statuses do
+        socket |> assign(:source_rows, searchable_sources(action)) |> assign(:source_filter_key, nil)
+      else
+        socket
+      end
+
     socket = socket |> assign(:action, action) |> assign(:analytics_key, nil) |> assign(:history_key, nil)
     handle_params(socket.assigns.params, URI.to_string(socket.assigns.uri), socket)
   end
@@ -205,12 +211,36 @@ defmodule TuistWeb.OnceActionLive do
     end
   end
 
-  defp integer(value) do
-    case Integer.parse(value || "1") do
+  defp searchable_sources(action) do
+    Enum.map(OnceActionComponents.source_rows(action), &Map.put(&1, :search, String.downcase(&1.file)))
+  end
+
+  defp filter_sources(socket, search) do
+    if socket.assigns.source_filter_key == search do
+      socket
+    else
+      query = String.downcase(search)
+      sources = Enum.filter(socket.assigns.source_rows, &String.contains?(&1.search, query))
+
+      socket
+      |> assign(:source_filter_key, search)
+      |> assign(:source_matches, sources)
+      |> assign(:source_count, length(sources))
+      |> assign(:source_pages, max(ceil(length(sources) / 20), 1))
+    end
+  end
+
+  defp bounded_string(value) when is_binary(value), do: String.slice(value, 0, 256)
+  defp bounded_string(_), do: ""
+
+  defp integer(value) when is_binary(value) do
+    case Integer.parse(value) do
       {number, ""} when number > 0 -> min(number, 10_000)
       _ -> 1
     end
   end
+
+  defp integer(_), do: 1
 
   defp fetch_action!(project_id, run_id, action_id) do
     case ActionHistory.get_occurrence(project_id, run_id, action_id) do
