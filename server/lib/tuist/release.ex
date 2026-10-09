@@ -283,7 +283,7 @@ defmodule Tuist.Release do
         raise "ClickHouse schema drift: #{inspect(Map.take(report.schema, [:missing_on_destination, :differing_columns]))}"
 
       {:ok, report} ->
-        raise "ClickHouse parity failed: #{inspect(report.differing)}"
+        raise "ClickHouse parity failed: #{inspect(report.differing, limit: :infinity)}"
 
       {:error, reason} ->
         raise "ClickHouse parity could not run: #{inspect(reason)}"
