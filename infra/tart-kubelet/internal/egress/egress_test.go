@@ -86,8 +86,10 @@ scrub on utun100 all max-mss 1380
 scrub on utun101 all max-mss 1380
 nat on utun100 inet from ! 100.100.1.2 to any -> 100.100.1.2
 nat on utun101 inet from ! 100.100.1.2 to any -> 100.100.1.2
-pass in quick route-to (utun100 198.18.0.1) inet from <egress_dedicated-1> to ! <egress_exclude> flags any keep state
-pass in quick route-to (utun101 198.18.1.1) inet from <egress_dedicated-2> to ! <egress_exclude> flags any keep state
+pass in quick route-to (utun100 198.18.0.1) inet from <egress_dedicated-1> to ! <egress_exclude> flags any keep state tag tuist_egress_dedicated-1
+pass in quick route-to (utun101 198.18.1.1) inet from <egress_dedicated-2> to ! <egress_exclude> flags any keep state tag tuist_egress_dedicated-2
+block drop out quick on ! utun100 tagged tuist_egress_dedicated-1
+block drop out quick on ! utun101 tagged tuist_egress_dedicated-2
 block drop in quick inet from <egress_all> to ! <egress_exclude>
 `
 	if got != want {

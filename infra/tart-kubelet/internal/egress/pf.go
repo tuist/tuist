@@ -15,6 +15,14 @@ func gatewayTable(gateway string) string {
 	return "egress_" + gateway
 }
 
+// gatewayTag marks a flow routed into a gateway's tunnel. If the tunnel's utun
+// is gone, pf may hand the packet back to normal routing; the tagged block
+// then drops it on every other interface, so it never leaves from the host
+// address.
+func gatewayTag(gateway string) string {
+	return "tuist_egress_" + gateway
+}
+
 // AnchorGateway is a gateway as the pf anchor needs it.
 type AnchorGateway struct {
 	Name  string
@@ -44,8 +52,11 @@ func RenderAnchor(gateways []AnchorGateway, tailnetIP string, exclude []string) 
 	}
 	for _, gateway := range sorted {
 		_, next := TunnelAddresses(gateway.Index)
-		fmt.Fprintf(&b, "pass in quick route-to (%s %s) inet from <%s> to ! <egress_exclude> flags any keep state\n",
-			InterfaceName(gateway.Index), next, gatewayTable(gateway.Name))
+		fmt.Fprintf(&b, "pass in quick route-to (%s %s) inet from <%s> to ! <egress_exclude> flags any keep state tag %s\n",
+			InterfaceName(gateway.Index), next, gatewayTable(gateway.Name), gatewayTag(gateway.Name))
+	}
+	for _, gateway := range sorted {
+		fmt.Fprintf(&b, "block drop out quick on ! %s tagged %s\n", InterfaceName(gateway.Index), gatewayTag(gateway.Name))
 	}
 	fmt.Fprintf(&b, "block drop in quick inet from <%s> to ! <egress_exclude>\n", allTable)
 	return b.String()
