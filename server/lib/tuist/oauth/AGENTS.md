@@ -22,3 +22,7 @@ This context owns OAuth2 token/client handling (Boruta).
 - Migrations: `server/priv/AGENTS.md`
 
 - Cache-token introspection exposes `cache_origin` only from verified signed claims. Tenant-scoped introspection remains grant-filtered; callers that distinguish invalid credentials (401) from insufficient tenant grants (403) must validate the credential before the scoped check. Origin is coarse placement context, never authorization evidence.
+
+## Replica-safety rollout
+
+Use upstream Boruta Ecto adapters with `Tuist.OAuth.NoCache` as the entity-cache backend. Client/token/grant reads remain authoritative in PostgreSQL; normal OAuth store operations must not invoke Nebulex replicated cache RPCs or cluster-wide locks. Do not fork the upstream Ecto adapters to disable caching.

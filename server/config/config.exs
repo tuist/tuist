@@ -14,6 +14,7 @@ build_path = Mix.Project.build_path()
 
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
+  cache_backend: Tuist.OAuth.NoCache,
   max_ttl: [authorization_code: 300],
   # `access_tokens` is deliberately absent: it defaults to
   # `Boruta.Ecto.AccessTokens`. A local copy of that adapter used to be
