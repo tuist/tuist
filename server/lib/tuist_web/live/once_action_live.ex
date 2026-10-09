@@ -152,6 +152,9 @@ defmodule TuistWeb.OnceActionLive do
     [
       %{
         name: metric_label(metric),
+        color: "var:noora-chart-#{metric_color(metric)}",
+        symbol: "circle",
+        connectNulls: true,
         data: Enum.map(stats.series, &[NaiveDateTime.to_iso8601(&1.day) <> "Z", metric_value(&1, metric)])
       }
     ]
@@ -163,7 +166,7 @@ defmodule TuistWeb.OnceActionLive do
   def metric_label("executions"), do: dgettext("dashboard_projects", "Executions")
   def metric_label("failures"), do: dgettext("dashboard_projects", "Failures")
   def metric_label("cache"), do: dgettext("dashboard_projects", "Cache hit rate")
-  def metric_label(_), do: dgettext("dashboard_projects", "Execution duration")
+  def metric_label(_), do: dgettext("dashboard_projects", "Avg. execution duration")
 
   def package_fields(package) do
     Enum.reject(
@@ -178,6 +181,11 @@ defmodule TuistWeb.OnceActionLive do
       fn {_label, value} -> value in [nil, ""] end
     )
   end
+
+  defp metric_color("executions"), do: "primary"
+  defp metric_color("failures"), do: "destructive"
+  defp metric_color("cache"), do: "tertiary"
+  defp metric_color(_), do: "secondary"
 
   defp metric_value(row, "executions"), do: row.executions
   defp metric_value(row, "failures"), do: row.failures

@@ -25,7 +25,6 @@
 @import "./pages/bazel_overview.css";
 @import "./pages/once_runs.css";
 @import "./pages/once_run.css";
-@import "./pages/once_action.css";
 @import "./pages/integrations.css";
 @import "./pages/module_cache.css";
 @import "./pages/members.css";
@@ -56,6 +55,7 @@
 @import "./pages/test_run.css";
 @import "./pages/test_cases.css";
 @import "./pages/test_case.css";
+@import "./pages/once_action.css";
 @import "./pages/test_case_run.css";
 @import "./pages/flaky_tests.css";
 @import "./pages/quarantined_tests.css";

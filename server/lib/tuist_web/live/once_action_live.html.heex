@@ -71,6 +71,13 @@
           <.widget
             id="once-action-duration"
             title={metric_label("duration")}
+            legend_color="secondary"
+            description={
+              dgettext(
+                "dashboard_projects",
+                "Average duration of executed actions. Excludes cache hits, skipped and cancelled actions."
+              )
+            }
             value={if ready?, do: duration(@analytics.result.duration)}
             selected={@metric == "duration"}
             loading={!ready?}
@@ -80,6 +87,13 @@
           <.widget
             id="once-action-executions"
             title={metric_label("executions")}
+            legend_color="primary"
+            description={
+              dgettext(
+                "dashboard_projects",
+                "Executed actions in the selected period. Excludes cache hits, skipped and cancelled actions."
+              )
+            }
             value={if ready?, do: format_number(@analytics.result.executions)}
             selected={@metric == "executions"}
             loading={!ready?}
@@ -89,6 +103,13 @@
           <.widget
             id="once-action-cache"
             title={metric_label("cache")}
+            legend_color="tertiary"
+            description={
+              dgettext(
+                "dashboard_projects",
+                "Cache hits as a percentage of reported cache observations. Unreported outcomes are excluded."
+              )
+            }
             value={if ready?, do: cache_rate(@analytics.result)}
             selected={@metric == "cache"}
             loading={!ready?}
@@ -98,6 +119,13 @@
           <.widget
             id="once-action-failures"
             title={metric_label("failures")}
+            legend_color="destructive"
+            description={
+              dgettext(
+                "dashboard_projects",
+                "Failed executions, including timeouts and infrastructure errors."
+              )
+            }
             value={if ready?, do: format_number(@analytics.result.failures)}
             selected={@metric == "failures"}
             loading={!ready?}
@@ -136,26 +164,52 @@
           </p>
           <.skeleton_chart :if={!ready?} />
         </div>
-        <p data-part="history-note">
-          {dgettext(
-            "dashboard_projects",
-            "Execution metrics exclude cache hits, skipped and cancelled actions. Failures include timeouts and infrastructure errors. History covers retained runs that reported this logical identity; history can be scoped to native output variants reported by the producer."
-          )}
-        </p>
-      </div>
-      <div :if={ready?} data-part="observation-summary">
-        <span data-part="label">{if @branch == "",
-          do: dgettext("dashboard_projects", "First observed in retained history"),
-          else:
-            dgettext("dashboard_projects", "First observed on this branch in retained history")}</span>
-        <span data-first-observed>{timestamp(@analytics.result.first_seen, @current_user_timezone)}</span>
-        <span data-part="label">{if @branch == "",
-          do: dgettext("dashboard_projects", "First observed failure"),
-          else: dgettext("dashboard_projects", "First observed failure on this branch")}</span>
-        <span data-first-failure>{timestamp(
-          @analytics.result.first_failure,
-          @current_user_timezone
-        )}</span>
+        <div :if={ready?} data-part="observation-summary">
+          <div data-part="metadata">
+            <span data-part="label">{if @branch == "",
+              do: dgettext("dashboard_projects", "First observed in retained history"),
+              else:
+                dgettext(
+                  "dashboard_projects",
+                  "First observed on this branch in retained history"
+                )}</span>
+            <span data-first-observed>{timestamp(
+              @analytics.result.first_seen,
+              @current_user_timezone
+            )}</span>
+          </div>
+          <div data-part="metadata">
+            <span data-part="label">{if @branch == "",
+              do: dgettext("dashboard_projects", "First observed failure"),
+              else: dgettext("dashboard_projects", "First observed failure on this branch")}</span>
+            <span data-first-failure>{timestamp(
+              @analytics.result.first_failure,
+              @current_user_timezone
+            )}</span>
+          </div>
+          <.tooltip
+            id="once-action-history-scope"
+            size="large"
+            title={dgettext("dashboard_projects", "Retained history")}
+            description={
+              dgettext(
+                "dashboard_projects",
+                "History covers retained runs that report this logical identity, including any output variant selected by the producer. First observed dates do not indicate when an action was created or a failure began."
+              )
+            }
+          >
+            <:trigger :let={attrs}>
+              <button
+                type="button"
+                data-history-note
+                aria-label={dgettext("dashboard_projects", "About retained history")}
+                {attrs}
+              >
+                <.info_circle />
+              </button>
+            </:trigger>
+          </.tooltip>
+        </div>
       </div>
     </.card_section>
   </.async_card>
@@ -190,9 +244,13 @@
     <.card_section>
       <div data-part="metadata-grid">
         <div data-part="metadata">
-          <span data-part="label">{dgettext("dashboard_projects", "Build run")}</span><.link navigate={
-            run_path(assigns)
-          }>{@action.run.command_display || @action.run.run_id}</.link>
+          <span data-part="label">{dgettext("dashboard_projects", "Build run")}</span>
+          <.link_button
+            navigate={run_path(assigns)}
+            label={@action.run.command_display || @action.run.run_id}
+            size="medium"
+            underline
+          />
         </div>
         <div data-part="metadata">
           <span data-part="label">{dgettext("dashboard_projects", "Duration")}</span><span>{duration(
@@ -229,12 +287,17 @@
           <span data-part="label">{dgettext("dashboard_projects", "Branch")}</span><.branch_link
             project={@selected_project}
             branch={@action.run.git_branch}
+            show_icon
+            fallback="—"
+            data-part="value-link"
           />
         </div>
         <div data-part="metadata">
           <span data-part="label">{dgettext("dashboard_projects", "Commit")}</span><.commit_link
             project={@selected_project}
             commit_sha={@action.run.git_rev}
+            fallback="—"
+            data-part="value-link"
           />
         </div>
         <div data-part="metadata">

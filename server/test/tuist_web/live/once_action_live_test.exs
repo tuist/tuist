@@ -32,7 +32,13 @@ defmodule TuistWeb.OnceActionLiveTest do
     assert has_element?(view, "#once-action h1", "Compile library 1")
     assert has_element?(view, "#once-action-history-chart")
     assert has_element?(view, "#once-action", "native-target")
-    assert has_element?(view, "[data-part=history-note]", "retained")
+    assert has_element?(view, "button[data-history-note][data-part=trigger][aria-label='About retained history']")
+    assert has_element?(view, "#once-action-duration-tooltip")
+    assert has_element?(view, "#once-action-executions-tooltip")
+    assert has_element?(view, "#once-action-cache-tooltip")
+    assert has_element?(view, "#once-action-failures-tooltip")
+    assert has_element?(view, "[data-part=observation-summary] [data-first-observed]")
+    refute has_element?(view, "p[data-part=history-note]")
 
     assert view |> render() |> Floki.parse_fragment!() |> Floki.find("#once-action-history-table tbody tr") |> length() ==
              6

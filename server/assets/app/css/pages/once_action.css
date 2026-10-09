@@ -15,8 +15,7 @@
 
   & [data-part="metadata"],
   & [data-action-platform],
-  & [data-action-context],
-  & [data-part="observation-summary"] {
+  & [data-action-context] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-3);
@@ -31,14 +30,76 @@
     }
   }
 
-  & [data-part="observation-summary"] {
-    flex: 0 1 240px;
-    justify-content: center;
+  & [data-part="analytics"] > [data-part="analytics-body"] {
+    flex-direction: column;
+
+    & > [data-part="analytics-main"] > [data-part="widgets"] {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+
+      @media (max-width: 1024px) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      @media (max-width: 600px) {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      & .tuist-widget-link {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+
+        & .tuist-widget {
+          flex: 1;
+        }
+      }
+    }
   }
 
-  & [data-part="history-note"] {
+  & [data-part="observation-summary"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-7);
+    border-top: 1px solid var(--noora-surface-border-primary);
+    padding-top: var(--noora-spacing-6);
+  }
+
+  & [data-history-note] {
+    display: flex;
+    cursor: pointer;
+    border: none;
+    background: none;
+    padding: 0;
     color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-body-small);
+
+    & svg {
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+    }
+  }
+
+  & [data-part="metadata"] > .noora-link-button {
+    align-self: flex-start;
+    max-width: 100%;
+    text-align: left;
+  }
+
+  & [data-part="value-link"] {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    color: var(--noora-surface-label-primary);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+
+    & svg {
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+    }
   }
 
   & [data-part="badges"] {
