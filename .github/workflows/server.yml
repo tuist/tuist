@@ -253,7 +253,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
-          restore-mix-cache: "false"
+          restore-mix-cache: deps
+          mise-cache: "false"
       - name: Restore CLDR locale cache
         uses: actions/cache@v4
         with:
@@ -303,16 +304,17 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 60
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
-          restore-mix-cache: "false"
+          restore-mix-cache: deps
+          mise-cache: "false"
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
       # A checkout newer than the downloaded build makes Mix treat the path
@@ -354,15 +356,16 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 60
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
-          restore-mix-cache: "false"
+          restore-mix-cache: deps
+          mise-cache: "false"
       # This install must be unlocked: mise.lock pins the newer CI release.
       - name: Pin ClickHouse to the oldest supported release
         run: |
@@ -414,10 +417,10 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 60
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
@@ -712,10 +715,10 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 60
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
