@@ -251,18 +251,13 @@ jobs:
       TUIST_DEV_ALL_LOCALES: "1"
     steps:
       - uses: actions/checkout@v4
-      # The shards restore this exact key instead of fetching every dependency
-      # again. mix deps.get still runs on a hit.
-      - name: Cache Mix dependencies
-        uses: actions/cache@v4
-        with:
-          path: server/deps
-          key: server-test-deps-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            server-test-deps-v1-${{ runner.os }}-${{ runner.arch }}-
+      # Saves server/deps for the shards, which restore the same key instead of
+      # fetching every dependency again.
       - uses: ./.github/actions/setup-server-mix
         with:
           restore-mix-cache: "false"
+          deps-cache-key: server-test-deps-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/mix.lock') }}
+          save-deps-cache: "true"
       - name: Restore CLDR locale cache
         uses: actions/cache@v4
         with:
@@ -318,15 +313,11 @@ jobs:
           --health-retries 60
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix dependencies
-        uses: actions/cache/restore@v4
-        with:
-          path: server/deps
-          key: server-test-deps-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/mix.lock') }}
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
           restore-mix-cache: "false"
+          deps-cache-key: server-test-deps-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/mix.lock') }}
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
       # A checkout newer than the downloaded build makes Mix treat the path
@@ -374,14 +365,10 @@ jobs:
           --health-retries 60
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix dependencies
-        uses: actions/cache/restore@v4
-        with:
-          path: server/deps
-          key: server-test-deps-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/mix.lock') }}
       - uses: ./.github/actions/setup-server-mix
         with:
           restore-mix-cache: "false"
+          deps-cache-key: server-test-deps-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/mix.lock') }}
       # This install must be unlocked: mise.lock pins the newer CI release.
       - name: Pin ClickHouse to the oldest supported release
         run: |
