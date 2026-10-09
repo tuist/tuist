@@ -270,14 +270,14 @@ jobs:
       - name: Build and plan current ClickHouse shards
         id: current
         run: |
-          mix tuist.test.build --shard-total 4 --warnings-as-errors
+          mix tuist.test.build --shard-total 3 --warnings-as-errors
           echo "reference=$TUIST_SHARD_REFERENCE" >> "$GITHUB_OUTPUT"
         env:
           TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-server-current
       - name: Plan oldest supported ClickHouse shards
         id: floor
         run: |
-          mix tuist.test.build --shard-total 4 --warnings-as-errors
+          mix tuist.test.build --shard-total 3 --warnings-as-errors
           echo "reference=$TUIST_SHARD_REFERENCE" >> "$GITHUB_OUTPUT"
         env:
           TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-server-floor
