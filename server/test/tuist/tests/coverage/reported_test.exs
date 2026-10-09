@@ -1351,6 +1351,43 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert Commits.file_detail(project.id, "head", "Sources/Text.swift", measured: true) == nil
   end
 
+  test "a target selective testing skipped whose tests no run listed makes the figure observed", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+
+    head =
+      CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+        git_commit_sha: "head",
+        partial: true,
+        test_modules: modules([test_case("testAdd()", "MathTests")]),
+        enumerated_tests: [hd(@tests)]
+      })
+
+    # Pruned from the workspace and never listed by an ancestor: what it would
+    # have covered is unknown, though its sources were compiled here.
+    selective_testing(project, head, [{"AppTests", :miss, "app"}, {"TextKitTests", :local, "text"}])
+
+    assert %{kind: "observed", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:no_evidence]
+  end
+
+  test "carries nothing while a target selective testing skipped has tests no run listed", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+    head = head_run(project, account, head_files())
+    selective_testing(project, head, [{"AppTests", :miss, "app"}, {"TextKitTests", :local, "text"}])
+
+    # testTrim() would carry, but TextKitTests' coverage is unknown.
+    assert %{kind: "observed", skipped_tests_count: 1, carried_tests_count: 1} =
+             reported = Reported.compute(project, "head")
+
+    assert reasons(reported) == [:no_evidence]
+  end
+
   test "is measured when the runs listed no candidates and none left tests out", %{project: project, account: account} do
     CoverageFixtures.run_with_coverage(project, account, [file("Sources/Math.swift", [1, 0])], %{git_commit_sha: "head"})
 

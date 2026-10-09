@@ -130,7 +130,14 @@ defmodule Tuist.Tests.Coverage.Reported do
       else: result(place.observed, "observed", [], [], {0, []}, [])
   end
 
-  defp settle({[], _ancestry}, place, _runs, {_run_ids, _hits, schemes}), do: measured(place, schemes)
+  # Nothing listed was skipped, but a target selective testing skipped whose
+  # tests no run listed (pruned from the workspace, and no ancestor run
+  # listed them) still left its coverage out.
+  defp settle({[], _ancestry}, place, _runs, {run_ids, hits, schemes}) do
+    if unlisted_hits?(place.project.id, run_ids, hits),
+      do: result(place.observed, "observed", [], [], {0, [:no_evidence]}, []),
+      else: measured(place, schemes)
+  end
 
   defp settle({skipped, ancestry}, place, _runs, runs) do
     context = %{repository_id: place.repository_id, sha: place.sha, ancestry: ancestry}
@@ -201,9 +208,13 @@ defmodule Tuist.Tests.Coverage.Reported do
     carried_tests = units |> Enum.flat_map(& &1.tests) |> Enum.uniq_by(& &1.test_case_id)
     kept = MapSet.new(carried_tests, & &1.test_case_id)
 
+    listed = skipped |> Enum.map(& &1.module_name) |> Enum.uniq()
+
     case Enum.reject(skipped, &MapSet.member?(kept, &1.test_case_id)) do
       [] ->
-        carry_lines(context, {observed, skipped, carried_tests}, units, schemes)
+        if unlisted_hits?(project.id, run_ids, hits, listed),
+          do: result(observed, "observed", skipped, carried_tests, {0, [:no_evidence]}, []),
+          else: carry_lines(context, {observed, skipped, carried_tests}, units, schemes)
 
       gaps ->
         result(observed, "observed", skipped, carried_tests, {0, test_gap_reasons(context, gaps, reasons)}, [])
@@ -231,6 +242,29 @@ defmodule Tuist.Tests.Coverage.Reported do
     else
       result(observed, "observed", skipped, carried_tests, {gap_files, file_reasons}, [])
     end
+  end
+
+  defp unlisted_hits?(project_id, run_ids, hits, listed \\ [])
+  defp unlisted_hits?(_project_id, _run_ids, [], _listed), do: false
+
+  defp unlisted_hits?(project_id, run_ids, hits, listed) do
+    case hits |> Enum.map(& &1.name) |> Enum.uniq() |> Kernel.--(listed) do
+      [] -> false
+      modules -> not_run?(project_id, run_ids, modules)
+    end
+  end
+
+  defp not_run?(project_id, run_ids, modules) do
+    ran =
+      from(r in TestCaseRun,
+        where: r.project_id == ^project_id and r.test_run_id in ^run_ids and r.module_name in ^modules,
+        distinct: true,
+        select: r.module_name
+      )
+      |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
+      |> MapSet.new()
+
+    Enum.any?(modules, &(not MapSet.member?(ran, &1)))
   end
 
   # Nothing was skipped, so the runs measured everything, unless a file the
