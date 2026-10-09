@@ -1,6 +1,7 @@
 defmodule TuistEx.Auth do
   @moduledoc false
 
+  alias TuistEx.Analytics.Config
   alias TuistEx.{HTTP, Lock}
 
   @default_url "https://tuist.dev"
@@ -38,6 +39,96 @@ defmodule TuistEx.Auth do
 
         with {:error, reason} <- stored_token(server_url, environment),
              do: provider_token(server_url, environment, reason)
+    end
+  end
+
+  def reporting_token(options \\ []) do
+    environment = Keyword.get(options, :environment, &System.get_env/1)
+
+    if network_publishing_enabled?(options, environment) do
+      server_url = server_url(options, environment)
+
+      case environment.("TUIST_TOKEN") do
+        nil ->
+          case File.stat(credentials_path(server_url, environment)) do
+            {:ok, _} ->
+              stored_token(server_url, environment)
+
+            {:error, :enoent} ->
+              provider_or_network_token(server_url, environment)
+
+            {:error, _} ->
+              {:error,
+               "Could not read Tuist credentials. Sign in again or deliberately remove them."}
+          end
+
+        token when is_binary(token) ->
+          if String.trim(token) == "",
+            do: {:error, "TUIST_TOKEN must not be blank"},
+            else: {:ok, token}
+
+        _ ->
+          {:error, "Invalid TUIST_TOKEN"}
+      end
+    else
+      __MODULE__.token(options)
+    end
+  end
+
+  def network_publishing?(options) do
+    environment = Keyword.get(options, :environment, &System.get_env/1)
+
+    network_publishing_enabled?(options, environment) and
+      __MODULE__.reporting_token(options) == {:ok, nil}
+  end
+
+  defp network_publishing_enabled?(options, environment) do
+    case environment.("TUIST_NETWORK_TRUSTED_PUBLISHING") do
+      nil ->
+        Keyword.get(
+          options,
+          :network_trusted_publishing,
+          Keyword.get(Config.project_tuist_config(options), :network_trusted_publishing, false)
+        ) == true
+
+      value ->
+        value == "true"
+    end
+  end
+
+  defp provider_or_network_token(server_url, environment) do
+    supplied =
+      Enum.any?(
+        ~w(ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN
+                            CIRCLE_OIDC_TOKEN_V2 CIRCLE_OIDC_TOKEN BITRISE_OIDC_ID_TOKEN
+                            BITRISE_IDENTITY_TOKEN),
+        &(not is_nil(environment.(&1)))
+      )
+
+    if supplied do
+      case identity_token(environment) do
+        {:ok, identity} -> exchange(server_url, identity)
+        {:error, _} = error -> error
+        :unsupported -> {:error, "Invalid OpenID Connect environment"}
+      end
+    else
+      network_token(server_url)
+    end
+  end
+
+  defp network_token(server_url) do
+    host =
+      server_url
+      |> URI.parse()
+      |> Map.fetch!(:host)
+      |> String.downcase()
+      |> String.trim_trailing(".")
+
+    if host in ["tuist.dev", "tuist.io", "cloud.tuist.io", "cloud.tuist.dev"] or
+         String.ends_with?(host, ".tuist.dev") or String.ends_with?(host, ".tuist.io") do
+      {:error, "Credential-free publishing requires a configured self-hosted Tuist server URL."}
+    else
+      {:ok, nil}
     end
   end
 
@@ -254,11 +345,15 @@ defmodule TuistEx.Auth do
     path = credentials_path(server_url, environment)
 
     with {:ok, credentials} <- read(path),
-         access when is_binary(access) <- credentials["accessToken"] do
+         %{"accessToken" => access} <- credentials,
+         false <- Map.get(credentials, "rejected", false),
+         true <- is_binary(access) and String.trim(access) != "" do
       if expired?(access) do
         Lock.with_lock(lock_path(server_url, environment), fn ->
           with {:ok, current} <- read(path),
-               token when is_binary(token) <- current["accessToken"] do
+               %{"accessToken" => token} <- current,
+               false <- Map.get(current, "rejected", false),
+               true <- is_binary(token) and String.trim(token) != "" do
             if expired?(token), do: refresh(server_url, path, current), else: {:ok, token}
           else
             _ -> {:error, "Run `mix tuist.login` or set TUIST_TOKEN"}
@@ -274,7 +369,8 @@ defmodule TuistEx.Auth do
 
   defp refresh(server_url, path, %{"refreshToken" => refresh}) when is_binary(refresh) do
     case HTTP.request(:post, server_url <> "/api/auth/refresh_token", %{refresh_token: refresh}) do
-      {:ok, 200, %{"access_token" => access, "refresh_token" => new_refresh}} ->
+      {:ok, 200, %{"access_token" => access, "refresh_token" => new_refresh}}
+      when is_binary(access) and access != "" and is_binary(new_refresh) and new_refresh != "" ->
         save(path, %{"accessToken" => access, "refreshToken" => new_refresh})
         {:ok, access}
 
