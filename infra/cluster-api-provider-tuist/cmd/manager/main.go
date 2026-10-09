@@ -15,6 +15,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -95,6 +96,7 @@ func main() {
 		vmClusterDNSIP               string
 		vmCachePNName                string
 		vmCachePNCIDR                string
+		runnerEgressGatewaysRaw      string
 		sshIngressAllowRaw           string
 		tartKubeletHostCPU           int
 		tartKubeletHostMemory        int
@@ -259,6 +261,12 @@ func main() {
 			"firewall also lets Tart VMs reach it on the Kubernetes NodePort "+
 			"range only. Flows from the chart's "+
 			"macosFleet.vmCachePrivateNetwork.cidr.")
+	flag.StringVar(&runnerEgressGatewaysRaw, "runner-egress-gateways",
+		envOrDefault("CAPI_RUNNER_EGRESS_GATEWAYS", ""),
+		"JSON list of dedicated egress gateways every Mac host keeps a WireGuard "+
+			"tunnel to: [{\"name\",\"index\",\"endpoint\",\"publicKey\"}]. Empty "+
+			"turns dedicated egress off. Flows from the chart's "+
+			"macosFleet.runnerEgressGateways.")
 	flag.StringVar(&sshIngressAllowRaw, "ssh-ingress-allow-cidrs",
 		envOrDefault("CAPI_SSH_INGRESS_ALLOW_CIDRS", ""),
 		"Comma-separated IPv4 CIDRs, beyond the tailnet and loopback, allowed to "+
@@ -467,6 +475,12 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	runnerEgressGateways, err := parseRunnerEgressGateways(runnerEgressGatewaysRaw)
+	if err != nil {
+		setupLog.Error(err, "parse --runner-egress-gateways")
+		os.Exit(1)
+	}
+
 	scwClient, err := scaleway.NewClient()
 	if err != nil {
 		setupLog.Error(err, "scaleway client init")
@@ -573,6 +587,7 @@ func main() {
 		VMKuraEgressCIDR:          vmKuraEgressCIDR,
 		VMClusterDNSIP:            vmClusterDNSIP,
 		VMCachePNCIDR:             vmCachePNCIDR,
+		RunnerEgressGateways:      runnerEgressGateways,
 		SSHIngressAllowCIDRs:      parseCommaList(sshIngressAllowRaw),
 		HostCPU:                   tartKubeletHostCPU,
 		HostMemoryMB:              tartKubeletHostMemory,
@@ -1150,4 +1165,24 @@ func readRackNodeBinary(path, fleet string) []byte {
 		return nil
 	}
 	return binary
+}
+
+// parseRunnerEgressGateways reads the chart's gateway list. An invalid list
+// stops the operator rather than pushing a half-understood config to every
+// host.
+func parseRunnerEgressGateways(raw string) ([]bootstrap.RunnerEgressGateway, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	var gateways []bootstrap.RunnerEgressGateway
+	if err := decoder.Decode(&gateways); err != nil {
+		return nil, err
+	}
+	if err := bootstrap.ValidateRunnerEgressGateways(gateways); err != nil {
+		return nil, err
+	}
+	return gateways, nil
 }

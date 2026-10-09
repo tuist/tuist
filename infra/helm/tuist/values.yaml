@@ -2145,6 +2145,16 @@ macosFleet:
   vmCachePrivateNetwork:
     name: ""
     cidr: ""
+  # Dedicated egress gateways every Mac host keeps a WireGuard tunnel to
+  # (infra/runner-egress-gateway). Each entry mirrors the platform chart's
+  # runnerEgressGateways.<name>: the same name and index, the Floating IP
+  # and port as endpoint, and the gateway's public key. Empty turns
+  # dedicated egress off on the hosts.
+  #   - name: dedicated-1
+  #     index: 1
+  #     endpoint: "<floating-ip>:51821"
+  #     publicKey: "<base64 WireGuard public key>"
+  runnerEgressGateways: []
   # Extra IPv4 CIDRs allowed to reach :22 on each Mac mini. The tailnet
   # and loopback are always allowed; everything else is dropped by a pf
   # anchor, keeping internet SSH scan traffic from exhausting launchd's

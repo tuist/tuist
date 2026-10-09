@@ -56,7 +56,14 @@ func init() {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == egressTunnelCommand {
+		os.Exit(runEgressTunnelCommand(os.Args[2:]))
+	}
+
 	var (
+		egressStatusDir      string
+		egressStateDir       string
+		egressExcludeCIDRs   string
 		nodeName             string
 		providerID           string
 		nodeIP               string
@@ -153,6 +160,14 @@ func main() {
 			"by what each cache holds. This value is the CAS's share of the fixed split that runner images older "+
 			"than that division apply, the binary cache getting the rest. Persisted across VMs, riding the binary "+
 			"cache's HEAD/convergence. 0 (default) leaves the compilation cache VM-local. Must be < --cache-volume-cap-gib.")
+	flag.StringVar(&egressStatusDir, "runner-egress-status-dir", "",
+		"Directory the egress-tunnel daemons write gateway status to. Empty (default) disables dedicated egress: "+
+			"a Pod bound to a gateway is never reported ready, so the server never hands it a job.")
+	flag.StringVar(&egressStateDir, "runner-egress-state-dir", "/var/db/tuist-egress",
+		"Directory holding the host's WireGuard public key.")
+	flag.StringVar(&egressExcludeCIDRs, "runner-egress-exclude-cidrs", "",
+		"Comma-separated IPv4 CIDRs that stay off the egress tunnels on top of private and special-use space "+
+			"(the runner-cache carve-outs).")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
 			"Tart VM not backed by a Pod scheduled to this Node. On builder-fleet Nodes — "+
@@ -239,6 +254,15 @@ func main() {
 	if nodeIPSource == "tailscale" && nodeIP != "" && metricsAddr == ":8080" {
 		metricsAddr = fmt.Sprintf("%s:8080", nodeIP)
 		setupLog.Info("binding metrics endpoint to tailnet IP", "addr", metricsAddr)
+	}
+
+	// A misconfigured egress setup disables it rather than stopping the
+	// kubelet: Pods bound to a gateway then never turn ready, so the server
+	// never hands them a job, while every other Pod keeps running.
+	egressManager, err := newEgressManager(egressStatusDir, egressStateDir, egressExcludeCIDRs, nodeIP)
+	if err != nil {
+		setupLog.Error(err, "runner egress disabled")
+		egressManager = nil
 	}
 
 	if vncControlDir != "" {
@@ -405,7 +429,7 @@ func main() {
 		}
 	}
 
-	if err := (&podagent.Reconciler{
+	reconciler := &podagent.Reconciler{
 		CachedClient:       mgr.GetClient(),
 		NodeName:           nodeName,
 		NodeIP:             nodeIP,
@@ -427,10 +451,18 @@ func main() {
 		Volumes:       volumes,
 		CustomVolumes: customVolumes,
 		Converge:      converge,
+		Egress:        egressManager,
 		Recorder:      mgr.GetEventRecorderFor("tart-kubelet"),
-	}).SetupWithManager(mgr); err != nil {
+	}
+	if err := reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup pod reconciler")
 		os.Exit(1)
+	}
+	if egressManager != nil {
+		if err := mgr.Add(&podagent.EgressSyncer{Reconciler: reconciler}); err != nil {
+			setupLog.Error(err, "add egress syncer")
+			os.Exit(1)
+		}
 	}
 
 	nodeLabels, err := parseNodeLabels(nodeLabelsRaw)
@@ -493,6 +525,8 @@ func main() {
 				return volumes.CacheMasterNodeLabels()
 			}},
 		},
+		ManagedAnnotationPrefix: egressAnnotationPrefix,
+		DynamicAnnotations:      egressNodeAnnotations(egressManager),
 	}); err != nil {
 		setupLog.Error(err, "add node maintainer")
 		os.Exit(1)

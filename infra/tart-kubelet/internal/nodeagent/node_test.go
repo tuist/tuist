@@ -386,3 +386,33 @@ func TestEvalDynamicLabelsMergesAdvertisements(t *testing.T) {
 		t.Fatalf("merged labels = %v; want %v", labels, want)
 	}
 }
+
+func TestApplyDynamicAnnotationsOwnsOnlyItsPrefix(t *testing.T) {
+	m := &Maintainer{
+		ManagedAnnotationPrefix: "tuist.dev/runner-egress-",
+		DynamicAnnotations: func(context.Context) (map[string]string, error) {
+			return map[string]string{
+				"tuist.dev/runner-egress-public-key": "key",
+				"tuist.dev/other":                     "ignored",
+			}, nil
+		},
+	}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+		"tuist.dev/runner-egress-ready-gateways": "dedicated-1",
+		"node.alpha.kubernetes.io/ttl":           "0",
+	}}}
+	m.applyDynamicAnnotations(context.Background(), node)
+	want := map[string]string{
+		"tuist.dev/runner-egress-public-key": "key",
+		"node.alpha.kubernetes.io/ttl":       "0",
+	}
+	if !reflect.DeepEqual(node.Annotations, want) {
+		t.Fatalf("annotations = %v, want %v", node.Annotations, want)
+	}
+
+	m.DynamicAnnotations = func(context.Context) (map[string]string, error) { return nil, errors.New("probe failed") }
+	m.applyDynamicAnnotations(context.Background(), node)
+	if !reflect.DeepEqual(node.Annotations, want) {
+		t.Fatalf("a failed probe changed annotations: %v", node.Annotations)
+	}
+}

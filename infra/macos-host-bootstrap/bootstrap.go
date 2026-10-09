@@ -233,6 +233,10 @@ type Config struct {
 	// as an IPv4 CIDR; bootstrap fails closed otherwise.
 	VMCacheGatewayCIDRs []string
 
+	// RunnerEgressGateways are the dedicated egress gateways this host keeps a
+	// tunnel to. Fleet-wide; empty turns dedicated egress off on the host.
+	RunnerEgressGateways []RunnerEgressGateway
+
 	// SSHIngressAllowCIDRs are the source ranges, beyond the tailnet
 	// and loopback, that may reach the host's :22. Everything else is
 	// dropped at the pf edge by installSSHIngressGuard. The operator's
@@ -532,6 +536,10 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
 	}
+	// After the binary lands: the tunnel daemons run it.
+	if err := installRunnerEgress(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install runner egress: %w", err)
+	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("load launchd job: %w", err)
 	}
@@ -614,6 +622,10 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
+	}
+	// After the binary lands: the tunnel daemons run it.
+	if err := installRunnerEgress(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install runner egress: %w", err)
 	}
 	// Re-run on the drift path so an already-bootstrapped host provisions the
 	// runner-cache volume when a fleet-config change first enables it.
@@ -801,6 +813,10 @@ func hostConfigMaterial(cfg Config) string {
 	if err != nil {
 		sshGuard = fmt.Sprintf("ERROR:%q", cfg.SSHIngressAllowCIDRs)
 	}
+	runnerEgress, err := renderRunnerEgressScript(cfg)
+	if err != nil {
+		runnerEgress = fmt.Sprintf("ERROR:%q", fmt.Sprint(cfg.RunnerEgressGateways))
+	}
 	for _, part := range []struct{ name, script string }{
 		{"firewall", firewall},
 		{"vmnat", renderVMNATScript(cfg)},
@@ -819,6 +835,7 @@ func hostConfigMaterial(cfg Config) string {
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
 		{"ssh-reachability", renderSSHReachabilityScript()},
 		{"ssh-ingress-guard", sshGuard},
+		{"runner-egress", runnerEgress},
 	} {
 		b.WriteString(part.name)
 		b.WriteByte('\x00')
@@ -1175,7 +1192,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s%[13]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s%[13]s%[14]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -1189,7 +1206,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg, minGoldensKeptArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg, minGoldensKeptArg, runnerEgressKubeletArgs(cfg, nodeIPSourceArg != ""))
 }
 
 func shellQuote(s string) string {
