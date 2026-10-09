@@ -1,0 +1,59 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/once-cli",
+    "crates/once-core",
+    "crates/once-cas",
+    "crates/once-frontend",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/tuist/tuist"
+
+[workspace.dependencies]
+once-core = { path = "crates/once-core" }
+once-cas = { path = "crates/once-cas" }
+once-frontend = { path = "crates/once-frontend" }
+
+anyhow = "1"
+bazel-remote-apis = "0.27"
+blake3 = "1"
+clap = { version = "4", features = ["derive"] }
+console = "0.15"
+glob = "0.3"
+hex = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+toml = "0.8"
+toon-rust = "0.1"
+tempfile = "3"
+thiserror = "1"
+tokio = { version = "1", features = ["full"] }
+tonic = { version = "0.14", features = ["tls-native-roots", "tls-ring"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+schlussel = { git = "https://github.com/tuist/schlussel.git", rev = "e90f561bfbe1f1c732ccc15ddc7e4780197dc609" }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+walkdir = "2"
+zstd = "0.13"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Pragmatic carve-outs from the pedantic group: documentation and
+# enum-variant naming aren't worth gating builds on yet.
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
