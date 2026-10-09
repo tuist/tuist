@@ -1,11 +1,12 @@
 defmodule Tuist.MCP.Transport.Stateless do
   @moduledoc """
-  Serves the stateless 2026-07-28 MCP request lifecycle while the existing
-  session-based transport continues to serve older clients.
+  Serves the stateless 2026-07-28 MCP request lifecycle. The legacy transport
+  also serves older clients without allocating sessions.
   """
 
   import Plug.Conn
 
+  alias EMCP.Transport.StreamableHTTP, as: EMCPTransport
   alias Tuist.MCP.Events
   alias Tuist.MCP.Server
   alias Tuist.MCP.Tool
@@ -15,7 +16,7 @@ defmodule Tuist.MCP.Transport.Stateless do
   @version_key "io.modelcontextprotocol/protocolVersion"
 
   def call(%Plug.Conn{method: "POST"} = conn, opts) do
-    if valid_origin?(conn) do
+    if valid_origin?(conn, opts) do
       handle_request(conn, opts)
     else
       conn
@@ -24,7 +25,7 @@ defmodule Tuist.MCP.Transport.Stateless do
     end
   end
 
-  def call(conn, _opts), do: send_resp(conn, 405, "Method not allowed")
+  def call(conn, _opts), do: conn |> put_resp_header("allow", "POST") |> send_resp(405, "Method not allowed")
 
   defp handle_request(conn, opts) do
     request = conn.body_params
@@ -63,10 +64,12 @@ defmodule Tuist.MCP.Transport.Stateless do
     end
   end
 
-  defp valid_origin?(conn) do
+  defp valid_origin?(conn, opts) do
+    origins = Keyword.get_lazy(opts, :allowed_origins, fn -> [Tuist.Environment.app_url()] end)
+
     case get_req_header(conn, "origin") do
       [] -> true
-      [origin] -> EMCP.Transport.StreamableHTTP.origin_allowed?(origin, [Tuist.Environment.app_url()])
+      [origin] -> EMCPTransport.origin_allowed?(origin, origins)
       _ -> false
     end
   end
@@ -118,16 +121,24 @@ defmodule Tuist.MCP.Transport.Stateless do
   defp request_name("resources/read", params), do: params["uri"]
   defp request_name(_method, _params), do: nil
 
-  defp dispatch(_conn, %{"id" => id, "method" => "server/discover"}, _opts) do
-    server = Server.server()
+  defp dispatch(_conn, %{"id" => id, "method" => "server/discover"}, opts) do
+    server = Keyword.fetch!(opts, :server).server()
 
-    result(id, %{
-      "supportedVersions" => [@protocol_version],
-      "capabilities" => %{"tools" => %{}, "prompts" => %{}, "events" => %{}},
-      "instructions" => server.instructions,
-      "ttlMs" => 0,
-      "cacheScope" => "private"
-    })
+    stamp_server_info(
+      %{
+        "jsonrpc" => "2.0",
+        "id" => id,
+        "result" =>
+          complete_result(%{
+            "supportedVersions" => [@protocol_version],
+            "capabilities" => %{"tools" => %{}, "prompts" => %{}, "events" => %{}},
+            "instructions" => server.instructions,
+            "ttlMs" => 0,
+            "cacheScope" => "private"
+          })
+      },
+      server
+    )
   end
 
   defp dispatch(_conn, %{"id" => id, "method" => "events/list"}, _opts) do
@@ -143,7 +154,7 @@ defmodule Tuist.MCP.Transport.Stateless do
   end
 
   defp dispatch(conn, %{"id" => _id, "method" => method} = request, opts) do
-    server = opts |> Keyword.fetch!(:server) |> apply(:server, [])
+    server = Keyword.fetch!(opts, :server).server()
 
     response = EMCP.Server.handle_message(server, conn, request)
 
