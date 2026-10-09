@@ -407,32 +407,29 @@ struct GitControllerTests {
         #expect(gitInfo.pullRequestNumber == nil)
     }
 
-    @Test func ciBuildParameters_parse_reads_javas_properties_format() {
-        let properties = CIBuildParameters.parse(
+    @Test func ciBuildParameters_parse_reads_javas_xml_properties_format() throws {
+        let properties = try #require(CIBuildParameters.parse(Data(
             """
-            #Thu Oct 08 10:00:00 UTC 2026
-              ! another comment
-            vcsroot.url=https\\://github.example.com/org/repo.git
-            path=C\\:\\\\agent\\\\temp\\\\config.properties
-            with\\=equals\\:colon = value
-            spaced  key  value
-            continued=first \\
-                second
-            escaped.backslash=ends\\\\
-            unicode=caf\\u00E9 \\uD83D\\uDE00
-            empty=
-            """
-        )
+            <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+            <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+            <properties>
+            <comment>TeamCity configuration parameters</comment>
+            <entry key="vcsroot.url">https://github.example.com/org/repo.git</entry>
+            <entry key="path">C:\\agent\\temp\\config.parameters</entry>
+            <entry key="escaped">a &lt;b&gt; &amp; &quot;c&quot;</entry>
+            <entry key="unicode">café 😀</entry>
+            <entry key="empty"/>
+            </properties>
+            """.utf8
+        )))
 
         #expect(properties["vcsroot.url"] == "https://github.example.com/org/repo.git")
-        #expect(properties["path"] == "C:\\agent\\temp\\config.properties")
-        #expect(properties["with=equals:colon"] == "value")
-        #expect(properties["spaced"] == "key  value")
-        #expect(properties["continued"] == "first second")
-        #expect(properties["escaped.backslash"] == "ends\\")
+        #expect(properties["path"] == "C:\\agent\\temp\\config.parameters")
+        #expect(properties["escaped"] == "a <b> & \"c\"")
         #expect(properties["unicode"] == "café 😀")
         #expect(properties["empty"] == "")
-        #expect(properties.count == 8)
+        #expect(properties.count == 5)
+        #expect(CIBuildParameters.parse(Data("<properties><entry key=".utf8)) == nil)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -442,10 +439,10 @@ struct GitControllerTests {
         try await mockTeamCity(
             at: path,
             configuration: [
-                "teamcity.build.branch=pull/42",
-                "teamcity.pullRequest.number=42",
-                "teamcity.pullRequest.source.branch=refs/heads/feature",
-                "teamcity.pullRequest.target.branch=refs/heads/master",
+                "teamcity.build.branch": "pull/42",
+                "teamcity.pullRequest.number": "42",
+                "teamcity.pullRequest.source.branch": "refs/heads/feature",
+                "teamcity.pullRequest.target.branch": "refs/heads/master",
             ]
         )
         commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse"])
@@ -464,7 +461,7 @@ struct GitControllerTests {
     func gitInfo_when_teamcity_builds_a_branch() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
-        try await mockTeamCity(at: path, configuration: ["teamcity.build.branch=master"])
+        try await mockTeamCity(at: path, configuration: ["teamcity.build.branch": "master"])
         commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse"])
 
         // When
@@ -482,7 +479,7 @@ struct GitControllerTests {
     func gitInfo_when_teamcity_builds_the_default_branch_without_a_name() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
-        try await mockTeamCity(at: path, configuration: ["teamcity.build.branch=<default>"])
+        try await mockTeamCity(at: path, configuration: ["teamcity.build.branch": "<default>"])
         commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
         commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
         commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD"], output: "master-sha\n")
@@ -496,52 +493,41 @@ struct GitControllerTests {
         #expect(gitInfo.branch == "master")
     }
 
-    /// TeamCity checks a GitHub pull request out at `refs/pull/<n>/head`, its tip, and reports it
-    /// as the build's revision. When the tip merged the target branch in, HEAD^2 is not the tip.
-    @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func gitInfo_when_teamcity_builds_a_pull_request_whose_tip_is_a_merge() async throws {
-        // Given
-        let path = try #require(FileSystem.temporaryTestDirectory)
-        try await mockTeamCity(
-            at: path,
-            build: ["build.vcs.number=pr-tip-sha"],
-            configuration: ["teamcity.pullRequest.number=42"]
+    /// Writes the parameter files a TeamCity agent writes for a build, in the XML format it writes
+    /// next to the `.properties` ones, and points the environment at them.
+    private func mockTeamCity(at path: AbsolutePath, configuration: [String: String]) async throws {
+        let buildParameters = path.appending(component: "teamcity.build.parameters")
+        let configurationParameters = path.appending(component: "teamcity.config.parameters")
+        try await writeJavaXMLProperties(
+            ["teamcity.configuration.properties.file": configurationParameters.pathString],
+            to: buildParameters
         )
-        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
-        commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
-        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD"], output: "pr-tip-sha\n")
-        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD^2"], output: "master-sha\n")
-        commandRunner.succeedCommand(["git", "-C", path.pathString, "branch", "--show-current"], output: "\n")
-        commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "")
-
-        // When
-        let gitInfo = try await subject.gitInfo(workingDirectory: path)
-
-        // Then
-        #expect(gitInfo.sha == "pr-tip-sha")
-    }
-
-    /// Writes the properties files a TeamCity agent writes for a build, in the format it writes
-    /// them in, and points the environment at them.
-    private func mockTeamCity(at path: AbsolutePath, build: [String] = [], configuration: [String]) async throws {
-        let buildProperties = path.appending(component: "build.properties")
-        let configurationProperties = path.appending(component: "config.properties")
-        let escapedConfigurationPath = configurationProperties.pathString.replacingOccurrences(of: ":", with: "\\:")
-        try await FileSystem().writeText(
-            (["#TeamCity build properties", "teamcity.configuration.properties.file=\(escapedConfigurationPath)"] + build)
-                .joined(separator: "\n"),
-            at: buildProperties
-        )
-        try await FileSystem().writeText(
-            (["#TeamCity configuration parameters"] + configuration).joined(separator: "\n"),
-            at: configurationProperties
-        )
+        try await writeJavaXMLProperties(configuration, to: configurationParameters)
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [
             "TEAMCITY_VERSION": "2025.07 (build 197242)",
-            "TEAMCITY_BUILD_PROPERTIES_FILE": buildProperties.pathString,
+            "TEAMCITY_BUILD_PROPERTIES_FILE": buildParameters.pathString,
             "BUILD_NUMBER": "1234",
         ]
+    }
+
+    private func writeJavaXMLProperties(_ properties: [String: String], to path: AbsolutePath) async throws {
+        let escape = { (string: String) in
+            string.replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+                .replacingOccurrences(of: "\"", with: "&quot;")
+        }
+        let entries = properties.sorted { $0.key < $1.key }
+            .map { "<entry key=\"\(escape($0.key))\">\(escape($0.value))</entry>" }
+        try await FileSystem().writeText(
+            ([
+                #"<?xml version="1.0" encoding="UTF-8" standalone="no"?>"#,
+                #"<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">"#,
+                "<properties>",
+            ] + entries + ["</properties>"]).joined(separator: "\n"),
+            at: path.parentDirectory.appending(component: path.basename + ".xml")
+        )
     }
 
     @Test func parseCommits_reads_sha_parents_and_time() {

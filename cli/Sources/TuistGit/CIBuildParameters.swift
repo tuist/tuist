@@ -1,14 +1,19 @@
 import FileSystem
 import Foundation
+#if canImport(FoundationXML)
+    import FoundationXML
+#endif
 import Path
 
 /// Build parameters a CI provider passes to build steps in files rather than as environment
 /// variables, keyed by parameter name so they can be looked up alongside the environment.
 ///
 /// TeamCity passes only a few parameters as environment variables. The rest, the branch and the
-/// pull request among them, are in the properties files the agent writes for every build:
+/// pull request among them, are in the parameter files the agent writes for every build:
 /// `TEAMCITY_BUILD_PROPERTIES_FILE` names the build's system properties, and its
-/// `teamcity.configuration.properties.file` entry names the configuration parameters.
+/// `teamcity.configuration.properties.file` entry names the configuration parameters. The agent
+/// writes each of them in Java's XML properties format too, at the same path with `.xml` appended,
+/// which is the one read here.
 enum CIBuildParameters {
     static func read(environment: [String: String], fileSystem: FileSysteming = FileSystem()) async -> [String: String] {
         guard let buildPropertiesPath = environment["TEAMCITY_BUILD_PROPERTIES_FILE"],
@@ -29,104 +34,48 @@ enum CIBuildParameters {
     }
 
     private static func properties(at path: String, fileSystem: FileSysteming) async -> [String: String]? {
-        guard let path = try? AbsolutePath(validating: path),
-              let contents = try? await fileSystem.readTextFile(at: path)
+        guard let path = try? AbsolutePath(validating: path + ".xml"),
+              let contents = try? await fileSystem.readFile(at: path)
         else { return nil }
         return parse(contents)
     }
 
-    /// Parses Java's `.properties` format, which is what TeamCity writes the files in: `\`
-    /// escapes (`\:` and `\=` among them, which every URL and Windows path carries), `\uXXXX`
-    /// code units, `#` and `!` comments, and lines continued with a trailing `\`.
-    static func parse(_ contents: String) -> [String: String] {
-        let lines = contents
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map { Array(String($0).unicodeScalars) }
+    /// Parses Java's XML properties format: `<entry key="...">value</entry>` elements in a
+    /// `<properties>` root, after a DOCTYPE naming Java's DTD, which is not fetched.
+    static func parse(_ data: Data) -> [String: String]? {
+        let delegate = PropertiesXMLDelegate()
+        let parser = XMLParser(data: data)
+        parser.shouldResolveExternalEntities = false
+        parser.delegate = delegate
+        guard parser.parse() else { return nil }
+        return delegate.properties
+    }
+}
 
-        var properties: [String: String] = [:]
-        var index = 0
-        while index < lines.count {
-            var line = Array(lines[index].drop(while: isWhitespace))
-            index += 1
-            guard let first = line.first, first != "#", first != "!" else { continue }
+private final class PropertiesXMLDelegate: NSObject, XMLParserDelegate {
+    var properties: [String: String] = [:]
+    private var key: String?
+    private var value = ""
 
-            while continues(line) {
-                line.removeLast()
-                guard index < lines.count else { break }
-                line += lines[index].drop(while: isWhitespace)
-                index += 1
-            }
-
-            var keyEnd = 0
-            while keyEnd < line.count, !isSeparator(line[keyEnd]) {
-                keyEnd += line[keyEnd] == "\\" ? 2 : 1
-            }
-            keyEnd = min(keyEnd, line.count)
-
-            var valueStart = keyEnd
-            while valueStart < line.count, isWhitespace(line[valueStart]) {
-                valueStart += 1
-            }
-            if valueStart < line.count, line[valueStart] == "=" || line[valueStart] == ":" {
-                valueStart += 1
-            }
-            while valueStart < line.count, isWhitespace(line[valueStart]) {
-                valueStart += 1
-            }
-
-            properties[unescape(line[..<keyEnd])] = unescape(line[valueStart...])
-        }
-        return properties
+    func parser(
+        _: XMLParser,
+        didStartElement elementName: String,
+        namespaceURI _: String?,
+        qualifiedName _: String?,
+        attributes: [String: String]
+    ) {
+        guard elementName == "entry" else { return }
+        key = attributes["key"]
+        value = ""
     }
 
-    private static func isWhitespace(_ scalar: Unicode.Scalar) -> Bool {
-        scalar == " " || scalar == "\t" || scalar == "\u{0C}"
+    func parser(_: XMLParser, foundCharacters string: String) {
+        if key != nil { value += string }
     }
 
-    private static func isSeparator(_ scalar: Unicode.Scalar) -> Bool {
-        scalar == "=" || scalar == ":" || isWhitespace(scalar)
-    }
-
-    /// A line continues on the next one when it ends with an odd number of backslashes: an even
-    /// number is escaped backslashes.
-    private static func continues(_ line: [Unicode.Scalar]) -> Bool {
-        line.reversed().prefix(while: { $0 == "\\" }).count % 2 == 1
-    }
-
-    /// Built from UTF-16 code units so a `\uXXXX` surrogate pair decodes to the character it
-    /// encodes.
-    private static func unescape(_ scalars: ArraySlice<Unicode.Scalar>) -> String {
-        var units: [UInt16] = []
-        var index = scalars.startIndex
-        while index < scalars.endIndex {
-            let scalar = scalars[index]
-            index += 1
-            guard scalar == "\\" else {
-                units.append(contentsOf: scalar.utf16)
-                continue
-            }
-            guard index < scalars.endIndex else { break }
-            let escaped = scalars[index]
-            index += 1
-            switch escaped {
-            case "t": units.append(0x09)
-            case "n": units.append(0x0A)
-            case "r": units.append(0x0D)
-            case "f": units.append(0x0C)
-            case "u":
-                let digits = String(String.UnicodeScalarView(scalars[index ..< min(index + 4, scalars.endIndex)]))
-                if digits.count == 4, let unit = UInt16(digits, radix: 16) {
-                    units.append(unit)
-                    index += 4
-                } else {
-                    units.append(contentsOf: escaped.utf16)
-                }
-            default:
-                units.append(contentsOf: escaped.utf16)
-            }
-        }
-        return String(decoding: units, as: UTF16.self)
+    func parser(_: XMLParser, didEndElement elementName: String, namespaceURI _: String?, qualifiedName _: String?) {
+        guard elementName == "entry", let key else { return }
+        properties[key] = value
+        self.key = nil
     }
 }
