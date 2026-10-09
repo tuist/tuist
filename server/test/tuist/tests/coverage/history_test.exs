@@ -293,7 +293,7 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       CoverageFixtures.seed_history(account, commits, branch_heads: [{"main", "c2"}])
 
       run(project, account, %{git_commit_sha: "c0"}, [1, 0, 0, 0])
-      # A selective run whose skipped tests nothing listed: its figure is incomplete.
+      # A selective run nothing says the skips of: its figure is incomplete.
       run(project, account, %{git_commit_sha: "c1", partial: true}, [0, 0, 0, 0])
       run(project, account, %{git_commit_sha: "c2"}, [1, 1, 0, 0])
       for sha <- ~w(c0 c1 c2), do: Commits.signal_complete(project, sha)

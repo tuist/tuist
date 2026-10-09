@@ -15,9 +15,10 @@
   root/MTU/probe options explicitly, without rewriting another provider's script.
   Attach/configure only qualified regions without a
   restart, and attest every peer on its current boot before publication. Chicago
-  is physically qualified; Santiago enables attachment and runtime topology with
-  a single-host qualification limit. Validate the physical host pair when another
-  Santiago host arrives. Require reciprocal `canonicalPeers`
+  and Santiago have passed physical host-pair private-path and replication checks;
+  Santiago's checks used controller-converged routes on two enrolled hosts.
+  Revalidate new hosts and retain the qualification limits in the guide below.
+  Require reciprocal `canonicalPeers`
   for every qualified regional pair before provider calls. Resolve approvals to
   retained VPC IDs through read-only inventory checks after local routes converge.
   Missing remote state must never provision that region or block local attachment
@@ -978,7 +979,8 @@ pipes `op read 'op://<vault>/BER1_RACK_CARD_ROOT/key'` into
 `cmd/rack-card-password`, which looks the device's MAC up in
 `infra/rack-switch-fleet/sites/<site>.json` and prints the password. The vault
 comes from the site's `kubernetes.namespace` (`tuist-<env>` reads
-`tuist-k8s-<env>`) or `--vault`. The key is never printed.
+`tuist-k8s-<env>`, and production's `tuist` reads `tuist-k8s-production`) or
+`--vault`. The key is never printed.
 
 **Rotating the root key** is changing the item's value on a live cluster. Once
 ESO syncs it, every object derives new passwords, its Secret no longer records
@@ -1227,7 +1229,7 @@ and it is installed from a stick. `storage` has no layout yet. The `Installed`
 condition says which step a host is on.
 
 **The rack's boot server** (`cmd/rack-boot`, `internal/rackboot`) runs from the
-operator's image as the chart's `<fleet>-boot` DaemonSet on each edge node of
+operator's image as the rack-nodes chart's `<fleet>-boot` DaemonSet on each edge node of
 the site, with host networking. It binds TFTP and HTTP to the provisioning
 address with `IP_FREEBIND`, so the edge holding the address (keepalived's
 master) answers and the other takes over the moment the address moves. It
@@ -1349,7 +1351,7 @@ The operator runs it over SSH (`rack-node apply`, the request on stdin and the
 result on stdout, the binary uploaded under `/usr/local/lib/tuist/` by its
 digest when the host lacks it) to join a host, for a new tailnet device, a
 rename, and a Node NotReady for five minutes. Once a node is joined, the node
-agent, the chart's `<fleet>-node-agent` DaemonSet running `rack-node agent`
+agent, the rack-nodes chart's `<fleet>-node-agent` DaemonSet running `rack-node agent`
 privileged in the host's PID namespace on every rack Linux node, keeps it: it
 finds its machine from its Node's providerID, applies the published
 configuration within 30 s of a change and every five minutes otherwise, and
@@ -1421,11 +1423,24 @@ never while AMT reports its link down. A failed configuration is recorded in
 `AMTActivated` down.
 
 **`spec.online` is the host's power state, and `tuist.dev/reboot` a one-off
-reboot** (`racklinuxhost_amt_power.go`). A host on the tailnet is on; for one
-that is not, AMT is asked every ten minutes (`status.power`). A host that
-should be off is shut down from its own OS while it is on the tailnet and
-powered off through AMT otherwise, one that should be on and is off is powered
-on, and changes are five minutes apart (`PowerMatchesOnline`). The annotation
+reboot** (`racklinuxhost_amt_power.go`). A host on the tailnet is on
+(`status.power.source` `Tailnet`); one that leaves it is read from AMT at once
+and every ten minutes after (`AMT`). A host that should be off is shut down
+from its own OS while it is on the tailnet and powered off through AMT
+otherwise, and one that should be on and is off is powered on, which is how a
+host comes back after a power loss its firmware does not restore. A change
+waits five minutes after the last power change or reboot, doubled for each
+change made since the state last matched (`status.power.changes`), up to an
+hour; `PowerMatchesOnline` reports it, as a warning from the third change, and
+each change is a `PowerChanged` event. An edge joining the tailnet wakes its
+site's other hosts, since AMT is reached through it. `PowerReachable` (and
+`capt_racklinuxhost_power_reachable`) says whether the host could be powered on
+that way now: AMT activated, a link on the management port, and the last read
+through an edge (`status.amt.lastPowerRead`, hourly while the host is on the
+tailnet) answered. AMT reports no address while it sees no link, so the
+operator falls back to the static one it gave it (`status.amt.assignedAddress`).
+Nothing powers on an edge while no edge is up: the edges need the firmware's
+Restore On AC Power Loss (see `infra/rack-nodes/AGENTS.md`). The annotation
 takes `cycle` (hard power cycle), `reset`, or `pxe` (a power cycle into the
 network boot: the boot order cleared, the boot settings written back,
 the configuration made the next one, and Force PXE Boot chosen, which boots the
@@ -1459,7 +1474,7 @@ Machine again, which joins the host afresh: that is how to force a re-join.
 
 ```bash
 kubectl get rlh                     # hosts: hostname, role, state, tailnet address, power
-kubectl get rlh -o wide             # plus the boot MAC, the device and a published install's key
+kubectl get rlh -o wide             # plus the boot MAC, the device, a published install's key, AMT and PowerReachable
 kubectl patch rlh <uuid> --type merge -p '{"spec":{"reinstallGeneration":2}}'   # reinstall
 kubectl delete rlh <uuid>           # retire a host the chart no longer declares
 kubectl get rlm -o wide             # machines: node name, phase, last converge

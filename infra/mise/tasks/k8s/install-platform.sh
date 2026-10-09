@@ -269,3 +269,18 @@ HELM_CMD+=(
 )
 
 KUBECONFIG="$WL_KUBECONFIG" "${HELM_CMD[@]}"
+
+# The Kura gateways on rack nodes (infra/helm/rack-cache-gateways), from the
+# same values, as a release nothing waits on. A rack is down for days at a
+# time, and the wait above holds a DaemonSet until every pod it wants is Ready,
+# so a gateway on a dark rack node in the platform release would fail every
+# deploy. The DaemonSet controller rolls it out when the node is up. Rendered
+# for every cluster, so a cluster the rack has left drops its gateway.
+GATEWAYS_CHART_PATH="$REPO_ROOT/infra/helm/rack-cache-gateways"
+log "Reconciling the rack cache gateways for $CLUSTER_NAME"
+helm dependency update "$GATEWAYS_CHART_PATH" >/dev/null
+KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install rack-cache-gateways "$GATEWAYS_CHART_PATH" \
+  --namespace platform \
+  -f "$CHART_PATH/values.yaml" \
+  "${HELM_VALUES_ARGS[@]}" \
+  --wait=hookOnly

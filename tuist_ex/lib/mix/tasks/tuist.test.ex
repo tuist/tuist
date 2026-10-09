@@ -59,7 +59,11 @@ defmodule Mix.Tasks.Tuist.Test do
 
   alias TuistEx.Analytics.Args
   alias TuistEx.Analytics.Config
+  alias TuistEx.Analytics.Coverage
   alias TuistEx.Analytics.ExUnitFormatter
+  alias TuistEx.Analytics.GitHistory
+  alias TuistEx.Analytics.Isolated
+  alias TuistEx.Analytics.Report
   alias TuistEx.Analytics.Shards
   alias TuistEx.Analytics.Subprocess
   alias TuistEx.Analytics.TempDir
@@ -84,6 +88,14 @@ defmodule Mix.Tasks.Tuist.Test do
 
     case System.get_env(@retry_results, "") do
       "" ->
+        # Decided on the run's own arguments: those a shard adds below are
+        # its share of the suite, not a filter.
+        options =
+          Keyword.merge(options,
+            coverage: Coverage.requested?(test_args),
+            coverage_partial: Coverage.partial?(test_args)
+          )
+
         case shard(options, test_args) do
           {options, test_args} ->
             if options[:prepare_only] do
@@ -91,8 +103,12 @@ defmodule Mix.Tasks.Tuist.Test do
             else
               case retries_for(options, test_args) do
                 0 ->
-                  configure(options)
-                  run_test(test_args)
+                  if options[:coverage] do
+                    run_with_coverage(options, test_args)
+                  else
+                    configure(options)
+                    run_test(test_args)
+                  end
 
                 retries ->
                   run_with_retries(options, test_args, retries)
@@ -204,8 +220,23 @@ defmodule Mix.Tasks.Tuist.Test do
 
   defp run_test(args), do: Args.run_wrapped("test", Mix.Tasks.Test, args)
 
+  # Coverage is read when each suite finishes and sent with its run, so the
+  # runs wait for the suite to end; the Git history is read before the tests
+  # can change the checkout.
+  defp run_with_coverage(options, test_args) do
+    configure(Keyword.put(options, :mode, {:defer, self()}))
+    history = collect_history(options)
+
+    try do
+      run_test(test_args)
+    after
+      submit_runs(ExUnitFormatter.take_deferred(), [], options, history)
+    end
+  end
+
   defp run_with_retries(options, test_args, retries) do
     configure(Keyword.put(options, :mode, {:defer, self()}))
+    history = if options[:coverage], do: collect_history(options)
     suite = run_suite(test_args)
     # One per suite that ran: an umbrella runs one for each application.
     deferred = ExUnitFormatter.take_deferred()
@@ -219,12 +250,68 @@ defmodule Mix.Tasks.Tuist.Test do
     {suite, attempts} =
       if suite == :failed and complete?, do: retry(test_args, retries), else: {suite, []}
 
-    for {payload, opts, _aborted?} <- deferred do
-      ExUnitFormatter.submit(ExUnitFormatter.merge_retries(payload, attempts), opts)
-    end
+    submit_runs(deferred, attempts, options, history)
 
     if suite == :failed, do: fail(test_args)
     :ok
+  end
+
+  defp submit_runs(deferred, attempts, options, history) do
+    for {payload, opts, _aborted?} <- deferred do
+      payload
+      |> ExUnitFormatter.merge_retries(attempts)
+      |> with_coverage(options, opts, history)
+      |> ExUnitFormatter.submit(opts)
+    end
+
+    # The commits and listing go to the repository's graph once the runs
+    # that reference them exist.
+    if history do
+      analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
+
+      case Isolated.run(fn -> GitHistory.upload(history, analytics_options) end, 300_000) do
+        problems when is_list(problems) ->
+          Enum.each(problems, &Report.debug("tuist analytics: " <> &1))
+
+        {:error, reason} ->
+          Report.debug("tuist analytics: the Git history upload failed: #{inspect(reason)}")
+      end
+    end
+
+    :ok
+  end
+
+  defp collect_history(_options) do
+    analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
+
+    case Isolated.run(fn -> GitHistory.collect(File.cwd!(), analytics_options) end, 300_000) do
+      %{} = history ->
+        history
+
+      {:error, reason} ->
+        Report.debug("tuist analytics: the Git history could not be read: #{inspect(reason)}")
+        nil
+    end
+  end
+
+  defp with_coverage(payload, options, opts, history) do
+    {snapshot, payload} = Map.pop(payload, :coverage_snapshot)
+    payload = if history, do: Map.merge(payload, GitHistory.payload(history)), else: payload
+
+    with snapshot when is_list(snapshot) <- snapshot,
+         {:ok, coverage} <-
+           Coverage.build(snapshot, File.cwd!(), options[:coverage_partial] == true),
+         {:ok, payload} <-
+           Isolated.run(fn -> Coverage.attach(payload, coverage, opts) end, 600_000) do
+      payload
+    else
+      nil ->
+        payload
+
+      problem ->
+        Report.debug("tuist analytics: the run's coverage could not be sent: #{inspect(problem)}")
+        payload
+    end
   end
 
   # With `--raise`, a failing suite raises instead of registering an exit

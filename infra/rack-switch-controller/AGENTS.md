@@ -178,8 +178,12 @@ model; they removed the ToRs' pre-adoption static route by hand.
 ## Where it runs
 
 `infra/helm/rack-switch-controller`, installed into the Omada controller's
-namespace (`omada`) by `.github/workflows/omada-deployment.yml`, watching the
-rack's namespace (`tuist-staging` for BER1). The pod has a required node
+namespace (`omada`) by `.github/workflows/omada-deployment.yml`, in the cluster
+the rack belongs to, watching the rack's namespace. Both, and the Omada site,
+the controller address and the 1Password items below, come from the site
+definition (`kubernetes.namespace` and `management.controller`, rendered by
+`mise run rack:fleet helm-values rack-switch-controller`), not from per-env
+chart values. The pod has a required node
 affinity away from rack nodes (`rackNodeLabels`: `kubernetes.io/os=darwin`,
 `tuist.dev/runtime=tart`, and `node.cluster.x-k8s.io/instance-type=rack` for the
 edge node), because a controller behind the switches it changes would be
@@ -194,9 +198,9 @@ Credentials are files in one directory (`--credentials-dir`): `client-id`,
 `client-secret`, `device-username`, `device-password`, and optionally
 `factory-username` and `factory-password`. They are read on every reconcile,
 so a rotated secret needs no restart. In the cluster two ExternalSecrets fill
-them from the `onepassword` ClusterSecretStore, whose vault is
-`tuist-k8s-staging`: items "omada staging open api" and "ber1 switch device
-account", which have to exist in that vault.
+them from the `onepassword` ClusterSecretStore, whose vault is the cluster's
+(`tuist-k8s-<env>`): the items `management.controller.credential_item` and
+`device_account_item` name, which have to exist in that vault.
 
 ## Running it once from a laptop
 
@@ -205,7 +209,7 @@ cd infra/rack-switch-controller
 go build -o rack-switch-controller ./cmd/manager
 ./rack-switch-controller apply --object <RackSwitch yaml> \
   --omada-url https://omada.<tailnet>.ts.net:8043 --site ber1 \
-  --controller-address 100.84.132.92 --credentials-dir <dir> \
+  --controller-address <management.controller.address> --credentials-dir <dir> \
   --omada-ca-file <(kubectl -n omada get secret omada-controller-tls -o jsonpath='{.data.ca\.crt}' | base64 -d)
 ```
 

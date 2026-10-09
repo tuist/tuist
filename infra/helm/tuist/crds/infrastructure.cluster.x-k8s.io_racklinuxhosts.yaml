@@ -59,6 +59,10 @@ spec:
           name: AMT
           priority: 1
           type: string
+        - jsonPath: .status.conditions[?(@.type=="PowerReachable")].status
+          name: PowerReachable
+          priority: 1
+          type: string
         - jsonPath: .status.tpm.fingerprint
           name: TPM
           priority: 1
@@ -287,7 +291,35 @@ spec:
                       description: LastPowerAction is the last power change the operator asked AMT for.
                       properties:
                         action:
-                          description: 'Action is on, off, or a tuist.dev/reboot value: cycle, reset or pxe.'
+                          description: |-
+                            Action is on, off, a tuist.dev/reboot value (cycle, reset or pxe), or
+                            read for a read of the power state.
+                          type: string
+                        at:
+                          description: At is when the operator asked.
+                          format: date-time
+                          type: string
+                        error:
+                          description: Error is why the change was not made.
+                          type: string
+                        via:
+                          description: Via is the host whose SSH session reached AMT.
+                          type: string
+                      required:
+                        - action
+                        - at
+                      type: object
+                    lastPowerRead:
+                      description: |-
+                        LastPowerRead is the last time the operator read the host's power
+                        state from AMT, through an edge, as action read. It is read hourly while
+                        the host is on the tailnet, so a path that would not power the host on
+                        shows before it is needed.
+                      properties:
+                        action:
+                          description: |-
+                            Action is on, off, a tuist.dev/reboot value (cycle, reset or pxe), or
+                            read for a read of the power state.
                           type: string
                         at:
                           description: At is when the operator asked.
@@ -512,11 +544,24 @@ spec:
                     - offeredAt
                   type: object
                 power:
-                  description: Power is the host's power state as AMT reports it.
+                  description: |-
+                    Power is the host's power state: on while it is on the tailnet, as AMT
+                    reports it otherwise.
                   properties:
+                    changes:
+                      description: |-
+                        Changes counts the power changes made since the state last matched
+                        spec.online. Each one waits twice as long as the one before.
+                      format: int32
+                      type: integer
                     observedAt:
-                      description: ObservedAt is when AMT reported it.
+                      description: ObservedAt is when it was reported.
                       format: date-time
+                      type: string
+                    source:
+                      description: |-
+                        Source is what reported it: Tailnet, for a host connected to the
+                        tailnet, or AMT.
                       type: string
                     state:
                       description: State is On or Off.

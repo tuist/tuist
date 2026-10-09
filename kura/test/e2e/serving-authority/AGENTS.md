@@ -31,5 +31,9 @@ during a measured comparison.
 `KURA_E2E_AUTHORITY_RESOURCES=1`, `KURA_E2E_AUTHORITY_IMAGE`, and an absolute
 `KURA_E2E_AUTHORITY_OUTPUT` directory. `mesh-resource.mjs IMAGE legacy|active DIR`
 compares sustained replication and verifies the retained corpus after handover.
+`inline-handover.mjs IMAGE DIR` lowers the fixture's batch threshold to exercise
+individual inline fetches and checks the full retained barrier. Its optional
+`KURA_E2E_INLINE_RECORDS` and `KURA_E2E_INLINE_INTERVAL_MS` extend the same workload
+for sequential resource comparisons; failed runs retain measurements and logs.
 Run-specific manifests, keys, logs and results belong in a temporary output
 directory, never in the repository. Remove only resources created by the fixture.

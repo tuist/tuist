@@ -30,5 +30,9 @@ message CacheCapabilities {
   int64 max_batch_total_size_bytes = 4;
   repeated Compressor.Value supported_compressors = 6;
   repeated Compressor.Value supported_batch_update_compressors = 7;
+  bool split_blob_support = 9;
+  bool splice_blob_support = 10;
+  FastCdc2020Params fast_cdc_2020_params = 11;
 }
 message ActionCacheUpdateCapabilities { bool update_enabled = 1; }
+message FastCdc2020Params { uint64 avg_chunk_size_bytes = 1; uint32 seed = 2; }

@@ -33,6 +33,7 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
       conn = PublicPageHeaderPlug.mark_public_project_page(conn, [])
 
       assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+      assert conn.private[:tuist_public_project]
     end
 
     test "allows indexing for a public project on the hosted production site", %{conn: conn} do
@@ -121,6 +122,7 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
       conn = PublicPageHeaderPlug.mark_public_project_page(conn, [])
 
       assert Plug.Conn.get_resp_header(conn, @header) == []
+      refute conn.private[:tuist_public_project]
     end
 
     test "sets the header regardless of whether the current user is signed in", %{conn: conn, user: user} do

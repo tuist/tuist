@@ -15,6 +15,8 @@ REAL_HELM=$(command -v helm)
 printf '#!/usr/bin/env bash
 case "$1" in
   list)
+    # Validate flags with the real CLI without contacting a cluster.
+    "$REAL_HELM" "$@" --help > /dev/null || exit $?
     if [ "${FAKE_HELM_FAILURE:-false}" = true ]; then exit 1; fi
     if [ "${FAKE_RELEASE_EXISTS:-true}" = true ]; then printf '\''[{"name":"atlas"}]'\''; else printf '\''[]'\''; fi ;;
   history)

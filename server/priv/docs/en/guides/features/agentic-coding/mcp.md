@@ -233,6 +233,8 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `create_organization` | Create a Tuist organization for the authenticated user. | `handle` |
 | `create_project` | Create a Tuist project under an account the authenticated user can access. | `account_handle`, `project_handle` |
 | `add_organization_member` | Add an existing Tuist user to an organization or update an existing member's role. Accepts `user` (the default), `admin`, or `viewer`, where a viewer can read dashboards and runs but cannot change anything. | `organization_handle`, `email` |
+| `invite_organization_member` | Invite an email address to an organization, whether or not it belongs to an existing Tuist user. Tuist emails an acceptance link that expires after 14 days; when the server cannot send email, `email_sent` is `false` and the link must be copied from the dashboard. Accepts `user` (the default), `admin`, or `viewer`. Requires organization administrator permission. | `organization_handle`, `email` |
+| `cancel_organization_invitation` | Cancel a pending organization invitation so its link can no longer be accepted. Requires organization administrator permission. | `organization_handle`, `email` |
 | `list_projects` | List all projects accessible to the authenticated user. | None |
 | `get_project` | Get a project's configuration and connected repository URL. | `account_handle`, `project_handle` |
 

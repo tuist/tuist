@@ -1365,6 +1365,25 @@ jobs:
             --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
             "${image_sets[@]}" \
             --atomic --timeout 60m --wait
+
+          # What runs on a rack's Linux nodes (infra/helm/rack-nodes), from the
+          # same values and the operator's image, as a release nothing waits
+          # on. A rack is down for days at a time (transport, power, its one
+          # uplink), and Helm's wait holds a DaemonSet until every pod it wants
+          # is Ready, so in the release above a single dark rack node would roll
+          # every deploy back. The DaemonSet controller rolls these out on the
+          # nodes that are up, and on the others when they return. After the
+          # upgrade above, so they move only with an operator that rolled out.
+          rack_node_sets=()
+          if [ -n "$capi_image_tag" ]; then
+            rack_node_sets+=(--set "macosFleet.image.tag=$capi_image_tag")
+          fi
+          helm upgrade --install "$HELM_RELEASE_NAME-rack-nodes" infra/helm/rack-nodes \
+            --namespace "$NAMESPACE" \
+            -f "$HELM_CHART_PATH/values.yaml" \
+            "${helm_values_args[@]}" \
+            "${rack_node_sets[@]}" \
+            --wait=hookOnly
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the

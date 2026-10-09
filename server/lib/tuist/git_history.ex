@@ -773,6 +773,17 @@ defmodule Tuist.GitHistory do
     Repo.exists?(from(c in Commit, where: c.repository_id == ^repository_id and c.sha == ^sha))
   end
 
+  @doc "The commit's parents in Git's order, as far as their edges are stored."
+  def parents(repository_id, sha) do
+    Repo.all(
+      from(p in CommitParent,
+        where: p.repository_id == ^repository_id and p.child_sha == ^sha,
+        order_by: p.position,
+        select: p.parent_sha
+      )
+    )
+  end
+
   @doc """
   The ancestors of a commit, itself included at depth 0, as `{sha, depth}`
   with the shortest depth per SHA. Bounded by `:max_depth` (the default

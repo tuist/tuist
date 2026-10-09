@@ -9,6 +9,7 @@ protocol OrganizationInviteServicing {
     func run(
         organizationName: String,
         email: String,
+        role: Operations.createInvitation.Input.Body.jsonPayload.rolePayload?,
         directory: String?
     ) async throws
 }
@@ -32,6 +33,7 @@ struct OrganizationInviteService: OrganizationInviteServicing {
     func run(
         organizationName: String,
         email: String,
+        role: Operations.createInvitation.Input.Body.jsonPayload.rolePayload?,
         directory: String?
     ) async throws {
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
@@ -41,6 +43,7 @@ struct OrganizationInviteService: OrganizationInviteServicing {
         let invitation = try await createOrganizationInviteService.createOrganizationInvite(
             organizationName: organizationName,
             email: email,
+            role: role,
             serverURL: serverURL
         )
 

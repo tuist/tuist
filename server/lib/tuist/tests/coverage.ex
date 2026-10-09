@@ -7,7 +7,10 @@ defmodule Tuist.Tests.Coverage do
   --archive` for per-line execution counts), wherever the bundle is processed:
   on the server's macOS processors for uploaded bundles, or on the client when
   it processes the bundle itself. The client ties the files to the repository
-  with the Git blob each had, which only the checkout knows. JaCoCo (Gradle)
+  with the Git blob each had, which only the checkout knows. Mix coverage is
+  read by `tuist_ex` from Erlang's `cover` once the suite finished, and arrives
+  in the same per-file shape: an OTP application is a target, and the files
+  under the project's test paths are test code. JaCoCo (Gradle)
   and LCOV (Bazel) reports map onto the same rows: a module or label is a
   target, a method is a function, and their branch counters fill the columns
   `xccov` leaves empty.
@@ -115,20 +118,52 @@ defmodule Tuist.Tests.Coverage do
   @shard_count_weight 2 ** 51
 
   @doc """
-  The rows to store for the `xcode_coverage` block reported with a run, or nil
-  when the project's account does not have coverage enabled. Only files the
-  client found in Git, under a repository-relative path, are evidence.
+  A run's attributes with the coverage it reported under `coverage`, whichever
+  form the client sent it in: the build-system-neutral `coverage` block, or the
+  `xcode_coverage` block (and `xcode_coverage_storage_key` with
+  `xcode_coverage_partial` for an uploaded one), measured by `xccov` with the
+  run's Xcode.
+  """
+  def normalize_attrs(attrs) do
+    {xcode_coverage, attrs} = Map.pop(attrs, :xcode_coverage)
+    {storage_key, attrs} = Map.pop(attrs, :xcode_coverage_storage_key)
+    {partial, attrs} = Map.pop(attrs, :xcode_coverage_partial)
+    xccov = %{tool: "xccov", tool_version: Map.get(attrs, :xcode_version) || ""}
+
+    cond do
+      not is_nil(Map.get(attrs, :coverage)) ->
+        Map.update!(attrs, :coverage, &plain/1)
+
+      not is_nil(xcode_coverage) ->
+        Map.put(attrs, :coverage, Map.merge(plain(xcode_coverage), xccov))
+
+      not is_nil(storage_key) ->
+        Map.put(attrs, :coverage, Map.merge(xccov, %{storage_key: storage_key, partial: partial}))
+
+      true ->
+        attrs
+    end
+  end
+
+  defp plain(%_{} = struct), do: Map.from_struct(struct)
+  defp plain(map), do: map
+
+  @doc """
+  The rows to store for the `coverage` block reported with a run, or nil when
+  the project's account does not have coverage enabled. Only files the client
+  found in Git, under a repository-relative path, are evidence.
 
   The block either carries its `files` inline, or a `path` to the file the
   parser streamed them to (one JSON object per line), which comes back as a
-  lazy stream so a large report is never held whole. String and atom keys are
-  both accepted: the inline form arrives cast by the API, the streamed form
-  decoded from JSON.
+  lazy stream so a large report is never held whole. A block whose files were
+  uploaded instead (`storage_key`) has no rows yet: `enqueue_publish/4` reads
+  them back. String and atom keys are both accepted: the inline form arrives
+  cast by the API, the streamed form decoded from JSON.
   """
   def rows(_project_id, nil), do: nil
 
   def rows(project_id, coverage) do
-    if enabled_for_project?(project_id), do: rows(coverage)
+    if is_nil(value(coverage, :storage_key, nil)) and enabled_for_project?(project_id), do: rows(coverage)
   end
 
   @doc false
@@ -153,7 +188,12 @@ defmodule Tuist.Tests.Coverage do
           |> Stream.map(&(&1 |> JSON.decode!() |> file_row()))
       end
 
-    %{partial: value(coverage, :partial, false), files: files}
+    %{
+      partial: value(coverage, :partial, false),
+      tool: value(coverage, :tool, ""),
+      tool_version: value(coverage, :tool_version, ""),
+      files: files
+    }
   end
 
   @doc """
@@ -203,17 +243,20 @@ defmodule Tuist.Tests.Coverage do
 
   @doc """
   Schedules the publication of coverage a client uploaded for the run, once
-  the run exists. `partial` is what the client said about the run; the shard
-  arguments are those of `publish/4`.
+  the run exists. `coverage` is the run's block, naming the upload's
+  `storage_key`, the tool that measured it, and whether the run was `partial`;
+  the shard arguments are those of `publish/4`.
   """
-  def enqueue_publish(%Test{} = test, storage_key, partial, shard_index, expected_shards) do
+  def enqueue_publish(%Test{} = test, coverage, shard_index, expected_shards) do
     if enabled_for_project?(test.project_id) do
       %{
         test_run_id: test.id,
         project_id: test.project_id,
         account_id: test.account_id,
-        storage_key: storage_key,
-        partial: partial || false,
+        storage_key: value(coverage, :storage_key, nil),
+        partial: value(coverage, :partial, false) || false,
+        tool: value(coverage, :tool, ""),
+        tool_version: value(coverage, :tool_version, ""),
         shard_index: shard_index,
         expected_shards: expected_shards
       }
@@ -249,7 +292,7 @@ defmodule Tuist.Tests.Coverage do
           id: UUIDv7.generate(),
           test_run_id: test_run_id,
           project_id: project_id,
-          build_system: "xcode",
+          build_system: test.build_system,
           shard_index: shard_index,
           partial: coverage.partial,
           git_commit_sha: test.git_commit_sha || "",
@@ -309,9 +352,9 @@ defmodule Tuist.Tests.Coverage do
       %{
         project_id: project_id,
         test_run_id: test_run_id,
-        build_system: "xcode",
-        coverage_tool: "xccov",
-        coverage_tool_version: test.xcode_version || "",
+        build_system: test.build_system,
+        coverage_tool: coverage.tool,
+        coverage_tool_version: coverage.tool_version,
         git_object_format: folded.object_format,
         scheme: test.scheme || "",
         git_commit_sha: test.git_commit_sha || "",
@@ -446,7 +489,7 @@ defmodule Tuist.Tests.Coverage do
   end
 
   @retention_tables %{
-    files: ["coverage_files", "git_commit_files", "test_run_changed_files", "test_run_enumerated_tests"],
+    files: ["coverage_files", "git_commit_files", "test_run_changed_files"],
     runs: ["coverage_runs"]
   }
 

@@ -117,6 +117,45 @@ defmodule TuistEx.Analytics.Env do
       environment.("GITHUB_REF") || environment.("CI_COMMIT_REF_NAME") ||
         environment.("BUILDKITE_BRANCH") || environment.("CI_COMMIT_REF") || nil
 
+  # The branch a pull request merges into, from the CI provider only: a
+  # checkout does not know what its commit will merge into. Azure DevOps names
+  # it as a full ref.
+  @base_branch_variables ~w(GITHUB_BASE_REF CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+                            CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_NAME BITRISEIO_GIT_BRANCH_DEST
+                            BUILDKITE_PULL_REQUEST_BASE_BRANCH CM_PULL_REQUEST_DEST
+                            CI_PULL_REQUEST_TARGET_BRANCH SYSTEM_PULLREQUEST_TARGETBRANCH)
+
+  def base_branch(environment \\ &System.get_env/1) do
+    case Enum.find_value(@base_branch_variables, &nilify_empty(environment.(&1) || "")) do
+      "refs/heads/" <> branch -> branch
+      branch -> branch
+    end
+  end
+
+  @pull_request_variables ~w(CM_PULL_REQUEST_NUMBER CI_EXTERNAL_PULL_REQUEST_IID BITRISE_PULL_REQUEST
+                             AC_PULL_NUMBER CI_PULL_REQUEST_NUMBER BUILDKITE_PULL_REQUEST
+                             CIRCLE_PR_NUMBER CI_MERGE_REQUEST_IID)
+
+  def pull_request_number(environment \\ &System.get_env/1) do
+    from_ref =
+      case Regex.run(~r{^refs/(?:pull|merge-requests)/(\d+)/}, git_ref(environment) || "") do
+        [_, number] -> number
+        nil -> nil
+      end
+
+    (from_ref || Enum.find_value(@pull_request_variables, &nilify_empty(environment.(&1) || "")))
+    |> parse_pull_request_number()
+  end
+
+  defp parse_pull_request_number(nil), do: nil
+
+  defp parse_pull_request_number(value) do
+    case Integer.parse(value) do
+      {number, ""} when number > 0 -> number
+      _ -> nil
+    end
+  end
+
   def git_remote_url_origin(environment \\ &System.get_env/1) do
     without_credentials(
       environment.("GIT_REMOTE_URL") || environment.("BUILDKITE_REPO") ||

@@ -434,6 +434,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // The SetupWithManager predicate filters Pods that don't fit
 // tart-kubelet's contract before they reach this method.
 func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
+	// A runner Pod carries the server's dispatch URL, which is where the converge
+	// worker lists the masters to prefetch and reports volume usage. Observed
+	// before the Store short-circuit so the Pods recoverState adopted after a
+	// restart teach it too, not only the next Pod this host provisions.
+	r.Converge.ObservePod(pod)
 
 	if existing := r.Store.Get(pod.Namespace, pod.Name); existing != nil {
 		return nil
@@ -455,10 +460,6 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	if err != nil {
 		return fmt.Errorf("resolve env: %w", err)
 	}
-
-	// A runner Pod carries the server's dispatch URL, which is where the converge
-	// worker asks which masters to prefetch.
-	r.Converge.ObservePod(pod)
 
 	vmName := VMNameForPod(pod)
 	envDir, err := r.Tart.StageEnvFile(vmName, env)

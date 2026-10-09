@@ -73,6 +73,7 @@ Do not add README entries for internal operational details such as env var names
 
 ## Markdown
 
+- Note previews and read-only notes use `AtlasWeb.Markdown.content/1` so they share MDEx sanitization, Noora typography, tables, and alerts. The editor uses Noora cards and a monospace source textarea; keep note-specific layout in `assets/css/routes/notes.css` rather than adding a separate Markdown renderer.
 - `AtlasWeb.Markdown.content/1` renders fenced `mermaid` blocks through the `MermaidDiagram` hook (`assets/js/hooks/mermaid_diagram.js`), which loads a pinned Mermaid build from jsDelivr only on pages that contain a diagram. Invalid diagrams fall back to their source.
 
 ## Proof-of-concept dashboard

@@ -333,6 +333,32 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
     end
 
+    test "accepts the enumerated tests an older client still sends, and stores the run without them", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      expect(Tests, :create_test, fn attrs ->
+        refute Map.has_key?(attrs, :enumerated_tests)
+        assert attrs.skip_test_identifiers == ["MyTests/MathTests/testTrim()"]
+        {:ok, %Test{id: attrs.id, duration: attrs.duration, project_id: project.id, test_case_runs: []}}
+      end)
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+        duration: 1000,
+        macos_version: "15.0",
+        xcode_version: "16.0",
+        is_ci: true,
+        status: "success",
+        test_modules: [],
+        skip_test_identifiers: ["MyTests/MathTests/testTrim()"],
+        enumerated_tests: [%{module: "MyTests", suite: "MathTests", name: "testTrim()", enabled: true}]
+      })
+      |> json_response(:ok)
+    end
+
     test "schedules the publication of uploaded coverage under the run's own key", %{
       conn: conn,
       user: user,
@@ -448,7 +474,57 @@ defmodule TuistWeb.API.TestsControllerTest do
         })
         |> json_response(:bad_request)
 
-      assert response["message"] =~ "xcode_coverage_storage_key"
+      assert response["message"] =~ "coverage storage key"
+    end
+
+    test "rejects a coverage block whose storage key is not the run's", %{conn: conn, user: user, project: project} do
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          is_ci: false,
+          build_system: "mix",
+          test_modules: [],
+          status: "success",
+          coverage: %{
+            tool: "cover",
+            partial: false,
+            storage_key: "#{user.account.name}/#{project.name}/runs/other/coverage.ndjson.deflate"
+          }
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "coverage storage key"
+    end
+
+    test "rejects a coverage block storage key that is not the run's even beside a valid Xcode one", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      id = UUIDv7.generate()
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+          id: id,
+          duration: 1000,
+          is_ci: false,
+          test_modules: [],
+          status: "success",
+          xcode_coverage_storage_key: Tuist.Tests.Coverage.storage_key(project, id),
+          coverage: %{
+            tool: "cover",
+            partial: false,
+            storage_key: "#{user.account.name}/#{project.name}/runs/other/coverage.ndjson.deflate"
+          }
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "coverage storage key"
     end
 
     test "creates a test run with gradle build system", %{conn: conn, user: user, project: project} do
@@ -1194,6 +1270,65 @@ defmodule TuistWeb.API.TestsControllerTest do
                   path: "Sources/Add.swift",
                   git_blob_id: "abc",
                   targets: ["Calculator"],
+                  covered_lines: 1,
+                  executable_lines: 2,
+                  line_numbers: [1, 2],
+                  execution_counts: [3, 0],
+                  functions: []
+                }
+              ]
+            }
+          }
+        )
+
+      assert json_response(conn, 200)
+    end
+
+    test "passes a Mix run's coverage on", %{conn: conn, user: user, project: project} do
+      conn = Authentication.put_current_user(conn, user)
+
+      expect(Tests, :create_test, fn attrs ->
+        assert %{
+                 tool: "cover",
+                 tool_version: "OTP 28/Elixir 1.19.5",
+                 partial: false,
+                 files: [%{path: "lib/add.ex", targets: ["calculator"], line_numbers: [1, 2]}]
+               } = attrs.coverage
+
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           is_ci: false,
+           build_system: "mix",
+           status: "success",
+           test_case_runs: []
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            duration: 10,
+            is_ci: false,
+            status: "success",
+            build_system: "mix",
+            test_modules: [],
+            coverage: %{
+              tool: "cover",
+              tool_version: "OTP 28/Elixir 1.19.5",
+              partial: false,
+              files: [
+                %{
+                  path: "lib/add.ex",
+                  git_blob_id: "abc",
+                  targets: ["calculator"],
+                  is_test: false,
                   covered_lines: 1,
                   executable_lines: 2,
                   line_numbers: [1, 2],

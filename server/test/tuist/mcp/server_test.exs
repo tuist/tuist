@@ -4,10 +4,12 @@ defmodule Tuist.MCP.ServerTest do
 
   alias Tuist.Environment
   alias Tuist.MCP.Components.Tools.AddOrganizationMember
+  alias Tuist.MCP.Components.Tools.CancelOrganizationInvitation
   alias Tuist.MCP.Components.Tools.CreateOrganization
   alias Tuist.MCP.Components.Tools.CreateProject
   alias Tuist.MCP.Components.Tools.GetBazelIntegrationGuide
   alias Tuist.MCP.Components.Tools.GetGradleIntegrationGuide
+  alias Tuist.MCP.Components.Tools.InviteOrganizationMember
   alias Tuist.MCP.Components.Tools.UpdateTestCase
   alias Tuist.MCP.Server
   alias Tuist.MCP.Tool
@@ -27,6 +29,8 @@ defmodule Tuist.MCP.ServerTest do
       assert "create_organization" in tool_names
       assert "create_project" in tool_names
       assert "add_organization_member" in tool_names
+      assert "invite_organization_member" in tool_names
+      assert "cancel_organization_invitation" in tool_names
       assert "list_runner_jobs" in tool_names
       assert "get_runner_job" in tool_names
       assert "list_runner_job_steps" in tool_names
@@ -90,7 +94,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.34.1"
+      assert server.version == "1.35.0"
 
       assert server.instructions =~
                "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."
@@ -264,6 +268,20 @@ defmodule Tuist.MCP.ServerTest do
 
       assert AddOrganizationMember.annotations() == %{
                title: "Add Organization Member",
+               readOnlyHint: false,
+               openWorldHint: false,
+               destructiveHint: true
+             }
+
+      assert InviteOrganizationMember.annotations() == %{
+               title: "Invite Organization Member",
+               readOnlyHint: false,
+               openWorldHint: true,
+               destructiveHint: false
+             }
+
+      assert CancelOrganizationInvitation.annotations() == %{
+               title: "Cancel Organization Invitation",
                readOnlyHint: false,
                openWorldHint: false,
                destructiveHint: true
