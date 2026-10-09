@@ -30,6 +30,7 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
     stub(Tuist.Environment, :network_trusted_build_publishing_enabled?, fn -> true end)
     project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :gradle)
     {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
+    assert has_element?(lv, "button[phx-click=toggle_network_trusted_builds]", "Enable publishing without credentials")
 
     log =
       ExUnit.CaptureLog.capture_log(fn ->
@@ -37,10 +38,12 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
       end)
 
     assert Projects.get_project_by_id(project.id).network_trusted_builds
+    assert has_element?(lv, "button[phx-click=toggle_network_trusted_builds]", "Disable publishing without credentials")
     assert log =~ "actor_user_id=#{user.id}"
     assert log =~ "project_id=#{project.id} enabled=true"
     log = ExUnit.CaptureLog.capture_log(fn -> render_click(lv, "toggle_network_trusted_builds") end)
     refute Projects.get_project_by_id(project.id).network_trusted_builds
+    assert has_element?(lv, "button[phx-click=toggle_network_trusted_builds]", "Enable publishing without credentials")
     assert log =~ "project_id=#{project.id} enabled=false"
   end
 

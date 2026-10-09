@@ -44,11 +44,15 @@
         )}
       </span>
     </div>
-    <.button phx-click="toggle_network_trusted_builds" variant="secondary">
-      {if @selected_project.network_trusted_builds,
-        do: dgettext("dashboard_projects", "Disable publishing without credentials"),
-        else: dgettext("dashboard_projects", "Enable publishing without credentials")}
-    </.button>
+    <.button
+      phx-click="toggle_network_trusted_builds"
+      variant="secondary"
+      label={
+        if @selected_project.network_trusted_builds,
+          do: dgettext("dashboard_projects", "Disable publishing without credentials"),
+          else: dgettext("dashboard_projects", "Enable publishing without credentials")
+      }
+    />
   </.card_section>
   <h2 data-part="subtitle">
     {dgettext("dashboard_projects", "General")}
