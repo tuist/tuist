@@ -30,6 +30,8 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 
 Successful project/account-token bcrypt verification proofs are held only in each server's ephemeral `token_verification` Cachex cache. Each entry contains a SHA-256 digest of the complete verification input and stored bcrypt hash, mapped to `true`, with a one-minute TTL and scheduled pruning to 10,000 entries. No plaintext token, subject, account/project identifier, permissions or request history is retained. These derived authentication proofs are excluded from exports and are lost on process restart; token validity and revocation remain authoritative in PostgreSQL.
 
+Authentication cache fills use separate ephemeral ETS claim tables containing only digest keys and process identifiers. They store no additional customer records and are discarded on cache restart; completed claims are removed, and abandoned claims are recovered on subsequent access.
+
 ## Exportable Data
 
 ### Atlas inference decision usage

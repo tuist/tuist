@@ -2,13 +2,15 @@ defmodule Tuist.Authentication.TokenVerificationCache do
   @moduledoc """
   Caches only the immutable proof that a secret matches a stored bcrypt hash.
 
-  Callers must load the token from authoritative storage and check revocation,
-  expiration, users and scopes on every request, before using this proof. Neither
-  subjects nor authorization decisions belong here. This dedicated, node-local
+  Callers own credential validity, activity, scopes and their freshness policy;
+  this proof alone never grants access. Neither subjects nor authorization
+  decisions belong here. This dedicated, node-local
   cache survives display-cache invalidations and distribution membership changes.
   """
 
   import Cachex.Spec, only: [expiration: 1, hook: 1]
+
+  alias Tuist.Authentication.SingleFlight
 
   @cache :token_verification
   @ttl to_timeout(minute: 1)
@@ -18,16 +20,9 @@ defmodule Tuist.Authentication.TokenVerificationCache do
     cache = Keyword.get(opts, :cache, @cache)
     ttl = Keyword.get(opts, :ttl, @ttl)
 
-    Supervisor.child_spec(
-      {Cachex,
-       [
-         cache,
-         [
-           expiration: expiration(default: ttl),
-           hooks: [hook(module: Cachex.Limit.Scheduled, args: {@max_entries, [], []})]
-         ]
-       ]},
-      id: __MODULE__
+    SingleFlight.cache_child_spec(__MODULE__, cache,
+      expiration: expiration(default: ttl),
+      hooks: [hook(module: Cachex.Limit.Scheduled, args: {@max_entries, [], []})]
     )
   end
 
@@ -35,9 +30,7 @@ defmodule Tuist.Authentication.TokenVerificationCache do
     cache = Keyword.get(opts, :cache, @cache)
     key = :crypto.hash(:sha256, :erlang.term_to_binary({password, stored_hash}))
 
-    # Single-flight per key, not a cache-wide transaction: one cold credential
-    # must not serialize unrelated credentials or rerun bcrypt for every waiter.
-    case Cachex.fetch(cache, key, fn ->
+    case SingleFlight.fetch(cache, key, fn ->
            started_at = System.monotonic_time()
            verified = Bcrypt.verify_pass(password, stored_hash)
 

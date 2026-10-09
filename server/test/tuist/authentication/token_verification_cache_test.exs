@@ -80,6 +80,24 @@ defmodule Tuist.Authentication.TokenVerificationCacheTest do
     assert Task.await(slow)
   end
 
+  test "proof fills and hits bypass suspended shared processes", %{cache: cache} do
+    owner = :ets.info(String.to_existing_atom("#{cache}_flights"), :owner)
+    courier = Process.whereis(String.to_existing_atom("#{cache}_courier"))
+    :sys.suspend(owner)
+    :sys.suspend(courier)
+
+    try do
+      expect(Bcrypt, :verify_pass, 2, fn _, "hash" -> true end)
+
+      for secret <- ["first", "second"], _ <- 1..100 do
+        assert TokenVerificationCache.verify_pass(secret, "hash", cache: cache)
+      end
+    after
+      :sys.resume(owner)
+      :sys.resume(courier)
+    end
+  end
+
   test "proofs bind both the secret and the stored hash", %{cache: cache} do
     expect(Bcrypt, :verify_pass, fn "secret", "old-hash" -> true end)
     expect(Bcrypt, :verify_pass, fn "wrong", "old-hash" -> false end)
