@@ -1,0 +1,40 @@
+# Production: the controller for the rack fleet once the rack belongs to the
+# production cluster, which is whenever a site definition's
+# kubernetes.namespace is `tuist` (infra/rack-switch-fleet/sites). A switch can
+# be adopted by only one controller at a time, so this one and staging's are
+# never both in use; omada-deployment.yml deploys to the env the rack is in.
+#
+# It has a tailnet name of its own, `omada-production`, rather than staging's
+# `omada`: while the rack moves, both run, and a second device asking for a
+# name already taken gets `omada-1` for good. The site definition's
+# management.controller.url names it, and management.controller.address is
+# its tailnet IP, which the Tailscale operator hands out at the first install.
+#
+# CREDENTIALS. As in staging: the admin account and the Open API client come
+# from the controller's own first-boot wizard (or the staging controller's
+# backup restored there) and live in 1Password, in tuist-k8s-production, under
+# the names management.controller names.
+omada-controller-helm:
+  service:
+    annotations:
+      tailscale.com/expose: "true"
+      tailscale.com/hostname: "omada-production"
+      # The production operator's OAuth client may only mint this env's tag.
+      tailscale.com/tags: "tag:tuist-k8s-production"
+
+  persistence:
+    data:
+      size: 5Gi
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+
+tls:
+  # The tailnet name the Tailscale operator gives the Service, which the fleet
+  # tooling and `rack-switch-controller apply` reach it by.
+  extraDNSNames:
+    - omada-production.taild6d7bb.ts.net

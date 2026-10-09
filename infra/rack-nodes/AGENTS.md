@@ -278,7 +278,9 @@ mise run rack:write-install-usb /dev/disk4 --host ber1-edge-a
 mise run rack:write-install-usb --host ber1-edge-a --output ber1-edge-a.iso
 ```
 
-It needs `op` signed in (it reads the vault `tuist-k8s-<env>`), `xorriso`, and
+The env is the one the rack is in, by its site definition's
+`kubernetes.namespace` (`mise run rack:fleet env`), unless `--env` names
+another. It needs `op` signed in (it reads the vault `tuist-k8s-<env>`), `xorriso`, and
 `go`, which renders the seed with the operator's renderer. The Ubuntu 24.04 ISO
 is fetched once, checked against Ubuntu's SHA256SUMS, and cached in
 `~/Library/Caches/tuist-rack`. The console password comes from the 1Password
@@ -394,15 +396,270 @@ the cluster reaches it.
 
 ## Production
 
-The rack moves to production by moving its inventory: the hosts and
-`rackLinuxFleet.boot` go from `values-managed-staging.yaml` to
-`values-managed-production.yaml`, the `TAILSCALE_RACK_NODES` item goes to the
-`tuist-k8s-production` vault, the ACL grants `tag:tuist-k8s-production` what it
-grants `tag:tuist-k8s-staging` for the rack tags, `ber1-edge-a` is reinstalled from
-a stick written with `--env production`, and the other hosts, `ber1-edge-b`
-included, are reinstalled by raising their `reinstallGeneration` once it is up. Production's Cilium must exclude
-`cilium.io/no-schedule=true` first (`infra/k8s/mgmt/bootstrap/cilium-values.yaml`);
-the operator refuses to join the node until it does.
+The rack's env is its site definition's `kubernetes.namespace`
+(`infra/rack-switch-fleet/sites/ber1.json`): `tuist-staging` puts it in
+staging, `tuist` in production (`mise run rack:fleet env`). The Omada controller,
+the rack switch controller and the edge DaemonSet (`omada-deployment.yml`), the
+switches' and power devices' objects (the Rack Switches workflow), the install
+stick, the card passwords and the smoke run follow it. The tuist chart's
+inventory does not: the hosts, the `ber1` runner pool, the `ber1-runners` Kura
+region and the rack's telemetry and cache gateway live in the env's values
+files, and `fleet_check_env` (in `mise run rack:fleet-test`) fails when an env
+other than the site's declares the rack's hosts or pools, or when the
+controller's vault, address or tailnet name belong to another env.
+
+Moving the rack is two pull requests. The first is inert while the rack is in
+staging: production's Omada values (its tailnet name is `omada-production`,
+since both controllers run during the move), the ACL grants
+`tag:tuist-k8s-production` has for the rack, and the production egress
+proxies accepting routes. The second, the cutover, moves the inventory from the
+staging values to the production ones and points `ber1.json` at production.
+Production's Cilium already excludes `cilium.io/no-schedule=true`
+(`infra/k8s/mgmt/bootstrap/cilium-values.yaml`); the operator refuses to join a
+rack node until it does.
+
+Every step below says whether it needs someone at the rack (hands-on) or not
+(remote). Writes to production go through a JIT elevation (`/elevate
+production`); staging is writable. The commands use
+
+```
+S="--context tuist-k8s-staging"; P="--context tuist-k8s-production"
+EDGE_A=44312e80-1dc6-11f1-853e-8f903547d200
+EDGE_B=04450c00-63f4-11f1-81f4-3582298d5c00
+STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
+```
+
+### Before the move
+
+1. **Merge the first pull request and paste the ACL** (remote). Paste
+   `infra/tailscale/acls.json` into the admin console's Access controls. Once
+   the production deploy has rolled out the egress proxies, check that the
+   routes they now install leave their Service traffic alone:
+   `kubectl $P -n tailscale-operator exec macmini-egress-0 -- ip route show table 52`
+   lists the tailnet's subnet routes, and the proxies keep answering.
+
+2. **Copy the rack's 1Password items** (remote) from `tuist-k8s-staging` to
+   `tuist-k8s-production`, byte for byte, with 1Password's own copy to another
+   vault: each is something the hardware already holds.
+   - `BER1_FLEET_SSH`: the minis' key and sudo password, which MDM installed,
+     and the key every rack Linux install authorizes.
+   - `BER1_RACK_CARD_ROOT`: the PDU and transfer switch cards' passwords are
+     derived from it, and the cards hold the ones staging set.
+   - `ber1 switch device account`: the login adoption put on every switch.
+   - `TAILSCALE_RACK_NODES`: the OAuth client that mints the rack nodes' join
+     keys. Its tags are the rack's, not an env's, so the same client serves.
+   - `AMT_PROVISIONING_CERT`: what AMT was activated with.
+
+   Check each field matches, for example
+   `cmp <(op read op://tuist-k8s-staging/BER1_RACK_CARD_ROOT/key) <(op read op://tuist-k8s-production/BER1_RACK_CARD_ROOT/key)`.
+   The Omada admin login and its Open API client are made in step 3, and the
+   console passwords (`<host> console`) are minted again by the installs.
+
+3. **Stand up production's Omada controller** (remote). Dispatch
+   `omada-deployment.yml` with `environment: production`, which installs the
+   controller alone, as `omada-production` on the tailnet. Its tailnet IP is in
+   `tailscale status | grep omada-production`. In the staging controller
+   (`https://omada.taild6d7bb.ts.net:8043`), export a backup (Settings,
+   Maintenance, Backup), and restore it in production's first-boot wizard at
+   `https://omada-production.taild6d7bb.ts.net:8043`, so the production
+   controller knows the site, the device account and the three switches as
+   adopted. A controller without the backup sees each switch as managed by
+   another controller and has to adopt it afresh, which needs it forgotten in
+   staging first, and forgetting factory-resets a switch: ToR A carries the
+   rack's uplinks. Then make an Open API client on the production controller
+   (Client mode, Administrator over site `ber1`) and store it in
+   `tuist-k8s-production` as `omada production open api`, with `client-id` and
+   `client-secret` fields; delete the restored staging client from it.
+
+4. **Finish the cutover branch** (remote): set `management.controller.address`
+   in `ber1.json` to the production controller's tailnet IP, run
+   `mise run rack:fleet render` (it renders option 138 into
+   `infra/helm/rack-edge/sites/ber1/dnsmasq.conf`) and `mise run rack:fleet-test`,
+   which refuses the empty address the branch carries until then. While there,
+   record the boot MACs staging learned, so production publishes those hosts'
+   installs without waiting for them to announce:
+   `kubectl $S -n tuist-staging get rlh -o custom-columns=HOST:.spec.hostname,BOOTMAC:.status.bootMAC`,
+   as `bootMAC` on `ber1-edge-b` and `ber1-store-a` in
+   `values-managed-production.yaml`.
+
+5. **Copy the edges' VRRP password** (remote) into production's `omada`
+   namespace, which step 3 created, so the production edge and one still
+   running staging's pod accept each other's adverts instead of both holding
+   the addresses. The Helm labels and annotations come along, so the rack-edge
+   release adopts it and keeps the password:
+
+   ```
+   kubectl $S -n omada get secret rack-edge-ber1-vrrp -o json |
+     jq '{apiVersion, kind, type, data, metadata: {name: .metadata.name, labels: .metadata.labels, annotations: .metadata.annotations}}' > vrrp.json
+   kubectl $P -n omada apply -f vrrp.json && rm vrrp.json
+   ```
+
+### Out of staging
+
+6. **Tear down the rack's Kura cache in staging** (remote). Turn the
+   `runner_site_cache` flag off for every account at
+   `https://staging.tuist.dev/ops/flags`, and wait until staging has no
+   KuraInstance on the storage node:
+
+   ```
+   kubectl $S -n kura get kurainstances -o json |
+     jq -r '.items[] | select(tostring | test("rack-storage-ber1")) | .metadata.name'
+   ```
+
+   Until that prints nothing, the `ber1-runners` region has to stay in
+   staging's `TUIST_KURA_AVAILABLE_REGIONS`: a region taken out of the list is
+   no longer reconciled, and its instances and server rows are stranded.
+
+7. **Move the switches to production's controller** (remote; be at home in
+   case a switch has to be reached by its console). Stop staging's rack switch
+   controller so it reports nothing and writes nothing meanwhile:
+   `kubectl $S -n omada scale deployment rack-switch-controller --replicas=0`.
+   Then tell the switches the new controller, smallest blast radius first
+   (`ber1-mgmt`, `ber1-tor-b`, `ber1-tor-a`): the staging controller's device
+   migration (its Migration page, which takes the target controller's
+   address), or per switch `mise run rack:omada inform <device>` from the
+   cutover branch, whose `ber1.json` names the production controller. Neither
+   was measured on these switches; do `ber1-mgmt` alone first. Each shows
+   connected in production in `mise run rack:omada devices` from the cutover
+   branch. Do not forget them in staging.
+
+8. **Retire the rack from staging** (remote), in this order. First delete its
+   objects while staging still runs the deploy from `main`: the operator's
+   rack controllers are switched on by the same values the cutover removes,
+   and an object deleted after they are gone keeps its finalizer for good.
+   Helm keeps the RackHosts and RackLinuxHosts, so they are deleted by hand,
+   and the switches' and power devices' objects with them, whose finalizers log
+   the controller out of each card:
+
+   ```
+   kubectl $S -n tuist-staging delete rh ber1-runner-b01 ber1-runner-b02 ber1-runner-b03
+   kubectl $S -n tuist-staging delete rlh $STORE_A $EDGE_B $EDGE_A
+   kubectl $S -n tuist-staging delete -f infra/rack-switch-fleet/k8s/ber1/
+   ```
+
+   The finalizers are done when these list nothing:
+
+   ```
+   kubectl $S -n tuist-staging get rh,rlh,rackswitch,rackpdu,rackats
+   kubectl $S get nodes -l node.cluster.x-k8s.io/instance-type=rack
+   kubectl $S get nodes -l tuist.dev/fleet=tuist-tuist-rack-fleet
+   ```
+
+   A RackLinuxHost shows `Deprovisioning` while its Machine stops the kubelet
+   and removes the Node, then deletes its tailnet device and its console key.
+   The boxes keep running their installs, off the tailnet: the switches keep
+   forwarding, the minis keep their addresses, and nothing in the rack reaches
+   either cluster until step 12. A staging deploy from `main` now would declare
+   them again, and a merge touching `infra/rack-switch-fleet` would apply the
+   switches' objects to staging again; delete what reappears.
+
+   Then dispatch a staging deploy of the cutover branch's commit:
+
+   ```
+   gh workflow run server-deployment.yml -f environment=staging -f commit_sha=<cutover commit>
+   ```
+
+   It drops the rack's inventory and the `ber1` pool (so only production will
+   answer `tuist-ber1-smoke`), the region, `alloy-rack`, the cache gateway and
+   the egress proxies' routes from staging.
+
+9. **Delete the minis' tailnet devices** (remote) in the admin console:
+   `ber1-runner-b01` to `b03`, tagged `tag:tuist-macmini-staging`. A mini is a
+   standard device that outlives its Machine, and bootstrap's `tailscale up`
+   uses its key only when it has to log in, so a mini still logged in would
+   keep its staging tag under production. Once its device is gone, the next
+   bootstrap joins it as `tag:tuist-macmini-production`.
+
+10. **Copy the hosts' AMT Secrets** (remote) from `tuist-staging` to `tuist`.
+    AMT keeps the admin password staging generated, and production can drive
+    a host's AMT only with it:
+
+    ```
+    for uuid in $EDGE_A $EDGE_B $STORE_A; do
+      kubectl $S -n tuist-staging get secret "$uuid-amt" -o json |
+        jq '{apiVersion, kind, type, data, metadata: {name: .metadata.name}}' > amt.json
+      kubectl $P -n tuist apply -f amt.json
+    done; rm amt.json
+    ```
+
+### Into production
+
+11. **Merge the cutover** (remote). Production's deploy declares the hosts,
+    the pool, the region, `alloy-rack` and the cache gateway;
+    `omada-deployment.yml` deploys the rack switch controller, watching `tuist`,
+    and the edge DaemonSet, which has no node yet; the Rack Switches workflow
+    applies the objects to `tuist`. Paste the ACL again: the cutover drops
+    staging's rack grants. `kubectl $P -n tuist get rlh` shows each host
+    waiting: no device, and for the edges, no other edge to serve a netboot.
+
+12. **Reinstall `ber1-edge-a` from a stick** (hands-on). On `main`, the env
+    is production:
+
+    ```
+    mise run rack:write-install-usb /dev/disk4 --host ber1-edge-a
+    ```
+
+    Swap it for the edge's install stick, boot it (F7, the stick), and put the
+    install stick back once the node is up:
+
+    ```
+    kubectl $P -n tuist get rlh $EDGE_A -w
+    kubectl $P get node ber1-edge-a
+    kubectl $P -n omada get pods -o wide        # rack-edge-ber1 on it
+    ```
+
+    With the edge up, the switches' path and their DHCP, the machines' routes
+    and the boot server are back, from production.
+
+13. **Reinstall the rest** (hands-on, or remote through the edge). With
+    `ber1-edge-a` serving, the operator publishes `ber1-edge-b`'s and
+    `ber1-store-a`'s installs, since neither has a tailnet device. It does not
+    reboot them into the installs: a host is rebooted over SSH on its tailnet
+    address, and through AMT only once production has read the host's AMT,
+    which it does over SSH too. So boot each one's install stick: at the rack
+    (F7, the stick), or from a laptop through the edge to the old install and
+    its firmware's stick entry:
+
+    ```
+    ssh -J tuist@ber1-edge-a tuist@10.255.255.2   # ber1-edge-b, on the VRRP link
+    ssh -J tuist@ber1-edge-a tuist@10.10.0.11     # ber1-store-a, on the machines segment
+    sudo efibootmgr                               # the "tuist install stick" entry, or the USB disk
+    sudo efibootmgr -n <entry> && sudo reboot
+    ```
+
+    The stick asks `ber1-edge-a`'s boot server for its install and runs it. A
+    host whose boot MAC was not recorded in step 4 announces itself first
+    (`kubectl $P -n tuist get rlc -o wide`), and the operator publishes once it
+    has.
+
+14. **The minis bootstrap** (remote) as soon as an edge advertises their
+    addresses again: the production operator dials each through the edges,
+    checks its serial and installs everything, Tailscale under
+    `tag:tuist-macmini-production` included.
+
+    ```
+    kubectl $P -n tuist get rh,rasm
+    kubectl $P get nodes -l tuist.dev/fleet=tuist-tuist-rack-fleet
+    ```
+
+15. **Turn the rack's cache on in production** (remote): the
+    `runner_site_cache` flag for the accounts that should have it, at
+    `https://tuist.dev/ops/flags`, and wait for their KuraInstance on
+    `ber1-store-a` (`kubectl $P -n kura get kurainstances`).
+
+16. **Run the smoke** (remote): `gh workflow run ber1-smoke.yml`. It talks to
+    the server of the env the rack is in.
+
+17. **Clean up staging** (remote), once the smoke passes:
+    `helm --kube-context tuist-k8s-staging -n omada uninstall rack-edge rack-switch-controller omada`, the
+    controller's volumes (`kubectl $S -n omada delete pvc --all`), the leftover
+    candidates (`kubectl $S -n tuist-staging delete rlc --all`), the hosts' AMT
+    Secrets in `tuist-staging`, and the staging copies of the 1Password items
+    in step 2.
+
+Until step 8, going back is redeploying staging from `main` and turning its
+flag on again. After it, the hosts are reinstalled into whichever env takes
+them.
 
 ## Tests
 

@@ -970,7 +970,8 @@ pipes `op read 'op://<vault>/BER1_RACK_CARD_ROOT/key'` into
 `cmd/rack-card-password`, which looks the device's MAC up in
 `infra/rack-switch-fleet/sites/<site>.json` and prints the password. The vault
 comes from the site's `kubernetes.namespace` (`tuist-<env>` reads
-`tuist-k8s-<env>`) or `--vault`. The key is never printed.
+`tuist-k8s-<env>`, and production's `tuist` reads `tuist-k8s-production`) or
+`--vault`. The key is never printed.
 
 **Rotating the root key** is changing the item's value on a live cluster. Once
 ESO syncs it, every object derives new passwords, its Secret no longer records

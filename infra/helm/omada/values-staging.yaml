@@ -1,8 +1,9 @@
-# Staging: the controller for the rack fleet while the rack is at home. A
-# switch can be adopted by only one controller at a time, so there is one
-# controller, not one per environment; when the rack moves to the data center
-# it moves to the production cluster with it, the same values under that
-# cluster's tag.
+# Staging: the controller for the rack fleet while the rack belongs to the
+# staging cluster, which is whenever a site definition's kubernetes.namespace
+# is `tuist-staging` (infra/rack-switch-fleet/sites). A switch can be adopted
+# by only one controller at a time, so there is one controller in use, not one
+# per environment; omada-deployment.yml deploys to the env the rack is in, and
+# values-production.yaml is the same controller under that cluster's tag.
 #
 # REACHABILITY. Nothing about the controller is public. The Tailscale operator
 # gives the Service its own tailnet device (`omada`), and the switches reach it
