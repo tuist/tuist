@@ -457,6 +457,80 @@ struct GitControllerTests {
         #expect(gitInfo.baseBranch == "master")
     }
 
+    /// TeamCity checks a GitHub pull request out at `refs/pull/<n>/head`, its head, and reports it as
+    /// `build.vcs.number`. When the head merged the target branch in, HEAD^2 is the target branch.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_builds_a_pull_request_whose_head_is_a_merge() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let headSHA = String(repeating: "a", count: 40)
+        try await mockTeamCity(
+            at: path,
+            build: ["build.vcs.number": headSHA],
+            configuration: ["teamcity.pullRequest.number": "42"]
+        )
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD"], output: "\(headSHA)\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD^2"], output: "target-branch-sha\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "branch", "--show-current"], output: "\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "")
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == "refs/pull/42/merge")
+        #expect(gitInfo.sha == headSHA)
+    }
+
+    /// Only a pull request build takes the provider's commit, and only a Git SHA: a VCS root other
+    /// than Git reports another kind of revision.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [
+        (["build.vcs.number": String(repeating: "b", count: 40)], [String: String]()),
+        (["build.vcs.number": "1234"], ["teamcity.pullRequest.number": "42"]),
+    ])
+    func gitInfo_when_teamcity_reports_a_commit_that_does_not_apply(
+        build: [String: String],
+        configuration: [String: String]
+    ) async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(at: path, build: build, configuration: configuration)
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD"], output: "head-sha\n")
+        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse", "HEAD^2"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "branch", "--show-current"], output: "\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "")
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.sha == "head-sha")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_checks_a_pull_request_out_without_git() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let headSHA = String(repeating: "e", count: 40)
+        try await mockTeamCity(
+            at: path,
+            build: ["build.vcs.number": headSHA],
+            configuration: ["teamcity.pullRequest.number": "42"]
+        )
+        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse"])
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.pullRequestNumber == 42)
+        #expect(gitInfo.sha == headSHA)
+    }
+
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func gitInfo_when_teamcity_builds_a_branch() async throws {
         // Given
@@ -495,11 +569,15 @@ struct GitControllerTests {
 
     /// Writes the parameter files a TeamCity agent writes for a build, in the XML format it writes
     /// next to the `.properties` ones, and points the environment at them.
-    private func mockTeamCity(at path: AbsolutePath, configuration: [String: String]) async throws {
+    private func mockTeamCity(
+        at path: AbsolutePath,
+        build: [String: String] = [:],
+        configuration: [String: String]
+    ) async throws {
         let buildParameters = path.appending(component: "teamcity.build.parameters")
         let configurationParameters = path.appending(component: "teamcity.config.parameters")
         try await writeJavaXMLProperties(
-            ["teamcity.configuration.properties.file": configurationParameters.pathString],
+            build.merging(["teamcity.configuration.properties.file": configurationParameters.pathString]) { _, path in path },
             to: buildParameters
         )
         try await writeJavaXMLProperties(configuration, to: configurationParameters)

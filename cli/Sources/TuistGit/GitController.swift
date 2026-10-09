@@ -250,6 +250,14 @@ public struct GitController: GitControlling {
         "teamcity.pullRequest.number",
     ]
 
+    /// A pull request's head commit as the provider reports it, for providers that check the head
+    /// out rather than a merge commit, so HEAD^2 is not the head when the head is a merge itself.
+    /// Only variables confirmed on a real build to hold the pull request's head.
+    private static let pullRequestHeadSHAEnvironmentVariables = [
+        // TeamCity (GitHub pull requests check out refs/pull/<n>/head)
+        "build.vcs.number",
+    ]
+
     private static let baseBranchEnvironmentVariables = [
         // GitHub Actions
         "GITHUB_BASE_REF",
@@ -344,6 +352,9 @@ public struct GitController: GitControlling {
             .first { !$0.isEmpty }
             .map(Self.branchName)
         let pullRequestNumber = Self.pullRequestNumber(ref: gitRef, environment: environment)
+        let pullRequestHeadSHA = pullRequestNumber == nil ? nil : Self.pullRequestHeadSHAEnvironmentVariables
+            .compactMap { environment[$0] }
+            .first { $0.wholeMatch(of: #/[0-9a-f]{40}|[0-9a-f]{64}/#) != nil }
 
         // Branch
         let ciBranch = Self.branchEnvironmentVariables
@@ -378,7 +389,7 @@ public struct GitController: GitControlling {
             return GitInfo(
                 ref: gitRef,
                 branch: branchName,
-                sha: nil,
+                sha: pullRequestHeadSHA,
                 remoteURLOrigin: nil,
                 baseBranch: baseBranch,
                 pullRequestNumber: pullRequestNumber
@@ -388,8 +399,11 @@ public struct GitController: GitControlling {
         // SHA — if CI checked out a PR merge ref (e.g. refs/pull/N/merge),
         // HEAD is an ephemeral merge commit. Use the second parent (the actual
         // PR branch tip) instead, since the merge commit doesn't exist on the remote.
+        // A provider that reports the pull request's head is trusted over both.
         let commitSHA: String?
-        if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
+        if let pullRequestHeadSHA {
+            commitSHA = pullRequestHeadSHA
+        } else if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
             let isPullRequestMergeRef = gitRef?.hasPrefix("refs/pull/") == true
             if isPullRequestMergeRef,
                let secondParent = try? await capture(
