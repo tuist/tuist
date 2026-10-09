@@ -147,10 +147,11 @@ func renderRunnerEgressScript(cfg Config) (string, error) {
 	}
 
 	var b strings.Builder
+	// The SSH session runs zsh, which aborts on a glob that matches nothing,
+	// so existing daemons are listed with find rather than a bare glob.
 	fmt.Fprintf(&b, `set -euo pipefail
 WANT=%s
-for plist in /Library/LaunchDaemons/%s.*.plist; do
-  [ -e "$plist" ] || continue
+find /Library/LaunchDaemons -maxdepth 1 -name '%s.*.plist' | while read -r plist; do
   name="${plist#/Library/LaunchDaemons/%s.}"
   name="${name%%.plist}"
   case " $WANT " in *" $name "*) continue ;; esac

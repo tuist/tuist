@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -123,5 +124,23 @@ func TestLaunchdPlistCarriesRunnerEgressFlagsOnlyWhenConfigured(t *testing.T) {
 	withGateway.RunnerEgressGateways = []RunnerEgressGateway{testRunnerEgressGateway("dedicated-1", 1)}
 	if !strings.Contains(renderLaunchdPlist(withGateway), "--runner-egress-status-dir=/var/run/tuist-egress") {
 		t.Fatal("plist missing egress flags")
+	}
+}
+
+// The SSH session runs zsh, where a glob with no match aborts the script.
+func TestRenderRunnerEgressScriptRunsUnderZshWithNothingInstalled(t *testing.T) {
+	if _, err := exec.LookPath("zsh"); err != nil {
+		t.Skip("zsh not installed")
+	}
+	for _, cfg := range []Config{{}, {RunnerEgressGateways: []RunnerEgressGateway{testRunnerEgressGateway("dedicated-1", 1)}}} {
+		script, err := renderRunnerEgressScript(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cleanup := script[:strings.Index(script, "done\n")+len("done\n")]
+		cmd := exec.Command("zsh", "-c", strings.ReplaceAll(cleanup, "/Library/LaunchDaemons", t.TempDir()))
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("cleanup loop failed under zsh: %v\n%s", err, out)
+		}
 	}
 }
