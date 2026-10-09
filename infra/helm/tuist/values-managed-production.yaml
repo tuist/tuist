@@ -1411,6 +1411,7 @@ rackLinuxFleet:
     - uuid: 04450c00-63f4-11f1-81f4-3582298d5c00
       hostname: ber1-edge-b
       role: edge
+      bootMAC: "38:05:25:3a:de:d3"
       reinstallGeneration: 5
     # Single-homed to ber1-tor-a port 27, i226-LM on ber1-mgmt port 3. Its
     # address is on the machines segment, beside the minis it serves; the
@@ -1418,6 +1419,7 @@ rackLinuxFleet:
     - uuid: 3a898800-6402-11f1-ab1d-b1bd5a0f6400
       hostname: ber1-store-a
       role: storage
+      bootMAC: "38:05:25:3a:de:67"
       address: 10.10.0.11
       # Reinstalled so it registers with its pool and machines-address labels.
       reinstallGeneration: 1
