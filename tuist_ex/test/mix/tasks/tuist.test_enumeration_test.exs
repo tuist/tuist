@@ -83,7 +83,13 @@ defmodule Mix.Tasks.Tuist.TestEnumerationTest do
 
     {:ok, port} = :inet.port(socket)
     owner = self()
-    spawn_link(fn -> accept(socket, owner) end)
+    # The plan of a shard that runs CartTest, without an uploaded build.
+    responses = %{
+      "/api/projects/acme/fixture/tests/shards/plan/0" =>
+        ~s({"modules":["CartTest"],"shard_plan_id":"0191e5d0-0000-7000-8000-000000000000"})
+    }
+
+    spawn_link(fn -> accept(socket, owner, responses) end)
 
     %{dir: dir, url: "http://127.0.0.1:#{port}"}
   end
@@ -111,6 +117,20 @@ defmodule Mix.Tasks.Tuist.TestEnumerationTest do
     run = tuist_test(dir, url, ["--stale"])
     assert names(run["test_modules"]) == ["ships"]
     assert sorted(run["enumerated_tests"]) == @suite
+  end
+
+  test "a shard lists only its share, even when its arguments pick files", %{dir: dir, url: url} do
+    run =
+      tuist_test(dir, url, [
+        "--shard-index",
+        "0",
+        "--shard-reference",
+        "plan",
+        "test/cart_test.exs:5"
+      ])
+
+    assert names(run["test_modules"]) == ["adds"]
+    assert sorted(run["enumerated_tests"]) == Enum.filter(@suite, &(&1["module"] == "CartTest"))
   end
 
   test "lists nothing without --cover", %{dir: dir, url: url} do
@@ -145,19 +165,22 @@ defmodule Mix.Tasks.Tuist.TestEnumerationTest do
 
   defp sorted(tests), do: Enum.sort_by(tests, &{&1["module"], &1["name"]})
 
-  # Answers every request with an empty object and hands the test each one.
-  defp accept(socket, owner) do
+  # Answers every request, with an empty object unless told otherwise, and
+  # hands the test each one.
+  defp accept(socket, owner, responses) do
     {:ok, client} = :gen_tcp.accept(socket)
     {path, body} = read_request(client)
     send(owner, {:request, path, body})
+    response = Map.get(responses, path, "{}")
 
     :gen_tcp.send(
       client,
-      "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}"
+      "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: #{byte_size(response)}\r\nconnection: close\r\n\r\n" <>
+        response
     )
 
     :gen_tcp.close(client)
-    accept(socket, owner)
+    accept(socket, owner, responses)
   end
 
   defp read_request(client, buffer \\ "") do

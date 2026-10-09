@@ -168,6 +168,10 @@ defmodule Mix.Tasks.Tuist.Test do
               "None of the tests of shard #{index} of #{reference} exist in this checkout."
             )
 
+        # The shard's candidates are its whole share, whatever the arguments
+        # narrow it to below.
+        share = Enum.map(files, &Path.expand/1)
+
         # Forwarded arguments are kept as given, in order: repeated options
         # such as `--include a --include b` mean something.
         {test_args, files} = Shards.restrict(test_args, files)
@@ -200,7 +204,11 @@ defmodule Mix.Tasks.Tuist.Test do
           )
 
           options =
-            Keyword.merge(options, shard_plan_id: shard["shard_plan_id"], shard_index: index)
+            Keyword.merge(options,
+              shard_plan_id: shard["shard_plan_id"],
+              shard_index: index,
+              shard_files: share
+            )
 
           {options, Enum.reject(prebuilt, &(&1 in test_args)) ++ test_args ++ files}
         end
@@ -267,7 +275,10 @@ defmodule Mix.Tasks.Tuist.Test do
     for {payload, opts, aborted?} <- deferred do
       payload
       |> ExUnitFormatter.merge_retries(attempts)
-      |> with_enumerated_tests(options[:enumerate_load] == true or aborted?)
+      |> with_enumerated_tests(
+        options[:enumerate_load] == true or aborted?,
+        options[:shard_files]
+      )
       |> with_coverage(options, opts, history)
       |> ExUnitFormatter.submit(opts)
     end
@@ -306,9 +317,21 @@ defmodule Mix.Tasks.Tuist.Test do
   # from being reported, the rest are read now that ExUnit is done; a list
   # that could not be completed is not sent, since the server would take the
   # missing tests for ones the run was never meant to have.
-  defp with_enumerated_tests(payload, load?) do
+  #
+  # A shard lists only its share: the server unions the shards of a run, and
+  # every shard loading the files of the others would compile the whole suite
+  # once per shard.
+  defp with_enumerated_tests(payload, load?, shard_files) do
     case Map.pop(payload, :enumeration) do
       {%{tests: tests, project: project}, payload} ->
+        project =
+          if shard_files do
+            share = MapSet.new(shard_files)
+            %{project | files: Enum.filter(project.files, &MapSet.member?(share, &1))}
+          else
+            project
+          end
+
         case Isolated.run(fn -> Enumeration.complete(tests, project, load?) end, 600_000) do
           tests when is_list(tests) ->
             Map.put(payload, :enumerated_tests, tests)
