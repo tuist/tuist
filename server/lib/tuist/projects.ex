@@ -471,25 +471,14 @@ defmodule Tuist.Projects do
   end
 
   def get_project_token(full_token) do
-    full_token_components = String.split(full_token, "_")
-
-    if length(full_token_components) == 3 do
-      [_audience, token_id, token_hash] = full_token_components
-
-      token = Repo.one(from(t in ProjectToken, where: t.id == ^token_id))
-
-      cond do
-        is_nil(token) ->
-          {:error, :not_found}
-
-        verify_pass(token, token_hash) ->
-          {:ok, token}
-
-        true ->
-          {:error, :invalid_token}
-      end
+    with [_audience, token_id, token_hash] <- String.split(full_token, "_"),
+         {:ok, _} <- UUIDv7.cast(token_id),
+         token when not is_nil(token) <- Repo.one(from(t in ProjectToken, where: t.id == ^token_id)),
+         true <- verify_pass(token, token_hash) do
+      {:ok, token}
     else
-      {:error, :invalid_token}
+      nil -> {:error, :not_found}
+      _ -> {:error, :invalid_token}
     end
   end
 

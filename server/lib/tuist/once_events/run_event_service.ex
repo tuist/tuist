@@ -22,7 +22,7 @@ defmodule Tuist.OnceEvents.RunEventService do
   alias Once.Events.V1.ServerCapabilities
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
-  alias Tuist.Authentication
+  alias Tuist.Authentication.SubjectCache
   alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.OnceEvents
@@ -89,17 +89,17 @@ defmodule Tuist.OnceEvents.RunEventService do
 
   # ---- PublishRunEvents ---------------------------------------------
 
-  # Recheck authoritative identity and access before each batch, including
-  # empty batches. The bcrypt proof cache bounds cryptographic work, not access.
+  # Recheck by the original subject deadline, never by a new stream-relative
+  # interval. Hot batches cannot renew stale permissions or credential expiry.
   def publish_run_events(request_stream, stream) do
-    {project, account_id} =
+    {project, account_id, freshness} =
       case resolve_identity(stream, nil) do
-        {:ok, project, account_id} -> {project, account_id}
+        {:ok, project, account_id, freshness} -> {project, account_id, freshness}
         {:error, reason} -> refuse!(:publish_run_events, :admission, reason)
       end
 
     _last_check =
-      Enum.reduce(request_stream, now_ms(), fn batch, checked_at ->
+      Enum.reduce(request_stream, freshness, fn batch, checked_at ->
         checked_at = reauthenticate!(stream, project, checked_at)
         ack = handle_batch(batch, project, account_id)
         GRPC.Server.send_reply(stream, ack)
@@ -109,12 +109,17 @@ defmodule Tuist.OnceEvents.RunEventService do
     :ok
   end
 
-  defp reauthenticate!(stream, project, _checked_at) do
-    if require_project!(stream, :publish_run_events, :recheck).id != project.id do
-      refuse!(:publish_run_events, :recheck, "no access to the requested project")
+  defp reauthenticate!(stream, project, freshness) do
+    if now_ms() < freshness.valid_until and
+         (is_nil(freshness.expires_at) or System.system_time(:millisecond) < freshness.expires_at * 1_000) do
+      freshness
+    else
+      case resolve_identity(stream, nil) do
+        {:ok, refreshed, _account_id, snapshot} when refreshed.id == project.id -> snapshot
+        {:error, reason} -> refuse!(:publish_run_events, :recheck, reason)
+        _ -> refuse!(:publish_run_events, :recheck, "missing or invalid bearer or project access")
+      end
     end
-
-    now_ms()
   end
 
   defp now_ms, do: System.monotonic_time(:millisecond)
@@ -253,18 +258,24 @@ defmodule Tuist.OnceEvents.RunEventService do
   # counter keeps a spike of refusals, such as tokens expiring under long runs,
   # visible and alertable.
   defp refuse!(rpc, stage, reason) do
+    {status, reason} =
+      case reason do
+        {:unavailable, message} -> {:unavailable, message}
+        message -> {:unauthenticated, message}
+      end
+
     :telemetry.execute(Telemetry.event_name_once_events_refused(), %{count: 1}, %{
       rpc: rpc,
       stage: stage,
-      status: :unauthenticated
+      status: status
     })
 
-    raise GRPC.RPCError, status: :unauthenticated, message: to_string(reason)
+    raise GRPC.RPCError, status: status, message: to_string(reason)
   end
 
   defp resolve_project(stream, hint_project_id) do
     case resolve_identity(stream, hint_project_id) do
-      {:ok, project, _account_id} -> {:ok, project}
+      {:ok, project, _account_id, _freshness} -> {:ok, project}
       error -> error
     end
   end
@@ -282,17 +293,21 @@ defmodule Tuist.OnceEvents.RunEventService do
       end
 
     with token when is_binary(token) <- extract_bearer(headers),
-         subject when not is_nil(subject) <- authenticated_subject(token) do
+         {:ok, snapshot} when not is_nil(snapshot) <- SubjectCache.fetch(token) do
+      subject = snapshot.subject
+
       case project_for(subject, present(hint_project_id) || present(header_value(headers, @project_header))) do
-        {:ok, project} -> {:ok, project, actor_account_id(subject)}
+        {:ok, project} -> {:ok, project, actor_account_id(subject), snapshot}
         error -> error
       end
     else
-      _ -> {:error, "missing or invalid bearer"}
+      {:error, :unavailable} ->
+        {:error, {:unavailable, "Authentication temporarily unavailable."}}
+
+      _ ->
+        {:error, "missing or invalid bearer"}
     end
   end
-
-  defp authenticated_subject(token), do: Authentication.authenticated_subject(token)
 
   defp project_for(%Project{} = project, hint) do
     handle = "#{project.account.name}/#{project.name}"

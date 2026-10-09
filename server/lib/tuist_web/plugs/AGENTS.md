@@ -25,3 +25,5 @@ This area owns Plug middleware for request processing.
 ## Replica-safety rollout
 
 Authentication, token validity, scopes, account/project visibility and authorization must be read from authoritative storage on each request. Do not cache authenticated subjects or authorization decisions. Successful bcrypt proofs are the only reusable authentication state. The cache-removal rollout follows the proof-cache rollout and needs real CI database query/pool observations.
+
+- Never cache authorization booleans across credentials. Ordinary allowlisted API reads/uploads may use dedicated `SubjectCache` snapshots with at most 60 seconds of non-sliding staleness and verified expiry checks. Resolve route policy before controller dispatch; all other writes and runner-shell upgrades authenticate fresh by default. Credential creation/privilege changes also bypass resource-loader caches. Private loaders remain bounded; public project/account snapshots are reloaded before access, so privacy flips cannot inherit a cached public grant.

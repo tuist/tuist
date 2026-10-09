@@ -599,6 +599,36 @@ defmodule Tuist.OnceEventsTest do
       refute_received {:ack, %BatchAck{batch_id: "after"}}
     end
 
+    test "opening a stream from an old snapshot does not start a new minute", %{
+      organization: organization,
+      member: member,
+      handle: handle,
+      run: run
+    } do
+      shift = :atomics.new(1, [])
+
+      stub(System, :monotonic_time, fn unit ->
+        now = Mimic.call_original(System, :monotonic_time, [unit])
+        if unit == :millisecond, do: now + :atomics.get(shift, 1), else: now
+      end)
+
+      stream = stream_with(login_session(member), %{"once-project-id" => handle})
+      RunEventService.get_argv_hash_key(%GetArgvHashKeyRequest{}, stream)
+      :atomics.put(shift, 1, 50_000)
+
+      between = fn ->
+        :ok = Tuist.Accounts.remove_user_from_organization(member, organization)
+        :atomics.put(shift, 1, 60_001)
+      end
+
+      assert unauthenticated?(fn ->
+               RunEventService.publish_run_events(removing_between_batches(run, between), stream)
+             end)
+
+      assert_received {:ack, %BatchAck{batch_id: "before"}}
+      refute_received {:ack, %BatchAck{batch_id: "after"}}
+    end
+
     test "a refusal on the periodic check of an open stream is counted as such", %{
       organization: organization,
       member: member,
@@ -625,7 +655,7 @@ defmodule Tuist.OnceEventsTest do
                        %{rpc: :publish_run_events, stage: :recheck, status: :unauthenticated}}
     end
 
-    test "revocation is enforced on the next batch without waiting for a timer", %{
+    test "an open stream may continue inside its bounded freshness window", %{
       organization: organization,
       member: member,
       handle: handle,
@@ -634,15 +664,10 @@ defmodule Tuist.OnceEventsTest do
       removing = fn -> :ok = Tuist.Accounts.remove_user_from_organization(member, organization) end
       batches = removing_between_batches(run, removing)
 
-      assert unauthenticated?(fn ->
-               RunEventService.publish_run_events(
-                 batches,
-                 stream_with(login_session(member), %{"once-project-id" => handle})
-               )
-             end)
+      RunEventService.publish_run_events(batches, stream_with(login_session(member), %{"once-project-id" => handle}))
 
       assert_received {:ack, %BatchAck{batch_id: "before"}}
-      refute_received {:ack, %BatchAck{batch_id: "after"}}
+      assert_received {:ack, %BatchAck{batch_id: "after"}}
     end
   end
 
@@ -654,15 +679,15 @@ defmodule Tuist.OnceEventsTest do
       %{member: member, handle: "#{project.account.name}/#{project.name}"}
     end
 
-    test "each call and batch resolves authoritative identity", %{
+    test "calls and batches share the same bounded identity snapshot", %{
       member: member,
       handle: handle,
       run: run
     } do
       session = login_session(member)
 
-      expect(Authentication, :authenticated_subject, 6, fn token ->
-        Mimic.call_original(Authentication, :authenticated_subject, [token])
+      expect(Authentication, :authenticated_subject_snapshot, 1, fn token ->
+        Mimic.call_original(Authentication, :authenticated_subject_snapshot, [token])
       end)
 
       for _ <- 1..3, do: publish(session, %{"once-project-id" => handle}, run)

@@ -85,3 +85,5 @@ This directory contains ExUnit tests for the Tuist Server.
 - Cumulative task-time comparisons cover positive, zero and missing previous estimates with neutral styling, matching environment filters and custom range boundaries. Failure-category hints must be focusable and use the shared Noora tooltip interaction.
 
 - Production-cost token-cache coverage runs in ExUnit with an explicit rounds-12 hash: 2,000 lookups at concurrency 64 require exactly one real bcrypt verification. Use `Mimic.call_original/3` and an isolated cache, without shared configuration changes, VM-wide tracing or wall-clock assertions.
+
+- Bounded authentication regression: 400 real-context requests over 20 credentials require exactly 20 authoritative snapshot fills and bcrypt calls. Cover absolute 60-second deadlines, verified expiry with both clocks, revocation/scopes/deactivation by the deadline, failure classification, router-dispatched uploads, strict minting/shell routes and stream deadline inheritance. No machine-sensitive latency assertions or SQL-capacity claims.
