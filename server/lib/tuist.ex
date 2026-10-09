@@ -233,6 +233,7 @@ defmodule Tuist do
       License,
       PubSub,
       KeyValueStore,
+      KeyValueStore.LoadLimiter,
       ClickHouseRepo,
       ClickHouseFlop,
       ClickHouseTimeSeries,

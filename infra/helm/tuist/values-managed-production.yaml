@@ -1016,12 +1016,11 @@ vultrFleets:
   # kind, the disk conversion and the fleet wiring are the ones already proven
   # there.
   #
-  # Every box counted by replicas must already carry the adoptTag and have been
-  # through `mise run baremetal:prep-vultr`. Vultr's installer cannot lay down
-  # the mirrored root plus separate XFS /data the self-join gates on, so an
-  # unconverted box is never adopted, and a fleet whose replicas exceed the
-  # adoptable boxes sits at MD 0/1 and wedges `helm --wait` for every production
-  # deploy rather than just this region.
+  # Every box counted by replicas must already carry the adoptTag and the fleet
+  # SSH key. The controller adopts a matching preordered box, converts its RAID1
+  # installation to separate root and quota-enabled XFS /data, then joins it.
+  # If replicas exceed adoptable capacity, the MachineDeployment cannot become
+  # ready and can block `helm --wait` for the production deployment.
   #
   # Running a box here is not the same as serving the region: that is decided by
   # us-central's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
@@ -1056,7 +1055,7 @@ vultrFleets:
   # region out of service without touching the box.
   sa-west:
     enabled: true
-    replicas: 1
+    replicas: 2
     nodePool: kura-sa-west
     machine:
       # The env boundary. One Vultr account holds every env's boxes, and

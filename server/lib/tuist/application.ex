@@ -363,6 +363,7 @@ defmodule Tuist.Application do
           {Task.Supervisor, name: Tuist.MCP.Events.DeliverySupervisor, max_children: 20},
           {Finch, name: Tuist.Finch, pools: finch_pools()},
           {Cachex, [:tuist, []]},
+          TuistWeb.PublicOverviewCache,
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
           {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
