@@ -7,6 +7,21 @@ This directory contains database migrations and other private assets.
 - REAPI module-cache upload concurrency and admission retry settings are documented in `docs/en/guides/features/cache/module-cache.md`; keep them aligned with `cli/Sources/TuistREAPI` and Kura's upload sizing guidance.
 - Runner cache-volume usage belongs in `docs/en/guides/features/runners/cache-volumes.md`, linked from the runners overview and provider guides. Keep Docker-specific guidance in the Docker page. The docs sidebar is maintained in `lib/tuist/docs_sidebar.ex`.
 - PostgreSQL migrations: `server/priv/repo/migrations`
+- Closed runner-session pod lookups use a concurrent partial `(pod_name,
+  started_at)` index where `ended_at IS NOT NULL`. Retain the existing open-only
+  pod index and the open-first/most-recent-closed lookup semantics. Validate
+  index write overhead locally; do not replay session-closing writes in production.
+- If `20261009080000_index_closed_runner_sessions_by_pod.exs` is interrupted,
+  a same-named INVALID index may remain and prevent retries. In the affected
+  schema, inspect `pg_index.indisvalid`/`indisready` and
+  `pg_stat_progress_create_index` for
+  `runner_sessions_closed_pod_name_started_at_index`. Only after confirming the
+  index is invalid and no build is active, an explicitly authorized operator
+  should run `DROP INDEX CONCURRENTLY <schema>.runner_sessions_closed_pod_name_started_at_index`
+  outside a transaction, then retry the migration. Never drop a valid or
+  actively building index, and never use `create_if_not_exists` to hide failure.
+  Recovery is intentionally manual so a retry cannot drop another job's active
+  build. Local migration validation does not authorize production recovery.
 - GitHub Enterprise split-host/proxy setup is documented in `docs/en/guides/integrations/gitforge/github.md`. The nullable installation `api_url` is transport metadata; it does not replace canonical `client_url`, webhook identity, or existing project connections. Its migration uses `20261007160000`; the prototype `20261006110000` collided with main's absolute bundle-threshold migration. Reconcile any locally applied prototype history against the actual columns before migrating.
 - ClickHouse migrations: `server/priv/ingest_repo/migrations`
 - Marketing changelog entries: `server/priv/marketing/changelog`
