@@ -851,13 +851,15 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         ordered.append(contentsOf: blobs.keys.filter { !seen.contains($0) })
         let usesStreams = blobs.keys.contains { $0.sizeBytes > batchBytes }
         let maxConcurrentTasks = guards.downloadConcurrency ?? (usesStreams ? 8 : 32)
-        let chunkReads = Permits(maxConcurrentTasks)
+        // Every read request takes one of these, so a split read's chunk batches and the other transfers share the
+        // download's limit instead of a split read adding requests on top of the transfer slots.
+        let requests = Permits(maxConcurrentTasks)
         return try await synthesized.union(transfer(batches(ordered), maxConcurrentTasks: maxConcurrentTasks) { batch in
             if batch.count == 1, let digest = batch.first, digest.sizeBytes > self.batchBytes {
                 // `downloadBlob` resumes from the byte it reached, which subsumes a restart from zero.
                 do {
-                    if try await !self.downloadSplitBlob(digest, to: blobs[digest]!, permits: chunkReads) {
-                        try await self.downloadBlob(digest, to: blobs[digest]!)
+                    if try await !self.downloadSplitBlob(digest, to: blobs[digest]!, permits: requests) {
+                        try await requests.run { try await self.downloadBlob(digest, to: blobs[digest]!) }
                     }
                 } catch let error as RPCError where error.code == .notFound {
                     // A legitimate server-reported miss, equivalent to a `NOT_FOUND` status in
@@ -882,7 +884,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
             }
             var successful = Set<REAPI.Digest>()
             do {
-                try await self.retry {
+                try await requests.run { try await self.retry {
                     let pending = batch.filter { !successful.contains($0) }
                     let response = try await self.withClient { client in
                         try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage
@@ -928,7 +930,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                     if let error = Self.batchFailure(codes: response.responses.map(\.status.code)) {
                         throw error
                     }
-                }
+                } }
             } catch {
                 if error is CancellationError || Task.isCancelled { throw error }
                 let lost = Set(batch).subtracting(successful).count
@@ -1025,7 +1027,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         guard splitting.withLock({ $0 }) else { return false }
         let recipe: [REAPI.Digest]
         do {
-            recipe = try await retry {
+            recipe = try await permits.run { try await retry {
                 try await withClient { client in
                     try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Client(wrapping: client).splitBlob(
                         .with {
@@ -1036,7 +1038,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                         }, metadata: try await metadata(), options: options
                     )
                 }
-            }.chunkDigests
+            } }.chunkDigests
         } catch let error as RPCError where error.code == .notFound {
             return false
         } catch let error as RPCError where error.code == .unimplemented {
@@ -1059,32 +1061,42 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         do {
             try Data().write(to: path)
             let failure = Mutex<(any Error)?>(nil)
-            // The large blobs of a download share its read permits, so a blob uses the slots others are done with
-            // while the batches in flight never exceed the download's transfer limit.
+            // The batches take the download's request permits, so a blob uses the slots others are done with while
+            // the requests in flight never exceed the download's limit. One failed batch makes the blob unrestorable:
+            // the batches still waiting for a permit skip their reads and the ones in flight are cancelled.
             let written = try await withThrowingTaskGroup(of: Int.self) { group in
                 for batch in batches(unique) {
                     group.addTask {
-                        await permits.acquire()
-                        defer { permits.release() }
-                        do {
-                            let chunks = try await self.readChunks(batch)
-                            let handle = try FileHandle(forWritingTo: path)
-                            defer { try? handle.close() }
-                            for (chunk, data) in chunks {
-                                for offset in chunkOffsets[chunk]! {
-                                    try handle.seek(toOffset: UInt64(offset))
-                                    try handle.write(contentsOf: data)
+                        try await permits.run {
+                            guard !Task.isCancelled, failure.withLock({ $0 == nil }) else { return 0 }
+                            do {
+                                let chunks = try await self.readChunks(batch)
+                                let handle = try FileHandle(forWritingTo: path)
+                                defer { try? handle.close() }
+                                for (chunk, data) in chunks {
+                                    for offset in chunkOffsets[chunk]! {
+                                        try handle.seek(toOffset: UInt64(offset))
+                                        try handle.write(contentsOf: data)
+                                    }
                                 }
+                                return chunks.count
+                            } catch {
+                                if error is CancellationError || Task.isCancelled { throw error }
+                                failure.withLock { $0 = $0 ?? error }
+                                return 0
                             }
-                            return chunks.count
-                        } catch {
-                            if error is CancellationError || Task.isCancelled { throw error }
-                            failure.withLock { $0 = $0 ?? error }
-                            return 0
                         }
                     }
                 }
-                return try await group.reduce(0, +)
+                var written = 0
+                while let count = try await group.next() {
+                    written += count
+                    if failure.withLock({ $0 != nil }) {
+                        group.cancelAll()
+                        break
+                    }
+                }
+                return written
             }
             guard written == unique.count else {
                 throw failure.withLock { $0 } ?? REAPICacheError.corruptBlob
@@ -1223,6 +1235,12 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 }
                 if granted { continuation.resume() }
             }
+        }
+
+        func run<T>(_ operation: () async throws -> T) async rethrows -> T {
+            await acquire()
+            defer { release() }
+            return try await operation()
         }
 
         func release() {
