@@ -76,7 +76,10 @@ readable project/job keys. Mix owns compiler and dependency invalidation; do not
 add lockfile-hash keys, compatibility-marker scripts or physical-path rewrites.
 Always run dependency resolution and compilation on hits. Never retain ~/.hex
 or authentication configuration. Preserve setup-server-mix's explicit
-restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
+restore-mix-cache=false callers, and its `deps` callers, which attach only `deps`.
+Do not add volume-specific composite wrappers.
+`mise-cache-volume: "true"` keeps mise's data directory on a per-job volume and
+turns off mise-action's archive cache; mise still installs whatever is missing.
 
 ## Server test sharding
 
@@ -93,12 +96,10 @@ so migration regression tests do not redefine modules already loaded by setup.
 Date the shard's checkout to the commit time before `db:reset`: a checkout newer
 than the downloaded build makes Mix treat `noora` and `tuist_common` as changed and
 recompile the app.
-Shards keep `restore-mix-cache: "false"` and instead restore `server/deps`
-read-only from the `actions/cache` entry the build job saves under the `mix.lock`
-key, then still run `mix deps.get`. `setup-server-mix` restores it after the mise
-install: mise-action hashes every `.tool-versions` in the workspace into its cache
-key, and some dependencies ship one. Postgres service health checks poll every
-second as the `postgres` role; probing as `root` logs a FATAL on every check.
+The build job and shards attach only the `deps` volume (`restore-mix-cache: deps`)
+and keep mise on a volume (`mise-cache-volume: "true"`); `_build` stays empty in the
+build job and comes from the download in shards. Postgres service health checks poll
+every second as the `postgres` role; probing as `root` logs a FATAL on every check.
 Take shard references from the build job's outputs, not the current run attempt,
 so rerunning only failed jobs reuses the original plan. Keep distinct `--scheme`
 labels for ClickHouse variants so their outcomes are not treated as flaky reruns.

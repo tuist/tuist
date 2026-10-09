@@ -7,15 +7,11 @@ inputs:
     required: false
     default: erlang elixir
   restore-mix-cache:
-    description: Restore the cached server deps + _build state before fetching dependencies
+    description: Attach the server deps and _build cache volumes ("true"), only deps ("deps"), or neither ("false") before fetching dependencies
     required: false
     default: "true"
-  deps-cache-key:
-    description: actions/cache key to restore server/deps from before fetching dependencies. Empty skips it.
-    required: false
-    default: ""
-  save-deps-cache:
-    description: Also save server/deps under deps-cache-key when the job succeeds without an exact hit
+  mise-cache-volume:
+    description: Keep mise's data directory on a cache volume instead of restoring mise-action's archive cache
     required: false
     default: "false"
   mix-os-deps-compile-partition-count:
@@ -33,14 +29,19 @@ runs:
     - name: Tune Mix dependency compilation parallelism
       shell: bash
       run: echo "MIX_OS_DEPS_COMPILE_PARTITION_COUNT=${{ inputs.mix-os-deps-compile-partition-count }}" >> "$GITHUB_ENV"
+    - uses: tuist/cache-volume@v1
+      if: ${{ inputs['mise-cache-volume'] == 'true' }}
+      with:
+        path: ~/.local/share/mise
+        key: ci-server-${{ github.job }}-mise-v1
     - uses: ./.github/actions/mise-install
       with:
         install: ${{ inputs.mise-install-args }}
-        cache: "true"
+        cache: ${{ inputs['mise-cache-volume'] == 'true' && 'false' || 'true' }}
         working-directory: server
         github-token: ${{ inputs.github-token || env.MISE_GITHUB_TOKEN }}
     - uses: tuist/cache-volume@v1
-      if: ${{ inputs['restore-mix-cache'] == 'true' }}
+      if: ${{ inputs['restore-mix-cache'] == 'true' || inputs['restore-mix-cache'] == 'deps' }}
       with:
         path: server/deps
         key: ci-server-${{ github.job }}-deps-v2
@@ -49,18 +50,6 @@ runs:
       with:
         path: server/_build
         key: ci-server-${{ github.job }}-build-v2
-    # After the mise install: dependencies ship .tool-versions files, which
-    # would change the key mise-action hashes from the workspace's mise configs.
-    - uses: actions/cache/restore@v4
-      if: ${{ inputs['deps-cache-key'] != '' && inputs['save-deps-cache'] != 'true' }}
-      with:
-        path: server/deps
-        key: ${{ inputs['deps-cache-key'] }}
-    - uses: actions/cache@v4
-      if: ${{ inputs['deps-cache-key'] != '' && inputs['save-deps-cache'] == 'true' }}
-      with:
-        path: server/deps
-        key: ${{ inputs['deps-cache-key'] }}
     - uses: ./.github/actions/mix-deps-get
       with:
         working-directory: server
