@@ -11,8 +11,10 @@ defmodule Tuist.Kura.ClaimSizing do
   the next one confirm on a single day of the resized ring that cycled at least
   a ring, within each rung's own window of the resize.
 
-  Shrinking has two signals. A ring that never fills produces no shed age at
-  all, so it shrinks on occupancy. A ring that rotates shrinks on retention
+  Shrinking has two signals. A ring that never evicts produces no shed age at
+  all, so it shrinks on occupancy: every day of a month either stayed under
+  the occupancy line or peaked where holding it at the target occupancy would
+  take at least a tenth less claim. A ring that rotates shrinks on retention
   once every day of a month kept its content for three retention floors: it
   lands where the floor plus the growth headroom would be kept, at most halving
   the claim in one step and never under the plan's starting claim. Both are
@@ -68,6 +70,7 @@ defmodule Tuist.Kura.ClaimSizing do
     shrink_window_days: 30,
     shrink_occupancy_percent: 40,
     shrink_target_occupancy_percent: 60,
+    shrink_min_reduction_percent: 10,
     # Three floors, so the halving one step may take still leaves a ring
     # holding 1.5 floors, clear of the 1.25 growth projects to and twice the
     # floor the longest growth rung reads.
@@ -192,7 +195,14 @@ defmodule Tuist.Kura.ClaimSizing do
         {target_bytes, evidence} = grow
         {:grow, region, target_bytes, claim_bytes, Map.put(evidence, "region_claim_size", claim)}
 
-      window = qualifying_window(by_date, context.today, policy.shrink_window_days, 0, &shrink_standing(&1, policy)) ->
+      window =
+          qualifying_window(
+            by_date,
+            context.today,
+            policy.shrink_window_days,
+            0,
+            &shrink_standing(&1, claim_bytes, policy)
+          ) ->
         {:shrink, :occupancy, region, shrink_target_bytes(window, policy), claim_bytes, shrink_evidence(window, policy)}
 
       retention = retention_verdict(by_date, floor_seconds, claim_bytes, context, policy) ->
@@ -314,22 +324,33 @@ defmodule Tuist.Kura.ClaimSizing do
 
   # A day without snapshots breaks the streak: absence of evidence is not a
   # small working set.
-  defp shrink_day?(rollup, policy) do
+  defp shrink_day?(rollup, claim_bytes, policy) do
     rollup.snapshot_count > 0 and rollup.eviction_count == 0 and
-      rollup.max_occupancy_percent != nil and
-      rollup.max_occupancy_percent < policy.shrink_occupancy_percent
+      rollup.max_occupancy_percent != nil and room_to_shrink?(rollup, claim_bytes, policy)
+  end
+
+  # A ring that never evicts but sits between the occupancy line and the
+  # target still holds more than it needs. It qualifies when its peak, held
+  # at the target occupancy, fits in a claim at least the minimum reduction
+  # smaller, so a ring already near the target is not rebuilt for a sliver. A
+  # day with no live reading measured no peak to hold.
+  defp room_to_shrink?(rollup, claim_bytes, policy) do
+    rollup.max_occupancy_percent < policy.shrink_occupancy_percent or
+      (is_integer(rollup.max_live_segment_bytes) and
+         rollup.max_live_segment_bytes * 100 * 100 <=
+           claim_bytes * policy.shrink_target_occupancy_percent * (100 - policy.shrink_min_reduction_percent))
   end
 
   # A live day only adds evictions and raises its peak, so today's row that has
   # already evicted or filled past the line contradicts the shrink however
   # early in the day it is.
-  defp shrink_standing(nil, _policy), do: :breaks
+  defp shrink_standing(nil, _claim_bytes, _policy), do: :breaks
 
-  defp shrink_standing(rollup, policy) do
+  defp shrink_standing(rollup, claim_bytes, policy) do
     cond do
-      shrink_day?(rollup, policy) -> :qualifies
+      shrink_day?(rollup, claim_bytes, policy) -> :qualifies
       rollup.eviction_count > 0 -> :contradicts
-      (rollup.max_occupancy_percent || 0) >= policy.shrink_occupancy_percent -> :contradicts
+      rollup.max_occupancy_percent != nil and not room_to_shrink?(rollup, claim_bytes, policy) -> :contradicts
       true -> :breaks
     end
   end
@@ -713,6 +734,7 @@ defmodule Tuist.Kura.ClaimSizing do
       "signal" => "occupancy_below_threshold",
       "window_days" => length(window),
       "occupancy_threshold_percent" => policy.shrink_occupancy_percent,
+      "min_reduction_percent" => policy.shrink_min_reduction_percent,
       "max_occupancy_percent" => window |> Enum.map(& &1.max_occupancy_percent) |> Enum.max(),
       "peak_live_segment_bytes" => window |> Enum.map(&(&1.max_live_segment_bytes || 0)) |> Enum.max()
     }
