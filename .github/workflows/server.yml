@@ -279,8 +279,9 @@ jobs:
           TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-server-floor
   test:
     name: Test
-    # Keep the 4 vCPU / 16 GB shape for the tests and their database services.
-    runs-on: tuist-linux-large
+    # Shards download the compiled build from Build Test Shards, so they fit the
+    # default shape and stay out of the large pool's queue.
+    runs-on: tuist-linux
     timeout-minutes: 30
     needs: test-build
     permissions:
@@ -314,6 +315,11 @@ jobs:
           restore-mix-cache: "false"
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
+      # A checkout newer than the downloaded build makes Mix treat the path
+      # dependencies as changed and recompile the app in db:reset.
+      - name: Date the checkout to the commit
+        working-directory: .
+        run: git ls-files -z server noora tuist_common tuist_ex | xargs -0 touch -d "@$(git log -1 --format=%ct)"
       - name: Download the test build
         run: mix 'do' deps.compile tuist_ex + tuist.test --prepare-only
       # Run migrations in another process so migration regression tests can
@@ -326,7 +332,7 @@ jobs:
     name: Test (oldest supported ClickHouse)
     # Keep exercising the release declared by Tuist.ClickHouseVersions, including
     # every migration, rather than testing only against the newer hosted release.
-    runs-on: tuist-linux-large
+    runs-on: tuist-linux
     timeout-minutes: 30
     needs: test-build
     permissions:
@@ -370,6 +376,9 @@ jobs:
           clickhouse --version
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
+      - name: Date the checkout to the commit
+        working-directory: .
+        run: git ls-files -z server noora tuist_common tuist_ex | xargs -0 touch -d "@$(git log -1 --format=%ct)"
       - name: Download the test build
         run: mix 'do' deps.compile tuist_ex + tuist.test --prepare-only
       - name: Setup database

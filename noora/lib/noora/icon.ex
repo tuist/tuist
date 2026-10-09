@@ -40,7 +40,17 @@ defmodule Noora.Icon do
   use Phoenix.Component
 
   @icons_path Path.join(File.cwd!(), "lib/noora/icons")
-  @external_resource @icons_path
+
+  # Recompiles when icons are added or removed. The directory itself is not an
+  # external resource: Mix can't digest it, so any checkout would recompile.
+  @icon_files @icons_path |> File.ls!() |> Enum.filter(&(Path.extname(&1) == ".svg")) |> Enum.sort()
+
+  def __mix_recompile__? do
+    case File.ls(@icons_path) do
+      {:ok, files} -> files |> Enum.filter(&(Path.extname(&1) == ".svg")) |> Enum.sort() != @icon_files
+      {:error, _} -> true
+    end
+  end
 
   # Noora icons must be filled paths (`fill="currentColor"`) so they render and
   # animate (morph) correctly. Stroked icons would render as solid blobs, so we

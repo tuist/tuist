@@ -83,10 +83,16 @@ restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
 `server.yml` compiles the test build once and creates separate four-shard plans
 for current and oldest-supported ClickHouse, with references scoped to the GitHub
 run, attempt, and variant. Each shard owns fresh PostgreSQL and ClickHouse databases.
-Bootstrap only `tuist_ex`, authenticate with `mix tuist.login` using GitHub
-OpenID Connect, and download with `mix tuist.test --prepare-only`. Run `db:reset`
+Only the build job compiles, so it stays on `tuist-linux-large` while the shards
+run on the default `tuist-linux` shape.
+Bootstrap only `tuist_ex` and download with `mix tuist.test --prepare-only`;
+`tuist_ex` exchanges the job's GitHub OpenID Connect token itself, so there is no
+login step. Run `db:reset`
 in a separate process before `mix tuist.test --no-download --warnings-as-errors`,
 so migration regression tests do not redefine modules already loaded by setup.
+Date the shard's checkout to the commit time before `db:reset`: a checkout newer
+than the downloaded build makes Mix treat `noora` and `tuist_common` as changed and
+recompile the app.
 Take shard references from the build job's outputs, not the current run attempt,
 so rerunning only failed jobs reuses the original plan. Keep distinct `--scheme`
 labels for ClickHouse variants so their outcomes are not treated as flaky reruns.
