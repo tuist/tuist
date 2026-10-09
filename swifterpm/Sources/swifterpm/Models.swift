@@ -133,9 +133,8 @@ struct ResolvedPin: Codable, Equatable, Sendable {
         case state
     }
 
-    /// Locations keep the spelling SwiftPM recorded. Canonicalizing them here would make the
-    /// lockfile change whenever SwiftPM and SwifterPM take turns writing it, so comparisons and
-    /// cache keys go through `SourceControlLocations.canonicalLocation` instead.
+    /// Keeps the location spelling SwiftPM recorded, so the lockfile is the same whichever tool
+    /// wrote it. Comparisons and cache keys use `SourceControlLocations.canonicalLocation`.
     func normalizedForResolvedFile(mirrors: MirrorConfig) -> ResolvedPin {
         var normalized = self
         guard PinKind.isSourceControl(kind) else { return normalized }
