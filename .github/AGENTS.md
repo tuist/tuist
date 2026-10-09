@@ -63,6 +63,12 @@ limitation explicit when reporting smoke results.
 and teardown/publication path on main. Run seed, then verify with the same key
 after publication; fail then verify checks that failed-job writes are discarded.
 Require the symlink/APFS mount and warm hit so a cold fallback cannot pass.
+The smoke retains real CLI Swift package dependencies in `.build` and runs
+`tuist install --force-resolved-versions` in both phases. Verify saved dependency
+manifest checksums before installing on warm runs. Its key includes the runner
+profile, Xcode version file, package manifest and lockfile; reuse all of them
+across phases. Keep authentication outside the cached directory and do not
+restore an archive cache into the same path.
 ## Bazel and Mix cache volumes
 
 Kura's `.bazelrc` configures repository downloads and disk action caching under
