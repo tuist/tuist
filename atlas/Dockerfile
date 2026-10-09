@@ -5,18 +5,18 @@
 # local path dependency, so both `atlas/` and `noora/` need to be
 # available inside the builder image. All COPY sources are therefore
 # repo-relative (e.g. `atlas/mix.exs`, `noora`).
-ARG ELIXIR_VERSION=1.20.2
-ARG OTP_VERSION=29.0.3
-# hexpm/elixir uses date-pinned tags. bookworm-20260623-slim is the
-# combination that has a published image for the pinned Elixir/OTP.
-# The runner base needs to be a real debian tag that also exists on
-# Docker Hub for the same architecture. The Condukt native dependency needs
-# GNU C Library 2.38 or newer, so the runner uses Debian Trixie.
-ARG DEBIAN_BUILDER_VERSION=bookworm-20260623-slim
-ARG DEBIAN_RUNNER_VERSION=trixie-slim
-
-ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_BUILDER_VERSION}"
-ARG RUNNER_IMAGE="debian:${DEBIAN_RUNNER_VERSION}"
+# The builder matches the Elixir and Erlang versions in the root mise.toml.
+# hexpm/elixir uses date-pinned tags; bookworm-20260623-slim is the
+# combination that has a published image for that Elixir/OTP pair.
+# The Condukt native dependency needs GNU C Library 2.38 or newer, so the
+# runner uses Debian Trixie.
+#
+# Base images are pinned by digest so Once can cache individual instructions
+# in CI without a moving tag serving a stale image. A reference with both a
+# tag and a digest is pulled by the digest alone, so each image is written
+# out as one literal and its tag and digest change in the same edit.
+ARG BUILDER_IMAGE=hexpm/elixir:1.20.2-erlang-29.0.3-debian-bookworm-20260623-slim@sha256:4ced3cb72e20ff8ad8315ec05af520c43431ea2ae459a205f5217670df45f2cf
+ARG RUNNER_IMAGE=debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
 
 # ========================================
 # Stage: noora asset builder
@@ -24,7 +24,7 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_RUNNER_VERSION}"
 # in the runtime image. Kept in a separate stage so the Elixir builder
 # doesn't need Node/aube in its layer.
 # ========================================
-FROM node:22-slim AS noora-assets
+FROM node:22-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS noora-assets
 
 ENV CI=1
 ENV XDG_DATA_HOME="/aube-data"

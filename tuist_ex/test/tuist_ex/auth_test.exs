@@ -304,6 +304,61 @@ defmodule TuistEx.AuthTest do
              Auth.token(url: "https://tuist.example", environment: context.environment)
   end
 
+  test "retries the GitHub Actions identity token request on transient failures", context do
+    {:ok, attempts} = Agent.start_link(fn -> [{:ok, 503, %{}}, {:error, :timeout}] end)
+
+    expect(HTTP, :request, 3, fn :get, "https://actions.example/token?audience=tuist", nil, _ ->
+      Agent.get_and_update(attempts, fn
+        [response | rest] -> {response, rest}
+        [] -> {{:ok, 200, %{"value" => "identity"}}, []}
+      end)
+    end)
+
+    expect(HTTP, :request, fn :post, "https://tuist.example/api/auth/oidc/token", body ->
+      assert body == %{token: "identity"}
+      {:ok, 200, %{"access_token" => "access"}}
+    end)
+
+    test_pid = self()
+
+    assert {:ok, "access"} =
+             Auth.token(
+               url: "https://tuist.example",
+               environment: github_actions(context),
+               sleep: &send(test_pid, {:slept, &1})
+             )
+
+    assert_received {:slept, 1_000}
+    assert_received {:slept, 2_000}
+  end
+
+  test "gives up on the GitHub Actions identity token request after repeated failures",
+       context do
+    expect(HTTP, :request, 5, fn :get, "https://actions.example/token?audience=tuist", nil, _ ->
+      {:ok, 503, %{}}
+    end)
+
+    assert {:error, "GitHub Actions identity token request failed (503): Unexpected response"} =
+             Auth.token(
+               url: "https://tuist.example",
+               environment: github_actions(context),
+               sleep: fn _ -> :ok end
+             )
+  end
+
+  test "does not retry the GitHub Actions identity token request on client errors", context do
+    expect(HTTP, :request, fn :get, "https://actions.example/token?audience=tuist", nil, _ ->
+      {:ok, 403, %{"message" => "Forbidden"}}
+    end)
+
+    assert {:error, "GitHub Actions identity token request failed (403): Forbidden"} =
+             Auth.token(
+               url: "https://tuist.example",
+               environment: github_actions(context),
+               sleep: fn _ -> flunk("unexpected retry") end
+             )
+  end
+
   test "returns an error instead of raising when GitHub Actions withholds the identity token",
        context do
     reject(&HTTP.request/4)
@@ -346,6 +401,15 @@ defmodule TuistEx.AuthTest do
     fn
       "CIRCLECI" -> "true"
       "CIRCLE_OIDC_TOKEN_V2" -> "identity"
+      key -> context.environment.(key)
+    end
+  end
+
+  defp github_actions(context) do
+    fn
+      "GITHUB_ACTIONS" -> "true"
+      "ACTIONS_ID_TOKEN_REQUEST_URL" -> "https://actions.example/token"
+      "ACTIONS_ID_TOKEN_REQUEST_TOKEN" -> "request-token"
       key -> context.environment.(key)
     end
   end
