@@ -49,6 +49,14 @@ on:
           reports IPv6 reachability and reaches GitHub over HTTPS and SSH.
         required: false
         default: ""
+      throughput_check:
+        description: Time a 500 MB GitHub release download and a shallow clone of a large repository
+        type: boolean
+        default: false
+      pf_route_to_check:
+        description: Check inside the VM whether pf drops traffic routed to an interface that does not exist
+        type: boolean
+        default: false
 
   # Also fires when this workflow file itself changes on the
   # feat/runners-shape-2 branch. The smoke isn't a default CI
@@ -78,7 +86,7 @@ jobs:
     # to also list `self-hosted` (which is advertised on the
     # runner but isn't an authorization boundary).
     runs-on: tuist-staging-macos
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Show environment
         run: |
@@ -136,6 +144,35 @@ jobs:
           esac
           [ "${observed}" = "${EXPECTED_EGRESS_IP}" ] && [ "${second}" = "${EXPECTED_EGRESS_IP}" ] || { echo "::error::expected egress ${EXPECTED_EGRESS_IP}"; exit 1; }
           echo "Egress is the dedicated address."
+
+      - name: Egress throughput
+        if: github.event_name == 'workflow_dispatch' && inputs.throughput_check
+        run: |
+          set -uo pipefail
+          url=https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.0/LLVM-19.1.0-macOS-ARM64.tar.xz
+          curl -fL -s -o /dev/null -r 0-524287999 \
+            -w "release asset: %{size_download} bytes in %{time_total}s (%{speed_download} B/s)\n" "$url"
+          start=$(date +%s)
+          git clone -q --depth 1 https://github.com/apple/swift.git "$RUNNER_TEMP/swift-clone"
+          end=$(date +%s)
+          echo "git clone --depth 1 apple/swift: $(du -sh "$RUNNER_TEMP/swift-clone" | cut -f1) in $((end - start))s"
+          rm -rf "$RUNNER_TEMP/swift-clone"
+
+      - name: pf route-to a missing interface
+        if: github.event_name == 'workflow_dispatch' && inputs.pf_route_to_check
+        run: |
+          set -uo pipefail
+          target=1.1.1.1
+          curl -fsS -m 8 -o /dev/null "https://${target}" && echo "control: ${target} reachable"
+          sudo pfctl -E 2>&1 | grep -i token || true
+          echo "pass out quick route-to (utun250 198.18.250.1) inet proto tcp from any to ${target} port 443 flags any keep state" \
+            | sudo pfctl -a com.apple/0.tuist.egress.test -f -
+          if curl -fsS -m 8 -o /dev/null "https://${target}"; then
+            echo "::warning::route-to a missing interface PASSED the traffic through normal routing"
+          else
+            echo "route-to a missing interface DROPPED the traffic"
+          fi
+          sudo pfctl -a com.apple/0.tuist.egress.test -F all >/dev/null 2>&1 || true
 
       - name: Hold the runner to produce a billable window
         if: >-
