@@ -166,7 +166,8 @@ jobs:
           before=$(du -sk .build/ | awk '{print $1}')
           swifterpm_before=$(du -sk "$swifterpm_cache/" | awk '{print $1}')
           started=$SECONDS
-          tuist install --force-resolved-versions --cache-path "$swifterpm_cache"
+          env -u PHASE -u CACHE_HIT -u SWIFTERPM_CACHE_HIT -u WRITER_ID \
+            tuist install --force-resolved-versions --cache-path "$swifterpm_cache"
           elapsed=$((SECONDS - started))
           test -L .build
           test -L "$swifterpm_cache"
