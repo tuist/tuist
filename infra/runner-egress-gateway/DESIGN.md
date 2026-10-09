@@ -58,7 +58,7 @@ WireGuard over the public internet to FIP_G:port_G
    active md-egress node, and it moves with the address on failover)
   ▼
 runner-egress-gateway pod G, a DaemonSet on md-egress candidates
-  hostPort UDP port_G -> pod netns (kernel WireGuard, NET_ADMIN)
+  Service externalIP FIP_G:port_G -> pod netns (kernel WireGuard, NET_ADMIN)
   peers  = darwin Nodes: tuist.dev/runner-egress-public-key annotation +
            Node InternalIP/32 (the host's tailnet IP: unique, no allocator)
   forwards wg0 -> eth0 to public destinations only (drops private and
@@ -185,10 +185,12 @@ agent:
    on every egress candidate, so a standby already holds the same key when
    the Floating IP moves.
 
-`hostPort: port_G/UDP` maps the Floating IP's port into the pod. Cilium's BPF
-hostPort has to match a Floating IP that the host-configurer adds at runtime;
-that needs checking on staging. If it doesn't match, the fallback is a
-hostNetwork pod that creates `wg0` in a netns the agent owns.
+A Service with the Floating IP as an external IP (`externalTrafficPolicy:
+Local`) delivers `port_G/UDP` to the gateway pod on the active node. A
+`hostPort` doesn't work: Cilium matches hostPort only against node addresses
+it knew at startup, so it never sees a Floating IP the host-configurer adds
+later. Staging showed exactly that, with handshakes arriving on `eth0` and
+never reaching the pod. The external IP is matched by destination.
 
 Phase 2 at BER1 runs the same agent in `address:<ip>` mode on the edge box,
 SNATing straight to the /24 address.
@@ -292,6 +294,5 @@ then, Linux dispatch skips dedicated-egress accounts.
    - pf `route-to` plus NAT through the utun
    - the missing-interface behaviour
    - IPv6
-   - Cilium hostPort on a Floating IP
    - throughput through the tunnel (a clone of a large repo, and a Homebrew
      bottle install)

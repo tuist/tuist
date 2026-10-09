@@ -199,7 +199,10 @@ dedicated egress address (see
 Each enabled entry renders, in `runnerEgressGatewaysNamespace`:
 
 - `DaemonSet/runner-egress-gateway-<name>` on the egress candidates. It listens
-  for WireGuard on `hostPort: <port>/UDP` and peers with the darwin Nodes.
+  for WireGuard on `<port>/UDP` and peers with the darwin Nodes.
+- `Service/runner-egress-gateway-<name>` with the gateway's `egressIP` as an
+  external IP, which is how WireGuard sent to the Floating IP reaches the pod
+  on the active node.
 - `ExternalSecret/runner-egress-gateway-<name>` with the WireGuard private key
   from 1Password (`privateKeySecret.item` / `privateKeySecret.property`).
 - `CiliumEgressGatewayPolicy/runner-egress-gateway-<name>`, which sends the

@@ -16,7 +16,7 @@ metadata:
   name: {{ $namespace | quote }}
   labels:
     app.kubernetes.io/component: runner-egress-gateway
-    # NET_ADMIN and hostPort are outside the baseline Pod Security profile.
+    # NET_ADMIN is outside the baseline Pod Security profile.
     pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/audit: privileged
     pod-security.kubernetes.io/warn: privileged
@@ -131,7 +131,6 @@ spec:
           ports:
             - name: wireguard
               containerPort: {{ $gw.port }}
-              hostPort: {{ $gw.port }}
               protocol: UDP
             - name: probe
               containerPort: 8081
@@ -165,6 +164,32 @@ spec:
             items:
               - key: private-key
                 path: private-key
+---
+# Delivers WireGuard to the gateway on the Floating IP. Cilium's hostPort
+# only matches addresses it knew at startup, so it never sees a Floating IP
+# the host-configurer adds later; an external IP is matched by destination.
+# Local keeps the tunnel on the node Hetzner routes the address to.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullName | quote }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    app.kubernetes.io/name: runner-egress-gateway
+    tuist.dev/runner-egress-gateway-pod: {{ $gw.name | quote }}
+spec:
+  type: ClusterIP
+  externalIPs:
+    - {{ $gw.egressIP | quote }}
+  externalTrafficPolicy: Local
+  selector:
+    app.kubernetes.io/name: runner-egress-gateway
+    tuist.dev/runner-egress-gateway-pod: {{ $gw.name | quote }}
+  ports:
+    - name: wireguard
+      port: {{ $gw.port }}
+      targetPort: wireguard
+      protocol: UDP
 ---
 apiVersion: cilium.io/v2
 kind: CiliumEgressGatewayPolicy
