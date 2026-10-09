@@ -2629,6 +2629,77 @@ defmodule Tuist.BillingTest do
     end
   end
 
+  describe "start_open_source_plan/1" do
+    setup do
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "open_source" => %{
+            "usage" => ["open_source.usage"],
+            "flat_monthly" => ["open_source.flat.monthly"]
+          },
+          "runners" => %{"runner_macos_minutes" => "runner.macos"},
+          "usage_meters" => %{"passing_test_cases" => "meter.passing_test_cases"}
+        }
+      end)
+
+      :ok
+    end
+
+    test "creates a customer and a subscription carrying only the open source prices" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: nil)
+      account = Accounts.get_account_from_user(user)
+
+      expect(Stripe.Customer, :create, fn _ -> {:ok, %Stripe.Customer{id: "cus_open_source"}} end)
+
+      expect(Stripe.Subscription, :create, fn %{
+                                                customer: "cus_open_source",
+                                                items: [
+                                                  %{price: "open_source.flat.monthly"},
+                                                  %{price: "open_source.usage"}
+                                                ]
+                                              } = params ->
+        assert map_size(params) == 2
+
+        {:ok,
+         %{
+           id: "sub_open_source",
+           status: "active",
+           customer: "cus_open_source",
+           default_payment_method: nil,
+           items: %{
+             data: [
+               %{price: %{id: "open_source.flat.monthly"}},
+               %{price: %{id: "open_source.usage"}}
+             ]
+           }
+         }}
+      end)
+
+      # When
+      {:ok, stripe_sub} = Billing.start_open_source_plan(account)
+
+      # Then
+      assert stripe_sub.id == "sub_open_source"
+
+      assert %{plan: :open_source, status: "active", subscription_id: "sub_open_source"} =
+               Billing.get_current_active_subscription(account)
+    end
+
+    test "refuses an account that already has a live subscription" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+
+      reject(&Stripe.Subscription.create/1)
+
+      # When / Then
+      assert {:error, :subscription_exists} = Billing.start_open_source_plan(account)
+      assert %{plan: :pro} = Billing.get_current_active_subscription(account)
+    end
+  end
+
   describe "upgrade_to_enterprise/2" do
     test "creates an invoice-billed subscription and updates the customer when no sub exists" do
       # Given
