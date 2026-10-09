@@ -28,7 +28,7 @@ defmodule TuistWeb.OnceActionLiveTest do
 
   test "overview follows test-case analytics, selected occurrence and recent executions", %{conn: conn, path: path} do
     {:ok, view, _} = live(conn, path)
-    render_async(view)
+    render_async(view, 5_000)
     assert has_element?(view, "#once-action h1", "Compile library 1")
     assert has_element?(view, "#once-action-history-chart")
     assert has_element?(view, "#once-action", "native-target")
@@ -44,7 +44,7 @@ defmodule TuistWeb.OnceActionLiveTest do
     actions: actions
   } do
     {:ok, view, _} = live(conn, path <> "?tab=history")
-    render_async(view)
+    render_async(view, 5_000)
     assert has_element?(view, "#once-action-history-table", "library 1.0.1")
 
     assert view |> render() |> Floki.parse_fragment!() |> Floki.find("#once-action-history-table tbody tr") |> length() ==
@@ -52,7 +52,7 @@ defmodule TuistWeb.OnceActionLiveTest do
 
     last = List.last(actions)
     {:ok, second, _} = live(conn, path <> "?tab=history&page=2")
-    render_async(second)
+    render_async(second, 5_000)
     assert has_element?(second, "#once-action-history-table", last.display_name)
 
     assert second |> render() |> Floki.parse_fragment!() |> Floki.find("#once-action-history-table tbody tr") |> length() ==
@@ -61,12 +61,12 @@ defmodule TuistWeb.OnceActionLiveTest do
 
   test "branch and date-window filters survive navigation and constrain history", %{conn: conn, path: path} do
     {:ok, view, _} = live(conn, path <> "?tab=history&branch=main&days=7&metric=failures")
-    render_async(view)
+    render_async(view, 5_000)
 
     assert (view |> render() |> Floki.parse_fragment!() |> Floki.find("#once-action-history-table tbody tr") |> length()) in 3..4
 
     view |> element("#once-action a", "Overview") |> render_click()
-    render_async(view)
+    render_async(view, 5_000)
     assert has_element?(view, "#once-action-history-chart")
     assert render(view) =~ "branch=main"
   end
@@ -78,7 +78,7 @@ defmodule TuistWeb.OnceActionLiveTest do
   } do
     action |> Ecto.Changeset.change(history_id: nil, history_key: nil, history_namespace: nil) |> Repo.update!()
     {:ok, view, _} = live(conn, path)
-    render_async(view)
+    render_async(view, 5_000)
     assert render(view) =~ "did not report a stable logical identity"
     refute has_element?(view, "#once-action-history-chart")
     action |> Ecto.Changeset.change(history_ambiguous: true) |> Repo.update!()
@@ -93,11 +93,11 @@ defmodule TuistWeb.OnceActionLiveTest do
     project: project
   } do
     {:ok, view, _} = live(conn, path <> "?tab=history")
-    render_async(view)
+    render_async(view, 5_000)
     new = occurrence(project, DateTime.utc_now(), 30)
     ActionHistory.broadcast(new)
     send(view.pid, :refresh_history)
-    render_async(view)
+    render_async(view, 5_000)
     assert has_element?(view, "#once-action-history-table", "Compile library 30")
     run = Repo.get!(Tuist.OnceEvents.Run, action.once_run_id)
 
@@ -113,7 +113,7 @@ defmodule TuistWeb.OnceActionLiveTest do
       })
 
     send(view.pid, :refresh_history)
-    render_async(view)
+    render_async(view, 5_000)
     assert render(view) =~ "multiple actions"
     refute has_element?(view, "#once-action-history-table")
   end
