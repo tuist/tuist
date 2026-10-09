@@ -10,16 +10,24 @@ defmodule Tuist.Authentication do
   alias Tuist.Projects
 
   def authenticated_subject(token) do
+    case authenticated_subject_snapshot(token) do
+      nil -> nil
+      snapshot -> snapshot.subject
+    end
+  end
+
+  def authenticated_subject_snapshot(token) do
     case Tuist.Guardian.resource_from_token(token) do
       {:ok, %AuthenticatedAccount{} = resource, claims} ->
         if Accounts.agent_registration_credential_revoked?(claims) do
           nil
         else
-          reject_if_inactive_account_user(resource)
+          snapshot(reject_if_inactive_account_user(resource), Map.get(claims, "exp"))
         end
 
-      {:ok, resource, _opts} ->
-        resource |> Tuist.Repo.preload(:account) |> reject_if_inactive_user()
+      {:ok, resource, claims} ->
+        subject = resource |> Tuist.Repo.preload(:account) |> reject_if_inactive_user()
+        snapshot(subject, Map.get(claims, "exp"))
 
       _ ->
         user = Accounts.get_user_by_token(token)
@@ -27,10 +35,14 @@ defmodule Tuist.Authentication do
         if is_nil(user) do
           account_or_project_token(token)
         else
-          reject_if_inactive_user(user)
+          snapshot(reject_if_inactive_user(user), nil)
         end
     end
   end
+
+  defp snapshot(nil, _expiry), do: nil
+  defp snapshot(subject, %DateTime{} = expiry), do: snapshot(subject, DateTime.to_unix(expiry))
+  defp snapshot(subject, expiry), do: %{subject: subject, expires_at: expiry}
 
   defp reject_if_inactive_user(%User{active: false}), do: nil
   defp reject_if_inactive_user(%User{} = user), do: Accounts.touch_last_sign_in(user)
@@ -74,20 +86,23 @@ defmodule Tuist.Authentication do
         {:ok, account_token} ->
           touch_account_owner_sign_in(account_token.account)
 
-          %AuthenticatedAccount{
-            account: account_token.account,
-            scopes: account_token.scopes,
-            all_projects: account_token.all_projects,
-            project_ids: Enum.map(account_token.account_token_projects, & &1.project_id),
-            token_id: account_token.id,
-            created_by_account_id: account_token.created_by_account_id
-          }
+          snapshot(
+            %AuthenticatedAccount{
+              account: account_token.account,
+              scopes: account_token.scopes,
+              all_projects: account_token.all_projects,
+              project_ids: Enum.map(account_token.account_token_projects, & &1.project_id),
+              token_id: account_token.id,
+              created_by_account_id: account_token.created_by_account_id
+            },
+            account_token.expires_at
+          )
 
         _ ->
           nil
       end
     else
-      project_token
+      snapshot(project_token, nil)
     end
   end
 
