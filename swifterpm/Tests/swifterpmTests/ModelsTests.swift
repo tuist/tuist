@@ -103,7 +103,7 @@ struct ModelsTests {
     }
 
     @Test
-    func registryPinNormalizesOriginalLocationFromReplaceSCMWithRegistry() async throws {
+    func registryPinPreservesOriginalLocationFromReplaceSCMWithRegistry() async throws {
         // SwiftPM emits `originalLocation` on pins it rewrote via
         // --replace-scm-with-registry so the next resolve can skip the
         // registry identifier lookup. Dropping it on the read/write
@@ -137,8 +137,8 @@ struct ModelsTests {
             let readBackByIdentity = Dictionary(uniqueKeysWithValues: readBack.pins.map {
                 ($0.identity, $0)
             })
-            #expect(readBackByIdentity["apple.swift-log"]?.originalLocation == "https://github.com/Apple/swift-log")
-            #expect(readBackByIdentity["example.package"]?.originalLocation == "https://source.example.com/Tuist/SwifterPM.git")
+            #expect(readBackByIdentity["apple.swift-log"]?.originalLocation == "https://github.com/Apple/swift-log.git")
+            #expect(readBackByIdentity["example.package"]?.originalLocation == "HTTPS://Source.Example.com/Tuist/SwifterPM.git")
 
             let resolvedFilePath = root.appendingPathComponent("Package.resolved")
             let rawData = try await fileSystem.readFile(at: resolvedFilePath.absolutePath)
@@ -152,14 +152,15 @@ struct ModelsTests {
                     return (identity, pin)
                 }
             )
-            #expect(rawPinsByIdentity["apple.swift-log"]?["originalLocation"] as? String == "https://github.com/Apple/swift-log")
+            #expect(rawPinsByIdentity["apple.swift-log"]?["originalLocation"] as? String ==
+                "https://github.com/Apple/swift-log.git")
             #expect(rawPinsByIdentity["example.package"]?["originalLocation"] as? String ==
-                "https://source.example.com/Tuist/SwifterPM.git")
+                "HTTPS://Source.Example.com/Tuist/SwifterPM.git")
         }
     }
 
     @Test
-    func writeNormalizesRemoteLocationsAndSkipsIdenticalRewrites() async throws {
+    func writePreservesRemoteLocationsAndSkipsIdenticalRewrites() async throws {
         try await withTemporaryDirectory { root in
             try await writeMinimalPackageManifest(at: root, name: "Fixture")
             let pins = [
@@ -234,14 +235,7 @@ struct ModelsTests {
                 "generic",
                 "swifterpm",
             ]))
-            #expect(rawPinsByIdentity["combineext"]?["location"] as? String == "https://github.com/CombineCommunity/CombineExt")
-            #expect(rawPinsByIdentity["dd-sdk-ios"]?["location"] as? String == "git@github.com:DataDog/dd-sdk-ios")
-            #expect(rawPinsByIdentity["swifterpm"]?["location"] as? String == "https://gitlab.com/Tuist/SwifterPM")
-            #expect(rawPinsByIdentity["generic"]?["location"] as? String == "https://source.example.com/Tuist/SwifterPM.git")
-            #expect(rawPinsByIdentity["LocalPackage"]?["location"] as? String == "file:///tmp/LocalPackage.git")
-            #expect(!rawLocations.contains("https://github.com/CombineCommunity/CombineExt.git"))
-            #expect(!rawLocations.contains("git@github.com:DataDog/dd-sdk-ios.git"))
-            #expect(!rawLocations.contains("HTTPS://Source.Example.com/Tuist/SwifterPM.git"))
+            #expect(rawLocations == Set(pins.map(\.location)))
 
             // Rewriting unchanged content must leave the file untouched.
             let modificationDate = try await fileSystem.fileMetadata(at: resolvedFilePath)?

@@ -150,10 +150,14 @@ write_registry_package_archive() {
   local package_root
   package_root="$(copy_swifterpm_fixture "RegistryFoo" "${tmp}")" || return 1
 
+  # SwiftPM records the archive checksum as a trust-on-first-use fingerprint
+  # under the real home directory, ignoring $HOME, so the archive must be
+  # byte-identical across runs.
   mkdir -p "${registry_dir}"
   (
     cd "${package_root}"
-    zip -qry "${registry_dir}/registryfoo.zip" .
+    TZ=UTC find . -exec touch -h -t 200001010000 {} +
+    find . -type f | LC_ALL=C sort | TZ=UTC zip -qX -@ "${registry_dir}/registryfoo.zip"
   )
   file_sha256 "${registry_dir}/registryfoo.zip" >"${registry_dir}/checksum.txt"
 }
@@ -1435,6 +1439,79 @@ scenario_manifest_cache_stays_under_build_directory() {
   echo "manifest-cache=.build/swifterpm"
 }
 
+# Resolves `package_dir` with native SwiftPM, then twice with swifterpm on top
+# of the lockfile SwiftPM wrote: first with a cold cache, which delegates to
+# SwiftPM, then with a warm one, which loads and writes Package.resolved
+# itself. Both runs must leave the lockfile byte-identical.
+assert_swifterpm_keeps_swiftpm_lockfile() {
+  local tmp="$1"
+  local package_dir="$2"
+  shift 2
+
+  scoped_env "${tmp}" swift package \
+    --package-path "${package_dir}" \
+    --scratch-path "${tmp}/swiftpm-scratch" \
+    --cache-path "${tmp}/swiftpm-cache" \
+    "$@" \
+    resolve >/dev/null 2>"${tmp}/swiftpm-resolve.stderr" || {
+      cat "${tmp}/swiftpm-resolve.stderr" >&2
+      return 1
+    }
+  local swiftpm_resolved="${tmp}/Package.swiftpm.resolved"
+  cp "${package_dir}/Package.resolved" "${swiftpm_resolved}"
+
+  local cache
+  for cache in cold warm; do
+    scoped_env "${tmp}" "${SWIFTERPM_BIN}" \
+      --package-path "${package_dir}" \
+      --scratch-path "${package_dir}/.build" \
+      --cache-path "${tmp}/cache" \
+      --disable-package-info-cache \
+      --quiet \
+      "$@" \
+      resolve >/dev/null || return 1
+    diff -u "${swiftpm_resolved}" "${package_dir}/Package.resolved" || return 1
+    echo "${cache}-cache-lockfile=unchanged"
+  done
+}
+
+scenario_keeps_swiftpm_source_control_location_spelling() {
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "${tmp}"' RETURN
+  prepare_isolated_state "${tmp}"
+
+  local package_dir
+  package_dir="$(copy_swifterpm_fixture "ProviderLocationSpelling" "${tmp}")" || return 1
+
+  assert_swifterpm_keeps_swiftpm_lockfile "${tmp}" "${package_dir}" \
+    --disable-scm-to-registry-transformation || return 1
+
+  echo "location=$(jq -r '.pins[0].location' "${package_dir}/Package.resolved")"
+}
+
+scenario_keeps_swiftpm_registry_original_location_spelling() {
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'stop_registry_server; rm -rf "${tmp}"' RETURN
+  prepare_isolated_state "${tmp}"
+
+  local registry_dir="${tmp}/registry"
+  write_registry_package_archive "${tmp}" "${registry_dir}" || return 1
+  start_registry_server "${tmp}" "${registry_dir}" || return 1
+  local registry_url="http://127.0.0.1:${REGISTRY_SERVER_PORT}"
+
+  local package_dir
+  package_dir="$(copy_swifterpm_fixture "RegistryTransformApp" "${tmp}")" || return 1
+
+  assert_swifterpm_keeps_swiftpm_lockfile "${tmp}" "${package_dir}" \
+    --default-registry-url "${registry_url}" \
+    --replace-scm-with-registry || return 1
+
+  stop_registry_server
+  echo "original-location=$(jq -r '.pins[0].originalLocation' "${package_dir}/Package.resolved")"
+}
+
 Describe "swifterpm resolve against real-world manifests"
   It "resolves Firefox iOS root Package.swift and emits a SwiftPM-acceptable lockfile"
     When call scenario_resolves_firefox_ios
@@ -1613,5 +1690,23 @@ Describe "swifterpm registry integration"
     The status should be success
     The output should include "legacy-cache=absent"
     The output should include "manifest-cache=.build/swifterpm"
+  End
+End
+
+Describe "swifterpm Package.resolved location spelling"
+  It "keeps the source-control location spelling SwiftPM records"
+    When call scenario_keeps_swiftpm_source_control_location_spelling
+    The status should be success
+    The output should include "cold-cache-lockfile=unchanged"
+    The output should include "warm-cache-lockfile=unchanged"
+    The output should include "location=https://github.com/apple/swift-atomics.git"
+  End
+
+  It "keeps the registry originalLocation spelling SwiftPM records"
+    When call scenario_keeps_swiftpm_registry_original_location_spelling
+    The status should be success
+    The output should include "cold-cache-lockfile=unchanged"
+    The output should include "warm-cache-lockfile=unchanged"
+    The output should include "original-location=https://github.com/example/RegistryFoo.git"
   End
 End
