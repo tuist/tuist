@@ -901,6 +901,22 @@ it.
 {{- end }}
 {{- end }}
 
+{{/*
+The name writers off the pod network dial the in-cluster ClickHouse at: the
+full MagicDNS name, because the macOS VMs resolve tailnet names through a
+resolver scoped to `.ts.net` (infra/xcresult-processor-image/tailscale-up.sh).
+The bare name resolves only from a snapshot of peers taken at boot, which
+never contains a Tailscale Service and keeps an old address after the name
+moves to another device.
+*/}}
+{{- define "tuist.clickhouseTailnetHost" -}}
+{{- $host := required "clickhouse.managed.tailscale.hostname is required when tailscale.enabled is true" .Values.clickhouse.managed.tailscale.hostname }}
+{{- with .Values.macosFleet.tailscaleEgress.magicDNSSuffix }}
+{{- $host = printf "%s.%s" $host . }}
+{{- end }}
+{{- $host }}
+{{- end }}
+
 {{- define "tuist.clickhouseManagedEnvForKey" -}}
 {{- $key := .key }}
 {{- with .root }}
