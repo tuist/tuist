@@ -1503,6 +1503,7 @@ defmodule TuistWeb.Router do
       get "/once/runs", RedirectPlug, to: "/once/build-runs"
       live "/once/runs/:once_run_id", OnceRunLive, :overview, metadata: @public_project_route_metadata
       live "/once/runs/:once_run_id/cache", OnceRunLive, :cache, metadata: @public_project_route_metadata
+      live "/once/runs/:once_run_id/actions/:action_id", OnceActionLive, metadata: @public_project_route_metadata
       live "/once/builds", OnceRunsLive, :builds, metadata: @public_project_route_metadata
       live "/once/build-runs", OnceRunsLive, :build_runs, metadata: @public_project_route_metadata
       live "/once/tests", OnceTestsLive, metadata: @public_project_route_metadata

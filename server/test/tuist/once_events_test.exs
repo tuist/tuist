@@ -22,11 +22,13 @@ defmodule Tuist.OnceEventsTest do
   alias Tuist.Authentication
   alias Tuist.Authorization
   alias Tuist.OnceEvents
+  alias Tuist.OnceEvents.Action
   alias Tuist.OnceEvents.Analytics
   alias Tuist.OnceEvents.Projector
   alias Tuist.OnceEvents.Run
   alias Tuist.OnceEvents.RunEventService
   alias Tuist.OnceEvents.TestCaseRun
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.TelemetryCapture
@@ -66,24 +68,120 @@ defmodule Tuist.OnceEventsTest do
       target_execution_id: "app",
       capability: "build",
       identifier: "diagnostic:compile",
+      presentation: %Once.Events.V1.ActionPresentation{
+        package: %Once.Events.V1.ActionPackage{ecosystem: "custom", name: "library", version: "1.2", origin: "registry"},
+        platforms: [
+          %Once.Events.V1.ActionPlatform{scheme: "custom", id: "native-target", label: "Target", usage: "build-tool"}
+        ],
+        context: [%Once.Events.V1.ActionContext{key: "custom.mode", value: "release", label: "Release"}]
+      },
       display_name: "Compile main.c",
       source_files: ["src/main.c", "include/api.h"],
+      source_file_statuses: [:SOURCE_FILE_STATUS_COMMITTED, :SOURCE_FILE_STATUS_NOT_COMMITTED],
       duration_ms: 12,
       was_cached: true
     }
 
     decoded = action |> ActionCompleted.encode() |> ActionCompleted.decode()
     project(run, decoded)
-    project(run, %{decoded | display_name: "A different label", source_files: []})
+
+    project(run, %{
+      decoded
+      | display_name: "A different label",
+        source_files: [],
+        source_file_statuses: [],
+        presentation: nil
+    })
 
     assert [stored] = OnceEvents.list_actions(run)
     assert stored.identifier == "diagnostic:compile"
     assert stored.display_name == "Compile main.c"
+    assert stored.presentation["package"]["version"] == "1.2"
+    assert stored.presentation["platforms"] |> hd() |> Map.get("usage") == "build-tool"
+    assert [%{presentation: metadata}] = OnceEvents.list_cache_events(run, view: "actions")
+    assert metadata == stored.presentation
+    assert [_] = OnceEvents.list_actions(run, search: "native-target")
+    assert [_] = OnceEvents.list_actions(run, search: "library")
+    assert [_] = OnceEvents.list_actions(run, search: "custom.mode")
+    assert [_] = OnceEvents.list_cache_events(run, view: "actions", search: "release")
+
+    for field_name <- ["version", "scheme", "origin", "usage", "product"] do
+      assert [] == OnceEvents.list_actions(run, search: field_name)
+      assert [] == OnceEvents.list_cache_events(run, view: "actions", search: field_name)
+    end
+
     assert stored.source_files == ["src/main.c", "include/api.h"]
+    assert stored.source_file_statuses == [1, 2]
     assert %{total_actions: 1, cached_actions: 1} = OnceEvents.get_run(run.project_id, run.run_id)
 
-    assert [%{action_display_name: "Compile main.c", source_files: ["src/main.c", "include/api.h"]}] =
+    assert [
+             %{
+               action_display_name: "Compile main.c",
+               source_files: ["src/main.c", "include/api.h"],
+               source_file_statuses: [1, 2]
+             }
+           ] =
              OnceEvents.list_cache_events(run, view: "actions")
+  end
+
+  test "source classifications retain numeric and future enum values across wire decoding", %{run: run} do
+    action = %ActionCompleted{
+      target_execution_id: "classified",
+      source_files: ["src/main.c", "vendor/input.c", "generated/input.c", "future/input.c"],
+      source_file_statuses: [
+        :SOURCE_FILE_STATUS_COMMITTED,
+        :SOURCE_FILE_STATUS_NOT_COMMITTED,
+        :SOURCE_FILE_STATUS_UNKNOWN,
+        65_536
+      ]
+    }
+
+    # Rust sends field 17 packed; include a future enum value larger than smallint.
+    wire = ActionCompleted.encode(%{action | source_file_statuses: []}) <> <<138, 1, 6, 1, 2, 3, 128, 128, 4>>
+    project(run, ActionCompleted.decode(wire))
+    project(run, action |> ActionCompleted.encode() |> ActionCompleted.decode())
+    assert [stored] = OnceEvents.list_actions(run)
+    assert stored.source_files == action.source_files
+    assert stored.source_file_statuses == [1, 2, 3, 65_536]
+    assert [%{source_file_statuses: [1, 2, 3, 65_536]}] = OnceEvents.list_cache_events(run, view: "actions")
+    assert [%{source_files: files}] = OnceEvents.list_actions(run, search: "vendor/input.c")
+    assert files == action.source_files
+
+    project(run, %ActionCompleted{
+      target_execution_id: "numeric",
+      source_files: ["src/main.c"],
+      source_file_statuses: [1]
+    })
+
+    assert [%{source_file_statuses: [1]}] = OnceEvents.list_actions(run, search: "numeric")
+  end
+
+  test "direct ingestion normalizes metadata and search tolerates malformed retained JSON", %{run: run} do
+    malformed = [
+      %{"package" => nil, "platforms" => nil, "context" => nil},
+      %{"package" => [], "platforms" => %{}, "context" => "invalid"}
+    ]
+
+    for {metadata, index} <- Enum.with_index(malformed) do
+      {:ok, action} =
+        OnceEvents.ingest_action(run, %{
+          target_execution_id: "malformed",
+          capability: "build",
+          action_index: index,
+          result: "succeeded",
+          finished_at: DateTime.utc_now(),
+          was_cached: true,
+          presentation: metadata
+        })
+
+      assert action.presentation == nil
+      Repo.update_all(from(a in Action, where: a.id == ^action.id), set: [presentation: metadata])
+    end
+
+    assert OnceEvents.list_actions(run, search: "absent") == []
+    assert OnceEvents.count_actions(run, search: "absent") == 0
+    assert OnceEvents.list_cache_events(run, view: "actions", search: "absent") == []
+    assert OnceEvents.count_cache_events(run, view: "actions", search: "absent") == 0
   end
 
   test "legacy action messages default to no presentation metadata", %{run: run} do
@@ -91,6 +189,7 @@ defmodule Tuist.OnceEventsTest do
     decoded = ActionCompleted.decode(<<10, 3, "app", 34, 7, "compile">>)
     assert decoded.display_name == nil
     assert decoded.source_files == []
+    assert decoded.source_file_statuses == []
     project(run, decoded)
     project(run, %{decoded | action_index: 1, display_name: ""})
 
@@ -98,6 +197,7 @@ defmodule Tuist.OnceEventsTest do
     assert first.identifier == "compile"
     assert first.display_name == nil
     assert first.source_files == []
+    assert first.source_file_statuses == []
     assert second.display_name == nil
   end
 
@@ -339,7 +439,7 @@ defmodule Tuist.OnceEventsTest do
 
       Tuist.Accounts.add_user_to_organization(
         member,
-        Tuist.Repo.get!(Organization, project.account.organization_id)
+        Repo.get!(Organization, project.account.organization_id)
       )
 
       %{member: member, handle: "#{project.account.name}/#{project.name}"}
@@ -449,7 +549,7 @@ defmodule Tuist.OnceEventsTest do
 
   describe "authentication with the other credentials the CLI uses" do
     setup %{project: project} do
-      organization = Tuist.Repo.get!(Organization, project.account.organization_id)
+      organization = Repo.get!(Organization, project.account.organization_id)
       member = AccountsFixtures.user_fixture(preload: [:account])
       Tuist.Accounts.add_user_to_organization(member, organization)
       viewer = AccountsFixtures.user_fixture(preload: [:account])
@@ -562,7 +662,7 @@ defmodule Tuist.OnceEventsTest do
 
   describe "a stream that outlives its credential" do
     setup %{project: project} do
-      organization = Tuist.Repo.get!(Organization, project.account.organization_id)
+      organization = Repo.get!(Organization, project.account.organization_id)
       member = AccountsFixtures.user_fixture(preload: [:account])
       Tuist.Accounts.add_user_to_organization(member, organization)
 
@@ -643,7 +743,7 @@ defmodule Tuist.OnceEventsTest do
 
   describe "the cost of authenticating" do
     setup %{project: project} do
-      organization = Tuist.Repo.get!(Organization, project.account.organization_id)
+      organization = Repo.get!(Organization, project.account.organization_id)
       member = AccountsFixtures.user_fixture(preload: [:account])
       Tuist.Accounts.add_user_to_organization(member, organization)
       %{member: member, handle: "#{project.account.name}/#{project.name}"}
@@ -942,7 +1042,7 @@ defmodule Tuist.OnceEventsTest do
     # the regressing `expected_next_seq` as a protocol violation and drop the
     # rest of the run.
     assert OnceEvents.acked_seq(project.id, run.run_id) == 12
-    assert Tuist.Repo.get_by(Run, id: run.id).acked_seq == 12
+    assert Repo.get_by(Run, id: run.id).acked_seq == 12
   end
 
   test "a heartbeat keeps a slow run from looking abandoned", %{run: run} do
@@ -951,7 +1051,7 @@ defmodule Tuist.OnceEventsTest do
     {1, _} =
       Run
       |> where([r], r.id == ^run.id)
-      |> Tuist.Repo.update_all(set: [started_at: stale, heartbeat_at: stale])
+      |> Repo.update_all(set: [started_at: stale, heartbeat_at: stale])
 
     # The client sends these every few seconds; the projector used to drop
     # them, so a run doing slow work aged out like an abandoned one.
@@ -970,7 +1070,7 @@ defmodule Tuist.OnceEventsTest do
     {1, _} =
       Run
       |> where([r], r.id == ^run.id)
-      |> Tuist.Repo.update_all(set: [started_at: stale, heartbeat_at: stale])
+      |> Repo.update_all(set: [started_at: stale, heartbeat_at: stale])
 
     OnceEvents.subscribe_run(run.project_id, run.run_id)
 
@@ -1005,7 +1105,7 @@ defmodule Tuist.OnceEventsTest do
     {1, _} =
       Run
       |> where([r], r.id == ^run.id)
-      |> Tuist.Repo.update_all(set: [started_at: stale, heartbeat_at: stale])
+      |> Repo.update_all(set: [started_at: stale, heartbeat_at: stale])
 
     assert {:ok, 0} = OnceEvents.expire_stale_runs()
     assert %{finalization: "finalized"} = OnceEvents.get_run(run.project_id, run.run_id)

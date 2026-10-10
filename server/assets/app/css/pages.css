@@ -55,6 +55,7 @@
 @import "./pages/test_run.css";
 @import "./pages/test_cases.css";
 @import "./pages/test_case.css";
+@import "./pages/once_action.css";
 @import "./pages/test_case_run.css";
 @import "./pages/flaky_tests.css";
 @import "./pages/quarantined_tests.css";

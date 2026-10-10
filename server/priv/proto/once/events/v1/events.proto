@@ -330,6 +330,37 @@ message TargetRetried {
   string reason = 4;
 }
 
+// Ecosystem-owned context. Omission retains legacy labels and source paths.
+message ActionPresentation {
+  ActionPackage package = 1;
+  repeated ActionPlatform platforms = 2;
+  repeated ActionContext context = 3;
+}
+
+message ActionPackage {
+  string ecosystem = 1;
+  string name = 2;
+  string version = 3;
+  string revision = 4;
+  string digest = 5;
+  // workspace, registry, git, path, or a future producer-owned origin.
+  string origin = 6;
+}
+
+message ActionPlatform {
+  string scheme = 1;
+  string id = 2;
+  string label = 3;
+  // product or build-tool. This is not execution-worker placement.
+  string usage = 4;
+}
+
+message ActionContext {
+  string key = 1;
+  string value = 2;
+  string label = 3;
+}
+
 // Exactly one declared action outcome. Identity within a run is the tuple
 // (target_execution_id, capability, action_index). The index is zero-based
 // declaration order, never completion order; identifier is a diagnostic label.
@@ -372,9 +403,38 @@ message ActionCompleted {
   uint32 selected_attempt = 14;
   // Presentation only; does not replace identifier or affect cache identity.
   optional string display_name = 15;
-  // Repository-relative file paths using forward slashes, never host paths
-  // or generated outputs. Servers may link these at RunStarted.git_rev.
+  // Repository-relative presentation paths using forward slashes, never
+  // host paths. Includes untracked or downloaded sources; consumers must
+  // consult source_file_statuses before linking at RunStarted.git_rev.
   repeated string source_files = 16;
+  // Entry i describes source_files[i] at RunStarted.git_rev. Classifying
+  // clients send one status per path, including UNKNOWN on lookup failure.
+  // Empty means legacy metadata. A nonempty length mismatch is invalid for
+  // linking: consumers must show every path without a repository link.
+  repeated SourceFileStatus source_file_statuses = 17;
+  // Optional bounded presentation data. Never action identity or cache inputs.
+  ActionPresentation presentation = 18;
+  // Optional producer-owned logical identity for cross-run history.
+  // Never execution identity, observations, or action-result cache inputs.
+  ActionHistoryKey history = 19;
+}
+
+message ActionHistoryKey {
+  // Versioned producer namespace (ASCII token, at most 64 bytes).
+  string namespace = 1;
+  // Opaque stable key (at most 128 bytes); not a cache digest or run id.
+  string key = 2;
+}
+
+// Presentation only: these values must not affect action or cache identity.
+enum SourceFileStatus {
+  SOURCE_FILE_STATUS_UNSPECIFIED = 0;
+  // A blob (regular file or symlink) at the path in RunStarted.git_rev.
+  SOURCE_FILE_STATUS_COMMITTED = 1;
+  // The commit tree was read successfully and contains no blob at the path.
+  SOURCE_FILE_STATUS_NOT_COMMITTED = 2;
+  // No usable commit tree, including failed or bounded-out lookups.
+  SOURCE_FILE_STATUS_UNKNOWN = 3;
 }
 
 // The tuple (target_execution_id, capability, action_index, attempt) is a
