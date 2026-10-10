@@ -99,6 +99,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                     .testInsightsDisabled ?? true
             )
         )
+        mappers.append(CachedModulesDebuggingGraphMapper(config: config))
         return mappers
     }
 
@@ -204,7 +205,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
 
             mappers.append(FrameworkSearchPathsGraphMapper())
             mappers.append(ForeignBuildSideEffectGraphMapper())
-            mappers.append(CachedModulesDebuggingGraphMapper())
+            mappers.append(CachedModulesDebuggingGraphMapper(config: config))
 
             return mappers
         }
@@ -254,7 +255,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                         .testInsightsDisabled ?? true
                 )
             )
-            mappers.append(CachedModulesDebuggingGraphMapper())
+            mappers.append(CachedModulesDebuggingGraphMapper(config: config))
 
             return mappers
         }
@@ -318,7 +319,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                         .testInsightsDisabled ?? true
                 )
             )
-            mappers.append(CachedModulesDebuggingGraphMapper())
+            mappers.append(CachedModulesDebuggingGraphMapper(config: config))
 
             return mappers
         }
@@ -366,7 +367,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                         .testInsightsDisabled ?? true
                 )
             )
-            mappers.append(CachedModulesDebuggingGraphMapper())
+            mappers.append(CachedModulesDebuggingGraphMapper(config: config))
 
             return mappers
         }
@@ -391,7 +392,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                         .testInsightsDisabled ?? true
                 )
             )
-            mappers.append(CachedModulesDebuggingGraphMapper())
+            mappers.append(CachedModulesDebuggingGraphMapper(config: config))
 
             return mappers
         }
@@ -415,7 +416,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                         .testInsightsDisabled ?? true
                 )
             )
-            mappers.append(CachedModulesDebuggingGraphMapper())
+            mappers.append(CachedModulesDebuggingGraphMapper(config: config))
 
             return mappers
         }
@@ -509,3 +510,9 @@ public struct GraphMapperFactory: GraphMapperFactorying {
         }
     }
 #endif
+
+extension CachedModulesDebuggingGraphMapper {
+    fileprivate init(config: Tuist) {
+        self.init(compilationCachingEnabled: config.project.generatedProject?.generationOptions.enableCaching ?? false)
+    }
+}
