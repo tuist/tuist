@@ -52,16 +52,6 @@ Atlas audit policy. The review workflow
 retains its GitHub report artifacts for 14 days and its published comment under
 GitHub's repository retention settings.
 
-### Atlas client OAuth state
-
-Atlas stores client-supplied opaque OAuth `state` in PostgreSQL
-`oauth_tokens.state` as `text`, alongside authorization codes linked to
-`oauth_clients` by `client_id` and users by `sub`. It is returned unchanged in
-the authorization callback, including values longer than 255 characters.
-State is authentication-flow material and is excluded from exports with
-codes and tokens. Widening the existing column adds no new data category
-and does not change token expiry or row retention.
-
 ### Atlas upstream server configuration
 
 Atlas stores administrator-managed upstream server names, endpoint and OAuth
