@@ -6,6 +6,8 @@ import Testing
 import TuistAutomation
 import TuistConfig
 import TuistDependencies
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistLoader
 import TuistServer
 import XcodeGraph
@@ -21,6 +23,31 @@ import XCTest
 @testable import TuistTesting
 
 struct GraphMapperFactoryCompilationCachingTests {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [false, true])
+    func default_preservesNativeRegenerationCommand(enabled: Bool) async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let executable = projectPath.appending(component: "tuist")
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = executable
+        let config = Tuist.test(project: .generated(.test(generationOptions: .test(includeGenerateScheme: enabled))))
+        let mappers = GraphMapperFactory().default(config: config)
+        let mapper = try #require(mappers.first { $0 is AutogenerateTuistGenerateSchemeMapper })
+        let graph = Graph.test(workspace: .test(path: projectPath, schemes: []))
+
+        let (mapped, _, _) = try await mapper.map(graph: graph, environment: MapperEnvironment())
+
+        if enabled {
+            let action = try #require(mapped.workspace.schemes.first?.runAction)
+            #expect(mapped.workspace.schemes.first?.name == "Generate Project")
+            #expect(!action.attachDebugger)
+            #expect(action.filePath == executable)
+            #expect(action.arguments?.launchArguments.map(\.name) == ["generate --no-open"])
+            #expect(action.customWorkingDirectory == graph.path)
+        } else {
+            #expect(mapped.workspace.schemes.isEmpty)
+        }
+    }
+
     @Test(.inTemporaryDirectory, arguments: [false, true])
     func default_configuresCompilationCachingAfterAutomaticSchemes(enabled: Bool) async throws {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
