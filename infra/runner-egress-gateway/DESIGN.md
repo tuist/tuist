@@ -287,6 +287,10 @@ then, Linux dispatch skips dedicated-egress accounts.
   roughly €70/month in overage.
 - Latency: jobs at fr-par pay about 10-15 ms of extra RTT on every connection.
   BER1 is closer.
+- Throughput (staging, 2026-10-10): a VM downloads 23-41 MB/s through the
+  tunnel against 111 MB/s for the same host directly, and a 346 MB shallow
+  clone takes 11-12 s. The host's wireguard-go uses 1.1-1.6 cores while it
+  runs, so userspace WireGuard on macOS (no UDP offload) is the ceiling.
 - Capacity: server egress and every dedicated gateway share the active egress
   node's NIC. Size the pool from tunnel byte metrics before onboarding a
   second account.
