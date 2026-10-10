@@ -467,7 +467,11 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     %{
       skipped: candidates |> Enum.uniq_by(& &1.test_case_id) |> Enum.reject(&MapSet.member?(ran, &1.test_case_id)),
-      gaps: hits |> Enum.reject(&Map.has_key?(inventory, &1.name)) |> Enum.map(&list_gaps[&1.name]) |> Enum.uniq(),
+      gaps:
+        hits
+        |> Enum.reject(&Map.has_key?(inventory, &1.name))
+        |> Enum.map(&Map.get(list_gaps, &1.name, :target_without_history))
+        |> Enum.uniq(),
       baseline: baseline,
       indexed: indexed
     }
