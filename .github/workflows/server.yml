@@ -328,8 +328,19 @@ jobs:
       # require their modules without triggering redefinition warnings.
       - name: Setup database
         run: mise run --no-deps db:reset
+      # On main the shards also report the server's coverage to tuist/server.
+      # A run from a dirty checkout keeps its coverage off the commit: a cold
+      # cache install writes checksums into mise.lock and deps.get can rewrite
+      # mix.lock, neither of which changes the measured code. Git is told to
+      # ignore them rather than having them restored, which would leave the
+      # fetched dependencies out of step with mix.lock and stop Mix. Mix's own
+      # coverage step only exports its data, instead of failing the shard
+      # under its 90% default threshold and writing HTML for every module.
+      - name: Ignore lockfile changes for coverage
+        if: github.event_name == 'push'
+        run: git update-index --assume-unchanged ../mise.lock mix.lock
       - name: Run shard ${{ matrix.shard }}
-        run: mix tuist.test --no-download --scheme clickhouse-current --warnings-as-errors
+        run: mix tuist.test --no-download --scheme clickhouse-current --warnings-as-errors ${{ github.event_name == 'push' && '--cover --export-coverage shard' || '' }}
   test-clickhouse-floor:
     name: Test (oldest supported ClickHouse)
     # Keep exercising the release declared by Tuist.ClickHouseVersions, including
@@ -388,6 +399,26 @@ jobs:
         run: mise run --no-deps db:reset
       - name: Run shard ${{ matrix.shard }}
         run: mix tuist.test --no-download --scheme clickhouse-floor --warnings-as-errors
+  # On main, tells the server the commit's coverage is all in once every
+  # shard ran: a shard with a failing test still reported its coverage. A
+  # failed signal leaves the commit in progress without turning the run red.
+  coverage-complete:
+    name: Complete Coverage
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    needs: test
+    if: always() && github.event_name == 'push' && (needs.test.result == 'success' || needs.test.result == 'failure')
+    continue-on-error: true
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          restore-mix-cache: "false"
+      - name: Signal that the commit's coverage is complete
+        run: mix 'do' deps.compile tuist_ex + tuist.login + tuist.coverage.complete
   test-unsharded:
     name: Test (unsharded fallback, ${{ matrix.clickhouse }})
     runs-on: tuist-linux-large
