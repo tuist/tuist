@@ -9,6 +9,6 @@ import PackageDescription
 let package = Package(
     name: "PackageName",
     dependencies: [
-        .package(url: "https://github.com/google/GoogleUtilities", from: "8.1.0"),
+        .package(url: "https://github.com/google/GoogleUtilities", from: "8.1.4"),
     ]
 )

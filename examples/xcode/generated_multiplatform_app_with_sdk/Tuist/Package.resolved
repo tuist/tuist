@@ -50,8 +50,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/GoogleUtilities.git",
       "state" : {
-        "revision" : "53156c7ec267db846e6b64c9f4c4e31ba4cf75eb",
-        "version" : "8.0.2"
+        "revision" : "cc31f5ed464b111f877ce8554cbef4455d410d91",
+        "version" : "8.1.4"
       }
     },
     {
