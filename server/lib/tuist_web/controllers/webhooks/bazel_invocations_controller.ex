@@ -3,7 +3,10 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
 
   alias Tuist.Bazel
   alias Tuist.Projects
+  alias Tuist.ReportActor
+  alias Tuist.Tests
   alias TuistWeb.Plugs.RequireCacheEndpointPlug
+  alias Uniq.UUID
 
   require Logger
 
@@ -39,14 +42,14 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
         |> Enum.uniq()
         |> Projects.projects_by_full_handles()
 
-      {invocations, logs} =
-        Enum.reduce(events, {[], []}, fn event, {invocations, logs} ->
+      {invocations, logs, summaries} =
+        Enum.reduce(events, {[], [], []}, fn event, {invocations, logs, summaries} ->
           case invocation_from_event(event, projects_map, cache_endpoint) do
             {invocation, invocation_logs} ->
-              {[invocation | invocations], [invocation_logs | logs]}
+              {[invocation | invocations], [invocation_logs | logs], [{event, invocation} | summaries]}
 
             nil ->
-              {invocations, logs}
+              {invocations, logs, summaries}
           end
         end)
 
@@ -55,6 +58,9 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
 
       Bazel.create_invocations(invocations)
       Bazel.create_invocation_logs(logs)
+      # A malformed or unavailable target-summary path must not roll back or
+      # lose already accepted invocation telemetry from this signed batch.
+      Enum.each(summaries, fn {event, invocation} -> publish_network_test_summary(event, invocation) end)
 
       conn
       |> put_status(:accepted)
@@ -88,7 +94,8 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
            "finished_at_ms" => finished_at_ms
          } <- event,
          true <- valid_event?(event),
-         %{id: project_id, build_system: :bazel} <- Map.get(projects_map, "#{account_handle}/#{project_handle}"),
+         %{id: project_id, build_system: :bazel} = project <- Map.get(projects_map, "#{account_handle}/#{project_handle}"),
+         true <- publication_enabled?(event, project),
          {:ok, started_at} <- DateTime.from_unix(started_at_ms, :millisecond),
          {:ok, finished_at} <- DateTime.from_unix(finished_at_ms, :millisecond),
          true <- DateTime.compare(finished_at, started_at) != :lt do
@@ -99,6 +106,7 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
         git_branch: git_branch,
         git_commit_sha: git_commit_sha,
         is_ci: is_ci,
+        submission_auth: Map.get(event, "submission_auth", ""),
         custom_values: custom_values,
         status: status,
         exit_code: exit_code,
@@ -133,6 +141,14 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
 
   defp invocation_from_event(_, _, _), do: nil
 
+  defp publication_enabled?(event, project) do
+    case Map.get(event, "submission_auth", "") do
+      "" -> true
+      "network_trusted" -> project.build_system == :bazel and TuistWeb.Plugs.ReportPublishingPlug.enabled?()
+      _ -> false
+    end
+  end
+
   defp valid_event?(event) do
     valid_project_reference?(event) and
       valid_identifiers?(event["invocation_id"], event["command"]) and
@@ -145,8 +161,85 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
       valid_custom_values?(Map.get(event, "custom_values", %{})) and
       valid_diagnostics?(event) and
       valid_logs?(Map.get(event, "logs", [])) and
+      valid_test_summaries?(Map.get(event, "test_summaries", [])) and
       valid_result?(event["status"], event["exit_code"]) and
       valid_timestamps?(event["started_at_ms"], event["finished_at_ms"])
+  end
+
+  defp valid_test_summaries?(summaries) when is_list(summaries) do
+    length(summaries) <= 1_000 and
+      Enum.all?(summaries, fn
+        %{"target_label" => label, "status" => status, "duration_ms" => duration} ->
+          is_binary(label) and label != "" and byte_size(label) <= 1_024 and
+            status in ["success", "failure", "skipped", "flaky"] and
+            is_integer(duration) and duration >= 0 and duration <= 86_400_000
+
+        _ ->
+          false
+      end)
+  end
+
+  defp valid_test_summaries?(_), do: false
+
+  defp publish_network_test_summary(
+         %{"submission_auth" => "network_trusted", "test_summaries" => [_ | _] = summaries},
+         invocation
+       ) do
+    claimed_id = Map.get(invocation.custom_values, "tuist.reported_user", "")
+    claimed_id = if ReportActor.valid_identifier?(claimed_id), do: claimed_id, else: ""
+
+    modules =
+      Enum.map(summaries, fn summary ->
+        status = if summary["status"] == "flaky", do: "success", else: summary["status"]
+
+        %{
+          name: summary["target_label"],
+          status: status,
+          duration: summary["duration_ms"],
+          test_cases: [
+            %{
+              name: summary["target_label"],
+              status: status,
+              duration: summary["duration_ms"],
+              is_flaky: summary["status"] == "flaky"
+            }
+          ]
+        }
+      end)
+
+    id = UUID.uuid5(:oid, "network-bazel-test:#{invocation.project_id}:#{invocation.invocation_id}")
+
+    case Tests.get_test(id) do
+      {:ok, _} -> :ok
+      {:error, :not_found} -> create_network_test_summary(id, invocation, modules, summaries, claimed_id)
+    end
+  rescue
+    _ -> Logger.warning("Could not publish network-trusted Bazel test summary")
+  end
+
+  defp publish_network_test_summary(_, _), do: :ok
+
+  defp create_network_test_summary(id, invocation, modules, summaries, claimed_id) do
+    case Tests.create_test(%{
+           id: id,
+           project_id: invocation.project_id,
+           account_id: 0,
+           actor_account_id: 0,
+           claimed_actor_id: claimed_id,
+           submission_auth: "network_trusted",
+           build_system: "bazel",
+           is_ci: invocation.is_ci,
+           scheme: "bazel test",
+           ran_at: invocation.started_at,
+           git_branch: invocation.git_branch,
+           git_commit_sha: invocation.git_commit_sha,
+           duration: Enum.sum(Enum.map(summaries, & &1["duration_ms"])),
+           status: if(Enum.any?(modules, &(&1.status == "failure")), do: "failure", else: "success"),
+           test_modules: modules
+         }) do
+      {:ok, _} -> :ok
+      {:error, _} -> Logger.warning("Could not store network-trusted Bazel test summary")
+    end
   end
 
   defp valid_identifiers?(invocation_id, command),

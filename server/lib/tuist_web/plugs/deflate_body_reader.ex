@@ -11,10 +11,23 @@ defmodule TuistWeb.Plugs.DeflateBodyReader do
   """
 
   def read_body(conn, opts) do
+    opts = if network_report?(conn), do: Keyword.put(opts, :length, 8_000_000), else: opts
+
     case Plug.Conn.get_req_header(conn, "content-encoding") do
       ["deflate"] -> read_deflated_body(conn, opts)
       _ -> Plug.Conn.read_body(conn, opts)
     end
+  end
+
+  defp network_report?(conn) do
+    conn.method == "POST" and Plug.Conn.get_req_header(conn, "authorization") == [] and
+      case conn.path_info do
+        ["api", "projects", _, _, "builds"] -> true
+        ["api", "projects", _, _, "tests"] -> true
+        ["api", "projects", _, _, system, "builds"] when system in ["gradle", "xcode", "mix"] -> true
+        ["api", "projects", _, _, "bazel", "publishing"] -> true
+        _ -> false
+      end
   end
 
   defp read_deflated_body(conn, opts) do
@@ -31,8 +44,11 @@ defmodule TuistWeb.Plugs.DeflateBodyReader do
 
   defp read_compressed_body(conn, opts, limit, acc, size) do
     case Plug.Conn.read_body(conn, opts) do
-      {:ok, chunk, conn} ->
+      {:ok, chunk, conn} when size + byte_size(chunk) <= limit ->
         {:ok, IO.iodata_to_binary([acc, chunk]), conn}
+
+      {:ok, chunk, conn} ->
+        {:more, chunk, conn}
 
       {:more, chunk, conn} when size + byte_size(chunk) <= limit ->
         read_compressed_body(conn, opts, limit, [acc, chunk], size + byte_size(chunk))

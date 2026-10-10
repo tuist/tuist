@@ -22,14 +22,19 @@ public struct ServerCredentials: Sendable, Codable, Equatable {
     /// The OAuth client that issued this token pair. Absent for legacy and API-auth credentials.
     public let oauthClientID: String?
 
+    /// A rejected refresh must remain distinguishable from explicitly signed out.
+    public let rejected: Bool?
+
     public init(
         accessToken: String,
         refreshToken: String? = nil,
-        oauthClientID: String? = nil
+        oauthClientID: String? = nil,
+        rejected: Bool? = nil
     ) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
         self.oauthClientID = oauthClientID
+        self.rejected = rejected
     }
 
     #if DEBUG
@@ -125,6 +130,11 @@ public enum ServerCredentialsStoreBackend: Sendable {
         public func store(credentials: ServerCredentials, serverURL: URL) async throws {
             switch backend {
             case .keychain:
+                if credentials.rejected == true {
+                    try keychain(serverURL: serverURL).set("true", key: serverURL.absoluteString + "_rejected")
+                } else {
+                    try keychain(serverURL: serverURL).remove(serverURL.absoluteString + "_rejected")
+                }
                 if let oauthClientID = credentials.oauthClientID {
                     try keychain(serverURL: serverURL).set(oauthClientID, key: serverURL.absoluteString + "_oauth_client_id")
                 } else {
@@ -161,7 +171,8 @@ public enum ServerCredentialsStoreBackend: Sendable {
                 return ServerCredentials(
                     accessToken: accessToken,
                     refreshToken: refreshToken,
-                    oauthClientID: try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_oauth_client_id")
+                    oauthClientID: try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_oauth_client_id"),
+                    rejected: try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_rejected") == "true"
                 )
             #if os(macOS)
                 case .fileSystem:
@@ -169,12 +180,13 @@ public enum ServerCredentialsStoreBackend: Sendable {
                     guard try await fileSystem.exists(path) else { return nil }
                     let data = try await fileSystem.readFile(at: path)
 
-                    // This might fail if we've migrated the schema, which is very unlikely, or if someone modifies the content in
-                    // it
-                    // and the new schema doesn't align with the one that we expect. We could add logic to handle those
-                    // gracefully,
-                    // but since the user can recover from it by signing in again, I think it's ok not to add more complexity
-                    // here.
+                    if ServerReportPublishingMode.enabled {
+                        do {
+                            return try JSONDecoder().decode(ServerCredentials.self, from: data)
+                        } catch {
+                            throw ServerReportPublishingError.invalidCredentials
+                        }
+                    }
                     return try? JSONDecoder().decode(ServerCredentials.self, from: data)
             #endif
             }
@@ -196,6 +208,7 @@ public enum ServerCredentialsStoreBackend: Sendable {
                 try keychain.remove(serverURL.absoluteString + "_refresh_token")
                 try keychain.remove(serverURL.absoluteString + "_access_token")
                 try keychain.remove(serverURL.absoluteString + "_oauth_client_id")
+                try keychain.remove(serverURL.absoluteString + "_rejected")
             #if os(macOS)
                 case .fileSystem:
                     let path = try credentialsFilePath(serverURL: serverURL)
@@ -290,9 +303,13 @@ public enum ServerCredentialsStoreBackend: Sendable {
                 guard try await fileSystem.exists(path) else { return nil }
                 let data = try await fileSystem.readFile(at: path)
 
-                // This might fail if we've migrated the schema, which is very unlikely, or if someone modifies the content in it
-                // and the new schema doesn't align with the one that we expect. We could add logic to handle those gracefully,
-                // but since the user can recover from it by signing in again, I think it's ok not to add more complexity here.
+                if ServerReportPublishingMode.enabled {
+                    do {
+                        return try JSONDecoder().decode(ServerCredentials.self, from: data)
+                    } catch {
+                        throw ServerReportPublishingError.invalidCredentials
+                    }
+                }
                 return try? JSONDecoder().decode(ServerCredentials.self, from: data)
             }
         }

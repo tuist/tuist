@@ -81,10 +81,7 @@ msgstr ""
 msgid "Bundles"
 msgstr ""
 
-#: lib/tuist_web/components/runs/ran_by_badge.ex:15
-#: lib/tuist_web/components/runs/ran_by_badge.ex:42
-#: lib/tuist_web/components/runs/ran_by_badge.ex:63
-#: lib/tuist_web/components/runs/ran_by_badge.ex:90
+#: lib/tuist_web/components/runs/ran_by_badge.ex:51
 #: lib/tuist_web/live/once_runs_live.ex:908
 #, elixir-autogen, elixir-format
 msgid "CI"
@@ -360,7 +357,7 @@ msgstr ""
 msgid "The preview ipa doesn't exist or has expired."
 msgstr ""
 
-#: lib/tuist_web/controllers/api/analytics_controller.ex:595
+#: lib/tuist_web/controllers/api/analytics_controller.ex:599
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:36
 #: lib/tuist_web/plugs/loader_plug.ex:131
 #, elixir-autogen, elixir-format
@@ -408,9 +405,6 @@ msgstr ""
 #: lib/tuist/utilities/date_formatter.ex:137
 #: lib/tuist/utilities/date_formatter.ex:185
 #: lib/tuist/utilities/date_formatter.ex:219
-#: lib/tuist_web/components/runs/ran_by_badge.ex:29
-#: lib/tuist_web/components/runs/ran_by_badge.ex:77
-#: lib/tuist_web/components/runs/ran_by_badge.ex:104
 #: lib/tuist_web/live/ops_account_helpers.ex:15
 #: lib/tuist_web/live/ops_account_helpers.ex:24
 #: lib/tuist_web/live/ops_account_live.ex:1264
@@ -3046,6 +3040,16 @@ msgstr ""
 #: lib/tuist_web/live/ops_account_live.html.heex:774
 #, elixir-autogen, elixir-format
 msgid "No subscription to invoice against"
+msgstr ""
+
+#: lib/tuist_web/components/runs/ran_by_badge.ex:73
+#, elixir-autogen, elixir-format
+msgid "Reported by the build client, not verified."
+msgstr ""
+
+#: lib/tuist_web/components/runs/ran_by_badge.ex:60
+#, elixir-autogen, elixir-format
+msgid "Unverified"
 msgstr ""
 
 #: lib/tuist_web/live/ops_account_live.ex:458

@@ -26,7 +26,11 @@ defmodule TuistWeb.RunDetailLive do
         _ -> nil
       end
 
-    run = Tuist.ClickHouseRepo.preload(run, xcode_targets: Xcode.xcode_targets_preload_query(run))
+    run =
+      run
+      |> Tuist.ReportActor.preload()
+      |> Tuist.ClickHouseRepo.preload(xcode_targets: Xcode.xcode_targets_preload_query(run))
+
     slug = Projects.get_project_slug_from_id(project.id)
 
     {:ok,

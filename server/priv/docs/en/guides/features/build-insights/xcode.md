@@ -70,6 +70,22 @@ For Xcodebuild-driven CI you need to:
 
 Without `-resultBundlePath`, required activity logs and result bundles are not generated and `tuist inspect build` cannot analyze the build.
 
+## Credential-free reporting on a private network {#network-trusted-publishing}
+
+A self-hosted deployment can allow developers to publish completed reports without signing in. An operator must configure `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true` on the instance and restart it as described in the <.localized_link href="/guides/server/self-host/server#network-trusted-report-publishing">self-hosting guide</.localized_link>. This applies to every supported project; there is no dashboard setting. Configure the self-hosted URL and project, then opt in in the environment used by your scheme post-action or terminal:
+
+```sh
+export TUIST_URL="https://tuist.internal.example"
+export TUIST_NETWORK_TRUSTED_PUBLISHING=true
+tuist inspect build
+# To publish local test results:
+tuist inspect test
+```
+
+With genuinely absent credentials, activity logs and XCResult bundles are parsed locally and sent as structured reports. No raw archive, attachment, coverage/history upload, remote processor, shard reference, or selective-execution evidence is submitted. Reports remain visible but cannot update authenticated testcase state or drive quarantine/failure automations. Dashboards, cache, and other authenticated commands still require sign-in. Keep any cache integration disabled if credentials are not provisioned.
+
+Present credentials remain authenticated. Invalid, corrupt, blank, or rejected-refresh credentials fail closed and remain on disk, so later commands do not silently become unsigned. Sign in again or explicitly sign out as a deliberate recovery action. Older servers reject unsigned reports. Set `TUIST_NETWORK_TRUSTED_PUBLISHING=false` to disable the client opt-in and `TUIST_ACTOR_ID=""` independently to omit the username claim; verified credential identity is unaffected.
+
 ## Machine metrics {#machine-metrics}
 
 Build insights can include machine-level performance metrics (CPU, memory, network, and disk usage) captured during the build. To enable this, set up a lightweight background daemon that continuously samples system metrics:
@@ -93,6 +109,12 @@ tuist teardown insights
 
 This unloads the daemon's LaunchAgent, removes its plist, and deletes the sampled metrics and daemon logs from `~/.local/state`, so nothing is left running in the background.
 
+
+## Actor attribution {#actor-attribution}
+
+The CLI automatically sends `USER`, `USERNAME`, or `LOGNAME` as a reported actor identifier when available. Override it with `TUIST_ACTOR_ID`, for example `TUIST_ACTOR_ID=employee-123 tuist inspect build`. On CI, automatic detection identifies the runner's OS account rather than the person who triggered the build. Use an explicit identifier when needed. An empty `TUIST_ACTOR_ID` omits the reported identifier but does not remove credential-based verified identity. Identifiers must be 1–128 bytes of non-space printable ASCII; invalid overrides are omitted without falling back to the username.
+
+Verified individual credentials take precedence; client-reported identifiers are otherwise shown as **Unverified** and never grant permissions or link automatically to users. Identifiers are visible to anyone who can view the project's reports, including public viewers when the project is public, and included in data exports, so do not include secrets. This applies to build, test, and command-event reports. Old servers ignore the optional header, and new servers accept old clients without it. New shared-token reports with no identifier show **Unknown**, rather than the publishing organization; historical reports retain their prior attribution. Build and test listings distinguish verified users from unverified reported identifiers. Authentication remains required unless credential-free reporting is explicitly enabled on both the self-hosted instance and client.
 
 ## Custom metadata {#custom-metadata}
 

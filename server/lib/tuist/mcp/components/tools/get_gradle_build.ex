@@ -21,6 +21,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
       "type" => "object",
       "properties" => %{
         "id" => %{"type" => "string"},
+        "actor" => Tuist.MCP.Tool.report_actor_schema(),
         "duration_ms" => %{"type" => "integer"},
         "status" => %{"type" => "string"},
         "gradle_version" => %{"type" => "string"},
@@ -104,11 +105,12 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
              :build,
              "Gradle build not found: #{build_run_id}"
            ) do
-      cache_aggregates = Gradle.task_cache_aggregates(build.id)
+      cache_aggregates = Gradle.task_cache_aggregates(build.id, build.project_id)
 
       {:ok,
        %{
          id: build.id,
+         actor: Tuist.ReportActor.actor(build),
          tasks_cache_hit_count: build.tasks_cache_hit_count,
          duration_ms: build.duration_ms,
          status: to_string(build.status),

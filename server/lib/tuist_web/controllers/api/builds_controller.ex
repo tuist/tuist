@@ -16,16 +16,22 @@ defmodule TuistWeb.API.BuildsController do
   alias TuistWeb.API.Schemas.Builds.Build
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
+  alias TuistWeb.API.Schemas.ReportActor
   alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
+  alias TuistWeb.Plugs.ReportPublishingPlug
+
+  plug(ReportPublishingPlug, {:preflight, :xcode} when action == :create)
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :build)
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
+  plug(ReportPublishingPlug, :xcode when action == :create)
+  plug(TuistWeb.Plugs.LoaderPlug when action != :create)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :build when action != :create)
 
   tags ["Builds"]
 
@@ -127,6 +133,7 @@ defmodule TuistWeb.API.BuildsController do
                  type: :object,
                  properties: %{
                    id: %Schema{type: :string, format: :uuid, description: "The build ID."},
+                   actor: ReportActor,
                    duration: %Schema{type: :integer, description: "Build duration in milliseconds."},
                    status: %Schema{
                      type: :string,
@@ -214,6 +221,7 @@ defmodule TuistWeb.API.BuildsController do
         Enum.map(builds, fn build ->
           %{
             id: build.id,
+            actor: Tuist.ReportActor.actor(build),
             duration: build.duration,
             status: build.status,
             category: if(build.category != "", do: build.category),
@@ -282,6 +290,7 @@ defmodule TuistWeb.API.BuildsController do
            type: :object,
            properties: %{
              id: %Schema{type: :string, format: :uuid, description: "The build ID."},
+             actor: ReportActor,
              duration: %Schema{type: :integer, description: "Build duration in milliseconds."},
              status: %Schema{type: :string, enum: ["success", "failure"], description: "Build status."},
              category: %Schema{
@@ -364,6 +373,7 @@ defmodule TuistWeb.API.BuildsController do
 
           json(conn, %{
             id: build.id,
+            actor: Tuist.ReportActor.actor(build),
             duration: build.duration,
             status: build.status,
             category: if(build.category != "", do: build.category),
@@ -467,6 +477,7 @@ defmodule TuistWeb.API.BuildsController do
   operation(:create,
     summary: "Create a new build.",
     parameters: [
+      "x-tuist-actor-id": ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -882,16 +893,18 @@ defmodule TuistWeb.API.BuildsController do
   )
 
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
-    body_params = RemoteURL.strip_credentials_from_params(body_params)
+    body_params = conn |> ReportPublishingPlug.parameters(body_params) |> RemoteURL.strip_credentials_from_params()
 
     run_params =
       body_params
       |> Map.put(:project, selected_project)
       |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
+      |> Map.merge(Tuist.ReportActor.attributes(conn))
 
     case get_or_create_build(run_params) do
       {:ok, build} ->
-        if build.status not in ["processing", "failed_processing"] do
+        if not ReportPublishingPlug.network_publisher?(conn) and
+             build.status not in ["processing", "failed_processing"] do
           Tuist.VCS.enqueue_vcs_pull_request_comment(%{
             git_commit_sha: build.git_commit_sha,
             git_ref: build.git_ref,
@@ -936,7 +949,10 @@ defmodule TuistWeb.API.BuildsController do
           scheme: Map.get(params, :scheme),
           configuration: Map.get(params, :configuration),
           project_id: params.project.id,
-          account_id: params.ran_by_account.id,
+          account_id: if(params.ran_by_account, do: params.ran_by_account.id, else: 0),
+          actor_account_id: params.actor_account_id,
+          claimed_actor_id: params.claimed_actor_id,
+          submission_auth: params.submission_auth,
           status: Map.get(params, :status, "success"),
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
@@ -974,6 +990,9 @@ defmodule TuistWeb.API.BuildsController do
               project_id: params.project.id,
               xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false),
               build_metadata: %{
+                actor_account_id: params.actor_account_id,
+                claimed_actor_id: params.claimed_actor_id,
+                submission_auth: params.submission_auth,
                 macos_version: Map.get(params, :macos_version),
                 xcode_version: Map.get(params, :xcode_version),
                 is_ci: Map.get(params, :is_ci),

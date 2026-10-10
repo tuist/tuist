@@ -12,6 +12,7 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - Avoid direct file system or graph logic that belongs in `TuistCore`, `TuistGenerator`, or `TuistSupport`.
 
 ## Invariants
+- Credential-free Xcode publishing parses activity logs and XCResult locally, posts completed structured reports, and never uploads archives, attachments, coverage/history, shard/stress references, existing-build associations or cache-processing hints. Skip enrichment that requires authenticated reads. Branch only after the shared report-mode credential resolver proves genuine absence; present or rejected credentials retain authenticated/error behavior.
 - Swift flag deduplication must preserve top-level `-Werror` and `-Wwarning` pairs in their original order, including repetitions, in both ordinary and platform-conditioned build settings. Do not mistake a forwarded option such as `-Xcc -Werror` for a top-level warning-group flag.
 - `TuistCommand` groups commands into: Get started, Develop, Share, Account, Other.
 - ProjectAutomation's package projection keeps its existing product-name and embedding shape. Explicit native package linkage hints remain in the generation graph; they do not add new package variants to this projection.

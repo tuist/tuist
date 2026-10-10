@@ -34,6 +34,30 @@ end
 
 The alias covers `mix compile` and every compile that another task triggers, such as `mix test` or `mix phx.server`. A compile that finds nothing to do is not reported, so the dashboard only lists builds that did work.
 
+## Actor attribution {#actor-attribution}
+
+Build and test reports automatically include the username from `USER`, `USERNAME`, or `LOGNAME` when available. Set `TUIST_ACTOR_ID` to override it per developer. A fixed `tuist: [project: "account/project", actor_id: "employee-123"]` in `mix.exs` applies to everyone using that configuration, so use it only for single-identity or CI setups. The environment takes precedence over project configuration. An empty override omits the reported identifier but does not remove credential-based verified identity.
+
+On CI, automatic detection identifies the runner's OS account (for example, `runner` or `root`), not the developer who triggered the build. Use an explicit identifier when a different reporting identity is required.
+
+Identifiers must be 1–128 bytes of non-space printable ASCII. Invalid overrides are omitted without falling back to the username. Verified individual credentials take precedence; other client-reported identifiers are displayed as **Unverified**, never authorize access, and never link automatically to users. Anyone who can view the project's reports can see these identifiers, including public viewers when the project is public, and they are included in data exports, so do not include secrets. Old servers ignore the optional header, and new servers accept old clients without it. New shared-token reports with no identifier show **Unknown**, rather than the publishing organization; historical reports retain their prior attribution. Build and test reporting require authentication by default. Self-hosted installations can explicitly enable credential-free reporting as described below.
+
+## Credential-free reporting on a private network {#network-trusted-publishing}
+
+After an operator configures `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true` on the instance and restarts it as described in the <.localized_link href="/guides/server/self-host/server#network-trusted-report-publishing">self-hosting guide</.localized_link>, configure your destination and opt in. The instance setting covers every supported project and has no dashboard toggle:
+
+```elixir
+tuist: [
+  url: "https://tuist.internal.example",
+  project: "account/project",
+  network_trusted_publishing: true
+]
+```
+
+Alternatively, set `TUIST_NETWORK_TRUSTED_PUBLISHING=true`. `mix tuist.compile` and `mix tuist.test` then publish structured reports without sign-in when credentials are genuinely absent. Present credentials, including supplied CI OIDC identity, are used or rejected, never ignored to downgrade to unsigned reporting. Blank tokens and corrupt credential files are errors and are not deleted automatically. Old servers reject unsigned reports.
+
+Unsigned runs are telemetry, not trusted flakiness, quarantine, coverage, or selective-execution evidence. Shard planning, build archives, and coverage/artifact endpoints still require credentials. Set `TUIST_NETWORK_TRUSTED_PUBLISHING=false` to disable credential-free publishing even when the project configuration enables it. Set `TUIST_ACTOR_ID=""` independently to omit the username claim; verified credential identity is unaffected.
+
 ## What is tracked {#what-is-tracked}
 
 For each build, the package collects:

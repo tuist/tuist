@@ -124,11 +124,11 @@ defmodule TuistWeb.GradleBuildRunsLive do
         %{value: value, operator: :==} when not is_nil(value) ->
           [
             %{field: :is_ci, op: :==, value: false},
-            %{field: :account_id, op: :==, value: value}
+            %{field: :verified_actor, op: :==, value: value}
           ]
 
         %{value: value, operator: op} when not is_nil(value) ->
-          [%{field: :account_id, op: op, value: value}]
+          [%{field: :verified_actor, op: op, value: value}]
 
         _ ->
           []
@@ -236,6 +236,14 @@ defmodule TuistWeb.GradleBuildRunsLive do
         value: nil
       },
       %Filter.Filter{
+        id: "claimed_actor_id",
+        field: :claimed_actor_id,
+        display_name: dgettext("dashboard_gradle", "Reported identifier (unverified)"),
+        type: :text,
+        operator: :==,
+        value: ""
+      },
+      %Filter.Filter{
         id: "git_branch",
         field: :git_branch,
         display_name: dgettext("dashboard_gradle", "Branch"),
@@ -292,7 +300,7 @@ defmodule TuistWeb.GradleBuildRunsLive do
           %Filter.Filter{
             id: "ran_by",
             field: :ran_by,
-            display_name: dgettext("dashboard_gradle", "Ran by"),
+            display_name: dgettext("dashboard_gradle", "Verified user / CI"),
             type: :option,
             searchable: true,
             options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),

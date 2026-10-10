@@ -8,6 +8,7 @@ defmodule Tuist.Tests.Test do
 
   import Ecto.Changeset
 
+  alias Tuist.Accounts.Account
   alias Tuist.Tests.StressNewTests
 
   @derive {
@@ -20,11 +21,22 @@ defmodule Tuist.Tests.Test do
       :xcode_version,
       :macos_version,
       :account_id,
+      :verified_actor,
+      :claimed_actor_id,
       :is_ci,
       :build_system,
       :ran_at
     ],
-    sortable: [:ran_at, :duration, :inserted_at]
+    sortable: [:ran_at, :duration, :inserted_at],
+    adapter_opts: [
+      custom_fields: [
+        verified_actor: [
+          filter: {Tuist.ReportActor, :verified_account_filter, []},
+          ecto_type: :integer,
+          operators: [:==, :!=]
+        ]
+      ]
+    ]
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
@@ -60,6 +72,10 @@ defmodule Tuist.Tests.Test do
     field :ran_at, Ch, type: "DateTime64(6)"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
+    field :actor_account_id, Ch, type: "Int64", default: 0
+    field :claimed_actor_id, Ch, type: "String", default: ""
+    field :submission_auth, Ch, type: "LowCardinality(String)", default: ""
+    belongs_to :actor_account, Account, foreign_key: :actor_account_id, define_field: false
     field :build_run_id, Ch, type: "Nullable(UUID)"
     field :gradle_build_id, Ch, type: "Nullable(UUID)"
     field :bazel_invocation_id, Ch, type: "String", default: ""
@@ -80,7 +96,7 @@ defmodule Tuist.Tests.Test do
     field :stress_excluded_count, Ch, type: "UInt32", default: 0
     field :stress_known_count, Ch, type: "UInt32", default: 0
 
-    belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
+    belongs_to :ran_by_account, Account, foreign_key: :account_id, define_field: false
     belongs_to :build_run, Tuist.Builds.Build, foreign_key: :build_run_id, define_field: false
     belongs_to :gradle_build, Tuist.Gradle.Build, foreign_key: :gradle_build_id, define_field: false
     belongs_to :shard_plan, Tuist.Shards.ShardPlan, foreign_key: :shard_plan_id, define_field: false
@@ -102,6 +118,9 @@ defmodule Tuist.Tests.Test do
       :scheme,
       :project_id,
       :account_id,
+      :actor_account_id,
+      :claimed_actor_id,
+      :submission_auth,
       :status,
       :is_flaky,
       :git_branch,

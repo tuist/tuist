@@ -97,7 +97,7 @@ defmodule TuistWeb.CacheRunsLive do
           %Filter.Filter{
             id: "ran_by",
             field: :ran_by,
-            display_name: dgettext("dashboard_cache", "Ran by"),
+            display_name: dgettext("dashboard_cache", "Verified user / CI"),
             type: :option,
             searchable: true,
             options: [:ci] ++ Enum.map(users, fn user -> user.id end),

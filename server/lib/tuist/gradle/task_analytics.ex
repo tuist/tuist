@@ -221,7 +221,17 @@ defmodule Tuist.Gradle.TaskAnalytics do
       |> select([t, b], %{
         id: t.id,
         build_id: b.id,
-        build: struct(b, [:id, :root_project_name, :custom_tags, :account_id, :is_ci]),
+        build:
+          struct(b, [
+            :id,
+            :root_project_name,
+            :custom_tags,
+            :account_id,
+            :is_ci,
+            :actor_account_id,
+            :claimed_actor_id,
+            :submission_auth
+          ]),
         git_branch: b.git_branch,
         outcome: t.outcome,
         duration_ms: t.duration_ms,
@@ -231,7 +241,7 @@ defmodule Tuist.Gradle.TaskAnalytics do
       |> offset(^((page - 1) * 25))
       |> ClickHouseRepo.all()
 
-    builds = Repo.preload(Enum.map(rows, & &1.build), :built_by_account)
+    builds = rows |> Enum.map(& &1.build) |> Repo.preload(:built_by_account) |> Tuist.ReportActor.preload()
     rows = Enum.zip_with(rows, builds, &Map.put(&1, :build, &2))
 
     %{rows: rows, page: page, total_pages: total_pages}
@@ -264,7 +274,10 @@ defmodule Tuist.Gradle.TaskAnalytics do
           :account_id,
           :is_ci,
           :git_branch,
-          :git_commit_sha
+          :git_commit_sha,
+          :actor_account_id,
+          :claimed_actor_id,
+          :submission_auth
         ])
       )
 

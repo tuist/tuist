@@ -67,6 +67,7 @@ defmodule Mix.Tasks.Tuist.Test do
   alias TuistEx.Analytics.Shards
   alias TuistEx.Analytics.Subprocess
   alias TuistEx.Analytics.TempDir
+  alias TuistEx.Auth
 
   @formatter ExUnitFormatter
   @preferred_cli_env :test
@@ -266,9 +267,9 @@ defmodule Mix.Tasks.Tuist.Test do
 
     # The commits and listing go to the repository's graph once the runs
     # that reference them exist.
-    if history do
-      analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
+    analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
 
+    if history && not Auth.network_publishing?(analytics_options) do
       case Isolated.run(fn -> GitHistory.upload(history, analytics_options) end, 300_000) do
         problems when is_list(problems) ->
           Enum.each(problems, &Report.debug("tuist analytics: " <> &1))
@@ -284,6 +285,12 @@ defmodule Mix.Tasks.Tuist.Test do
   defp collect_history(_options) do
     analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
 
+    if !Auth.network_publishing?(analytics_options) do
+      do_collect_history(analytics_options)
+    end
+  end
+
+  defp do_collect_history(analytics_options) do
     case Isolated.run(fn -> GitHistory.collect(File.cwd!(), analytics_options) end, 300_000) do
       %{} = history ->
         history
@@ -296,6 +303,15 @@ defmodule Mix.Tasks.Tuist.Test do
 
   defp with_coverage(payload, options, opts, history) do
     {snapshot, payload} = Map.pop(payload, :coverage_snapshot)
+
+    if Auth.network_publishing?(opts) do
+      payload
+    else
+      do_with_coverage(payload, snapshot, options, opts, history)
+    end
+  end
+
+  defp do_with_coverage(payload, snapshot, options, opts, history) do
     payload = if history, do: Map.merge(payload, GitHistory.payload(history)), else: payload
 
     with snapshot when is_list(snapshot) <- snapshot,

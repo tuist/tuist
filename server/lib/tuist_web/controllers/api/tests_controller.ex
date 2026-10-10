@@ -14,21 +14,27 @@ defmodule TuistWeb.API.TestsController do
   alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
+  alias TuistWeb.API.Schemas.ReportActor
   alias TuistWeb.API.Schemas.Tests.Coverage, as: CoverageSchema
   alias TuistWeb.API.Schemas.Tests.StressNewTestsResult
   alias TuistWeb.API.Schemas.Tests.Test
   alias TuistWeb.API.Schemas.Tests.XcodeCoverage
   alias TuistWeb.Authentication
+  alias TuistWeb.Plugs.ReportPublishingPlug
 
   require Logger
+
+  plug(ReportPublishingPlug, {:preflight, :test} when action == :create)
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :test)
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
+  plug(ReportPublishingPlug, :test when action == :create)
+  plug(TuistWeb.Plugs.LoaderPlug when action != :create)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :test when action != :create)
 
   tags ["Tests"]
 
@@ -107,6 +113,7 @@ defmodule TuistWeb.API.TestsController do
                  type: :object,
                  properties: %{
                    id: %Schema{type: :string, format: :uuid, description: "The test run ID."},
+                   actor: ReportActor,
                    duration: %Schema{type: :integer, description: "Duration in milliseconds."},
                    status: %Schema{type: :string, enum: ["success", "failure", "skipped"], description: "Run status."},
                    is_ci: %Schema{type: :boolean, description: "Whether the run was on CI."},
@@ -169,6 +176,7 @@ defmodule TuistWeb.API.TestsController do
 
               %{
                 id: run.id,
+                actor: Tuist.ReportActor.actor(run),
                 duration: run.duration,
                 status: to_string(run.status),
                 is_ci: run.is_ci,
@@ -206,6 +214,7 @@ defmodule TuistWeb.API.TestsController do
   operation(:create,
     summary: "Create a new test run.",
     parameters: [
+      "x-tuist-actor-id": ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -717,18 +726,23 @@ defmodule TuistWeb.API.TestsController do
     }
   )
 
+  defp notify_connected(conn, project) do
+    if Project.mix_project?(project) and not ReportPublishingPlug.network_publisher?(conn),
+      do: Projects.notify_connected(project, Authentication.current_user(conn))
+  end
+
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
-    body_params = RemoteURL.strip_credentials_from_params(body_params)
+    body_params = conn |> ReportPublishingPlug.parameters(body_params) |> RemoteURL.strip_credentials_from_params()
 
     run_params =
       body_params
       |> Map.put(:project, selected_project)
       |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
+      |> Map.merge(Tuist.ReportActor.attributes(conn))
 
     case get_or_create_test(run_params) do
       {:ok, test_run} ->
-        if Project.mix_project?(selected_project),
-          do: Projects.notify_connected(selected_project, Authentication.current_user(conn))
+        notify_connected(conn, selected_project)
 
         vcs_comment_params = %{
           git_commit_sha: Map.get(body_params, :git_commit_sha),
@@ -789,6 +803,9 @@ defmodule TuistWeb.API.TestsController do
               git_dirty: test_run.git_dirty,
               execution_mode: test_run.execution_mode,
               account_id: test_run.account_id,
+              actor_account_id: test_run.actor_account_id,
+              claimed_actor_id: test_run.claimed_actor_id,
+              submission_auth: test_run.submission_auth,
               project_id: selected_project.id,
               account_handle: selected_project.account.name,
               project_handle: selected_project.name,
@@ -811,7 +828,9 @@ defmodule TuistWeb.API.TestsController do
               vcs_comment_params: vcs_comment_params
             })
           else
-            Tuist.VCS.enqueue_vcs_pull_request_comment(vcs_comment_params)
+            if !ReportPublishingPlug.network_publisher?(conn),
+              do: Tuist.VCS.enqueue_vcs_pull_request_comment(vcs_comment_params)
+
             :ok
           end
 
@@ -912,6 +931,7 @@ defmodule TuistWeb.API.TestsController do
            type: :object,
            properties: %{
              id: %Schema{type: :string, format: :uuid, description: "The test run ID."},
+             actor: ReportActor,
              status: %Schema{type: :string, enum: ["success", "failure", "skipped"], description: "Run status."},
              duration: %Schema{type: :integer, description: "Duration in milliseconds."},
              is_ci: %Schema{type: :boolean, description: "Whether the run was on CI."},
@@ -959,6 +979,7 @@ defmodule TuistWeb.API.TestsController do
 
         json(conn, %{
           id: run.id,
+          actor: Tuist.ReportActor.actor(run),
           status: to_string(run.status),
           duration: run.duration,
           is_ci: run.is_ci,
@@ -1029,7 +1050,10 @@ defmodule TuistWeb.API.TestsController do
           model_identifier: Map.get(params, :model_identifier),
           scheme: Map.get(params, :scheme),
           project_id: params.project.id,
-          account_id: params.ran_by_account.id,
+          account_id: if(params.ran_by_account, do: params.ran_by_account.id, else: 0),
+          actor_account_id: params.actor_account_id,
+          claimed_actor_id: params.claimed_actor_id,
+          submission_auth: params.submission_auth,
           status: Map.get(params, :status),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),

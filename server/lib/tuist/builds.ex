@@ -69,7 +69,7 @@ defmodule Tuist.Builds do
 
         case build do
           nil -> {:error, :not_found}
-          build -> {:ok, build}
+          build -> {:ok, Tuist.ReportActor.preload(build)}
         end
 
       _ ->
@@ -165,7 +165,7 @@ defmodule Tuist.Builds do
         )
       end
 
-      if build.status == "failure",
+      if build.status == "failure" and build.submission_auth != "network_trusted",
         do:
           Publisher.publish(
             "build.failed",
@@ -573,7 +573,7 @@ defmodule Tuist.Builds do
 
     {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
 
-    results = Repo.preload(results, preload)
+    results = results |> Repo.preload(preload) |> Tuist.ReportActor.preload()
 
     {results, meta}
   end

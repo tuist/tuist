@@ -368,6 +368,8 @@ abstract class TuistTestInsightsService :
         val url: Property<String>
         val project: Property<String>
         val useEnvironmentProxy: Property<Boolean>
+        val actorId: Property<String>
+        val networkTrustedPublishing: Property<Boolean>
         val rootProjectName: Property<String>
         val projectDir: DirectoryProperty
         val gitBranch: Property<String>
@@ -487,11 +489,12 @@ abstract class TuistTestInsightsService :
         val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
         val projectDir = parameters.projectDir.asFile.get()
 
-        val configProvider = DefaultConfigurationProvider(
+        val configProvider = ReportConfigurationProvider(
             project = projectValue,
             serverUrl = parameters.url.get(),
             projectDir = projectDir,
-            httpClients = httpClients
+            httpClients = httpClients,
+            allowNetworkTrustedPublishing = parameters.networkTrustedPublishing.getOrElse(false)
         )
 
         val httpClient = TuistHttpClient(
@@ -520,16 +523,23 @@ abstract class TuistTestInsightsService :
         )
 
         val response = httpClient.execute { config ->
-            val baseUrl = parameters.url.get().trimEnd('/')
+            val baseUrl = ServerUrlResolver.resolve(parameters.url.get(), projectDir).trimEnd('/')
             val url = URI(baseUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/tests")
             val connection = httpClient.openConnection(url, config)
             try {
                 connection.requestMethod = "POST"
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/json")
+                ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
+                    connection.setRequestProperty(ActorIdentifier.HEADER, it)
+                }
 
                 OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    Gson().toJson(report, writer)
+                    val outgoingReport = if (config.token.isBlank()) report.copy(
+                        gradleBuildId = null, shardPlanId = null, shardIndex = null, stressNewTests = null,
+                        gitRemoteUrlOrigin = null
+                    ) else report
+                    Gson().toJson(outgoingReport, writer)
                 }
 
                 when (connection.responseCode) {
@@ -589,6 +599,8 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             parameters.url.set(config.url)
             config.project?.let { parameters.project.set(it) }
             parameters.useEnvironmentProxy.set(config.network.proxy)
+            config.actorId?.let { parameters.actorId.set(it) }
+            parameters.networkTrustedPublishing.set(config.networkTrustedBuildPublishing)
             parameters.rootProjectName.set(project.rootProject.name)
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
             parameters.gitBranch.set(gitInfo.branch())
@@ -623,6 +635,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
                 parameters.serverUrl.set(config.url)
                 config.project?.let { parameters.tuistProject.set(it) }
                 parameters.useEnvironmentProxy.set(config.network.proxy)
+                parameters.networkTrustedPublishing.set(config.networkTrustedBuildPublishing)
                 parameters.projectDir.set(project.rootProject.layout.projectDirectory)
             }
         } else {

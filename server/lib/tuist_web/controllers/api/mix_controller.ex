@@ -9,14 +9,19 @@ defmodule TuistWeb.API.MixController do
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
+  alias TuistWeb.Plugs.ReportPublishingPlug
+
+  plug(ReportPublishingPlug, {:preflight, :mix} when action == :create_build)
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :build)
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create_build)
+  plug(ReportPublishingPlug, :mix when action == :create_build)
+  plug(TuistWeb.Plugs.LoaderPlug when action != :create_build)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :build when action != :create_build)
 
   tags ["Mix"]
 
@@ -32,6 +37,7 @@ defmodule TuistWeb.API.MixController do
     summary: "Create a Mix (Elixir) compile build.",
     operation_id: "createMixBuild",
     parameters: [
+      "x-tuist-actor-id": TuistWeb.API.Schemas.ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -303,11 +309,12 @@ defmodule TuistWeb.API.MixController do
   )
 
   def create_build(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
-    body = RemoteURL.strip_credentials_from_params(body)
+    body = conn |> ReportPublishingPlug.parameters(body) |> RemoteURL.strip_credentials_from_params()
 
     case Mix.create_build(build_attributes(conn, project, body)) do
       {:ok, build_id} ->
-        Projects.notify_connected(project, Authentication.current_user(conn))
+        if !ReportPublishingPlug.network_publisher?(conn),
+          do: Projects.notify_connected(project, Authentication.current_user(conn))
 
         conn
         |> put_status(:created)
@@ -317,6 +324,13 @@ defmodule TuistWeb.API.MixController do
         conn
         |> put_status(:bad_request)
         |> json(%{message: "The custom metadata is invalid."})
+    end
+  end
+
+  defp publisher_id(conn) do
+    case Authentication.authenticated_subject_account(conn) do
+      nil -> 0
+      account -> account.id
     end
   end
 
@@ -331,7 +345,7 @@ defmodule TuistWeb.API.MixController do
     |> Map.take(@build_fields)
     |> Map.merge(%{
       project_id: project.id,
-      account_id: Authentication.authenticated_subject_account(conn).id,
+      account_id: publisher_id(conn),
       is_ci: body[:is_ci] || false,
       custom_tags: Map.get(metadata, :tags, []),
       custom_values: Map.get(metadata, :values, %{}),
@@ -340,5 +354,6 @@ defmodule TuistWeb.API.MixController do
       steps: body[:steps] || [],
       machine_metrics: body[:machine_metrics] || []
     })
+    |> Map.merge(Tuist.ReportActor.attributes(conn))
   end
 end

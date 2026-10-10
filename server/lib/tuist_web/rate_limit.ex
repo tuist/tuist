@@ -2,6 +2,9 @@ defmodule TuistWeb.RateLimit do
   @moduledoc """
   Applies rate limits using Valkey with an in-memory fallback.
 
+  Set `:fallback` to false to fail closed when the configured Valkey backend
+  is unavailable rather than admitting requests under per-node limits. Such
+  failures return `{:error, :unavailable}`; default callers retain the fallback.
   Fixed-window limits use the `:limit` and `:window` options. Token-bucket
   limits use the `:capacity`, `:refill_rate`, and optional `:cost` options.
   """
@@ -76,10 +79,13 @@ defmodule TuistWeb.RateLimit do
     limit = Keyword.fetch!(opts, :limit)
     increment = Keyword.get(opts, :increment, 1)
 
-    with_in_memory_fallback(
-      fn -> PersistentFixedWindow.hit(key, window, limit, increment) end,
-      fn -> InMemory.hit(key, window, limit, increment) end
-    )
+    persistent = fn -> PersistentFixedWindow.hit(key, window, limit, increment) end
+
+    if Keyword.get(opts, :fallback, true) do
+      with_in_memory_fallback(persistent, fn -> InMemory.hit(key, window, limit, increment) end)
+    else
+      without_fallback(persistent)
+    end
   end
 
   defp hit_persistent(:token_bucket, key, opts) do
@@ -87,10 +93,13 @@ defmodule TuistWeb.RateLimit do
     capacity = Keyword.fetch!(opts, :capacity)
     cost = Keyword.get(opts, :cost, 1)
 
-    with_in_memory_fallback(
-      fn -> PersistentTokenBucket.hit(key, refill_rate, capacity, cost) end,
-      fn -> InMemory.hit_token_bucket(key, refill_rate, capacity, cost) end
-    )
+    persistent = fn -> PersistentTokenBucket.hit(key, refill_rate, capacity, cost) end
+
+    if Keyword.get(opts, :fallback, true) do
+      with_in_memory_fallback(persistent, fn -> InMemory.hit_token_bucket(key, refill_rate, capacity, cost) end)
+    else
+      without_fallback(persistent)
+    end
   end
 
   defp hit_in_memory(:fixed_window, key, opts) do
@@ -109,6 +118,14 @@ defmodule TuistWeb.RateLimit do
       Keyword.fetch!(opts, :capacity),
       Keyword.get(opts, :cost, 1)
     )
+  end
+
+  defp without_fallback(persistent) do
+    persistent.()
+  rescue
+    _error in [MatchError, Redix.ConnectionError, Redix.Error] -> {:error, :unavailable}
+  catch
+    :exit, _reason -> {:error, :unavailable}
   end
 
   defp with_in_memory_fallback(persistent, in_memory) do

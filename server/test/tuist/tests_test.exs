@@ -2309,6 +2309,7 @@ defmodule Tuist.TestsTest do
         |> Map.from_struct()
         |> Map.drop([
           :__meta__,
+          :actor_account,
           :ran_by_account,
           :build_run,
           :gradle_build,
@@ -5442,6 +5443,9 @@ defmodule Tuist.TestsTest do
           account_id: project.account_id,
           git_commit_sha: commit_sha,
           git_branch: project.default_branch,
+          actor_account_id: project.account_id,
+          claimed_actor_id: "developer-123",
+          submission_auth: "token",
           scheme: "App",
           is_ci: true,
           status: "failure",
@@ -5476,6 +5480,9 @@ defmodule Tuist.TestsTest do
 
       assert corrected_run.is_flaky
       assert corrected_run.is_default_branch == true
+      assert corrected_run.actor_account_id == project.account_id
+      assert corrected_run.claimed_actor_id == "developer-123"
+      assert corrected_run.submission_auth == "token"
     end
 
     test "a correction reclassifies a run the column predates instead of copying its stale value" do
@@ -8776,6 +8783,9 @@ defmodule Tuist.TestsTest do
             is_ci: true,
             scheme: "",
             account_id: project.account_id,
+            actor_account_id: 0,
+            claimed_actor_id: "",
+            submission_auth: "",
             ran_at: NaiveDateTime.add(base_time, -i, :second),
             git_branch: "main",
             is_default_branch: false,

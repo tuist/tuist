@@ -5,12 +5,14 @@ import com.google.gson.annotations.SerializedName
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.net.URI
+import java.util.Locale
 
 data class Credentials(
     @SerializedName(value = "accessToken", alternate = ["access_token"])
     val accessToken: String,
     @SerializedName(value = "refreshToken", alternate = ["refresh_token"])
-    val refreshToken: String? = null
+    val refreshToken: String? = null,
+    val rejected: Boolean? = null
 )
 
 class CredentialStore(
@@ -18,13 +20,24 @@ class CredentialStore(
 ) {
     private val logger = LoggerFactory.getLogger(CredentialStore::class.java)
 
-    fun read(serverURL: URI): Credentials? {
+    fun read(serverURL: URI): Credentials? = read(serverURL, rejectInvalid = false)
+
+    internal fun readValidated(serverURL: URI): Credentials? = read(serverURL, rejectInvalid = true)
+
+    private fun read(serverURL: URI, rejectInvalid: Boolean): Credentials? {
         val hostname = serverURL.host ?: return null
-        val credFile = File(credentialsDir, "$hostname.json")
+        val credFile = credentialFile(hostname)
         if (!credFile.exists()) return null
         return try {
-            Gson().fromJson(credFile.readText(), Credentials::class.java)
+            val credentials = Gson().fromJson(credFile.readText(), Credentials::class.java)
+            if (rejectInvalid && (credentials?.accessToken.isNullOrBlank() || credentials?.rejected == true)) {
+                throw IllegalArgumentException("Missing access token")
+            }
+            credentials
         } catch (e: Exception) {
+            if (rejectInvalid) {
+                throw IllegalStateException("Existing Tuist credentials in $credFile are invalid; re-authenticate with `tuist auth login` or explicitly remove them before publishing.", e)
+            }
             logger.warn("Tuist: Credential file {} is corrupt and will be removed. Re-authenticate with `tuist auth login`. Error: {}", credFile, e.message)
             credFile.delete()
             null
@@ -34,7 +47,14 @@ class CredentialStore(
     fun write(serverURL: URI, credentials: Credentials) {
         val hostname = serverURL.host ?: return
         credentialsDir.mkdirs()
-        File(credentialsDir, "$hostname.json").writeText(Gson().toJson(credentials))
+        credentialFile(hostname).writeText(Gson().toJson(credentials))
+    }
+
+    private fun credentialFile(hostname: String): File {
+        val normalized = File(credentialsDir, "${hostname.lowercase(Locale.ROOT)}.json")
+        if (normalized.exists()) return normalized
+        return credentialsDir.listFiles()?.firstOrNull { it.name.equals("$hostname.json", ignoreCase = true) }
+            ?: File(credentialsDir, "$hostname.json")
     }
 
     companion object {

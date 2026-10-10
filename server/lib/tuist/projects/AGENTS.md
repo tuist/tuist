@@ -6,6 +6,7 @@ This context owns project records, tokens, and account/project handle resolution
 - Resolve projects by handles, tokens (legacy and new), and slugs.
 - List accessible projects based on account/org membership.
 - Manage project tokens and VCS connections.
+- Network-trusted report publishing belongs to instance runtime configuration, not persisted project settings. Keep normal project/build-system validation and project-scoped quotas without introducing a dashboard toggle.
 - Public sitemap queries select only account/project handles in bounded, deterministically ordered pages. Project visibility, not account visibility, controls inclusion.
 
 ## Boundaries

@@ -22,12 +22,14 @@ defmodule TuistEx.Analytics.HTTPTest do
       assert url == "https://tuist.example/api/projects/acme/widgets/tests"
       assert body == %{id: "run-id", duration: 42}
       assert {"authorization", "Bearer access-token"} in headers
+      assert {"x-tuist-actor-id", "developer-123"} in headers
       {:ok, 200, %{"id" => "run-id"}}
     end)
 
     assert :ok =
              AnalyticsHTTP.submit_test_run(%{id: "run-id", duration: 42},
-               environment: environment
+               environment: environment,
+               actor_id: "developer-123"
              )
   end
 
@@ -46,6 +48,29 @@ defmodule TuistEx.Analytics.HTTPTest do
 
     assert {:error, {:http, 500, %{"message" => "boom"}}} =
              AnalyticsHTTP.submit_test_run(%{id: "x"}, environment: environment)
+  end
+
+  test "actor headers never reach shard planning" do
+    environment = fn
+      "TUIST_URL" -> "https://tuist.example"
+      "TUIST_PROJECT" -> "acme/widgets"
+      "USER" -> "developer"
+      _ -> nil
+    end
+
+    stub(Auth, :token, fn _ -> {:ok, "token"} end)
+
+    expect(HTTP, :request, fn :post, url, _body, headers ->
+      assert url == "https://tuist.example/api/projects/acme/widgets/tests/shards"
+      refute Enum.any?(headers, fn {name, _} -> name == "x-tuist-actor-id" end)
+      {:ok, 200, %{}}
+    end)
+
+    assert {:ok, %{}} =
+             AnalyticsHTTP.project_request(:post, "/tests/shards", %{},
+               environment: environment,
+               actor_id: "developer-123"
+             )
   end
 
   test "returns the config error when the project handle is missing" do
@@ -69,9 +94,14 @@ defmodule TuistEx.Analytics.HTTPTest do
       assert url == "https://tuist.example/api/projects/acme/widgets/mix/builds"
       assert body == %{id: "build-id"}
       assert {"authorization", "Bearer token"} in headers
+      assert {"x-tuist-actor-id", "developer-123"} in headers
       {:ok, 201, %{"id" => "build-id"}}
     end)
 
-    assert :ok = AnalyticsHTTP.submit_mix_build(%{id: "build-id"}, environment: environment)
+    assert :ok =
+             AnalyticsHTTP.submit_mix_build(%{id: "build-id"},
+               environment: environment,
+               actor_id: "developer-123"
+             )
   end
 end
