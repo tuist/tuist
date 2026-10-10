@@ -87,6 +87,32 @@ The barrier reads only its own workflow run attempt and fails if its peer fails
 or does not attach within 25 minutes. Keep it outside the timed install command.
 Rerun both jobs together: a failed-job-only retry cannot prove overlap with a
 writer from an earlier attempt.
+
+## CLI dependency volumes
+
+Trusted macOS jobs in `cli.yml` use `tuist-macos-27-0-volumes`, the M4 profile
+with enough host SSD capacity for custom volumes. Keep fork jobs on the ordinary
+profile with archive caches and copied dependencies; they cannot authenticate
+volume attachments. Linux and release/backport workflows have separate toolchain
+and runner requirements and are not part of this migration.
+
+Attach `.build` and `~/.cache/swifterpm` before installing dependencies. Workspace
+keys include the job, Xcode version and `Package.swift`; the source-cache key is
+shared across jobs for the same Xcode version. Do not key either on the lockfile:
+SwifterPM validates pinned versions and can reuse unchanged sources across updates.
+Keep `--force-resolved-versions`, pass `--cache-path` explicitly, and select
+`--cached-directory-materialization=symlink` for mounted caches. Automatic CI mode
+copies sources even on a hit. Never archive these mounted paths. Set
+`TUIST_DEV_INSTANCE=1` before mise so random checkout-local development settings
+do not invalidate manifest fingerprints. Other manifest-visible CI variables can
+still invalidate them; a hit is not evidence that all manifest work was skipped.
+
+Pull requests consume private snapshots without publishing. First successful main
+jobs seed these new keys; measure subsequent jobs only after publication. The
+full-host M4 profile has less concurrency than the ordinary macOS pool, so track
+queue time separately from dependency-install time. The two volumes publish
+independently; always run the installer even when both attachments are hits.
+
 ## Bazel and Mix cache volumes
 
 Kura's `.bazelrc` configures repository downloads and disk action caching under
