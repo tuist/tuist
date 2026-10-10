@@ -212,7 +212,7 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
         let fileName = renderer.safeFileName("\(scope)-\(schemeName)-\(actionName)")
         let directory = project.sourceRootPath.appending(
             components: Constants.DerivedDirectory.name,
-            "TuistCacheDebugging"
+            Constants.DerivedDirectory.tuistCacheDebugging
         )
         let lldbInitPath = directory.appending(component: "\(fileName).lldbinit")
         if originalLLDBInitFile == lldbInitPath,

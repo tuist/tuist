@@ -340,6 +340,30 @@ struct CachedModulesDebuggingGraphMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func map_preservesOtherWorkspaceInitializersWhenRegeneratingSharedProjects() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let executor = SideEffectDescriptorExecutor()
+        let fileSystem = FileSystem()
+        var graph = compilationCacheGraph(at: projectPath)
+        graph.workspace.name = "Standalone"
+        let (standalone, standaloneFiles, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        try await executor.execute(sideEffects: standaloneFiles)
+        let standaloneInit = try #require(standalone.workspace.schemes.first?.testAction?.customLLDBInitFile)
+        let initialContents = try await fileSystem.readTextFile(at: standaloneInit)
+
+        graph.workspace.name = "Root"
+        let (_, cleanup) = try await DeleteDerivedDirectoryProjectMapper().map(project: #require(graph.projects[projectPath]))
+        let (root, rootFiles, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        try await executor.execute(sideEffects: cleanup + rootFiles)
+        let rootInit = try #require(root.workspace.schemes.first?.testAction?.customLLDBInitFile)
+
+        #expect(standaloneInit != rootInit)
+        #expect(try await fileSystem.readTextFile(at: standaloneInit) == initialContents)
+        #expect(try await fileSystem.exists(rootInit))
+    }
+
+    @Test(.inTemporaryDirectory)
     func map_doesNotConfigureCompilationCachingWhenDebuggerAttachmentIsDisabled() async throws {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let graph = compilationCacheGraph(at: projectPath, attachDebugger: false)
