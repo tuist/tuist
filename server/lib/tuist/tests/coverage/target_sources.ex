@@ -66,7 +66,8 @@ defmodule Tuist.Tests.Coverage.TargetSources do
 
   @doc """
   The latest run recorded for each `{target, hash}` in the repository, as
-  `%{{target, hash} => %{run_id:, sha:, ran_at:}}`.
+  `%{{target, hash} => %{run_id:, sha:, ran_at:}}`. Merges keep one row per
+  key, but until they run a key can have several, so the latest is picked.
   """
   def latest(_project_id, _repository_id, []), do: %{}
 
