@@ -15,9 +15,8 @@ public protocol RemoteCacheProbing: Sendable {
 }
 
 public struct RemoteCacheProbeService: RemoteCacheProbing {
-    /// Upper bound for the probe so `tuist bazel setup` fails fast instead of hanging when a
-    /// cache endpoint is unreachable. It bounds the whole RPC, including connection set-up.
-    private static let probeTimeout: Duration = .seconds(10)
+    /// Each attempt allows the activation gateway its 20-second wait plus connection setup.
+    private static let probeTimeout: Duration = .seconds(30)
 
     private let fileSystem: FileSysteming
 
@@ -44,7 +43,15 @@ public struct RemoteCacheProbeService: RemoteCacheProbing {
         do {
             try await withGRPCClient(transport: transport) { client in
                 let capabilities = Build_Bazel_Remote_Execution_V2_Capabilities.Client(wrapping: client)
-                _ = try await capabilities.getCapabilities(request, metadata: metadata, options: options)
+                for attempt in 0 ..< 4 {
+                    do {
+                        _ = try await capabilities.getCapabilities(request, metadata: metadata, options: options)
+                        return
+                    } catch let error as RPCError {
+                        guard attempt < 3, [.unavailable, .resourceExhausted].contains(error.code) else { throw error }
+                        try await Task.sleep(for: .seconds(2))
+                    }
+                }
             }
         } catch let error as RPCError {
             throw RemoteCacheProbeError.unavailable(

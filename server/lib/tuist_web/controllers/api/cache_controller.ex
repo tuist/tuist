@@ -10,6 +10,7 @@ defmodule TuistWeb.API.CacheController do
   alias Tuist.Billing
   alias Tuist.Cache
   alias Tuist.CacheActionItems
+  alias Tuist.CacheEndpoints
   alias Tuist.Kura
   alias Tuist.Kura.Identity
   alias Tuist.Storage
@@ -32,7 +33,7 @@ defmodule TuistWeb.API.CacheController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoints, :token]
+  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoint, :endpoints, :token]
 
   plug TuistWeb.API.Authorization.AuthorizationPlug,
        [
@@ -40,17 +41,56 @@ defmodule TuistWeb.API.CacheController do
          caching: true,
          cache_ttl: to_timeout(minute: 1)
        ]
-       when action not in [:access, :endpoints, :token]
+       when action not in [:access, :endpoint, :endpoints, :token]
 
-  plug BillingPlug when action not in [:access, :endpoints, :token]
+  plug BillingPlug when action not in [:access, :endpoint, :endpoints, :token]
 
   plug :sign
 
   tags(["Cache"])
 
+  operation(:endpoint,
+    summary: "Get the main self-hosted cache endpoint.",
+    description:
+      "Returns one server-configured cache URL, or null when none is configured. The first configured URL is the main endpoint. This operation never records demand or provisions capacity. Tuist-hosted clients derive their stable hostname locally and do not call this operation.",
+    operation_id: "getCacheEndpoint",
+    responses: %{
+      ok: %OpenApiSpex.Response{
+        description: "Main cache endpoint",
+        headers: %{
+          "cache-control" => %OpenApiSpex.Header{
+            description: "How long the endpoint configuration can be cached.",
+            schema: %Schema{type: :string}
+          }
+        },
+        content: %{
+          "application/json" => %OpenApiSpex.MediaType{
+            schema: %Schema{
+              title: "CacheEndpoint",
+              type: :object,
+              required: [:endpoint],
+              properties: %{endpoint: %Schema{type: :string, nullable: true}}
+            }
+          }
+        }
+      }
+    }
+  )
+
+  def endpoint(conn, _params) do
+    endpoint = CacheEndpoints.primary_endpoint_url()
+    max_age = if endpoint, do: 60, else: 5
+
+    conn
+    |> put_resp_header("cache-control", "private, max-age=#{max_age}")
+    |> json(%{endpoint: endpoint})
+  end
+
   operation(:endpoints,
     summary: "Get cache endpoints.",
-    description: "Returns cache endpoints for the requested account.",
+    description:
+      "Deprecated for new clients. Hosted clients derive stable cache URLs locally. Self-hosted clients use GET /api/cache/endpoint to discover their main cache URL. This route retains legacy endpoint selection and provisioning behavior.",
+    deprecated: true,
     operation_id: "getCacheEndpoints",
     parameters: [
       {:account_handle,
@@ -335,7 +375,7 @@ defmodule TuistWeb.API.CacheController do
         {:ok, token, _claims} =
           conn
           |> Authentication.authenticated_subject()
-          |> Cache.issue_cache_token(scope: params[:full_handle])
+          |> Cache.issue_cache_token(scope: params[:full_handle], origin: RemoteIp.origin(conn))
 
         json(conn, %{token: token, expires_in: Cache.cache_token_ttl_seconds()})
 

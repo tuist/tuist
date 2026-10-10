@@ -18,38 +18,44 @@ defmodule Tuist.Kura.PlacerRegions do
   @doc """
   The regions the account should be running in, primary first. Empty when
   placement has never decided for it, which is every account until the placer
-  or the pin-the-present backfill writes one.
+  or the pin-the-present backfill writes one. The optional fallback applies
+  only when no placement rows exist, never when all rows are retiring.
 
   A retiring region is not one of them. It is still serving traffic until its
   drain starts, but nothing should provision it or hold its demand clock warm,
   or the lifecycle would rebuild the instance the retirement is removing.
   """
-  def serving_regions(%Account{id: account_id}) do
-    account_id
-    |> rows_for()
-    |> Enum.filter(&(&1.status == :desired))
-    |> Enum.map(& &1.region)
+  def serving_regions(%Account{id: account_id}, fallback \\ []) do
+    case rows_for(account_id) do
+      [] -> fallback
+      rows -> rows |> Enum.filter(&(&1.status == :desired)) |> Enum.map(& &1.region)
+    end
   end
 
   @doc """
   Every region the account holds, retiring ones included. What placement reads,
-  so it does not expand into a region it is in the middle of leaving.
+  so it does not expand into a region it is in the middle of leaving. The
+  optional fallback applies only when there are no placement rows.
   """
-  def claimed_regions(%Account{id: account_id}) do
-    account_id
-    |> rows_for()
-    |> Enum.map(& &1.region)
+  def claimed_regions(%Account{id: account_id}, fallback \\ []) do
+    case rows_for(account_id) do
+      [] -> fallback
+      rows -> Enum.map(rows, & &1.region)
+    end
   end
 
-  @doc "Every claimed region for many accounts, including retiring regions."
-  def claimed_regions_all(accounts) when is_list(accounts) do
+  @doc "Every claimed region for many accounts; fallback applies only to accounts without rows."
+  def claimed_regions_all(accounts, fallback \\ %{}) when is_list(accounts) do
     account_ids = Enum.map(accounts, & &1.id)
 
-    PlacerRegion
-    |> where([placer], placer.account_id in ^account_ids)
-    |> select([placer], {placer.account_id, placer.region})
-    |> Repo.all()
-    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+    claimed =
+      PlacerRegion
+      |> where([placer], placer.account_id in ^account_ids)
+      |> select([placer], {placer.account_id, placer.region})
+      |> Repo.all()
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+
+    Map.merge(fallback, claimed)
   end
 
   @doc """

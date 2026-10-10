@@ -54,6 +54,8 @@ This area owns Phoenix controllers for HTML and API endpoints.
   node-bound allocation lookup. It serves download/upload/retain/publication
   decisions using the macOS master protocol; never expose signed URLs publicly.
 
+- The singular `/api/cache/endpoint` returns the first configured URL (or null) for authenticated self-hosted clients, without demand or provisioning. Known hosted URLs are derived locally without discovery. Preserve the deprecated plural route for older CLIs. The wildcard gateway uses `Internal.KuraActivationController` to authenticate the actual cache credential (including cache-scoped JWTs) and enqueue provisioning. It is an internal gateway protocol, excluded from the CLI OpenAPI; never make cache JWTs general API credentials.
+
 - `API.MetricsController` exposes Gradle health and branch/workload dimension routes alongside Xcode/test durations, using project build-read authorization, validated bounded ranges/thresholds, rate limiting and short-lived caching. Preserve exact range boundaries in Gradle metric cache keys. These Grafana endpoints remain outside the generated command-line client.
 
 - Shared Grafana health routes dispatch by the authorized project build system. Keep the legacy Gradle routes compatible, use build-read authorization, and include the source in dimension cache keys.

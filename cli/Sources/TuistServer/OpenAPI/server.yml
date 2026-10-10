@@ -4793,6 +4793,19 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Project
       x-validate:
+    CacheEndpoint:
+      properties:
+        endpoint:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - endpoint
+      title: CacheEndpoint
+      type: object
+      x-struct:
+      x-validate:
     RunnerWorkflow:
       properties:
         avg_duration_ms:
@@ -11755,7 +11768,8 @@ paths:
   /api/cache/endpoints:
     get:
       callbacks: {}
-      description: Returns cache endpoints for the requested account.
+      deprecated: true
+      description: Deprecated for new clients. Hosted clients derive stable cache URLs locally. Self-hosted clients use GET /api/cache/endpoint to discover their main cache URL. This route retains legacy endpoint selection and provisioning behavior.
       operationId: getCacheEndpoints
       parameters:
         - description: The name of the account to get custom cache endpoints for.
@@ -14287,6 +14301,41 @@ paths:
       summary: Create a new test run.
       tags:
         - Tests
+  /api/cache/endpoint:
+    get:
+      callbacks: {}
+      description: Returns one server-configured cache URL, or null when none is configured. The first configured URL is the main endpoint. This operation never records demand or provisions capacity. Tuist-hosted clients derive their stable hostname locally and do not call this operation.
+      operationId: getCacheEndpoint
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  endpoint:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - endpoint
+                title: CacheEndpoint
+                type: object
+                x-struct:
+                x-validate:
+          description: Main cache endpoint
+          headers:
+            cache-control:
+              description: How long the endpoint configuration can be cached.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get the main self-hosted cache endpoint.
+      tags:
+        - Cache
   /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan:
     post:
       callbacks: {}

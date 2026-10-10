@@ -13,6 +13,11 @@ kind: ClusterRole
 metadata:
   name: {{ .Release.Name }}-cache-external-dns
 rules:
+  {{- if $dns.activationIngressClass }}
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses]
+    verbs: [get, list, watch]
+  {{- end }}
   - apiGroups: [externaldns.k8s.io]
     resources: [dnsendpoints]
     verbs: [get, list, watch]
@@ -61,6 +66,10 @@ spec:
           args:
             - --provider=aws
             - --source=crd
+            {{- if $dns.activationIngressClass }}
+            - --source=ingress
+            - --ingress-class={{ $dns.activationIngressClass }}
+            {{- end }}
             - --domain-filter=cache.tuist.dev
             - --zone-id-filter={{ $zone }}
             - --aws-zone-type=public

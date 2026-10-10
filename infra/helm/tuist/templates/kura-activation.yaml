@@ -1,0 +1,129 @@
+{{- $activation := .Values.kuraActivation }}
+{{- if $activation.enabled }}
+{{- if not (and .Values.kuraController.enabled .Values.kuraController.stableDNS.enabled .Values.kuraController.publicWildcardCertificate.enabled) }}
+{{- fail "kuraActivation requires the Kura controller, stable DNS and the shared wildcard certificate" }}
+{{- end }}
+{{- if not (has "*.cache.tuist.dev" .Values.kuraController.publicWildcardCertificate.dnsNames) }}
+{{- fail "kuraActivation requires *.cache.tuist.dev in the shared wildcard certificate" }}
+{{- end }}
+{{- $namespace := .Values.kuraController.namespace }}
+{{- $name := printf "%s-kura-activation" .Release.Name }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $name }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $name }}
+      containers:
+        - name: gateway
+          image: "{{ .Values.kuraController.image.repository }}:{{ required "kuraActivation requires kuraController.image.tag" .Values.kuraController.image.tag }}"
+          command: [/cache-activation]
+          args:
+            - --production-server={{ $activation.servers.production }}
+            - --canary-server={{ $activation.servers.canary }}
+            - --staging-server={{ $activation.servers.staging }}
+          ports:
+            - {name: http, containerPort: 8080}
+            - {name: grpc, containerPort: 8081}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {memory: 256Mi}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ $name }}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+    - {name: grpc, port: 8081, targetPort: grpc}
+{{- range $protocol := list "http" "grpc" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}-{{ $protocol }}
+  namespace: {{ $namespace }}
+  annotations:
+    external-dns.alpha.kubernetes.io/ttl: "60"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-next-upstream: "off"
+    {{- if eq $protocol "grpc" }}
+    nginx.ingress.kubernetes.io/backend-protocol: GRPC
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    {{- end }}
+spec:
+  ingressClassName: {{ $activation.ingressClassName }}
+  {{- if eq $protocol "http" }}
+  tls:
+    - hosts: ["*.cache.tuist.dev"]
+      secretName: {{ $.Values.kuraController.publicWildcardCertificate.secretName }}
+  {{- end }}
+  rules:
+    - host: "*.cache.tuist.dev"
+      http:
+        paths:
+          {{- $paths := list "/" }}
+          {{- if eq $protocol "grpc" }}
+          {{- $paths = list "/build\\.bazel\\.remote\\.execution\\.v2\\." "/build\\.bazel\\.remote\\.asset\\.v1\\." "/google\\.bytestream\\." "/google\\.devtools\\.build\\.v1\\." }}
+          {{- end }}
+          {{- range $path := $paths }}
+          - path: {{ $path | quote }}
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ $name }}
+                port:
+                  name: {{ $protocol }}
+          {{- end }}
+{{- end }}
+{{- end }}

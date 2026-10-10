@@ -8,6 +8,7 @@ defmodule Tuist.Kura.Usage do
   alias Tuist.Accounts.Account
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.Kura.Demand
   alias Tuist.Kura.Identity
   alias Tuist.Kura.UsageEvent
   alias Tuist.Projects
@@ -22,7 +23,9 @@ defmodule Tuist.Kura.Usage do
   """
   def create_events(events) when is_list(events) and length(events) <= @max_events_per_batch do
     account_ids_by_handle = events |> Enum.map(& &1["tenant_id"]) |> Identity.account_ids()
-    insert_events(events, &Map.get(account_ids_by_handle, &1["tenant_id"], 0))
+    result = insert_events(events, &Map.get(account_ids_by_handle, &1["tenant_id"], 0))
+    record_managed_demand(events, account_ids_by_handle)
+    result
   end
 
   def create_events(events) when is_list(events), do: {:error, :too_many_events}
@@ -36,6 +39,25 @@ defmodule Tuist.Kura.Usage do
   end
 
   def create_events(events, %Account{}) when is_list(events), do: {:error, :too_many_events}
+
+  # Only trusted managed-node traffic refreshes hosted capacity. Replayed old
+  # rollups, replication, storage snapshots and self-hosted reports do not.
+  defp record_managed_demand(events, account_ids) do
+    now = System.system_time(:second)
+
+    events
+    |> Enum.filter(fn event ->
+      started = event["window_start_unix_seconds"]
+      count = event["request_count"]
+
+      event["traffic_plane"] == "public" and is_integer(count) and count > 0 and
+        is_integer(started) and started >= now - 300 and started <= now + 30
+    end)
+    |> Enum.map(&Map.get(account_ids, &1["tenant_id"]))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.each(&Demand.record/1)
+  end
 
   defp insert_events(events, account_id_for) do
     attributed = Enum.map(events, &{&1, account_id_for.(&1)})
