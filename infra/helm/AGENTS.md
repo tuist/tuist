@@ -155,3 +155,7 @@ This node covers Helm assets under `infra/helm/`.
 - Cache-volume agents expose phase/source/result telemetry on a separate port
   9091. Allow scraping only from `observability`, retain the series in staging,
   and keep runner acquisition on 8090 under its existing pod selector.
+
+## Replica-safety rollout
+
+Cluster formation requires a stable shared cookie Secret, a fixed distribution listener, allowed EPMD/distribution ingress, and a headless service. More than one server replica requires clustering. Managed canary runs two replicas so actual membership is exercised before production promotion. Do not promote until the proof-cache and authorization-cache-removal rollouts are stable and the Boruta replicated entity cache is disabled.

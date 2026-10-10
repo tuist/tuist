@@ -10,6 +10,12 @@ defmodule Tuist.Application.RuntimeChildren do
   default and has to opt in.
   """
 
+  def cluster([]), do: []
+
+  def cluster(topologies) do
+    [{Cluster.Supervisor, [topologies, [name: Tuist.ClusterSupervisor]]}]
+  end
+
   @sweeper_interval_ms 60 * 60 * 1000
 
   @doc """
