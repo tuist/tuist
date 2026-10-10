@@ -1039,6 +1039,10 @@ defmodule Tuist.GitHistory do
     ) || 0
   end
 
+  # One HTTP form field per bound path or directory, and ClickHouse refuses a
+  # request over `http_max_fields` (1000 by default).
+  @blob_paths_chunk 900
+
   @doc """
   The files of a commit with their blobs, by path, optionally narrowed to
   the paths one glob pattern matches (`match:` a pattern from
@@ -1063,6 +1067,29 @@ defmodule Tuist.GitHistory do
   end
 
   @doc """
+  The files of a commit directly inside any of `directories`, as
+  `Path.dirname/1` names them (`.` for the root), with their blobs.
+  """
+  def files_in(_repository_id, _sha, []), do: []
+
+  def files_in(repository_id, sha, directories) do
+    directories
+    |> Enum.uniq()
+    |> Enum.chunk_every(@blob_paths_chunk)
+    |> Enum.flat_map(fn chunk ->
+      ClickHouseRepo.all(
+        from(f in CommitFile,
+          where:
+            f.repository_id == ^repository_id and f.sha == ^sha and
+              fragment("if(position(?, '/') > 0, replaceRegexpOne(?, '/[^/]*$', ''), '.')", f.path, f.path) in ^chunk,
+          group_by: f.path,
+          select: %{path: f.path, git_blob_id: fragment("argMax(?, ?)", f.git_blob_id, f.inserted_at)}
+        )
+      )
+    end)
+  end
+
+  @doc """
   The tracked files of a commit for a project: the paths in the commit's
   listing that the tracked globs (`settings/1`) match, with their blobs.
   Empty when the project tracks nothing or the listing is not stored.
@@ -1078,13 +1105,9 @@ defmodule Tuist.GitHistory do
   The blob of each of `paths` at a commit, keyed by path, from the commit's
   listing; a path the listing lacks is absent.
   """
-  @blob_paths_chunk 900
-
   def blobs_at(_repository_id, _sha, []), do: %{}
 
   def blobs_at(repository_id, sha, paths) do
-    # One HTTP form field per bound path, and ClickHouse refuses a request
-    # over `http_max_fields` (1000 by default).
     paths
     |> Enum.chunk_every(@blob_paths_chunk)
     |> Enum.flat_map(fn chunk ->
