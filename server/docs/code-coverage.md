@@ -60,28 +60,62 @@ What was skipped comes from what Tuist itself skipped, not from a list of the te
 
 | Skipped by | What the server has | What it carries |
 | --- | --- | --- |
-| Selective testing (a target pruned, or a scheme skipped whole) | the hit and hash per target on the run's command event | the target's tests, taken from the nearest ancestor run that executed it, preferring one that hashed the target the same, ran the same scheme and wasn't narrowed |
-| Quarantine "skip", `--skip-test-targets`, `-skip-testing` | `test_runs.skip_test_identifiers` | the tests each identifier names (`Module`, `Module/Suite`, `Module/Suite/test`, with or without `()`), resolved against the target's tests in that ancestor run |
+| Selective testing (a target pruned, or a scheme skipped whole) | the hit and hash per target on the run's command event | the target's tests, taken from the run recorded under its hash, or else from the commit's baseline while the target's test files are unchanged |
+| Quarantine "skip", `--skip-test-targets`, `-skip-testing` | `test_runs.skip_test_identifiers` | the tests each identifier names (`Module`, `Module/Suite`, `Module/Suite/test`, with or without `()`): a named test directly, a target or suite against the target's tests as above |
 | The caller's `-only-testing` | `test_runs.only_test_identifiers` | nothing; a scheme whose every run was narrowed is a gap |
 
-The ancestor runs that executed a skipped target are read once, and only their selective-testing hashes are read.
+No ancestor runs are walked: see [Search bounds](#search-bounds).
 
-### How it is decided
+### The pipeline
 
-1. **The commit changes a tracked file.** If the commit's tracked files (`Package.resolved`, `Project.swift`, `*.xcconfig`, … see `Tuist.GitHistory` `tracked_file_globs`) differ from every parent's, nothing is carried, and neither the ancestor window nor any evidence is read: every ancestor's evidence predates the change (`tracked_file_changed`). A merge whose tracked files match one parent's can still carry from that side. When a listing is missing, this step is skipped and step 3 checks each source instead.
-2. **Group the skipped tests into units, each with one source run.**
-   - A test target selective testing skipped is one unit, carried from its `target` evidence. Only ancestor runs that hashed the target the same way as the commit's run qualify: the same hash means the same inputs, so the same tests over the same code. Among those, the nearest wins.
-   - Every other skipped test is a unit of its own, carried from its `test` evidence plus its suite's `suite` evidence, from the nearest ancestor run that holds it. That includes the tests of a skipped target that couldn't be carried whole.
-   - The nearest run is fewest commits back, then newest, among the clean-checkout runs on the commit's ancestors within the history window. For tests it's picked in ClickHouse, a chunk of runs at a time, nearest first.
-   - A test with no source is a gap, and the reason says why from what the ancestor runs collected: `no_ancestor`, `collection_off`, `evidence_expired`, `not_linked`, `overlapped` or `no_evidence`.
-3. **Check that each unit's source still applies.** All of these must hold:
-   1. The test passed in the source run, or the target had no failing test there (`test_failed`).
-   2. The tracked files are identical at the source commit and at the commit (`tracked_file_changed`, or `listing_missing` when a listing isn't stored).
-   3. The evidence holds lines, not only paths, for every file that counts (`evidence_without_lines`).
-   4. Every file the unit executed has the same Git blob at the commit as at the source commit (`executed_file_changed`). This applies to whole targets too, which catches an input outside the declared dependency graph. Only files Git tracks count: a submodule's file has no blob to compare.
+A commit's figure is folded again whenever more of its data lands: another run, shard or scheme, a run's command event, or the completion signal (`Coverage.Workers.CommitWorker`). Every step is safe to repeat, and the last fold wins.
 
-   These checks read which files each unit's evidence touches and whether it recorded lines, never the lines themselves.
-4. **Carry.** The lines of the units that passed are read last, merged per file in ClickHouse, which returns one set of lines per file however many tests and runs are carried. A file counts when it's product code, not test code, isn't an excluded path, and the source run reported it.
+1. **Store and merge.** Each report is stored per run and shard (`coverage_files`, `coverage_runs`). The fold merges every clean run of the commit: a line is covered when any run covered it, and a file counts once however many schemes compiled it.
+2. **Find what was skipped.** These are the targets selective testing hit, with their hashes; the tests the runs' skip identifiers name (quarantine, `-skip-testing`); and whether the caller narrowed a scheme's runs (`only_test_identifiers`). A skipped target's tests come from the run recorded under its hash (`coverage_target_sources`), whatever branch it ran on, since the same hash means the same tests. Otherwise they come from the commit's **baseline**, in the scheme that skipped the target, as long as none of the target's test files changed since the baseline and none was added beside them. If one did, the target is a gap (`test_list_changed`). Without both commits' listings, the baseline's tests are taken as they were. If the baseline didn't run the target, it's `target_without_history`. An identifier naming a test (`Module/Suite/test`) resolves to that test directly. Tests that ran at the commit anyway aren't skipped. See [What was skipped](#what-was-skipped).
+3. **Measured?** If nothing was skipped, no scheme was narrowed, every shard reported, and no run reused uninstrumented code (`uninstrumented_code`), the figure is `measured` and the fold stops here.
+4. **Tracked files changed?** If the commit's tracked files (`Package.resolved`, `Project.swift`, `*.xcconfig`, … see `Tuist.GitHistory` `tracked_file_globs`) differ from every parent's, nothing is carried. Every earlier run's evidence predates the change, so the figure is `partial` (`tracked_file_changed`) and no evidence is read. A merge whose tracked files match one parent's still carries from that side. A commit with no repository or no ancestor carries nothing either (`no_ancestor`).
+5. **Carry whole targets.** This step runs only for a skipped target that has a selective-testing hash and whose earlier runs recorded `target` evidence for it. Its source is the latest clean run, on any branch, that executed it whole with that hash, passed it and recorded its evidence (`Coverage.TargetSources`).
+   - **We trust the hash.** It covers the target's sources, its tests and every dependency, the test host included. So the same hash means the same tests over the same code, and the source's files aren't compared blob by blob.
+   - What's still checked: the target passed there (the index records only passing runs), the source's evidence holds lines for the files that count, and the tracked files are the same at the source's commit.
+   - A target with a hash but no recorded run carries from the baseline, if a baseline run holds its evidence and hashed it the same way. That happens when a run's hashes landed after its fold, in local inspect mode.
+6. **Carry tests one by one.** This step runs only for skipped tests whose earlier runs recorded `test` evidence (and their suite's `suite` evidence): the tests of a target that couldn't be carried whole, and the tests skipped by identifier.
+   - The source is the latest run, on any branch, whose **version** of the test the commit reproduces (`Coverage.TestSources`). A version is the test's `test_case_id` and a fingerprint of the repository files the test and its suite executed, with their blobs. The commit recomputes it over the same files with its own blobs. A match means that run executed exactly these files, so here the blobs are compared, through the fingerprint.
+   - Versions exist but none matches: `executed_file_changed`. The matching version's test failed: `test_failed`. It has files without lines that count: `evidence_without_lines`. The source commit's tracked files differ: `tracked_file_changed`.
+   - A test with no versions is explained by what the baseline collected: `no_ancestor` (no baseline), `collection_off`, `evidence_expired`, `not_linked`, `overlapped` or `no_evidence`.
+7. **Complete the file set.** A selective run builds only part of the project. A file no run at the commit compiled takes its executable lines from the nearest ancestor that measured the commit's schemes, and its covered lines are the carried ones. It's a gap if that ancestor covered more than was carried (`unbuilt_file_uncarried`), if its blob changed (`unbuilt_file_changed`), or if there's no such ancestor or listing (`unbuilt_file_unknown`). See [What it does to each file](#what-it-does-to-each-file).
+8. **Result.**
+   - `reported`: every skipped test was carried and no file is a gap.
+   - `partial`: anything is left over. That includes a gap from steps 2–7, a scheme only dirty runs measured (`dirty_run_excluded`), a narrowed scheme (`caller_selected_tests`), a missing shard, or uninstrumented code.
+   - The reasons are stored with the figure (`coverage_commits.gap_reasons`).
+
+The carried lines are read last, for the sources that passed, merged per file in ClickHouse, so a fold receives one set of lines per file however many tests and runs it carries. A file counts when it's product code, not test code, isn't an excluded path, and the source run reported it.
+
+**What the coverage holds decides which carry steps can run.** A run that reported only `run` coverage gives nothing to carry: its commits can be `measured`, or `partial` when tests were skipped. `target` evidence enables step 5, and `test` and `suite` evidence enable step 6. Swift Testing running in parallel, or without the attribution trait, records only `target` evidence, so its skipped tests are carried only with their whole target. Mix records only `run` coverage today, so a Mix commit that skipped tests is `partial`.
+
+### Search bounds
+
+Steps 5 and 6 don't search history: both read an index keyed by what makes a source valid (a target's hash, a test's version). The only history a fold reads is the commit's **baseline**: for each of its schemes, the runs of the nearest ancestor whose figure was `measured`, so every test of the scheme ran (`Commits.nearest_measured_ancestor/5` with `kind: "measured"`). It's found once per fold, with a first-parent probe over `coverage_commits` in PostgreSQL, and reused for:
+
+| Need | From the baseline |
+| --- | --- |
+| Step 2, a skipped target's tests when no run is recorded under its hash, or for `Module` and `Module/Suite` identifiers | the tests the baseline ran in that target, while its test files are unchanged |
+| Step 5, a target with no recorded run | the baseline run, if it holds the target's evidence and hashed it the same way |
+| Step 6, explaining a test with no versions | what the baseline collected |
+
+Step 7 reads the same kind of ancestor through `Commits.nearest_measured_ancestor/4`, which also accepts a `partial` one. No run walk is left: the search is bounded by the history window (5,000 commits, `GitHistory.settings/1`), which is also how far the commit graph is kept. Evidence expires after 90 days (`TUIST_COVERAGE_FILE_RETENTION_DAYS`), and that retention is the real limit on how old a source can be.
+
+### Baseline runs
+
+A full run of each scheme on the default branch is what the pipeline leans on:
+- **It refreshes evidence** before it expires, so a target that stays skippable for months still has something to carry from.
+- **It's the measured ancestor** step 7 reads, so files the commit didn't compile are compared against a recent state.
+- **It's the baseline** a fold reads when an index has no answer: a skipped target's tests, the fallback source for a target, and the explanation of a test with nothing to carry.
+
+A full run on every merge into the default branch is ideal. Daily or weekly can be enough: what matters is how much changes between baselines.
+- The more files change after a baseline, the more of them a selective run neither compiles nor finds unchanged (`unbuilt_file_changed`).
+- A changed target's test files more often differ from the baseline's, which makes it a gap (`test_list_changed`).
+
+A repository that changes a few files a week does well with a weekly baseline; one with many merges a day needs one per merge or per day. Either way it has to run more often than the 90-day evidence retention, and without the binary cache, or it counts as uninstrumented (`uninstrumented_code`).
 
 ### What it does to each file
 
@@ -95,7 +129,8 @@ A carried line has no execution count, because no run at the commit executed it.
 
 - The ancestor that says which files a selective run didn't compile comes from `Commits.nearest_measured_ancestor/4`, which can be a `partial` commit. Only the default branch's full runs make reliable ancestors.
 - Which tests a skipped target holds comes from the ancestor run that executed it: a test added since then isn't carried, nor counted as a gap.
-- Evidence records what ran, so it can't see compile-time dependencies: a changed macro, a constant folded at compile time, or a type a test uses only when compiling. The blob check doesn't catch a change to such a file unless the unit also executed it.
+- Evidence records what ran, so it can't see compile-time dependencies: a changed macro, a constant folded at compile time, or a type a test uses only when compiling. A test's version doesn't change for such a file unless the test also executed it. A target's hash does, when the file is in the target or one of its dependencies.
+- Trusting the target hash means an input outside the project graph (a file read at runtime, generated code outside the graph) doesn't block carrying a target whose hash didn't change. Selective testing makes the same trust when it skips the target.
 
 ## Storage
 

@@ -146,6 +146,7 @@ defmodule Tuist do
       Tests.Coverage.ExcludedPaths,
       Tests.Coverage.History,
       Tests.Coverage.Report,
+      Tests.Coverage.TestSources,
       Tests.Coverage.Workers.CommitWorker,
       Tests.CoverageCommit,
       Tests.TestRunStressCandidate,

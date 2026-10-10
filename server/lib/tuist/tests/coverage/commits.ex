@@ -37,6 +37,8 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.GapReasons
   alias Tuist.Tests.Coverage.Reported
+  alias Tuist.Tests.Coverage.TargetSources
+  alias Tuist.Tests.Coverage.TestSources
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.CoverageRun
@@ -122,6 +124,11 @@ defmodule Tuist.Tests.Coverage.Commits do
       # it) synced no row, and this commit's own advance, observed earlier
       # than that one or finding the branch already holds it, moves nothing.
       if row.git_repository_id > 0, do: GitHistory.sync_coverage_places(row.git_repository_id, [sha])
+
+      # The targets the commit's runs executed whole, and the versions of the
+      # tests they ran, become carry sources for the commits that skip them.
+      TargetSources.record(project.id, runs)
+      TestSources.record(project.id, runs)
 
       summary = summary(project.id, sha)
       if Deltas.complete?(summary), do: Deltas.enqueue(project.id, sha)
@@ -570,15 +577,22 @@ defmodule Tuist.Tests.Coverage.Commits do
   Only when no first parent within the window qualifies does the walk cover
   the window.
   """
-  def nearest_measured_ancestor(_project_id, _repository_id, _sha, []), do: nil
+  def nearest_measured_ancestor(project_id, repository_id, sha, schemes, opts \\ [])
+  def nearest_measured_ancestor(_project_id, _repository_id, _sha, [], _opts), do: nil
 
-  def nearest_measured_ancestor(project_id, repository_id, sha, schemes) do
+  def nearest_measured_ancestor(project_id, repository_id, sha, schemes, opts) do
     measured =
       from(c in CoverageCommit,
         where:
           c.project_id == ^project_id and c.executable_lines > 0 and c.git_commit_sha != ^sha and
             fragment("? && ?", c.schemes, type(^schemes, {:array, :string}))
       )
+
+    measured =
+      case Keyword.get(opts, :kind) do
+        nil -> measured
+        kind -> where(measured, [c], c.reported_kind == ^kind)
+      end
 
     nearest =
       case first_parent_distance_in(measured, repository_id, sha) do
