@@ -418,56 +418,47 @@ private struct CacheDebuggerSettingsRenderer {
         """
     }
 
-    /// Reads the build system's resolved mapping lists without treating their contents as shell code.
+    /// Reads the build system's evaluated mappings without reparsing characters introduced by macro expansion.
     private var sourceMappingScript: String {
         #"""
         /usr/bin/python3 - "$lldb_init_file" <<'TUIST_SOURCE_MAP'
+        import json
         import os
-        import shlex
         import sys
 
         environment = os.environ
         if environment.get("COMPILATION_CACHE_ENABLE_CACHING") != "YES":
             sys.exit(0)
 
-        mappings = []
+        if not any(environment.get(language + "_ENABLE_PREFIX_MAPPING") == "YES" for language in ("SWIFT", "CLANG")):
+            sys.exit(0)
 
-        def append_mapping(prefix, path):
-            mapping = (prefix, path)
-            if prefix and path and mapping not in mappings:
-                mappings.append(mapping)
+        target_temp_dir = environment.get("TARGET_TEMP_DIR", "")
+        if not target_temp_dir:
+            sys.exit(0)
 
-        prefix_mapping_enabled = False
-        for language in ("SWIFT", "CLANG"):
-            if environment.get(language + "_ENABLE_PREFIX_MAPPING") != "YES":
-                continue
-            prefix_mapping_enabled = True
-            for value in shlex.split(environment.get(language + "_OTHER_PREFIX_MAPPINGS", "")):
-                path, separator, prefix = value.rpartition("=")
-                if separator:
-                    append_mapping(prefix, path)
-            if environment.get(language + "_ENABLE_PROJECT_PREFIX_MAPPING") == "YES":
-                for prefix, setting in (
-                    ("/^src", "PROJECT_DIR"),
-                    ("/^derived", "PROJECT_TEMP_DIR"),
-                    ("/^built", "BUILT_PRODUCTS_DIR"),
-                ):
-                    append_mapping(prefix, environment.get(setting, ""))
+        # Xcode expands path variables after parsing build-setting lists. Their exported string
+        # representation can contain literal quotes or backslashes that are not shell syntax.
+        try:
+            with open(os.path.join(target_temp_dir, "compilation-prefix-map.json"), encoding="utf-8") as prefix_map:
+                mappings = json.load(prefix_map)
+        except FileNotFoundError:
+            sys.exit(0)
 
-        if prefix_mapping_enabled:
+        # Xcode's prefix-map file omits the compiler's implicit toolchain alias on some versions.
+        if mappings:
             developer_path = environment.get("DEVELOPER_DIR", "")
             toolchain_path = environment.get("DT_TOOLCHAIN_DIR", "")
             if not toolchain_path and developer_path:
                 toolchain_path = developer_path + "/Toolchains/XcodeDefault.xctoolchain"
-            append_mapping("/^sdk", environment.get("SDKROOT", ""))
-            append_mapping("/^toolchain", toolchain_path)
-            append_mapping("/^xcode", developer_path)
+            if toolchain_path:
+                mappings.setdefault("/^toolchain", toolchain_path)
 
         def lldb_quoted(value):
             return '"' + value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r") + '"'
 
         if mappings:
-            arguments = " ".join(lldb_quoted(value) for mapping in mappings for value in mapping)
+            arguments = " ".join(lldb_quoted(value) for mapping in sorted(mappings.items(), reverse=True) for value in mapping)
             with open(sys.argv[1], "a", encoding="utf-8") as output:
                 output.write("settings append target.source-map " + arguments + "\n")
         TUIST_SOURCE_MAP
