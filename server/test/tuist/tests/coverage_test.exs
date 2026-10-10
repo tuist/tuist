@@ -556,7 +556,7 @@ defmodule Tuist.Tests.CoverageTest do
       assert published_totals(project, test) == %{covered_lines: 2, executable_lines: 7, partial: false}
     end
 
-    test "publish a later shard's uploaded coverage and record its changed files", %{
+    test "publish a later shard's uploaded coverage", %{
       project: project,
       account: account
     } do
@@ -569,21 +569,13 @@ defmodule Tuist.Tests.CoverageTest do
         create_test(
           project,
           account,
-          Map.merge(%{sharded | shard_index: 1}, %{
-            xcode_coverage_storage_key: "key",
-            xcode_coverage_partial: true,
-            changed_files: [
-              %{path: "Sources/A.swift", status: "modified", git_blob_id: "blob", hunks: [%{start: 1, end: 2}]}
-            ]
-          })
+          Map.merge(%{sharded | shard_index: 1}, %{xcode_coverage_storage_key: "key", xcode_coverage_partial: true})
         )
 
       assert_enqueued(
         worker: PublishCoverageWorker,
         args: %{test_run_id: test.id, storage_key: "key", partial: true, shard_index: 1, expected_shards: 2}
       )
-
-      assert [%{path: "Sources/A.swift", hunk_starts: [1], hunk_ends: [2]}] = CoverageFixtures.changed_files(test)
     end
 
     test "keep the most complete totals whatever order the reports land in", %{project: project, account: account} do
@@ -651,6 +643,6 @@ defmodule Tuist.Tests.CoverageTest do
       |> Enum.sort()
 
     assert tables ==
-             ~w(coverage_commit_targets coverage_file_deltas coverage_files coverage_runs git_commit_files test_run_changed_files)
+             ~w(coverage_commit_targets coverage_file_deltas coverage_files coverage_runs git_commit_files)
   end
 end

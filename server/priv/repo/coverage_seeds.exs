@@ -522,32 +522,6 @@ defmodule CoverageSeed do
     }
   end
 
-  # The files a pull request changed against its merge base, as its runs
-  # report them: each file whose version moved, with the added functions as
-  # hunks, and the test files that gained tests.
-  def changed_files(base, head) do
-    product =
-      for {path, version} <- head.versions, version != Map.get(base.versions, path, 0) do
-        before = MapSet.new(layout(path, Map.get(base.versions, path, 0)).functions, & &1.name)
-
-        hunks =
-          for function <- layout(path, version).functions,
-              not MapSet.member?(before, function.name),
-              do: %{start: function.line, end: function.close}
-
-        %{path: path, status: "modified", git_blob_id: blob(path, version), hunks: hunks}
-      end
-
-    tests =
-      head.added
-      |> MapSet.difference(base.added)
-      |> Enum.map(fn {path, _name} -> "Tests/#{module_of(path)}/#{module_of(path)}.swift" end)
-      |> Enum.uniq()
-      |> Enum.map(&%{path: &1, status: "modified", git_blob_id: blob(&1, 0), hunks: [%{start: 1, end: 3}]})
-
-    product ++ tests
-  end
-
   def listing(state) do
     product =
       Enum.map([generated() | product_files()], fn {path, _target} ->
@@ -585,7 +559,7 @@ if previous_repository_id do
   Repo.delete_all(from(r in GitHistory.Repository, where: r.id == ^previous_repository_id))
 end
 
-for table <- ["coverage_files", "coverage_runs", "test_run_changed_files"] do
+for table <- ["coverage_files", "coverage_runs"] do
   IngestRepo.query!("DELETE FROM #{table} WHERE project_id = {project_id:Int64}", %{project_id: project.id})
 end
 
@@ -980,7 +954,6 @@ create_run = fn entry, scheme, mode, opts ->
           else: []
         ),
       coverage_evidence: if(recent?, do: run.evidence),
-      changed_files: if(pull_request, do: CoverageSeed.changed_files(entry.base, entry.state), else: []),
       xcode_coverage: %{partial: mode == :selective, files: run.files}
     })
 
@@ -999,7 +972,6 @@ runs =
 {_dirty, _} = create_run.(Map.fetch!(main_entry_by_label, "main-#{dirty_day}"), "App", :full, dirty: true)
 
 Tuist.Tests.Test.Buffer.flush()
-Tuist.Tests.TestRunChangedFile.Buffer.flush()
 
 # Publish oldest first, as the commit worker would as the runs land.
 published =

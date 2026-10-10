@@ -48,7 +48,6 @@ struct GitHistoryServiceTests {
                         GitHistoryCommit(sha: "base", parents: [], committedAt: Date(timeIntervalSince1970: 1)),
                         GitHistoryCommit(sha: "head", parents: ["base"], committedAt: Date(timeIntervalSince1970: 2)),
                     ],
-                    changedFiles: [],
                     fallbackReason: nil
                 )
             )
@@ -277,7 +276,6 @@ struct GitHistoryServiceTests {
                     baseBranch: nil,
                     mergeBaseSHA: nil,
                     commits: [],
-                    changedFiles: [],
                     fallbackReason: "no base branch is known"
                 )
             )

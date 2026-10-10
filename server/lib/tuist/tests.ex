@@ -59,7 +59,6 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestCaseState
   alias Tuist.Tests.TestModuleRun
-  alias Tuist.Tests.TestRunChangedFile
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestRunError
   alias Tuist.Tests.TestSuiteRun
@@ -540,7 +539,6 @@ defmodule Tuist.Tests do
 
       create_run_destinations(test, Map.get(attrs, :run_destinations, []))
       create_run_errors(test, Map.get(attrs, :run_errors, []))
-      create_run_changed_files(test, Map.get(attrs, :changed_files, []))
       StressNewTests.insert_candidates(test, stress_new_tests)
       expected_shards = (shard_plan && shard_plan.shard_count) || 1
       record_coverage_data(test, attrs, coverage, shard_index, expected_shards)
@@ -660,21 +658,6 @@ defmodule Tuist.Tests do
     Map.get(destination, key) || Map.get(destination, Atom.to_string(key))
   end
 
-  # Run/target-level entries that aren't test failures: the test runner itself
-  # errored (e.g. a target whose `.xctest` bundle couldn't be loaded), or Swift
-  # Testing recorded an issue while no test was running. The parser lifts both
-  # out of the test cases, so they don't create test_case_runs or fan out
-  # webhooks; they're stored separately and surfaced as an "Errors" section.
-  # The files the run's commit changed against its merge base, with their
-  # hunks, as the client diffed them. Nothing reads them back in the request,
-  # so they ride the buffer.
-  defp create_run_changed_files(%Test{project_id: project_id} = test, files) when is_list(files) do
-    if files != [] and Coverage.enabled_for_project?(project_id), do: insert_run_changed_files(test, files)
-    :ok
-  end
-
-  defp create_run_changed_files(_test, _files), do: :ok
-
   # Coverage and the evidence enrich a run: a failure storing one of them
   # costs that data, not the run's test cases, which are written after them
   # and which a retry with the same id would never add.
@@ -701,33 +684,11 @@ defmodule Tuist.Tests do
       :error
   end
 
-  defp insert_run_changed_files(%Test{id: test_run_id, project_id: project_id}, files) do
-    now = NaiveDateTime.utc_now()
-
-    rows =
-      Enum.map(files, fn file ->
-        hunks = Map.get(file, :hunks) || []
-
-        %{
-          project_id: project_id,
-          test_run_id: test_run_id,
-          path: Map.fetch!(file, :path),
-          previous_path: Map.get(file, :previous_path) || "",
-          status: Map.get(file, :status) || "modified",
-          git_blob_id: Map.get(file, :git_blob_id) || "",
-          hunk_starts: Enum.map(hunks, &Map.fetch!(&1, :start)),
-          hunk_ends: Enum.map(hunks, &Map.fetch!(&1, :end)),
-          truncated: Map.get(file, :truncated) || false,
-          inserted_at: now
-        }
-      end)
-
-    case rows do
-      [] -> :ok
-      rows -> TestRunChangedFile.Buffer.insert_all(rows)
-    end
-  end
-
+  # Run/target-level entries that aren't test failures: the test runner itself
+  # errored (e.g. a target whose `.xctest` bundle couldn't be loaded), or Swift
+  # Testing recorded an issue while no test was running. The parser lifts both
+  # out of the test cases, so they don't create test_case_runs or fan out
+  # webhooks; they're stored separately and surfaced as an "Errors" section.
   defp create_run_errors(%Test{id: test_run_id, project_id: project_id}, errors) when is_list(errors) do
     now = NaiveDateTime.utc_now()
 
@@ -846,11 +807,6 @@ defmodule Tuist.Tests do
           # that never takes the branch above would carry none at all. Same
           # concurrency story as the errors: duplicates are collapsed on read.
           create_run_destinations(merged_test, Map.get(attrs, :run_destinations, []))
-
-          # Every shard of a run reports the same changed files, and the table
-          # replaces rows by run and path, so a shard repeating them is harmless
-          # while one whose first report lacked them still gets them recorded.
-          create_run_changed_files(merged_test, Map.get(attrs, :changed_files, []))
 
           insert_shard_run(
             shard_plan_id,

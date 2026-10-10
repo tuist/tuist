@@ -17,7 +17,6 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.CoverageFile
-  alias Tuist.Tests.TestRunChangedFile
 
   @remote_url "https://github.com/tuist/app"
 
@@ -194,25 +193,6 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
           covered_lines: f.covered_lines,
           line_numbers: f.line_numbers,
           inserted_at: f.inserted_at
-        }
-      )
-    )
-  end
-
-  @doc "The files the run changed against its merge base, as stored."
-  def changed_files(%{id: test_run_id, project_id: project_id}) do
-    ClickHouseRepo.all(
-      from(f in TestRunChangedFile,
-        where: f.project_id == ^project_id and f.test_run_id == ^test_run_id,
-        order_by: f.path,
-        select: %{
-          path: f.path,
-          previous_path: f.previous_path,
-          status: f.status,
-          git_blob_id: f.git_blob_id,
-          hunk_starts: f.hunk_starts,
-          hunk_ends: f.hunk_ends,
-          truncated: f.truncated
         }
       )
     )
