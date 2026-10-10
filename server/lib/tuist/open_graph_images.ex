@@ -10,6 +10,7 @@ defmodule Tuist.OpenGraphImages do
 
   @actor :open_graph_images
   @storage_prefix "open-graph-images"
+  @lock_wait_timeout to_timeout(second: 30)
 
   def spec(key_parts, params, render) when is_list(key_parts) and is_map(params) and is_function(render, 0) do
     %{key: key(key_parts), params: params, render: render}
@@ -56,13 +57,69 @@ defmodule Tuist.OpenGraphImages do
     if Storage.object_exists?(object_key, @actor) do
       :ok
     else
-      :global.trans({__MODULE__, key}, fn ->
-        if Storage.object_exists?(object_key, @actor) do
-          :ok
-        else
-          generate_and_store(key, object_key, resolve)
+      generate = fn ->
+        with_generation_lock(
+          object_key,
+          fn ->
+            if Storage.object_exists?(object_key, @actor) do
+              :ok
+            else
+              generate_and_store(key, object_key, resolve)
+            end
+          end,
+          System.monotonic_time(:millisecond) + @lock_wait_timeout
+        )
+      end
+
+      cache = Keyword.get(opts, :cache, :tuist)
+
+      if Process.whereis(cache) do
+        # Coalesce local waiters before they enter the distributed lock. A
+        # short-lived degraded image prevents an outage from making every
+        # waiter render again; it is never persisted or served as immutable.
+        result =
+          Cachex.fetch(cache, {__MODULE__, object_key}, fn ->
+            case generate.() do
+              {:transient, _image} = transient ->
+                {:commit, transient, expire: Keyword.get(opts, :transient_ttl, 2_000)}
+
+              result ->
+                {:ignore, result}
+            end
+          end)
+
+        case result do
+          {:commit, result} -> result
+          {:ignore, result} -> result
+          result -> result
         end
-      end)
+      else
+        generate.()
+      end
+    end
+  end
+
+  defp with_generation_lock(key, generate, deadline) do
+    id = {{__MODULE__, key}, self()}
+    nodes = [node() | Node.list()]
+
+    if :global.set_lock(id, nodes, 0) do
+      try do
+        generate.()
+      after
+        :global.del_lock(id, nodes)
+      end
+    else
+      remaining = deadline - System.monotonic_time(:millisecond)
+
+      # A cold render can outlast a short retry count. Wait for its result
+      # while bounding contention and allowing unrelated images to proceed.
+      if remaining > 0 do
+        Process.sleep(min(remaining, 50))
+        with_generation_lock(key, generate, deadline)
+      else
+        {:error, :lock_unavailable}
+      end
     end
   end
 

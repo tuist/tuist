@@ -169,3 +169,7 @@ Generic build-health dimension lists read the last 90 days and cap output at 100
 - Native build listings opt into the virtual failure-category column from `BuildMetrics`. Use the shared classifier before database filtering, sorting and pagination, scope evidence to the selected project, and leave stored records and legacy listing defaults unchanged.
 
 - BuildMetrics.failure_category looks up one failed build in the authorized project using the same classifier as listing filters and Grafana. Detail evidence reads restrict Gradle tasks and Xcode issues to the requested build identifier. Nonfailed and missing records have no detail category.
+
+## Replica-safety rollout
+
+Open Graph generation locks use a resource id plus the requesting pid, check object storage again after acquiring the lock, and bound waiting. Local single-flight briefly memoizes transient bytes during backend outages, never as immutable storage. Unrelated image keys must continue independently.
