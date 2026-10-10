@@ -63,6 +63,7 @@ This directory contains database migrations and other private assets.
 
 - Runner Kura enrollment uses `20260911090100` after its incoming main-branch migration collided with Bazel’s `20260910160000`. Re-execution is safe: enrollment selects only live rows without an existing storage pin.
 
+- Build automation findings live in PostgreSQL with a cascading automation foreign key and a unique rule/source/unit identity index. Do not overload the test-case ClickHouse event ledger; notification evidence and checkpoints are customer data documented in `server/data-export.md`. The scan-state column's constant JSONB default uses PostgreSQL 11+'s metadata-only addition; keep its narrowly scoped migration-safety annotation and lock rationale.
 - Automation `event_generation` is nullable and falls back to `baseline_generation` for historical rows. It preserves recovery history across one-time action requests and cancellation; condition changes advance both generations. Keep attempt revision checks separate from event queries.
 
 - Cache-volume image publication adds nullable digests and published generation,

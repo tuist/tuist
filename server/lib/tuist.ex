@@ -207,6 +207,7 @@ defmodule Tuist do
       Automations,
       Automations.Alerts.Alert,
       Automations.Alerts.Revision,
+      Automations.Builds,
       Webhooks,
       Webhooks.Dispatcher,
       Webhooks.Signature,

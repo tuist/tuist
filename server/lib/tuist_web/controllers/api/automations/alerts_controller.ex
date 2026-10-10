@@ -4,6 +4,7 @@ defmodule TuistWeb.API.Automations.AlertsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Automations
+  alias Tuist.Automations.Builds
   alias TuistWeb.API.RequestParams
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.AutomationAlert
@@ -200,7 +201,10 @@ defmodule TuistWeb.API.Automations.AlertsController do
          type: :object,
          properties: %{
            name: %Schema{type: :string},
-           monitor_type: %Schema{type: :string, enum: ["flakiness_rate", "flaky_run_count", "reliability_rate"]},
+           monitor_type: %Schema{
+             type: :string,
+             enum: ["flakiness_rate", "flaky_run_count", "reliability_rate", "cache_key_consistency"]
+           },
            trigger_config: %Schema{type: :object},
            cadence: %Schema{type: :string},
            trigger_actions: %Schema{type: :array, items: AutomationAlertAction},
@@ -225,9 +229,21 @@ defmodule TuistWeb.API.Automations.AlertsController do
       |> RequestParams.normalize()
       |> Map.put("project_id", project.id)
 
-    case Automations.create_alert(attrs, actor: conn.assigns[:current_user], source: "integration") do
+    result =
+      if attrs["monitor_type"] == "cache_key_consistency" and not Builds.supported?(project) do
+        {:error, :unsupported_build_system}
+      else
+        Automations.create_alert(attrs, actor: conn.assigns[:current_user], source: "integration")
+      end
+
+    case result do
       {:ok, alert} ->
         conn |> put_status(:created) |> json(AutomationAlert.from_model(alert))
+
+      {:error, :unsupported_build_system} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{message: "This build system does not report comparable cache keys."})
 
       {:error, :revision} ->
         conn |> put_status(:internal_server_error) |> json(%{message: "Could not record automation history."})

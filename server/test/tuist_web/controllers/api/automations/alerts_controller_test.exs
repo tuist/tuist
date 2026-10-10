@@ -3,6 +3,7 @@ defmodule TuistWeb.API.Automations.AlertsControllerTest do
   use Mimic
 
   alias Tuist.Automations
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -84,6 +85,44 @@ defmodule TuistWeb.API.Automations.AlertsControllerTest do
       assert response["name"] == "Auto-quarantine"
       assert response["monitor_type"] == "flakiness_rate"
       assert [%{"type" => "change_state", "state" => "muted"}] = response["trigger_actions"]
+    end
+
+    test "creates a build cache-key rule without test-specific parameters", %{conn: conn, project: project} do
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          api_path(project),
+          JSON.encode!(%{
+            "name" => "Cache key consistency",
+            "monitor_type" => "cache_key_consistency",
+            "trigger_actions" => [%{"type" => "send_slack", "channel" => "C1", "message" => "{{build.summary}}"}]
+          })
+        )
+        |> json_response(:created)
+
+      assert response["monitor_type"] == "cache_key_consistency"
+      assert response["trigger_config"] == %{}
+      assert response["recovery_enabled"] == false
+    end
+
+    test "rejects cache-key rules for build systems without reported hashes", %{conn: conn, project: project} do
+      project |> Ecto.Changeset.change(build_system: :mix) |> Repo.update!()
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          api_path(project),
+          JSON.encode!(%{
+            "name" => "Cache keys",
+            "monitor_type" => "cache_key_consistency",
+            "trigger_actions" => [%{"type" => "send_slack", "channel" => "C1", "message" => "{{build.summary}}"}]
+          })
+        )
+        |> json_response(:unprocessable_entity)
+
+      assert response["message"] =~ "does not report comparable cache keys"
     end
 
     test "creates a reliability-rate alert rule", %{conn: conn, project: project} do

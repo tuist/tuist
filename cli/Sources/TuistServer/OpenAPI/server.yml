@@ -2969,11 +2969,7 @@ components:
           x-struct:
           x-validate:
         monitor_type:
-          description: The monitor type that evaluates the condition.
-          enum:
-            - flakiness_rate
-            - flaky_run_count
-            - reliability_rate
+          description: 'The monitor type: flakiness_rate, flaky_run_count, reliability_rate, test_updated, or cache_key_consistency.'
           type: string
           x-struct:
           x-validate:
@@ -36693,6 +36689,7 @@ paths:
                     - flakiness_rate
                     - flaky_run_count
                     - reliability_rate
+                    - cache_key_consistency
                   type: string
                   x-struct:
                   x-validate:

@@ -17,6 +17,7 @@ This module handles CLI integration with the Tuist Server APIs.
 - Browser authentication reports OSC 7501 `blocked` with `kind=auth` while waiting for tokens, then restores `working`. This uses the CLI-scoped reporter and is a no-op in other consumers.
 - Cache request metadata carries SDK build fingerprints separately from the existing exact content hash; preserve it through target-to-item storage conversions.
 
+- Automation response monitor types are generated as open strings so new build/test monitors do not break decoding. Keep request monitor choices generated from the server schemas.
 - Gradle and Bazel recorded-step endpoints and the optional Gradle report start timestamp are generated from server controller schemas. Regenerate through `server/mise/tasks/generate-api-cli-code.sh`; preserve opaque step IDs and nullable per-step logs.
 
 - Command event serialization sends effective destinations and all individual subhashes, including embedded products, foreign builds, and UI-test device/runtime inputs. Do not substitute declared graph destinations for missing inputs.

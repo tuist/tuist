@@ -5,6 +5,7 @@ This directory holds Phoenix configuration for the server.
 ## Responsibilities
 - Environment-specific configuration (dev, test, prod).
 - Runtime config and endpoint settings.
+- Build cache-key scans use `build_automation_evaluations: 1`, isolated from test alerts; a global PostgreSQL session advisory lock caps scans across web replicas.
 - Request logging filters Google One Tap credentials alongside passwords, secrets and tokens.
 - Marketing's esbuild `noora/hooks` alias resolves individual Noora hook sources
   so unused charting and form runtimes stay out of the marketing bundle.

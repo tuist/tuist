@@ -20,7 +20,7 @@
     font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
   }
 
-  & > [data-part="test-case-automations-card-section"] {
+  & > :is([data-part="test-case-automations-card-section"], [data-part="build-automations-card-section"]) {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
@@ -55,7 +55,7 @@
     }
   }
 
-  & > [data-part="test-case-automations-card-section"] {
+  & > :is([data-part="test-case-automations-card-section"], [data-part="build-automations-card-section"]) {
     & > [data-part="header"] {
       align-items: center;
     }
@@ -536,6 +536,12 @@
 
   & > .noora-card {
     width: 100%;
+  }
+
+  & [data-part="finding-cache-keys"] {
+    max-width: 24rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   & [data-part="configuration-card-section"] > [data-part="metadata-grid"] {
