@@ -552,6 +552,13 @@ defmodule Tuist.GitHistoryTest do
 
       assert GitHistory.blobs_at(repository, "c", ["Sources/A.swift", "Missing.swift"]) == %{"Sources/A.swift" => "a1"}
 
+      assert repository |> GitHistory.files_in("c", ["Tests", "Sources", "."]) |> Enum.map(& &1.path) |> Enum.sort() ==
+               ["Package.resolved", "Sources/A.swift"]
+
+      assert GitHistory.files_in(repository, "c", ["Tests/Fixtures"]) == [
+               %{path: "Tests/Fixtures/x.json", git_blob_id: "x1"}
+             ]
+
       # The default globs track dependency pins, not fixtures.
       assert GitHistory.tracked_files(project, repository, "c") == [
                %{path: "Package.resolved", git_blob_id: "resolved1"}

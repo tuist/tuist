@@ -534,12 +534,15 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     test_files = test_files(project_id, Map.values(executed), modules)
 
+    # Only the test files' directories are read, not the whole listings.
     changes =
       executed
-      |> Map.values()
-      |> Enum.map(&by_id[&1].git_commit_sha)
-      |> Enum.uniq()
-      |> Map.new(&{&1, changes(repository_id, &1, sha)})
+      |> Enum.group_by(fn {_module, run_id} -> by_id[run_id].git_commit_sha end, fn {module, run_id} ->
+        test_files |> Map.get({run_id, module}, []) |> Enum.map(&Path.dirname/1)
+      end)
+      |> Map.new(fn {from_sha, directories} ->
+        {from_sha, changes(repository_id, from_sha, sha, directories |> Enum.concat() |> Enum.uniq())}
+      end)
 
     Enum.reduce(modules, {%{}, %{}}, fn module, {listed, gaps} ->
       case executed[module] do
@@ -573,12 +576,14 @@ defmodule Tuist.Tests.Coverage.Reported do
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
   end
 
-  # The paths that changed or were added between two commits, or `:unknown`
-  # without both commits' complete listings.
-  defp changes(repository_id, from_sha, to_sha) do
+  # The paths in the given directories that changed or were added between
+  # two commits, or `:unknown` without both commits' complete listings.
+  defp changes(_repository_id, _from_sha, _to_sha, []), do: %{changed: MapSet.new(), added: MapSet.new()}
+
+  defp changes(repository_id, from_sha, to_sha, directories) do
     if GitHistory.listing_complete?(repository_id, from_sha) and GitHistory.listing_complete?(repository_id, to_sha) do
-      before = repository_id |> GitHistory.commit_files(from_sha) |> Map.new(&{&1.path, &1.git_blob_id})
-      now = GitHistory.commit_files(repository_id, to_sha)
+      before = repository_id |> GitHistory.files_in(from_sha, directories) |> Map.new(&{&1.path, &1.git_blob_id})
+      now = GitHistory.files_in(repository_id, to_sha, directories)
 
       then(
         %{
