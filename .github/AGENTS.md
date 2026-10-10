@@ -91,7 +91,7 @@ writer from an earlier attempt.
 
 The temporary `codex/profile-warm-swifterpm` diagnostic branch permits only the
 smoke's verify phase. It samples installer child-process categories and compares
-consecutive forced/non-forced installs inside one VM. It logs no process arguments
+consecutive copy/symlink installs with forced versions inside one VM. It logs no process arguments
 or environment values. Server-side default-branch publication policy still applies:
 this branch reads accepted snapshots but its private writes must be discarded.
 

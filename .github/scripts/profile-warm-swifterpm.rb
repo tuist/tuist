@@ -81,5 +81,10 @@ end
 %w[PHASE CACHE_HIT SWIFTERPM_CACHE_HIT WRITER_ID].each { |key| ENV.delete(key) }
 profile('retained snapshot, forced versions', ['--force-resolved-versions'])
 profile('same VM repeat, forced versions', ['--force-resolved-versions'])
-profile('same VM, no forced validation', [])
-profile('same VM repeat, no forced validation', [])
+config_path = 'Tuist.swift'
+config = File.read(config_path)
+needle = '"--replace-scm-with-registry",'
+raise 'Expected package manager configuration missing' unless config.include?(needle)
+File.write(config_path, config.sub(needle, needle + "\n                \"--cached-directory-materialization=symlink\","))
+profile('same VM, symlink materialization, forced versions', ['--force-resolved-versions'])
+profile('same VM repeat, symlink materialization, forced versions', ['--force-resolved-versions'])
