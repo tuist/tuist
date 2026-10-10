@@ -20,3 +20,7 @@ This context owns OAuth2 token/client handling (Boruta).
 - Parent business logic: `server/lib/tuist/AGENTS.md`
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
+
+## Replica-safety rollout
+
+Use upstream Boruta Ecto adapters with `Tuist.OAuth.NoCache` as the entity-cache backend. Client/token/grant reads remain authoritative in PostgreSQL; normal OAuth store operations must not invoke Nebulex replicated cache RPCs or cluster-wide locks. Do not fork the upstream Ecto adapters to disable caching.
