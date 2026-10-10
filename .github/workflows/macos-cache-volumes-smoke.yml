@@ -26,6 +26,8 @@ jobs:
     if: github.repository == 'tuist/tuist' && (github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/codex/profile-warm-swifterpm' && inputs.phase == 'verify'))
     name: smoke (${{ matrix.writer }})
     runs-on: ${{ inputs.runner_label }}
+    env:
+      TUIST_DEV_INSTANCE: "1"
     timeout-minutes: ${{ inputs.phase == 'concurrent' && 40 || 30 }}
     strategy:
       fail-fast: false
@@ -153,11 +155,7 @@ jobs:
         run: |
           tuist auth login
           tuist setup
-      - name: Profile warm installer subprocesses
-        if: github.ref == 'refs/heads/codex/profile-warm-swifterpm'
-        run: /usr/bin/ruby .github/scripts/profile-warm-swifterpm.rb
       - name: Install real CLI dependencies on the volume
-        if: github.ref == 'refs/heads/main'
         shell: bash
         env:
           PHASE: ${{ inputs.phase }}
@@ -171,7 +169,8 @@ jobs:
           swifterpm_before=$(du -sk "$swifterpm_cache/" | awk '{print $1}')
           started=$SECONDS
           env -u PHASE -u CACHE_HIT -u SWIFTERPM_CACHE_HIT -u WRITER_ID \
-            tuist install --force-resolved-versions --cache-path "$swifterpm_cache"
+            tuist install --force-resolved-versions --cache-path "$swifterpm_cache" \
+              --cached-directory-materialization=symlink
           elapsed=$((SECONDS - started))
           test -L .build
           test -L "$swifterpm_cache"
@@ -180,7 +179,7 @@ jobs:
           if [ "$PHASE" = concurrent ]; then
             test "$(cat "$proof/concurrent-writer")" = "${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:${WRITER_ID}"
           fi
-          find -H .build -type f -name Package.swift -print0 > "$RUNNER_TEMP/volume-dependency-manifests"
+          find -L .build/checkouts .build/registry/downloads -type f -name Package.swift -print0 > "$RUNNER_TEMP/volume-dependency-manifests"
           test -s "$RUNNER_TEMP/volume-dependency-manifests"
           xargs -0 shasum -a 256 < "$RUNNER_TEMP/volume-dependency-manifests" > "$proof/dependencies.sha256"
           packages=$(wc -l < "$proof/dependencies.sha256" | tr -d ' ')
