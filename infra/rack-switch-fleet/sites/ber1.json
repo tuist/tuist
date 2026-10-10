@@ -11,7 +11,7 @@
     "vlan_name": "System-VLAN",
     "prefix": "192.168.0.0/24",
     "netmask": "255.255.255.0",
-    "gateway": "192.168.0.1",
+    "gateway": "192.168.0.10",
     "edge": {
       "ssh": "tuist@ber1-edge-a",
       "interface": "enp87s0",
@@ -52,8 +52,11 @@
         ]
       },
       "wan": {
-        "vlan": null,
-        "address": null
+        "vlan": 4001,
+        "address": "149.6.170.31/31",
+        "gateway": "149.6.170.30",
+        "address6": "2001:978:2:b::4:11/127",
+        "gateway6": "2001:978:2:b::4:10"
       }
     },
     "controller": {
@@ -84,6 +87,13 @@
       "apply_order": 1,
       "apply_note": "No WAN path lands here, so a bad change costs one half of the rack's redundancy rather than the site's connectivity. Always the first switch changed, and the only one used to try a change out.",
       "ports": {
+        "30": {
+          "purpose": "wan",
+          "peer": "cogent spare",
+          "media": "fibre",
+          "description": "wan spare",
+          "spanning_tree": false
+        },
         "31": {
           "purpose": "isl",
           "peer": "ber1-tor-a",
@@ -98,7 +108,7 @@
           "description": "isl ber1-tor-a"
         }
       },
-      "note": "Carries a spare LR optic, pre-provisioned so WAN failover is a matter of moving the LC jumper rather than sourcing hardware. Its port is not recorded yet.",
+      "note": "Carries the spare LR optic in port 30, rendered as a WAN port like ber1-tor-a 30, so a failover is a matter of moving the LC jumper rather than sourcing hardware or changing the switch.",
       "mac": "d4:d6:df:03:d8:b2",
       "adopted": true,
       "lags": [
@@ -121,14 +131,23 @@
       "credential_item": "ber1-tor-a switch admin",
       "console_baud": 38400,
       "apply_order": 2,
-      "apply_note": "Carries the WAN optic and the router uplink, so a bad change takes the site off the internet and takes the path used to fix it with it. Changed only after the same change has been applied to ber1-tor-b and the rack is still up.",
+      "apply_note": "Carries the WAN ports, so a bad change takes the site off the internet and takes the path used to fix it with it. Changed only after the same change has been applied to ber1-tor-b and the rack is still up.",
       "ports": {
         "24": {
           "purpose": "wan",
-          "peer": "router",
+          "peer": "lab uplink",
           "media": "copper",
-          "description": "router uplink WAN",
-          "protected": true
+          "description": "wan copper",
+          "protected": true,
+          "spanning_tree": false
+        },
+        "30": {
+          "purpose": "wan",
+          "peer": "cogent",
+          "media": "fibre",
+          "description": "wan cogent",
+          "protected": true,
+          "spanning_tree": false
         },
         "31": {
           "purpose": "isl",
@@ -547,7 +566,7 @@
     "management": "Every x86 node's out-of-band path is one specific socket: AMT rides the MS-01's i226-LM and the i226-V beside it has none, so a management link recorded without its NIC is a link that gets patched into the wrong hole. The fleet tests require every management link to land on an interface the node's hardware marks as out-of-band.",
     "power": "Eaton throughout: 3x EATS16N transfer switches and 2x EVMAFC20A PDUs. One ATS is the critical layer and powers its loads directly; each of the other two feeds one PDU, and that pair is a chain. A node names the device its cord goes into, `ats` or `pdu`, never both, and a PDU names its ATS, so every node resolves to exactly one transfer switch. A mini and its ToR must resolve to the same one: chain A minis on ToR A, chain B minis on ToR B. Crossed, any one ATS failure takes the whole fleet, half losing power and the other half its switch. The paired nodes (edges, storage, ToRs) resolve to different ones. The 2026-09-12 choice of APC AP4423A was superseded on 2026-09-21: the EATS16N is the same shape with a faster transfer, and a single vendor across ATS and PDU was the decisive argument.",
     "sensors": "Environmental probes are not on the network. They chain off a PDU's SENSOR port over RS485 and are addressed by Modbus address rather than by switch port, which is why they are nodes with no links.",
-    "ports": "On each ToR, ports 1-23 are for Mac minis, 24 is ber1-tor-a's router uplink, 25-31 are for the x86 nodes and 32 is the ISL. An x86 node takes the same port number on every ToR it reaches: ber1-edge-a 25, ber1-edge-b 26, the storage pair 27 (ber1-store-a on ToR A, ber1-store-b on ToR B). On ber1-mgmt the x86 nodes' i226-LM ports come first, in the same order from port 1, and the edges' i226-V ports come last, ber1-edge-a on 48 and ber1-edge-b on 47. Those serve the segment from whichever edge holds its floating addresses: its DHCP, the netboot and the switches' path to the controller. They are ports of their own because an i226-LM with vPro never puts a DHCP offer it sends on the wire (measured on ber1-edge on 2026-09-24, and a known Intel defect), so an edge cannot serve from the socket that carries its AMT. On ber1-mgmt, ports 41-45 are the power appliances: ber1-ats-1 to ber1-ats-3 on 41-43, ber1-pdu-a on 44 and ber1-pdu-b on 45."
+    "ports": "On each ToR, ports 1-23 are for Mac minis, 25-29 are for the x86 nodes, 30 is the WAN optic and 31-32 are the ISL. The WAN ports carry the WAN VLAN untagged and nothing else: ber1-tor-a 30 is the Cogent handoff, ber1-tor-b 30 holds the spare optic so a failover is moving the LC jumper, and ber1-tor-a 24 is a copper WAN port for standing in an upstream on the bench, with nothing plugged into it at the colo. An x86 node takes the same port number on every ToR it reaches: ber1-edge-a 25, ber1-edge-b 26, the storage pair 27 (ber1-store-a on ToR A, ber1-store-b on ToR B). On ber1-mgmt the x86 nodes' i226-LM ports come first, in the same order from port 1, and the edges' i226-V ports come last, ber1-edge-a on 48 and ber1-edge-b on 47. Those serve the segment from whichever edge holds its floating addresses: its DHCP, the netboot and the switches' path to the controller. They are ports of their own because an i226-LM with vPro never puts a DHCP offer it sends on the wire (measured on ber1-edge on 2026-09-24, and a known Intel defect), so an edge cannot serve from the socket that carries its AMT. On ber1-mgmt, ports 41-45 are the power appliances: ber1-ats-1 to ber1-ats-3 on 41-43, ber1-pdu-a on 44 and ber1-pdu-b on 45."
   },
   "kubernetes": {
     "namespace": "tuist"
@@ -561,6 +580,11 @@
     {
       "id": 4000,
       "name": "edge-vrrp",
+      "carried_by": "edges"
+    },
+    {
+      "id": 4001,
+      "name": "wan",
       "carried_by": "edges"
     }
   ],

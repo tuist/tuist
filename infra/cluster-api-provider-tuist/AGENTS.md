@@ -1322,22 +1322,69 @@ reconciler renders a `RackNodeConfig`, the host's files (kubelet unit and
 configuration, CA, local CNI, containerd's registry mirror, sysctl, modules,
 the management port's networkd file, `/etc/tuist/kubernetes-api`, the
 translation of the kubernetes Service to the API server in
-`/etc/tuist/kubernetes-service.nft`), the exact kubelet release the control
-plane runs and the hostname, into the `RackLinuxMachine`'s `status.nodeConfig`,
-hashed. The translation needs the kubernetes Service's ClusterIP, which the
-operator reads like the cluster DNS (a Role on `default/kubernetes` alone), and
-an API server address that is an IP; without either it is removed. `rack-node`
-applies one: it writes only files whose content or mode differs, loads modules
-and sysctls, loads its nftables files on every apply (each recreates its own
-table, which undoes a flush),
-installs containerd with its default configuration on the systemd cgroup
-driver, installs exactly the named kubelet from pkgs.k8s.io and never
-downgrades it, sets the hostname, restarts containerd or the kubelet when
-their files changed, when they are not running, or when the host has not
-finished applying this configuration (`/var/lib/tuist/rack-converge.hash`),
-and leaves a host kubeadm joined alone. Its result is structured
-(`changed`, `restarted`, `applied`, `needsBootstrap`, `foreignJoin`), not an exit
-code.
+`/etc/tuist/kubernetes-service.nft`, an edge's host networking below), the
+directories it needs, the exact kubelet release the control plane runs and the
+hostname, into the `RackLinuxMachine`'s `status.nodeConfig`, hashed. The
+translation needs the kubernetes Service's ClusterIP, which the operator reads
+like the cluster DNS (a Role on `default/kubernetes` alone), and an API server
+address that is an IP; without either it is removed. `rack-node` applies one:
+it creates missing directories, writes only files whose content or mode
+differs, loads modules and sysctls, loads its nftables files on every apply
+(each recreates its own table, which undoes a flush), reloads networkd for a
+changed `.network` file, restarts systemd-networkd or systemd-resolved for
+their own configuration (each reads it only when it starts; networkd once every
+file is written, and a restart stands in for the reload), installs containerd
+with its default configuration on the systemd cgroup driver, installs exactly
+the named kubelet from pkgs.k8s.io and never downgrades it, sets the hostname,
+restarts containerd or the kubelet when their files changed, when they are not
+running, or when the host has not finished applying this configuration
+(`/var/lib/tuist/rack-converge.hash`; networkd and resolved too, when the
+configuration carries files of theirs), and leaves a host kubeadm joined alone.
+Its result is structured (`changed`, `restarted`, `applied`, `needsBootstrap`,
+`foreignJoin`), not an exit code.
+
+**Every rack node runs static pods** from `/etc/kubernetes/manifests`
+(`staticPodPath` in its kubelet configuration, the directory created by the
+converge), so what a node needs before it reaches the API server, such as an
+edge's rack-edge after a cold boot, runs from the node alone.
+
+**An edge's uplinks carry no address of its own.** The rack-edge pod
+(`infra/helm/rack-edge`, rendered by `infra/rack-switch-fleet/lib/edge.sh`)
+puts the WAN on a VLAN interface it creates (`wan0`), with the address
+keepalived floats, and routes over the X710 uplinks itself, with `ip route` and
+keepalived's `virtual_routes`. For a host whose `spec.role` is `edge` the
+converge writes:
+
+- `/etc/systemd/network/05-tuist-edge-uplinks.network`, matching
+  `Driver=i40e`: no DHCP, no IPv6 link-local, no router advertisements,
+  `ActivationPolicy=always-up`, `ConfigureWithoutCarrier=yes` and
+  `RequiredForOnline=no`, so the uplinks are up with no address and boot does
+  not wait for them. networkd applies the first `.network` file that matches a
+  link, in filename order across directories, so it shadows the install's
+  netplan (`/run/systemd/network/10-netplan-uplinks.network`, DHCP on the
+  uplinks).
+- `/etc/systemd/networkd.conf.d/10-tuist-edge.conf`:
+  `ManageForeignRoutes=no` and `ManageForeignRoutingPolicyRules=no`, so
+  networkd never removes the routes and rules keepalived and the rack-edge pod
+  add. The routes on the uplinks belong to them.
+- `/etc/systemd/resolved.conf.d/10-tuist-edge.conf`: global resolvers
+  (`DNS=1.1.1.1 8.8.8.8`). An uplink with no address gives systemd-resolved no
+  resolver of its own.
+- `/etc/sysctl.d/99-tuist-edge.conf`:
+  `net.ipv4.conf.all.ignore_routes_with_linkdown = 1`, since the pod's routes
+  to the ToRs' management addresses are multipath over both uplinks and a
+  nexthop on a dead link has to be skipped, which the pod cannot set itself;
+  and `accept_ra = 0` for `all` and `default`, so `wan0`, created at runtime,
+  never takes router advertisements from upstream. IPv6 forwarding stays off.
+
+Another role gets these files removed, so a role change cleans up; the
+sysctls' values stay in the kernel until the host reboots.
+
+Not yet done: a freshly installed edge's first boot still takes DHCP on its
+uplinks from the install's netplan (`internal/rackinstall/seed.go`). At the
+colo nothing serves DHCP there (VLAN 1), so a reinstalled edge has no internet,
+and so no tailnet, until it is converged, and it cannot be converged without
+the tailnet.
 
 The operator runs it over SSH (`rack-node apply`, the request on stdin and the
 result on stdout, the binary uploaded under `/usr/local/lib/tuist/` by its

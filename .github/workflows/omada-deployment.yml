@@ -24,9 +24,10 @@ name: Rack Fleet Controller Deployment
 # and production; staging gets a server deploy only when someone dispatches
 # one, and the rack's objects need their CRD where the rack is.
 #
-# And it installs the rack-edge DaemonSet (infra/helm/rack-edge), which runs the
-# switches' path into the tailnet and their DHCP on the rack's edge nodes,
-# RackLinuxMachines of this cluster.
+# And it installs the rack-edge DaemonSet (infra/helm/rack-edge), which puts the
+# rack's edge workload on each edge node, a RackLinuxMachine of this cluster, as
+# a kubelet static pod: the WAN, the switches' path into the tailnet and their
+# DHCP.
 #
 # THE IMAGES. rack-switch-controller-image.yml and rack-edge-image.yml build
 # `sha-<12 sha>` only for a push that changes their image's inputs, so the image
@@ -253,8 +254,12 @@ jobs:
             -f "$RUNNER_TEMP/controller-site.yaml" \
             --set image.tag="$TAG" \
             --atomic --timeout 5m --wait
-      # Last, and waited on: a DaemonSet whose pod does not come up on the edge
-      # node means the switches' path or their DHCP is down.
+      # Last, and not waited on, like the other releases on rack nodes (see
+      # "Deploys and the rack's health" in infra/rack-nodes/AGENTS.md): an edge
+      # that is dark would hold the wait forever. The DaemonSet rolls the edges
+      # one at a time when they are up, each held 90 s after its static pod
+      # applied the new configuration; `kubectl -n omada rollout status
+      # ds/rack-edge-<site>` follows it.
       - name: helm upgrade --install the rack edge
         if: needs.resolve.outputs.rack == 'true'
         env:
@@ -267,7 +272,7 @@ jobs:
             -f "$EDGE_CHART_PATH/values.yaml" \
             -f "$RUNNER_TEMP/edge-site.yaml" \
             --set image.tag="$TAG" \
-            --atomic --timeout 5m --wait
+            --wait=hookOnly
       - name: Diagnostics on failure
         if: failure()
         run: |

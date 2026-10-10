@@ -13,9 +13,9 @@ spec:
   managedBy: controller
   managementAddress: 192.168.0.11
   applyOrder: 2
-  applyNote: Carries the WAN optic and the router uplink, so a bad change takes the site off the internet and takes the path used to fix it with it. Changed only after the same change has been applied to ber1-tor-b and the rack is still up.
+  applyNote: Carries the WAN ports, so a bad change takes the site off the internet and takes the path used to fix it with it. Changed only after the same change has been applied to ber1-tor-b and the rack is still up.
   credentialItem: ber1-tor-a switch admin
-  configRevision: 26e3a24984f3bc3c
+  configRevision: a4ca05c7b76fb442
   config:
     hostname: ber1-tor-a
     managementVlan: 1
@@ -29,6 +29,8 @@ spec:
         name: machines
       - id: 4000
         name: edge-vrrp
+      - id: 4001
+        name: wan
     lags:
       - id: 1
         name: isl ber1-tor-b
@@ -152,9 +154,9 @@ spec:
         nativeVlan: 1
         taggedVlans: []
       - port: 24
-        description: router uplink WAN
-        spanningTree: true
-        nativeVlan: 1
+        description: wan copper
+        spanningTree: false
+        nativeVlan: 4001
         taggedVlans: []
       - port: 25
         description: ""
@@ -163,6 +165,7 @@ spec:
         taggedVlans:
           - 10
           - 4000
+          - 4001
       - port: 26
         description: ""
         spanningTree: true
@@ -170,6 +173,7 @@ spec:
         taggedVlans:
           - 10
           - 4000
+          - 4001
       - port: 27
         description: ""
         spanningTree: true
@@ -186,9 +190,9 @@ spec:
         nativeVlan: 1
         taggedVlans: []
       - port: 30
-        description: ""
-        spanningTree: true
-        nativeVlan: 1
+        description: wan cogent
+        spanningTree: false
+        nativeVlan: 4001
         taggedVlans: []
       - port: 31
         description: isl ber1-tor-b
@@ -197,6 +201,7 @@ spec:
         taggedVlans:
           - 10
           - 4000
+          - 4001
       - port: 32
         description: isl ber1-tor-b
         spanningTree: true
@@ -204,10 +209,11 @@ spec:
         taggedVlans:
           - 10
           - 4000
+          - 4001
   ports:
     - port: 24
       purpose: wan
-      peer: router
+      peer: lab uplink
       detail: copper
     - port: 25
       purpose: data
@@ -221,6 +227,10 @@ spec:
       purpose: data
       peer: ber1-store-a
       detail: storage/sfp28-1
+    - port: 30
+      purpose: wan
+      peer: cogent
+      detail: fibre
     - port: 31
       purpose: isl
       peer: ber1-tor-b

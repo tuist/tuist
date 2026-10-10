@@ -2,7 +2,9 @@
 // describes. It writes only files whose content or mode differs, restarts
 // containerd or the kubelet when their configuration changed, when they are
 // not running, or when the host has not finished applying this configuration,
-// and installs exactly the kubelet release the configuration names, never
+// restarts systemd-networkd or systemd-resolved when their own configuration
+// changed or the host has not finished applying a configuration that carries
+// it, and installs exactly the kubelet release the configuration names, never
 // downgrading. The operator runs it over SSH to join a host (cmd/rack-node
 // apply), and its node agent runs it on the node afterwards (cmd/rack-node
 // agent).
@@ -140,10 +142,20 @@ func Apply(ctx context.Context, h Host, req Request, opts Options) (Result, erro
 	}
 	if applied, _ := h.ReadFile(HashPath); strings.TrimSpace(string(applied)) != cfg.Hash {
 		a.dirty["containerd"], a.dirty["kubelet"] = true, true
+		for _, f := range cfg.Files {
+			if f.Group == "networkd" || f.Group == "resolved" {
+				a.dirty[f.Group] = true
+			}
+		}
 	}
 
 	if err := a.swapOff(ctx); err != nil {
 		return a.res, err
+	}
+	for _, dir := range cfg.Directories {
+		if err := a.mkdir(ctx, dir); err != nil {
+			return a.res, err
+		}
 	}
 	for _, f := range cfg.Files {
 		if err := a.put(f); err != nil {
@@ -170,8 +182,20 @@ func Apply(ctx context.Context, h Host, req Request, opts Options) (Result, erro
 			return a.res, err
 		}
 	}
-	if a.dirty["network"] {
+	// networkd reads its own configuration only when it starts, and a restart
+	// reads the .network files too. It runs once every file is in place, so
+	// networkd starts with the configuration that keeps others' routes.
+	if a.dirty["networkd"] {
+		if err := a.restart(ctx, "systemd-networkd"); err != nil {
+			return a.res, err
+		}
+	} else if a.dirty["network"] {
 		if _, err := h.Run(ctx, nil, "networkctl", "reload"); err != nil {
+			return a.res, err
+		}
+	}
+	if a.dirty["resolved"] {
+		if err := a.restart(ctx, "systemd-resolved"); err != nil {
 			return a.res, err
 		}
 	}
@@ -278,6 +302,26 @@ func (a *applier) put(f infrav1.RackNodeFile) error {
 	}
 	a.res.Changed = append(a.res.Changed, f.Path)
 	a.dirty[f.Group] = true
+	return nil
+}
+
+// mkdir creates dir, with its parents, when it is missing.
+func (a *applier) mkdir(ctx context.Context, dir string) error {
+	if _, ok, err := a.h.Stat(dir); err != nil || ok {
+		return err
+	}
+	if _, err := a.h.Run(ctx, nil, "mkdir", "-p", dir); err != nil {
+		return err
+	}
+	a.res.Changed = append(a.res.Changed, dir+"/")
+	return nil
+}
+
+func (a *applier) restart(ctx context.Context, unit string) error {
+	if _, err := a.h.Run(ctx, nil, "systemctl", "restart", unit); err != nil {
+		return err
+	}
+	a.res.Restarted = append(a.res.Restarted, unit)
 	return nil
 }
 

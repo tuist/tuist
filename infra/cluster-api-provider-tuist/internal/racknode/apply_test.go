@@ -333,6 +333,149 @@ func TestApplyTurnsSwapOff(t *testing.T) {
 	}
 }
 
+func TestApplyCreatesItsDirectoriesOnce(t *testing.T) {
+	h := newFakeHost()
+	h.withIdentity(t, testNow.Add(24*time.Hour))
+	h.onRun = func(command string) {
+		if dir, ok := strings.CutPrefix(command, "mkdir -p "); ok {
+			h.files[dir] = fakeFile{mode: fs.ModeDir | 0o755}
+		}
+	}
+	cfg := testConfig()
+	cfg.Directories = []string{"/etc/kubernetes/manifests"}
+
+	res := apply(t, h, Request{Config: cfg})
+	if !h.ranAny("mkdir -p /etc/kubernetes/manifests") || !contains(res.Changed, "/etc/kubernetes/manifests/") {
+		t.Fatalf("changed %v ran %v", res.Changed, h.ran)
+	}
+
+	h.ran = nil
+	again := apply(t, h, Request{Config: cfg})
+	if h.ranAny("mkdir") || len(again.Changed) != 0 {
+		t.Fatalf("created a directory that exists: changed %v ran %v", again.Changed, h.ran)
+	}
+}
+
+func edgeNetworkConfig() infrav1.RackNodeConfig {
+	cfg := testConfig()
+	cfg.Files = append(cfg.Files,
+		infrav1.RackNodeFile{Path: "/etc/systemd/network/05-tuist-edge-uplinks.network", Mode: "0644", Group: "network", Content: "[Match]\nDriver=i40e\n"},
+		infrav1.RackNodeFile{Path: "/etc/systemd/networkd.conf.d/10-tuist-edge.conf", Mode: "0644", Group: "networkd", Content: "[Network]\nManageForeignRoutes=no\n"},
+		infrav1.RackNodeFile{Path: "/etc/systemd/resolved.conf.d/10-tuist-edge.conf", Mode: "0644", Group: "resolved", Content: "[Resolve]\nDNS=1.1.1.1 8.8.8.8\n"},
+	)
+	return cfg
+}
+
+// networkd and resolved read their own configuration only when they start.
+// networkd is restarted once every file is in place, which also reads the
+// .network files, so it is not reloaded besides.
+func TestApplyRestartsNetworkdAndResolvedForTheirConfiguration(t *testing.T) {
+	h := newFakeHost()
+	h.withIdentity(t, testNow.Add(24*time.Hour))
+	h.onRun = func(command string) {
+		if command == "systemctl restart systemd-networkd" {
+			for _, p := range []string{"/etc/systemd/network/05-tuist-edge-uplinks.network", "/etc/systemd/networkd.conf.d/10-tuist-edge.conf"} {
+				if _, ok := h.files[p]; !ok {
+					t.Errorf("networkd restarted before %s was written", p)
+				}
+			}
+		}
+	}
+
+	res := apply(t, h, Request{Config: edgeNetworkConfig()})
+
+	for _, unit := range []string{"systemd-networkd", "systemd-resolved"} {
+		if !contains(res.Restarted, unit) {
+			t.Errorf("restarted %v, want %s", res.Restarted, unit)
+		}
+	}
+	if h.ranAny("networkctl reload") {
+		t.Error("reloaded networkd besides restarting it")
+	}
+
+	h.ran = nil
+	again := apply(t, h, Request{Config: edgeNetworkConfig()})
+	if len(again.Restarted) != 0 || h.ranAny("systemctl restart") || h.ranAny("networkctl") {
+		t.Fatalf("a second apply of the same configuration restarted %v; ran %v", again.Restarted, h.ran)
+	}
+}
+
+func TestApplyRestartsOnlyTheDaemonWhoseConfigurationChanged(t *testing.T) {
+	h := newFakeHost()
+	h.withIdentity(t, testNow.Add(24*time.Hour))
+	cfg := edgeNetworkConfig()
+	apply(t, h, Request{Config: cfg})
+
+	h.ran = nil
+	cfg.Files[len(cfg.Files)-1].Content = "[Resolve]\nDNS=9.9.9.9\n"
+	res := apply(t, h, Request{Config: cfg})
+	if !contains(res.Restarted, "systemd-resolved") || contains(res.Restarted, "systemd-networkd") {
+		t.Fatalf("restarted %v, want resolved alone", res.Restarted)
+	}
+
+	h.ran = nil
+	cfg.Files[len(cfg.Files)-3].Content = "[Match]\nDriver=ixgbe\n"
+	res = apply(t, h, Request{Config: cfg})
+	if contains(res.Restarted, "systemd-networkd") || !h.ranAny("networkctl reload") {
+		t.Fatalf("restarted %v ran %v; a .network file takes a reload", res.Restarted, h.ran)
+	}
+}
+
+// An apply that wrote networkd's configuration and failed before finishing
+// restarts it on the next, though the files no longer differ.
+func TestApplyRestartsNetworkdForAConfigurationItDidNotFinishApplying(t *testing.T) {
+	h := newFakeHost()
+	h.withIdentity(t, testNow.Add(24*time.Hour))
+	h.failures["systemctl restart systemd-networkd"] = 1
+	if _, err := Apply(context.Background(), h, Request{Config: edgeNetworkConfig()}, Options{Now: func() time.Time { return testNow }}); err == nil {
+		t.Fatal("an apply whose networkd restart failed succeeded")
+	}
+	delete(h.failures, "systemctl restart systemd-networkd")
+
+	h.ran = nil
+	res := apply(t, h, Request{Config: edgeNetworkConfig()})
+	if !contains(res.Restarted, "systemd-networkd") || !contains(res.Restarted, "systemd-resolved") {
+		t.Fatalf("restarted %v", res.Restarted)
+	}
+
+	h.ran = nil
+	other := testConfig()
+	other.Hash = "hash-2"
+	apply(t, h, Request{Config: other})
+	if h.ranAny("systemctl restart systemd-") {
+		t.Fatalf("restarted networkd or resolved for a configuration with none of their files; ran %v", h.ran)
+	}
+}
+
+func TestApplyRestartsNetworkdWhenItsConfigurationIsRemoved(t *testing.T) {
+	h := newFakeHost()
+	h.withIdentity(t, testNow.Add(24*time.Hour))
+	apply(t, h, Request{Config: edgeNetworkConfig()})
+
+	h.ran = nil
+	cfg := testConfig()
+	cfg.Absent = append(cfg.Absent,
+		infrav1.RackNodeFile{Path: "/etc/systemd/networkd.conf.d/10-tuist-edge.conf", Group: "networkd"},
+		infrav1.RackNodeFile{Path: "/etc/systemd/resolved.conf.d/10-tuist-edge.conf", Group: "resolved"},
+	)
+	res := apply(t, h, Request{Config: cfg})
+	if !contains(res.Restarted, "systemd-networkd") || !contains(res.Restarted, "systemd-resolved") {
+		t.Fatalf("restarted %v", res.Restarted)
+	}
+	if _, ok := h.files["/etc/systemd/networkd.conf.d/10-tuist-edge.conf"]; ok {
+		t.Fatal("networkd's configuration is still there")
+	}
+}
+
+func contains(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
 // An nftables file defines a table of its own and recreates it when loaded,
 // so loading it on every apply undoes anything that flushed it since.
 func TestApplyLoadsItsNftablesFilesOnEveryApply(t *testing.T) {

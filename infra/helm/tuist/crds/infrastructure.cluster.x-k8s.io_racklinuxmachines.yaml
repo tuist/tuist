@@ -200,8 +200,10 @@ spec:
                       items:
                         description: |-
                           RackNodeFile is one file on a rack node. Group names what a change to it
-                          takes: modules, sysctl, network (networkd reloaded), systemd (systemd
-                          re-executed), containerd or kubelet (restarted), or none.
+                          takes: modules, sysctl, network (networkd reloaded), networkd or resolved
+                          (systemd-networkd or systemd-resolved restarted, for their own
+                          configuration), systemd (systemd re-executed), containerd or kubelet
+                          (restarted), or none.
                         properties:
                           content:
                             type: string
@@ -225,13 +227,20 @@ spec:
                       required:
                         - configPath
                       type: object
+                    directories:
+                      description: Directories are created, with their parents, when missing.
+                      items:
+                        type: string
+                      type: array
                     files:
                       description: Files are written, in order, when their content or mode differs.
                       items:
                         description: |-
                           RackNodeFile is one file on a rack node. Group names what a change to it
-                          takes: modules, sysctl, network (networkd reloaded), systemd (systemd
-                          re-executed), containerd or kubelet (restarted), or none.
+                          takes: modules, sysctl, network (networkd reloaded), networkd or resolved
+                          (systemd-networkd or systemd-resolved restarted, for their own
+                          configuration), systemd (systemd re-executed), containerd or kubelet
+                          (restarted), or none.
                         properties:
                           content:
                             type: string
@@ -248,7 +257,9 @@ spec:
                     hash:
                       description: |-
                         Hash fingerprints the configuration. The node records the one it last
-                        applied, and restarts containerd and the kubelet when it changes.
+                        applied, and restarts containerd and the kubelet when it changes, and
+                        systemd-networkd and systemd-resolved when the configuration carries
+                        files of theirs.
                       type: string
                     hostname:
                       description: Hostname is the host's OS hostname, its Node's name.
