@@ -11,8 +11,7 @@ defmodule Tuist.Tests.Coverage.EarlyAccessTest do
     coverage_evidence: %{
       paths: ["Sources/A.swift"],
       scopes: [%{kind: "test", module: "AppTests", suite: "ATests", name: "testA()", files: [0]}]
-    },
-    changed_files: [%{path: "Sources/A.swift", status: "modified", git_blob_id: "blob", hunks: [%{start: 1, end: 2}]}]
+    }
   }
 
   setup do
@@ -33,7 +32,6 @@ defmodule Tuist.Tests.Coverage.EarlyAccessTest do
     assert run.git_repository_id == 0
     assert CoverageFixtures.run_summary(project.id, run.id) == nil
     assert CoverageFixtures.evidence_rows(run) == []
-    assert CoverageFixtures.changed_files(run) == []
   end
 
   test "the same run is kept in full once the account has it", %{account: account, project: project} do
@@ -42,6 +40,5 @@ defmodule Tuist.Tests.Coverage.EarlyAccessTest do
     assert run.git_repository_id > 0
     assert %{covered_lines: 1} = CoverageFixtures.run_summary(project.id, run.id)
     assert [%{scope_kind: "test", path: "Sources/A.swift"}] = CoverageFixtures.evidence_rows(run)
-    assert [%{path: "Sources/A.swift", hunk_starts: [1], hunk_ends: [2]}] = CoverageFixtures.changed_files(run)
   end
 end

@@ -432,30 +432,37 @@ defmodule TuistWeb.API.TestsControllerTest do
              ) == []
     end
 
-    test "rejects coverage evidence and changed files past their size limits", %{
-      conn: conn,
-      user: user,
-      project: project
-    } do
-      body = %{duration: 1000, is_ci: false, test_modules: [], status: "success"}
-
-      evidence = %{
-        paths: ["Sources/A.swift"],
-        scopes: [%{kind: "target", module: "AppTests", files: [0], lines: [List.duplicate(1, 200_002)]}]
+    test "rejects coverage evidence past its size limits", %{conn: conn, user: user, project: project} do
+      body = %{
+        duration: 1000,
+        is_ci: false,
+        test_modules: [],
+        status: "success",
+        coverage_evidence: %{
+          paths: ["Sources/A.swift"],
+          scopes: [%{kind: "target", module: "AppTests", files: [0], lines: [List.duplicate(1, 200_002)]}]
+        }
       }
 
-      changed_file = %{
-        path: "Sources/A.swift",
-        status: "modified",
-        hunks: List.duplicate(%{start: 1, end: 2}, 1_001)
+      assert conn
+             |> put_req_header("content-type", "application/json")
+             |> post("/api/projects/#{user.account.name}/#{project.name}/tests", body)
+             |> json_response(:bad_request)
+    end
+
+    test "accepts and ignores the changed files older clients send", %{conn: conn, user: user, project: project} do
+      body = %{
+        duration: 1000,
+        is_ci: false,
+        test_modules: [],
+        status: "success",
+        changed_files: [%{path: "Sources/A.swift", status: "modified", hunks: [%{start: 1, end: 2}]}]
       }
 
-      for oversized <- [%{coverage_evidence: evidence}, %{changed_files: [changed_file]}] do
-        assert conn
-               |> put_req_header("content-type", "application/json")
-               |> post("/api/projects/#{user.account.name}/#{project.name}/tests", Map.merge(body, oversized))
-               |> json_response(:bad_request)
-      end
+      assert conn
+             |> put_req_header("content-type", "application/json")
+             |> post("/api/projects/#{user.account.name}/#{project.name}/tests", body)
+             |> json_response(:ok)
     end
 
     test "rejects a coverage storage key that is not the run's", %{conn: conn, user: user, project: project} do

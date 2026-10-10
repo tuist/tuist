@@ -42,7 +42,7 @@ defmodule TuistEx.GitTest do
   end
 
   describe "history/4" do
-    test "reads the merge base, the changed files with their hunks and the commits", %{repo: repo} do
+    test "reads the merge base and the commits", %{repo: repo} do
       write!(repo, "lib/a.ex", "one\ntwo\nthree\n")
       write!(repo, "lib/gone.ex", "bye\n")
       base = commit!(repo, "base")
@@ -60,30 +60,6 @@ defmodule TuistEx.GitTest do
       assert history.merge_base_sha == base
       assert history.fallback_reason == nil
       assert Enum.map(history.commits, &{&1.sha, &1.parents}) == [{head, [base]}, {base, []}]
-
-      by_path = Map.new(history.changed_files, &{&1.path, &1})
-
-      assert %{
-               status: "modified",
-               hunks: [%{start: 2, end: 2}, %{start: 4, end: 4}],
-               truncated: false
-             } =
-               by_path["lib/a.ex"]
-
-      assert by_path["lib/a.ex"].git_blob_id == git!(repo, ["rev-parse", "#{head}:lib/a.ex"])
-      assert %{status: "added", hunks: [%{start: 1, end: 1}]} = by_path["lib/new file.ex"]
-      assert %{status: "deleted", git_blob_id: nil, hunks: []} = by_path["lib/gone.ex"]
-    end
-
-    test "reports a rename with its previous path", %{repo: repo} do
-      write!(repo, "lib/old.ex", Enum.map_join(1..20, "\n", &"line #{&1}") <> "\n")
-      commit!(repo, "base")
-      git!(repo, ["checkout", "--quiet", "-b", "feature"])
-      git!(repo, ["mv", "lib/old.ex", "lib/new.ex"])
-      head = commit!(repo, "rename")
-
-      assert {:ok, %{changed_files: [file]}} = Git.history(repo, head, "main")
-      assert %{path: "lib/new.ex", previous_path: "lib/old.ex", status: "renamed"} = file
     end
 
     test "says why there is no merge base", %{repo: repo} do
@@ -93,7 +69,6 @@ defmodule TuistEx.GitTest do
       assert {:ok,
               %{
                 merge_base_sha: nil,
-                changed_files: [],
                 fallback_reason: "no base branch is known"
               }} =
                Git.history(repo, head, nil)
@@ -134,20 +109,6 @@ defmodule TuistEx.GitTest do
       # The clone's boundary commit keeps the parent its commit object names.
       assert Enum.find(history.commits, &(&1.sha == head)).parents != []
     end
-
-    test "limits the changed files and says how many were left out", %{repo: repo} do
-      write!(repo, "seed.ex", "seed\n")
-      commit!(repo, "base")
-      git!(repo, ["checkout", "--quiet", "-b", "feature"])
-      for index <- 1..3, do: write!(repo, "file#{index}.ex", "x\n")
-      head = commit!(repo, "three files")
-
-      assert {:ok, %{changed_files: files, fallback_reason: reason}} =
-               Git.history(repo, head, "main", %{max_changed_files: 2})
-
-      assert length(files) == 2
-      assert reason == "1 changed files beyond the first 2 were left out"
-    end
   end
 
   test "dirty?/1 counts untracked files, as the command line tool does", %{repo: repo} do
@@ -185,33 +146,6 @@ defmodule TuistEx.GitTest do
     assert blobs["lib/a.ex"] == git!(repo, ["rev-parse", "HEAD:lib/a.ex"])
     assert blobs["lib/b.ex"] == git!(repo, ["hash-object", "lib/b.ex"])
     assert blobs["lib/c.ex"] == git!(repo, ["hash-object", "lib/c.ex"])
-  end
-
-  describe "parse_hunks/1" do
-    test "ignores added lines that look like file headers and unquotes quoted names" do
-      unified = """
-      diff --git "a/caf\\303\\251.ex" "b/caf\\303\\251.ex"
-      --- "a/caf\\303\\251.ex"
-      +++ "b/caf\\303\\251.ex"
-      @@ -1 +1,2 @@
-      -x
-      +++ not a header
-      +y
-      """
-
-      assert Git.parse_hunks(unified) == %{"café.ex" => [%{start: 1, end: 2}]}
-    end
-
-    test "skips hunks that only removed lines" do
-      unified = """
-      diff --git a/a.ex b/a.ex
-      --- a/a.ex
-      +++ b/a.ex
-      @@ -3,2 +2,0 @@
-      """
-
-      assert Git.parse_hunks(unified) == %{}
-    end
   end
 
   test "parse_raw_parents/1 reads parents off commit objects" do

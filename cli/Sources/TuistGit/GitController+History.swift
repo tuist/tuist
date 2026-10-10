@@ -41,33 +41,12 @@ extension GitController {
 
         let commits = try await windowCommits(git: git, workingDirectory: workingDirectory, head: head, limits: limits)
 
-        var changedFiles: [GitChangedFile] = []
-        if let mergeBase {
-            // `--no-abbrev`: the raw format abbreviates blob ids by default, and patch coverage
-            // matches them against the full ids the coverage rows carry.
-            let raw = try await capture(arguments: git + ["diff", "--raw", "--no-abbrev", "-z", "-M", mergeBase, head])
-            // The hunks are keyed by the `+++ b/<path>` headers, so they must not depend on the
-            // user's config: prefixes (`diff.noprefix`, `diff.mnemonicPrefix`) and quoting.
-            let unified = try await capture(
-                arguments: git + [
-                    "-c", "core.quotePath=false", "diff", "-U0", "-M", "--no-color", "--no-ext-diff",
-                    "--src-prefix=a/", "--dst-prefix=b/", mergeBase, head,
-                ]
-            )
-            let (files, dropped) = GitHistoryParser.parseChangedFiles(raw: raw, unified: unified, limits: limits)
-            changedFiles = files
-            if dropped > 0 {
-                reasons.append("\(dropped) changed files beyond the first \(limits.maxChangedFiles) were left out")
-            }
-        }
-
         return GitHistory(
             objectFormat: objectFormat.flatMap { $0.isEmpty ? nil : $0 } ?? "sha1",
             headSHA: head,
             baseBranch: baseBranch,
             mergeBaseSHA: mergeBase,
             commits: commits,
-            changedFiles: changedFiles,
             fallbackReason: reasons.isEmpty ? nil : reasons.joined(separator: "; ")
         )
     }
