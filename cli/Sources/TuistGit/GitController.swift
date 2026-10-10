@@ -246,6 +246,8 @@ public struct GitController: GitControlling {
         "BUILDKITE_PULL_REQUEST",
         // CircleCI
         "CIRCLE_PR_NUMBER",
+        // TeamCity
+        "teamcity.pullRequest.number",
     ]
 
     private static let baseBranchEnvironmentVariables = [
@@ -264,6 +266,8 @@ public struct GitController: GitControlling {
         "CI_PULL_REQUEST_TARGET_BRANCH",
         // Azure DevOps (a full ref, refs/heads/main)
         "SYSTEM_PULLREQUEST_TARGETBRANCH",
+        // TeamCity
+        "teamcity.pullRequest.target.branch",
     ]
 
     private static let branchEnvironmentVariables = [
@@ -284,6 +288,7 @@ public struct GitController: GitControlling {
         // Xcode Cloud
         "CI_BRANCH",
         // TeamCity
+        "teamcity.pullRequest.source.branch",
         "teamcity.build.branch",
         // Azure DevOps
         "BUILD_SOURCEBRANCHNAME",
@@ -308,7 +313,8 @@ public struct GitController: GitControlling {
     }
 
     public func gitInfo(workingDirectory: AbsolutePath) async throws -> GitInfo {
-        let environment = environment.variables
+        let environment = await CIBuildParameters.read(environment: environment.variables)
+            .merging(environment.variables) { _, variable in variable }
 
         // Ref
         let gitRef: String?
@@ -336,13 +342,14 @@ public struct GitController: GitControlling {
         let baseBranch = Self.baseBranchEnvironmentVariables
             .compactMap { environment[$0] }
             .first { !$0.isEmpty }
-            .map { $0.hasPrefix("refs/heads/") ? String($0.dropFirst("refs/heads/".count)) : $0 }
+            .map(Self.branchName)
         let pullRequestNumber = Self.pullRequestNumber(ref: gitRef, environment: environment)
 
         // Branch
         let ciBranch = Self.branchEnvironmentVariables
             .compactMap { environment[$0] }
             .first { !$0.isEmpty }
+            .map(Self.branchName)
             ?? Self.githubBranch(environment: environment)
 
         let branchName: String?
@@ -413,6 +420,11 @@ public struct GitController: GitControlling {
             baseBranch: baseBranch,
             pullRequestNumber: pullRequestNumber
         )
+    }
+
+    /// Some providers name a branch by its full ref, `refs/heads/main`.
+    private static func branchName(_ name: String) -> String {
+        name.hasPrefix("refs/heads/") ? String(name.dropFirst("refs/heads/".count)) : name
     }
 
     /// The pull request number from a `refs/pull/<n>/...` ref (which the CI variables above are

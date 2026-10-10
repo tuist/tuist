@@ -37,7 +37,8 @@ defmodule Tuist.Shards do
     reference = Map.fetch!(params, :reference)
 
     units = resolve_units(project, params, granularity)
-    timing_data = fetch_timing_data(project, granularity, units)
+    concurrency = module_concurrency(project, params, granularity, units)
+    timing_data = fetch_timing_data(project, granularity, units, timing_estimate(concurrency))
 
     units_with_durations =
       units
@@ -45,7 +46,7 @@ defmodule Tuist.Shards do
       |> fold_nested_classes(granularity)
       |> scale_by_module_parallelism(project, params, granularity)
 
-    {units_with_modes, concurrency} = concurrent_modules(units_with_durations, project, params, granularity)
+    units_with_modes = with_execution_modes(units_with_durations, params, concurrency)
 
     shard_count =
       units_with_modes
@@ -692,9 +693,9 @@ defmodule Tuist.Shards do
     from(t in Test, where: t.project_id == ^project_id and t.submission_auth == "network_trusted", select: t.id)
   end
 
-  defp fetch_timing_data(_project, _granularity, []), do: %{}
+  defp fetch_timing_data(_project, _granularity, [], _estimate), do: %{}
 
-  defp fetch_timing_data(project, "module", modules) do
+  defp fetch_timing_data(project, "module", modules, estimate) do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
 
     from(mr in TestModuleRun,
@@ -703,14 +704,14 @@ defmodule Tuist.Shards do
       where: mr.test_run_id not in subquery(network_test_run_ids(project.id)),
       where: mr.ran_at >= ^cutoff,
       where: mr.name in ^modules,
-      group_by: mr.name,
-      select: %{name: mr.name, duration: fragment("quantile(?)(?)", ^@timing_quantile, mr.duration)}
+      group_by: mr.name
     )
+    |> select_timing(estimate)
     |> ClickHouseRepo.all()
     |> Map.new(fn %{name: name, duration: duration} -> {name, round_timing_duration(duration)} end)
   end
 
-  defp fetch_timing_data(project, "suite", units) do
+  defp fetch_timing_data(project, "suite", units, :p90) do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
     modules = units |> Enum.map(&suite_module/1) |> Enum.uniq()
 
@@ -744,6 +745,11 @@ defmodule Tuist.Shards do
 
     Map.new(rows, fn [name, duration] -> {name, round_timing_duration(duration)} end)
   end
+
+  defp select_timing(query, :p90),
+    do: select(query, [mr], %{name: mr.name, duration: fragment("quantile(?)(?)", ^@timing_quantile, mr.duration)})
+
+  defp select_timing(query, :mean), do: select(query, [mr], %{name: mr.name, duration: avg(mr.duration)})
 
   # JVM test runs record a nested class (`Outer$Inner`) as a suite of its own, but a test filter that
   # selects or excludes a class also selects or excludes its nested classes. Planning them as separate
@@ -898,27 +904,32 @@ defmodule Tuist.Shards do
   # run) and history answers how many run at once. `BinPacker.pack_concurrent/3` then packs them, its
   # floor of a shard's longest concurrent module playing the role `cap_factor/2` plays for suites.
   # Without a declaration or a measurement the plan sums durations.
-  defp concurrent_modules(units_with_durations, project, params, "module") do
-    declared = params |> Map.get(:concurrent_modules) |> List.wrap() |> MapSet.new()
-
-    concurrency =
-      if MapSet.size(declared) > 0,
-        do: fetch_module_concurrency(project, Enum.map(units_with_durations, &elem(&1, 0)))
-
-    with_execution_modes(units_with_durations, declared, concurrency)
+  defp module_concurrency(project, params, "module", modules) do
+    if MapSet.size(declared_concurrent_modules(params)) > 0, do: fetch_module_concurrency(project, modules)
   end
 
-  defp concurrent_modules(units_with_durations, _project, _params, _granularity), do: {units_with_durations, nil}
+  defp module_concurrency(_project, _params, _granularity, _units), do: nil
 
-  defp with_execution_modes(units_with_durations, _declared, nil), do: {units_with_durations, nil}
+  defp declared_concurrent_modules(params), do: params |> Map.get(:concurrent_modules) |> List.wrap() |> MapSet.new()
 
-  defp with_execution_modes(units_with_durations, declared, concurrency) do
-    units =
-      Enum.map(units_with_durations, fn {name, duration} ->
-        {name, duration, if(MapSet.member?(declared, name), do: :parallel, else: :serial)}
-      end)
+  # A summed plan prices every unit at its P90, which inflates each a little and leaves the balance
+  # alone. A plan priced with a measured concurrency is different: the concurrency comes from what
+  # shards took, and a module running alongside others varies far more from run to run than one
+  # running alone, so its P90 sits much further above a typical run (1.7x against 1.16x on Tuist's
+  # suite). Dividing P90s by that concurrency would weigh concurrent modules against serial ones by
+  # how noisy they are, and the plan would swing with small changes in the concurrency. The mean is in
+  # the same terms as the measurement for both, so such a plan prices modules at it.
+  defp timing_estimate(nil), do: :p90
+  defp timing_estimate(_concurrency), do: :mean
 
-    {units, concurrency}
+  defp with_execution_modes(units_with_durations, _params, nil), do: units_with_durations
+
+  defp with_execution_modes(units_with_durations, params, _concurrency) do
+    declared = declared_concurrent_modules(params)
+
+    Enum.map(units_with_durations, fn {name, duration} ->
+      {name, duration, if(MapSet.member?(declared, name), do: :parallel, else: :serial)}
+    end)
   end
 
   defp shard_count_units(units, nil), do: units
