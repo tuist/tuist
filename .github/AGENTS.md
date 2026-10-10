@@ -73,6 +73,14 @@ Retain `~/.cache/swifterpm` in a separate volume and pass it explicitly as
 `--cache-path`. A warm `.build` alone leaves SwifterPM's source cache cold and
 can delegate the install back to native SwiftPM. Require both volume hits and
 verify retained source manifests and registry checksum markers before installing.
+Use `--cached-directory-materialization=symlink` for these persistent volumes:
+SwifterPM's automatic CI mode deletes and recopies cached package directories on
+every install. Pin `TUIST_DEV_INSTANCE=1` before mise setup so the random local
+development ports and database names do not invalidate manifest fingerprints
+between runner VMs. Keep forced lockfile validation enabled. Same-VM repeat
+measurements do not establish manifest-cache reuse across separate jobs.
+Follow dependency symlinks when recording manifest checksums, scoped to the
+workspace checkout and registry-download directories.
 Wait for both snapshots to publish before verification. Use a fresh prefix when
 changing the set of retained paths; the two volumes publish independently.
 Keep smoke phase, hit and writer variables out of the installer environment:
