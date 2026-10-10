@@ -221,20 +221,58 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     test_pid = self()
 
-    report = fn rows ->
-      for %{scope_id: _, line_numbers: _, test_run_id: run_id} <- rows, do: send(test_pid, {:evidence_lines, run_id})
-      rows
+    # A read of evidence lines merges them per file in ClickHouse.
+    report = fn query ->
+      query = inspect(query)
+      if query =~ "groupUniqArrayArray", do: send(test_pid, {:evidence_lines, query})
     end
 
-    stub(ClickHouseRepo, :all, fn query -> report.(call_original(ClickHouseRepo, :all, [query])) end)
-    stub(ClickHouseRepo, :all, fn query, opts -> report.(call_original(ClickHouseRepo, :all, [query, opts])) end)
+    stub(ClickHouseRepo, :all, fn query ->
+      report.(query)
+      call_original(ClickHouseRepo, :all, [query])
+    end)
+
+    stub(ClickHouseRepo, :all, fn query, opts ->
+      report.(query)
+      call_original(ClickHouseRepo, :all, [query, opts])
+    end)
 
     assert %{kind: "reported", covered_lines: 5, carried_tests_count: 1, carried_from: ["base"]} =
              Reported.compute(project, "head")
 
-    assert_received {:evidence_lines, _run_id}
-    root_id = root.id
-    refute_received {:evidence_lines, ^root_id}
+    queries = Stream.repeatedly(fn -> receive(do: ({:evidence_lines, query} -> query), after: (0 -> nil)) end)
+    queries = Enum.take_while(queries, & &1)
+
+    assert queries != []
+    refute Enum.any?(queries, &(&1 =~ root.id))
+  end
+
+  test "a scheme whose runs took targets from the binary cache, none of them from sources, is partial", %{
+    project: project,
+    account: account
+  } do
+    head = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
+    binary_cache(project, head, ["Core"])
+
+    assert %{kind: "partial", covered_lines: 2, executable_lines: 7} = reported = Reported.compute(project, "head")
+    # No ancestor measured the scheme, so what the run didn't build is unknown too.
+    assert reasons(reported) == [:unbuilt_file_unknown, :uninstrumented_code]
+  end
+
+  test "a run that took only remote packages from the binary cache is measured", %{project: project, account: account} do
+    head = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
+    binary_cache(project, head, ["Alamofire"], external_hash: "alamofire-revision")
+
+    assert %{kind: "measured", gap_reasons: 0} = Reported.compute(project, "head")
+  end
+
+  test "a scheme with a run that ran every test from sources is measured, whatever its other runs took from the cache",
+       %{project: project, account: account} do
+    cached = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head", partial: true})
+    binary_cache(project, cached, ["Core"])
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
+
+    assert %{kind: "measured", gap_reasons: 0} = Reported.compute(project, "head")
   end
 
   test "carries the tests of a scheme selective testing skipped whole", %{project: project, account: account} do
@@ -356,6 +394,17 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
       partial: true,
       test_modules: modules([test_case("testAdd()", "MathTests")])
     })
+  end
+
+  # Targets the run took from the binary cache: prebuilt, without coverage counters.
+  defp binary_cache(project, run, targets, opts \\ []) do
+    event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run.id)
+
+    for target <- targets do
+      XcodeFixtures.xcode_target_fixture(
+        [command_event_id: event.id, name: target, binary_cache_hit: :local] ++ opts
+      )
+    end
   end
 
   defp selective_testing(project, run, hits) do
@@ -523,8 +572,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     target_only_runs(project, account)
 
     report = fn
-      %Ecto.Query{from: %{source: {"xcode_targets", _schema}}, joins: joins} ->
-        send(self(), {:xcode_targets_query, joins})
+      %Ecto.Query{from: %{source: {"xcode_targets", _schema}}, joins: joins} = query ->
+        if inspect(query) =~ "selective_testing_hash", do: send(self(), {:xcode_targets_query, joins})
 
       _query ->
         :ok
