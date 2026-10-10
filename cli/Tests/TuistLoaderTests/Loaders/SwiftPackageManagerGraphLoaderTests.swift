@@ -1360,6 +1360,114 @@ struct SwiftPackageManagerGraphLoaderTests {
         )
     }
 
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func load_when_local_package_directory_name_differs_from_the_registry_package_it_overrides() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given
+        let workspacePath = temporaryDirectory.appending(components: [
+            ".build", "workspace-state.json",
+        ])
+        try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+
+        let localPackagePath = temporaryDirectory.appending(component: "ios-DesignSystem")
+        try await fileSystem.makeDirectory(at: localPackagePath)
+
+        try await fileSystem.writeText(
+            """
+            {
+              "object" : {
+                "artifacts" : [],
+                "dependencies" : [
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "ios-designsystem",
+                      "kind" : "fileSystem",
+                      "location" : "\(localPackagePath.pathString)",
+                      "name" : "DesignSystem"
+                    },
+                    "state" : {
+                      "name" : "fileSystem",
+                      "path" : "\(localPackagePath.pathString)"
+                    },
+                    "subpath" : "ios-designsystem"
+                  },
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "acme.Consumer",
+                      "kind" : "registry",
+                      "location" : "acme.Consumer",
+                      "name" : "acme.Consumer"
+                    },
+                    "state" : {
+                      "name" : "registryDownload",
+                      "version" : "1.0.0"
+                    },
+                    "subpath" : "acme/Consumer/1.0.0"
+                  },
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "acme.DesignSystem",
+                      "kind" : "registry",
+                      "location" : "acme.DesignSystem",
+                      "name" : "acme.DesignSystem"
+                    },
+                    "state" : {
+                      "name" : "registryDownload",
+                      "version" : "1.0.0"
+                    },
+                    "subpath" : "acme/DesignSystem/1.0.0"
+                  }
+                ],
+              }
+            }
+            """,
+            at: workspacePath
+        )
+
+        let manifestLoader = MockManifestLoading()
+        given(manifestLoader)
+            .loadPackage(at: .any, disableSandbox: .value(true))
+            .willProduce { path, _ in
+                path.basename == "ios-DesignSystem" ? .test(name: "DesignSystem") : .test()
+            }
+        let subject = SwiftPackageManagerGraphLoader(
+            swiftPackageManagerController: swiftPackageManagerController,
+            packageInfoMapper: packageInfoMapper,
+            manifestLoader: manifestLoader,
+            fileSystem: fileSystem,
+            contentHasher: contentHasher
+        )
+        given(packageInfoMapper)
+            .resolveExternalDependencies(
+                path: .any,
+                packagePath: .any,
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any,
+                packageSettings: .any
+            )
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
+
+        // When
+        let (got, _) = try await subject.load(
+            packagePath: temporaryDirectory.appending(component: "Package.swift"),
+            packageSettings: PackageSettings.test(),
+            disableSandbox: true
+        )
+
+        // Then: the local package replaces the registry package it overrides, while unrelated registry packages stay.
+        // Paths are compared by their trailing components since the temporary directory can resolve through `/private`.
+        #expect(
+            Set(got.externalProjects.keys.map { $0.pathString.split(separator: "/").suffix(2).joined(separator: "/") }) ==
+                ["Consumer/1.0.0", "\(temporaryDirectory.basename)/ios-DesignSystem"]
+        )
+    }
+
     private func writeRegistryWorkspaceState(
         scratchDirectory: Path.AbsolutePath,
         dependencySubpath: String
