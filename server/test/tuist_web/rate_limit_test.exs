@@ -37,7 +37,7 @@ defmodule TuistWeb.RateLimitTest do
       assert RateLimit.hit("key", limit: 10, window: window) == {:allow, 1}
     end
 
-    test "falls back to the fixed-window in-memory limiter when Valkey times out" do
+    test "denies requests when the shared fixed-window limiter times out" do
       window = to_timeout(minute: 1)
 
       stub(Environment, :redis_url, fn -> "redis://example" end)
@@ -46,11 +46,32 @@ defmodule TuistWeb.RateLimitTest do
         raise Redix.ConnectionError, reason: :timeout
       end)
 
-      expect(InMemory, :hit, fn "key", ^window, 10, 1 ->
-        {:allow, 1}
-      end)
+      assert RateLimit.hit("key", limit: 10, window: window) == {:deny, window}
+    end
 
-      assert RateLimit.hit("key", limit: 10, window: window) == {:allow, 1}
+    test "availability traffic uses a divided local budget when Valkey exits" do
+      window = to_timeout(minute: 1)
+      stub(Environment, :redis_url, fn -> "redis://example" end)
+      expect(PersistentFixedWindow, :hit, fn "key", ^window, 100, 1 -> exit(:noproc) end)
+      expect(InMemory, :hit, fn "fallback:key", ^window, 20, 1 -> {:allow, 1} end)
+      assert RateLimit.hit("key", limit: 100, window: window, failure_policy: :local) == {:allow, 1}
+    end
+
+    test "an outage budget smaller than the replica allowance denies instead of multiplying the limit" do
+      window = to_timeout(minute: 1)
+      stub(Environment, :redis_url, fn -> "redis://example" end)
+      expect(PersistentFixedWindow, :hit, fn "key", ^window, 1, 1 -> exit(:noproc) end)
+      reject(InMemory, :hit, 4)
+      assert RateLimit.hit("key", limit: 1, window: window, failure_policy: :local) == {:deny, window}
+    end
+
+    test "availability token buckets divide both capacity and refill on failure" do
+      stub(Environment, :redis_url, fn -> "redis://example" end)
+      expect(PersistentTokenBucket, :hit, fn "key", 10, 100, 1 -> exit(:noproc) end)
+      expect(InMemory, :hit_token_bucket, fn "fallback:key", 2.0, 20, 1 -> {:allow, 19} end)
+
+      assert RateLimit.hit("key", algorithm: :token_bucket, capacity: 100, refill_rate: 10, failure_policy: :local) ==
+               {:allow, 19}
     end
 
     test "uses the token-bucket in-memory limiter when Valkey is not configured" do
@@ -88,7 +109,7 @@ defmodule TuistWeb.RateLimitTest do
              ) == {:allow, 9}
     end
 
-    test "falls back to the token-bucket in-memory limiter when Valkey times out" do
+    test "denies requests when the shared token-bucket limiter times out" do
       refill_rate = 1 / 60
 
       stub(Environment, :redis_url, fn -> "redis://example" end)
@@ -98,19 +119,15 @@ defmodule TuistWeb.RateLimitTest do
           term: {:error, %Redix.ConnectionError{reason: :timeout}}
       end)
 
-      expect(InMemory, :hit_token_bucket, fn "key", ^refill_rate, 10, 1 ->
-        {:allow, 9}
-      end)
-
       assert RateLimit.hit(
                "key",
                algorithm: :token_bucket,
                refill_rate: refill_rate,
                capacity: 10
-             ) == {:allow, 9}
+             ) == {:deny, 60_000}
     end
 
-    test "falls back to the token-bucket in-memory limiter when the Valkey connection exits" do
+    test "denies requests when the shared Valkey connection exits" do
       refill_rate = 1 / 60
 
       stub(Environment, :redis_url, fn -> "redis://example" end)
@@ -119,16 +136,12 @@ defmodule TuistWeb.RateLimitTest do
         exit({:noproc, {GenServer, :call, []}})
       end)
 
-      expect(InMemory, :hit_token_bucket, fn "key", ^refill_rate, 10, 1 ->
-        {:allow, 9}
-      end)
-
       assert RateLimit.hit(
                "key",
                algorithm: :token_bucket,
                refill_rate: refill_rate,
                capacity: 10
-             ) == {:allow, 9}
+             ) == {:deny, 60_000}
     end
   end
 
@@ -139,12 +152,13 @@ defmodule TuistWeb.RateLimitTest do
       expect(Environment, :public_project_rate_limit_bucket_size, fn -> 120 end)
 
       expect(RateLimit, :hit, fn
-        "dashboard:GET:/:account_handle/:project_handle/bundles/:bundle_id:ip:127.0.0.1", [limit: 60, window: _window] ->
+        "dashboard:GET:/:account_handle/:project_handle/bundles/:bundle_id:ip:127.0.0.1",
+        [limit: 60, window: _window, failure_policy: :local] ->
           {:allow, 1}
       end)
 
       expect(RateLimit, :hit, fn
-        "dashboard:anon-scope:GET:tuist/ios_app_with_frameworks", [limit: 120, window: _window] ->
+        "dashboard:anon-scope:GET:tuist/ios_app_with_frameworks", [limit: 120, window: _window, failure_policy: :local] ->
           {:allow, 1}
       end)
 
@@ -210,7 +224,7 @@ defmodule TuistWeb.RateLimitTest do
       Mimic.reject(&RemoteIp.get/1)
 
       expect(RateLimit, :hit, fn
-        "dashboard:GET:/:account_handle:user:123", [limit: 60, window: _window] ->
+        "dashboard:GET:/:account_handle:user:123", [limit: 60, window: _window, failure_policy: :local] ->
           {:allow, 1}
       end)
 
@@ -245,7 +259,7 @@ defmodule TuistWeb.RateLimitTest do
       Mimic.reject(&RemoteIp.get/1)
 
       expect(RateLimit, :hit, fn
-        "dashboard:GET:/:account_handle:user:123", [limit: 60, window: _window] ->
+        "dashboard:GET:/:account_handle:user:123", [limit: 60, window: _window, failure_policy: :local] ->
           {:allow, 1}
       end)
 
@@ -261,7 +275,7 @@ defmodule TuistWeb.RateLimitTest do
     test "allows a route-specific limit override" do
       expect(Environment, :tuist_hosted?, fn -> true end)
       Mimic.reject(&Environment.dashboard_rate_limit_bucket_size/0)
-      expect(RateLimit, :hit, fn _key, [limit: 10, window: _window] -> {:allow, 1} end)
+      expect(RateLimit, :hit, fn _key, [limit: 10, window: _window, failure_policy: :local] -> {:allow, 1} end)
       conn = build_conn()
 
       assert conn == RateLimit.rate_limit(conn, limit: 10)
@@ -274,7 +288,8 @@ defmodule TuistWeb.RateLimitTest do
 
       expect(RateLimit, :hit, fn "dashboard:GET:" <> _rest, _opts -> {:allow, 1} end)
 
-      expect(RateLimit, :hit, fn "dashboard:anon-scope:GET:tuist/ios_app_with_frameworks", [limit: 42, window: _window] ->
+      expect(RateLimit, :hit, fn "dashboard:anon-scope:GET:tuist/ios_app_with_frameworks",
+                                 [limit: 42, window: _window, failure_policy: :local] ->
         {:allow, 1}
       end)
 

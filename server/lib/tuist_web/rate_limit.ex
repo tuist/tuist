@@ -1,6 +1,8 @@
 defmodule TuistWeb.RateLimit do
   @moduledoc """
-  Applies rate limits using Valkey with an in-memory fallback.
+  Applies shared rate limits using Valkey. Credential-guessing surfaces fail closed;
+  availability-oriented callers may opt into a reduced node-local outage budget.
+  Installations without Valkey use an approximate in-memory limiter.
 
   Fixed-window limits use the `:limit` and `:window` options. Token-bucket
   limits use the `:capacity`, `:refill_rate`, and optional `:cost` options.
@@ -44,7 +46,7 @@ defmodule TuistWeb.RateLimit do
   end
 
   defp check(key, limit, window) do
-    case __MODULE__.hit(key, limit: limit, window: window) do
+    case __MODULE__.hit(key, limit: limit, window: window, failure_policy: :local) do
       {:allow, _count} -> :ok
       {:deny, _limit} -> :deny
     end
@@ -76,9 +78,9 @@ defmodule TuistWeb.RateLimit do
     limit = Keyword.fetch!(opts, :limit)
     increment = Keyword.get(opts, :increment, 1)
 
-    with_in_memory_fallback(
+    with_failure_denial(
       fn -> PersistentFixedWindow.hit(key, window, limit, increment) end,
-      fn -> InMemory.hit(key, window, limit, increment) end
+      fn -> on_failure(:fixed_window, key, opts, window) end
     )
   end
 
@@ -87,9 +89,9 @@ defmodule TuistWeb.RateLimit do
     capacity = Keyword.fetch!(opts, :capacity)
     cost = Keyword.get(opts, :cost, 1)
 
-    with_in_memory_fallback(
+    with_failure_denial(
       fn -> PersistentTokenBucket.hit(key, refill_rate, capacity, cost) end,
-      fn -> InMemory.hit_token_bucket(key, refill_rate, capacity, cost) end
+      fn -> on_failure(:token_bucket, key, opts, ceil(cost / refill_rate * 1000)) end
     )
   end
 
@@ -111,12 +113,30 @@ defmodule TuistWeb.RateLimit do
     )
   end
 
-  defp with_in_memory_fallback(persistent, in_memory) do
+  defp with_failure_denial(persistent, fallback) do
     persistent.()
   rescue
-    _error in [MatchError, Redix.ConnectionError, Redix.Error] -> in_memory.()
+    _error in [MatchError, Redix.ConnectionError, Redix.Error] -> fallback.()
   catch
-    :exit, _reason -> in_memory.()
+    :exit, _reason -> fallback.()
+  end
+
+  defp on_failure(algorithm, key, opts, retry_after) do
+    if Keyword.get(opts, :failure_policy, :deny) == :local do
+      replicas = max(Application.get_env(:tuist, :rate_limit_fallback_replicas, 5), length(Node.list()) + 1)
+      bound = if algorithm == :fixed_window, do: :limit, else: :capacity
+      budget = div(Keyword.fetch!(opts, bound), replicas)
+
+      if budget > 0 do
+        opts = Keyword.put(opts, bound, budget)
+        opts = if algorithm == :token_bucket, do: Keyword.update!(opts, :refill_rate, &(&1 / replicas)), else: opts
+        hit_in_memory(algorithm, "fallback:#{key}", opts)
+      else
+        {:deny, retry_after}
+      end
+    else
+      {:deny, retry_after}
+    end
   end
 
   defp requester_key(conn) do
