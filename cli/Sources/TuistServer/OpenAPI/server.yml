@@ -268,7 +268,7 @@ components:
           x-struct:
           x-validate:
         history_source:
-          description: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+          description: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
           enum:
             - client
             - none
@@ -360,73 +360,6 @@ components:
           description: Optional client-generated UUID for the test run. If not provided, the server generates one.
           format: uuid
           type: string
-          x-struct:
-          x-validate:
-        changed_files:
-          description: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
-          items:
-            properties:
-              git_blob_id:
-                description: The file's Git blob at the head; absent for a deleted file.
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              hunks:
-                description: The changed line ranges in the file at the head, inclusive.
-                items:
-                  properties:
-                    end:
-                      type: integer
-                      x-struct:
-                      x-validate:
-                    start:
-                      type: integer
-                      x-struct:
-                      x-validate:
-                  required:
-                    - start
-                    - end
-                  type: object
-                  x-struct:
-                  x-validate:
-                maxItems: 1000
-                type: array
-                x-struct:
-                x-validate:
-              path:
-                description: The path at the head, relative to the repository root.
-                type: string
-                x-struct:
-                x-validate:
-              previous_path:
-                description: The path before a rename.
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              status:
-                enum:
-                  - added
-                  - modified
-                  - deleted
-                  - renamed
-                type: string
-                x-struct:
-                x-validate:
-              truncated:
-                description: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
-                type: boolean
-                x-struct:
-                x-validate:
-            required:
-              - path
-              - status
-            type: object
-            x-struct:
-            x-validate:
-          maxItems: 10000
-          type: array
           x-struct:
           x-validate:
         xcode_coverage:
@@ -13699,7 +13632,7 @@ paths:
                   x-struct:
                   x-validate:
                 history_source:
-                  description: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+                  description: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                   enum:
                     - client
                     - none
@@ -13791,73 +13724,6 @@ paths:
                   description: Optional client-generated UUID for the test run. If not provided, the server generates one.
                   format: uuid
                   type: string
-                  x-struct:
-                  x-validate:
-                changed_files:
-                  description: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
-                  items:
-                    properties:
-                      git_blob_id:
-                        description: The file's Git blob at the head; absent for a deleted file.
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      hunks:
-                        description: The changed line ranges in the file at the head, inclusive.
-                        items:
-                          properties:
-                            end:
-                              type: integer
-                              x-struct:
-                              x-validate:
-                            start:
-                              type: integer
-                              x-struct:
-                              x-validate:
-                          required:
-                            - start
-                            - end
-                          type: object
-                          x-struct:
-                          x-validate:
-                        maxItems: 1000
-                        type: array
-                        x-struct:
-                        x-validate:
-                      path:
-                        description: The path at the head, relative to the repository root.
-                        type: string
-                        x-struct:
-                        x-validate:
-                      previous_path:
-                        description: The path before a rename.
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      status:
-                        enum:
-                          - added
-                          - modified
-                          - deleted
-                          - renamed
-                        type: string
-                        x-struct:
-                        x-validate:
-                      truncated:
-                        description: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
-                        type: boolean
-                        x-struct:
-                        x-validate:
-                    required:
-                      - path
-                      - status
-                    type: object
-                    x-struct:
-                    x-validate:
-                  maxItems: 10000
-                  type: array
                   x-struct:
                   x-validate:
                 xcode_coverage:

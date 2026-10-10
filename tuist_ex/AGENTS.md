@@ -89,7 +89,7 @@ collection (`GitController+History.swift`, `GitHistoryParser.swift`,
 `GitHistoryService.swift`) and must stay in step with it, since the server
 compares what both report: the merge base with the CI provider's base branch
 (fetching it and deepening a shallow clone within the server's budget), the
-changed files and hunks since, the commits within the window (a shallow
+commits within the window (a shallow
 boundary's parents read from the commit objects), whether the checkout is
 dirty (`git status --porcelain`, untracked files included), and after the run
 the commits the server lacks, the branch head, and a clean checkout's file

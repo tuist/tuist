@@ -87,8 +87,7 @@ defmodule TuistEx.Analytics.GitHistoryTest do
              pull_request_number: 7,
              git_object_format: "sha1",
              history_source: "client",
-             git_dirty: false,
-             changed_files: [%{path: "a.ex", status: "modified", hunks: [%{start: 2, end: 2}]}]
+             git_dirty: false
            } = GitHistory.payload(collected)
 
     assert collected.settings.upload_batch_size == 1

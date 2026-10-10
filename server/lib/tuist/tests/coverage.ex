@@ -507,7 +507,6 @@ defmodule Tuist.Tests.Coverage do
     files: [
       "coverage_files",
       "git_commit_files",
-      "test_run_changed_files",
       "coverage_target_sources",
       "coverage_test_sources"
     ],

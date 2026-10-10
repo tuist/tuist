@@ -190,8 +190,7 @@ line) is reported as partial and stays out of the branch's coverage trend.
 Shards each report their share and Tuist merges them.
 
 With coverage, the run also reports its Git history: the merge base with the
-branch a pull request merges into, the files it changed, and the commits Tuist
-does not have yet. A shallow clone is deepened, within a time budget, until
+branch a pull request merges into and the commits Tuist does not have yet. A shallow clone is deepened, within a time budget, until
 the merge base is found. Once every job of the pipeline that measures coverage
 has finished, tell Tuist the commit's coverage is complete:
 

@@ -3815,14 +3815,14 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/git_dirty`.
             public var git_dirty: Swift.Bool?
-            /// Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+            /// Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/history_source`.
             @frozen public enum history_sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case client = "client"
                 case none = "none"
             }
-            /// Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+            /// Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/history_source`.
             public var history_source: Components.Schemas.TestParams.history_sourcePayload?
@@ -3897,105 +3897,6 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/id`.
             public var id: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload`.
-            public struct changed_filesPayloadPayload: Codable, Hashable, Sendable {
-                /// The file's Git blob at the head; absent for a deleted file.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/git_blob_id`.
-                public var git_blob_id: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/hunksPayload`.
-                public struct hunksPayloadPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/hunksPayload/end`.
-                    public var end: Swift.Int
-                    /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/hunksPayload/start`.
-                    public var start: Swift.Int
-                    /// Creates a new `hunksPayloadPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - end:
-                    ///   - start:
-                    public init(
-                        end: Swift.Int,
-                        start: Swift.Int
-                    ) {
-                        self.end = end
-                        self.start = start
-                    }
-                    public enum CodingKeys: String, CodingKey {
-                        case end
-                        case start
-                    }
-                }
-                /// The changed line ranges in the file at the head, inclusive.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/hunks`.
-                public typealias hunksPayload = [Components.Schemas.TestParams.changed_filesPayloadPayload.hunksPayloadPayload]
-                /// The changed line ranges in the file at the head, inclusive.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/hunks`.
-                public var hunks: Components.Schemas.TestParams.changed_filesPayloadPayload.hunksPayload?
-                /// The path at the head, relative to the repository root.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/path`.
-                public var path: Swift.String
-                /// The path before a rename.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/previous_path`.
-                public var previous_path: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/status`.
-                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case added = "added"
-                    case modified = "modified"
-                    case deleted = "deleted"
-                    case renamed = "renamed"
-                }
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/status`.
-                public var status: Components.Schemas.TestParams.changed_filesPayloadPayload.statusPayload
-                /// Whether the client stopped listing this file's hunks because the diff exceeded its limits.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/truncated`.
-                public var truncated: Swift.Bool?
-                /// Creates a new `changed_filesPayloadPayload`.
-                ///
-                /// - Parameters:
-                ///   - git_blob_id: The file's Git blob at the head; absent for a deleted file.
-                ///   - hunks: The changed line ranges in the file at the head, inclusive.
-                ///   - path: The path at the head, relative to the repository root.
-                ///   - previous_path: The path before a rename.
-                ///   - status:
-                ///   - truncated: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
-                public init(
-                    git_blob_id: Swift.String? = nil,
-                    hunks: Components.Schemas.TestParams.changed_filesPayloadPayload.hunksPayload? = nil,
-                    path: Swift.String,
-                    previous_path: Swift.String? = nil,
-                    status: Components.Schemas.TestParams.changed_filesPayloadPayload.statusPayload,
-                    truncated: Swift.Bool? = nil
-                ) {
-                    self.git_blob_id = git_blob_id
-                    self.hunks = hunks
-                    self.path = path
-                    self.previous_path = previous_path
-                    self.status = status
-                    self.truncated = truncated
-                }
-                public enum CodingKeys: String, CodingKey {
-                    case git_blob_id
-                    case hunks
-                    case path
-                    case previous_path
-                    case status
-                    case truncated
-                }
-            }
-            /// The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/changed_files`.
-            public typealias changed_filesPayload = [Components.Schemas.TestParams.changed_filesPayloadPayload]
-            /// The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/changed_files`.
-            public var changed_files: Components.Schemas.TestParams.changed_filesPayload?
             /// - Remark: Generated from `#/components/schemas/TestParams/xcode_coverage`.
             public var xcode_coverage: Components.Schemas.XcodeCoverage?
             /// The shard plan ID if this test run is part of a sharded execution.
@@ -4582,7 +4483,7 @@ public enum Components {
             ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
             ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
             ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
-            ///   - history_source: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+            ///   - history_source: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
             ///   - coverage:
             ///   - build_run_id: The UUID of an associated build run.
             ///   - skip_test_identifiers: The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran.
@@ -4599,7 +4500,6 @@ public enum Components {
             ///   - macos_version: The version of macOS used during the run.
             ///   - ran_at: ISO 8601 timestamp for when the test run started.
             ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
-            ///   - changed_files: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
             ///   - xcode_coverage:
             ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
             ///   - contract_version: Version of the client-server analytics contract the caller was built against (e.g. "0.1"). Older clients may omit it; the server accepts unknown values.
@@ -4642,7 +4542,6 @@ public enum Components {
                 macos_version: Swift.String? = nil,
                 ran_at: Foundation.Date? = nil,
                 id: Swift.String? = nil,
-                changed_files: Components.Schemas.TestParams.changed_filesPayload? = nil,
                 xcode_coverage: Components.Schemas.XcodeCoverage? = nil,
                 shard_plan_id: Swift.String? = nil,
                 contract_version: Swift.String? = nil,
@@ -4685,7 +4584,6 @@ public enum Components {
                 self.macos_version = macos_version
                 self.ran_at = ran_at
                 self.id = id
-                self.changed_files = changed_files
                 self.xcode_coverage = xcode_coverage
                 self.shard_plan_id = shard_plan_id
                 self.contract_version = contract_version
@@ -4729,7 +4627,6 @@ public enum Components {
                 case macos_version
                 case ran_at
                 case id
-                case changed_files
                 case xcode_coverage
                 case shard_plan_id
                 case contract_version
@@ -27988,14 +27885,14 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_dirty`.
                     public var git_dirty: Swift.Bool?
-                    /// Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+                    /// Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/history_source`.
                     @frozen public enum history_sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case client = "client"
                         case none = "none"
                     }
-                    /// Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+                    /// Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/history_source`.
                     public var history_source: Operations.createTest.Input.Body.jsonPayload.history_sourcePayload?
@@ -28070,105 +27967,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/id`.
                     public var id: Swift.String?
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload`.
-                    public struct changed_filesPayloadPayload: Codable, Hashable, Sendable {
-                        /// The file's Git blob at the head; absent for a deleted file.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/git_blob_id`.
-                        public var git_blob_id: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/hunksPayload`.
-                        public struct hunksPayloadPayload: Codable, Hashable, Sendable {
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/hunksPayload/end`.
-                            public var end: Swift.Int
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/hunksPayload/start`.
-                            public var start: Swift.Int
-                            /// Creates a new `hunksPayloadPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - end:
-                            ///   - start:
-                            public init(
-                                end: Swift.Int,
-                                start: Swift.Int
-                            ) {
-                                self.end = end
-                                self.start = start
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case end
-                                case start
-                            }
-                        }
-                        /// The changed line ranges in the file at the head, inclusive.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/hunks`.
-                        public typealias hunksPayload = [Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.hunksPayloadPayload]
-                        /// The changed line ranges in the file at the head, inclusive.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/hunks`.
-                        public var hunks: Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.hunksPayload?
-                        /// The path at the head, relative to the repository root.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/path`.
-                        public var path: Swift.String
-                        /// The path before a rename.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/previous_path`.
-                        public var previous_path: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/status`.
-                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                            case added = "added"
-                            case modified = "modified"
-                            case deleted = "deleted"
-                            case renamed = "renamed"
-                        }
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/status`.
-                        public var status: Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.statusPayload
-                        /// Whether the client stopped listing this file's hunks because the diff exceeded its limits.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/truncated`.
-                        public var truncated: Swift.Bool?
-                        /// Creates a new `changed_filesPayloadPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - git_blob_id: The file's Git blob at the head; absent for a deleted file.
-                        ///   - hunks: The changed line ranges in the file at the head, inclusive.
-                        ///   - path: The path at the head, relative to the repository root.
-                        ///   - previous_path: The path before a rename.
-                        ///   - status:
-                        ///   - truncated: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
-                        public init(
-                            git_blob_id: Swift.String? = nil,
-                            hunks: Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.hunksPayload? = nil,
-                            path: Swift.String,
-                            previous_path: Swift.String? = nil,
-                            status: Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.statusPayload,
-                            truncated: Swift.Bool? = nil
-                        ) {
-                            self.git_blob_id = git_blob_id
-                            self.hunks = hunks
-                            self.path = path
-                            self.previous_path = previous_path
-                            self.status = status
-                            self.truncated = truncated
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case git_blob_id
-                            case hunks
-                            case path
-                            case previous_path
-                            case status
-                            case truncated
-                        }
-                    }
-                    /// The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_files`.
-                    public typealias changed_filesPayload = [Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload]
-                    /// The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_files`.
-                    public var changed_files: Operations.createTest.Input.Body.jsonPayload.changed_filesPayload?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_coverage`.
                     public var xcode_coverage: Components.Schemas.XcodeCoverage?
                     /// The shard plan ID if this test run is part of a sharded execution.
@@ -28755,7 +28553,7 @@ public enum Operations {
                     ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
                     ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
                     ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
-                    ///   - history_source: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+                    ///   - history_source: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                     ///   - coverage:
                     ///   - build_run_id: The UUID of an associated build run.
                     ///   - skip_test_identifiers: The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran.
@@ -28772,7 +28570,6 @@ public enum Operations {
                     ///   - macos_version: The version of macOS used during the run.
                     ///   - ran_at: ISO 8601 timestamp for when the test run started.
                     ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
-                    ///   - changed_files: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
                     ///   - xcode_coverage:
                     ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
                     ///   - contract_version: Version of the client-server analytics contract the caller was built against (e.g. "0.1"). Older clients may omit it; the server accepts unknown values.
@@ -28815,7 +28612,6 @@ public enum Operations {
                         macos_version: Swift.String? = nil,
                         ran_at: Foundation.Date? = nil,
                         id: Swift.String? = nil,
-                        changed_files: Operations.createTest.Input.Body.jsonPayload.changed_filesPayload? = nil,
                         xcode_coverage: Components.Schemas.XcodeCoverage? = nil,
                         shard_plan_id: Swift.String? = nil,
                         contract_version: Swift.String? = nil,
@@ -28858,7 +28654,6 @@ public enum Operations {
                         self.macos_version = macos_version
                         self.ran_at = ran_at
                         self.id = id
-                        self.changed_files = changed_files
                         self.xcode_coverage = xcode_coverage
                         self.shard_plan_id = shard_plan_id
                         self.contract_version = contract_version
@@ -28902,7 +28697,6 @@ public enum Operations {
                         case macos_version
                         case ran_at
                         case id
-                        case changed_files
                         case xcode_coverage
                         case shard_plan_id
                         case contract_version
