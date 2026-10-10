@@ -757,9 +757,12 @@ kura-runners-ingress-nginx:
 # Configured here beside the other gateways, but deployed by the
 # rack-cache-gateways chart (infra/helm/rack-cache-gateways), a release that
 # install-platform.sh does not wait on: this chart's release is, and a dark
-# rack would fail it.
+# rack would fail it. Its objects are named after the gateway rather than that
+# release, whose name would push the metrics Service past the 63 characters a
+# Service name may have.
 kura-ber1-runners-ingress-nginx:
   enabled: false
+  fullnameOverride: kura-ber1-runners-ingress-nginx
   controller:
     kind: DaemonSet
     hostNetwork: true

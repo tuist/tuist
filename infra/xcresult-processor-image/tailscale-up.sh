@@ -137,6 +137,19 @@ else
   echo "tailscale-up: joined tailnet at ${TAILNET_IP}"
 fi
 
+# Resolve `.ts.net` names live through MagicDNS, the same scoped
+# resolver infra/macos-host-bootstrap installs on the hosts. The
+# open-source tailscaled only writes a search-only
+# /etc/resolver/search.tailscale, which resolves nothing, so without
+# this file every full tailnet name is NXDOMAIN. The /etc/hosts block
+# below cannot stand in for it: it is a snapshot of peers taken at
+# boot, so it never contains a Tailscale Service, which is not a peer,
+# and it keeps an old address after a name moves to another device.
+sudo /bin/mkdir -p /etc/resolver
+printf 'nameserver 100.100.100.100\n' | sudo /usr/bin/tee /etc/resolver/ts.net >/dev/null
+sudo /bin/chmod 0644 /etc/resolver/ts.net
+sudo /usr/bin/dscacheutil -flushcache || true
+
 # Pin every peer's tailnet IPv4 + hostname into /etc/hosts so the
 # BEAM's libc resolver finds the pooler proxy without MagicDNS.
 # The BEGIN/END markers let us strip + rewrite on every boot — a
@@ -191,5 +204,14 @@ sudo chown admin:staff "$(dirname "${DIAG_FILE}")"
     /usr/bin/nc -vz -w 10 "${HOST}" "${PORT}" 2>&1 || true
   else
     echo "DATABASE_URL not set"
+  fi
+  echo "-- in-cluster ClickHouse host probe --"
+  if [ -n "${TUIST_CLICKHOUSE_BARE_METAL_URL:-}" ]; then
+    CH_HOST=$(echo "${TUIST_CLICKHOUSE_BARE_METAL_URL}" | /usr/bin/sed -E 's|^[a-z]+://([^@]+@)?([^:/]+).*|\2|')
+    echo "URL host=${CH_HOST}"
+    /usr/bin/dscacheutil -q host -a name "${CH_HOST}" 2>&1 | /usr/bin/head -10 || true
+    /usr/bin/nc -vz -w 10 "${CH_HOST}" 8123 2>&1 || true
+  else
+    echo "TUIST_CLICKHOUSE_BARE_METAL_URL not set"
   fi
 } > "${DIAG_FILE}" 2>&1 || true

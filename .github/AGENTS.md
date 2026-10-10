@@ -69,6 +69,24 @@ manifest checksums before installing on warm runs. Its key includes the runner
 profile, Xcode version file, package manifest and lockfile; reuse all of them
 across phases. Keep authentication outside the cached directory and do not
 restore an archive cache into the same path.
+Retain `~/.cache/swifterpm` in a separate volume and pass it explicitly as
+`--cache-path`. A warm `.build` alone leaves SwifterPM's source cache cold and
+can delegate the install back to native SwiftPM. Require both volume hits and
+verify retained source manifests and registry checksum markers before installing.
+Wait for both snapshots to publish before verification. Use a fresh prefix when
+changing the set of retained paths; the two volumes publish independently.
+Keep smoke phase, hit and writer variables out of the installer environment:
+SwifterPM fingerprints manifest-visible variables, so test-control changes would
+otherwise invalidate its retained manifest JSON between phases and writers.
+The optional `concurrent` phase starts two warm writers on the same key. Each
+writes its own marker and waits until both jobs reach the attachment barrier
+before proceeding; dispatching two independent runs alone does not prove overlap.
+Require both private markers to survive, inspect the shared parent and publication
+outcomes, then run `verify` and compare its retained writer with the accepted HEAD.
+The barrier reads only its own workflow run attempt and fails if its peer fails
+or does not attach within 25 minutes. Keep it outside the timed install command.
+Rerun both jobs together: a failed-job-only retry cannot prove overlap with a
+writer from an earlier attempt.
 ## Bazel and Mix cache volumes
 
 Kura's `.bazelrc` configures repository downloads and disk action caching under

@@ -129,6 +129,9 @@ cli/Tests/Fixtures/*.xcresult/database.sqlite3
 # Kotlin
 .kotlin/
 
+# Once build outputs and local state
+.once/
+
 # Cluster credentials — never commit.
 # `*.kubeconfig` covers the break-glass management kubeconfig, which is
 # cluster-admin for every workload cluster; the operator runbook has you write

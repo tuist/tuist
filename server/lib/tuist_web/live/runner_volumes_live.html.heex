@@ -200,7 +200,7 @@
             patch={sort_patch(assigns, "volume")}
             sort_order={@sort_by == "volume" && @sort_order}
           >
-            <.text_cell label={volume.key} />
+            <.text_cell label={volume_name(volume.key)} title={volume.key} />
           </:col>
           <:col
             :let={volume}

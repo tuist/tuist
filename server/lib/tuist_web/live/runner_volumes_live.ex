@@ -13,6 +13,8 @@ defmodule TuistWeb.RunnerVolumesLive do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.DatePicker
 
+  @volume_name_max_length 48
+
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: user}} = socket) do
     if !(Authorization.authorize(:runners_read, user, account) == :ok and FeatureFlags.runners_enabled?(account)) do
@@ -365,6 +367,13 @@ defmodule TuistWeb.RunnerVolumesLive do
   end
 
   def stats(data, volume), do: Map.get(data.stats, volume.id, %{})
+
+  def volume_name(key) do
+    if String.length(key) > @volume_name_max_length,
+      do: String.slice(key, 0, @volume_name_max_length - 1) <> "…",
+      else: key
+  end
+
   def bytes(nil), do: "—"
   def bytes(%Decimal{} = value), do: value |> Decimal.to_integer() |> bytes()
   def bytes(value), do: ByteFormatter.format_bytes(value)
@@ -416,14 +425,23 @@ defmodule TuistWeb.RunnerVolumesLive do
       grid: %{left: 12, right: 24, top: 20, bottom: 36, containLabel: true},
       xAxis:
         Map.merge(
-          %{type: "time", boundaryGap: false, axisLabel: %{formatter: "fn:toLocaleDate", hideOverlap: true}},
+          %{
+            type: "time",
+            boundaryGap: false,
+            axisLabel: %{
+              color: "var:noora-surface-label-secondary",
+              formatter: "fn:toLocaleDate",
+              hideOverlap: true
+            }
+          },
           bounds
         ),
       yAxis: %{
         min: 0,
         splitNumber: 4,
         minInterval: if(metric == "volumes", do: 1, else: 0),
-        axisLabel: %{formatter: formatter}
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary", formatter: formatter}
       },
       tooltip: %{valueFormat: formatter, dateFormat: "hour"},
       legend: %{show: false}

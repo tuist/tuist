@@ -14,7 +14,8 @@ set -euo pipefail
 # required node affinity and tolerations, against the nodes a rack has: one per
 # role in rackLinuxFleet.roles, a rack Linux node with no role taint, and a
 # rack's Mac mini. The unwaited releases must land on them, which keeps the
-# model honest.
+# model honest. Every rendered Service name has to fit the 63 characters the
+# API server allows, since most charts build names from the release name.
 
 ROOT="${ROOT:-$(git rev-parse --show-toplevel)}"
 HELM="$ROOT/infra/helm"
@@ -106,12 +107,15 @@ jq -n -r \
       | "\(.release | ltrimstr("waited-")): \(.workload) runs on rack nodes (\(.landsOn | join(", ")))"])
     + ([$workloads[] | select(.release | startswith("unwaited-")) | select(.kind == "DaemonSet" and (.landsOn | length) == 0)
       | "\(.release | ltrimstr("unwaited-")): \(.workload) runs on no rack node, so the rack node model is wrong"])
+    + ([$renders[0] | to_entries[] | .key as $release | .value[]
+      | select(.kind == "Service" and (.metadata.name | length) > 63)
+      | "\($release | sub("^(un)?waited-"; "")): Service/\(.metadata.name) has \(.metadata.name | length) characters, and the API server refuses a Service name longer than 63"])
   | .[]
 ' > "$WORK/failures.txt"
 
 if [ -s "$WORK/failures.txt" ]; then
-  echo "Releases that deploys wait on must not run pods on rack nodes:" >&2
+  echo "These releases would fail a deploy, or hold one up while the rack is dark:" >&2
   sed 's/^/  /' "$WORK/failures.txt" >&2
   exit 1
 fi
-echo "No release a deploy waits on runs a pod on a rack node."
+echo "No release a deploy waits on runs a pod on a rack node, and every Service name fits."
