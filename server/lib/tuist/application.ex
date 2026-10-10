@@ -380,7 +380,12 @@ defmodule Tuist.Application do
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
-        [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}] ++
+        [
+          {Task.Supervisor, name: Tuist.TaskSupervisor},
+          TuistWeb.Endpoint,
+          Supervisor.child_spec({Tuist.Application.TaskDrainer, supervisor: Tuist.TaskSupervisor}, shutdown: 12_000),
+          {Oban, Application.fetch_env!(:tuist, Oban)}
+        ] ++
         once_events_grpc_children()
 
     children
@@ -536,7 +541,7 @@ defmodule Tuist.Application do
     if Environment.web?() and Environment.env() in [:prod, :stag, :can] and Environment.tuist_hosted?() do
       [
         Supervisor.child_spec(
-          {Task, &Kura.reconcile_orphaned_deployments/0},
+          {Task, &Kura.enqueue_reconcile_orphaned_deployments/0},
           id: Kura.Reconciler
         )
       ]

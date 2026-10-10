@@ -904,7 +904,7 @@ server:
   # for xcactivitylog parsing). Self-hosters can leave this empty.
   nodeSelector: {}
   tolerations: []
-  terminationGracePeriodSeconds: 60
+  terminationGracePeriodSeconds: 120
   # Preferred HTTP probes. All three hit the Phoenix /ready endpoint.
   #
   # startupProbe gives the release up to ~5 minutes to come up under load

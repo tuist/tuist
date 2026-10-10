@@ -11,3 +11,7 @@
   repository's event prefix, not the logical read repository's prefix.
 
 Use the standard [application shutdown callback](https://hexdocs.pm/elixir/Application.html#c:prep_stop/1) and [socket drainer specifications](https://hexdocs.pm/phoenix/Phoenix.Socket.Transport.html#c:drainer_spec/1). The server child identifiers follow Bandit's Phoenix adapter.
+
+## Replica-safety rollout
+
+Start optional-task supervision before the endpoint, but place its drainer after the endpoint so endpoint configuration remains available while tasks finish. The drainer waits at most ten seconds (twelve-second child shutdown budget); owned tasks are not detached `Task.start` processes. Boot Kura reconciliation is enqueued through the existing unique Oban worker instead of running once in every boot task.
