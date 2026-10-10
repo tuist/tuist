@@ -89,6 +89,12 @@ Rerun both jobs together: a failed-job-only retry cannot prove overlap with a
 writer from an earlier attempt.
 ## Bazel and Mix cache volumes
 
+The temporary `codex/profile-warm-swifterpm` diagnostic branch permits only the
+smoke's verify phase. It samples installer child-process categories and compares
+consecutive forced/non-forced installs inside one VM. It logs no process arguments
+or environment values. Server-side default-branch publication policy still applies:
+this branch reads accepted snapshots but its private writes must be discarded.
+
 Kura's `.bazelrc` configures repository downloads and disk action caching under
 `~/.cache/tuist/bazel` on Linux, not its output base or remote credentials. CI
 attaches that directory with the released action. Keep Tuist remote cache setup

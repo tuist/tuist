@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   smoke:
-    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    if: github.repository == 'tuist/tuist' && (github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/codex/profile-warm-swifterpm' && inputs.phase == 'verify'))
     name: smoke (${{ matrix.writer }})
     runs-on: ${{ inputs.runner_label }}
     timeout-minutes: ${{ inputs.phase == 'concurrent' && 40 || 30 }}
@@ -153,7 +153,11 @@ jobs:
         run: |
           tuist auth login
           tuist setup
+      - name: Profile warm installer subprocesses
+        if: github.ref == 'refs/heads/codex/profile-warm-swifterpm'
+        run: /usr/bin/ruby .github/scripts/profile-warm-swifterpm.rb
       - name: Install real CLI dependencies on the volume
+        if: github.ref == 'refs/heads/main'
         shell: bash
         env:
           PHASE: ${{ inputs.phase }}
