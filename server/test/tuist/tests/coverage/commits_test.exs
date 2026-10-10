@@ -550,6 +550,33 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       assert new_version > version
     end
 
+    test "refold the commit when a repository target came from the binary cache", %{project: project, account: account} do
+      run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+
+      cached = %{
+        name: "App",
+        projects: [
+          %{
+            "targets" => [
+              %{"name" => "Core", "binary_cache_metadata" => %{"hit" => "remote"}},
+              %{
+                "name" => "Alamofire",
+                "binary_cache_metadata" => %{"hit" => "local", "subhashes" => %{"external" => "5.9.0"}}
+              }
+            ]
+          }
+        ]
+      }
+
+      assert {:ok, %Oban.Job{}} =
+               Coverage.refold_after_selective_testing(%{test_run_id: run.id, project_id: project.id}, cached)
+
+      remote_package_only = update_in(cached, [:projects, Access.at(0), "targets"], &tl/1)
+
+      assert Coverage.refold_after_selective_testing(%{test_run_id: run.id, project_id: project.id}, remote_package_only) ==
+               :skipped
+    end
+
     test "schedule nothing when no target was skipped, or the event has no run", %{project: project, account: account} do
       run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
 

@@ -73,16 +73,17 @@ defmodule Tuist.Tests.Coverage do
   @max_query_parameters 900
 
   @doc """
-  Refolds the commit of the run a command event belongs to once the
-  selective-testing results the event reported are stored, when any target
-  was skipped. Reported coverage reads them to know which targets a run left
-  out, and they are written through a buffer after the run itself, so a fold
-  triggered by the run or by the completion signal can run without them. The
-  refold waits out the buffer.
+  Refolds the commit of the run a command event belongs to once the targets
+  the event reported are stored, when any target was skipped or a repository
+  target came from the binary cache. Reported coverage reads them to know
+  which targets a run left out and whether it ran code without coverage
+  counters, and they are written through a buffer after the run itself, so a
+  fold triggered by the run or by the completion signal can run without them.
+  The refold waits out the buffer.
   """
   def refold_after_selective_testing(%{test_run_id: test_run_id, project_id: project_id}, xcode_graph)
       when is_binary(test_run_id) and test_run_id != "" do
-    with true <- selective_testing_hit?(xcode_graph),
+    with true <- selective_testing_hit?(xcode_graph) or binary_cache_hit?(xcode_graph),
          true <- enabled_for_project?(project_id),
          {:ok, %Test{git_commit_sha: sha, git_dirty: dirty}} when is_binary(sha) and sha != "" and dirty != true <-
            Tests.get_test(test_run_id) do
@@ -104,6 +105,20 @@ defmodule Tuist.Tests.Coverage do
       |> field(:hit, "miss")
       |> to_string()
       |> Kernel.in(["local", "remote"])
+    end)
+  end
+
+  # A remote package's targets carry its revision as their external hash, and
+  # `Coverage.Xcode.uninstrumented_runs/2` leaves them out.
+  defp binary_cache_hit?(xcode_graph) do
+    xcode_graph
+    |> field(:projects, [])
+    |> Enum.flat_map(&field(&1, :targets, []))
+    |> Enum.any?(fn target ->
+      metadata = field(target, :binary_cache_metadata, %{})
+
+      to_string(field(metadata, :hit, "miss")) in ["local", "remote"] and
+        field(field(metadata, :subhashes, %{}), :external, "") == ""
     end)
   end
 
