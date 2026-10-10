@@ -451,6 +451,26 @@ defmodule Tuist.Release do
     counts
   end
 
+  @doc """
+  Records the test versions and target sources carried coverage reads
+  (`Tuist.Tests.Coverage.TestSources.backfill/1`) for the runs still within
+  the file retention, for one project or every project. The migration that
+  ships the index queues it on its own
+  (`Tuist.Tests.Coverage.Workers.SourceBackfillWorker`); this runs it
+  again by hand, on a live node:
+
+      bin/tuist rpc "Tuist.Release.backfill_coverage_sources()"
+      bin/tuist rpc "Tuist.Release.backfill_coverage_sources(<project id>)"
+  """
+  def backfill_coverage_sources(project_id \\ nil) do
+    if project_id do
+      Coverage.TestSources.backfill(project_id)
+      Logger.info("Coverage sources of project #{project_id} recorded")
+    else
+      Logger.info("Coverage sources of #{Coverage.TestSources.backfill_all()} projects recorded")
+    end
+  end
+
   def seed do
     Application.load(@app)
 
