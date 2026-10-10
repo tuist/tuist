@@ -143,6 +143,8 @@ Scopes exist only in the raw per-run rows. Everything kept for longer is derived
 | `coverage_commits` | PostgreSQL | Each commit's figure and totals: the union of its runs' `run` rows, with carried coverage applied. | `TUIST_COVERAGE_COMMIT_RETENTION_DAYS` (1095), or `TUIST_COVERAGE_PULL_REQUEST_COMMIT_RETENTION_DAYS` (90) for a pull request's own commits |
 | `coverage_file_deltas` | ClickHouse | A complete commit's per-file `covered_lines` and `executable_lines`, carried coverage applied, stored only where they differ from the previous complete commit on its ref. No lines and no scopes. | `TUIST_COVERAGE_COMMIT_RETENTION_DAYS`, by commit date |
 | `coverage_commit_targets` | ClickHouse | A complete commit's targets. | `TUIST_COVERAGE_COMMIT_RETENTION_DAYS`, by commit date |
+| `coverage_target_sources` | ClickHouse | One row per target and selective-testing hash: the passing run that recorded `target` evidence under it. Written when a commit is folded; carries skipped targets (pipeline step 5). | `TUIST_COVERAGE_FILE_RETENTION_DAYS`, by insertion |
+| `coverage_test_sources` | ClickHouse | One row per test case and fingerprint (the files the test and its suite ran, with their blobs): the run that recorded that version, its paths and whether it passed. Written when a commit is folded; carries skipped tests (pipeline step 6). | `TUIST_COVERAGE_FILE_RETENTION_DAYS`, by insertion |
 
 Which of them the pages read:
 
