@@ -5,6 +5,7 @@ defmodule TuistWeb.API.MetricsControllerTest do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Authentication
@@ -19,6 +20,139 @@ defmodule TuistWeb.API.MetricsControllerTest do
     project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
     %{conn: conn, user: user, project: project}
+  end
+
+  describe "shared build health" do
+    test "unsupported build systems return a clear error", %{conn: conn, user: user} do
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :mix)
+      conn = Authentication.put_current_user(conn, user)
+
+      for path <- [
+            ~p"/api/projects/#{project.account.name}/#{project.name}/builds/metrics/health?from=#{@from}&to=#{@to}",
+            ~p"/api/projects/#{project.account.name}/#{project.name}/builds/metrics/health/dimensions/workload/values"
+          ] do
+        response = get(conn, path)
+
+        assert %{"message" => "Build health metrics are not supported for this project's build system."} =
+                 json_response(response, 400)
+      end
+    end
+
+    for system <- [:xcode, :gradle, :bazel, :once] do
+      test "dispatches #{system} metrics and dimensions through the project", %{conn: conn, user: user} do
+        project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: unquote(system))
+        conn = Authentication.put_current_user(conn, user)
+        from = DateTime.to_unix(DateTime.new!(Date.utc_today(), ~T[00:00:00]))
+        to = from + 86_400
+
+        response =
+          get(
+            conn,
+            ~p"/api/projects/#{project.account.name}/#{project.name}/builds/metrics/health?from=#{from}&to=#{to}&view=total"
+          )
+
+        assert %{"totals" => %{"builds" => 0, "success_rate" => nil, "cache_time_saved" => nil}} =
+                 json_response(response, 200)
+
+        response =
+          get(
+            conn,
+            ~p"/api/projects/#{project.account.name}/#{project.name}/builds/metrics/health/dimensions/workload/values"
+          )
+
+        assert %{"values" => []} = json_response(response, 200)
+      end
+    end
+
+    test "requires build read access for the shared endpoint", %{conn: conn, project: project} do
+      {:ok, account} = Tuist.Accounts.get_account_by_id(project.account_id)
+
+      conn =
+        Plug.Conn.assign(conn, :current_subject, %AuthenticatedAccount{
+          account: account,
+          scopes: ["project:tests:read"],
+          all_projects: true
+        })
+
+      response =
+        get(conn, ~p"/api/projects/#{project.account.name}/#{project.name}/builds/metrics/health?from=#{@from}&to=#{@to}")
+
+      assert json_response(response, 403)
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/gradle/builds/metrics" do
+    test "returns exact Gradle totals for an authorized user", %{conn: conn, user: user, project: project} do
+      start_at = DateTime.new!(Date.utc_today(), ~T[00:00:00])
+      from = DateTime.to_unix(start_at)
+      to = from + 86_400
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        duration_ms: 1234,
+        git_branch: "develop",
+        inserted_at: DateTime.to_naive(start_at)
+      )
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/gradle/builds/metrics?from=#{from}&to=#{to}&view=total&git_branch=develop"
+        )
+
+      assert %{"totals" => %{"builds" => 1, "p50" => 1234.0, "cache_time_saved" => nil}} = json_response(conn, 200)
+    end
+
+    test "rejects tokens without access to the project", %{conn: conn, project: project} do
+      {:ok, account} = Tuist.Accounts.get_account_by_id(project.account_id)
+
+      conn =
+        conn
+        |> Plug.Conn.assign(:current_subject, %AuthenticatedAccount{
+          account: account,
+          scopes: ["project:builds:read"],
+          all_projects: false,
+          project_ids: []
+        })
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/gradle/builds/metrics?from=#{@from}&to=#{@to}")
+
+      assert json_response(conn, 403)
+    end
+
+    test "validates thresholds and views", %{conn: conn, user: user, project: project} do
+      conn = Authentication.put_current_user(conn, user)
+
+      response =
+        get(
+          conn,
+          ~p"/api/projects/#{project.account.name}/#{project.name}/gradle/builds/metrics?from=#{@from}&to=#{@to}&slow_build_threshold_ms=-1"
+        )
+
+      assert json_response(response, 400)
+
+      response =
+        get(
+          conn,
+          ~p"/api/projects/#{project.account.name}/#{project.name}/gradle/builds/metrics?from=#{@from}&to=#{@to}&view=unknown"
+        )
+
+      assert json_response(response, 400)
+    end
+
+    test "lists only branches from the selected project", %{conn: conn, user: user, project: project} do
+      GradleFixtures.build_fixture(project_id: project.id, git_branch: "develop")
+      GradleFixtures.build_fixture(git_branch: "private-branch")
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/gradle/builds/metrics/dimensions/git_branch/values"
+        )
+
+      assert json_response(conn, 200) == %{"values" => ["develop"]}
+    end
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/builds/metrics/duration" do

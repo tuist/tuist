@@ -225,6 +225,14 @@ type Config struct {
 	// is set, for hosts configured out-of-band).
 	VMCachePNVLAN uint32
 
+	// VMCacheGatewayCIDRs are the addresses of the rack's runner-cache
+	// gateways, which VMs may reach on TCP 443 through the VM egress
+	// firewall. A rack gateway sits on the segment the host itself is on,
+	// so the traffic leaves on the default route and the VM NAT's general
+	// leg translates it. Only the rack fleet sets it. Each entry must parse
+	// as an IPv4 CIDR; bootstrap fails closed otherwise.
+	VMCacheGatewayCIDRs []string
+
 	// SSHIngressAllowCIDRs are the source ranges, beyond the tailnet
 	// and loopback, that may reach the host's :22. Everything else is
 	// dropped at the pf edge by installSSHIngressGuard. The operator's
@@ -249,6 +257,15 @@ type Config struct {
 	// chart without tailnet plumbing doesn't ship node_exporter
 	// listening on a public IP.
 	NodeExporterBinary []byte
+
+	// HostSensorsBinary is the darwin/arm64 tuist-host-sensors binary
+	// (cross-built in the operator image from infra/macos-host-sensors). A
+	// launchd job runs it every 30 seconds to write the host's temperatures,
+	// fan speeds, power and thermal pressure for node_exporter's textfile
+	// collector. The released node_exporter cannot read Apple silicon's
+	// temperatures on a healthy host, which is why this exists. Empty, or no
+	// NodeExporterBinary to serve the readings, removes the job.
+	HostSensorsBinary []byte
 
 	// LogShipperBinary is the darwin/arm64 tuist-log-shipper binary
 	// (cross-built in the operator image from infra/macos-log-shipper).
@@ -398,7 +415,10 @@ type Config struct {
 	// golden clones need. Sized at provisioning as what the disk leaves
 	// after golden images, the max concurrent pod clones, and OS headroom.
 	// 0 (default) leaves cache volumes off: every VM boots on the cold path.
-	RunnerCacheVolumeGiB int
+	RunnerCacheVolumeGiB      int
+	CustomCacheURL            string
+	CustomCacheNamespace      string
+	CustomCacheServiceAccount string
 
 	// CacheVolumeMasterCapGiB is the provisioned cap of each per-account
 	// master image, passed to tart-kubelet's --cache-volume-cap-gib. The
@@ -534,6 +554,10 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installLogShipper(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install log shipper: %w", err)
 	}
+	// After the log shipper, for the same reason it is last.
+	if err := installHostSensors(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install host sensors: %w", err)
+	}
 	return hk.Observed(), nil
 }
 
@@ -652,6 +676,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := installLogShipper(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install log shipper: %w", err)
 	}
+	if err := installHostSensors(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install host sensors: %w", err)
+	}
 	return hk.Observed(), nil
 }
 
@@ -768,7 +795,7 @@ func hostConfigMaterial(cfg Config) string {
 	// material is built from Config values only.
 	firewall, err := renderVMEgressFirewallScript(cfg)
 	if err != nil {
-		firewall = fmt.Sprintf("ERROR:%q", []string{cfg.VMKuraEgressCIDR, cfg.VMClusterDNSIP, cfg.VMCachePNCIDR})
+		firewall = fmt.Sprintf("ERROR:%q", append([]string{cfg.VMKuraEgressCIDR, cfg.VMClusterDNSIP, cfg.VMCachePNCIDR}, cfg.VMCacheGatewayCIDRs...))
 	}
 	sshGuard, err := renderSSHIngressGuardScript(cfg)
 	if err != nil {
@@ -788,6 +815,7 @@ func hostConfigMaterial(cfg Config) string {
 		{"software-update-policy", renderSoftwareUpdatePolicyScript()},
 		{"setup-assistant", renderSetupAssistantScript(cfg)},
 		{"log-shipper", renderLogShipperScript(cfg)},
+		{"host-sensors", renderHostSensorsScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
 		{"ssh-reachability", renderSSHReachabilityScript()},
 		{"ssh-ingress-guard", sshGuard},
@@ -815,6 +843,7 @@ func hostConfigMaterial(cfg Config) string {
 		{"tailscale-binaries", cfg.TailscaleBinaries},
 		{"node-exporter-binary", cfg.NodeExporterBinary},
 		{"log-shipper-binary", cfg.LogShipperBinary},
+		{"host-sensors-binary", cfg.HostSensorsBinary},
 	} {
 		b.WriteString(bin.name)
 		b.WriteByte('\x00')
@@ -1114,6 +1143,9 @@ func renderLaunchdPlist(cfg Config) string {
 	runnerCacheArg := ""
 	if cfg.RunnerCacheVolumeGiB > 0 {
 		runnerCacheArg = fmt.Sprintf("\n    <string>--runner-cache-root=%s</string>", runnerCacheMountPoint)
+		if cfg.CustomCacheURL != "" {
+			runnerCacheArg += fmt.Sprintf("\n    <string>--custom-cache-url=%s</string>\n    <string>--custom-cache-namespace=%s</string>\n    <string>--custom-cache-service-account=%s</string>", xmlEscape(cfg.CustomCacheURL), xmlEscape(cfg.CustomCacheNamespace), xmlEscape(cfg.CustomCacheServiceAccount))
+		}
 		if cfg.CacheVolumeMasterCapGiB > 0 {
 			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cap-gib=%d</string>", cfg.CacheVolumeMasterCapGiB)
 		}
@@ -1660,6 +1692,9 @@ sudo chmod 0755 /usr/local/bin/tart
 // chart typo from producing an unparseable — or worse, creative —
 // ruleset).
 //
+// A rack host also passes cfg.VMCacheGatewayCIDRs on 443: the rack's cache
+// gateways on its own segment, translated by the VM NAT's default-route leg.
+//
 // The carve-out needs a second half: NAT. vmnet's built-in NAT only
 // translates VM egress toward the default-route interface, so
 // packets the host forwards into the tailscale utun keep their
@@ -1689,7 +1724,7 @@ func installVMEgressFirewall(ctx context.Context, client *ssh.Client, cfg Config
 	if err := RunCommand(ctx, client, script); err != nil {
 		return err
 	}
-	if cfg.VMKuraEgressCIDR == "" && cfg.VMCachePNCIDR == "" {
+	if cfg.VMKuraEgressCIDR == "" && cfg.VMCachePNCIDR == "" && len(cfg.VMCacheGatewayCIDRs) == 0 {
 		return nil
 	}
 	return RunCommand(ctx, client, renderVMNATScript(cfg))
@@ -1744,6 +1779,21 @@ pass out quick proto tcp from <vm_sources> to %s port 4000 keep state
 # tenant check is the per-account boundary.
 pass out quick proto tcp from <vm_sources> to %s port 30000:32767 keep state
 `, cfg.VMCachePNCIDR)
+	}
+
+	if len(cfg.VMCacheGatewayCIDRs) > 0 {
+		carveOut += `
+# Rack runner-cache gateway carve-out: VMs dial the rack's Kura gateways
+# over HTTPS on the segment the host sits on. Kura's app-layer JWT
+# tenant check is the per-account boundary.
+`
+		for _, cidr := range cfg.VMCacheGatewayCIDRs {
+			ip, _, err := net.ParseCIDR(cidr)
+			if err != nil || ip.To4() == nil {
+				return "", fmt.Errorf("vm cache gateway cidr %q is not an IPv4 CIDR: %v", cidr, err)
+			}
+			carveOut += fmt.Sprintf("pass out quick proto tcp from <vm_sources> to %s port 443 keep state\n", cidr)
+		}
 	}
 
 	script := `set -euo pipefail
@@ -1867,8 +1917,9 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.p
 // renderVMNATScript builds the VM->cache NAT helper + its launchd
 // supervisor. Only the configured carve-out CIDRs vary; the derived
 // interface is resolved at runtime on the host. Folded into the host
-// config hash. Callers gate this on at least one of VMKuraEgressCIDR /
-// VMCachePNCIDR being set, matching installVMEgressFirewall.
+// config hash. Callers gate this on at least one of VMKuraEgressCIDR,
+// VMCachePNCIDR or VMCacheGatewayCIDRs being set, matching
+// installVMEgressFirewall.
 func renderVMNATScript(cfg Config) string {
 	return fmt.Sprintf(`set -euo pipefail
 sudo tee /usr/local/bin/tuist-pf-vmnat >/dev/null <<'VMNAT'
@@ -2894,8 +2945,11 @@ done
 }
 
 func renderNodeExporterScript() string {
+	// The textfile collector serves the readings the host sensors job writes
+	// (host_sensors.go). The directory is created here, by the reader, because
+	// a missing directory is a scrape error on a host without that job.
 	return `set -euo pipefail
-sudo mkdir -p /usr/local/bin
+sudo mkdir -p /usr/local/bin ` + hostSensorsDir + `
 sudo tee /usr/local/bin/node_exporter >/dev/null
 sudo chmod 0755 /usr/local/bin/node_exporter
 sudo tee /usr/local/bin/tuist-node-exporter-wrapper >/dev/null <<'WRAPPER'
@@ -2923,6 +2977,8 @@ exec /usr/local/bin/node_exporter \
   --collector.meminfo \
   --collector.netdev \
   --collector.os \
+  --collector.textfile \
+  --collector.textfile.directory=` + hostSensorsDir + ` \
   --collector.time \
   --collector.uname
 WRAPPER

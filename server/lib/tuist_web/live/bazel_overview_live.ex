@@ -12,6 +12,7 @@ defmodule TuistWeb.BazelOverviewLive do
   alias Tuist.Tests
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.PublicOverviewCache
   alias TuistWeb.Utilities.Query
 
   def assign_handle_params(socket, params, uri_path) do
@@ -45,13 +46,13 @@ defmodule TuistWeb.BazelOverviewLive do
       invocations_environment: invocations_environment,
       invocations_environment_label: environment_label(invocations_environment)
     )
-    |> assign_async(:reapi_cache_summary, fn ->
+    |> PublicOverviewCache.assign_async(:reapi_cache_summary, fn ->
       {:ok,
        %{
          reapi_cache_summary: cache_summary_with_trends(project.id, analytics_period, analytics_environment)
        }}
     end)
-    |> assign_async([:cache_hit_rate_analytics, :has_any_cache_observations], fn ->
+    |> PublicOverviewCache.assign_async([:cache_hit_rate_analytics, :has_any_cache_observations], fn ->
       analytics = ReapiCache.hit_rate_analytics(project.id, analytics_opts)
 
       {:ok,
@@ -61,16 +62,16 @@ defmodule TuistWeb.BazelOverviewLive do
            Enum.any?(analytics.lookup_values, &(&1 > 0)) || ReapiCache.observations_present?(project.id)
        }}
     end)
-    |> assign_async(:build_analytics, fn ->
+    |> PublicOverviewCache.assign_async(:build_analytics, fn ->
       {:ok,
        %{
          build_analytics: build_duration_with_trend(project.id, analytics_period, analytics_environment)
        }}
     end)
-    |> assign_async(:test_analytics, fn ->
+    |> PublicOverviewCache.assign_async(:test_analytics, fn ->
       {:ok, %{test_analytics: Tests.Analytics.test_run_average_duration_analytics(project.id, analytics_opts)}}
     end)
-    |> assign_async([:recent_builds, :has_any_builds], fn ->
+    |> PublicOverviewCache.assign_async([:recent_builds, :has_any_builds], fn ->
       build_opts = invocations_opts |> Keyword.put(:commands, ["build"]) |> Keyword.put(:limit, 30)
       builds = Bazel.recent_invocations(project.id, build_opts)
 
@@ -80,14 +81,14 @@ defmodule TuistWeb.BazelOverviewLive do
          has_any_builds: Enum.any?(builds) || Bazel.invocations_present?(project.id, ["build"])
        }}
     end)
-    |> assign_async(:builds_duration_analytics, fn ->
+    |> PublicOverviewCache.assign_async(:builds_duration_analytics, fn ->
       {:ok,
        %{
          builds_duration_analytics:
            Bazel.duration_analytics(project.id, Keyword.put(invocations_opts, :commands, ["build"]))
        }}
     end)
-    |> assign_async([:recent_test_runs, :failed_test_runs_count, :passed_test_runs_count], fn ->
+    |> PublicOverviewCache.assign_async([:recent_test_runs, :failed_test_runs_count, :passed_test_runs_count], fn ->
       recent_test_runs = Tests.latest_completed_test_runs(project.id)
 
       {:ok,

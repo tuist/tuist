@@ -4,6 +4,7 @@ defmodule TuistEx.Auth do
   alias TuistEx.{HTTP, Lock}
 
   @default_url "https://tuist.dev"
+  @github_identity_token_attempts 5
 
   def login(options \\ []) do
     environment = Keyword.get(options, :environment, &System.get_env/1)
@@ -30,8 +31,14 @@ defmodule TuistEx.Auth do
     environment = Keyword.get(options, :environment, &System.get_env/1)
 
     case environment.("TUIST_TOKEN") do
-      token when is_binary(token) and token != "" -> {:ok, token}
-      _ -> stored_token(server_url(options, environment), environment)
+      token when is_binary(token) and token != "" ->
+        {:ok, token}
+
+      _ ->
+        server_url = server_url(options, environment)
+
+        with {:error, reason} <- stored_token(server_url, environment),
+             do: provider_token(server_url, environment, reason, options)
     end
   end
 
@@ -109,47 +116,113 @@ defmodule TuistEx.Auth do
   defp provider_login(server_url, environment, options) do
     Mix.shell().info("Detected continuous integration, authenticating with OpenID Connect.")
 
-    identity_token =
-      Keyword.get(options, :identity_token, fn -> fetch_identity_token(environment) end).()
+    result =
+      case identity_token(environment, options) do
+        {:ok, identity_token} ->
+          exchange(server_url, identity_token)
 
-    case HTTP.request(:post, server_url <> "/api/auth/oidc/token", %{token: identity_token}) do
-      {:ok, 200, %{"access_token" => access}} -> %{"accessToken" => access}
-      response -> request_error!("OpenID Connect authentication", response)
+        :unsupported ->
+          {:error, "OpenID Connect authentication supports GitHub Actions, CircleCI, and Bitrise"}
+
+        {:error, message} ->
+          {:error, message}
+      end
+
+    case result do
+      {:ok, access} -> %{"accessToken" => access}
+      {:error, message} -> Mix.raise(message)
     end
   end
 
-  defp fetch_identity_token(environment) do
+  defp provider_token(server_url, environment, reason, options) do
+    key = {__MODULE__, :provider_token, server_url}
+    cached = :persistent_term.get(key, nil)
+
+    if is_binary(cached) and not expired?(cached) do
+      {:ok, cached}
+    else
+      case identity_token(environment, options) do
+        {:ok, identity_token} ->
+          with {:ok, access} <- exchange(server_url, identity_token) do
+            :persistent_term.put(key, access)
+            {:ok, access}
+          end
+
+        :unsupported ->
+          {:error, reason}
+
+        {:error, message} ->
+          {:error, message}
+      end
+    end
+  end
+
+  defp exchange(server_url, identity_token) do
+    case HTTP.request(:post, server_url <> "/api/auth/oidc/token", %{token: identity_token}) do
+      {:ok, 200, %{"access_token" => access}} when is_binary(access) -> {:ok, access}
+      response -> {:error, request_error("OpenID Connect authentication", response)}
+    end
+  end
+
+  defp identity_token(environment, options) do
     cond do
       truthy?(environment.("GITHUB_ACTIONS")) ->
-        request_url =
-          environment.("ACTIONS_ID_TOKEN_REQUEST_URL") ||
-            Mix.raise("GitHub Actions requires id-token: write permission")
-
-        request_token =
-          environment.("ACTIONS_ID_TOKEN_REQUEST_TOKEN") ||
-            Mix.raise("GitHub Actions requires id-token: write permission")
-
-        separator = if String.contains?(request_url, "?"), do: "&", else: "?"
-
-        case HTTP.request(:get, request_url <> separator <> "audience=tuist", nil, [
-               {"authorization", "Bearer " <> request_token}
-             ]) do
-          {:ok, 200, %{"value" => value}} -> value
-          response -> request_error!("GitHub Actions identity token request", response)
-        end
+        github_identity_token(environment, Keyword.get(options, :sleep, &Process.sleep/1))
 
       truthy?(environment.("CIRCLECI")) ->
-        environment.("CIRCLE_OIDC_TOKEN_V2") || environment.("CIRCLE_OIDC_TOKEN") ||
-          Mix.raise("CircleCI identity token is missing")
+        present(
+          environment.("CIRCLE_OIDC_TOKEN_V2") || environment.("CIRCLE_OIDC_TOKEN"),
+          "CircleCI identity token is missing"
+        )
 
       truthy?(environment.("BITRISE_IO")) ->
-        environment.("BITRISE_OIDC_ID_TOKEN") || environment.("BITRISE_IDENTITY_TOKEN") ||
-          Mix.raise("Bitrise identity token is missing")
+        present(
+          environment.("BITRISE_OIDC_ID_TOKEN") || environment.("BITRISE_IDENTITY_TOKEN"),
+          "Bitrise identity token is missing"
+        )
 
       true ->
-        Mix.raise("OpenID Connect authentication supports GitHub Actions, CircleCI, and Bitrise")
+        :unsupported
     end
   end
+
+  defp github_identity_token(environment, sleep) do
+    with {:ok, request_url} <-
+           present(
+             environment.("ACTIONS_ID_TOKEN_REQUEST_URL"),
+             "GitHub Actions requires id-token: write permission"
+           ),
+         {:ok, request_token} <-
+           present(
+             environment.("ACTIONS_ID_TOKEN_REQUEST_TOKEN"),
+             "GitHub Actions requires id-token: write permission"
+           ) do
+      separator = if String.contains?(request_url, "?"), do: "&", else: "?"
+      url = request_url <> separator <> "audience=tuist"
+      request_github_identity_token(url, request_token, sleep, @github_identity_token_attempts)
+    end
+  end
+
+  defp request_github_identity_token(url, request_token, sleep, attempts_left) do
+    case HTTP.request(:get, url, nil, [{"authorization", "Bearer " <> request_token}]) do
+      {:ok, 200, %{"value" => value}} when is_binary(value) ->
+        {:ok, value}
+
+      response ->
+        if attempts_left > 1 and transient?(response) do
+          sleep.(1_000 * 2 ** (@github_identity_token_attempts - attempts_left))
+          request_github_identity_token(url, request_token, sleep, attempts_left - 1)
+        else
+          {:error, request_error("GitHub Actions identity token request", response)}
+        end
+    end
+  end
+
+  defp transient?({:ok, status, _}), do: status == 429 or status >= 500
+  defp transient?({:error, _}), do: true
+
+  defp present(value, _message) when is_binary(value) and value != "", do: {:ok, value}
+  defp present(_value, message), do: {:error, message}
 
   defp continuous_integration?(environment) do
     Enum.any?(["CI", "GITHUB_ACTIONS", "CIRCLECI", "BITRISE_IO"], &truthy?(environment.(&1)))
@@ -290,15 +363,16 @@ defmodule TuistEx.Auth do
     end
   end
 
-  defp request_error!(label, {:ok, status, body}) do
+  defp request_error!(label, response), do: Mix.raise(request_error(label, response))
+
+  defp request_error(label, {:ok, status, body}) do
     message =
       if is_map(body),
         do: Map.get(body, "message", "Unexpected response"),
         else: "Unexpected response"
 
-    Mix.raise("#{label} failed (#{status}): #{message}")
+    "#{label} failed (#{status}): #{message}"
   end
 
-  defp request_error!(label, {:error, reason}),
-    do: Mix.raise("#{label} failed: #{inspect(reason)}")
+  defp request_error(label, {:error, reason}), do: "#{label} failed: #{inspect(reason)}"
 end

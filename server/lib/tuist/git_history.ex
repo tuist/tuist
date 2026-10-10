@@ -727,6 +727,21 @@ defmodule Tuist.GitHistory do
     move_deltas(moved)
   end
 
+  @doc """
+  Copies the commits' current places onto their coverage rows, under the
+  repository's ref lock: an advance that moved one of them either committed
+  before (and is read here) or runs after, when the row exists for it to sync.
+  """
+  def sync_coverage_places(repository_id, shas) do
+    {:ok, _result} =
+      Repo.transaction(fn ->
+        lock_refs(repository_id)
+        sync_coverage(repository_id, shas)
+      end)
+
+    :ok
+  end
+
   defp sync_coverage(_repository_id, []), do: :ok
 
   defp sync_coverage(repository_id, shas) do
@@ -756,6 +771,17 @@ defmodule Tuist.GitHistory do
   @doc "Whether the repository has a commit stored for the SHA."
   def known?(repository_id, sha) do
     Repo.exists?(from(c in Commit, where: c.repository_id == ^repository_id and c.sha == ^sha))
+  end
+
+  @doc "The commit's parents in Git's order, as far as their edges are stored."
+  def parents(repository_id, sha) do
+    Repo.all(
+      from(p in CommitParent,
+        where: p.repository_id == ^repository_id and p.child_sha == ^sha,
+        order_by: p.position,
+        select: p.parent_sha
+      )
+    )
   end
 
   @doc """

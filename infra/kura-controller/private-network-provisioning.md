@@ -66,6 +66,11 @@ gateway still requires a direct private probe even when the advertised private
 and node URLs match. Discovery that already queried the private origin reuses that
 successful status response; self-discovery does not issue another probe.
 
+Vultr `canonicalPeers` configuration resolves reciprocal regional approvals to
+exact VPC IDs. Every candidate Node must agree on the canonical-peer annotation
+before the Kura controller publishes `canonical_networks`. See the
+[regional policy and upgrade order](vultr-private-networking.md#regional-replication-policy).
+
 These controller checks establish configuration convergence. Packet captures on
 both physical hosts, private-path failure injection, replication catch-up, MTU,
 and throughput checks remain required before declaring an environment qualified.

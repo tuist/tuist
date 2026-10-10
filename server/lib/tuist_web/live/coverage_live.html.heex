@@ -25,6 +25,7 @@
     >
       <:actions>
         <.button
+          :if={@latest}
           variant="secondary"
           label={dgettext("dashboard_tests", "View more")}
           size="medium"
@@ -40,6 +41,7 @@
       targets={@changed_targets}
       files_href={branch_href(assigns, "files")}
       targets_href={branch_href(assigns, "targets")}
+      targets_title={coverage_targets_label(@selected_project)}
       empty_title={
         dgettext("dashboard_tests", "No coverage changed on %{branch} in this period",
           branch: @branch
@@ -56,6 +58,7 @@
     >
       <:actions>
         <.button
+          :if={@commit_rows != []}
           variant="secondary"
           label={dgettext("dashboard_tests", "View more")}
           size="medium"
@@ -107,6 +110,7 @@
     >
       <:actions>
         <.button
+          :if={@run_rows != []}
           variant="secondary"
           label={dgettext("dashboard_tests", "View more")}
           size="medium"

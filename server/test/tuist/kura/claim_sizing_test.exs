@@ -933,6 +933,57 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert evidence["max_occupancy_percent"] == 25
     end
 
+    test "shrinks a ring that never evicts while filling past the occupancy line" do
+      # 24Gi peak at the 60% occupancy target asks for 40Gi, a fifth off 50Gi.
+      rollups =
+        fitting_days(30, @today,
+          max_occupancy_percent: 60,
+          max_live_segment_bytes: 24 * @gibibyte,
+          last_ring_budget_bytes: 40 * @gibibyte
+        )
+
+      context = context(plan: :enterprise, current_claim_size: "50Gi", rollups: rollups)
+
+      assert {:shrink, "40Gi", evidence} = ClaimSizing.evaluate(context)
+      assert evidence["max_occupancy_percent"] == 60
+      assert evidence["min_reduction_percent"] == 10
+    end
+
+    test "leaves a ring that never evicts alone when the target saves less than a tenth" do
+      # 28Gi peak at the 60% occupancy target asks for 46.7Gi, under a tenth off 50Gi.
+      rollups =
+        fitting_days(30, @today,
+          max_occupancy_percent: 70,
+          max_live_segment_bytes: 28 * @gibibyte,
+          last_ring_budget_bytes: 40 * @gibibyte
+        )
+
+      context = context(plan: :enterprise, current_claim_size: "50Gi", rollups: rollups)
+
+      assert ClaimSizing.evaluate(context) == :none
+    end
+
+    test "today's live row vetoes the shrink once its peak leaves no room" do
+      rollups =
+        fitting_days(30, Date.add(@today, -1),
+          max_occupancy_percent: 60,
+          max_live_segment_bytes: 24 * @gibibyte,
+          last_ring_budget_bytes: 40 * @gibibyte
+        ) ++
+          [
+            rollup(@today,
+              snapshot_count: 12,
+              max_occupancy_percent: 70,
+              max_live_segment_bytes: 28 * @gibibyte,
+              last_ring_budget_bytes: 40 * @gibibyte
+            )
+          ]
+
+      context = context(plan: :enterprise, current_claim_size: "50Gi", rollups: rollups)
+
+      assert ClaimSizing.evaluate(context) == :none
+    end
+
     test "one step never less than halves the claim" do
       rollups = fitting_days(30, @today, max_live_segment_bytes: 2 * @gibibyte)
 

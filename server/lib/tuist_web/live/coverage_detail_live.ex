@@ -343,7 +343,7 @@ defmodule TuistWeb.CoverageDetailLive do
   # so they are searched, sorted and paged here.
   defp assign_targets(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do
     search = String.trim(query["targets-search"] || "")
-    filters = Filter.Operations.decode_filters_from_query(query, target_filters())
+    filters = Filter.Operations.decode_filters_from_query(query, target_filters(project))
     sort_by = if query["targets-sort-by"] in @target_sorts, do: query["targets-sort-by"], else: "coverage"
     sort_order = if query["targets-sort-order"] in ~w(asc desc), do: query["targets-sort-order"], else: "asc"
 
@@ -367,22 +367,25 @@ defmodule TuistWeb.CoverageDetailLive do
     |> assign(:targets_search, search)
     |> assign(:targets_sort_by, sort_by)
     |> assign(:targets_sort_order, sort_order)
-    |> assign(:available_filters, target_filters())
+    |> assign(:available_filters, target_filters(project))
     |> assign(:active_filters, filters)
   end
 
-  defp target_filters do
+  defp target_filters(project) do
     [
       %Filter.Filter{
         id: "target_name",
         field: :name,
-        display_name: dgettext("dashboard_tests", "Target name"),
+        display_name: target_name_label(project),
         type: :text,
         operator: :=~,
         value: ""
       }
     ]
   end
+
+  defp target_name_label(%{build_system: :mix}), do: dgettext("dashboard_tests", "Application name")
+  defp target_name_label(_project), do: dgettext("dashboard_tests", "Target name")
 
   defp target_matches?(target, %Filter.Filter{field: :name, operator: operator, value: value}),
     do: name_matches?(target.name, operator, value || "")
@@ -403,9 +406,9 @@ defmodule TuistWeb.CoverageDetailLive do
   end
 
   @doc "The Targets tab's sorts, with their labels, in the order of the table's columns."
-  def target_sorts,
+  def target_sorts(project),
     do: [
-      {"name", dgettext("dashboard_tests", "Target")},
+      {"name", coverage_target_label(project)},
       {"coverage", dgettext("dashboard_tests", "Coverage")},
       {"files", dgettext("dashboard_tests", "Files")}
     ]
@@ -455,7 +458,7 @@ defmodule TuistWeb.CoverageDetailLive do
   # as discarded, so a scheme missing from a figure has its run to show.
   defp assign_runs(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do
     search = String.trim(query["runs-search"] || "")
-    available_filters = run_filters(run_schemes(socket))
+    available_filters = run_filters(project, run_schemes(socket))
     filters = Filter.Operations.decode_filters_from_query(query, available_filters)
     period = if subject.kind == :commit, do: [], else: period_opts(socket)
 
@@ -486,7 +489,7 @@ defmodule TuistWeb.CoverageDetailLive do
   defp run_schemes(%{assigns: %{summary: summary}}),
     do: (summary.schemes ++ summary.partial_schemes) |> Enum.uniq() |> Enum.sort()
 
-  defp run_filters(schemes) do
+  defp run_filters(project, schemes) do
     [
       %Filter.Filter{
         id: "run_kind",
@@ -504,7 +507,7 @@ defmodule TuistWeb.CoverageDetailLive do
       %Filter.Filter{
         id: "run_scheme",
         field: :scheme,
-        display_name: dgettext("dashboard_tests", "Scheme"),
+        display_name: scheme_label(project),
         type: :option,
         options: schemes,
         options_display_names: %{},
@@ -555,9 +558,9 @@ defmodule TuistWeb.CoverageDetailLive do
   def tabs(%{kind: :commit}), do: ~w(overview targets files runs)
   def tabs(_subject), do: @tabs
 
-  def tab_label("overview"), do: dgettext("dashboard_tests", "Overview")
-  def tab_label("commits"), do: dgettext("dashboard_tests", "Commits")
-  def tab_label("targets"), do: dgettext("dashboard_tests", "Targets")
-  def tab_label("files"), do: dgettext("dashboard_tests", "Files")
-  def tab_label("runs"), do: dgettext("dashboard_tests", "Test Runs")
+  def tab_label(_project, "overview"), do: dgettext("dashboard_tests", "Overview")
+  def tab_label(_project, "commits"), do: dgettext("dashboard_tests", "Commits")
+  def tab_label(project, "targets"), do: coverage_targets_label(project)
+  def tab_label(_project, "files"), do: dgettext("dashboard_tests", "Files")
+  def tab_label(_project, "runs"), do: dgettext("dashboard_tests", "Test Runs")
 end

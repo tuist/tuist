@@ -271,6 +271,13 @@ spec:
                       items:
                         type: string
                       type: array
+                    nftables:
+                      description: |-
+                        Nftables files are loaded with `nft -f` on every apply. Each recreates
+                        a table of its own, so loading it again undoes whatever flushed it.
+                      items:
+                        type: string
+                      type: array
                     sysctl:
                       description: Sysctl files are applied once the files are written.
                       items:

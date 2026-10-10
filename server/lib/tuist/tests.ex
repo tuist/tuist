@@ -36,7 +36,6 @@ defmodule Tuist.Tests do
   alias Tuist.Shards.ShardRun
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.CrashReport
-  alias Tuist.Tests.Enumeration
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.QuarantinedTestCase
@@ -482,7 +481,7 @@ defmodule Tuist.Tests do
   end
 
   def create_test(attrs) do
-    attrs = normalize_string_keys(attrs)
+    attrs = attrs |> normalize_string_keys() |> Coverage.normalize_attrs()
 
     attrs =
       Map.put(attrs, :coverage_evidence_status, Coverage.Evidence.status(Map.get(attrs, :coverage_evidence)))
@@ -515,8 +514,7 @@ defmodule Tuist.Tests do
     has_flaky_tests = has_any_flaky_test_case?(test_modules)
     stress_new_tests = Map.get(attrs, :stress_new_tests)
 
-    xcode_coverage =
-      Coverage.rows(Map.get(attrs, :project_id), Map.get(attrs, :xcode_coverage))
+    coverage = Coverage.rows(Map.get(attrs, :project_id), Map.get(attrs, :coverage))
 
     attrs =
       if has_flaky_tests and is_ci do
@@ -545,7 +543,7 @@ defmodule Tuist.Tests do
       create_run_changed_files(test, Map.get(attrs, :changed_files, []))
       StressNewTests.insert_candidates(test, stress_new_tests)
       expected_shards = (shard_plan && shard_plan.shard_count) || 1
-      record_coverage_data(test, attrs, xcode_coverage, shard_index, expected_shards)
+      record_coverage_data(test, attrs, coverage, shard_index, expected_shards)
 
       {test_case_ids_with_flaky_run, test_case_runs} =
         create_test_modules(
@@ -677,19 +675,17 @@ defmodule Tuist.Tests do
 
   defp create_run_changed_files(_test, _files), do: :ok
 
-  # Coverage, the enumerated tests and the evidence enrich a run: a failure
-  # storing one of them costs that data, not the run's test cases, which are
-  # written after them and which a retry with the same id would never add.
-  defp record_coverage_data(test, attrs, xcode_coverage, shard_index, expected_shards) do
-    enrich(test, "coverage", fn -> Coverage.publish(test, xcode_coverage, shard_index, expected_shards) end)
+  # Coverage and the evidence enrich a run: a failure storing one of them
+  # costs that data, not the run's test cases, which are written after them
+  # and which a retry with the same id would never add.
+  defp record_coverage_data(test, attrs, coverage, shard_index, expected_shards) do
+    enrich(test, "coverage", fn -> Coverage.publish(test, coverage, shard_index, expected_shards) end)
 
-    if storage_key = Map.get(attrs, :xcode_coverage_storage_key) do
+    with %{storage_key: storage_key} = uploaded when is_binary(storage_key) <- Map.get(attrs, :coverage) do
       enrich(test, "uploaded coverage", fn ->
-        Coverage.enqueue_publish(test, storage_key, Map.get(attrs, :xcode_coverage_partial), shard_index, expected_shards)
+        Coverage.enqueue_publish(test, uploaded, shard_index, expected_shards)
       end)
     end
-
-    enrich(test, "enumerated tests", fn -> Enumeration.record(test, Map.get(attrs, :enumerated_tests)) end)
 
     enrich(test, "coverage evidence", fn ->
       Coverage.Evidence.record(test, Map.get(attrs, :coverage_evidence), shard_index)
@@ -891,8 +887,8 @@ defmodule Tuist.Tests do
           stress_new_tests = Map.get(attrs, :stress_new_tests)
           StressNewTests.insert_candidates(existing_test, stress_new_tests)
 
-          xcode_coverage = Coverage.rows(project_id, Map.get(attrs, :xcode_coverage))
-          record_coverage_data(existing_test, attrs, xcode_coverage, shard_index, expected_shard_count)
+          coverage = Coverage.rows(project_id, Map.get(attrs, :coverage))
+          record_coverage_data(existing_test, attrs, coverage, shard_index, expected_shard_count)
 
           updated_test =
             merged_test
@@ -3336,11 +3332,9 @@ defmodule Tuist.Tests do
     filters = Map.get(attrs, :filters, [])
     offset = (page - 1) * page_size
 
-    search_term = extract_search_term(filters)
-
     results =
       project_id
-      |> build_flaky_test_cases_query(search_term, opts)
+      |> build_flaky_test_cases_query(filters, opts)
       |> apply_flaky_order(order_by, order_direction)
       |> from(limit: ^page_size, offset: ^offset)
       |> ClickHouseRepo.all()
@@ -3349,7 +3343,7 @@ defmodule Tuist.Tests do
 
     total_count =
       project_id
-      |> build_flaky_test_cases_count_query(search_term, opts)
+      |> build_flaky_test_cases_count_query(filters, opts)
       |> ClickHouseRepo.one()
 
     total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
@@ -3376,7 +3370,7 @@ defmodule Tuist.Tests do
   # or a test whose recent flaky runs sit in a different `:is_ci` segment.
   # `inner_join` here would silently drop such rows and put the list out of
   # sync with the analytics card, which counts purely off events.
-  defp build_flaky_test_cases_query(project_id, search_term, opts) do
+  defp build_flaky_test_cases_query(project_id, filters, opts) do
     base_query =
       from(test_case in TestCase,
         hints: ["FINAL"],
@@ -3405,10 +3399,10 @@ defmodule Tuist.Tests do
         }
       )
 
-    apply_name_search(base_query, search_term)
+    apply_flaky_test_case_filters(base_query, filters)
   end
 
-  defp build_flaky_test_cases_count_query(project_id, search_term, opts) do
+  defp build_flaky_test_cases_count_query(project_id, filters, opts) do
     base_query =
       from(test_case in TestCase,
         hints: ["FINAL"],
@@ -3420,7 +3414,29 @@ defmodule Tuist.Tests do
         select: count(test_case.id)
       )
 
-    apply_name_search(base_query, search_term)
+    apply_flaky_test_case_filters(base_query, filters)
+  end
+
+  defp apply_flaky_test_case_filters(query, filters) do
+    {search_filters, identity_filters} =
+      Enum.split_with(filters, &(&1[:field] == :name and &1[:op] == :ilike_and))
+
+    flop = Tuist.ClickHouseFlop.validate!(%{filters: identity_filters}, for: TestCase)
+    query = Tuist.ClickHouseFlop.filter(query, flop, for: TestCase)
+
+    case extract_search_term(search_filters) do
+      nil ->
+        query
+
+      term ->
+        pattern = "%#{term}%"
+
+        from(test_case in query,
+          where:
+            ilike(test_case.name, ^pattern) or ilike(test_case.suite_name, ^pattern) or
+              ilike(test_case.module_name, ^pattern)
+        )
+    end
   end
 
   defp flaky_stats_subquery(project_id, opts) do

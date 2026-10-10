@@ -44,7 +44,7 @@ extension Option {
                 help: help?.withEnvKey(envKey),
                 completion: completion
             ) { argument in
-                T(argument: argument)
+                try T.parse(argument)
             }
         } else {
             self.init(
@@ -236,7 +236,7 @@ extension Argument {
                 help: help?.withEnvKey(envKey),
                 completion: completion
             ) { argument in
-                T(argument: argument)
+                try T.parse(argument)
             }
         } else {
             self.init(
@@ -244,6 +244,18 @@ extension Argument {
                 completion: completion
             )
         }
+    }
+}
+
+extension ExpressibleByArgument {
+    fileprivate static func parse(_ argument: String) throws -> Self {
+        guard let value = Self(argument: argument) else {
+            let allowedValues = allValueStrings.map { "'\($0)'" }.joined(separator: ", ")
+            throw ValidationError(
+                allowedValues.isEmpty ? "The value could not be parsed." : "Please provide one of \(allowedValues)."
+            )
+        }
+        return value
     }
 }
 

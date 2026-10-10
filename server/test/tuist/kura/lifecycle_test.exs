@@ -865,6 +865,60 @@ defmodule Tuist.Kura.LifecycleTest do
     end
   end
 
+  describe "record_ready/2" do
+    defp record_ready_cold_return(account, server, returned_at, deployment_inserted_at) do
+      {:ok, _} = Demand.upsert(account.id, @region, ago(0))
+
+      account
+      |> reload_lifecycle()
+      |> Ecto.Changeset.change(%{last_returned_at: returned_at})
+      |> Repo.update!()
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :ready]])
+
+      Lifecycle.record_ready(server, %Deployment{inserted_at: deployment_inserted_at})
+
+      assert_received {[:tuist, :kura, :lifecycle, :ready], ^ref, %{count: 1}, %{cold_return: cold_return}}
+      cold_return
+    end
+
+    test "reports a return whose deployment was inserted in the same second the return was stamped" do
+      # `last_returned_at` is stamped after the return's deployment is inserted
+      # and truncated to the second, so it reads as earlier than the deployment
+      # whenever both land in the same second.
+      account = account()
+      server = active_instance(account)
+      returned_at = DateTime.truncate(DateTime.utc_now(), :second)
+
+      assert record_ready_cold_return(account, server, returned_at, DateTime.add(returned_at, 308_723, :microsecond)) ==
+               "true"
+    end
+
+    test "reports a return whose deployment was inserted in the second before the return was stamped" do
+      account = account()
+      server = active_instance(account)
+      returned_at = DateTime.truncate(DateTime.utc_now(), :second)
+
+      assert record_ready_cold_return(account, server, returned_at, DateTime.add(returned_at, -400_000, :microsecond)) ==
+               "true"
+    end
+
+    test "does not report a rollout after the return as a return" do
+      account = account()
+      server = active_instance(account)
+      returned_at = DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
+
+      assert record_ready_cold_return(account, server, returned_at, DateTime.utc_now()) == "false"
+    end
+
+    test "does not report an instance that was never archived as a return" do
+      account = account()
+      server = active_instance(account)
+
+      assert record_ready_cold_return(account, server, nil, DateTime.utc_now()) == "false"
+    end
+  end
+
   describe "open rollouts" do
     test "are cancelled when an instance enters drain, so no rollout can act on it" do
       account = account()
@@ -1196,8 +1250,8 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(eligible_server).status == :drain_pending
     end
 
-    test "both plans reclaim old instances whose first partial day had no snapshots" do
-      for plan <- [:air, :pro] do
+    test "every plan reclaims old instances whose first partial day had no snapshots" do
+      for plan <- [:air, :pro, :enterprise] do
         account = account(plan: plan)
         server = active_instance(account, age_days: 30)
         with_demand(account, 0)
@@ -1376,18 +1430,49 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload_lifecycle(account).drain_reason == :unused
     end
 
-    test "never drains a keep-warm or Enterprise instance for going unused" do
-      keep_warm = account()
-      keep_warm_server = unused_instance(keep_warm)
-      {:ok, _} = Demand.set_keep_warm(keep_warm.id, @region, true)
-
-      enterprise = account(plan: :enterprise, region: :usa)
-      enterprise_server = unused_instance(enterprise)
+    test "never drains a keep-warm instance for going unused" do
+      account = account()
+      server = unused_instance(account)
+      {:ok, _} = Demand.set_keep_warm(account.id, @region, true)
 
       assert :ok = Lifecycle.sweep()
 
-      assert reload(keep_warm_server).status == :active
-      assert reload(enterprise_server).status == :active
+      assert reload(server).status == :active
+    end
+
+    test "archives an Enterprise instance that has stored nothing since it was created" do
+      account = account(plan: :enterprise, region: :usa)
+      server = unused_instance(account)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :drain_pending
+      assert reload_lifecycle(account).drain_reason == :unused
+
+      elapse_drain(account)
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :archived
+    end
+
+    test "leaves a never-used Enterprise instance alone inside the seven-day window" do
+      account = account(plan: :enterprise, region: :usa)
+      server = active_instance(account, age_days: 6)
+      with_demand(account, 1)
+      storage_rollups(account, 0..6)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "returns an archived never-used Enterprise instance when the account asks for its cache" do
+      account = account(plan: :enterprise, region: :usa)
+      server = archive_unused(account)
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :provisioning
     end
 
     test "never considers an instance with no lifecycle row" do

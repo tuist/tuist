@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -28,6 +30,8 @@ const (
 	rackBootstrapKubeconfigPath = "/var/lib/kubelet/bootstrap-kubeconfig"
 
 	rackKubernetesAPIPath = "/etc/tuist/kubernetes-api"
+
+	rackKubernetesServicePath = "/etc/tuist/kubernetes-service.nft"
 )
 
 // rackConvergeOptions is everything a rack node's configuration renders
@@ -53,6 +57,11 @@ type rackConvergeOptions struct {
 	// rackKubernetesAPIPath for the pods on the node that talk to it: a rack
 	// node reaches no Service address.
 	KubernetesAPI string
+
+	// KubernetesServiceIP is the kubernetes Service's ClusterIP, the API
+	// address in-cluster clients are given. The node translates it to
+	// KubernetesAPI, so those clients work on it unchanged.
+	KubernetesServiceIP string
 
 	// APIServerURL is what a join's bootstrap kubeconfig points the kubelet
 	// at. Rejoin drops the kubelet's identity first, for a host joining again
@@ -131,8 +140,11 @@ resolvConf: /etc/resolv.conf
 `, o.ProviderID)
 }
 
+// rackLocalCNIConfig is the node-local pod network. The bridge is the pods'
+// default gateway and masquerades them behind the node, so a pod off the host
+// network reaches what the node reaches.
 func rackLocalCNIConfig() string {
-	return fmt.Sprintf(`{"cniVersion":"1.0.0","name":"rack-local","plugins":[{"type":"bridge","bridge":"cni-racklocal","isGateway":true,"ipMasq":true,"ipam":{"type":"host-local","ranges":[[{"subnet":"%s"}]]}},{"type":"portmap","capabilities":{"portMappings":true}}]}
+	return fmt.Sprintf(`{"cniVersion":"1.0.0","name":"rack-local","plugins":[{"type":"bridge","bridge":"cni-racklocal","isGateway":true,"ipMasq":true,"ipam":{"type":"host-local","ranges":[[{"subnet":"%s"}]],"routes":[{"dst":"0.0.0.0/0"}]}},{"type":"portmap","capabilities":{"portMappings":true}}]}
 `, rackLocalCNIRange)
 }
 
@@ -186,6 +198,12 @@ func rackNodeConfig(o rackConvergeOptions) infrav1.RackNodeConfig {
 		Containerd: infrav1.RackNodeContainerd{ConfigPath: "/etc/containerd/config.toml"},
 		Kubelet:    infrav1.RackNodeKubelet{Channel: o.K8sMinor, Version: o.KubeletVersion},
 	}
+	if rules := rackKubernetesServiceRules(o); rules != "" {
+		cfg.Files = append(cfg.Files, file(rackKubernetesServicePath, "none", rules))
+		cfg.Nftables = []string{rackKubernetesServicePath}
+	} else {
+		cfg.Absent = append(cfg.Absent, infrav1.RackNodeFile{Path: rackKubernetesServicePath, Group: "none"})
+	}
 	if o.ManagementMAC != "" {
 		cfg.Files = append(cfg.Files, file(rackManagementNetworkPath, "network", rackManagementNetwork(o.ManagementMAC)))
 	} else {
@@ -195,6 +213,39 @@ func rackNodeConfig(o rackConvergeOptions) infrav1.RackNodeConfig {
 	sum := sha256.Sum256(body)
 	cfg.Hash = hex.EncodeToString(sum[:])
 	return cfg
+}
+
+// rackKubernetesServiceRules translates the kubernetes Service's address to
+// the API server the node joined through, for pods on the node's own network
+// and on the host's. It needs both as IP addresses, and is empty otherwise:
+// nftables translates to an address, not a name.
+func rackKubernetesServiceRules(o rackConvergeOptions) string {
+	service := net.ParseIP(o.KubernetesServiceIP)
+	api, err := url.Parse(o.KubernetesAPI)
+	if service.To4() == nil || err != nil {
+		return ""
+	}
+	host, port := api.Hostname(), api.Port()
+	if port == "" {
+		port = "443"
+	}
+	if net.ParseIP(host).To4() == nil {
+		return ""
+	}
+	rule := fmt.Sprintf("ip daddr %s tcp dport 443 dnat to %s:%s", service, host, port)
+	return fmt.Sprintf(`table ip tuist_kubernetes_service
+delete table ip tuist_kubernetes_service
+table ip tuist_kubernetes_service {
+  chain prerouting {
+    type nat hook prerouting priority dstnat; policy accept;
+    %[1]s
+  }
+  chain output {
+    type nat hook output priority dstnat; policy accept;
+    %[1]s
+  }
+}
+`, rule)
 }
 
 const rackManagementNetworkPath = "/etc/systemd/network/10-tuist-management.network"

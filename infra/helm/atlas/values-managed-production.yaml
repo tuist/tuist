@@ -18,6 +18,9 @@ fullnameOverride: "atlas"
 
 host: atlas.tuist.dev
 
+demo:
+  enabled: false
+
 # Internal Tuist server API. Atlas authenticates with a projected
 # ServiceAccount token (audience `tokenAudience`) that the Tuist server
 # verifies offline against Atlas' pinned JWKS. Powers the read-only
@@ -79,6 +82,8 @@ ingress:
 
 # Phoenix runtime knobs that aren't secret.
 env:
+  # Never inherit the anonymous demo bypass from an application Secret.
+  ATLAS_DEMO_MODE: "false"
   # Explicitly retain Tuist's managed upstream discovery.
   MCP_PROXY_SERVERS: "tuist-managed"
   ATLAS_ALLOWED_EMAIL_DOMAIN: "tuist.dev"

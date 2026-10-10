@@ -40,7 +40,8 @@ use super::{
     admission::*,
     chunking::{
         ChunkedBlobRecipe, FAST_CDC_AVERAGE_CHUNK_BYTES, PresenceBudget, fetch_chunk_manifests,
-        fetch_recipe, is_presence_budget_error, manifest_presence_keys, presence_keys, recipe_key,
+        fetch_recipe, is_presence_budget_error, manifest_presence_keys, presence_keys,
+        push_recipe_key, recipe_key, recipe_presence_keys,
     },
     snapshot::*,
 };
@@ -445,6 +446,26 @@ impl ReapiService {
         context: Option<&Arc<ReapiCacheAnalyticsContext>>,
         observation: ReapiCacheObservation<'_>,
     ) {
+        self.enqueue_reapi_cache_event(context, observation, None);
+    }
+
+    fn record_reapi_cache_event_with_output(
+        &self,
+        metadata: &tonic::metadata::MetadataMap,
+        namespace_id: &str,
+        observation: ReapiCacheObservation<'_>,
+        result: &reapi::ActionResult,
+    ) {
+        let context = self.reapi_cache_event_context(metadata, namespace_id);
+        self.enqueue_reapi_cache_event(context.as_ref(), observation, Some(result));
+    }
+
+    fn enqueue_reapi_cache_event(
+        &self,
+        context: Option<&Arc<ReapiCacheAnalyticsContext>>,
+        observation: ReapiCacheObservation<'_>,
+        result: Option<&reapi::ActionResult>,
+    ) {
         let (Some(analytics), Some(context)) = (self.state.analytics.as_ref(), context) else {
             return;
         };
@@ -455,6 +476,7 @@ impl ReapiService {
             operation: observation.operation,
             outcome: observation.outcome,
             action_digest: observation.digest.to_owned(),
+            output_path: result.map(action_result_output_path).unwrap_or_default(),
             size: observation.size,
             duration_us: observation
                 .duration
@@ -1672,7 +1694,6 @@ impl Capabilities for ReapiService {
             namespace_id: Some(namespace_id),
         };
         self.authorize_request(&request, auth).await?;
-        let chunking_enabled = self.state.config.reapi_blob_chunking_enabled;
         let response = Response::new(reapi::ServerCapabilities {
             cache_capabilities: Some(reapi::CacheCapabilities {
                 digest_functions: vec![reapi::digest_function::Value::Sha256 as i32],
@@ -1692,9 +1713,9 @@ impl Capabilities for ReapiService {
                 supported_compressors: vec![reapi::compressor::Value::Zstd as i32],
                 supported_batch_update_compressors: vec![reapi::compressor::Value::Zstd as i32],
                 max_cas_blob_size_bytes: MAX_MODULE_TOTAL_BYTES as i64,
-                split_blob_support: chunking_enabled,
-                splice_blob_support: chunking_enabled,
-                fast_cdc_2020_params: chunking_enabled.then_some(reapi::FastCdc2020Params {
+                split_blob_support: true,
+                splice_blob_support: true,
+                fast_cdc_2020_params: Some(reapi::FastCdc2020Params {
                     avg_chunk_size_bytes: FAST_CDC_AVERAGE_CHUNK_BYTES,
                     seed: 0,
                 }),
@@ -1789,6 +1810,7 @@ impl ActionCache for ReapiService {
             self.record_reapi_download(request.metadata(), namespace_id, served);
             return Ok(response);
         }
+        let presence_lookup = is_presence_lookup(request.metadata());
         let mut materialization_budget =
             std::sync::Mutex::new(MaterializationBudget::new(&self.state));
         let (size_bytes, mut action_result) = match fetch_keyvalue_proto::<reapi::ActionResult>(
@@ -1796,6 +1818,7 @@ impl ActionCache for ReapiService {
             namespace_id,
             &key,
             "action result",
+            !presence_lookup,
             Some(
                 materialization_budget
                     .get_mut()
@@ -1839,6 +1862,7 @@ impl ActionCache for ReapiService {
             namespace_id,
             &action_result,
             self.state.store.segment_ring_is_aging(),
+            !presence_lookup,
             materialization_budget
                 .get_mut()
                 .expect("action-cache materialization budget lock poisoned"),
@@ -1898,13 +1922,16 @@ impl ActionCache for ReapiService {
         // gate above answers from metadata alone, so nothing on this path has
         // kept them alive. Without this, eviction between here and the
         // client's BatchReadBlobs hands it a missing object, which clang treats
-        // as a hard build failure rather than a recompile.
-        self.state.store.extend_artifact_lifetimes(
-            ArtifactProducer::Reapi,
-            namespace_id,
-            &presence.present,
-            RefreshTrigger::ActionCache,
-        );
+        // as a hard build failure rather than a recompile. A presence lookup
+        // reads no outputs, so it vouches for nothing.
+        if !presence_lookup {
+            self.state.store.extend_artifact_lifetimes(
+                ArtifactProducer::Reapi,
+                namespace_id,
+                &presence.present,
+                RefreshTrigger::ActionCache,
+            );
+        }
         // Everything this RPC returns is egress: the stored action result plus
         // any stdout/stderr/output-file blobs inlined below, so all of it is
         // accumulated for the usage rollup.
@@ -1917,6 +1944,7 @@ impl ActionCache for ReapiService {
                 &self.state,
                 namespace_id,
                 digest,
+                !presence_lookup,
                 Some(
                     materialization_budget
                         .get_mut()
@@ -1935,6 +1963,7 @@ impl ActionCache for ReapiService {
                 &self.state,
                 namespace_id,
                 digest,
+                !presence_lookup,
                 Some(
                     materialization_budget
                         .get_mut()
@@ -2059,7 +2088,7 @@ impl ActionCache for ReapiService {
         // Book usage only after the response is fully built (headers applied),
         // matching the other handlers' success-arm convention.
         self.record_reapi_download(request.metadata(), namespace_id, served_bytes);
-        self.record_reapi_cache_event(
+        self.record_reapi_cache_event_with_output(
             request.metadata(),
             namespace_id,
             ReapiCacheObservation {
@@ -2069,6 +2098,7 @@ impl ActionCache for ReapiService {
                 size: served_bytes,
                 duration: analytics_started_at.elapsed(),
             },
+            response.get_ref(),
         );
         Ok(response)
     }
@@ -2171,7 +2201,7 @@ impl ActionCache for ReapiService {
         // and bills nothing.
         if applied {
             self.record_reapi_upload(&metadata, namespace_id, manifest.size);
-            self.record_reapi_cache_event(
+            self.record_reapi_cache_event_with_output(
                 &metadata,
                 namespace_id,
                 ReapiCacheObservation {
@@ -2181,6 +2211,7 @@ impl ActionCache for ReapiService {
                     size: manifest.size,
                     duration: analytics_started_at.elapsed(),
                 },
+                response.get_ref(),
             );
         }
         Ok(response)
@@ -2205,49 +2236,33 @@ impl ContentAddressableStorage for ReapiService {
         self.authorize_request(&request, auth).await?;
         let message = request.into_inner();
         let namespace_id = namespace_from_instance(&message.instance_name);
-        let mut missing = Vec::new();
-        let aging = self.state.store.segment_ring_is_aging();
+        let mut digests = message.blob_digests;
+        let mut is_missing = vec![false; digests.len()];
         let mut presence_budget = PresenceBudget::for_request();
-        // "Servers SHOULD increase the lifetimes of the referenced blobs if
-        // necessary and applicable": a client told a blob is present skips
-        // uploading it and relies on it staying present, so the answer has to
-        // keep it alive the same way a served action result does. The request's
-        // digest count is client-controlled up to the 64 MiB decode ceiling, so
-        // extension happens inside the presence lookup rather than over a
-        // collected key set: no per-digest allocation is retained, and a
-        // present blob costs one manifest lookup rather than two. When no
-        // segment has aged there is nothing to promote, so the plain existence
-        // check keeps its existence-cache short-circuit.
-        for digest in message.blob_digests {
-            // The empty blob is present by REAPI convention even when it was
-            // never uploaded; reporting it missing would push clients to upload
-            // a zero-byte blob they otherwise synthesize.
-            if is_empty_blob(&digest) {
-                continue;
+        // The digest count is client-controlled up to the 64 MiB decode
+        // ceiling, and a batch of segment-backed blobs is answered without an
+        // await point, so yield between batches rather than hold a runtime
+        // worker for the whole request.
+        for (batch, (digests, is_missing)) in digests
+            .chunks(FIND_MISSING_BATCH_DIGESTS)
+            .zip(is_missing.chunks_mut(FIND_MISSING_BATCH_DIGESTS))
+            .enumerate()
+        {
+            if batch > 0 {
+                tokio::task::yield_now().await;
             }
-            digest_key(&digest)?;
-            if presence_keys(
+            find_missing_in_batch(
                 &self.state,
                 namespace_id,
-                &digest,
-                RefreshTrigger::FindMissing,
-                aging,
+                digests,
+                is_missing,
                 &mut presence_budget,
             )
-            .await
-            .map_err(|error| {
-                chunk_presence_status(
-                    &self.state,
-                    "find_missing_blobs",
-                    "failed to inspect CAS blob",
-                    error,
-                )
-            })?
-            .is_none()
-            {
-                missing.push(digest);
-            }
+            .await?;
         }
+        let mut is_missing = is_missing.into_iter();
+        digests.retain(|_| is_missing.next().unwrap_or(false));
+        let missing = digests;
 
         let mut response = Response::new(reapi::FindMissingBlobsResponse {
             missing_blob_digests: missing,
@@ -2529,7 +2544,7 @@ impl ContentAddressableStorage for ReapiService {
         else {
             return Err(Status::not_found("blob has no chunk recipe"));
         };
-        if fetch_chunk_manifests(&self.state, namespace_id, &recipe)
+        if fetch_chunk_manifests(&self.state, namespace_id, &recipe, true)
             .await
             .map_err(|error| Status::internal(format!("failed to inspect blob chunks: {error}")))?
             .is_none()
@@ -2548,9 +2563,6 @@ impl ContentAddressableStorage for ReapiService {
         &self,
         request: Request<reapi::SpliceBlobRequest>,
     ) -> Result<Response<reapi::SpliceBlobResponse>, Status> {
-        if !self.state.config.reapi_blob_chunking_enabled {
-            return Err(Status::unimplemented("SpliceBlob is not enabled"));
-        }
         if request.extensions().get::<GrpcWriteAdmission>().is_none() {
             return Err(Status::internal(
                 "write decode admission was not propagated",
@@ -2689,7 +2701,7 @@ async fn verify_spliced_blob(
     namespace_id: &str,
     recipe: &ChunkedBlobRecipe,
 ) -> Result<(), Status> {
-    let manifests = fetch_chunk_manifests(state, namespace_id, recipe)
+    let manifests = fetch_chunk_manifests(state, namespace_id, recipe, true)
         .await
         .map_err(|error| Status::internal(format!("failed to inspect blob chunks: {error}")))?
         .ok_or_else(|| Status::not_found("one or more blob chunks are missing"))?;
@@ -2824,7 +2836,7 @@ impl ByteStream for ReapiService {
                     ));
                 }
                 let manifests =
-                    match fetch_chunk_manifests(&self.state, &resource.namespace_id, &recipe)
+                    match fetch_chunk_manifests(&self.state, &resource.namespace_id, &recipe, true)
                         .await
                         .map_err(|error| {
                             Status::internal(format!("failed to inspect blob chunks: {error}"))
@@ -3435,16 +3447,23 @@ async fn fetch_keyvalue_proto<T>(
     namespace_id: &str,
     key: &str,
     label: &str,
+    refresh: bool,
     materialization_budget: Option<&mut MaterializationBudget<'_>>,
 ) -> Result<(u64, T), Status>
 where
     T: Message + Default,
 {
-    let manifest = match state
-        .store
-        .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, key)
-        .await
-    {
+    let lookup = if refresh {
+        state
+            .store
+            .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, key)
+            .await
+    } else {
+        state
+            .store
+            .manifest_for_key(ArtifactProducer::Reapi, namespace_id, key)
+    };
+    let manifest = match lookup {
         Ok(Some(manifest)) => manifest,
         Ok(None) => {
             state
@@ -3569,7 +3588,7 @@ async fn batch_read_one_atomic(
             return Ok(None);
         };
         budget.claim(recipe.blob_size(), "CAS response materialization")?;
-        let bytes = read_composite_bytes(state, namespace_id, &recipe).await?;
+        let bytes = read_composite_bytes(state, namespace_id, &recipe, true).await?;
         state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
@@ -3601,19 +3620,26 @@ async fn maybe_read_cas_bytes(
     state: &SharedState,
     namespace_id: &str,
     digest: &reapi::Digest,
+    refresh: bool,
     materialization_budget: Option<&mut MaterializationBudget<'_>>,
 ) -> Result<Option<Vec<u8>>, Status> {
     let key = blob_key(&digest_key(digest)?);
-    let manifest = state
-        .store
-        .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, &key)
-        .await
-        .inspect_err(|_| {
-            state
-                .metrics
-                .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
-        })
-        .map_err(Status::internal)?;
+    let manifest = if refresh {
+        state
+            .store
+            .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, &key)
+            .await
+    } else {
+        state
+            .store
+            .manifest_for_key(ArtifactProducer::Reapi, namespace_id, &key)
+    }
+    .inspect_err(|_| {
+        state
+            .metrics
+            .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
+    })
+    .map_err(Status::internal)?;
     if manifest.is_none() {
         let Some((_recipe_manifest, recipe)) = fetch_recipe(state, namespace_id, digest)
             .await
@@ -3627,7 +3653,7 @@ async fn maybe_read_cas_bytes(
         if let Some(budget) = materialization_budget {
             budget.claim(recipe.blob_size(), "CAS response materialization")?;
         }
-        let bytes = read_composite_bytes(state, namespace_id, &recipe).await?;
+        let bytes = read_composite_bytes(state, namespace_id, &recipe, refresh).await?;
         state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
@@ -3661,8 +3687,9 @@ async fn read_composite_bytes(
     state: &SharedState,
     namespace_id: &str,
     recipe: &ChunkedBlobRecipe,
+    refresh: bool,
 ) -> Result<Vec<u8>, Status> {
-    let manifests = match fetch_chunk_manifests(state, namespace_id, recipe)
+    let manifests = match fetch_chunk_manifests(state, namespace_id, recipe, refresh)
         .await
         .map_err(Status::internal)?
     {
@@ -3746,6 +3773,7 @@ async fn first_evicted_output(
     namespace_id: &str,
     action_result: &reapi::ActionResult,
     collecting: bool,
+    refresh: bool,
     materialization_budget: &mut MaterializationBudget<'_>,
 ) -> Result<OutputPresence, String> {
     let mut present = Vec::new();
@@ -3797,6 +3825,7 @@ async fn first_evicted_output(
             state,
             namespace_id,
             tree_digest,
+            refresh,
             Some(&mut *materialization_budget),
         )
         .await
@@ -3883,6 +3912,113 @@ async fn blob_evicted(
     Ok(true)
 }
 
+/// Digests per `FindMissingBlobs` store pass. Large enough to amortize the
+/// manifest-cache lock and RocksDB multi-get, small enough that the pass holds
+/// that lock, shared with every serving read, for well under a millisecond.
+const FIND_MISSING_BATCH_DIGESTS: usize = 1024;
+/// Room for `blob/<64 hex>/<size>` or its recipe counterpart without regrowing.
+const BLOB_KEY_CAPACITY: usize = 96;
+
+/// Marks the digests `FindMissingBlobs` must report missing. Direct blobs are
+/// resolved for the whole batch in one store pass, which also extends the
+/// lifetime of present blobs sitting in an aged segment: "Servers SHOULD
+/// increase the lifetimes of the referenced blobs if necessary and
+/// applicable", since a client told a blob is present skips uploading it and
+/// relies on it staying. Composite blobs then cost one batched recipe probe,
+/// and only digests that have a recipe take the per-digest chunk walk.
+async fn find_missing_in_batch(
+    state: &SharedState,
+    namespace_id: &str,
+    digests: &[reapi::Digest],
+    is_missing: &mut [bool],
+    presence_budget: &mut PresenceBudget,
+) -> Result<(), Status> {
+    use std::fmt::Write as _;
+
+    let presence_status = |error| {
+        chunk_presence_status(
+            state,
+            "find_missing_blobs",
+            "failed to inspect CAS blob",
+            error,
+        )
+    };
+    let mut keys = String::with_capacity(digests.len() * BLOB_KEY_CAPACITY);
+    let mut lookups = Vec::with_capacity(digests.len());
+    for (index, digest) in digests.iter().enumerate() {
+        // The empty blob is present by REAPI convention even when it was never
+        // uploaded; reporting it missing would push clients to upload a
+        // zero-byte blob they otherwise synthesize.
+        if is_empty_blob(digest) {
+            continue;
+        }
+        validate_digest(digest)?;
+        let start = keys.len();
+        write!(keys, "blob/{}/{}", digest.hash, digest.size_bytes)
+            .expect("writing to a String cannot fail");
+        lookups.push((index, start..keys.len()));
+    }
+    let direct_keys: Vec<&str> = lookups
+        .iter()
+        .map(|(_, range)| &keys[range.clone()])
+        .collect();
+    let present = state
+        .store
+        .artifacts_exist_extending_lifetime(
+            ArtifactProducer::Reapi,
+            namespace_id,
+            &direct_keys,
+            RefreshTrigger::FindMissing,
+        )
+        .await
+        .map_err(presence_status)?;
+    let absent: Vec<usize> = lookups
+        .iter()
+        .zip(present)
+        .filter_map(|((index, _), present)| (!present).then_some(*index))
+        .collect();
+    if absent.is_empty() {
+        return Ok(());
+    }
+
+    let mut recipe_keys = String::with_capacity(absent.len() * BLOB_KEY_CAPACITY);
+    let mut recipe_ranges = Vec::with_capacity(absent.len());
+    for &index in &absent {
+        let start = recipe_keys.len();
+        push_recipe_key(&mut recipe_keys, &digests[index]);
+        recipe_ranges.push(start..recipe_keys.len());
+    }
+    let recipe_keys: Vec<&str> = recipe_ranges
+        .into_iter()
+        .map(|range| &recipe_keys[range])
+        .collect();
+    let has_recipe = state
+        .store
+        .manifests_stored(ArtifactProducer::Reapi, namespace_id, &recipe_keys)
+        .map_err(presence_status)?;
+    let mut aging = None;
+    for (index, has_recipe) in absent.into_iter().zip(has_recipe) {
+        if has_recipe {
+            let aging = *aging.get_or_insert_with(|| state.store.segment_ring_is_aging());
+            if recipe_presence_keys(
+                state,
+                namespace_id,
+                &digests[index],
+                RefreshTrigger::FindMissing,
+                aging,
+                presence_budget,
+            )
+            .await
+            .map_err(presence_status)?
+            .is_some()
+            {
+                continue;
+            }
+        }
+        is_missing[index] = true;
+    }
+    Ok(())
+}
 fn chunk_presence_status(state: &SharedState, route: &str, context: &str, error: String) -> Status {
     if is_presence_budget_error(&error) {
         state
@@ -4415,6 +4551,11 @@ fn is_empty_blob(digest: &reapi::Digest) -> bool {
 }
 
 fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
+    validate_digest(digest)?;
+    Ok(format!("{}/{}", digest.hash, digest.size_bytes))
+}
+
+fn validate_digest(digest: &reapi::Digest) -> Result<(), Status> {
     if digest.size_bytes < 0 {
         return Err(Status::invalid_argument("digest size must be non-negative"));
     }
@@ -4430,7 +4571,7 @@ fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
             "digest hash must be a 64-character hex SHA-256",
         ));
     }
-    Ok(format!("{}/{}", digest.hash, digest.size_bytes))
+    Ok(())
 }
 
 pub(super) fn require_sha256(digest_function: i32) -> Result<(), Status> {
@@ -4475,6 +4616,21 @@ const TENANT_HEADER_KEYS: &[&str] = &["x-kura-tenant-id", "x-tuist-account-handl
 
 const REAPI_USAGE_ARTIFACT_KIND: &str = "reapi";
 
+/// A `GetActionResult` carrying `x-tuist-lookup: presence` only asks whether
+/// the entry is still stored: the client will not read its outputs, so the
+/// lookup neither promotes the entry nor extends the lifetime of the blobs it
+/// references. Tuist module warms use it to republish what was evicted without
+/// keeping alive entries that only their own local cache serves.
+const LOOKUP_HEADER: &str = "x-tuist-lookup";
+const PRESENCE_LOOKUP: &str = "presence";
+
+fn is_presence_lookup(metadata: &tonic::metadata::MetadataMap) -> bool {
+    metadata
+        .get(LOOKUP_HEADER)
+        .and_then(|value| value.to_str().ok())
+        == Some(PRESENCE_LOOKUP)
+}
+
 fn reapi_usage_artifact_kind(metadata: &tonic::metadata::MetadataMap) -> &'static str {
     match metadata
         .get("x-tuist-artifact-kind")
@@ -4483,6 +4639,24 @@ fn reapi_usage_artifact_kind(metadata: &tonic::metadata::MetadataMap) -> &'stati
         Some("module") => "module",
         _ => REAPI_USAGE_ARTIFACT_KIND,
     }
+}
+
+// One bounded output identifier is sufficient for optional profile correlation.
+// Never scan or clone all outputs on the cache-serving path.
+fn action_result_output_path(result: &reapi::ActionResult) -> String {
+    result
+        .output_files
+        .first()
+        .map(|file| &file.path)
+        .or_else(|| {
+            result
+                .output_directories
+                .first()
+                .map(|directory| &directory.path)
+        })
+        .filter(|path| path.len() <= 1024)
+        .cloned()
+        .unwrap_or_default()
 }
 
 #[derive(Default)]
@@ -6186,6 +6360,7 @@ mod tests {
             operation: "cas",
             outcome: "hit",
             action_digest: "digest-a".into(),
+            output_path: String::new(),
             size: 1,
             duration_us: 2_000,
             observed_at_ms: 3,
@@ -6196,6 +6371,7 @@ mod tests {
             operation: "cas",
             outcome: "miss",
             action_digest: "digest-b".into(),
+            output_path: String::new(),
             size: 0,
             duration_us: 4_000,
             observed_at_ms: 5,
@@ -6205,6 +6381,36 @@ mod tests {
         assert_eq!(first.context.account_handle, "acme");
         assert_eq!(first.context.project_handle, "ios");
         assert_eq!(first.context.invocation_id, "invocation-1");
+        let legacy = serde_json::to_value(&first).unwrap();
+        assert!(legacy.get("output_path").is_none());
+        let mut enriched = first.clone();
+        enriched.operation = "action_cache";
+        enriched.output_path = "bazel-out/bin/main.o".into();
+        let enriched = serde_json::to_value(&enriched).unwrap();
+        assert_eq!(enriched["output_path"], "bazel-out/bin/main.o");
+        assert_eq!(enriched["event_id"], legacy["event_id"]);
+    }
+
+    #[test]
+    fn action_result_output_identifier_is_bounded_and_optional() {
+        let mut result = reapi::ActionResult::default();
+        assert_eq!(action_result_output_path(&result), "");
+        result.output_files.push(reapi::OutputFile {
+            path: "bazel-out/bin/main.o".into(),
+            ..Default::default()
+        });
+        assert_eq!(action_result_output_path(&result), "bazel-out/bin/main.o");
+        result.output_files[0].path = "x".repeat(1025);
+        assert_eq!(action_result_output_path(&result), "");
+        result.output_files.clear();
+        result.output_directories.push(reapi::OutputDirectory {
+            path: "bazel-out/bin/resources".into(),
+            ..Default::default()
+        });
+        assert_eq!(
+            action_result_output_path(&result),
+            "bazel-out/bin/resources"
+        );
     }
 
     #[test]
@@ -6257,6 +6463,7 @@ mod tests {
                         operation: "cas",
                         outcome: "hit",
                         action_digest: digest.to_owned(),
+                        output_path: String::new(),
                         size: 4_096,
                         duration_us: 1_000,
                         observed_at_ms: 1,
@@ -6864,9 +7071,10 @@ mod tests {
         };
 
         let mut budget = MaterializationBudget::new(&context.state);
-        let presence = first_evicted_output(&context.state, "ios", &serveable, true, &mut budget)
-            .await
-            .expect("presence gate should succeed");
+        let presence =
+            first_evicted_output(&context.state, "ios", &serveable, true, true, &mut budget)
+                .await
+                .expect("presence gate should succeed");
 
         assert!(
             presence.evicted.is_none(),
@@ -6900,9 +7108,10 @@ mod tests {
             stderr_digest: Some(digest([0x99u8; 32], 7)),
             ..Default::default()
         };
-        let presence = first_evicted_output(&context.state, "ios", &doomed, true, &mut budget)
-            .await
-            .expect("presence gate should succeed");
+        let presence =
+            first_evicted_output(&context.state, "ios", &doomed, true, true, &mut budget)
+                .await
+                .expect("presence gate should succeed");
         assert_eq!(
             presence.evicted.as_deref(),
             Some(hex::encode([0x99u8; 32]).as_str())
@@ -7397,8 +7606,369 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn replicated_recipe_waits_for_every_chunk_and_remains_readable_when_disabled() {
-        let context = test_context(|config| config.reapi_blob_chunking_enabled = false).await;
+    async fn find_missing_blobs_batches_match_the_per_digest_answer() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let digest = |bytes: &[u8]| reapi::Digest {
+            hash: hex::encode(Sha256::digest(bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let mut version = 0;
+        let mut store_blob = async |bytes: &[u8]| {
+            version += 1;
+            store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &blob_key(&digest_key(&digest(bytes)).unwrap()),
+                    "application/octet-stream",
+                    bytes,
+                    version,
+                )
+                .await
+                .expect("blob should be stored");
+        };
+        let present = b"present".to_vec();
+        store_blob(&present).await;
+
+        // A composite whose chunks are all stored, and one missing a chunk.
+        let mut composites = Vec::new();
+        for (fill, store_last_chunk) in [(0x31, true), (0x51, false)] {
+            let first = vec![fill; FAST_CDC_AVERAGE_CHUNK_BYTES as usize];
+            let last = vec![fill + 1; 17];
+            store_blob(&first).await;
+            if store_last_chunk {
+                store_blob(&last).await;
+            }
+            let composite = digest(&[first.clone(), last.clone()].concat());
+            let recipe = ChunkedBlobRecipe::new(
+                &composite,
+                vec![digest(&first), digest(&last)],
+                reapi::chunking_function::Value::FastCdc2020 as i32,
+            )
+            .expect("recipe should be valid");
+            store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &recipe_key(&digest_key(&composite).unwrap()),
+                    "application/x-protobuf",
+                    &recipe.encode(),
+                    100 + composites.len() as u64,
+                    None,
+                    None,
+                )
+                .await
+                .expect("recipe should be stored");
+            composites.push(composite);
+        }
+        let [complete, incomplete] = <[reapi::Digest; 2]>::try_from(composites).unwrap();
+        let empty = reapi::Digest {
+            hash: EMPTY_BLOB_SHA256.to_string(),
+            size_bytes: 0,
+        };
+        let absent = |index: usize| digest(format!("absent-{index}").as_bytes());
+
+        // Span several store passes, with duplicates on both sides of a
+        // batch boundary.
+        let mut request = vec![
+            empty.clone(),
+            digest(&present),
+            absent(0),
+            complete.clone(),
+            incomplete.clone(),
+            absent(0),
+            digest(&present),
+        ];
+        for index in 1..2 * FIND_MISSING_BATCH_DIGESTS {
+            request.push(if index % 7 == 0 {
+                digest(&present)
+            } else {
+                absent(index)
+            });
+        }
+        request.extend([complete.clone(), incomplete.clone(), empty, absent(0)]);
+
+        let mut expected = Vec::new();
+        let mut presence_budget = PresenceBudget::for_request();
+        for blob in &request {
+            if is_empty_blob(blob) {
+                continue;
+            }
+            if presence_keys(
+                &context.state,
+                "ios",
+                blob,
+                RefreshTrigger::FindMissing,
+                false,
+                &mut presence_budget,
+            )
+            .await
+            .expect("per-digest presence should succeed")
+            .is_none()
+            {
+                expected.push(blob.clone());
+            }
+        }
+        assert!(expected.contains(&incomplete) && !expected.contains(&complete));
+        assert_eq!(
+            expected.iter().filter(|blob| **blob == absent(0)).count(),
+            3,
+            "duplicates are reported once per occurrence"
+        );
+
+        let missing = service
+            .find_missing_blobs(Request::new(reapi::FindMissingBlobsRequest {
+                instance_name: "ios".into(),
+                blob_digests: request,
+                digest_function: 0,
+            }))
+            .await
+            .expect("find_missing_blobs should succeed")
+            .into_inner()
+            .missing_blob_digests;
+        assert_eq!(missing, expected);
+    }
+
+    #[tokio::test]
+    async fn find_missing_blobs_extends_aged_direct_and_chunk_lifetimes() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let digest = |bytes: &[u8]| reapi::Digest {
+            hash: hex::encode(Sha256::digest(bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let artifact_id = |key: &str| {
+            store
+                .manifest_for_key(ArtifactProducer::Reapi, "ios", key)
+                .unwrap()
+                .expect("manifest should exist")
+                .artifact_id
+        };
+        let direct = b"direct".to_vec();
+        let first = vec![0x61; FAST_CDC_AVERAGE_CHUNK_BYTES as usize];
+        let last = vec![0x62; 17];
+        for (version, bytes) in [&direct, &first, &last].into_iter().enumerate() {
+            store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &blob_key(&digest_key(&digest(bytes)).unwrap()),
+                    "application/octet-stream",
+                    bytes,
+                    version as u64 + 1,
+                )
+                .await
+                .expect("blob should be stored");
+        }
+        let composite = digest(&[first.clone(), last.clone()].concat());
+        let recipe = ChunkedBlobRecipe::new(
+            &composite,
+            vec![digest(&first), digest(&last)],
+            reapi::chunking_function::Value::FastCdc2020 as i32,
+        )
+        .expect("recipe should be valid");
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                &recipe_key(&digest_key(&composite).unwrap()),
+                "application/x-protobuf",
+                &recipe.encode(),
+                10,
+                None,
+                None,
+            )
+            .await
+            .expect("recipe should be stored");
+        store.age_every_segment_for_test();
+        assert!(store.segment_ring_is_aging());
+        let absent = digest(b"absent");
+
+        let missing = service
+            .find_missing_blobs(Request::new(reapi::FindMissingBlobsRequest {
+                instance_name: "ios".into(),
+                blob_digests: vec![digest(&direct), composite, absent.clone()],
+                digest_function: 0,
+            }))
+            .await
+            .expect("find_missing_blobs should succeed")
+            .into_inner()
+            .missing_blob_digests;
+
+        assert_eq!(missing, vec![absent]);
+        for bytes in [&direct, &first, &last] {
+            let key = blob_key(&digest_key(&digest(bytes)).unwrap());
+            assert_eq!(
+                store.pending_promotion_for_test(&artifact_id(&key)),
+                Some(RefreshTrigger::FindMissing),
+                "a blob reported present from an Old segment is queued for copy-forward"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn get_action_result_presence_lookup_leaves_aged_lifetimes_alone() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let blob = b"payload".to_vec();
+        let blob_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&blob)),
+            size_bytes: blob.len() as i64,
+        };
+        let leaf_key = blob_key(&digest_key(&blob_digest).unwrap());
+        let tree = reapi::Tree {
+            root: Some(reapi::Directory {
+                files: vec![reapi::FileNode {
+                    name: "leaf".into(),
+                    digest: Some(blob_digest.clone()),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let tree_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&tree)),
+            size_bytes: tree.len() as i64,
+        };
+        let tree_key = blob_key(&digest_key(&tree_digest).unwrap());
+        let action_hash = hex::encode([0x44u8; 32]);
+        let action_key = action_cache_key(&format!("{action_hash}/10"));
+        let entry = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: "output".into(),
+                digest: Some(blob_digest),
+                ..Default::default()
+            }],
+            output_directories: vec![reapi::OutputDirectory {
+                path: "outputs".into(),
+                tree_digest: Some(tree_digest),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        for (version, (key, bytes)) in [
+            (&leaf_key, &blob),
+            (&tree_key, &tree),
+            (&action_key, &entry),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    bytes,
+                    version as u64 + 1,
+                )
+                .await
+                .expect("artifact should be stored");
+        }
+        store.age_every_segment_for_test();
+        let artifact_id = |key: &str| {
+            store
+                .manifest_for_key(ArtifactProducer::Reapi, "ios", key)
+                .unwrap()
+                .expect("manifest should exist")
+                .artifact_id
+        };
+        let request = |presence: bool| {
+            let mut request = Request::new(reapi::GetActionResultRequest {
+                instance_name: "ios".into(),
+                action_digest: Some(reapi::Digest {
+                    hash: action_hash.clone(),
+                    size_bytes: 10,
+                }),
+                ..Default::default()
+            });
+            if presence {
+                request
+                    .metadata_mut()
+                    .insert(LOOKUP_HEADER, PRESENCE_LOOKUP.parse().unwrap());
+            }
+            request
+        };
+
+        service
+            .get_action_result(request(true))
+            .await
+            .expect("a presence lookup serves a present entry");
+
+        for key in [&action_key, &leaf_key, &tree_key] {
+            assert_eq!(
+                store.pending_promotion_for_test(&artifact_id(key)),
+                None,
+                "a presence lookup must not extend {key}"
+            );
+        }
+
+        service
+            .get_action_result(request(false))
+            .await
+            .expect("a read serves a present entry");
+
+        assert_eq!(
+            store.pending_promotion_for_test(&artifact_id(&action_key)),
+            Some(RefreshTrigger::Serve)
+        );
+        for key in [&leaf_key, &tree_key] {
+            assert_eq!(
+                store.pending_promotion_for_test(&artifact_id(key)),
+                Some(RefreshTrigger::ActionCache)
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn find_missing_blobs_rejects_an_invalid_digest_in_any_batch() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let mut blob_digests: Vec<reapi::Digest> = (0..FIND_MISSING_BATCH_DIGESTS + 1)
+            .map(|index| reapi::Digest {
+                hash: hex::encode(Sha256::digest(index.to_le_bytes())),
+                size_bytes: 8,
+            })
+            .collect();
+        blob_digests.push(reapi::Digest {
+            hash: "not-a-sha256".into(),
+            size_bytes: 8,
+        });
+
+        let status = service
+            .find_missing_blobs(Request::new(reapi::FindMissingBlobsRequest {
+                instance_name: "ios".into(),
+                blob_digests,
+                digest_function: 0,
+            }))
+            .await
+            .expect_err("an invalid digest must fail the request");
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn replicated_recipe_waits_for_every_chunk() {
+        let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
             state: context.state.clone(),
@@ -7510,34 +8080,9 @@ mod tests {
                 chunking_function: reapi::chunking_function::Value::FastCdc2020 as i32,
             }))
             .await
-            .expect("existing recipes must remain readable after disabling new splices")
+            .expect("a recipe must be readable once every chunk has arrived")
             .into_inner();
         assert_eq!(split.chunk_digests, vec![first_digest, second_digest]);
-
-        let capabilities = service
-            .get_capabilities(Request::new(reapi::GetCapabilitiesRequest {
-                instance_name: "ios".into(),
-            }))
-            .await
-            .expect("capabilities should load")
-            .into_inner()
-            .cache_capabilities
-            .expect("cache capabilities should be present");
-        assert!(!capabilities.split_blob_support);
-        assert!(!capabilities.splice_blob_support);
-        assert!(capabilities.fast_cdc_2020_params.is_none());
-
-        let splice_error = service
-            .splice_blob(Request::new(reapi::SpliceBlobRequest {
-                instance_name: "ios".into(),
-                blob_digest: Some(blob_digest),
-                chunk_digests: split.chunk_digests,
-                digest_function: 0,
-                chunking_function: reapi::chunking_function::Value::FastCdc2020 as i32,
-            }))
-            .await
-            .expect_err("disabled nodes must refuse new recipes");
-        assert_eq!(splice_error.code(), tonic::Code::Unimplemented);
     }
 
     #[tokio::test]
@@ -9399,6 +9944,14 @@ mod tests {
             .expect("writer task should not panic")
             .expect_err("the second message should exceed admitted memory");
         assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+        let details = RpcStatus::decode(error.details())
+            .expect("admission retry details must survive the HTTP/2 and Tonic body-error path");
+        assert_eq!(details.code, tonic::Code::ResourceExhausted as i32);
+        assert_eq!(details.details.len(), 1);
+        assert_eq!(
+            details.details[0].type_url,
+            "type.googleapis.com/google.rpc.RetryInfo"
+        );
 
         context.state.memory.observe(0);
         let blob = vec![0xC3; 1024];

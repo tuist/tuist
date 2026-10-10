@@ -61,6 +61,74 @@ defmodule Tuist.OnceEventsTest do
     assert %{total_actions: 3, cached_actions: 1, executed_actions: 2} = OnceEvents.get_run(run.project_id, run.run_id)
   end
 
+  test "action presentation survives wire decoding without changing identity or replay counters", %{run: run} do
+    action = %ActionCompleted{
+      target_execution_id: "app",
+      capability: "build",
+      identifier: "diagnostic:compile",
+      display_name: "Compile main.c",
+      source_files: ["src/main.c", "include/api.h"],
+      duration_ms: 12,
+      was_cached: true
+    }
+
+    decoded = action |> ActionCompleted.encode() |> ActionCompleted.decode()
+    project(run, decoded)
+    project(run, %{decoded | display_name: "A different label", source_files: []})
+
+    assert [stored] = OnceEvents.list_actions(run)
+    assert stored.identifier == "diagnostic:compile"
+    assert stored.display_name == "Compile main.c"
+    assert stored.source_files == ["src/main.c", "include/api.h"]
+    assert %{total_actions: 1, cached_actions: 1} = OnceEvents.get_run(run.project_id, run.run_id)
+
+    assert [%{action_display_name: "Compile main.c", source_files: ["src/main.c", "include/api.h"]}] =
+             OnceEvents.list_cache_events(run, view: "actions")
+  end
+
+  test "legacy action messages default to no presentation metadata", %{run: run} do
+    # Tags 1 and 4 only, encoded before presentation fields existed.
+    decoded = ActionCompleted.decode(<<10, 3, "app", 34, 7, "compile">>)
+    assert decoded.display_name == nil
+    assert decoded.source_files == []
+    project(run, decoded)
+    project(run, %{decoded | action_index: 1, display_name: ""})
+
+    assert [first, second] = OnceEvents.list_actions(run)
+    assert first.identifier == "compile"
+    assert first.display_name == nil
+    assert first.source_files == []
+    assert second.display_name == nil
+  end
+
+  test "action names and source files are searchable and display names determine sorting", %{run: run} do
+    project(run, %ActionCompleted{
+      target_execution_id: "app",
+      identifier: "z-diagnostic",
+      display_name: "Alpha compile",
+      source_files: ["src/main.c"]
+    })
+
+    project(run, %ActionCompleted{target_execution_id: "legacy", identifier: "beta"})
+
+    for opts <- [[search: "ALPHA"], [search: "src/main.c"], [search: "z-diagnostic"]] do
+      assert OnceEvents.count_actions(run, opts) == 1
+      assert [%{target_execution_id: "app"}] = OnceEvents.list_actions(run, opts)
+      assert OnceEvents.count_cache_events(run, opts ++ [view: "actions"]) == 1
+      assert [%{target_execution_id: "app"}] = OnceEvents.list_cache_events(run, opts ++ [view: "actions"])
+    end
+
+    assert Enum.map(OnceEvents.list_actions(run, sort_by: "action"), & &1.target_execution_id) == ["app", "legacy"]
+
+    assert Enum.map(OnceEvents.list_actions(run, sort_by: "action", sort_order: "desc"), & &1.target_execution_id) ==
+             ["legacy", "app"]
+
+    assert Enum.map(
+             OnceEvents.list_cache_events(run, view: "actions", sort_by: "action", sort_order: "asc"),
+             & &1.target_execution_id
+           ) == ["app", "legacy"]
+  end
+
   test "replayed actions do not inflate counters and capabilities remain distinct", %{run: run} do
     action = %ActionCompleted{
       target_execution_id: "mise",
@@ -288,6 +356,25 @@ defmodule Tuist.OnceEventsTest do
       assert_received {:ack, %BatchAck{} = ack}
       assert ack.disposition == AckDisposition.value(:ACK_DISPOSITION_ACCEPTED)
       assert ack.dashboard_url =~ "/#{project.account.name}/#{project.name}/once/runs/"
+    end
+
+    test "a new run records its authenticated actor and replay cannot replace it", %{
+      project: project,
+      member: member,
+      handle: handle
+    } do
+      run_id = UUIDv7.generate()
+
+      event = %RunEvent{
+        epoch_ms: System.system_time(:millisecond),
+        payload: {:run_started, %RunStarted{once_version: "0.60.0"}}
+      }
+
+      batch = %RunEventBatch{run_id: run_id, batch_id: "actor", seq_from: 1, events: [event]}
+      RunEventService.publish_run_events([batch], user_stream(member, %{"once-project-id" => handle}))
+      assert OnceEvents.get_run(project.id, run_id).account_id == member.account.id
+      Projector.project(event, project.id, run_id, nil)
+      assert OnceEvents.get_run(project.id, run_id).account_id == member.account.id
     end
 
     test "publishing without naming a project is rejected", %{member: member, run: run} do

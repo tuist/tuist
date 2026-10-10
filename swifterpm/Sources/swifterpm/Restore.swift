@@ -1071,7 +1071,7 @@ enum WorkspaceRestorer {
             return
         }
         if let repo = try? GitLabRepo(location: location),
-           await GitLabAuth.hasSession(host: repo.host)
+           await GitLabAuth.hasSession(for: repo)
         {
             try await downloadGitLabArchive(cache: cache, pin: pin, repo: repo, destination: destination)
             return
@@ -1153,11 +1153,9 @@ enum WorkspaceRestorer {
                 try await SystemProcess.run(
                     "/usr/bin/git", ["-C", destination.path, "remote", "add", "origin", location]
                 )
-                let authArguments = await GitTransportAuth.configArguments(for: location)
                 try await SystemProcess.run(
                     "/usr/bin/git",
-                    authArguments
-                        + ["-C", destination.path, "fetch", "--depth=1", "origin", revision],
+                    ["-C", destination.path, "fetch", "--depth=1", "origin", revision],
                     environment: SystemProcess.nonInteractiveGitEnvironment
                 )
                 try await SystemProcess.run(
@@ -1165,7 +1163,6 @@ enum WorkspaceRestorer {
                 )
                 try await updateSubmodulesIfNeeded(
                     in: destination,
-                    gitConfigArguments: authArguments,
                     allowFileProtocol: isLocalSourceControlPackage
                 )
                 let gitDir = destination.appendingPathComponent(".git")
@@ -1184,13 +1181,12 @@ enum WorkspaceRestorer {
 
     private static func updateSubmodulesIfNeeded(
         in destination: URL,
-        gitConfigArguments: [String],
         allowFileProtocol: Bool
     ) async throws {
         guard try await !submodulePaths(in: destination).isEmpty else {
             return
         }
-        var arguments = ["-C", destination.path] + gitConfigArguments
+        var arguments = ["-C", destination.path]
         if allowFileProtocol {
             arguments.append(contentsOf: ["-c", "protocol.file.allow=always"])
         }
@@ -1277,13 +1273,19 @@ enum WorkspaceRestorer {
                 ])
             } else if PinKind.isRegistry(pin.kind) {
                 let ref = try packageRef(pin, mirrors: mirrors)
+                var state: [String: Any] = try [
+                    "name": "registryDownload",
+                    "version": pin.versionString(),
+                ]
+                // SwiftPM rebuilds every Package.resolved pin from workspace state, taking
+                // `originalLocation` from `scmUrl`.
+                if let originalLocation = pin.originalLocation {
+                    state["scmUrl"] = originalLocation
+                }
                 try dependencies.append([
                     "basedOn": NSNull(),
                     "packageRef": ref,
-                    "state": [
-                        "name": "registryDownload",
-                        "version": pin.versionString(),
-                    ],
+                    "state": state,
                     "subpath": PinKind.registryDownloadSubpath(pin),
                 ])
             }

@@ -30,7 +30,86 @@ defmodule TuistWeb.TestCaseRunLiveTest do
     %{conn: conn, user: user, account: account, project: project}
   end
 
+  for build_system <- [:xcode, :gradle, :once] do
+    test "uses Test Run for an empty #{build_system} back-button label", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      project =
+        project
+        |> Ecto.Changeset.change(build_system: unquote(build_system))
+        |> Tuist.Repo.update!()
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: account.id,
+          build_system: Atom.to_string(unquote(build_system)),
+          scheme: ""
+        )
+
+      [test_case_run | _] = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs).test_case_runs
+
+      {:ok, lv, _} =
+        live(
+          assign(conn, :selected_project, project),
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}"
+        )
+
+      assert has_element?(lv, "[data-part='back-button']", "Test Run")
+    end
+  end
+
   describe "mount" do
+    for {build_system, scheme, label} <- [
+          {:mix, "", "mix test"},
+          {:mix, "clickhouse-current", "mix test · clickhouse-current"},
+          {:mix, "clickhouse-floor", "mix test · clickhouse-floor"},
+          {:bazel, "", "bazel test"},
+          {:gradle, "root-project", "root-project"},
+          {:xcode, "AppScheme", "AppScheme"}
+        ] do
+      test "renders meaningful #{build_system} #{scheme} command and parent-run labels", %{
+        conn: conn,
+        account: account,
+        project: project
+      } do
+        project =
+          project
+          |> Ecto.Changeset.change(build_system: unquote(build_system))
+          |> Tuist.Repo.update!()
+
+        {:ok, test_run} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: account.id,
+            build_system: Atom.to_string(unquote(build_system)),
+            scheme: unquote(scheme)
+          )
+
+        [test_case_run | _] = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs).test_case_runs
+
+        {:ok, lv, _} =
+          live(
+            assign(conn, :selected_project, project),
+            ~p"/#{account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}"
+          )
+
+        assert has_element?(lv, "[data-part='back-button']", unquote(label))
+        assert has_element?(lv, "[data-part='value-link']", unquote(label))
+        assert has_element?(lv, "[data-part='metadata'] [data-part='value']", unquote(label))
+
+        {:ok, run_lv, _} =
+          live(
+            assign(conn, :selected_project, project),
+            ~p"/#{account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+          )
+
+        assert has_element?(run_lv, "h1", unquote(label))
+      end
+    end
+
     test "renders test case run page with name and run details", %{
       conn: conn,
       account: account,

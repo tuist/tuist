@@ -13,7 +13,8 @@ This module handles CLI integration with the Tuist Server APIs.
 
 ## Invariants
 - `TUIST_URL` overrides config URL and must be a valid URL.
-- OAuth client ID defaults to a built-in value if not provided.
+- OAuth client ID defaults to a built-in value if not provided. OAuth app credentials may carry an issuing `oauthClientID`; refresh uses that server-scoped value and preserves it when rotating tokens. Legacy/API-auth credentials remain compatible without this field.
+- Browser authentication reports OSC 7501 `blocked` with `kind=auth` while waiting for tokens, then restores `working`. This uses the CLI-scoped reporter and is a no-op in other consumers.
 - Cache request metadata carries SDK build fingerprints separately from the existing exact content hash; preserve it through target-to-item storage conversions.
 
 - Gradle and Bazel recorded-step endpoints and the optional Gradle report start timestamp are generated from server controller schemas. Regenerate through `server/mise/tasks/generate-api-cli-code.sh`; preserve opaque step IDs and nullable per-step logs.

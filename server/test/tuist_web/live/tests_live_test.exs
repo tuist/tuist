@@ -6,9 +6,55 @@ defmodule TuistWeb.TestsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Tests.Test.Buffer
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   @render_async_timeout 1_000
+
+  for build_system <- [:mix, :xcode, :gradle, :bazel] do
+    test "shows #{build_system} test cases before they have enough duration samples", %{
+      conn: conn,
+      project: project
+    } do
+      project =
+        project
+        |> Ecto.Changeset.change(build_system: unquote(build_system))
+        |> Tuist.Repo.update!()
+
+      {:ok, _} =
+        Tuist.Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 100,
+          status: "success",
+          scheme: "",
+          ran_at: DateTime.utc_now(),
+          is_ci: false,
+          build_system: Atom.to_string(unquote(build_system)),
+          test_modules: [
+            %{
+              name: "FreshTests",
+              status: "success",
+              duration: 100,
+              test_cases: [
+                %{name: "first_sample", test_suite_name: "", status: "success", duration: 100}
+              ]
+            }
+          ]
+        })
+
+      Buffer.flush()
+
+      {:ok, lv, _} = live(conn, ~p"/#{project.account.name}/#{project.name}/tests")
+      render_async(lv, 5_000)
+
+      assert has_element?(lv, "[data-part='test-cases'] .test-case-card", "first_sample")
+      refute has_element?(lv, "[data-part='test-cases']", "No test cases yet")
+      refute has_element?(lv, "[data-part='test-cases']", "Slowest test cases")
+      refute has_element?(lv, ".test-case-card [data-part='duration']")
+    end
+  end
 
   test "a Once project's runs column is headed Run, not Scheme", %{conn: conn, project: project} do
     # Once has no schemes. The shared `scheme` column carries the command the
@@ -40,7 +86,7 @@ defmodule TuistWeb.TestsLiveTest do
         ]
       })
 
-    Tuist.Tests.Test.Buffer.flush()
+    Buffer.flush()
 
     {:ok, lv, _html} =
       live(conn, ~p"/#{once_project.account.name}/#{once_project.name}/tests")
@@ -87,13 +133,13 @@ defmodule TuistWeb.TestsLiveTest do
     refute has_element?(lv, "[data-part='selective-testing']")
   end
 
-  test "lists Code Coverage in the sidebar only for Xcode projects", %{
+  test "lists Code Coverage in the sidebar only for Xcode and Mix projects", %{
     conn: conn,
     organization: organization
   } do
     stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> true end)
 
-    for {build_system, visible?} <- [xcode: true, bazel: false, gradle: false, mix: false, once: false] do
+    for {build_system, visible?} <- [xcode: true, bazel: false, gradle: false, mix: true, once: false] do
       project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
       coverage_path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
 

@@ -14,6 +14,7 @@ This module loads and evaluates Tuist manifests (e.g., `Project.swift`, `Workspa
 
 ## Invariants
 - Manifest loading emits clear `FatalError` types for missing or malformed manifests.
+- Preserve native package dynamic-linkage hints and their platform conditions when mapping manifest dependencies; do not infer linkage from the embedding role.
 - Swift package bundle identifiers preserve underscores as hyphens, including leading, trailing, and repeated underscores, so targets such as `IssueReporting` and `_IssueReporting` can coexist as embedded dynamic frameworks.
 - `ManifestLoader` uses start/end tokens to parse manifest output and caches results.
 - Swift package targets using tools version 5.9 or newer carry their package name compiler argument in target settings so graph transformations preserve package access.

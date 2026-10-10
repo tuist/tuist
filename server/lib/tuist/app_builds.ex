@@ -107,6 +107,11 @@ defmodule Tuist.AppBuilds do
           &Ecto.Enum.mappings(AppBuild, :supported_platforms)[&1]
         )
 
+      git_branch_filter =
+        if is_nil(git_branch),
+          do: dynamic([p], is_nil(p.git_branch)),
+          else: dynamic([p], p.git_branch == ^git_branch)
+
       preview =
         Repo.one(
           from(p in Preview,
@@ -114,7 +119,7 @@ defmodule Tuist.AppBuilds do
             on: ab.preview_id == p.id,
             where: p.project_id == ^project.id,
             where: p.bundle_identifier == ^bundle_identifier,
-            where: p.git_branch == ^git_branch,
+            where: ^git_branch_filter,
             where: p.track == ^normalized_track,
             where: fragment("? && ?", ab.supported_platforms, ^supported_platforms_as_integers),
             order_by: [desc: p.inserted_at],

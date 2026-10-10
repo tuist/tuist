@@ -10,6 +10,7 @@ defmodule Tuist.Runners.CacheVolumes do
   """
   import Ecto.Query
 
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners
   alias Tuist.Runners.CacheVolumes.Identity
@@ -35,7 +36,7 @@ defmodule Tuist.Runners.CacheVolumes do
          true <- arch in ["amd64", "arm64"],
          true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
          true <- is_binary(uid) and Regex.match?(~r/^[a-zA-Z0-9-]{1,128}$/, uid),
-         %WorkflowJob{} = job <- executing_job(pod, node),
+         {:ok, job, platform} <- executing_job(pod, node),
          {:ok, identity} <- Identity.resolve(job) do
       allocate_for_job(job, identity, %{
         pod_name: pod,
@@ -43,11 +44,12 @@ defmodule Tuist.Runners.CacheVolumes do
         node_name: node,
         key: key,
         architecture: arch,
+        platform: to_string(platform),
         uid: user_id
       })
     else
-      nil ->
-        if pending_execution?(pod, node), do: {:error, :pending}, else: {:error, :unavailable}
+      {:error, :pending} ->
+        {:error, :pending}
 
       _ ->
         {:error, :unavailable}
@@ -58,27 +60,39 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def valid_key?(key), do: is_binary(key) and Regex.match?(~r/^[a-zA-Z0-9][a-zA-Z0-9_.\/-]{0,199}$/, key)
 
-  defp pending_execution?(pod, node) do
-    Repo.exists?(
-      from(s in RunnerSession,
-        where:
-          s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform == :linux and
-            is_nil(s.executed_workflow_job_id)
-      )
-    )
+  # The session's executed binding is the proof that this runner runs the job.
+  # The job row can still be `queued` or `claimed` by another Pod until the
+  # unstarted-executions sweep moves it, or not exist until its `queued`
+  # webhook arrives.
+  defp executing_job(pod, node) do
+    case execution_binding(pod, node) do
+      {job, platform} ->
+        if Environment.runner_cache_volumes_enabled?(platform) do
+          case job do
+            %WorkflowJob{status: status} = job when status in ~w(queued claimed running) -> {:ok, job, platform}
+            nil -> {:error, :pending}
+            _ -> {:error, :unavailable}
+          end
+        else
+          {:error, :unavailable}
+        end
+
+      _ ->
+        {:error, :unavailable}
+    end
   end
 
-  defp executing_job(pod, node) do
+  defp execution_binding(pod, node) do
     Repo.one(
       from(s in RunnerSession,
-        join: j in WorkflowJob,
-        on: j.workflow_job_id == s.executed_workflow_job_id and j.account_id == s.account_id,
-        where:
-          s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform == :linux and
-            j.provider in ["github", "buildkite", "gitlab"] and j.status == "running",
+        left_join: j in WorkflowJob,
+        on:
+          j.workflow_job_id == s.executed_workflow_job_id and j.account_id == s.account_id and
+            j.provider in ["github", "buildkite", "gitlab"],
+        where: s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform in [:linux, :macos],
         order_by: [desc: s.started_at],
         limit: 1,
-        select: j
+        select: {j, s.platform}
       )
     )
   end
@@ -88,6 +102,7 @@ defmodule Tuist.Runners.CacheVolumes do
   # Also used by lifecycle tests with already verified provider metadata.
   def allocate_for_job(job, identity, attrs) do
     identity = Identity.storage_scope(identity)
+    attrs = Map.put_new(attrs, :platform, "linux")
 
     Repo.transaction(fn ->
       # One admission lock per pod also bounds concurrent requests for new keys.
@@ -98,7 +113,7 @@ defmodule Tuist.Runners.CacheVolumes do
       ensure_job_capacity!(job, identity, attrs)
       now = DateTime.utc_now()
       timestamp = DateTime.truncate(now, :second)
-      fields = Map.take(attrs, [:key, :architecture, :uid])
+      fields = Map.take(attrs, [:key, :platform, :architecture, :uid])
 
       row =
         Map.merge(fields, %{
@@ -115,7 +130,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
       Repo.insert_all(Volume, [row],
         on_conflict: :nothing,
-        conflict_target: [:account_id, :provider, :provider_instance, :scope_id, :key, :architecture, :uid]
+        conflict_target: [:account_id, :provider, :provider_instance, :scope_id, :key, :platform, :architecture, :uid]
       )
 
       volume =
@@ -180,7 +195,7 @@ defmodule Tuist.Runners.CacheVolumes do
         from(u in Usage,
           join: v in Volume,
           on: v.id == u.volume_id,
-          where: v.account_id == ^job.account_id and u.pod_uid == ^attrs.pod_uid
+          where: v.account_id == ^job.account_id and u.pod_uid == ^attrs.pod_uid and is_nil(v.builtin_name)
         ),
         :count
       )
@@ -190,10 +205,12 @@ defmodule Tuist.Runners.CacheVolumes do
 
   defp volume_query(job, identity, attrs) do
     from(v in Volume,
+      where: is_nil(v.builtin_name),
       where:
         v.account_id == ^job.account_id and v.provider == ^identity.provider and
           v.provider_instance == ^identity.provider_instance and v.scope_id == ^identity.scope_id and
-          v.key == ^attrs.key and v.architecture == ^attrs.architecture and v.uid == ^attrs.uid
+          v.key == ^attrs.key and v.platform == ^attrs.platform and v.architecture == ^attrs.architecture and
+          v.uid == ^attrs.uid
     )
   end
 
@@ -216,7 +233,7 @@ defmodule Tuist.Runners.CacheVolumes do
       volumes =
         Repo.all(
           from(v in Volume,
-            where: is_nil(v.deleted_at) and v.last_used_at <= ^threshold,
+            where: is_nil(v.builtin_name) and is_nil(v.deleted_at) and v.last_used_at <= ^threshold,
             order_by: [asc: v.last_used_at, asc: v.id],
             limit: 500,
             lock: "FOR UPDATE SKIP LOCKED"
@@ -256,6 +273,7 @@ defmodule Tuist.Runners.CacheVolumes do
          %Usage{} = usage <- Repo.get_by(Usage, id: id, node_name: node) do
       Repo.transaction(fn ->
         volume = Repo.one!(from(v in Volume, where: v.id == ^usage.volume_id, lock: "FOR UPDATE"))
+        if volume.builtin_name, do: Repo.rollback(:unsupported)
         usage = Repo.get_by!(Usage, id: id, node_name: node)
         report_locked(volume, usage, params)
       end)
@@ -382,7 +400,7 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
-  def storage_name(volume), do: "linux-" <> scope(volume)
+  def storage_name(volume), do: volume.platform <> "-" <> scope(volume)
 
   # Reuse macOS HEAD arbitration, immutable objects, checksums and delayed
   # reclamation. The custom-volume lock also serializes clearing with publication.
@@ -391,6 +409,7 @@ defmodule Tuist.Runners.CacheVolumes do
          %Usage{} = usage <- Repo.get_by(Usage, id: id, node_name: node) do
       Repo.transaction(fn ->
         volume = Repo.one!(from(v in Volume, where: v.id == ^usage.volume_id, lock: "FOR UPDATE"))
+        if volume.builtin_name, do: Repo.rollback(:unsupported)
         usage = Repo.get!(Usage, id)
         volume = expire_locked(volume, DateTime.utc_now())
         image_action(volume, usage, params)
@@ -535,6 +554,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def delete(account_id, id) do
     mutate(account_id, id, fn volume ->
+      if volume.builtin_name, do: Repo.rollback(:unsupported)
       Runners.clear_volume_master(volume.account_id, storage_name(volume))
       [generation: volume.generation + 1, head_id: nil, deleted_at: DateTime.utc_now()]
     end)
@@ -607,9 +627,9 @@ defmodule Tuist.Runners.CacheVolumes do
             group_by: u.volume_id,
             select: %{
               volume_id: u.volume_id,
-              copies: filter(count(u.id), is_nil(u.deleted_at)),
-              used_space: filter(sum(u.size_bytes), is_nil(u.deleted_at)),
-              capacity: filter(sum(u.capacity_bytes), is_nil(u.deleted_at))
+              copies: filter(count(u.id), is_nil(coalesce(u.deleted_at, u.superseded_at))),
+              used_space: filter(sum(u.size_bytes), is_nil(coalesce(u.deleted_at, u.superseded_at))),
+              capacity: filter(sum(u.capacity_bytes), is_nil(coalesce(u.deleted_at, u.superseded_at)))
             }
           )
 
@@ -658,12 +678,15 @@ defmodule Tuist.Runners.CacheVolumes do
          %{
            uses: filter(count(u.id), not is_nil(u.attached_at) and u.inserted_at >= ^since),
            hits: filter(count(u.id), u.warm == true and u.inserted_at >= ^since),
-           active: filter(count(u.id), is_nil(u.finished_at) and is_nil(u.deleted_at)),
-           retained_bytes: type(filter(sum(u.size_bytes), is_nil(u.deleted_at)), :integer),
-           retained_capacity_bytes: type(filter(sum(u.capacity_bytes), is_nil(u.deleted_at)), :integer),
-           unmeasured_copies: filter(count(u.id), is_nil(u.deleted_at) and is_nil(u.size_bytes)),
-           unmeasured_capacity_copies: filter(count(u.id), is_nil(u.deleted_at) and is_nil(u.capacity_bytes)),
-           retained_copies: filter(count(u.id), is_nil(u.deleted_at)),
+           active: filter(count(u.id), is_nil(u.finished_at) and is_nil(coalesce(u.deleted_at, u.superseded_at))),
+           retained_bytes: type(filter(sum(u.size_bytes), is_nil(coalesce(u.deleted_at, u.superseded_at))), :integer),
+           retained_capacity_bytes:
+             type(filter(sum(u.capacity_bytes), is_nil(coalesce(u.deleted_at, u.superseded_at))), :integer),
+           unmeasured_copies:
+             filter(count(u.id), is_nil(coalesce(u.deleted_at, u.superseded_at)) and is_nil(u.size_bytes)),
+           unmeasured_capacity_copies:
+             filter(count(u.id), is_nil(coalesce(u.deleted_at, u.superseded_at)) and is_nil(u.capacity_bytes)),
+           retained_copies: filter(count(u.id), is_nil(coalesce(u.deleted_at, u.superseded_at))),
            reported_at: max(u.last_reported_at),
            attach_ms: filter(avg(u.attach_ms), not is_nil(u.attached_at) and u.inserted_at >= ^since)
          }}
@@ -678,7 +701,7 @@ defmodule Tuist.Runners.CacheVolumes do
       from(u in Usage,
         join: v in Volume,
         on: v.id == u.volume_id,
-        where: v.account_id == ^account_id and is_nil(u.deleted_at),
+        where: v.account_id == ^account_id and (is_nil(u.deleted_at) and is_nil(u.superseded_at)),
         select: %{
           volumes: count(v.id, :distinct),
           retained_copies: count(u.id),
@@ -706,11 +729,11 @@ defmodule Tuist.Runners.CacheVolumes do
         """
         WITH measurements AS (
           SELECT m.id, m.usage_id, u.volume_id, m.observed_at,
-            CASE WHEN m.deleted THEN 0 ELSE COALESCE(m.size_bytes, 0) END AS used,
-            CASE WHEN m.deleted THEN 0 ELSE COALESCE(m.capacity_bytes, 0) END AS capacity,
-            CASE WHEN m.deleted THEN 0 ELSE 1 END AS copies,
-            CASE WHEN NOT m.deleted AND m.size_bytes IS NOT NULL THEN 1 ELSE 0 END AS measured_used,
-            CASE WHEN NOT m.deleted AND m.capacity_bytes IS NOT NULL THEN 1 ELSE 0 END AS measured_capacity
+            CASE WHEN (m.deleted OR m.retired) THEN 0 ELSE COALESCE(m.size_bytes, 0) END AS used,
+            CASE WHEN (m.deleted OR m.retired) THEN 0 ELSE COALESCE(m.capacity_bytes, 0) END AS capacity,
+            CASE WHEN (m.deleted OR m.retired) THEN 0 ELSE 1 END AS copies,
+            CASE WHEN NOT (m.deleted OR m.retired) AND m.size_bytes IS NOT NULL THEN 1 ELSE 0 END AS measured_used,
+            CASE WHEN NOT (m.deleted OR m.retired) AND m.capacity_bytes IS NOT NULL THEN 1 ELSE 0 END AS measured_capacity
           FROM runner_cache_volume_measurements m
           JOIN runner_cache_volume_uses u ON u.id = m.usage_id
           JOIN runner_cache_volumes v ON v.id = u.volume_id
@@ -847,10 +870,10 @@ defmodule Tuist.Runners.CacheVolumes do
     )
   end
 
-  # Cross-tenant maintenance: only acknowledged deletions can lose their history.
+  # Cross-tenant maintenance: prune deleted copies and superseded built-in observations.
   def prune_history do
     threshold = DateTime.add(DateTime.utc_now(), -90 * 24 * 60 * 60)
-    Repo.delete_all(from(u in Usage, where: u.deleted_at < ^threshold))
+    Repo.delete_all(from(u in Usage, where: u.deleted_at < ^threshold or u.superseded_at < ^threshold))
     :ok
   end
 

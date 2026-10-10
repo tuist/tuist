@@ -290,3 +290,12 @@ jobs:
           kubectl -n "$NAMESPACE" rollout status deploy/atlas --timeout=10m
           kubectl -n "$NAMESPACE" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
             --command -- curl -fsS "http://atlas/ready"
+
+      - name: Verify public login redirect
+        run: |
+          response=$(curl --silent --show-error --max-time 30 --output /dev/null \
+            --write-out '%{http_code} %{redirect_url}' https://atlas.tuist.dev/)
+          if [ "$response" != '302 https://atlas.tuist.dev/login' ]; then
+            echo '::error::Atlas root must redirect signed-out visitors to /login.'
+            exit 1
+          fi

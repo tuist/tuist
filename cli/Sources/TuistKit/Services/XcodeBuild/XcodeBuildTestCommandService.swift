@@ -30,7 +30,6 @@ struct XcodeBuildTestCommandService {
     private let xcActivityLogController: XCActivityLogControlling
     private let uploadResultBundleService: UploadResultBundleServicing
     private let testExecutionModeResolver: TestExecutionModeResolving
-    private let testEnumerationService: TestEnumerationServicing?
     private let testCoverageEvidenceService: TestCoverageEvidenceServicing
     private let xcResultService: XCResultServicing
     private let rootDirectoryLocator: RootDirectoryLocating
@@ -52,7 +51,6 @@ struct XcodeBuildTestCommandService {
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
         testExecutionModeResolver: TestExecutionModeResolving = TestExecutionModeResolver(),
-        testEnumerationService: TestEnumerationServicing? = nil,
         testCoverageEvidenceService: TestCoverageEvidenceServicing = TestCoverageEvidenceService(),
         xcResultService: XCResultServicing = XCResultService(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
@@ -73,7 +71,6 @@ struct XcodeBuildTestCommandService {
         self.xcActivityLogController = xcActivityLogController
         self.uploadResultBundleService = uploadResultBundleService
         self.testExecutionModeResolver = testExecutionModeResolver
-        self.testEnumerationService = testEnumerationService
         self.testCoverageEvidenceService = testCoverageEvidenceService
         self.xcResultService = xcResultService
         self.rootDirectoryLocator = rootDirectoryLocator
@@ -177,8 +174,11 @@ struct XcodeBuildTestCommandService {
         let resultBundlePath: AbsolutePath? = resolvedResultBundlePath
         let (mutedTests, skippedTests) = try await loadQuarantinedTests(config: config, skipQuarantine: skipQuarantine)
         let allQuarantinedTests = mutedTests + skippedTests
-        let xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + skippedTests.flatMap { skipped in
+        var xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + skippedTests.flatMap { skipped in
             ["-skip-testing", skipped.description]
+        }
+        if UploadResultBundleService.uploadsCoverage(config: config) {
+            xcodeBuildArgumentsWithSkip = AtomicCoverageCounters.adding(to: xcodeBuildArgumentsWithSkip)
         }
         let parseSummary = mode == .local || stressNewTests != nil
 
@@ -551,16 +551,6 @@ extension XcodeBuildTestCommandService {
             xcodebuildArguments: xcodebuildArguments,
             derivedDataPath: projectDerivedDataDirectory,
             schemeTargets: schemeTargets
-        )
-        _ = await (testEnumerationService ?? TestEnumerationService(xcodeBuildController: xcodeBuildController)).record(
-            resultBundlePath: resultBundlePath,
-            target: nil,
-            scheme: nil,
-            destination: nil,
-            rosetta: false,
-            derivedDataPath: nil,
-            testPlan: nil,
-            xcodebuildArguments: xcodebuildArguments
         )
 
         do {

@@ -119,7 +119,11 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:has_binary_cache_data, not is_nil(binary_cache_event))
       |> assign(
         OpenGraph.project_image_assigns(project,
-          title: if(run.scheme == "", do: dgettext("dashboard_tests", "Test Run"), else: run.scheme),
+          title:
+            if(project.build_system == :mix,
+              do: test_run_label(project, run.scheme),
+              else: if(run.scheme == "", do: dgettext("dashboard_tests", "Test Run"), else: run.scheme)
+            ),
           subtitle: run.git_branch,
           badge: run.status |> to_string() |> String.capitalize()
         )
@@ -940,17 +944,8 @@ defmodule TuistWeb.TestRunLive do
   # sort/filter combos would share one cache slot and return each
   # other's rows for the TTL.
   #
-  # `locking: false` is deliberate: `KeyValueStore.get_or_update/3`
-  # defaults to `locking: true`, which runs the miss path inside
-  # `Cachex.transaction/3`. Cachex executes each transaction in the
-  # cache's single Locksmith GenServer, so every ClickHouse round-trip
-  # would occupy that one process for its full duration and queue
-  # every other caller of the `:tuist` cache behind it — including
-  # `authentication_plug`'s CLI-token lookup on the API hot path.
-  # Under the burst of unique keys this cache is designed for, that
-  # queue is where the pressure would land next. Skipping the lock
-  # gives up thundering-herd de-duplication, which the path did not
-  # have before caching was added anyway.
+  # `locking: false` skips de-duplicating concurrent misses of one key,
+  # which the path did not have before caching was added anyway.
   defp cached_run_query(run_id, tab, flop_params, func) do
     cache_key = [
       :test_run_flop,

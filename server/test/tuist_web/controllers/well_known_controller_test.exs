@@ -248,6 +248,7 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["protocolVersion"] == "2026-07-28"
       assert response["serverInfo"]["name"] == server.name
       assert response["serverInfo"]["version"] == server.version
+      assert response["serverInfo"]["version"] == "1.35.0"
       assert response["serverInfo"]["title"] == "Tuist"
       assert response["transport"]["type"] == "streamable-http"
       assert response["transport"]["endpoint"] == "/mcp"
@@ -260,6 +261,12 @@ defmodule TuistWeb.WellKnownControllerTest do
              }
 
       assert response["instructions"] == server.instructions
+
+      assert response["instructions"] =~
+               "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."
+
+      refute response["instructions"] =~ "auth_md"
+      refute response["instructions"] =~ "agent_auth.skill"
       assert response["tools"] == ["dynamic"]
       assert response["prompts"] == ["dynamic"]
     end

@@ -160,7 +160,8 @@ type RackLinuxHostStatus struct {
 	// +optional
 	Boot *RackLinuxHostBootStatus `json:"boot,omitempty"`
 
-	// Power is the host's power state as AMT reports it.
+	// Power is the host's power state: on while it is on the tailnet, as AMT
+	// reports it otherwise.
 	// +optional
 	Power *RackLinuxHostPowerStatus `json:"power,omitempty"`
 
@@ -323,15 +324,25 @@ type RackLinuxHostBootServer struct {
 	At metav1.Time `json:"at"`
 }
 
-// RackLinuxHostPowerStatus is a host's power state as AMT reports it.
+// RackLinuxHostPowerStatus is a host's power state.
 type RackLinuxHostPowerStatus struct {
 	// State is On or Off.
 	// +optional
 	State string `json:"state,omitempty"`
 
-	// ObservedAt is when AMT reported it.
+	// Source is what reported it: Tailnet, for a host connected to the
+	// tailnet, or AMT.
+	// +optional
+	Source string `json:"source,omitempty"`
+
+	// ObservedAt is when it was reported.
 	// +optional
 	ObservedAt *metav1.Time `json:"observedAt,omitempty"`
+
+	// Changes counts the power changes made since the state last matched
+	// spec.online. Each one waits twice as long as the one before.
+	// +optional
+	Changes int32 `json:"changes,omitempty"`
 }
 
 // RackLinuxHostAMTStatus is the host's Intel AMT.
@@ -391,11 +402,19 @@ type RackLinuxHostAMTStatus struct {
 	// LastPowerAction is the last power change the operator asked AMT for.
 	// +optional
 	LastPowerAction *RackLinuxHostAMTPowerAction `json:"lastPowerAction,omitempty"`
+
+	// LastPowerRead is the last time the operator read the host's power
+	// state from AMT, through an edge, as action read. It is read hourly while
+	// the host is on the tailnet, so a path that would not power the host on
+	// shows before it is needed.
+	// +optional
+	LastPowerRead *RackLinuxHostAMTPowerAction `json:"lastPowerRead,omitempty"`
 }
 
 // RackLinuxHostAMTPowerAction is one power change asked of a host's AMT.
 type RackLinuxHostAMTPowerAction struct {
-	// Action is on, off, or a tuist.dev/reboot value: cycle, reset or pxe.
+	// Action is on, off, a tuist.dev/reboot value (cycle, reset or pxe), or
+	// read for a read of the power state.
 	Action string `json:"action"`
 
 	// At is when the operator asked.
@@ -454,6 +473,7 @@ type RackLinuxHostTailnetStatus struct {
 // +kubebuilder:printcolumn:name="Device",type=string,priority=1,JSONPath=".status.tailnet.deviceID"
 // +kubebuilder:printcolumn:name="Install",type=string,priority=1,JSONPath=".status.install.keyID"
 // +kubebuilder:printcolumn:name="AMT",type=string,priority=1,JSONPath=".status.amt.controlMode"
+// +kubebuilder:printcolumn:name="PowerReachable",type=string,priority=1,JSONPath=".status.conditions[?(@.type==\"PowerReachable\")].status"
 // +kubebuilder:printcolumn:name="TPM",type=string,priority=1,JSONPath=".status.tpm.fingerprint"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 

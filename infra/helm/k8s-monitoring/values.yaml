@@ -177,6 +177,21 @@ k8s-monitoring:
           replacement = "keep"
           action = "replace"
         }
+        // Rack hardware is the one exception that is not derived from alerts.
+        // A rack lives in staging while it is at home, and its hosts are real
+        // machines whose CPU, memory, disks and temperatures are the point of
+        // monitoring them, not a deploy to validate. Both host scrapes mark a
+        // rack host rack_host="true" (alloy-rack on the Linux hosts, and minis
+        // in the rack fleet), so its host metrics survive here as they do in
+        // production. It is a handful of hosts.
+        write_relabel_config {
+          source_labels = ["rack_host", "__name__"]
+          separator = ";"
+          regex = "true;node_.*"
+          target_label = "__tmp_nonprod_keep"
+          replacement = "keep"
+          action = "replace"
+        }
         // The PN VLAN alert compares node_load1 against VLAN transmit metrics.
         // Keeping only its liveness anchor makes healthy non-production Macs
         // appear to have no VLAN. Retain one series per VLAN, not every NIC.
@@ -634,6 +649,16 @@ k8s-monitoring:
           - node_netstat_Tcp_OutSegs
           - node_netstat_Tcp_RetransSegs
           - node_timex_offset_seconds
+          # Hardware temperatures: CPU package and cores (coretemp), NVMe
+          # drives, and the ACPI and package thermal zones. Virtual machines
+          # rarely expose hardware sensors, so the series come mostly from
+          # bare metal: the rack's own machines and the rented fleets. The
+          # sensor label is what names a coretemp input ("Package id 0",
+          # "Core 4"); the chip names say which driver a chip label is.
+          - node_hwmon_temp_celsius
+          - node_hwmon_sensor_label
+          - node_hwmon_chip_names
+          - node_thermal_zone_temp
       # The allow-list above keeps node_cpu_seconds_total for all CPU modes
       # and every node_network_* series for every interface, but the
       # dashboards/alerts only read mode="idle" and physical devices
@@ -861,6 +886,13 @@ k8s-monitoring:
         target_label = "__scrape_interval__"
         replacement = "65s"
       }
+      // A pod on a node-local network has an address the cluster cannot
+      // reach; alloy-rack on its node scrapes it.
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_tuist_dev_node_local_network"]
+        regex = "true"
+        action = "drop"
+      }
     metricsTuning:
       excludeMetrics:
         # Cilium's event timestamps, BPF map gauges, and agent-internal
@@ -994,6 +1026,20 @@ k8s-monitoring:
         - key: tuist.dev/kura-cache
           operator: Exists
           effect: NoSchedule
+      # Not on a rack's nodes: alloy-rack exports their host metrics. A rack is
+      # dark for days at a time (transport, power, its one uplink), and this
+      # release is waited on before every deploy, so a node-exporter Pod on a
+      # dark rack node would keep the DaemonSet from reading as ready and fail
+      # them all. alloy-rack is an Alloy resource, which the wait reads as ready
+      # once the operator has applied it.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.cluster.x-k8s.io/instance-type
+                    operator: NotIn
+                    values: [rack]
       # The chart-default probe is httpGet `/` with timeoutSeconds: 1. On a
       # loaded node (a bare-metal CI runner mid-build, a busy control-plane),
       # node-exporter scraping /proc + /sys can take >1s, so the probe times
@@ -1023,6 +1069,13 @@ k8s-monitoring:
       # running (and reporting) exactly when a node is unhealthy, instead of
       # being the thing that gets reaped and wedges the whole pipeline.
       priorityClassName: system-node-critical
+      # Listen on the node's own address (the Pod's host IP, which is the
+      # address alloy-metrics scrapes) instead of on every interface. That
+      # takes nothing away from the scrape. It matters on a rack's edge node,
+      # which is the rack's WAN edge: on every interface, its host metrics
+      # would be served to whatever its WAN port faces.
+      service:
+        listenOnAllInterfaces: false
       # Enable the `cgroups` collector (off by default upstream). It reads
       # /proc/cgroups and exports `node_cgroups_cgroups{subsys_name}` — the
       # live cgroup count per controller.
@@ -1523,6 +1576,15 @@ k8s-monitoring:
             source_labels = ["__meta_kubernetes_service_name"]
             target_label = "instance"
           }
+          // A mini in a rack we own (the CAPI provider labels its egress
+          // Service with the rack fleet's name). rack_host is what keeps its
+          // host metrics through the destination's non-production filter.
+          rule {
+            source_labels = ["__meta_kubernetes_service_label_tuist_dev_fleet"]
+            regex = ".+-rack-fleet"
+            target_label = "rack_host"
+            replacement = "true"
+          }
         }
 
         prometheus.scrape "tuist_macos_node_exporter" {
@@ -1548,9 +1610,15 @@ k8s-monitoring:
         prometheus.relabel "tuist_macos_node_exporter" {
           rule {
             source_labels = ["__name__"]
-            regex = "up|scrape_samples_scraped|node_exporter_build_info|node_cpu_seconds_total|node_memory_.*|node_filesystem_.*|node_disk_(read|written)_bytes_total|node_filefd_(allocated|maximum)|node_load.*|node_network_(receive|transmit)_bytes_total|node_pressure_.*|node_sockstat_(TCP_alloc|TCP_inuse|TCP_tw|sockets_used)|node_vmstat_oom_kill|process_cpu_seconds_total|process_resident_memory_bytes"
+            regex = "up|scrape_samples_scraped|node_exporter_build_info|node_cpu_seconds_total|node_memory_.*|node_filesystem_.*|node_disk_(read|written)_bytes_total|node_filefd_(allocated|maximum)|node_load.*|node_network_(receive|transmit)_bytes_total|node_pressure_.*|node_sockstat_(TCP_alloc|TCP_inuse|TCP_tw|sockets_used)|node_vmstat_oom_kill|process_cpu_seconds_total|process_resident_memory_bytes|node_textfile_mtime_seconds|node_textfile_scrape_error|macos_sensor_temperature_celsius|macos_fan_(speed|target|max)_rpm|macos_system_power_watts|macos_thermal_pressure_level"
             action = "keep"
           }
+          // macos_* is written by infra/macos-host-sensors and served by
+          // node_exporter's textfile collector: temperatures, fan speeds, power
+          // and thermal pressure, which node_exporter itself cannot read on a
+          // healthy Apple silicon host. node_textfile_mtime_seconds is how old
+          // the sample is, so a stopped sensors job shows as an aging file
+          // rather than as missing series.
           // Top-level extraConfig sits OUTSIDE the chart's `declare`
           // blocks, so `argument.metrics_destinations.value` is out of
           // scope here. Forward straight to the concrete Grafana Cloud
@@ -1871,6 +1939,11 @@ k8s-monitoring:
         discovery.relabel "tuist_kura_unready" {
           targets = discovery.kubernetes.tuist_kura_unready.targets
           rule {
+            source_labels = ["__meta_kubernetes_pod_label_tuist_dev_node_local_network"]
+            regex = "true"
+            action = "drop"
+          }
+          rule {
             source_labels = ["__meta_kubernetes_pod_phase", "__meta_kubernetes_pod_ready"]
             separator = ";"
             regex = "Running;false"
@@ -2037,19 +2110,21 @@ k8s-monitoring:
           - key: tuist.dev/runner-cache
             operator: Exists
             effect: NoSchedule
-    # Pod logs from a rack's edge node (the rack-edge DaemonSet, see
-    # infra/rack-switch-fleet/AGENTS.md), which alloy-logs cannot collect.
-    # The Cilium agent never runs on that node, so a pod there on the pod
-    # network reaches neither cluster Services nor cluster DNS, and the API
-    # server cannot reach its tailnet-addressed kubelet, so `kubectl logs`
-    # times out too.
+    # Pod logs and Kura metrics from a rack's Linux nodes (its edges and
+    # storage nodes, see infra/rack-nodes/AGENTS.md), which alloy-logs and
+    # alloy-metrics cannot collect. The Cilium agent never runs on a rack node,
+    # so a pod there on the pod network reaches no cluster Service or cluster
+    # DNS, and the cluster reaches no pod there.
     #
-    # This collector runs on the node's host network instead and reads
-    # /var/log/pods itself. It pushes to the receiver's loki.source.api on
-    # 3100 at the receiver's tailnet name, the path the Mac minis use, so the
+    # This collector runs on the node's host network instead. It reads
+    # /var/log/pods itself, and scrapes the node's node-local Kura pods
+    # (tuist.dev/node-local-network), which it finds through the API server:
+    # the node translates the kubernetes Service to it. It pushes logs to the
+    # receiver's loki.source.api on 3100 and metrics to its
+    # prometheus.receive_http on 9009, at the receiver's tailnet name, so the
     # Grafana Cloud credential never reaches the node. Enabled per env in
-    # values-<env>.yaml where a rack's edge node is joined.
-    alloy-rack-edge:
+    # values-<env>.yaml where a rack is joined.
+    alloy-rack:
       enabled: false
       controller:
         type: daemonset
@@ -2063,24 +2138,49 @@ k8s-monitoring:
             requiredDuringSchedulingIgnoredDuringExecution:
               nodeSelectorTerms:
                 - matchExpressions:
-                    - key: tuist.dev/rack-edge
-                      operator: Exists
+                    - key: node.cluster.x-k8s.io/instance-type
+                      operator: In
+                      values: [rack]
         tolerations:
           - key: tuist.dev/rack-edge
+            operator: Exists
+            effect: NoSchedule
+          - key: tuist.dev/rack-storage
             operator: Exists
             effect: NoSchedule
         volumes:
           extra:
             - name: storage
               hostPath:
-                path: /var/lib/tuist-alloy-rack-edge
+                path: /var/lib/tuist-alloy-rack
                 type: DirectoryOrCreate
+            # The host's own /proc, /sys and root filesystem, read by the unix
+            # exporter below.
+            - name: host-proc
+              hostPath:
+                path: /proc
+            - name: host-sys
+              hostPath:
+                path: /sys
+            - name: host-root
+              hostPath:
+                path: /
       alloy:
         mounts:
           varlog: true
           extra:
             - name: storage
               mountPath: /var/lib/alloy
+            - name: host-proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: host-sys
+              mountPath: /host/sys
+              readOnly: true
+            - name: host-root
+              mountPath: /host/root
+              readOnly: true
+              mountPropagation: HostToContainer
         # Read positions survive a restart on the node. The receiver stamps
         # each line with the time it arrives, so a restart that read the
         # files again from the start would ship them again as new lines.
@@ -2092,17 +2192,17 @@ k8s-monitoring:
           limits:
             cpu: 200m
             memory: 256Mi
-      # There is no API access from the node, so namespace, pod and container
+      # Logs need nothing from the API server: namespace, pod and container
       # come from the log file's path, /var/log/pods/<namespace>_<pod>_<uid>/
       # <container>/<n>.log, and service_name falls back to the container,
       # as it does for pods without an app.kubernetes.io/name label.
       extraConfig: |
-        local.file_match "rack_edge_pod_logs" {
+        local.file_match "rack_pod_logs" {
           path_targets = [{"__path__" = "/var/log/pods/*/*/*.log"}]
         }
 
-        discovery.relabel "rack_edge_pod_logs" {
-          targets = local.file_match.rack_edge_pod_logs.targets
+        discovery.relabel "rack_pod_logs" {
+          targets = local.file_match.rack_pod_logs.targets
           rule {
             source_labels = ["__path__"]
             regex = "/var/log/pods/([^_]+)_([^_]+)_[^/]+/([^/]+)/.*"
@@ -2142,12 +2242,12 @@ k8s-monitoring:
           }
         }
 
-        loki.source.file "rack_edge_pod_logs" {
-          targets = discovery.relabel.rack_edge_pod_logs.output
-          forward_to = [loki.process.rack_edge_pod_logs.receiver]
+        loki.source.file "rack_pod_logs" {
+          targets = discovery.relabel.rack_pod_logs.output
+          forward_to = [loki.process.rack_pod_logs.receiver]
         }
 
-        loki.process "rack_edge_pod_logs" {
+        loki.process "rack_pod_logs" {
           stage.cri {}
 
           stage.labels {
@@ -2173,7 +2273,120 @@ k8s-monitoring:
 
         loki.write "tuist_alloy_receiver" {
           endpoint {
-            url = "http://{{ required "alloy-rack-edge pushes to the receiver's tailnet name: set tailscale.com/hostname on collectors.alloy-receiver.service.annotations" (dig "alloy-receiver" "service" "annotations" "tailscale.com/hostname" "" .Values.collectors) }}.taild6d7bb.ts.net:3100/loki/api/v1/push"
+            url = "http://{{ required "alloy-rack pushes to the receiver's tailnet name: set tailscale.com/hostname on collectors.alloy-receiver.service.annotations" (dig "alloy-receiver" "service" "annotations" "tailscale.com/hostname" "" .Values.collectors) }}.taild6d7bb.ts.net:3100/loki/api/v1/push"
+          }
+        }
+
+        // The node's node-local Kura pods, which alloy-metrics leaves alone:
+        // the same job and labels as its Kura scrape, so dashboards and
+        // alerts read them alike.
+        discovery.kubernetes "rack_kura" {
+          role = "pod"
+          namespaces {
+            names = ["kura"]
+          }
+          selectors {
+            role  = "pod"
+            label = "app.kubernetes.io/name=kura,tuist.dev/node-local-network=true"
+            field = "spec.nodeName=" + sys.env("HOSTNAME")
+          }
+        }
+
+        discovery.relabel "rack_kura" {
+          targets = discovery.kubernetes.rack_kura.targets
+          rule {
+            source_labels = ["__meta_kubernetes_pod_phase"]
+            regex = "Running"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_port_name"]
+            regex = "http"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_ip"]
+            target_label = "__address__"
+            replacement = "$1:4000"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label = "pod"
+          }
+          rule {
+            target_label = "container"
+            replacement = "kura"
+          }
+        }
+
+        prometheus.scrape "rack_kura" {
+          targets = discovery.relabel.rack_kura.output
+          forward_to = [prometheus.remote_write.tuist_alloy_receiver.receiver]
+          job_name = "kura"
+          scrape_interval = "65s"
+          scrape_timeout = "10s"
+        }
+
+        // The node's host metrics, since node-exporter stays off rack nodes:
+        // the job, allow-list and processing of its scrape
+        // (hostMetrics.linuxHosts), with the node as instance, and
+        // rack_host="true", which keeps them through the destination's
+        // non-production filter.
+        prometheus.exporter.unix "rack_host" {
+          procfs_path = "/host/proc"
+          sysfs_path = "/host/sys"
+          rootfs_path = "/host/root"
+          udev_data_path = "/host/root/run/udev/data"
+          set_collectors = ["cpu", "diskstats", "filesystem", "hwmon", "loadavg", "meminfo", "netclass", "netdev", "netstat", "pressure", "thermal_zone", "timex", "vmstat"]
+        }
+
+        discovery.relabel "rack_host" {
+          targets = prometheus.exporter.unix.rack_host.targets
+          rule {
+            target_label = "job"
+            replacement = "integrations/node_exporter"
+          }
+          rule {
+            target_label = "instance"
+            replacement = sys.env("HOSTNAME")
+          }
+          rule {
+            target_label = "rack_host"
+            replacement = "true"
+          }
+        }
+
+        prometheus.scrape "rack_host" {
+          targets = discovery.relabel.rack_host.output
+          forward_to = [prometheus.relabel.rack_host.receiver]
+          job_name = "integrations/node_exporter"
+          scrape_interval = "60s"
+          scrape_timeout = "10s"
+        }
+
+        prometheus.relabel "rack_host" {
+          rule {
+            source_labels = ["__name__"]
+            regex = "up|scrape_samples_scraped|{{ join "|" .Values.hostMetrics.linuxHosts.metricsTuning.includeMetrics }}"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__name__", "fstype"]
+            separator = "@"
+            regex = "node_filesystem.*@(ramfs|tmpfs)"
+            action = "drop"
+          }
+          {{- .Values.hostMetrics.linuxHosts.extraMetricProcessingRules | trim | nindent 2 }}
+          forward_to = [prometheus.remote_write.tuist_alloy_receiver.receiver]
+        }
+
+        prometheus.remote_write "tuist_alloy_receiver" {
+          endpoint {
+            url = "http://{{ dig "alloy-receiver" "service" "annotations" "tailscale.com/hostname" "" .Values.collectors }}.taild6d7bb.ts.net:9009/api/v1/metrics/write"
           }
         }
     # Kubernetes Events must come from exactly one replica — otherwise
@@ -2213,6 +2426,10 @@ k8s-monitoring:
             port: 3100
             targetPort: 3100
             protocol: TCP
+          - name: metrics-push
+            port: 9009
+            targetPort: 9009
+            protocol: TCP
           - name: faro
             port: 12347
             targetPort: 12347
@@ -2224,6 +2441,16 @@ k8s-monitoring:
             listen_port = 3100
           }
           forward_to = [loki.write.grafana_cloud_logs.receiver]
+        }
+
+        // Prometheus remote write from collectors the cluster cannot scrape
+        // through, such as alloy-rack on a rack's nodes, over the tailnet.
+        prometheus.receive_http "tuist_rack" {
+          http {
+            listen_address = "0.0.0.0"
+            listen_port = 9009
+          }
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
         }
 
         // Browser real user monitoring for tuist.dev. The Grafana Faro Web SDK

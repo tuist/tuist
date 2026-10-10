@@ -27,6 +27,8 @@ defmodule Tuist.MCP.Server do
     Tools.CreateOrganization,
     Tools.CreateProject,
     Tools.AddOrganizationMember,
+    Tools.InviteOrganizationMember,
+    Tools.CancelOrganizationInvitation,
     Tools.ListRunnerJobs,
     Tools.GetRunnerJob,
     Tools.ListRunnerJobSteps,
@@ -123,13 +125,13 @@ defmodule Tuist.MCP.Server do
   """
 
   @agent_workflow_instructions """
-  If this server is unauthenticated, fetch the `auth_md` URL from the 401 response. If only the discovery documents are available, read `agent_auth.skill` from the authorization-server metadata. Follow that deployment-local document through registration, identity-assertion exchange, and claim polling before falling back to browser Open Authorization. Never invent credentials. Prefer anonymous registration when no trusted provider assertion is available. Before sending a service-authenticated email or starting an anonymous claim, explicitly ask the user to confirm the email address for their Tuist account; do not derive it from a provider profile, Git configuration, environment variables, or session metadata. During a claim, show the verification link and six-digit code together, and tell the user to enter the code on the Tuist page rather than sending it back to the agent. The `get_gradle_integration_guide` and `get_bazel_integration_guide` tools provide the Gradle, Android, and Bazel integration workflows. Use `list_accounts` when an account handle is unknown. Model Context Protocol authentication only authorizes Tuist tools; Gradle and Bazel require separate `tuist auth whoami --url` authentication. Never continue a verification build after that check fails. Verify integrations through Tuist read-back tools before reporting success.
+  This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow. Never invent credentials. Model Context Protocol authentication only authorizes Tuist tools; it does not authenticate local command-line tools or build-system integrations. Verify the outcome of requested changes through the relevant Tuist tools before reporting success.
   """
 
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.34.0",
+      version: "1.35.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),

@@ -11,6 +11,7 @@ defmodule Tuist.Tests.CoverageTest do
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
+  alias Tuist.Tests.Workers.PublishCoverageWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -102,6 +103,81 @@ defmodule Tuist.Tests.CoverageTest do
         }
       )
     )
+  end
+
+  describe "create_test/1 with a build system's coverage" do
+    defp tool(test) do
+      ClickHouseRepo.one(
+        from(c in CoverageRun,
+          where: c.test_run_id == ^test.id,
+          group_by: c.test_run_id,
+          select: {
+            fragment("argMax(?, ?)", c.build_system, c.version),
+            fragment("argMax(?, ?)", c.coverage_tool, c.version),
+            fragment("argMax(?, ?)", c.coverage_tool_version, c.version)
+          }
+        )
+      )
+    end
+
+    defp build_systems(test) do
+      ClickHouseRepo.all(
+        from(f in CoverageFile, where: f.test_run_id == ^test.id, distinct: true, select: f.build_system)
+      )
+    end
+
+    test "stores a Mix run's coverage as measured by cover, its test code left out", %{
+      project: project,
+      account: account
+    } do
+      lib = file("lib/calculator.ex", "calc1", ["calculator"], [{2, 3}, {3, 0}, {5, 1}])
+      test_file = "test/calculator_test.exs" |> file("calctest1", ["calculator"], [{4, 1}]) |> Map.put(:is_test, true)
+
+      {:ok, test} =
+        create_test(project, account, %{
+          build_system: "mix",
+          coverage: %{tool: "cover", tool_version: "OTP 28/Elixir 1.19.5", partial: false, files: [lib, test_file]}
+        })
+
+      assert published_totals(project, test) == %{covered_lines: 2, executable_lines: 3, partial: false}
+      assert tool(test) == {"mix", "cover", "OTP 28/Elixir 1.19.5"}
+      assert build_systems(test) == ["mix"]
+
+      assert project.id |> CoverageFixtures.targets_for_run(test.id) |> Enum.map(&{&1.name, &1.files_count}) == [
+               {"calculator", 1}
+             ]
+    end
+
+    test "records Xcode coverage as measured by xccov with the run's Xcode", %{project: project, account: account} do
+      {:ok, test} = create_test(project, account, %{xcode_version: "27.0", xcode_coverage: coverage([add()])})
+
+      assert tool(test) == {"xcode", "xccov", "27.0"}
+      assert build_systems(test) == ["xcode"]
+    end
+
+    test "schedules a Mix run's uploaded coverage with the tool that measured it", %{
+      project: project,
+      account: account
+    } do
+      {:ok, test} =
+        create_test(project, account, %{
+          build_system: "mix",
+          coverage: %{tool: "cover", tool_version: "OTP 28/Elixir 1.19.5", partial: true, storage_key: "key"}
+        })
+
+      assert_enqueued(
+        worker: PublishCoverageWorker,
+        args: %{
+          test_run_id: test.id,
+          storage_key: "key",
+          partial: true,
+          tool: "cover",
+          tool_version: "OTP 28/Elixir 1.19.5"
+        }
+      )
+
+      assert published_totals(project, test) == nil
+    end
   end
 
   describe "create_test/1 with xcode_coverage" do
@@ -503,7 +579,7 @@ defmodule Tuist.Tests.CoverageTest do
         )
 
       assert_enqueued(
-        worker: Tuist.Tests.Workers.PublishCoverageWorker,
+        worker: PublishCoverageWorker,
         args: %{test_run_id: test.id, storage_key: "key", partial: true, shard_index: 1, expected_shards: 2}
       )
 
@@ -575,6 +651,6 @@ defmodule Tuist.Tests.CoverageTest do
       |> Enum.sort()
 
     assert tables ==
-             ~w(coverage_commit_targets coverage_file_deltas coverage_files coverage_runs git_commit_files test_run_changed_files test_run_enumerated_tests)
+             ~w(coverage_commit_targets coverage_file_deltas coverage_files coverage_runs git_commit_files test_run_changed_files)
   end
 end

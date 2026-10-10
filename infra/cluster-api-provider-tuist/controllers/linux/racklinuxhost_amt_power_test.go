@@ -459,23 +459,40 @@ func TestRequestAMTPowerLeavesTheBootAloneWithoutANetboot(t *testing.T) {
 	}
 }
 
-// A host connected to the tailnet is on, whatever AMT would say, so it is not
-// asked.
+// A host connected to the tailnet is on, whatever AMT would say. AMT is read
+// hourly only to show it can still be reached, and nothing is changed.
 func TestRackPowerTakesAConnectedHostToBeOn(t *testing.T) {
 	h, calls := newPowerHarness(t, activatedAMTEdge(""), otherConnectedEdge(), amtSecret("Stored-Pa55!"))
 	var reads int
-	h.r.AMTPower = func(context.Context, *infrav1.RackLinuxHost, string, amtCredentials, amtPowerChange) (amtResponse, error) {
+	h.r.AMTPower = func(_ context.Context, _ *infrav1.RackLinuxHost, _ string, _ amtCredentials, change amtPowerChange) (amtResponse, error) {
+		if !change.read {
+			*calls = append(*calls, powerCall{state: change.state})
+		}
 		reads++
-		return amtResponse{}, nil
+		return amtResponse{PowerState: rackPowerOff}, nil
 	}
 
 	got := h.reconcile(t, edgeUUID)
 
-	if reads != 0 || len(*calls) != 0 {
-		t.Fatalf("asked AMT %d times", reads)
+	if reads != 1 || len(*calls) != 0 {
+		t.Fatalf("asked AMT %d times, changes %+v; want one read and no change", reads, *calls)
 	}
-	if got.Status.Power == nil || got.Status.Power.State != rackPowerOn || !conditions.IsTrue(got, PowerCondition) {
+	if got.Status.Power == nil || got.Status.Power.State != rackPowerOn || got.Status.Power.Source != powerSourceTailnet || !conditions.IsTrue(got, PowerCondition) {
 		t.Fatalf("power %+v condition %+v", got.Status.Power, conditions.Get(got, PowerCondition))
+	}
+	if read := got.Status.AMT.LastPowerRead; read == nil || read.Action != "read" || read.Via != "ber1-edge-b" || read.Error != "" {
+		t.Fatalf("lastPowerRead %+v", read)
+	}
+
+	h.now = installEpoch.Add(amtPowerCheckInterval - time.Minute)
+	h.reconcile(t, edgeUUID)
+	if reads != 1 {
+		t.Fatalf("read AMT %d times inside the hour", reads)
+	}
+	h.now = installEpoch.Add(amtPowerCheckInterval)
+	h.reconcile(t, edgeUUID)
+	if reads != 2 {
+		t.Fatalf("read AMT %d times, want it read again after an hour", reads)
 	}
 }
 

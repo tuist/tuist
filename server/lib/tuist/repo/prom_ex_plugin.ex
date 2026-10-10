@@ -8,13 +8,19 @@ defmodule Tuist.Repo.PromExPlugin do
     repos: [
       {Tuist.Repo, %{repo: "postgres", database: "postgres"}},
       {Tuist.ClickHouseRepo, %{repo: "clickhouse_read", database: "clickhouse"}},
-      {Tuist.IngestRepo, %{repo: "clickhouse_write", database: "clickhouse"}}
+      {Tuist.IngestRepo, %{repo: "clickhouse_write", database: "clickhouse"}},
+      {Tuist.ShadowClickHouseRepo, %{repo: "clickhouse_shadow_read", database: "clickhouse"}},
+      {Tuist.ShadowIngestRepo, %{repo: "clickhouse_shadow_write", database: "clickhouse"}},
+      {Tuist.OpsClickHouseRepo, %{repo: "ops_clickhouse_read", database: "clickhouse"}}
     ]
 
   @query_repos [
     {[:tuist, :repo, :query], "postgres"},
     {[:tuist, :click_house_repo, :query], "clickhouse_read"},
-    {[:tuist, :ingest_repo, :query], "clickhouse_write"}
+    {[:tuist, :ingest_repo, :query], "clickhouse_write"},
+    {[:tuist, :shadow_click_house_repo, :query], "clickhouse_shadow_read"},
+    {[:tuist, :shadow_ingest_repo, :query], "clickhouse_shadow_write"},
+    {[:tuist, :ops_click_house_repo, :query], "ops_clickhouse_read"}
   ]
   @duration_buckets [1, 5, 10, 25, 50, 100, 250, 500, 1_000, 2_500, 5_000, 15_000, 30_000]
   @query_event [:tuist, :database, :query]
@@ -42,7 +48,7 @@ defmodule Tuist.Repo.PromExPlugin do
         [:tuist, :repo, :query, :count],
         tags ++ [description: "Database query attempts, including failures before execution."]
       )
-      | Enum.map([:total_time, :queue_time, :query_time, :decode_time], fn measurement ->
+      | Enum.map([:total_time, :queue_time, :query_time, :decode_time, :idle_time], fn measurement ->
           distribution(
             [:tuist, :repo, :query, measurement, :milliseconds],
             tags ++

@@ -66,7 +66,7 @@ playground.xcworkspace
 # Add this line if you want to avoid checking in source code from Swift Package Manager dependencies.
 # Packages/
 # Package.pins
-.build/
+.build
 .build-linux/
 .swiftpm/xcode
 
@@ -128,6 +128,9 @@ cli/Tests/Fixtures/*.xcresult/database.sqlite3
 
 # Kotlin
 .kotlin/
+
+# Once build outputs and local state
+.once/
 
 # Cluster credentials — never commit.
 # `*.kubeconfig` covers the break-glass management kubeconfig, which is

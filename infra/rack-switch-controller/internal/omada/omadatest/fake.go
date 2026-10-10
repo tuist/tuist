@@ -65,6 +65,14 @@ type Switch struct {
 	LAGs      map[int][]int
 	// The switch's interfaces, as GET switches/{mac}/networks returns them.
 	Networks []map[string]any
+	// Utilization in percent, as the device list reports it.
+	CPU    int
+	Memory int
+	// The health detail's average temperature; nil on a model without the
+	// sensor, which the controller reports as unsupported.
+	Temperature *int
+	// Transceiver diagnostics, as ddm/info reports them.
+	Optics []omada.Optic
 
 	queue []State
 }
@@ -93,6 +101,7 @@ func ManagementInterface(mode int, address, netmask, gateway string) map[string]
 type Request struct {
 	Method string
 	Path   string
+	Query  string
 	Body   map[string]any
 }
 
@@ -304,6 +313,8 @@ var (
 	routeLAG     = regexp.MustCompile(sitePrefix + `/switches/` + macPath + `/lags/(\d+)$`)
 	routeSwNets  = regexp.MustCompile(sitePrefix + `/switches/` + macPath + `/networks$`)
 	routeSwNet   = regexp.MustCompile(sitePrefix + `/switches/` + macPath + `/networks/([^/]+)$`)
+	routeHealth  = regexp.MustCompile(sitePrefix + `/switches/` + macPath + `/health/detail$`)
+	routeDDM     = regexp.MustCompile(sitePrefix + `/switches/` + macPath + `/ddm/info$`)
 	routeAdopt   = regexp.MustCompile(sitePrefix + `/devices/` + macPath + `/start-adopt$`)
 	routeSite    = regexp.MustCompile(sitePrefix + `(/.*)$`)
 )
@@ -339,7 +350,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		reply(w, nil, fail(-44112, "The access token has expired."))
 		return
 	}
-	s.requests = append(s.requests, Request{Method: r.Method, Path: path, Body: body})
+	s.requests = append(s.requests, Request{Method: r.Method, Path: path, Query: r.URL.RawQuery, Body: body})
 	result, err := s.route(r.Method, path, body)
 	reply(w, result, err)
 }
@@ -399,6 +410,24 @@ func (s *Server) route(method, path string, body map[string]any) (any, error) {
 			return nil, err
 		}
 		return map[string]any{"mac": sw.MAC, "portList": sw.Ports}, nil
+	}
+	if m := routeHealth.FindStringSubmatch(path); m != nil && method == http.MethodGet {
+		sw, err := s.adopted(m[1], m[2])
+		if err != nil {
+			return nil, err
+		}
+		temperature := map[string]any{"support": sw.Temperature != nil}
+		if sw.Temperature != nil {
+			temperature["averageNum"] = *sw.Temperature
+		}
+		return map[string]any{"temperature": temperature}, nil
+	}
+	if m := routeDDM.FindStringSubmatch(path); m != nil && method == http.MethodGet {
+		sw, err := s.adopted(m[1], m[2])
+		if err != nil {
+			return nil, err
+		}
+		return append([]omada.Optic{}, sw.Optics...), nil
 	}
 	if m := routeGeneral.FindStringSubmatch(path); m != nil {
 		sw, err := s.adopted(m[1], m[2])
@@ -544,7 +573,8 @@ func (s *Server) deviceList(pendingOnly bool) []omada.Device {
 			continue
 		}
 		detail := sw.State.Detail
-		devices = append(devices, omada.Device{MAC: sw.MAC, Model: sw.Model, Name: sw.Hostname, Status: sw.State.Status, DetailStatus: &detail})
+		cpu, memory := sw.CPU, sw.Memory
+		devices = append(devices, omada.Device{MAC: sw.MAC, Model: sw.Model, Name: sw.Hostname, Status: sw.State.Status, DetailStatus: &detail, CPUUtil: &cpu, MemUtil: &memory})
 	}
 	return devices
 }

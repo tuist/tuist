@@ -34,6 +34,7 @@ defmodule TuistWeb.Router do
 
   pipeline :open_graph_image do
     plug :put_request_kind, "open_graph_image"
+    plug :rate_limit, limit: 60
     # Open Graph images belong to the marketing and docs sites, which are not served
     # on-premise. Forward these requests away there instead of spinning up a
     # headless browser render the deployment does not need.
@@ -268,6 +269,13 @@ defmodule TuistWeb.Router do
     plug :fetch_current_user
   end
 
+  pipeline :marketing_markdown do
+    plug :put_request_kind, "marketing"
+    plug :enable_robot_indexing
+    plug :mark_public_marketing_page
+    plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
+  end
+
   pipeline :browser_marketing_feed do
     plug :put_request_kind, "marketing_feed"
     plug :accepts, ["xml"]
@@ -350,6 +358,7 @@ defmodule TuistWeb.Router do
     get "/robots.txt", RobotsTxtController, :show, metadata: %{robots_txt: false}
 
     get "/llms.txt", LlmsTxtController, :show, metadata: @marketing_route_metadata
+    get "/llms-full.txt", LlmsTxtController, :full, metadata: @docs_route_metadata
   end
 
   scope "/", TuistWeb do
@@ -359,6 +368,14 @@ defmodule TuistWeb.Router do
   end
 
   # Marketing
+
+  scope "/", TuistWeb do
+    pipe_through [:marketing_markdown]
+
+    get "/marketing-markdown", MarketingMarkdownController, :show, metadata: @marketing_route_metadata
+    get "/marketing-markdown/source/*path", MarketingMarkdownController, :source, metadata: @marketing_route_metadata
+    get "/marketing-markdown/*path", MarketingMarkdownController, :show, metadata: @marketing_route_metadata
+  end
 
   scope "/" do
     pipe_through [:browser_marketing_feed]
@@ -855,6 +872,8 @@ defmodule TuistWeb.Router do
           get "/", BuildsController, :index
 
           scope "/metrics" do
+            get "/health", MetricsController, :build_health
+            get "/health/dimensions/:dimension/values", MetricsController, :build_health_dimension_values
             get "/duration", MetricsController, :build_duration
             get "/dimensions/:dimension/values", MetricsController, :build_dimension_values
           end
@@ -886,6 +905,8 @@ defmodule TuistWeb.Router do
         end
 
         scope "/gradle" do
+          get "/builds/metrics", MetricsController, :gradle_metrics
+          get "/builds/metrics/dimensions/:dimension/values", MetricsController, :gradle_dimension_values
           post "/builds", GradleController, :create_build
           get "/builds", GradleController, :list_builds
           get "/builds/:build_id", GradleController, :get_build
@@ -1005,6 +1026,7 @@ defmodule TuistWeb.Router do
     post "/runners/volume-head", RunnersController, :report_volume_head
     post "/runners/volume-head/upload-url", RunnersController, :volume_head_upload_url
     get "/runners/cache-masters", RunnerCacheMastersController, :index
+    post "/runners/cache-masters/usage", RunnerCacheMastersController, :report_usage
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show
     get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
@@ -1359,6 +1381,8 @@ defmodule TuistWeb.Router do
         RunnerJobLogsController,
         :download
 
+    get "/runners/by-runner/:runner_name", RunnerJobRedirectController, :show
+
     live_session :public_account,
       layout: {TuistWeb.Layouts, :account},
       session: {TuistWeb.RemoteIp, :live_session, []},
@@ -1493,7 +1517,7 @@ defmodule TuistWeb.Router do
       get "/invocations", RedirectPlug, to: "/builds"
       live "/invocations/:invocation_id", BazelBuildInvocationLive, metadata: @public_project_route_metadata
       live "/", OverviewLive, metadata: @public_project_route_metadata
-      live "/analytics", OverviewLive, metadata: @public_project_route_metadata
+      live "/analytics", OverviewLive, :analytics, metadata: @public_project_route_metadata
       live "/bundles", BundlesLive, metadata: @public_project_route_metadata
       live "/bundles/:bundle_id", BundleLive, metadata: @public_project_route_metadata
       live "/builds", BuildsLive, metadata: @public_project_route_metadata

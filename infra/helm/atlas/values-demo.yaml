@@ -1,0 +1,29 @@
+# Apply only over standalone values.yaml, never the managed production overlay.
+# Use a separate namespace and database. Provision the two Secrets first; the
+# application DATABASE_URL must use a SELECT-only role, not the database owner.
+fullnameOverride: atlas-demo
+host: demo.atlas.tuist.dev
+appSecretName: atlas-demo-app
+replicaCount: 1
+demo:
+  enabled: true
+  databaseNamespace: atlas-demo
+  databasePodSelector:
+    app.kubernetes.io/name: atlas-demo-postgres
+migrationJob:
+  enabled: true
+  appSecretName: atlas-demo-migrator
+env:
+  ATLAS_DEMO_MODE: 'true'
+  ATLAS_ALLOWED_EMAIL_DOMAIN: example.invalid
+  ATLAS_CLICKHOUSE_ENABLED: 'false'
+  MCP_PROXY_SERVERS: '[]'
+  # The release image otherwise enables Chromium by default.
+  CHROME_PATH: ''
+  POOL_SIZE: '10'
+  DATABASE_SSL: 'false'
+ingress:
+  enabled: true
+  className: nginx
+  clusterIssuer: letsencrypt
+  tlsSecretName: atlas-demo-tls

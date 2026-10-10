@@ -69,7 +69,19 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
       assert html |> Floki.find("#marketing-navbar") |> List.first()
       assert html |> Floki.find("link[href='/marketing/assets/bundle.css']") |> List.first()
       assert html |> Floki.find("title:fl-contains('Page not found · Tuist')") |> List.first()
-      assert html |> Floki.find("link[rel='canonical'][href$='/does-not-exist']") |> List.first()
+    end
+
+    test "does not link to the missing path in other locales" do
+      conn = %{build_conn() | request_path: "/zh_Hans/pl/blog"}
+
+      html = render_not_found(conn)
+
+      hrefs = Floki.attribute(html, "a, link", "href")
+      refute Enum.any?(hrefs, &String.contains?(&1, "/pl/blog"))
+      refute html |> Floki.find("link[rel='canonical']") |> List.first()
+      refute html |> Floki.find("link[rel='alternate'][hreflang]") |> List.first()
+      assert html |> Floki.find("meta[name='robots'][content='noindex, nofollow']") |> List.first()
+      assert html |> Floki.find("#footer-locale-dropdown-content-target a[data-value='en'][href='/']") |> List.first()
     end
 
     test "renders the marketing 404 for a request that went through the marketing pipeline" do

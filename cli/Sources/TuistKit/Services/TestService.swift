@@ -125,7 +125,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let uploadResultBundleService: UploadResultBundleServicing
     private let derivedDataLocator: DerivedDataLocating
     private let testExecutionModeResolver: TestExecutionModeResolving
-    private let testEnumerationService: TestEnumerationServicing?
     private let testCoverageEvidenceService: TestCoverageEvidenceServicing
     private let createTestService: CreateTestServicing
     private let gitHistoryService: GitHistoryServicing
@@ -173,7 +172,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         testExecutionModeResolver: TestExecutionModeResolving = TestExecutionModeResolver(),
-        testEnumerationService: TestEnumerationServicing? = nil,
         testCoverageEvidenceService: TestCoverageEvidenceServicing = TestCoverageEvidenceService(),
         createTestService: CreateTestServicing = CreateTestService(),
         gitHistoryService: GitHistoryServicing = GitHistoryService(),
@@ -208,7 +206,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.uploadResultBundleService = uploadResultBundleService
         self.derivedDataLocator = derivedDataLocator
         self.testExecutionModeResolver = testExecutionModeResolver
-        self.testEnumerationService = testEnumerationService
         self.testCoverageEvidenceService = testCoverageEvidenceService
         self.createTestService = createTestService
         self.gitHistoryService = gitHistoryService
@@ -2209,15 +2206,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             skipSigning: false
         )
         let parseSummary = mode == .local || stressNewTests != nil
-        let enumeration = TestEnumerationContext(
-            target: .workspace(graphTraverser.workspace.xcWorkspacePath),
-            scheme: scheme.name,
-            destination: destination,
-            rosetta: rosetta,
-            derivedDataPath: derivedDataPath,
-            testPlan: testPlanConfiguration?.testPlan,
-            arguments: buildArguments.flatMap(\.arguments) + passthroughXcodeBuildArguments
-        )
 
         // The stress pass reruns only the candidates, in a fresh process per repetition, against the
         // products the first pass built. The caller's own repetition options are dropped so the
@@ -2270,7 +2258,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
                     testPlanConfiguration: testPlanConfiguration,
-                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+                    passthroughXcodeBuildArguments: UploadResultBundleService.uploadsCoverage(config: config)
+                        ? AtomicCoverageCounters.adding(to: passthroughXcodeBuildArguments)
+                        : passthroughXcodeBuildArguments
                 )
             }
             await recordCoverageEvidence()
@@ -2311,8 +2301,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 stressNewTests: stressResult,
                 selectiveTestingTargets: selectiveTestingTargets,
                 xcodebuildArguments: passthroughXcodeBuildArguments,
-                schemeTargets: TestExecutionModeResolver.targets(scheme: scheme, testPlan: testPlanConfiguration?.testPlan),
-                enumeration: enumeration
+                schemeTargets: TestExecutionModeResolver.targets(scheme: scheme, testPlan: testPlanConfiguration?.testPlan)
             )
             stressWithheldTargetNames.formUnion(stressResult?.withheldTargetNames ?? [])
             if let stressResult, stressResult.blocks {
@@ -2354,8 +2343,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             stressNewTests: stressResult,
             selectiveTestingTargets: selectiveTestingTargets,
             xcodebuildArguments: passthroughXcodeBuildArguments,
-            schemeTargets: TestExecutionModeResolver.targets(scheme: scheme, testPlan: testPlanConfiguration?.testPlan),
-            enumeration: enumeration
+            schemeTargets: TestExecutionModeResolver.targets(scheme: scheme, testPlan: testPlanConfiguration?.testPlan)
         )
         stressWithheldTargetNames.formUnion(stressResult?.withheldTargetNames ?? [])
         if let stressResult, stressResult.blocks {
@@ -2520,8 +2508,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         stressNewTests: StressNewTestsResult? = nil,
         selectiveTestingTargets: Set<GraphTarget>? = nil,
         xcodebuildArguments: [String] = [],
-        schemeTargets: [String: String] = [:],
-        enumeration: TestEnumerationContext? = nil
+        schemeTargets: [String: String] = [:]
     ) async {
         guard config.fullHandle != nil, action != .build
         else { return }
@@ -2550,18 +2537,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             derivedDataPath: projectDerivedDataDirectory,
             schemeTargets: schemeTargets
         )
-        if let enumeration {
-            _ = await (testEnumerationService ?? TestEnumerationService(xcodeBuildController: xcodebuildController)).record(
-                resultBundlePath: resultBundlePath,
-                target: enumeration.target,
-                scheme: enumeration.scheme,
-                destination: enumeration.destination,
-                rosetta: enumeration.rosetta,
-                derivedDataPath: enumeration.derivedDataPath,
-                testPlan: enumeration.testPlan,
-                xcodebuildArguments: enumeration.arguments
-            )
-        }
 
         do {
             switch mode {

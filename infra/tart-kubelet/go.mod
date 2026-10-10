@@ -5,8 +5,10 @@ go 1.25.0
 toolchain go1.25.10
 
 require (
+	github.com/go-logr/logr v1.4.2
 	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.1
+	github.com/tuist/tuist/infra/runner-cache v0.0.0
 	golang.org/x/sys v0.43.0
 	k8s.io/api v0.32.1
 	k8s.io/apimachinery v0.32.1
@@ -22,7 +24,6 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
-	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
@@ -66,3 +67,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+replace github.com/tuist/tuist/infra/runner-cache => ../runner-cache

@@ -1,7 +1,11 @@
 <div id="test-case-run-detail">
   <.button
     :if={@test_run}
-    label={@test_run.scheme || dgettext("dashboard_tests", "Test Run")}
+    label={
+      if @test_run.scheme in [nil, ""] and @selected_project.build_system not in [:mix, :bazel],
+        do: dgettext("dashboard_tests", "Test Run"),
+        else: test_run_label(@selected_project, @test_run.scheme)
+    }
     data-part="back-button"
     variant="secondary"
     size="medium"
@@ -187,7 +191,7 @@
             <div data-part="metadata">
               <div data-part="title">{scheme_label(@selected_project)}</div>
               <span data-part="value">
-                {@test_case_run.scheme || dgettext("dashboard_tests", "Unknown")}
+                {test_run_label(@selected_project, @test_case_run.scheme)}
               </span>
             </div>
             <div
@@ -216,7 +220,7 @@
                 }
                 data-part="value-link"
               >
-                {@test_run.scheme || dgettext("dashboard_tests", "Unknown")}
+                {test_run_label(@selected_project, @test_run.scheme)}
                 <.link_icon />
               </.link>
             </div>

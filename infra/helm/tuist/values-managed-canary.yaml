@@ -762,6 +762,8 @@ macosFleet:
 # Canary keeps one warm runner so the production rollout can be
 # validated on the same substrate first.
 runnersFleet:
+  customCacheVolumes:
+    enabled: true
   enabled: true
   hostCount: 1
   # Pre-ordered pool. Operator pre-orders Mac minis named with the
@@ -785,6 +787,11 @@ runnersFleet:
   # guarantee; the sum across overrides must stay ≤ `hostCount`.
   xcodeOverrides:
     "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+    "27.1-rc":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

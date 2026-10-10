@@ -1,6 +1,7 @@
 defmodule TuistWeb.RobotsTxtControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
 
+  alias TuistWeb.Utilities.MarketingMarkdown
   alias TuistWeb.Utilities.RobotsTxt
 
   describe "GET /robots.txt" do
@@ -14,19 +15,49 @@ defmodule TuistWeb.RobotsTxtControllerTest do
       assert body =~ "Content-Usage: /customers train-ai=y, search=y, ai-input=y"
       assert body =~ "Content-Usage: /en/docs train-ai=y, search=y, ai-input=y"
       assert body =~ "Content-Usage: /en/docs-markdown train-ai=y, search=y, ai-input=y"
+      assert body =~ "Content-Usage: /marketing-markdown train-ai=y, search=y, ai-input=y"
       assert body =~ "Disallow: /api/"
       assert body =~ "Disallow: /docs"
       assert body =~ "Disallow: /*/settings"
       refute body =~ "Disallow: /*/module-cache"
 
       refute body =~ "Content-Usage: /docs/login"
-      refute body =~ "Content-Usage: /marketing"
+      refute body =~ "Content-Usage: /marketing "
+      refute body =~ "Content-Usage: /marketing$ "
       refute body =~ "Disallow: /robots.txt"
       refute body =~ "Disallow: /.well-known/api-catalog"
       refute body =~ "Disallow: /live/"
       refute body =~ "Disallow: /*/cache-runs"
 
       assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
+    end
+
+    test "opts Markdown-only decision guides into marketing content usage", %{conn: conn} do
+      body = conn |> get("/robots.txt") |> response(200)
+
+      public_patterns =
+        Regex.scan(~r/^Content-Usage: (\S+) train-ai=y, search=y, ai-input=y$/m, body, capture: :all_but_first)
+
+      for page <- MarketingMarkdown.decision_guides() do
+        path = MarketingMarkdown.alternate_path(page.path)
+
+        assert Enum.any?(public_patterns, fn [pattern] ->
+                 if String.ends_with?(pattern, "$") do
+                   path == String.trim_trailing(pattern, "$")
+                 else
+                   String.starts_with?(path, pattern)
+                 end
+               end)
+
+        refute Enum.any?(RobotsTxt.disallow_patterns(), fn pattern ->
+                 regex = pattern |> Regex.escape() |> String.replace("\\*", ".*") |> String.replace("\\$", "$")
+                 Regex.match?(Regex.compile!("^" <> regex), path)
+               end)
+      end
+
+      refute body =~ "Content-Usage: /solutions"
+      refute body =~ "Content-Usage: /compare"
+      refute body =~ "Content-Usage: /build-systems"
     end
 
     test "points crawlers at the sitemap", %{conn: conn} do
@@ -78,10 +109,14 @@ defmodule TuistWeb.RobotsTxtControllerTest do
       end
     end
 
-    test "opts llms.txt into the public content usage", %{conn: conn} do
+    test "opts llms.txt and llms-full.txt into the public content usage", %{conn: conn} do
       conn = get(conn, "/robots.txt")
 
-      assert response(conn, 200) =~ "Content-Usage: /llms.txt$ train-ai=y, search=y, ai-input=y"
+      body = response(conn, 200)
+
+      assert body =~ "Content-Usage: /llms.txt$ train-ai=y, search=y, ai-input=y"
+      assert body =~ "Content-Usage: /llms-full.txt$ train-ai=y, search=y, ai-input=y"
+      refute body =~ "Disallow: /llms-full.txt"
     end
   end
 end

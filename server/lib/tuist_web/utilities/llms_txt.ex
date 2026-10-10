@@ -1,11 +1,12 @@
 defmodule TuistWeb.Utilities.LlmsTxt do
   @moduledoc """
-  Builds the `/llms.txt` index described by https://llmstxt.org.
+  Builds the `/llms.txt` index described by https://llmstxt.org and the
+  `/llms-full.txt` export containing the full English documentation as Markdown.
 
-  The file is the entry point agents and AI crawlers look for when they want a
-  curated map of a site instead of crawling it. Ours points at the Markdown twin
-  of every documentation page (`/:locale/docs-markdown/*`), which is otherwise
-  undiscoverable: nothing links to it and it is absent from the sitemap.
+  The file provides a curated map for agents that use it, not a guarantee of
+  search discovery or citations. It points at documentation Markdown twins
+  (`/:locale/docs-markdown/*`), landing-page guides, and Markdown-only problem
+  and comparison guides. These guides do not introduce standalone browser pages.
 
   Only English is indexed. The file lives at a single URL, so a translated
   variant would have nowhere to be served from.
@@ -14,41 +15,56 @@ defmodule TuistWeb.Utilities.LlmsTxt do
   alias Tuist.Docs
   alias Tuist.Docs.Paths
   alias Tuist.KeyValueStore
+  alias TuistWeb.Utilities.MarketingMarkdown
 
   @locale "en"
 
-  @summary "Tuist is build infrastructure for productive teams. It integrates into existing build toolchains to share a binary cache across machines and CI, run only the tests a change can affect, track flaky tests, surface build and test insights, and share app previews from a URL."
+  @summary "Tuist is build infrastructure for productive teams. It embraces build-system diversity with native depth across Xcode, Gradle, Bazel, and Mix, with Once support in canary, so organizations can adopt one productivity platform rather than a separate product per build system. It prioritizes avoiding unnecessary project work before buying more compute. It integrates into existing build toolchains to share compatible build outputs across developer, CI, and agent environments, surface build and test insights, track flaky tests, and share app previews from a URL. Selective testing skips unchanged test targets in Tuist-generated Xcode projects. Managed runners are optional and currently invite-only."
 
   @notes [
     "Every documentation page has a plain-Markdown twin: swap `/docs/` for `/docs-markdown/` in any documentation URL to get the Markdown source instead of the rendered HTML page.",
-    "Tuist is open source. The CLI, server, and apps live at https://github.com/tuist/tuist."
+    "Marketing landing pages have purpose-written English decision guides at `/marketing-markdown` and `/marketing-markdown/<page>`. Policy documents retain their original wording, and `/marketing-markdown/source/<page>` exposes full original company statements. You can also request `Accept: text/markdown` on marketing and documentation pages; individual marketing articles are converted from HTML.",
+    "Tuist's source is public at https://github.com/tuist/tuist. Component licenses differ; see the Openness guide before assuming the server and CLI use the same license."
   ]
 
   @product_pages [
-    {"/cache", "Reuse compiled binaries across machines and CI so the same code is never built twice."},
-    {"/build-insights", "Track build times, failures, and regressions across local and CI builds."},
-    {"/selective-testing", "Run only the tests impacted by a change, based on the build graph."},
-    {"/flaky-tests", "Detect and track tests that pass and fail on the same code."},
-    {"/test-insights", "Analyze test runs to keep CI fast and reliable."},
-    {"/previews", "Share a runnable build of an app through a URL, with no store review round trip."}
+    {"/", "What Tuist solves, which products to adopt, and how to get started."},
+    {"/cache", "Reuse compatible build artifacts across machines and CI with Xcode, Gradle, and Bazel."},
+    {"/compute", "Managed macOS and Linux CI runners with a colocated cache; currently invite-only."},
+    {"/tests", "Test insights, flaky-test tracking, sharding, and selective testing, with toolchain-specific support."},
+    {"/previews", "Share iOS and Android app builds through a URL for feedback before store distribution."}
   ]
 
   @company_pages [
     {"/pricing", "Plans, usage-based pricing, and free tier limits."},
+    {"/download", "Choose the CLI, macOS app, or iOS app for the intended workflow."},
+    {"/brand", "Official brand assets and trademark usage guidelines."},
     {"/about", "What Tuist is, who builds it, and why."},
     {"/customers", "How teams use Tuist at scale."},
     {"/community", "Community channels and contributors."},
-    {"/support", "Support channels and how to reach the team."},
     {"/security", "Security practices and vulnerability reporting."},
     {"/openness", "How Tuist works in the open."},
     {"/longevity", "The commitments behind depending on Tuist long term."}
   ]
 
   @optional_pages [
+    {"/llms-full.txt", "The full English documentation, including the CLI reference, in a single Markdown document."},
     {"/blog", "Long-form engineering writing on build systems, caching, and developer infrastructure."},
     {"/changelog", "Every user-facing change, newest first."},
-    {"/newsletter", "Swift Stories, the Tuist newsletter."},
+    {"/newsletter", "Tuist Digest, product updates and perspectives from the team."},
+    {"/globe", "How to interpret the aggregate cache activity display and its limitations."},
     {"/sitemap.xml", "Every indexable URL on the site."}
+  ]
+
+  @policy_pages [
+    {"/terms", "Terms of service, in their original wording."},
+    {"/privacy", "Privacy policy."},
+    {"/cookies", "Cookie policy."},
+    {"/data-processing-addendum", "Data processing terms."},
+    {"/data-act-addendum", "Data Act terms."},
+    {"/service-level-addendum", "Service-level terms."},
+    {"/imprint", "Company identification and legal notices."},
+    {"/trademark-guidelines", "Trademark usage rules."}
   ]
 
   @section_labels %{
@@ -78,6 +94,27 @@ defmodule TuistWeb.Utilities.LlmsTxt do
     KeyValueStore.get_or_update([__MODULE__, "llms_txt"], [ttl: @cache_ttl], &build/0)
   end
 
+  @doc """
+  Renders the full English documentation as Markdown, memoized for an hour.
+
+  Uses the same Markdown source as the individual documentation endpoints,
+  including the runtime CLI reference pages.
+  """
+  def render_full do
+    KeyValueStore.get_or_update([__MODULE__, "llms_full_txt"], [ttl: @cache_ttl], fn ->
+      documentation =
+        Docs.pages()
+        |> Enum.filter(&english_page?/1)
+        |> Enum.sort_by(& &1.slug)
+        |> Enum.map_join("\n\n---\n\n", fn page ->
+          url = Tuist.Environment.app_url(path: Paths.markdown_path_from_slug(page.slug))
+          "# #{page.title}\n\nSource: #{url}\n\n#{page.markdown}"
+        end)
+
+      "# Tuist\n\n> #{@summary}\n\n#{documentation}\n"
+    end)
+  end
+
   defp build do
     [
       ["# Tuist", "", "> #{@summary}", ""],
@@ -85,7 +122,11 @@ defmodule TuistWeb.Utilities.LlmsTxt do
       [""],
       documentation_sections(),
       link_section("Product", @product_pages),
+      guide_section("Solve a problem", "/solutions/"),
+      guide_section("Comparisons", "/compare"),
+      guide_section("Build systems", "/build-systems"),
       link_section("Company", @company_pages),
+      link_section("Policies", @policy_pages),
       link_section("Optional", @optional_pages)
     ]
     |> List.flatten()
@@ -141,9 +182,23 @@ defmodule TuistWeb.Utilities.LlmsTxt do
   defp link_section(title, pages) do
     ["## #{title}", ""] ++
       Enum.map(pages, fn {path, description} ->
-        link(page_title(path), Tuist.Environment.app_url(path: path), description)
+        target = MarketingMarkdown.alternate_path(path) || path
+        link(page_title(path), Tuist.Environment.app_url(path: target), description)
       end) ++ [""]
   end
+
+  defp guide_section(title, prefix) do
+    pages = Enum.filter(MarketingMarkdown.decision_guides(), &String.starts_with?(&1.path, prefix))
+
+    ["## #{title}", ""] ++
+      Enum.map(pages, fn page ->
+        url = Tuist.Environment.app_url(path: MarketingMarkdown.alternate_path(page.path))
+        link(page.title, url, page.description)
+      end) ++ [""]
+  end
+
+  defp page_title("/llms-full.txt"), do: "Full documentation"
+  defp page_title("/"), do: "Tuist"
 
   defp page_title(path) do
     path

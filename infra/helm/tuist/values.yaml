@@ -173,6 +173,8 @@ pdcAgent:
       memory: 1Gi
 
 kuraController:
+  servingAuthority:
+    enabled: false
   privateReplication:
     enabled: false
   enabled: false
@@ -196,6 +198,7 @@ kuraController:
     enabled: false
   namespace: kura
   replicaCount: 2
+  nodeSelector: {}
   tolerations: []
   image:
     repository: ghcr.io/tuist/kura-controller
@@ -1435,6 +1438,9 @@ capi:
   enabled: true
   vultrPrivateNetwork:
     enabled: false
+    # Per region: description, cidr, qualified, canonicalPeers (region names).
+    # Reciprocal approvals permit canonical mTLS between resolved VPC IDs.
+    # Upgrade existing runtimes before qualifying an additional region.
     regions: {}
   ovhPrivateNetwork:
     enabled: false
@@ -1621,6 +1627,11 @@ rackFleet:
   # `sshIngressAllowCIDRs`.
   sshIngressAllowCIDRs: []
 
+  # The rack's runner-cache gateways, as IPv4 CIDRs, which a rack host's Tart
+  # VMs may reach on TCP 443 through the VM egress firewall. Every other
+  # private destination stays blocked. Empty passes none.
+  vmCacheGatewayCIDRs: []
+
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl
   # history. Removing one is also `kubectl delete rackhost <name>`: Helm keeps
@@ -1795,6 +1806,8 @@ rackLinuxFleet:
   # is not on the tailnet yet, or whose reinstallGeneration asks for one, and
   # the host installs itself when it netboots or boots its stick. The site
   # definition's management.edge.netboot points the edge node's DHCP here.
+  # The rack-nodes chart (infra/helm/rack-nodes) renders its DaemonSet, and the
+  # rack node agent's, from these values; this chart configures the operator.
   boot:
     enabled: false
     site: ""           # default: rackLinuxFleet.site; the tuist.dev/rack-edge value
@@ -1834,6 +1847,8 @@ macosFleet:
     # but not production.
     tag: ""
     pullPolicy: IfNotPresent
+  # Placement of the provider Deployment, not of the Mac minis.
+  operatorNodeSelector: {}
   # External URL of the cluster API server that Mac minis dial when
   # joining. Auto-discovered from the kube-public/cluster-info
   # ConfigMap that kubeadm/CAPI write during cluster bootstrap; only
@@ -2209,6 +2224,8 @@ macosFleet:
 # default-deny NetworkPolicy + GitHub-only egress limits a
 # compromised runner's reachability into the cluster.
 runnersFleet:
+  customCacheVolumes:
+    enabled: false
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every macOS pool (a per-pool
   # or per-xcodeOverride `idleTimeoutSeconds` wins). Bounds how long a
@@ -2873,6 +2890,7 @@ runnersController:
     limits:
       cpu: 500m
       memory: 256Mi
+  nodeSelector: {}
 # The standalone cache service is deprecated for new deployments. Hosted
 # Tuist has moved cache serving into Kura (see kuraController / kuraRuntime)
 # and disables this workload (`cache.enabled: false` in
