@@ -22,6 +22,8 @@ import XcodeGraph
 /// `CLANG_OTHER_PREFIX_MAPPINGS`. Xcode emits these after the project mappings, and the
 /// scratch directory before the root directory that usually contains it, so a path
 /// always resolves to its most specific placeholder.
+/// Shared intermediate and product mappings also keep build paths stable when a
+/// project disables per-project mapping to avoid ambiguous `/^src` source paths.
 ///
 /// The root is the directory the scratch directory is resolved from, not the generated
 /// workspace's, which can sit below it (`tuist generate --path App`). That keeps the
@@ -84,7 +86,11 @@ public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
                 : directory.pathString
             return quoted("\(prefix)=/^spm\(index == 0 ? "" : "\(index + 1)")")
         }
-        return scratchMappings + [quoted("\(root)=/^root")]
+        return scratchMappings + [
+            quoted("$(OBJROOT)=/^intermediates"),
+            quoted("$(SYMROOT)=/^products"),
+            quoted("\(root)=/^root"),
+        ]
     }
 
     /// Quotes `value` as a single element of a build setting list.

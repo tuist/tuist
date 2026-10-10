@@ -60,9 +60,12 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         // that gather coverage.
         if await Self.isPrefixMappingSupported() {
             baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
-            baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] = "YES"
+            // A shared source namespace can opt out of per-project /^src aliases.
+            baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] =
+                baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] ?? "YES"
             baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
-            baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] = "YES"
+            baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] =
+                baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] ?? "YES"
             baseSettings["\(Self.prefixMappingForCoverageSetting)_"] = "YES"
             baseSettings["\(Self.prefixMappingForCoverageSetting)_NO"] = "YES"
             baseSettings["\(Self.prefixMappingForCoverageSetting)_YES"] = "NO"

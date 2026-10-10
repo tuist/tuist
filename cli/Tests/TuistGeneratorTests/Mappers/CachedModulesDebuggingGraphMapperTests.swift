@@ -304,6 +304,469 @@ struct CachedModulesDebuggingGraphMapperTests {
         #expect(sideEffects.isEmpty)
     }
 
+    @Test(.inTemporaryDirectory)
+    func map_configuresCompilationCachingWithoutReplacedModules() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+
+        for sourceGraph in [nil, graph] {
+            var environment = MapperEnvironment()
+            environment.initialGraphWithSources = sourceGraph
+            let (mapped, sideEffects, _) = try await subject.map(graph: graph, environment: environment)
+
+            #expect(sideEffects.count == 4)
+            let projectScheme = try #require(mapped.projects[projectPath]?.schemes.first)
+            let workspaceScheme = try #require(mapped.workspace.schemes.first)
+            for scheme in [projectScheme, workspaceScheme] {
+                let runAction = try #require(scheme.runAction)
+                let testAction = try #require(scheme.testAction)
+                #expect(runAction.preActions.map(\.title) == ["Update Tuist cache debugger settings", "Existing run action"])
+                #expect(testAction.preActions.map(\.title) == ["Update Tuist cache debugger settings", "Existing test action"])
+                #expect(runAction.preActions.first?.target?.name == "App")
+                #expect(testAction.preActions.first?.target?.name == "AppTests")
+                #expect(runAction.postActions == graph.projects[projectPath]?.schemes.first?.runAction?.postActions)
+                #expect(testAction.postActions == graph.projects[projectPath]?.schemes.first?.testAction?.postActions)
+                for path in [runAction.customLLDBInitFile, testAction.customLLDBInitFile] {
+                    let file = try #require(fileDescriptor(at: path, in: sideEffects))
+                    let contents = try #require(file.contents.flatMap { String(data: $0, encoding: .utf8) })
+                    #expect(contents.contains("command source"))
+                    #expect(!contents.contains("symbols.use-swift-explicit-module-loader"))
+                    #expect(!contents.contains("target.swift-framework-search-paths"))
+                    #expect(!contents.contains("target.swift-module-search-paths"))
+                }
+            }
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func map_preservesOtherWorkspaceInitializersWhenRegeneratingSharedProjects() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let executor = SideEffectDescriptorExecutor()
+        let fileSystem = FileSystem()
+        var graph = compilationCacheGraph(at: projectPath)
+        graph.workspace.name = "Standalone"
+        let (standalone, standaloneFiles, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        try await executor.execute(sideEffects: standaloneFiles)
+        let standaloneInit = try #require(standalone.workspace.schemes.first?.testAction?.customLLDBInitFile)
+        let initialContents = try await fileSystem.readTextFile(at: standaloneInit)
+
+        graph.workspace.name = "Root"
+        let (_, cleanup) = try await DeleteDerivedDirectoryProjectMapper().map(project: #require(graph.projects[projectPath]))
+        let (root, rootFiles, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        try await executor.execute(sideEffects: cleanup + rootFiles)
+        let rootInit = try #require(root.workspace.schemes.first?.testAction?.customLLDBInitFile)
+
+        #expect(standaloneInit != rootInit)
+        #expect(try await fileSystem.readTextFile(at: standaloneInit) == initialContents)
+        #expect(try await fileSystem.exists(rootInit))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func map_doesNotConfigureCompilationCachingWhenDebuggerAttachmentIsDisabled() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath, attachDebugger: false)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+
+        let (mapped, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        #expect(mapped == graph)
+        #expect(sideEffects.isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func map_configuresImplicitRunActionsWithoutChangingLaunchDefaults() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+
+        for product: Product in [.app, .commandLineTool] {
+            let primary = Target.test(name: "Primary", product: product)
+            let secondary = Target.test(name: "Secondary", product: .app)
+            let primaryReference = TargetReference(projectPath: projectPath, name: primary.name)
+            let scheme = Scheme(
+                name: "CheckBuild",
+                buildAction: BuildAction(targets: [
+                    primaryReference,
+                    TargetReference(projectPath: projectPath, name: secondary.name),
+                ])
+            )
+            let project = Project.test(
+                path: projectPath,
+                sourceRootPath: projectPath,
+                settings: .test(configurations: [.debug("Development"): nil, .release("Production"): nil]),
+                targets: [primary, secondary],
+                schemes: [scheme]
+            )
+            let graph = Graph.test(
+                workspace: .test(path: projectPath, projects: [projectPath], schemes: [scheme]),
+                projects: [projectPath: project],
+                dependencies: [
+                    .target(name: primary.name, path: projectPath): [],
+                    .target(name: secondary.name, path: projectPath): [],
+                ]
+            )
+
+            let (mapped, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+            #expect(sideEffects.count == 2)
+            let projectScheme = try #require(mapped.projects[projectPath]?.schemes.first)
+            let workspaceScheme = try #require(mapped.workspace.schemes.first)
+            for mappedScheme in [projectScheme, workspaceScheme] {
+                let runAction = try #require(mappedScheme.runAction)
+                #expect(runAction.configurationName == "Development")
+                #expect(runAction.attachDebugger)
+                #expect(runAction.customLLDBInitFile != nil)
+                #expect(runAction.preActions.first?.target == primaryReference)
+                #expect(runAction.executable == nil)
+                #expect(runAction.filePath == nil)
+                #expect(runAction.arguments == nil)
+                #expect(runAction.options == RunActionOptions())
+                #expect(runAction.diagnosticsOptions == SchemeDiagnosticsOptions(
+                    mainThreadCheckerEnabled: true,
+                    performanceAntipatternCheckerEnabled: true
+                ))
+                #expect(runAction.metalOptions == nil)
+                #expect(runAction.postActions.isEmpty)
+                #expect(!runAction.askForAppToLaunch)
+                #expect(runAction.launchStyle == .automatically)
+                #expect(runAction.customWorkingDirectory == nil)
+                #expect(!runAction.useCustomWorkingDirectory)
+                #expect(mappedScheme.buildAction == scheme.buildAction)
+            }
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func map_keepsImplicitNonRunnableAndExtensionActionsUnchanged() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+
+        for product: Product in [.framework, .appExtension, .messagesExtension, .extensionKitExtension] {
+            let target = Target.test(name: "Target", product: product)
+            let scheme = Scheme(
+                name: target.name,
+                buildAction: BuildAction(targets: [TargetReference(projectPath: projectPath, name: target.name)])
+            )
+            let project = Project.test(path: projectPath, sourceRootPath: projectPath, targets: [target], schemes: [scheme])
+            let graph = Graph.test(
+                workspace: .test(path: projectPath, projects: [projectPath], schemes: [scheme]),
+                projects: [projectPath: project],
+                dependencies: [.target(name: target.name, path: projectPath): []]
+            )
+
+            let (mapped, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+            #expect(mapped == graph)
+            #expect(sideEffects.isEmpty)
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func map_doesNotChainGeneratedInitializersWhenAppliedAgain() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let (mapped, _, environment) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        let (remapped, sideEffects, _) = try await subject.map(graph: mapped, environment: environment)
+
+        #expect(remapped == mapped)
+        #expect(sideEffects.isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func generatedScript_readsEvaluatedMappingsWithoutChangingTheModuleLoader() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let (mapped, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let runAction = try #require(mapped.projects[projectPath]?.schemes.first?.runAction)
+        let script = try #require(runAction.preActions.first?.scriptText)
+        let initPath = try #require(runAction.customLLDBInitFile)
+        let scriptPath = projectPath.appending(component: "debugger.sh")
+        try await FileSystem().writeText(script, at: scriptPath)
+
+        let root = projectPath.pathString + #"/repo 'single' "double" \backslash $(touch ignored)"#
+        let scratch = root + "/Tuist/.build"
+        let custom = projectPath.pathString + "/Custom mapping with spaces"
+        let sdk = try runProcess(
+            "/usr/bin/xcrun",
+            arguments: ["--sdk", "macosx", "--show-sdk-path"],
+            environment: ["PATH": "/usr/bin:/bin"]
+        )
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        let toolchain = projectPath.pathString + "/Swift.xctoolchain"
+        let developer = try runProcess("/usr/bin/xcode-select", arguments: ["-p"], environment: ["PATH": "/usr/bin:/bin"])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        var prefixMappings = [
+            "/^root": root,
+            "/^spm": scratch,
+            "/^custom": custom,
+            "/^sdk": sdk,
+            "/^xcode": developer,
+        ]
+        try writeCompilationPrefixMap(prefixMappings, at: projectPath)
+        var environment = [
+            "PATH": "/usr/bin:/bin",
+            "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+            "TARGET_TEMP_DIR": projectPath.pathString,
+            "SWIFT_ENABLE_PREFIX_MAPPING": "YES",
+            "CLANG_ENABLE_PREFIX_MAPPING": "YES",
+            "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING": "NO",
+            "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "NO",
+            "SWIFT_OTHER_PREFIX_MAPPINGS": [shellQuoted(root + "=/^root"), shellQuoted(scratch + "=/^spm")]
+                .joined(separator: " "),
+            "CLANG_OTHER_PREFIX_MAPPINGS": [shellQuoted(root + "=/^root"), shellQuoted(custom + "=/^custom")]
+                .joined(separator: " "),
+            "SDKROOT": sdk,
+            "DT_TOOLCHAIN_DIR": toolchain,
+            "TOOLCHAIN_DIR": "/Metal.xctoolchain",
+            "DEVELOPER_DIR": developer,
+            "PROJECT_DIR": projectPath.pathString,
+            "PROJECT_TEMP_DIR": projectPath.appending(component: "intermediates").pathString,
+            "BUILT_PRODUCTS_DIR": projectPath.appending(component: "products").pathString,
+        ]
+
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment, workingDirectory: projectPath)
+        let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        let sourceMap = try #require(contents.split(separator: "\n").first { $0.hasPrefix("settings append target.source-map ") })
+        let parsed = try runProcess(
+            "/usr/bin/python3",
+            arguments: ["-c", "import json, shlex, sys; print(json.dumps(shlex.split(sys.argv[1])))", String(sourceMap)],
+            environment: environment
+        )
+        let arguments = try JSONDecoder().decode([String].self, from: Data(parsed.utf8))
+        #expect(arguments == [
+            "settings", "append", "target.source-map",
+            "/^xcode", developer, "/^toolchain", toolchain,
+            "/^spm", scratch, "/^sdk", sdk, "/^root", root, "/^custom", custom,
+        ])
+        #expect(contents.hasPrefix("command source -s 0 "))
+        #expect(!contents.contains("symbols.cas-"))
+        #expect(!contents.contains("symbols.use-swift-explicit-module-loader"))
+        #expect(!contents.contains("target.swift-framework-search-paths"))
+        #expect(!contents.contains("target.swift-module-search-paths"))
+        #expect(!contents.contains("target.swift-extra-clang-flags"))
+        #expect(!FileManager.default.fileExists(atPath: projectPath.appending(component: "ignored").pathString))
+
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment, workingDirectory: projectPath)
+        #expect(try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8) == contents)
+
+        environment["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] = "YES"
+        prefixMappings["/^src"] = projectPath.pathString
+        prefixMappings["/^derived"] = projectPath.appending(component: "intermediates").pathString
+        prefixMappings["/^built"] = projectPath.appending(component: "products").pathString
+        try writeCompilationPrefixMap(prefixMappings, at: projectPath)
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment, workingDirectory: projectPath)
+        let withProjectMappings = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        #expect(withProjectMappings.contains("\"/^src\" \"\(projectPath.pathString)\""))
+        #expect(withProjectMappings.contains("\"/^derived\" \"\(projectPath.pathString)/intermediates\""))
+        #expect(withProjectMappings.contains("\"/^built\" \"\(projectPath.pathString)/products\""))
+
+        environment["COMPILATION_CACHE_ENABLE_CACHING"] = "NO"
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment, workingDirectory: projectPath)
+        let withoutCaching = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        #expect(withoutCaching.hasPrefix("command source -s 0 "))
+        #expect(!withoutCaching.contains("target.source-map"))
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [#"repo "quoted""#, #"repo "unmatched"#, #"repo \backslash=directory"#])
+    func generatedScript_preservesLiteralCharactersInXcodeExpandedMappings(directoryName: String) async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath, customLLDBInitFiles: false)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let (mapped, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let scheme = try #require(mapped.projects[projectPath]?.schemes.first)
+        let root = projectPath.appending(component: directoryName).pathString
+        let mappings = ["/^root": root]
+        try writeCompilationPrefixMap(mappings, at: projectPath)
+        let environment = [
+            "PATH": "/usr/bin:/bin",
+            "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+            "SWIFT_ENABLE_PREFIX_MAPPING": "YES",
+            // Xcode retains the surrounding expression quotes without escaping expanded path characters.
+            "SWIFT_OTHER_PREFIX_MAPPINGS": "\"\(root)=/^root\"",
+            "TARGET_TEMP_DIR": projectPath.pathString,
+        ]
+        let actions = [
+            (script: scheme.runAction?.preActions.first?.scriptText, initPath: scheme.runAction?.customLLDBInitFile),
+            (script: scheme.testAction?.preActions.first?.scriptText, initPath: scheme.testAction?.customLLDBInitFile),
+        ]
+
+        for (index, action) in actions.enumerated() {
+            let scriptPath = projectPath.appending(component: "debugger-\(index).sh")
+            try await FileSystem().writeText(#require(action.script), at: scriptPath)
+            _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment)
+            let initPath = try #require(action.initPath)
+            let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+            let parsed = try runProcess(
+                "/usr/bin/python3",
+                arguments: ["-c", "import json, shlex, sys; print(json.dumps(shlex.split(sys.argv[1])))", contents],
+                environment: environment
+            )
+            let arguments = try JSONDecoder().decode([String].self, from: Data(parsed.utf8))
+            #expect(arguments == ["settings", "append", "target.source-map", "/^root", root])
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func generatedScript_createsInitializerWithoutCustomInitOrCachedModules() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath, customLLDBInitFiles: false)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let (mapped, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let scheme = try #require(mapped.projects[projectPath]?.schemes.first)
+        let actions = [
+            (script: scheme.runAction?.preActions.first?.scriptText, initPath: scheme.runAction?.customLLDBInitFile),
+            (script: scheme.testAction?.preActions.first?.scriptText, initPath: scheme.testAction?.customLLDBInitFile),
+        ]
+        try writeCompilationPrefixMap(["/^root": projectPath.pathString], at: projectPath)
+        var environment = [
+            "PATH": "/usr/bin:/bin",
+            "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+            "SWIFT_ENABLE_PREFIX_MAPPING": "YES",
+            "TARGET_TEMP_DIR": projectPath.pathString,
+        ]
+
+        for (index, action) in actions.enumerated() {
+            let script = try #require(action.script)
+            let initPath = try #require(action.initPath)
+            let scriptPath = projectPath.appending(component: "debugger-\(index).sh")
+            try await FileSystem().writeText(script, at: scriptPath)
+            environment["COMPILATION_CACHE_ENABLE_CACHING"] = "YES"
+            _ = try runProcess(
+                "/bin/sh",
+                arguments: [scriptPath.pathString],
+                environment: environment,
+                workingDirectory: projectPath
+            )
+            let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+            #expect(contents.hasPrefix("settings append target.source-map \"/^root\" \"\(projectPath.pathString)\""))
+            #expect(contents.split(separator: "\n").count == 1)
+
+            environment["COMPILATION_CACHE_ENABLE_CACHING"] = "NO"
+            _ = try runProcess(
+                "/bin/sh",
+                arguments: [scriptPath.pathString],
+                environment: environment,
+                workingDirectory: projectPath
+            )
+            #expect(try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8).isEmpty)
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func generatedScript_preservesCustomInitializerWhenPrefixMapIsUnavailable(hasTargetTempDirectory: Bool) async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let (mapped, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let runAction = try #require(mapped.projects[projectPath]?.schemes.first?.runAction)
+        let scriptPath = projectPath.appending(component: "debugger.sh")
+        try await FileSystem().writeText(#require(runAction.preActions.first?.scriptText), at: scriptPath)
+        var environment = [
+            "PATH": "/usr/bin:/bin",
+            "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+            "SWIFT_ENABLE_PREFIX_MAPPING": "YES",
+        ]
+        if hasTargetTempDirectory {
+            environment["TARGET_TEMP_DIR"] = projectPath.pathString
+        }
+
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment)
+
+        let initPath = try #require(runAction.customLLDBInitFile)
+        let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        #expect(contents.hasPrefix("command source -s 0 "))
+        #expect(!contents.contains("target.source-map"))
+    }
+
+    private func compilationCacheGraph(
+        at projectPath: AbsolutePath,
+        attachDebugger: Bool = true,
+        customLLDBInitFiles: Bool = true
+    ) -> Graph {
+        let app = Target.test(name: "App", product: .app)
+        let tests = Target.test(name: "AppTests", product: .unitTests)
+        let scheme = Scheme.test(
+            name: "App",
+            buildAction: BuildAction(targets: [TargetReference(projectPath: projectPath, name: "App")]),
+            testAction: TestAction.test(
+                targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
+                attachDebugger: attachDebugger,
+                preActions: [ExecutionAction(
+                    title: "Existing test action",
+                    scriptText: "echo test",
+                    target: nil,
+                    shellPath: nil
+                )],
+                postActions: [ExecutionAction(
+                    title: "Existing test cleanup",
+                    scriptText: "echo cleanup",
+                    target: nil,
+                    shellPath: nil
+                )],
+                customLLDBInitFile: customLLDBInitFiles ? projectPath.appending(component: "custom test.lldbinit") : nil
+            ),
+            runAction: RunAction.test(
+                attachDebugger: attachDebugger,
+                customLLDBInitFile: customLLDBInitFiles ? projectPath.appending(component: "custom run.lldbinit") : nil,
+                preActions: [ExecutionAction(title: "Existing run action", scriptText: "echo run", target: nil, shellPath: nil)],
+                postActions: [ExecutionAction(
+                    title: "Existing run cleanup",
+                    scriptText: "echo cleanup",
+                    target: nil,
+                    shellPath: nil
+                )],
+                executable: TargetReference(projectPath: projectPath, name: "App")
+            )
+        )
+        let project = Project.test(path: projectPath, sourceRootPath: projectPath, targets: [app, tests], schemes: [scheme])
+        return Graph.test(
+            workspace: Workspace.test(path: projectPath, projects: [projectPath], schemes: [scheme]),
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "App", path: projectPath): [],
+                .target(name: "AppTests", path: projectPath): [],
+            ]
+        )
+    }
+
+    private func writeCompilationPrefixMap(_ mappings: [String: String], at targetTempDirectory: AbsolutePath) throws {
+        let path = targetTempDirectory.appending(component: "compilation-prefix-map.json")
+        let data = try JSONEncoder().encode(mappings)
+        try data.write(to: URL(fileURLWithPath: path.pathString))
+    }
+
+    private func shellQuoted(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+    }
+
+    private func runProcess(
+        _ executable: String,
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: AbsolutePath? = nil
+    ) throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        process.environment = environment
+        process.currentDirectoryURL = workingDirectory.map { URL(fileURLWithPath: $0.pathString) }
+        let output = Pipe()
+        let errors = Pipe()
+        process.standardOutput = output
+        process.standardError = errors
+        try process.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        let errorData = errors.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        let text = String(decoding: data, as: UTF8.self)
+        #expect(process.terminationStatus == 0, Comment(rawValue: text + String(decoding: errorData, as: UTF8.self)))
+        return text
+    }
+
     private func fileDescriptor(
         at path: AbsolutePath?,
         in sideEffects: [SideEffectDescriptor]
