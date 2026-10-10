@@ -120,10 +120,11 @@ spec:
     - name: dhcp
       image: {{ $image | quote }}
       imagePullPolicy: {{ $root.Values.image.pullPolicy }}
-      # --no-daemon rather than --keep-in-foreground: it also keeps dnsmasq
-      # from changing to a user and group of its own, which it has no
-      # capability for.
-      command: [dnsmasq, --no-daemon, --conf-file=/etc/rack-edge/dnsmasq.conf]
+      # dhcp.sh runs dnsmasq only while this edge holds the edge address on
+      # the switch port (see lib/edge.sh). --no-daemon rather than
+      # --keep-in-foreground there: it also keeps dnsmasq from changing to a
+      # user and group of its own, which it has no capability for.
+      command: [sh, /etc/rack-edge/dhcp.sh]
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:

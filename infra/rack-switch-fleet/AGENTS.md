@@ -904,6 +904,11 @@ files no longer match it:
   `mac`, gets its site address and the edge address as router,
   anything else the provisioning range, and both get the controller's tailnet
   address in option 138. That option is what makes a factory switch zero touch.
+- `dhcp.sh`, what runs that dnsmasq: only while the node holds the edge
+  address on the switch port, stopping it when keepalived moves the address
+  away and starting it again when it exits. A dnsmasq started before the node
+  held the address served nothing once it arrived, and an edge's pod starts
+  before keepalived holds anything.
 - `dnsmasq-machines.conf`, DHCP on the machines segment, a second dnsmasq that
   is not authoritative, since both edges answer there (see "The machines
   segment" below). Each serves one interface, which is what lets the two share

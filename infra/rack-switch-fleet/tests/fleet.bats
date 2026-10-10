@@ -2636,6 +2636,48 @@ STUB
     [ "$status" -ne 0 ]
 }
 
+@test "the switch port's dnsmasq runs only while this edge holds the edge address there" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    bin="$BATS_TEST_TMPDIR/edge-dhcp"
+    mkdir -p "$bin"
+    fleet_edge_dhcp_run "$SITE_FILE" > "$bin/dhcp.sh"
+    holds="$bin/holds"
+    log="$bin/log"
+    : > "$log"
+    cat > "$bin/ip" <<STUB
+#!/bin/sh
+[ -e "$holds" ] && echo "5: enp87s0    inet 192.168.0.10/24 scope global noprefixroute enp87s0"
+exit 0
+STUB
+    cat > "$bin/dnsmasq" <<STUB
+#!/bin/sh
+echo "started \$*" >> "$log"
+trap 'echo stopped >> "$log"; exit 0' TERM
+while :; do /bin/sleep 0.1; done
+STUB
+    printf '#!/bin/sh\nexec /bin/sleep 0.1\n' > "$bin/sleep"
+    chmod +x "$bin/ip" "$bin/dnsmasq" "$bin/sleep"
+
+    PATH="$bin:$PATH" sh "$bin/dhcp.sh" &
+    runner=$!
+    /bin/sleep 1
+    # nothing to serve from while keepalived has not given this node the address
+    [ ! -s "$log" ]
+    touch "$holds"
+    /bin/sleep 1
+    [ "$(grep -c '^started --no-daemon --conf-file=/etc/rack-edge/dnsmasq.conf$' "$log")" -eq 1 ]
+    # the address moves to the other edge: dnsmasq goes with it
+    rm "$holds"
+    /bin/sleep 1
+    grep -qx stopped "$log"
+    # and comes back with the address, once
+    touch "$holds"
+    /bin/sleep 1
+    [ "$(grep -c '^started' "$log")" -eq 2 ]
+    kill "$runner"
+    wait "$runner" || true
+}
+
 @test "a netbooting site hands UEFI firmware iPXE's Secure Boot shim, and iPXE its script, from the boot server" {
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_dhcp "$SITE_FILE"
