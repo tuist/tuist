@@ -917,7 +917,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
   # TextKitTests run whole on a branch off the base, then folded once its
   # hashes landed, so the run is recorded as the target's source.
-  defp recorded_source(project, account, text_opts \\ []) do
+  defp recorded_source(project, account, text_opts \\ [], run_attrs \\ %{}) do
     CoverageFixtures.seed_history(account, [CoverageFixtures.commit("s1", ["base"], 2)])
 
     run =
@@ -925,25 +925,44 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
         project,
         account,
         [file("Sources/Text.swift", [1, 1, 1, 0], text_opts), file("Tests/AppTests.swift", [1, 1], is_test: true)],
-        %{
-          git_commit_sha: "s1",
-          git_branch: "feature/text",
-          recompute: false,
-          test_modules: [
-            %{name: "TextKitTests", status: "success", duration: 1, test_cases: [test_case("testTrim()", "TextTests")]}
-          ],
-          coverage_evidence: %{
-            paths: ["Sources/Text.swift", "Tests/AppTests.swift"],
-            scopes: [
-              %{kind: "target", module: "TextKitTests", suite: "", name: "", files: [0, 1], lines: [[1, 3], [1, 1]]}
-            ]
-          }
-        }
+        Map.merge(
+          %{
+            git_commit_sha: "s1",
+            git_branch: "feature/text",
+            recompute: false,
+            test_modules: [
+              %{name: "TextKitTests", status: "success", duration: 1, test_cases: [test_case("testTrim()", "TextTests")]}
+            ],
+            coverage_evidence: %{
+              paths: ["Sources/Text.swift", "Tests/AppTests.swift"],
+              scopes: [
+                %{kind: "target", module: "TextKitTests", suite: "", name: "", files: [0, 1], lines: [[1, 3], [1, 1]]}
+              ]
+            }
+          },
+          run_attrs
+        )
       )
 
     selective_testing(project, run, [{"TextKitTests", :miss, "text"}])
     CoverageFixtures.recompute_commit(run)
     run
+  end
+
+  test "records a target whose run skipped tests of other targets", %{project: project, account: account} do
+    # Quarantine skips a test of another target on every run.
+    recorded_source(project, account, [], %{skip_test_identifiers: ["AppTests/MathTests/testFlaky()"]})
+    skipped_head(project, account, [{"TextKitTests", :local, "text"}])
+
+    assert %{skipped_tests_count: 1, carried_tests_count: 1, carried_from: ["s1"]} = Reported.compute(project, "head")
+  end
+
+  test "a recorded target whose run reported none of its tests is a gap", %{project: project, account: account} do
+    recorded_source(project, account, [], %{test_modules: []})
+    skipped_head(project, account, [{"TextKitTests", :local, "text"}])
+
+    assert %{kind: "partial", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert :target_without_history in reasons(reported)
   end
 
   test "carries a target from the run recorded under the hash it was skipped with, on another branch", %{

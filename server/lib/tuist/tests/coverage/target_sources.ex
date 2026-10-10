@@ -5,13 +5,14 @@ defmodule Tuist.Tests.Coverage.TargetSources do
   hit: no walk of the commit's history.
 
   A commit's fold records, for each of its clean runs that executed a target
-  whole (nothing narrowed or skipped by the caller), passed it and recorded
-  its `target` evidence, the run under the target's selective-testing hash.
+  whole (no identifier the caller narrowed or skipped the run by names it),
+  passed it and recorded its `target` evidence, the run under the target's
+  selective-testing hash.
   The same hash is the same target over the same inputs, so its tests and
   what they executed are the same; the per-file checks still run on what is
   carried (`Tuist.Tests.Coverage.Reported`). A run from another branch can
   be the source, as it can be selective testing's hit. A target with no row
-  falls back to walking the ancestors: a run whose hashes landed after its
+  falls back to the commit's baseline: a run whose hashes landed after its
   commit was folded has none.
   """
   import Ecto.Query
@@ -31,13 +32,17 @@ defmodule Tuist.Tests.Coverage.TargetSources do
   def record(project_id, runs) do
     runs =
       Enum.filter(runs, fn run ->
-        Map.get(run, :build_system) == "xcode" and Map.get(run, :git_repository_id) not in [nil, 0] and
-          Map.get(run, :only_test_identifiers, []) == [] and Map.get(run, :skip_test_identifiers, []) == []
+        Map.get(run, :build_system) == "xcode" and Map.get(run, :git_repository_id) not in [nil, 0]
       end)
 
     by_id = Map.new(runs, &{&1.test_run_id, &1})
     run_ids = Map.keys(by_id)
-    hashes = Xcode.selective_testing_hashes(project_id, run_ids)
+
+    hashes =
+      project_id
+      |> Xcode.selective_testing_hashes(run_ids)
+      |> Enum.reject(&(&1.name in narrowed_targets(by_id[&1.test_run_id])))
+
     evidenced = evidenced_targets(project_id, run_ids, hashes)
     failed = failed_targets(project_id, run_ids, hashes)
     now = NaiveDateTime.utc_now()
@@ -101,6 +106,16 @@ defmodule Tuist.Tests.Coverage.TargetSources do
     |> Map.new(fn {target, hash, run_id, sha, ran_at} ->
       {{target, hash}, %{run_id: run_id, sha: sha, ran_at: ran_at}}
     end)
+  end
+
+  # The targets the caller's identifiers name, whose tests the run may not
+  # all have executed: quarantine skips a few tests on every run, and the
+  # run's other targets still ran whole.
+  defp narrowed_targets(run) do
+    Enum.map(
+      Map.get(run, :only_test_identifiers, []) ++ Map.get(run, :skip_test_identifiers, []),
+      &(&1 |> String.split("/", parts: 2) |> hd())
+    )
   end
 
   defp evidenced_targets(_project_id, _run_ids, []), do: MapSet.new()
