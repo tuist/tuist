@@ -3895,6 +3895,20 @@ STUB
     [[ "$output" == *"already serves DHCP (the rack-edge pod"* ]]
 }
 
+@test "the edge's DHCP reply table leaves every reply but a known switch's as dnsmasq sent it" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_path "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    chain="$(awk '/^table netdev tuist_rack_dhcp \{/ {t = 1} t && /^  chain replies \{/ {c = 1; next} c && /^  \}/ {exit} c' <<<"$output")"
+    [[ "$chain" == *"type filter hook egress device \"enp87s0\" priority 0;"* ]]
+    # no verdict and no policy: a provisioning lease's unicast offer to an
+    # installer's MAC goes out untouched
+    [[ "$chain" != *drop* ]]
+    [[ "$chain" != *policy* ]]
+    rules="$(grep -v 'type filter hook' <<<"$chain")"
+    [ "$rules" = "    udp sport 67 udp dport 68 @th,288,48 0xa82948feb4be ether daddr set a8:29:48:fe:b4:be" ]
+}
+
 @test "the edge node hands the switches behind it their site address and their controller" {
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_keepalived "$SITE_FILE" ber1-edge-a
