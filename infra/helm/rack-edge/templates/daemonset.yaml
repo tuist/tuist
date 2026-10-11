@@ -1,4 +1,5 @@
 {{- $site := include "rack-edge.site" . }}
+{{- $hash := include "rack-edge.hash" . }}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -7,11 +8,17 @@ metadata:
   labels:
     {{- include "rack-edge.labels" . | nindent 4 }}
 spec:
-  # One edge at a time, and the second only once the first has held its pod
-  # for longer than keepalived's minute before the preferred edge takes the
-  # addresses back. Without it a rollout restarted both edges about 15 s apart
-  # (2026-10-05), and every rack node lost its path to the cluster twice.
+  # One edge at a time, and the second only once the first has run the new
+  # configuration for longer than keepalived's minute before the preferred
+  # edge takes the addresses back. Without it a rollout restarted both edges
+  # about 15 s apart (2026-10-05), and every rack node lost its path to the
+  # cluster twice. A pod is ready once its edge's static pod has applied the
+  # configuration it installed.
   minReadySeconds: 90
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: rack-edge
@@ -21,11 +28,8 @@ spec:
       labels:
         {{- include "rack-edge.labels" . | nindent 8 }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        tuist.dev/rack-edge-hash: {{ $hash | quote }}
     spec:
-      # The switches' port, the uplinks and tailscale0 are the node's own.
-      hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
       automountServiceAccountToken: false
       enableServiceLinks: false
       nodeSelector:
@@ -38,137 +42,94 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
-      terminationGracePeriodSeconds: 10
-      # The path first, so keepalived starts with the VRRP bond it talks over
-      # already up. What the path installs stays in the node's kernel when the
-      # pod goes. The floating addresses go with keepalived, to the other edge,
-      # and come back when this one is master again.
-      initContainers:
-        - name: path
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: [sh, /etc/rack-edge/mgmt-path.sh]
-          env:
-            - name: NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: [ALL]
-              add: [NET_ADMIN]
-          volumeMounts:
-            - name: config
-              mountPath: /etc/rack-edge
-              readOnly: true
+      terminationGracePeriodSeconds: 5
+      # Writes the edge's static pod (templates/_static-pod.tpl) and what it
+      # reads onto the node, and keeps them there. The configuration goes
+      # first, under a directory named after its hash, and the manifest that
+      # names that directory last, each by a rename, so the kubelet never
+      # reads a half-written one. A configuration the static pod no longer
+      # runs is deleted once it runs the new one. The VRRP password is kept
+      # equal to the Secret in a place of its own, and keepalived reads it
+      # when the static pod next starts. Going away leaves the static
+      # pod running: that is what keeps the edge up while this pod restarts,
+      # and taking an edge's workload off it is deleting the manifest.
       containers:
-        - name: path-reapply
+        - name: install
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: [sh, -ec, 'while sleep {{ .Values.reapplySeconds }}; do sh /etc/rack-edge/mgmt-path.sh; done']
+          command:
+            - sh
+            - -ec
+            - |
+              config=/host/etc/rack-edge/$RACK_EDGE_HASH
+              vrrp=/host/etc/rack-edge-vrrp/authentication.conf
+              manifest=/host/etc/kubernetes/manifests/rack-edge-$RACK_EDGE_SITE.yaml
+              install() {
+                if [ ! -e "$config/.complete" ]; then
+                  rm -rf "$config.new"
+                  mkdir -p "$config.new"
+                  for f in /config/*; do
+                    [ "${f##*/}" = rack-edge.yaml ] || cp "$f" "$config.new/"
+                  done
+                  touch "$config.new/.complete"
+                  rm -rf "$config"
+                  mv "$config.new" "$config"
+                fi
+                if ! cmp -s /vrrp/authentication.conf "$vrrp"; then
+                  chmod 0700 "${vrrp%/*}"
+                  cp /vrrp/authentication.conf "$vrrp.new"
+                  chmod 0400 "$vrrp.new"
+                  mv "$vrrp.new" "$vrrp"
+                fi
+                if ! cmp -s /config/rack-edge.yaml "$manifest"; then
+                  cp /config/rack-edge.yaml "${manifest%/*}/.rack-edge-$RACK_EDGE_SITE.yaml.new"
+                  mv "${manifest%/*}/.rack-edge-$RACK_EDGE_SITE.yaml.new" "$manifest"
+                  echo "installed the static pod for configuration $RACK_EDGE_HASH"
+                fi
+              }
+              while :; do
+                install
+                if [ "$(cat /host/run/rack-edge/started 2>/dev/null)" = "$RACK_EDGE_HASH" ]; then
+                  for d in /host/etc/rack-edge/*; do
+                    case "$d" in
+                      "$config") ;;
+                      *) rm -rf "$d"; echo "removed ${d#/host}, which nothing runs any more" ;;
+                    esac
+                  done
+                fi
+                sleep 30
+              done
           env:
-            - name: NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
+            - name: RACK_EDGE_HASH
+              value: {{ $hash | quote }}
+            - name: RACK_EDGE_SITE
+              value: {{ $site | quote }}
+          # Ready once the static pod has applied this configuration's path.
+          readinessProbe:
+            exec:
+              command: [sh, -c, 'test "$(cat /host/run/rack-edge/started 2>/dev/null)" = "$RACK_EDGE_HASH"']
+            periodSeconds: 5
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
-              add: [NET_ADMIN]
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
             - name: config
-              mountPath: /etc/rack-edge
-              readOnly: true
-        # The site's floating addresses, on whichever edge is master. dnsmasq on
-        # every edge has the same configuration and answers only for the
-        # ranges whose address this node holds.
-        - name: vrrp
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: [sh, -ec, 'exec keepalived --dont-fork --log-console --log-detail --no-syslog --vrrp --use-file "/etc/rack-edge/keepalived-$NODE_NAME.conf"']
-          env:
-            - name: NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: [ALL]
-              # Addresses and routes, and the raw sockets VRRP and gratuitous
-              # ARP go out on.
-              add: [NET_ADMIN, NET_RAW]
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-          volumeMounts:
-            - name: config
-              mountPath: /etc/rack-edge
+              mountPath: /config
               readOnly: true
             - name: vrrp
-              mountPath: /etc/rack-edge-vrrp
+              mountPath: /vrrp
               readOnly: true
-        - name: dhcp
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          # --no-daemon rather than --keep-in-foreground: it also keeps dnsmasq from
-          # changing to a user and group of its own, which it has no capability for.
-          command: [dnsmasq, --no-daemon, --conf-file=/etc/rack-edge/dnsmasq.conf]
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: [ALL]
-              # Port 67, the ARP entry a unicast reply needs, and the ping that
-              # checks an address is free before offering it.
-              add: [NET_BIND_SERVICE, NET_ADMIN, NET_RAW]
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-          volumeMounts:
-            - name: config
-              mountPath: /etc/rack-edge
-              readOnly: true
-            - name: leases
-              mountPath: /var/lib/misc
-        # The machines segment's DHCP, a dnsmasq of its own because it must not
-        # be authoritative: both edges answer there.
-        - name: dhcp-machines
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: [dnsmasq, --no-daemon, --conf-file=/etc/rack-edge/dnsmasq-machines.conf]
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: [ALL]
-              add: [NET_BIND_SERVICE, NET_ADMIN, NET_RAW]
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-          volumeMounts:
-            - name: config
-              mountPath: /etc/rack-edge
-              readOnly: true
-        # The machines' addresses, advertised to the tailnet by both edges
-        # through the node's own tailscaled, so the tailnet fails over between
-        # them. tailscaled trusts its socket's caller by uid, and this runs as
-        # root, so it needs no capability.
-        - name: routes
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: [sh, -ec, 'while :; do sh /etc/rack-edge/tailnet-routes.sh; sleep {{ .Values.routesReapplySeconds }}; done']
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: [ALL]
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-          volumeMounts:
-            - name: config
-              mountPath: /etc/rack-edge
-              readOnly: true
-            - name: tailscale
-              mountPath: /run/tailscale
+            - name: host-config
+              mountPath: /host/etc/rack-edge
+            - name: host-vrrp
+              mountPath: /host/etc/rack-edge-vrrp
+            - name: host-manifests
+              mountPath: /host/etc/kubernetes/manifests
+            - name: host-state
+              mountPath: /host/run/rack-edge
               readOnly: true
       volumes:
         - name: config
@@ -178,12 +139,19 @@ spec:
           secret:
             secretName: rack-edge-{{ $site }}-vrrp
             defaultMode: 0400
-        # On the node, so a restarted pod hands a switch the lease it had.
-        - name: leases
+        - name: host-config
           hostPath:
-            path: /var/lib/misc
+            path: /etc/rack-edge
             type: DirectoryOrCreate
-        - name: tailscale
+        - name: host-vrrp
           hostPath:
-            path: /run/tailscale
-            type: Directory
+            path: /etc/rack-edge-vrrp
+            type: DirectoryOrCreate
+        - name: host-manifests
+          hostPath:
+            path: /etc/kubernetes/manifests
+            type: DirectoryOrCreate
+        - name: host-state
+          hostPath:
+            path: /run/rack-edge
+            type: DirectoryOrCreate
