@@ -106,12 +106,16 @@ defmodule Tuist.Tests.Coverage.Reported do
       # out to cover, which is what an ancestor's files are read back over.
       covered_schemes = (schemes ++ Enum.map(unmeasured, & &1.scheme)) |> Enum.reject(&(&1 in [nil, ""])) |> Enum.uniq()
 
+      # A scheme the project never measured collects no coverage: what a run
+      # of it skipped leaves nothing out of the figure.
+      counted = Enum.reject(clean, &(&1.scheme in never_measured(project.id, clean, schemes)))
+
       # A scheme skipped whole measured nothing, and its run's hits are all
       # that say which targets it skipped.
-      hits = selective_testing_hits(project.id, repository_id, Enum.uniq(run_ids ++ Enum.map(clean, & &1.test_run_id)))
+      hits = selective_testing_hits(project.id, repository_id, Enum.uniq(run_ids ++ Enum.map(counted, & &1.test_run_id)))
 
       context = %{project: project, repository_id: repository_id, sha: sha}
-      skipping = skipping(context, {runs, hits, skip_identifiers(runs ++ clean), clean})
+      skipping = skipping(context, {runs, hits, skip_identifiers(runs ++ counted), counted})
       skipping = %{skipping | gaps: skipping.gaps ++ uninstrumented(project.id, runs)}
 
       if skipping.skipped == [] and skipping.gaps == [] do
@@ -121,6 +125,13 @@ defmodule Tuist.Tests.Coverage.Reported do
         carry(context, {run_ids, hits, covered_schemes}, observed, excluded)
       end
     end
+  end
+
+  # The schemes of the commit's clean runs that neither its runs nor any
+  # published commit of the project measured lines in.
+  defp never_measured(project_id, clean, schemes) do
+    candidates = clean |> Enum.map(& &1.scheme) |> Enum.reject(&(&1 in [nil, ""] or &1 in schemes)) |> Enum.uniq()
+    candidates -- Commits.measured_schemes(project_id, candidates)
   end
 
   # Prebuilt code without coverage counters ran in a scheme no run of which

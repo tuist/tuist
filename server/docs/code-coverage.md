@@ -64,6 +64,8 @@ What was skipped comes from what Tuist itself skipped, not from a list of the te
 | Quarantine "skip", `--skip-test-targets`, `-skip-testing` | `test_runs.skip_test_identifiers` | the tests each identifier names (`Module`, `Module/Suite`, `Module/Suite/test`, with or without `()`): a named test directly, a target or suite against the target's tests as above |
 | The caller's `-only-testing` | `test_runs.only_test_identifiers` | nothing; a scheme whose every run was narrowed is a gap |
 
+A scheme that neither the commit's runs nor any published commit of the project measured lines in collects no coverage, such as an acceptance test scheme run without it. What its runs skipped is ignored: running those tests would have added nothing to the figure.
+
 No ancestor runs are walked: see [Search bounds](#search-bounds).
 
 ### The pipeline

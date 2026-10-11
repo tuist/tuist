@@ -565,6 +565,21 @@ defmodule Tuist.Tests.Coverage.Commits do
     )
   end
 
+  @doc "The given schemes some published commit of the project measured lines in."
+  def measured_schemes(_project_id, []), do: []
+
+  def measured_schemes(project_id, schemes) do
+    Enum.filter(schemes, fn scheme ->
+      Repo.exists?(
+        from(c in CoverageCommit,
+          where:
+            c.project_id == ^project_id and c.executable_lines > 0 and
+              fragment("? @> ?", c.schemes, type(^[scheme], {:array, :string}))
+        )
+      )
+    end)
+  end
+
   @doc """
   The nearest published commit with measured lines among a commit's
   ancestors, merged-in ones included, the commit itself left out, that

@@ -354,6 +354,75 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert {"Sources/Text.swift", 3, 4} in Enum.map(files, &{&1.path, &1.covered_lines, &1.executable_lines})
   end
 
+  test "ignores what selective testing skipped in a scheme the project never measured", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.run_with_coverage(
+      project,
+      account,
+      [file("Sources/Math.swift", [1, 1, 0]), file("Tests/AppTests.swift", [1, 1], is_test: true)],
+      %{git_commit_sha: "base", scheme: "AppScheme", test_modules: modules([test_case("testAdd()", "MathTests")])}
+    )
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      scheme: "AppScheme",
+      test_modules: modules([test_case("testAdd()", "MathTests")])
+    })
+
+    # AcceptanceScheme collects no coverage, at the head or ever before:
+    # skipping its tests leaves nothing out of the figure.
+    skipped =
+      CoverageFixtures.run_with_coverage(project, account, [], %{
+        git_commit_sha: "head",
+        scheme: "AcceptanceScheme",
+        partial: true,
+        test_modules: []
+      })
+
+    selective_testing(project, skipped, [{"AcceptanceTests", :remote}])
+
+    assert %{kind: "measured", skipped_tests_count: 0, gap_reasons: 0} = Reported.compute(project, "head")
+  end
+
+  test "counts what selective testing skipped in a scheme an earlier commit measured", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.run_with_coverage(
+      project,
+      account,
+      [file("Sources/Math.swift", [1, 1, 0]), file("Tests/AppTests.swift", [1, 1], is_test: true)],
+      %{git_commit_sha: "base", scheme: "AppScheme", test_modules: modules([test_case("testAdd()", "MathTests")])}
+    )
+
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/Text.swift", [1, 0])], %{
+      git_commit_sha: "base",
+      scheme: "AcceptanceScheme",
+      test_modules: modules([test_case("testTrim()", "TextTests")])
+    })
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      scheme: "AppScheme",
+      test_modules: modules([test_case("testAdd()", "MathTests")])
+    })
+
+    skipped =
+      CoverageFixtures.run_with_coverage(project, account, [], %{
+        git_commit_sha: "head",
+        scheme: "AcceptanceScheme",
+        partial: true,
+        test_modules: []
+      })
+
+    selective_testing(project, skipped, [{"AcceptanceTests", :remote}])
+
+    assert %{kind: "partial"} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:target_without_history]
+  end
+
   # Two test targets at the base; at the head selective testing skipped
   # TextKitTests, and the generated workspace no longer had it, so the head
   # neither ran nor listed `testTrim()`.
