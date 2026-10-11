@@ -160,6 +160,16 @@ defmodule Tuist.Runners.CatalogTest do
     test "answers nil for a Linux profile" do
       assert Catalog.site_pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}) == nil
     end
+
+    test "rented_pool_name/1 drops the site from a site's catalog pool and nothing else", %{
+      prefix: prefix,
+      shape_key: shape_key
+    } do
+      assert Catalog.rented_pool_name("#{prefix}-ber1-26-6") == "#{prefix}-26-6"
+      assert Catalog.rented_pool_name("#{prefix}-ber1-26-6-#{shape_key}") == "#{prefix}-26-6-#{shape_key}"
+      assert Catalog.rented_pool_name("tuist-runner-pool-ber1") == nil
+      assert Catalog.rented_pool_name("#{prefix}-26-6") == nil
+    end
   end
 
   describe "resources_for_fleet/1" do

@@ -821,8 +821,12 @@ fleet, with the same image as the rented fleet's pool for that Xcode. The
 server learns them through `TUIST_RUNNERS_SITE_POOLS`. An account on the
 `runner_site` flag (`https://tuist.dev/ops/flags`) has its macOS profiles
 (`tuist-macos` and the rest) routed to the rack's pool for the profile's Xcode
-and shape, and to the rented fleet when the rack has none; the flag also gives
-the account a node in `ber1-runners`, as `runner_site_cache` does. With the
+and shape, and to the rented fleet when the rack has none. The rented fleet is
+the rack's backup: a job no rack runner has claimed after two minutes moves to
+the rented pool for the same Xcode and shape (`SiteSpilloverWorker`), so a
+rack that is dark, full or slow to boot delays jobs rather than holding them.
+The flag also gives the account a node in `ber1-runners`, as
+`runner_site_cache` does. With the
 flag off for everyone, the rack's pools idle at their floors and nothing a
 customer runs lands on them.
 

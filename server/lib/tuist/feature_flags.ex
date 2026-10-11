@@ -54,8 +54,9 @@ defmodule Tuist.FeatureFlags do
   Whether the account's macOS profile jobs run at a site: dispatch routes a
   profile to the same Xcode and shape racked at a site
   (`Tuist.Runners.Catalog.site_pool_name/1`) when one is, and to the rented
-  fleet otherwise. The account also gets a node in the site's runner-cache
-  region, as `:runner_site_cache` gives one.
+  fleet otherwise; a site job left unclaimed moves to the rented fleet
+  (`Tuist.Runners.Workers.SiteSpilloverWorker`). The account also gets a
+  node in the site's runner-cache region, as `:runner_site_cache` gives one.
   """
   def runner_site_enabled?(account) do
     FunWithFlags.enabled?(:runner_site, for: account)
