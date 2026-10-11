@@ -1935,6 +1935,14 @@ const vmPrivateDestinations = "10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64
 // guest range; everything else private, and every host address (static
 // `self`, re-expanded by the re-arm), is dropped. Public destinations pass.
 //
+// vmnet also gives every guest a link-local and a ULA IPv6 address, outside
+// the IPv4 guest range, and the host's listeners bind both families. pf
+// cannot tell a guest's IPv6 source from the host's own, so the IPv6 rules key
+// on the vmnet bridges instead: bridge100 and up (bridge0 is Thunderbolt
+// Bridge). A rule on a bridge that does not exist yet loads and matches once it
+// appears. DNS stays open, because the guest's first resolver is the host's
+// link-local address. ICMPv6 is left alone for neighbour discovery.
+//
 // The host dials its guests too (tart-kubelet's metrics forwarder and VNC
 // relays), from its bridge address, which is inside the guest range. Those
 // connections match no pass rule on the way out, so they leave no state, and
@@ -1949,6 +1957,7 @@ func renderVMGuardScript(carveOutIn string) string {
 	return fmt.Sprintf(`
 sudo tee /etc/pf.anchors/tuist.vmguard >/dev/null <<'PFCONF'
 # Tuist runner VM egress guard, on the vmnet bridge, before NAT.
+vm_bridges = "{ bridge100, bridge101, bridge102, bridge103 }"
 table <vm_sources> persist { 192.168.64.0/22 }
 table <vm_private_dst> persist { %s }
 %s
@@ -1957,6 +1966,9 @@ pass in quick proto udp from <vm_sources> to <vm_sources> port { 53, 67 } keep s
 pass in quick proto tcp from <vm_sources> to <vm_sources> port 53 keep state
 block drop in quick from <vm_sources> to <vm_private_dst>
 block drop in quick from <vm_sources> to self
+pass in quick on $vm_bridges inet6 proto { tcp, udp } to self port 53 keep state
+block drop in quick on $vm_bridges inet6 proto { tcp, udp } to self
+block drop in quick on $vm_bridges inet6 proto { tcp, udp } to { fc00::/7, fe80::/10, ff00::/8 }
 PFCONF
 
 sudo tee /usr/local/bin/tuist-pf-vmguard >/dev/null <<'VMGUARD'

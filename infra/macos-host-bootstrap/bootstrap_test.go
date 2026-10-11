@@ -1693,7 +1693,7 @@ func TestRenderVMEgressFirewallScript_GuardsGuestsInboundBeforeNAT(t *testing.T)
 	anchor := vmGuardAnchor(t, script)
 	for _, line := range strings.Split(anchor, "\n") {
 		rule := strings.TrimSpace(line)
-		if rule == "" || strings.HasPrefix(rule, "#") || strings.HasPrefix(rule, "table") || rule == vmGuardHostToGuestPass {
+		if rule == "" || strings.HasPrefix(rule, "#") || strings.HasPrefix(rule, "table") || strings.HasPrefix(rule, "vm_bridges =") || rule == vmGuardHostToGuestPass {
 			continue
 		}
 		if !strings.Contains(rule, " in quick ") {
@@ -1753,6 +1753,38 @@ func TestRenderVMEgressFirewallScript_GuardAdmitsGuestRepliesToTheHost(t *testin
 	}
 	if block := strings.Index(anchor, "block drop in quick from <vm_sources> to self"); pass > block {
 		t.Errorf("host-to-guest pass renders after the drop\n%s", anchor)
+	}
+}
+
+// vmnet gives every guest a link-local and a ULA IPv6 address, which the IPv4
+// guest range does not cover, and the host's listeners bind both families. The
+// IPv6 rules key on the vmnet bridges instead, since pf cannot tell a guest's
+// IPv6 source from the host's own.
+func TestRenderVMEgressFirewallScript_GuardCoversGuestIPv6(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	dns := strings.Index(anchor, "pass in quick on $vm_bridges inet6 proto { tcp, udp } to self port 53 keep state")
+	selfBlock := strings.Index(anchor, "block drop in quick on $vm_bridges inet6 proto { tcp, udp } to self\n")
+	privateBlock := strings.Index(anchor, "block drop in quick on $vm_bridges inet6 proto { tcp, udp } to { fc00::/7, fe80::/10, ff00::/8 }")
+	if dns < 0 || selfBlock < 0 || privateBlock < 0 {
+		t.Fatalf("guard does not cover guest IPv6 to the host and private ranges\n%s", anchor)
+	}
+	if dns > selfBlock {
+		t.Error("the DNS pass renders after the drop, so the guest's IPv6 resolver (the host's link-local) times out on every lookup")
+	}
+	if strings.Contains(anchor, "bridge0,") || strings.Contains(anchor, "bridge0 ") {
+		t.Error("bridge0 is Thunderbolt Bridge, not a vmnet bridge")
+	}
+
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	if !strings.Contains(parsed, "block drop in quick on bridge101 inet6 proto tcp from any to fe80::/10") {
+		t.Errorf("pfctl did not expand the IPv6 drop per bridge\n%s", parsed)
 	}
 }
 
