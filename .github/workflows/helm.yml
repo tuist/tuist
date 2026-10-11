@@ -218,6 +218,20 @@ jobs:
             echo "::error::render/validation failed for: ${failed[*]}"
             exit 1
           fi
+      # Config/schema validation cannot parse the LogQL embedded in match
+      # stages. Construct and exercise the pipeline with the deployed Alloy.
+      - name: Pod log processing regression
+        run: |
+          set -euo pipefail
+          mise install yq
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          curl -fsSL https://github.com/grafana/alloy/releases/download/v1.15.0/alloy-linux-amd64.zip \
+            -o "$work/alloy-linux-amd64.zip"
+          echo "e0f11e27128a5b36a918d00fc9ded0306891df551d6953360e5511cc8a20e157  $work/alloy-linux-amd64.zip" | sha256sum -c -
+          unzip -q "$work/alloy-linux-amd64.zip" -d "$work"
+          install -m 0755 "$work/alloy-linux-amd64" "$HOME/.local/bin/alloy"
+          infra/helm/k8s-monitoring/test-pod-log-processing.sh
       # A release a deploy waits on must not run pods on a rack node, or a dark
       # rack fails every deploy. See "Deploys and the rack's health" in
       # infra/rack-nodes/AGENTS.md.
