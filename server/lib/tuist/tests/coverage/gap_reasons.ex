@@ -40,14 +40,18 @@ defmodule Tuist.Tests.Coverage.GapReasons do
   - `dirty_run_excluded`: a scheme's coverage only came from CI runs on a
     dirty checkout, which measured code that is not the commit's and never
     count.
-  - `target_without_history`: selective testing skipped a test target no
-    ancestor run executed, so which tests it holds is unknown.
+  - `target_without_history`: selective testing skipped a test target that
+    no run was recorded under with its hash and the commit's baseline did
+    not execute, so which tests it holds is unknown.
   - `caller_selected_tests`: every run of a scheme executed only the tests
     its caller selected (`-only-testing`), so what the rest would have
     covered is unknown.
   - `uninstrumented_code`: a scheme's runs reused prebuilt code without
     coverage counters (a binary cache), and none of them ran every test from
     sources (`Tuist.Tests.Coverage.Instrumentation`).
+  - `test_list_changed`: a skipped test target's test files changed since
+    the commit's baseline, and no run was recorded under its hash, so which
+    tests it holds now is unknown.
   """
   import Bitwise
 
@@ -69,7 +73,8 @@ defmodule Tuist.Tests.Coverage.GapReasons do
     :dirty_run_excluded,
     :target_without_history,
     :caller_selected_tests,
-    :uninstrumented_code
+    :uninstrumented_code,
+    :test_list_changed
   ]
 
   @bits @reasons |> Enum.with_index() |> Map.new(fn {reason, index} -> {reason, 1 <<< index} end)
