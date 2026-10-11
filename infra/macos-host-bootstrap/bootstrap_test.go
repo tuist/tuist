@@ -1657,3 +1657,124 @@ func TestHostConfigHash_ChangesWithVMCacheGatewayCIDRs(t *testing.T) {
 		t.Fatal("HostConfigHash must change when the cache gateway CIDRs change, or existing hosts never get the pass rule")
 	}
 }
+
+func vmGuardAnchor(t *testing.T, script string) string {
+	t.Helper()
+	const open = "sudo tee /etc/pf.anchors/tuist.vmguard >/dev/null <<'PFCONF'\n"
+	start := strings.Index(script, open)
+	if start < 0 {
+		t.Fatalf("no tuist.vmguard anchor in rendered script\n%s", script)
+	}
+	anchor := script[start+len(open):]
+	end := strings.Index(anchor, "\nPFCONF\n")
+	if end < 0 {
+		t.Fatalf("unterminated tuist.vmguard heredoc\n%s", script)
+	}
+	return anchor[:end+1]
+}
+
+// The `tuist.runners` rules are `out` rules keyed on the guest's source, which
+// the host has already translated to its own address on the default-route
+// interface by the time pf filters there. The guard filters the guest where
+// its address is still its own: inbound on the vmnet bridge, in a com.apple/
+// sub-anchor that is live as soon as it loads.
+func TestRenderVMEgressFirewallScript_GuardsGuestsInboundBeforeNAT(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMCacheGatewayCIDRs: []string{"10.10.0.11/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if !strings.Contains(script, `pfctl -a "com.apple/tuist.vmguard" -f /etc/pf.anchors/tuist.vmguard`) {
+		t.Fatal("the guard is not loaded into a com.apple/ sub-anchor; a top-level anchor is only evaluated after a full ruleset load at boot")
+	}
+	if !strings.Contains(script, "<string>dev.tuist.pfctl-vmguard</string>") || !strings.Contains(script, "<key>StartInterval</key>") {
+		t.Fatal("no re-arm for the guard; a reboot or flush would leave guests unfiltered")
+	}
+
+	anchor := vmGuardAnchor(t, script)
+	for _, line := range strings.Split(anchor, "\n") {
+		rule := strings.TrimSpace(line)
+		if rule == "" || strings.HasPrefix(rule, "#") || strings.HasPrefix(rule, "table") {
+			continue
+		}
+		if !strings.Contains(rule, " in quick ") {
+			t.Errorf("guard rule is not inbound, so NAT has rewritten the guest's address before it matches: %q", rule)
+		}
+		if strings.Contains(rule, "(self)") {
+			t.Errorf("guard uses the dynamic (self), which macOS pf resolves to an empty table: %q", rule)
+		}
+	}
+
+	privateBlock := strings.Index(anchor, "block drop in quick from <vm_sources> to <vm_private_dst>")
+	selfBlock := strings.Index(anchor, "block drop in quick from <vm_sources> to self")
+	if privateBlock < 0 || selfBlock < 0 {
+		t.Fatalf("guard does not drop private destinations and the host's own addresses\n%s", anchor)
+	}
+	for _, private := range []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16"} {
+		if !strings.Contains(anchor, private) {
+			t.Errorf("guard does not cover %s", private)
+		}
+	}
+	for _, pass := range []string{
+		"pass in quick proto tcp from <vm_sources> to 10.10.0.11/32 port 443 keep state",
+		"pass in quick proto udp from <vm_sources> to <vm_sources> port { 53, 67 } keep state",
+	} {
+		at := strings.Index(anchor, pass)
+		if at < 0 || at > privateBlock {
+			t.Errorf("%q must render before the private drop (first quick match wins)\n%s", pass, anchor)
+		}
+	}
+
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	if !strings.Contains(parsed, "from <vm_sources> to 127.0.0.1") {
+		t.Errorf("pfctl did not expand self to the host's addresses\n%s", parsed)
+	}
+}
+
+// Every carve-out a guest needs must survive the move inbound, or turning the
+// guard on cuts a fleet off from its cache.
+func TestRenderVMEgressFirewallScript_GuardKeepsEveryCarveOut(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{
+		VMKuraEgressCIDR: "10.128.0.0/12",
+		VMClusterDNSIP:   "10.128.0.10",
+		VMCachePNCIDR:    "172.16.0.0/22",
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	for _, want := range []string{
+		"pass in quick proto tcp from <vm_sources> to 10.128.0.0/12 port 4000 keep state",
+		"pass in quick proto { tcp, udp } from <vm_sources> to 10.128.0.10 port 53 keep state",
+		"pass in quick proto tcp from <vm_sources> to 172.16.0.0/22 port 30000:32767 keep state",
+	} {
+		if !strings.Contains(anchor, want) {
+			t.Errorf("guard is missing %q\n%s", want, anchor)
+		}
+	}
+	if _, ok := pfctlParse(t, anchor); !ok {
+		return
+	}
+}
+
+// The SSH guard's VM pass is quick, so a guest's :22 to a private network must
+// be dropped there too, whichever com.apple/ sub-anchor pf evaluates first.
+func TestRenderSSHIngressGuardScript_DeniesVMsPrivateNetworks(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	const block = "block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_private> port 22"
+	at := strings.Index(s, block)
+	if at < 0 {
+		t.Fatalf("missing %q", block)
+	}
+	if strings.Index(s, "pass in quick proto tcp from <vm_ssh_sources> to any port 22") < at {
+		t.Error("VM pass renders before the private-network block")
+	}
+	if !strings.Contains(s, "table <vm_ssh_private> persist { "+vmPrivateDestinations+" }") {
+		t.Error("the SSH guard's private table is not the VM egress guard's")
+	}
+}

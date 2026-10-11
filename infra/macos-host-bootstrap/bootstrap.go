@@ -1911,7 +1911,85 @@ sudo launchctl bootout system/dev.tuist.pfctl-runners 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
 `
 	script = strings.Replace(script, "@CARVEOUT@", carveOut, 1)
-	return script, nil
+	return script + renderVMGuardScript(strings.ReplaceAll(carveOut, "pass out quick", "pass in quick")), nil
+}
+
+// vmPrivateDestinations is everything a guest has no business reaching:
+// RFC 1918, the tailnet's CGNAT range, link-local (cloud metadata) and
+// multicast. The host's own addresses are blocked separately with `self`.
+const vmPrivateDestinations = "10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16, 224.0.0.0/4"
+
+// renderVMGuardScript installs the VM egress filter where it can see a
+// guest's address. The `tuist.runners` rules above are all `out` and keyed on
+// the 192.168.64.x source, but the host NATs that source to its own address
+// on the default-route interface before pf filters the packet there (pf
+// filters translated packets), so on that path they match nothing and the
+// guest reaches the host's LAN, its own listeners and, on a rack, every other
+// machine on the segment. A guest's packet arrives `in` on the vmnet bridge
+// with its own source, before it is routed or translated, which is where the
+// SSH ingress guard already filters it (verified from a runner VM on
+// ber1-proto-01), so the same filter is applied there.
+//
+// The carve-outs are the `tuist.runners` ones turned inbound. The guests'
+// DHCP and DNS are the host's, on the vmnet gateway, so those two pass to the
+// guest range; everything else private, and every host address (static
+// `self`, re-expanded by the re-arm), is dropped. Public destinations pass.
+//
+// Same sub-anchor trick and re-arm as installSSHIngressGuard: a
+// `com.apple/` sub-anchor is live the moment it is loaded, and the re-arm
+// restores it within a minute of a reboot or a flush.
+func renderVMGuardScript(carveOutIn string) string {
+	return fmt.Sprintf(`
+sudo tee /etc/pf.anchors/tuist.vmguard >/dev/null <<'PFCONF'
+# Tuist runner VM egress guard, on the vmnet bridge, before NAT.
+table <vm_sources> persist { 192.168.64.0/22 }
+table <vm_private_dst> persist { %s }
+%s
+pass in quick proto udp from <vm_sources> to <vm_sources> port { 53, 67 } keep state
+pass in quick proto tcp from <vm_sources> to <vm_sources> port 53 keep state
+block drop in quick from <vm_sources> to <vm_private_dst>
+block drop in quick from <vm_sources> to self
+PFCONF
+
+sudo tee /usr/local/bin/tuist-pf-vmguard >/dev/null <<'VMGUARD'
+#!/bin/sh
+# Re-loads the VM egress guard into the com.apple/tuist.vmguard pf sub-anchor
+# (see renderVMGuardScript in macos-host-bootstrap). Every run re-expands
+# 'self' to the host's current addresses, so it reloads even when the file is
+# unchanged.
+set -u
+[ -f /etc/pf.anchors/tuist.vmguard ] || exit 0
+pfctl -a "com.apple/tuist.vmguard" -f /etc/pf.anchors/tuist.vmguard
+VMGUARD
+sudo chmod 0755 /usr/local/bin/tuist-pf-vmguard
+sudo pfctl -E 2>/dev/null || true
+sudo /usr/local/bin/tuist-pf-vmguard
+
+sudo tee /Library/LaunchDaemons/dev.tuist.pfctl-vmguard.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.pfctl-vmguard</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tuist-pf-vmguard</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>StandardErrorPath</key>
+  <string>/var/log/tuist-pf-vmguard.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.pfctl-vmguard.plist
+sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-vmguard.plist
+sudo launchctl bootout system/dev.tuist.pfctl-vmguard 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-vmguard.plist
+`, vmPrivateDestinations, carveOutIn)
 }
 
 // renderVMNATScript builds the VM->cache NAT helper + its launchd
@@ -2785,6 +2863,7 @@ sudo tee /etc/pf.anchors/tuist.sshguard >/dev/null <<PFCONF
 
 table <ssh_allowed> persist { 100.64.0.0/10${SESSION_ENTRY}%s }
 table <vm_ssh_sources> persist { 192.168.64.0/22 }
+table <vm_ssh_private> persist { %s }
 
 # The reachability watchdog probes 127.0.0.1:22 every minute; a
 # blocked loopback reads as a permanent wedge to it.
@@ -2803,6 +2882,9 @@ pass in quick proto tcp from <ssh_allowed> to any port 22 flags any keep state
 # resolves to an empty table on macOS and would match nothing.
 block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22
 block drop in quick proto tcp from <vm_ssh_sources> to self port 22
+# Nor to a private network: the VM egress guard drops those too, but the
+# pass below is quick, so whichever anchor pf evaluates first decides.
+block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_private> port 22
 pass in quick proto tcp from <vm_ssh_sources> to any port 22 flags any keep state
 
 block drop in quick proto tcp to any port 22
@@ -2850,7 +2932,7 @@ sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist
 sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist
 sudo launchctl bootout system/dev.tuist.pfctl-sshguard 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist
-`, allow), nil
+`, allow, vmPrivateDestinations), nil
 }
 
 // renderNodeExporterScript is the static SSH script that installs the
