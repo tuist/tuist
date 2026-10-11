@@ -31,11 +31,7 @@ defmodule Tuist.Runners.Workers.SiteSpilloverWorker do
         is_binary(rented_pool),
         moved = WorkflowJobs.move_queued(site_pool, rented_pool, enqueued_before),
         moved > 0 do
-      Logger.info("runners: moved queued site jobs to the rented fleet",
-        from: site_pool,
-        to: rented_pool,
-        count: moved
-      )
+      Logger.info("runners: moved #{moved} queued site jobs from #{site_pool} to #{rented_pool}")
     end
 
     :ok
