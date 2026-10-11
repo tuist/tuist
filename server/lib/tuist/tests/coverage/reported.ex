@@ -1062,26 +1062,22 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   # What each source run reported per path: the blob, whether it is test
-  # code, the targets that compiled it, and, when `lines:` is set, the
-  # executable lines.
-  defp source_files(project_id, run_ids, opts \\ [])
-  defp source_files(_project_id, [], _opts), do: %{}
-
-  defp source_files(project_id, run_ids, opts) do
-    lines? = Keyword.get(opts, :lines, false)
-    paths = Keyword.get(opts, :paths)
-
+  # code, and the targets that compiled it.
+  defp source_files(project_id, run_ids) do
     run_ids
     |> Coverage.id_chunks()
     |> Enum.flat_map(fn runs ->
-      query = from(f in Coverage.report_files_for_runs(project_id, runs))
-
-      queries =
-        if paths,
-          do: Enum.map(Coverage.id_chunks(paths, 2 * length(runs)), &where(query, [f], f.path in ^&1)),
-          else: [query]
-
-      Enum.flat_map(queries, &ClickHouseRepo.all(source_files_select(&1, lines?)))
+      ClickHouseRepo.all(
+        from(f in Coverage.report_files_for_runs(project_id, runs),
+          select: %{
+            test_run_id: f.test_run_id,
+            path: f.path,
+            git_blob_id: f.git_blob_id,
+            is_test: f.is_test,
+            targets: f.targets
+          }
+        )
+      )
     end)
     |> Enum.group_by(& &1.test_run_id)
     |> Map.new(fn {run_id, rows} ->
@@ -1093,38 +1089,11 @@ defmodule Tuist.Tests.Coverage.Reported do
           %{
             git_blob_id: path_rows |> Enum.map(& &1.git_blob_id) |> Enum.find("", &(&1 != "")),
             is_test: Enum.all?(path_rows, & &1.is_test),
-            targets: path_rows |> Enum.flat_map(& &1.targets) |> Enum.uniq(),
-            line_numbers: path_rows |> Enum.flat_map(& &1.line_numbers) |> MapSet.new()
+            targets: path_rows |> Enum.flat_map(& &1.targets) |> Enum.uniq()
           }}
        end)}
     end)
   end
-
-  defp source_files_select(query, true),
-    do:
-      from(f in query,
-        select: %{
-          test_run_id: f.test_run_id,
-          path: f.path,
-          git_blob_id: f.git_blob_id,
-          is_test: f.is_test,
-          targets: f.targets,
-          line_numbers: f.line_numbers
-        }
-      )
-
-  defp source_files_select(query, false),
-    do:
-      from(f in query,
-        select: %{
-          test_run_id: f.test_run_id,
-          path: f.path,
-          git_blob_id: f.git_blob_id,
-          is_test: f.is_test,
-          targets: f.targets,
-          line_numbers: fragment("CAST([] AS Array(UInt32))")
-        }
-      )
 
   defp validity(_context, :unknown, _sha), do: :listing_missing
 
@@ -1172,26 +1141,41 @@ defmodule Tuist.Tests.Coverage.Reported do
         end
       end)
 
-    source_files =
-      source_files(context.project.id, unbuilt_paths |> Enum.map(&sources[&1].run_id) |> Enum.uniq(),
-        lines: true,
-        paths: unbuilt_paths
+    unbuilt_paths
+    |> Enum.group_by(&sources[&1].run_id)
+    |> Enum.reduce(files, fn {run_id, paths}, files ->
+      context.project.id
+      |> unbuilt_carried_files(run_id, paths, carried_lines)
+      |> Enum.into(files)
+    end)
+  end
+
+  # The carried files no run at the commit compiled, as their source run
+  # reported them. These are usually most of the project, so their
+  # executable lines are merged per file in ClickHouse and reduced to counts a
+  # chunk of paths at a time instead of all being held at once.
+  defp unbuilt_carried_files(project_id, run_id, paths, carried_lines) do
+    paths
+    |> Coverage.id_chunks(2)
+    |> Enum.flat_map(fn chunk ->
+      from(f in Coverage.report_files_for_runs(project_id, [run_id]),
+        where: f.path in ^chunk,
+        group_by: f.path,
+        select:
+          {f.path, fragment("anyIf(?, ? != '')", f.git_blob_id, f.git_blob_id),
+           fragment("groupUniqArrayArray(?)", f.targets), fragment("groupUniqArrayArray(?)", f.line_numbers)}
       )
-
-    Enum.reduce(unbuilt_paths, files, fn path, files ->
-      case get_in(source_files, [sources[path].run_id, path]) do
-        %{line_numbers: executable, git_blob_id: git_blob_id, targets: targets} ->
-          Map.put(files, path, %{
-            git_blob_id: git_blob_id,
-            targets: targets,
-            source_run_ids: [sources[path].run_id],
-            covered_lines: MapSet.size(MapSet.intersection(carried_lines[path], executable)),
-            executable_lines: MapSet.size(executable)
-          })
-
-        nil ->
-          files
-      end
+      |> ClickHouseRepo.all()
+      |> Enum.map(fn {path, git_blob_id, targets, executable} ->
+        {path,
+         %{
+           git_blob_id: git_blob_id,
+           targets: targets,
+           source_run_ids: [run_id],
+           covered_lines: Enum.count(executable, &MapSet.member?(carried_lines[path], &1)),
+           executable_lines: length(executable)
+         }}
+      end)
     end)
   end
 
