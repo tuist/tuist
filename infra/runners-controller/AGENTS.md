@@ -492,6 +492,23 @@ independent workqueues:
   Terminal cleanup and idle scale-down run before admission and are never
   blocked by the provisioning ceiling.
 
+  **Scale-down keeps a macOS Pod while its host caches the image.** An
+  idle darwin Pod that is bound, still `Pending`, on a node without the
+  `tuist.dev/golden-<hash>` label for its image, and less than 30 minutes
+  past its bind (`darwinImageCacheGrace`, one tart-kubelet pull timeout
+  plus clone and boot) is skipped by scale-down; the overflow comes from
+  other idle Pods. Once its VM is `Running` it is ordinary idle capacity
+  and the next reconcile reaps it, leaving the golden base cached. Site
+  pools hit this on every Xcode their hosts have not run: the job spills
+  to the rented fleet mid-pull and the target drops to 0. Deleting the
+  Pod does not cancel the pull, but a deleting Pod never retries an
+  interrupted one (tart-kubelet restart, network error, full disk), and a
+  pull that does finish boots a VM for a Pod that is already gone. The
+  kept Pod holds no usable capacity: tart-kubelet provisions one Pod at a
+  time per host, so a host mid-pull cannot start another VM anyway.
+  Linux pools are unaffected; kubelet pulls their images and the start
+  timeout above bounds them.
+
   **Allocation observability (`internal/metrics`).** Each tick the
   reconciler publishes the squeeze on the controller's existing
   `--metrics-bind-address` endpoint, per `pool`:

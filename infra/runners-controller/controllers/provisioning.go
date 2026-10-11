@@ -13,6 +13,7 @@ import (
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
+	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 )
 
 const (
@@ -439,6 +440,59 @@ func linuxProvisioningStartedAt(pod *corev1.Pod) (time.Time, bool) {
 		}
 	}
 	return time.Time{}, false
+}
+
+// darwinImageCacheGrace bounds how long scale-down keeps a macOS Pod whose
+// host is pulling its image for the first time. tart-kubelet gives one `tart
+// pull` 20 minutes, so this covers a full attempt plus the golden clone and
+// the VM boot. A Pod still not Running after that is not about to finish
+// caching, and scale-down takes it like any other idle Pod.
+const darwinImageCacheGrace = 30 * time.Minute
+
+// cachingImage reports whether scale-down should keep an idle macOS Pod
+// because its host is materializing the Pod's image: bound, not yet Running,
+// on a node that does not advertise the image's golden base, and inside
+// darwinImageCacheGrace.
+//
+// A site pool sees this on every Xcode its hosts have not run. The job that
+// asked for the Pod spills to the rented fleet while the host is still
+// pulling, the pool's target drops to zero, and an ordinary scale-down would
+// delete the Pod mid-pull. Deleting it does not stop the pull, which runs on
+// tart-kubelet's reconcile context, but it removes everything that makes the
+// pull converge. A pull interrupted by a tart-kubelet restart, a network
+// error or a full disk is retried only by the Pod's next reconcile, which for
+// a deleting Pod is teardown instead. A pull that does finish clones and boots
+// a VM for a Pod that is already gone, and the Pod sits Terminating behind it.
+//
+// Keeping the Pod costs no usable capacity. tart-kubelet provisions one Pod at
+// a time per host, so a host mid-pull cannot start another VM whether or not
+// this Pod exists. Once the VM is Running, the Pod is ordinary idle capacity
+// again and the next reconcile scales it down, leaving the golden base cached.
+//
+// Any failure to read the node returns false, so scale-down falls back to
+// what it did before this guard existed.
+func (r *RunnerPoolReconciler) cachingImage(ctx context.Context, pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	if pool.Spec.OS != "darwin" || pod.Spec.NodeName == "" || pod.Status.Phase != corev1.PodPending {
+		return false
+	}
+	if len(pod.Spec.Containers) == 0 {
+		return false
+	}
+	// tart-kubelet replaces the whole Pod status when it publishes one, which
+	// drops the scheduler's PodScheduled condition, so creation time stands in.
+	// It is never later than the bind, so the fallback only shortens the grace.
+	boundAt, ok := linuxProvisioningStartedAt(pod)
+	if !ok {
+		boundAt = pod.CreationTimestamp.Time
+	}
+	if r.now().Sub(boundAt) >= darwinImageCacheGrace {
+		return false
+	}
+	node := &corev1.Node{}
+	if err := r.Get(ctx, client.ObjectKey{Name: pod.Spec.NodeName}, node); err != nil {
+		return false
+	}
+	return node.Labels[podtemplate.GoldenNodeLabelKey(pod.Spec.Containers[0].Image)] != "true"
 }
 
 // nodeMissing reports whether the Pod's node is gone from the API. A Pod that
