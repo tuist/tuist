@@ -1136,7 +1136,7 @@ mini_referencing() {
 
 @test "the site's mini references its RackHost, and that validates" {
     run jq -r '[.nodes[] | select(.rack_host != null) | .rack_host] | join(" ")' "$SITE_FILE"
-    [ "$output" = "ber1-runner-b01 ber1-runner-b02 ber1-runner-b03" ]
+    [ "$output" = "ber1-runner-b01 ber1-runner-b02 ber1-runner-b03 ber1-runner-b04 ber1-runner-b05 ber1-runner-b06 ber1-runner-b07 ber1-runner-b08 ber1-runner-b09" ]
     run fleet_check_rack_hosts "$SITE_FILE"
     [ "$status" -eq 0 ]
 }
@@ -2041,8 +2041,8 @@ site_with_vlans_and_lag() {
             .lags = [{id: 1, name: "uplink", ports: [29, 30]}]
             | .ports["29"] = {purpose: "data", peer: "uplink-peer", media: "dac"}
             | .ports["30"] = {purpose: "data", peer: "uplink-peer", media: "dac"}
-            | .ports["5"] = {purpose: "data", peer: "none", media: "dac", vlans: []}
-            | .ports["6"] = {purpose: "data", peer: "none", media: "dac", spanning_tree: false, description: "no stp here"})' \
+            | .ports["11"] = {purpose: "data", peer: "none", media: "dac", vlans: []}
+            | .ports["12"] = {purpose: "data", peer: "none", media: "dac", spanning_tree: false, description: "no stp here"})' \
         "$SITE_FILE" > "$BATS_TEST_TMPDIR/site-vlans.json"
     echo "$BATS_TEST_TMPDIR/site-vlans.json"
 }
@@ -2053,10 +2053,10 @@ site_with_vlans_and_lag() {
     [ "$status" -eq 0 ]
     [[ "$output" == *$'vlan 20\n name "storage"'* ]]
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render '$site' ber1-tor-b | fleet_context | grep -c \$'\\tswitchport general allowed vlan 20 tagged\$'"
-    # 32 ports less port 5, which names no VLANs, and ports 2 to 4, whose runners are on
+    # 32 ports less port 11, which names no VLANs, and ports 2 to 10, whose runners are on
     # the machines segment, plus the lag's own interface
-    [ "$output" = "29" ]
-    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render '$site' ber1-tor-b | fleet_context | grep -c '^interface ten-gigabitEthernet 1/0/5	switchport'"
+    [ "$output" = "23" ]
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render '$site' ber1-tor-b | fleet_context | grep -c '^interface ten-gigabitEthernet 1/0/11	switchport'"
     [ "$output" = "0" ]
 }
 
@@ -2171,9 +2171,9 @@ site_with_isl_lag() {
 @test "a port with spanning tree off renders as no spanning-tree, with its own description" {
     site="$(site_with_vlans_and_lag)"
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render '$site' ber1-tor-b | fleet_context"
-    [[ "$output" == *$'interface ten-gigabitEthernet 1/0/6\tno spanning-tree'* ]]
-    [[ "$output" == *$'interface ten-gigabitEthernet 1/0/6\tdescription "no stp here"'* ]]
-    [[ "$output" != *$'interface ten-gigabitEthernet 1/0/6\tspanning-tree'* ]]
+    [[ "$output" == *$'interface ten-gigabitEthernet 1/0/12\tno spanning-tree'* ]]
+    [[ "$output" == *$'interface ten-gigabitEthernet 1/0/12\tdescription "no stp here"'* ]]
+    [[ "$output" != *$'interface ten-gigabitEthernet 1/0/12\tspanning-tree'* ]]
 }
 
 @test "a port name the controller would refuse stops the render" {
@@ -2187,9 +2187,9 @@ site_with_isl_lag() {
 
 @test "the object carries the configuration the reconciler writes, from the same data" {
     site="$(site_with_vlans_and_lag)"
-    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$site' ber1-tor-b | yq -o=json '.spec' | jq -c '{mac, managedBy, gateway: .config.gateway, vlans: .config.vlans, lags: .config.lags, ports: (.config.ports | length), p5: .config.ports[4].taggedVlans, p6: .config.ports[5], p29: .config.ports[28].description}'"
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$site' ber1-tor-b | yq -o=json '.spec' | jq -c '{mac, managedBy, gateway: .config.gateway, vlans: .config.vlans, lags: .config.lags, ports: (.config.ports | length), p11: .config.ports[10].taggedVlans, p12: .config.ports[11], p29: .config.ports[28].description}'"
     [ "$status" -eq 0 ]
-    [ "$output" = '{"mac":"d4:d6:df:03:d8:b2","managedBy":"controller","gateway":"192.168.0.10","vlans":[{"id":20,"name":"storage"}],"lags":[{"id":1,"name":"uplink","ports":[29,30]}],"ports":32,"p5":[],"p6":{"port":6,"description":"no stp here","spanningTree":false,"nativeVlan":1,"taggedVlans":[20]},"p29":"uplink"}' ]
+    [ "$output" = '{"mac":"d4:d6:df:03:d8:b2","managedBy":"controller","gateway":"192.168.0.10","vlans":[{"id":20,"name":"storage"}],"lags":[{"id":1,"name":"uplink","ports":[29,30]}],"ports":32,"p11":[],"p12":{"port":12,"description":"no stp here","spanningTree":false,"nativeVlan":1,"taggedVlans":[20]},"p29":"uplink"}' ]
 }
 
 @test "a VLAN's controller profile line is the controller's, with or without an address" {
@@ -3078,13 +3078,13 @@ STUB
     [ "$output" = "0" ]
     FAKE_EDGE_ADDRESS=192.168.0.10/24 run routes_advertised "$script"
     [ "$status" -eq 0 ]
-    [ "$output" = "10.10.0.101/32,10.10.0.102/32,10.10.0.103/32" ]
+    [ "$output" = "10.10.0.101/32,10.10.0.102/32,10.10.0.103/32,10.10.0.104/32,10.10.0.105/32,10.10.0.106/32,10.10.0.107/32,10.10.0.108/32,10.10.0.109/32" ]
     # a mini still planned has no route until it is racked
-    jq '.nodes += [{name: "ber1-runner-b04", role: "runner", hardware: "mac-mini", status: "planned", rack_host: "ber1-runner-b01",
-          links: [{switch: "ber1-tor-b", port: 5, media: "copper", nic: "en0", purpose: "data"}]}]' "$BATS_TEST_TMPDIR/nopower.json" > "$BATS_TEST_TMPDIR/planned.json"
+    jq '.nodes += [{name: "ber1-runner-b10", role: "runner", hardware: "mac-mini", status: "planned", rack_host: "ber1-runner-b01",
+          links: [{switch: "ber1-tor-b", port: 11, media: "copper", nic: "en0", purpose: "data"}]}]' "$BATS_TEST_TMPDIR/nopower.json" > "$BATS_TEST_TMPDIR/planned.json"
     fleet_edge_routes "$BATS_TEST_TMPDIR/planned.json" > "$script"
     run routes_advertised "$script"
-    [ "$output" = "10.10.0.101/32,10.10.0.102/32,10.10.0.103/32" ]
+    [ "$output" = "10.10.0.101/32,10.10.0.102/32,10.10.0.103/32,10.10.0.104/32,10.10.0.105/32,10.10.0.106/32,10.10.0.107/32,10.10.0.108/32,10.10.0.109/32" ]
     # a site without the segment withdraws whatever an edge advertised
     jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$BATS_TEST_TMPDIR/nopower.json" > "$BATS_TEST_TMPDIR/nomachines.json"
     fleet_edge_routes "$BATS_TEST_TMPDIR/nomachines.json" > "$script"
@@ -3103,14 +3103,14 @@ STUB
     # the master: the machines, and a /32 per installed power device on ber1-mgmt
     FAKE_EDGE_ADDRESS=192.168.0.10/24 run routes_advertised "$script"
     [ "$status" -eq 0 ]
-    [ "$output" = "10.10.0.101/32,10.10.0.102/32,10.10.0.103/32,192.168.0.14/32,192.168.0.15/32,192.168.0.16/32" ]
+    [ "$output" = "10.10.0.101/32,10.10.0.102/32,10.10.0.103/32,10.10.0.104/32,10.10.0.105/32,10.10.0.106/32,10.10.0.107/32,10.10.0.108/32,10.10.0.109/32,192.168.0.14/32,192.168.0.15/32,192.168.0.16/32" ]
     # the standby has no route to them, so it advertises the machines alone
     run routes_advertised "$script"
     [ "$status" -eq 0 ]
-    [ "$output" = "10.10.0.101/32,10.10.0.102/32,10.10.0.103/32" ]
+    [ "$output" = "10.10.0.101/32,10.10.0.102/32,10.10.0.103/32,10.10.0.104/32,10.10.0.105/32,10.10.0.106/32,10.10.0.107/32,10.10.0.108/32,10.10.0.109/32" ]
     # an address that merely starts like the edge's is not it
     FAKE_EDGE_ADDRESS=192.168.0.100/24 run routes_advertised "$script"
-    [ "$output" = "10.10.0.101/32,10.10.0.102/32,10.10.0.103/32" ]
+    [ "$output" = "10.10.0.101/32,10.10.0.102/32,10.10.0.103/32,10.10.0.104/32,10.10.0.105/32,10.10.0.106/32,10.10.0.107/32,10.10.0.108/32,10.10.0.109/32" ]
     # a planned PDU, and one whose management link is not behind the edge, are not advertised
     jq '(.nodes[] | select(.name == "ber1-pdu-a")) |= (.mgmt_address = "192.168.0.17")
         | (.nodes[] | select(.name == "ber1-ats-1") | .links[0].switch) = "ber1-tor-a"' "$SITE_FILE" > "$BATS_TEST_TMPDIR/power.json"

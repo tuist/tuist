@@ -1302,8 +1302,8 @@ ovhFleets:
       item: OVH_FLEET_SSH
 
 # BER1 rack fleet: leased M5 Pro Mac minis (Z1UD001N2: 18-core CPU, 64 GB,
-# 10GbE, 2 TB), one three-up tray on chain B (ber1-tor-b and ber1-pdu-b) in the
-# home prep bay, behind the rack's two edges. Declared here because the rack
+# 10GbE, 2 TB), three three-up trays on chain B (ber1-tor-b and ber1-pdu-b),
+# behind the rack's two edges. Declared here because the rack
 # is in production (kubernetes.namespace in
 # infra/rack-switch-fleet/sites/ber1.json); no other env may declare it too.
 #
@@ -1354,6 +1354,54 @@ rackFleet:
       power:
         pdu: ber1-pdu-b
         outlet: "3"
+    - name: ber1-runner-b04
+      serial: H1060N7XQP
+      address: 10.10.0.104
+      rack: prep
+      shelf: tray-b2
+      power:
+        pdu: ber1-pdu-b
+        outlet: "6"
+    - name: ber1-runner-b05
+      serial: G54DV7JHJ7
+      address: 10.10.0.105
+      rack: prep
+      shelf: tray-b2
+      power:
+        pdu: ber1-pdu-b
+        outlet: "7"
+    - name: ber1-runner-b06
+      serial: FWVPQGL2C3
+      address: 10.10.0.106
+      rack: prep
+      shelf: tray-b2
+      power:
+        pdu: ber1-pdu-b
+        outlet: "8"
+    - name: ber1-runner-b07
+      serial: H7YDR4L71F
+      address: 10.10.0.107
+      rack: prep
+      shelf: tray-b3
+      power:
+        pdu: ber1-pdu-b
+        outlet: "9"
+    - name: ber1-runner-b08
+      serial: J64HHMX93T
+      address: 10.10.0.108
+      rack: prep
+      shelf: tray-b3
+      power:
+        pdu: ber1-pdu-b
+        outlet: "10"
+    - name: ber1-runner-b09
+      serial: C0YKJG7JLH
+      address: 10.10.0.109
+      rack: prep
+      shelf: tray-b3
+      power:
+        pdu: ber1-pdu-b
+        outlet: "11"
   machine:
     # The production M4 Pro hosts' shape (macosFleet.machineGroups m4 in
     # values-managed-production.yaml), so a rack runner is the runner customers
@@ -1931,8 +1979,8 @@ runnersFleet:
   #
   # A fixed count rather than autoscaling: the fleet allocator apportions guest
   # slots across the macOS pools of ONE fleet, and this pool deliberately sits
-  # in another, so an explicit count keeps it out of that arithmetic. Six is
-  # every guest slot in the rack, two per host, which nothing else competes
+  # in another, so an explicit count keeps it out of that arithmetic. Eighteen
+  # is every guest slot in the rack, two per host, which nothing else competes
   # for, so a load run reaches every slot at once.
   #
   # A Tart guest cannot be newer than its host. The rack's hosts run macOS 27,
@@ -1946,7 +1994,7 @@ runnersFleet:
       runnerImage: ghcr.io/tuist/tuist-runner:macos-26-6-0.17.0
       dispatchLabel: tuist-ber1-smoke
       fleetSelector: tuist-tuist-rack-fleet
-      replicas: 6
+      replicas: 18
       pod:
         cpuMilli: 6000
         memoryMB: 14336

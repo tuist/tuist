@@ -40,6 +40,12 @@ RackHost's, in the tuist chart's `rackFleet.hosts`.
 | ber1-tor-b | 2 | ber1-runner-b01 | en0 | copper | data | installed |
 | ber1-tor-b | 3 | ber1-runner-b02 | en0 | copper | data | installed |
 | ber1-tor-b | 4 | ber1-runner-b03 | en0 | copper | data | installed |
+| ber1-tor-b | 5 | ber1-runner-b04 | en0 | copper | data | installed |
+| ber1-tor-b | 6 | ber1-runner-b05 | en0 | copper | data | installed |
+| ber1-tor-b | 7 | ber1-runner-b06 | en0 | copper | data | installed |
+| ber1-tor-b | 8 | ber1-runner-b07 | en0 | copper | data | installed |
+| ber1-tor-b | 9 | ber1-runner-b08 | en0 | copper | data | installed |
+| ber1-tor-b | 10 | ber1-runner-b09 | en0 | copper | data | installed |
 | ber1-tor-b | 25 | ber1-edge-a | sfp28-1 | dac | data | installed |
 | ber1-tor-b | 26 | ber1-edge-b | sfp28-1 | dac | data | installed |
 | ber1-tor-b | 30 | cogent spare |  | fibre | wan | installed |
