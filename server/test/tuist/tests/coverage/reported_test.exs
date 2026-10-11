@@ -987,6 +987,17 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     refute_received :walked_target_evidence
   end
 
+  test "a carried file no run at the commit compiled keeps the targets its source compiled it into", %{
+    project: project,
+    account: account
+  } do
+    recorded_source(project, account, targets: ["TextKit"])
+    skipped_head(project, account, [{"TextKitTests", :local, "text"}])
+
+    assert %{carried_tests_count: 1, files: %{"Sources/Text.swift" => %{targets: ["TextKit"]}}} =
+             Reported.compute(project, "head")
+  end
+
   test "carries a recorded target although a file it executed has another blob: the hash is trusted", %{
     project: project,
     account: account
