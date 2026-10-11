@@ -59,13 +59,38 @@ defmodule Tuist.Tests.Coverage.TestSources do
 
     # A run at a time: a full run holds a row per test.
     for run <- runs, Map.get(run, :git_repository_id) not in [nil, 0] do
-      project_id
-      |> rows(run, now)
+      rows = rows(project_id, run, now)
+      recorded = recorded(project_id, run, Enum.map(rows, & &1.test_case_id))
+
+      rows
+      |> Enum.reject(&MapSet.member?(recorded, {&1.test_case_id, &1.fingerprint}))
       |> Enum.chunk_every(@insert_chunk_size)
       |> Enum.each(&IngestRepo.insert_all(CoverageTestSource, &1))
     end
 
     :ok
+  end
+
+  # The versions the index already holds from this run or a newer one: its
+  # commit is folded again on every report and on the completion signal, and
+  # a version keeps only its latest run, so writing either again adds nothing.
+  defp recorded(_project_id, _run, []), do: MapSet.new()
+
+  defp recorded(project_id, run, test_case_ids) do
+    test_case_ids
+    |> Enum.uniq()
+    |> Coverage.id_chunks(3)
+    |> Enum.flat_map(fn ids ->
+      ClickHouseRepo.all(
+        from(s in CoverageTestSource,
+          where:
+            s.project_id == ^project_id and s.git_repository_id == ^run.git_repository_id and s.test_case_id in ^ids and
+              s.ran_at >= ^run.ran_at,
+          select: {fragment("toString(?)", s.test_case_id), s.fingerprint}
+        )
+      )
+    end)
+    |> MapSet.new()
   end
 
   @doc """

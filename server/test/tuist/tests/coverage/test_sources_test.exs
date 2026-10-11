@@ -5,6 +5,7 @@ defmodule Tuist.Tests.Coverage.TestSourcesTest do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Tests.Coverage.TestSources
+  alias Tuist.Tests.CoverageTestSource
   alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -105,6 +106,35 @@ defmodule Tuist.Tests.Coverage.TestSourcesTest do
                {"Sources/Setup.swift", "blob-Sources/Setup.swift"},
                {"Tests/AppTests.swift", "blob-Tests/AppTests.swift"}
              ])
+  end
+
+  test "records a run's versions once however many times its commit is folded", %{project: project, account: account} do
+    run = run(project, account)
+    CoverageFixtures.recompute_commit(run)
+    CoverageFixtures.recompute_commit(run)
+
+    rows =
+      ClickHouseRepo.one(from(s in CoverageTestSource, where: s.project_id == ^project.id, select: count()))
+
+    assert rows == 1
+  end
+
+  test "writes nothing for a version a newer run already holds", %{project: project, account: account} do
+    CoverageFixtures.seed_history(account, [CoverageFixtures.commit("c2", ["c1"], 1)])
+    older = run(project, account)
+    run(project, account, %{git_commit_sha: "c2"})
+    # A merge keeps the version's latest run.
+    Tuist.IngestRepo.query!(
+      "ALTER TABLE coverage_test_sources DELETE WHERE test_run_id = {id:UUID} SETTINGS mutations_sync = 2",
+      %{id: older.id}
+    )
+
+    CoverageFixtures.recompute_commit(older)
+
+    rows =
+      ClickHouseRepo.one(from(s in CoverageTestSource, where: s.project_id == ^project.id, select: count()))
+
+    assert rows == 1
   end
 
   test "records whether the test passed", %{project: project, account: account, repository_id: repository_id} do
