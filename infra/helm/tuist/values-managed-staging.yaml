@@ -1072,8 +1072,11 @@ rackFleet:
   enabled: false
   name: tuist-staging-rack-fleet
   site: ber1
-  joiningNodes:
-    - tuist-tuist-rack-fleet-ber1-runner-b01
+  # ber1-runner-b01 joins with the identity staging's operator minted for it
+  # while the rack was here (tart-kubelet-tuist-tuist-rack-fleet-ber1-runner-b01),
+  # which has the names and binding this list would render. List it here once
+  # that leftover is deleted (step 17 of the move in infra/rack-nodes/AGENTS.md).
+  joiningNodes: []
   runners:
     enabled: true
     # One host, two guest slots.
