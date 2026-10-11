@@ -499,7 +499,7 @@ For planned downtime, a move or work on the rack:
 1. **The minis** (remote). Cordon each one's Node and let its running jobs
    finish (`kubectl get rh` names the Machine, which is also the Node), then
    set `parked: true` on each host in `rackFleet.hosts` and deploy. Parking
-   deletes the Machine and the Node, so the `ber1` pool has no nodes to place
+   deletes the Machine and the Node, so the rack's pools have no nodes to place
    runners on and nothing tries to bootstrap a mini that is off. Unparking them
    afterwards (and deploying) bootstraps each one again.
 2. **The Linux hosts** need nothing. Their Nodes go NotReady and their pods are
@@ -811,6 +811,37 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
 Until step 8, going back is redeploying staging from `main` and turning its
 flag on again. After it, the hosts are reinstalled into whichever env takes
 them.
+
+## Customer jobs
+
+`rackFleet.runners` renders the runner catalog a second time onto the rack:
+for each Xcode, a pool named `<release>-runner-pool-macos-<site>-<xcode>`
+(plus the shapes `rackFleet.runners.shapes` names) that selects the rack
+fleet, with the same image as the rented fleet's pool for that Xcode. The
+server learns them through `TUIST_RUNNERS_SITE_POOLS`. An account on the
+`runner_site` flag (`https://tuist.dev/ops/flags`) has its macOS profiles
+(`tuist-macos` and the rest) routed to the rack's pool for the profile's Xcode
+and shape, and to the rented fleet when the rack has none; the flag also gives
+the account a node in `ber1-runners`, as `runner_site_cache` does. With the
+flag off for everyone, the rack's pools idle at their floors and nothing a
+customer runs lands on them.
+
+The rack's pools autoscale against the rack's own guest slots: the
+runners-controller apportions a fleet's capacity among the autoscaling pools
+that share its `fleetSelector`, so the rack and the rented fleet are separate
+budgets. That is also why the `ber1` smoke pool autoscales from zero instead
+of holding a fixed count: the allocator counts only autoscaling pools, and a
+fixed count would hold slots it believes free.
+
+A Tart guest cannot be newer than its host. Every catalog image is a macOS 26
+guest and the rack's hosts run macOS 27, so every Xcode runs there; a catalog
+entry on a newer guest needs the hosts updated first.
+
+Before enabling the flag for any account other than Tuist's own, the rack's
+runner VMs have to be isolated from the rack's private networks and the
+tailnet (the VM egress firewall in `infra/macos-host-bootstrap`, the ACL
+catch-all in `infra/tailscale/acls.json`), and the isolation probed from a
+runner VM.
 
 ## Tests
 

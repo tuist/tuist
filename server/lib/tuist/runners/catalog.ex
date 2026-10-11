@@ -274,6 +274,37 @@ defmodule Tuist.Runners.Catalog do
   defp macos_shape_suffix(_), do: nil
 
   @doc """
+  Name of the `RunnerPool` CR that runs a macOS profile at a site: the pool
+  `pool_name/1` names, racked at the site, which `templates/runner-pool.yaml`
+  renders as `<macos-prefix>-<site>-<xcode-version-dashes>[-<shape>]` (e.g.
+  `tuist-runner-pool-macos-ber1-26-6`). The site comes before the Xcode so the
+  shape suffix stays last, which `resources_for_fleet/1` matches on.
+
+  Only pools the environment declares at a site (`TUIST_RUNNERS_SITE_POOLS`)
+  count, so a profile whose Xcode or shape no site racks answers `nil`, and so
+  does a Linux profile. With several sites racking it, the first by name wins.
+  """
+  def site_pool_name(%{platform: :macos} = profile) do
+    site_pools = Tuist.Environment.runners_site_pools()
+    prefix = Tuist.Environment.runners_macos_pool_name_prefix() <> "-"
+    name = pool_name(profile)
+
+    if String.starts_with?(name, prefix) do
+      rest = String.replace_prefix(name, prefix, "")
+
+      site_pools
+      |> Map.values()
+      |> Enum.map(& &1.site)
+      |> Enum.uniq()
+      |> Enum.sort()
+      |> Enum.map(&"#{prefix}#{&1}-#{rest}")
+      |> Enum.find(&match?(%{platform: :macos}, Map.get(site_pools, &1)))
+    end
+  end
+
+  def site_pool_name(_profile), do: nil
+
+  @doc """
   `fleet_name` prefixes that identify `platform` jobs in
   `runner_jobs.fleet_name`. Used by the platform filter + the
   per-platform analytics grouping so profile-dispatched jobs surface

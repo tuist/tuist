@@ -343,9 +343,14 @@ spec:
             {{- $sitePools = append $sitePools (printf "%s-%s=%s:%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool")) .name .site $platform) }}
             {{- end }}
             {{- end }}
+            {{- range include "tuist.rackCatalogPools" . | fromJsonArray }}
+            {{- $sitePools = append $sitePools (printf "%s=%s:macos" .name .site) }}
+            {{- end }}
             {{- with $sitePools }}
             # Pools racked at a site, as `<RunnerPool name>=<site>:<platform>`.
-            # Their jobs take the site's runner-cache region.
+            # Their jobs take the site's runner-cache region, and an account
+            # on the `runner_site` flag has its profiles routed to the site's
+            # catalog pools listed here.
             - name: TUIST_RUNNERS_SITE_POOLS
               value: {{ join "," . | quote }}
             {{- end }}
