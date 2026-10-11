@@ -401,9 +401,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run.id)
 
     for target <- targets do
-      XcodeFixtures.xcode_target_fixture(
-        [command_event_id: event.id, name: target, binary_cache_hit: :local] ++ opts
-      )
+      XcodeFixtures.xcode_target_fixture([command_event_id: event.id, name: target, binary_cache_hit: :local] ++ opts)
     end
   end
 

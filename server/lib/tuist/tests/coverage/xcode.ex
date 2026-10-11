@@ -37,8 +37,7 @@ defmodule Tuist.Tests.Coverage.Xcode do
     |> Enum.flat_map(fn ids ->
       ClickHouseRepo.all(
         from(t in XcodeTarget,
-          where:
-            t.command_event_id in ^ids and fragment("? != 'miss'", t.binary_cache_hit) and t.external_hash == "",
+          where: t.command_event_id in ^ids and fragment("? != 'miss'", t.binary_cache_hit) and t.external_hash == "",
           distinct: true,
           select: t.command_event_id
         )
