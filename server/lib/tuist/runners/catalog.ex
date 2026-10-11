@@ -305,6 +305,25 @@ defmodule Tuist.Runners.Catalog do
   def site_pool_name(_profile), do: nil
 
   @doc """
+  The rented pool a site's catalog pool backs onto: the same Xcode and shape
+  without the site (`tuist-runner-pool-macos-ber1-26-6` →
+  `tuist-runner-pool-macos-26-6`). `nil` for a fleet that is not a site's
+  catalog pool, such as an explicit pool racked at a site.
+  """
+  def rented_pool_name(fleet_name) when is_binary(fleet_name) do
+    prefix = Tuist.Environment.runners_macos_pool_name_prefix() <> "-"
+
+    with %{site: site, platform: :macos} <- Map.get(Tuist.Environment.runners_site_pools(), fleet_name),
+         true <- String.starts_with?(fleet_name, "#{prefix}#{site}-") do
+      String.replace_prefix(fleet_name, "#{prefix}#{site}-", prefix)
+    else
+      _ -> nil
+    end
+  end
+
+  def rented_pool_name(_fleet_name), do: nil
+
+  @doc """
   `fleet_name` prefixes that identify `platform` jobs in
   `runner_jobs.fleet_name`. Used by the platform filter + the
   per-platform analytics grouping so profile-dispatched jobs surface

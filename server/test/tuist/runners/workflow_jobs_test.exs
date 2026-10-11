@@ -475,6 +475,36 @@ defmodule Tuist.Runners.WorkflowJobsTest do
     end
   end
 
+  describe "move_queued/3" do
+    test "moves only the fleet's queued rows enqueued before the cutoff" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+      cutoff = DateTime.add(now, -120, :second)
+
+      :ok =
+        WorkflowJobs.upsert_queued(attrs(account, 910_401, fleet: "site", enqueued_at: DateTime.add(now, -300, :second)))
+
+      :ok =
+        WorkflowJobs.upsert_queued(attrs(account, 910_402, fleet: "site", enqueued_at: DateTime.add(now, -30, :second)))
+
+      :ok =
+        WorkflowJobs.upsert_queued(attrs(account, 910_403, fleet: "site", enqueued_at: DateTime.add(now, -300, :second)))
+
+      :ok =
+        WorkflowJobs.upsert_queued(attrs(account, 910_404, fleet: "other", enqueued_at: DateTime.add(now, -300, :second)))
+
+      :ok = WorkflowJobs.transition_claimed(910_403, "site-pod", now)
+
+      assert WorkflowJobs.move_queued("site", "rented", cutoff) == 1
+
+      assert get_row!(910_401).fleet_name == "rented"
+      assert get_row!(910_401).status == "queued"
+      assert get_row!(910_402).fleet_name == "site"
+      assert get_row!(910_403).fleet_name == "site"
+      assert get_row!(910_404).fleet_name == "other"
+    end
+  end
+
   describe "pick_queued_top_k/6" do
     test "returns queued candidates in (enqueued_at, workflow_job_id) order with the CH candidate shape" do
       account = account_fixture()
