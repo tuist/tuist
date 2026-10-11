@@ -994,8 +994,13 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     recorded_source(project, account, targets: ["TextKit"])
     skipped_head(project, account, [{"TextKitTests", :local, "text"}])
 
-    assert %{carried_tests_count: 1, files: %{"Sources/Text.swift" => %{targets: ["TextKit"]}}} =
-             Reported.compute(project, "head")
+    assert %{carried_tests_count: 1, files: %{"Sources/Text.swift" => file}} = Reported.compute(project, "head")
+
+    assert Map.take(file, [:targets, :covered_lines, :executable_lines]) == %{
+             targets: ["TextKit"],
+             covered_lines: 3,
+             executable_lines: 4
+           }
   end
 
   test "carries a recorded target although a file it executed has another blob: the hash is trusted", %{
