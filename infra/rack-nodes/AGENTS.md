@@ -837,6 +837,55 @@ A Tart guest cannot be newer than its host. Every catalog image is a macOS 26
 guest and the rack's hosts run macOS 27, so every Xcode runs there; a catalog
 entry on a newer guest needs the hosts updated first.
 
+### Lending a host to another env
+
+A rack host can run another env's runners while it stays in the rack's env:
+its Machine, power, OS updates and bootstrap stay there, and its tart-kubelet
+registers its Node in the other env's cluster, whose runner pools and server
+then drive its guests. Staging borrows production's this way, so staging jobs
+run on rack hardware. The borrowing env's chart issues the host a node
+identity (`rackFleet.joiningNodes`), and the lending env's RackHost points the
+host at it (`nodeCluster`, `nodeFleet`). The operator waits for that
+kubeconfig, then revokes the host's identity in its own cluster, deletes its
+Node there, and pushes the other cluster's kubeconfig through the drift loop.
+The Machine carries `cluster.x-k8s.io/skip-remediation` while lent, since its
+cluster never sees the Node.
+
+1. **Issue the identity** (remote). In the borrowing env's values, add the
+   host's Machine name (`<fleet>-<host>`) to `rackFleet.joiningNodes`, set
+   `rackFleet.name` to the fleet its pools select and `rackFleet.site`, enable
+   `rackFleet.runners`, and deploy.
+2. **Store it in the lending env's vault** (remote, by a person: it writes a
+   credential into 1Password). With `S` the borrowing cluster's context and
+   `M` the Machine name:
+
+   ```
+   M=tuist-tuist-rack-fleet-ber1-runner-b01; S="--context kube-staging.tuist.dev"
+   umask 077; d="$(mktemp -d)"
+   kubectl $S -n tuist-staging get secret "tart-kubelet-$M-token" -o json >"$d/s.json"
+   server="$(kubectl $S -n kube-public get cm cluster-info -o jsonpath='{.data.kubeconfig}' | yq -r '.clusters[0].cluster.server')"
+   printf 'apiVersion: v1\nkind: Config\ncurrent-context: tart-kubelet\nclusters:\n  - name: cluster\n    cluster:\n      server: %s\n      certificate-authority-data: %s\ncontexts:\n  - name: tart-kubelet\n    context:\n      cluster: cluster\n      user: tart-kubelet-%s\nusers:\n  - name: tart-kubelet-%s\n    user:\n      token: %s\n' \
+     "$server" "$(jq -r '.data["ca.crt"]' "$d/s.json")" "$M" "$M" "$(jq -r .data.token "$d/s.json" | base64 -d)" >"$d/kubeconfig"
+   jq -n --rawfile k "$d/kubeconfig" '{title: "BER1_RUNNER_B01_STAGING_KUBECONFIG", category: "API_CREDENTIAL", fields: [{id: "kubeconfig", label: "kubeconfig", type: "CONCEALED", value: $k}]}' >"$d/item.json"
+   op item create --vault tuist-k8s-production --template "$d/item.json"; rm -rf "$d"
+   ```
+
+3. **Lend it** (remote). Cordon the host's Node in the lending env and let
+   its jobs finish, then set the host's `nodeFleet` (the borrowing env's
+   `rackFleet.name`) and `nodeCluster.kubeconfigItem` (the item above) in the
+   lending env's `rackFleet.hosts`, and deploy. A host that cannot read its
+   kubeconfig keeps serving its own env and records `Not lending ... yet`
+   events on its RackAppleSiliconMachine.
+4. **Check it** (remote): `kubectl $S get node $M -L tuist.dev/fleet` is
+   Ready in the borrowing cluster, and the lending cluster has no Node `$M`.
+
+Returning the host is the reverse: drop `nodeCluster` and `nodeFleet` in the
+lending env and deploy (the operator mints its identity there again and pushes
+it), then drop it from `joiningNodes` in the borrowing env, deploy, and delete
+the Node there. Rotating the kubeconfig takes a new item name: the Secret is
+named after the item, and the drift loop keys on the Secret's name, not its
+contents.
+
 Before enabling the flag for any account other than Tuist's own, the rack's
 runner VMs have to be isolated from the rack's private networks and the
 tailnet (the VM egress firewall in `infra/macos-host-bootstrap`, the ACL

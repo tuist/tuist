@@ -1227,11 +1227,13 @@ The macOS catalog pools racked at the rack fleet's site, as a list of
 catalog's default shape, plus each non-default shape `rackFleet.runners.shapes`
 names. `templates/runner-pool.yaml` renders exactly these, and the server
 learns them through TUIST_RUNNERS_SITE_POOLS, which is how it knows which
-profiles a site can serve. Empty unless `rackFleet.runners.enabled`.
+profiles a site can serve. Empty unless `rackFleet.runners.enabled`, which
+does not need `rackFleet.enabled`: an env whose rack hosts are lent to it by
+another env (`rackFleet.joiningNodes`) runs the pools without owning the hosts.
 */}}
 {{- define "tuist.rackCatalogPools" -}}
 {{- $pools := list -}}
-{{- if and .Values.runnersFleet.enabled .Values.rackFleet.enabled (dig "runners" "enabled" false .Values.rackFleet) -}}
+{{- if and .Values.runnersFleet.enabled (dig "runners" "enabled" false .Values.rackFleet) -}}
 {{- $site := required "rackFleet.site is required when rackFleet.runners.enabled is true" .Values.rackFleet.site -}}
 {{- $prefix := include "tuist.componentName" (dict "root" . "component" "runner-pool-macos") -}}
 {{- $rackShapes := dig "runners" "shapes" (dict) .Values.rackFleet -}}
@@ -1249,4 +1251,17 @@ profiles a site can serve. Empty unless `rackFleet.runners.enabled`.
 {{- end -}}
 {{- end -}}
 {{- $pools | toJson -}}
+{{- end -}}
+
+{{/*
+The Secret a lent rack host's kubeconfig is synced into: the 1Password item's
+name as a Kubernetes name, so a rotated kubeconfig (a new item) is a new
+Secret, and the new name drifts the host onto it.
+*/}}
+{{- define "tuist.rackNodeKubeconfigSecret" -}}
+{{- $item := required (printf "rackFleet.hosts[%s].nodeCluster.kubeconfigItem is required: the 1Password item holding the kubeconfig the other cluster issued" .host) .item -}}
+{{- if not (regexMatch "^[A-Za-z0-9_]+$" $item) -}}
+{{- fail (printf "rackFleet.hosts[%s].nodeCluster.kubeconfigItem %q must be letters, digits and underscores" .host $item) -}}
+{{- end -}}
+{{- $item | lower | replace "_" "-" | trunc 63 -}}
 {{- end -}}

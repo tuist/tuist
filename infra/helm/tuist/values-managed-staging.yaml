@@ -1062,3 +1062,22 @@ runnersFleetLinux:
     - { vcpus: 8, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 32 }
     - { vcpus: 16, memoryGb: 32 }
+
+# BER1 rack hosts production lends staging: production keeps them in its
+# inventory (rackFleet.hosts there, with nodeCluster set), and their Nodes
+# register here, so staging jobs run on rack hardware. The rack catalog's pools
+# run on them for accounts on the `runner_site` flag. Staging has no
+# ber1-runners cache region, so their jobs use the public cache.
+rackFleet:
+  enabled: false
+  name: tuist-staging-rack-fleet
+  site: ber1
+  joiningNodes:
+    - tuist-tuist-rack-fleet-ber1-runner-b01
+  runners:
+    enabled: true
+    # One host, two guest slots.
+    autoscaling:
+      enabled: true
+      minWarmPoolFloor: 0
+      maxReplicas: 2
