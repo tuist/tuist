@@ -1682,6 +1682,43 @@ rackFleet:
     # deliberately distinguishable from unset, which inherits the global.
     runnerCacheVolumeGiB: null
 
+  # The runner catalog on this fleet. Enabled, every `runnersFleet.xcodeVersions`
+  # entry renders a second macOS pool, on the catalog's default shape, that
+  # selects this fleet: `<release>-runner-pool-macos-<site>-<xcode-dashes>`,
+  # with the same image as the rented fleet's pool for that Xcode. Accounts on
+  # the server's `runner_site` flag have their profiles routed to these pools,
+  # and the server falls back to the rented fleet for a profile the site has no
+  # pool for. The pools select only this fleet, so the runners-controller
+  # apportions this fleet's guest slots among them and among any explicit
+  # `runnersFleet.pools` entry that selects it and autoscales. A Tart guest
+  # cannot be newer than its host: every catalog image has to fit the hosts'
+  # macOS.
+  runners:
+    enabled: false
+    # Every rack pool's scaling unless its `xcodeOverrides` entry sets its own.
+    # `maxReplicas` is a per-pool ceiling against this fleet's slots (hosts x
+    # guestCapacity); the allocator caps the pools' joint sum.
+    autoscaling: {}
+    #   enabled: true
+    #   minWarmPoolFloor: 0
+    #   maxReplicas: 18
+    # rollout:
+    #   maxConcurrentPercent: 5
+    # Per-Xcode scaling on this fleet, keyed by `xcodeVersion`: `replicas`,
+    # `autoscaling`, `rollout`, `idleTimeoutSeconds`. The image, runner labels
+    # and pod sizing are the Xcode's (`runnersFleet.xcodeOverrides`).
+    xcodeOverrides: {}
+    # Non-default catalog shapes this fleet runs, keyed `<vcpus>vcpu-<gb>gb`,
+    # each with its `autoscaling` (and optional `rollout`). A shape not named
+    # here gets no pool on this fleet. Its `maxReplicas` is the hosts that fit
+    # one, as on the rented fleet.
+    shapes: {}
+    #   12vcpu-28gb:
+    #     autoscaling:
+    #       enabled: true
+    #       minWarmPoolFloor: 0
+    #       maxReplicas: 9
+
   # The fleet SSH key + the service account's password, synced from 1Password.
   # NOT optional: the controller never mints a replacement, because a credential
   # generated in-cluster is one no MDM-provisioned host has heard of.
@@ -2517,10 +2554,12 @@ runnersFleet:
   # is true; the chart fails the render with an empty list.
   pools: []
     # Example entry. Defaults are applied per field; only `name`,
-    # `runnerImage`, and `dispatchLabel` are required.
+    # `runnerImage` (or `xcodeVersion`), and `dispatchLabel` are required.
     # - name: default          # Suffix for the RunnerPool CR name.
     #   replicas: 0            # spec.replicas — number of Pods the controller maintains.
-    #   runnerImage: ""        # Required. Digest-pinned in production.
+    #   runnerImage: ""        # Required unless xcodeVersion is set. Digest-pinned in production.
+    #   xcodeVersion: ""       # Instead of runnerImage: the catalog image for this Xcode,
+    #                          # which follows runnerImageSemver and xcodeOverrides[].imageTag.
     #   dispatchLabel: ""      # Required. The label customers put in `runs-on`.
     #   # GitHub runner labels stamped at JIT-mint time, in addition
     #   # to `dispatchLabel` (always appended). Defaults per-OS in

@@ -1416,6 +1416,33 @@ rackFleet:
     # not collected yet.
     maxPods: 5
     runnerCacheVolumeGiB: 240
+  # The catalog on the rack: one pool per Xcode on the 6 vCPU shape, and the
+  # 12 vCPU shape, for accounts on the `runner_site` flag. Every catalog image
+  # is a macOS 26 guest, which fits the hosts' macOS 27.
+  #
+  # The budget is the rack's 18 guest slots (9 hosts x 2), which these pools
+  # and the `ber1` smoke pool share through the fleet allocator, apart from
+  # the rented fleet's 14. A 12 vCPU guest takes a whole host, so that shape's
+  # ceiling is the host count. 26.6 keeps one runner warm because `tuist-macos`
+  # resolves there; the rest start cold.
+  runners:
+    enabled: true
+    autoscaling:
+      enabled: true
+      minWarmPoolFloor: 0
+      maxReplicas: 18
+    xcodeOverrides:
+      "26.6":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxReplicas: 18
+    shapes:
+      12vcpu-28gb:
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 0
+          maxReplicas: 9
   sshExternalSecret:
     enabled: true
     item: BER1_FLEET_SSH
@@ -1968,33 +1995,36 @@ runnersFleet:
         maxReplicas: 14
   # Resolved at deploy time from the latest `runner-image@` git tag.
   runnerImageSemver: ""
-  # One explicit pool placed on the BER1 rack fleet rather than the rented
-  # Scaleway minis, so a real GitHub Actions job can run on hardware we own.
+  # One explicit pool on the BER1 rack fleet for the BER1 Smoke workflow:
   # `runs-on: tuist-ber1-smoke` reaches this server's webhook handler, which
   # matches the label to this pool and dispatches a runner onto a rack Node.
+  # Customer jobs reach the rack through the catalog's rack pools instead
+  # (`rackFleet.runners`).
   #
   # This key is the one that counts: an earlier `pools:` in this same mapping
   # would be silently discarded, because YAML resolves duplicate keys last-wins
   # and Helm never warns.
   #
-  # A fixed count rather than autoscaling: the fleet allocator apportions guest
-  # slots across the macOS pools of ONE fleet, and this pool deliberately sits
-  # in another, so an explicit count keeps it out of that arithmetic. Eighteen
-  # is every guest slot in the rack, two per host, which nothing else competes
-  # for, so a load run reaches every slot at once.
+  # It autoscales from zero so it shares the rack's guest slots with the
+  # catalog's rack pools through the fleet allocator, which only counts
+  # autoscaling pools: a fixed count would hold slots the allocator believes
+  # free. Eighteen is every guest slot in the rack, so a load run still reaches
+  # all of them when nothing else is running.
   #
-  # A Tart guest cannot be newer than its host. The rack's hosts run macOS 27,
-  # so the 26.6 runner fits.
+  # The image is the catalog's 26.6 runner, so it follows runner releases.
   pools:
     - name: ber1
       # Racked in BER1, so its jobs take the ber1-runners cache on
       # ber1-store-a, beside the minis.
       site: ber1
       platform: macos
-      runnerImage: ghcr.io/tuist/tuist-runner:macos-26-6-0.17.0
+      xcodeVersion: "26.6"
       dispatchLabel: tuist-ber1-smoke
       fleetSelector: tuist-tuist-rack-fleet
-      replicas: 18
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 18
       pod:
         cpuMilli: 6000
         memoryMB: 14336
