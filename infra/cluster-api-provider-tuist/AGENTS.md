@@ -2221,6 +2221,12 @@ go build ./...
 docker build -f Dockerfile -t ghcr.io/tuist/capi-provider-scaleway-applesilicon:dev ../..
 ```
 
+Unit tests never reach the network. The rack Linux test harness
+(`newInstallHarness`) fakes every seam that dials a host (`RunScript`,
+`AMTPower`, `ReadHostEK`); a reconciler field left nil falls back to a
+real SSH dial, which hangs until its timeout on a runner that drops the
+packets.
+
 The Dockerfile is multi-stage: it cross-builds tart-cri + tart-cni
 for darwin/arm64 (so the manager can ship them to Mac minis at
 bootstrap time) and builds the manager itself for whatever
