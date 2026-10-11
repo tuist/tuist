@@ -1414,7 +1414,9 @@ rackLinuxFleet:
   hosts:
     # The two edges, each netbooting from the other. ber1-edge-a is preferred.
     # It was netbooted rather than announced by its stick, so its boot MAC (its
-    # i226-LM, on ber1-mgmt port 1) and its AMT are declared.
+    # i226-LM, on ber1-mgmt port 1) is declared. Every host declares its AMT:
+    # the fleet's products only match a model a stick announced, and none of
+    # these hosts announced one.
     - uuid: 44312e80-1dc6-11f1-853e-8f903547d200
       hostname: ber1-edge-a
       role: edge
@@ -1425,6 +1427,7 @@ rackLinuxFleet:
       role: edge
       bootMAC: "38:05:25:3a:de:d3"
       reinstallGeneration: 5
+      amt: {activate: true}
     # Single-homed to ber1-tor-a port 27, i226-LM on ber1-mgmt port 3. Its
     # address is on the machines segment, beside the minis it serves; the
     # edges' DHCP reserves it against its sfp28-1 MAC.
@@ -1435,6 +1438,7 @@ rackLinuxFleet:
       address: 10.10.0.11
       # Reinstalled so it registers with its pool and machines-address labels.
       reinstallGeneration: 1
+      amt: {activate: true}
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   boot:
