@@ -81,6 +81,7 @@ type installHarness struct {
 	c      client.Client
 	api    *fakeTailnet
 	runner *fakeRunner
+	amt    *fakeAMTPower
 	now    time.Time
 }
 
@@ -92,7 +93,7 @@ func newInstallHarness(t *testing.T, objs ...runtime.Object) *installHarness {
 	})
 	c := fake.NewClientBuilder().WithScheme(rackTestScheme(t)).WithRuntimeObjects(objs...).
 		WithStatusSubresource(&infrav1.RackLinuxHost{}).Build()
-	h := &installHarness{c: c, api: &fakeTailnet{}, runner: &fakeRunner{}, now: installEpoch}
+	h := &installHarness{c: c, api: &fakeTailnet{}, runner: &fakeRunner{}, amt: &fakeAMTPower{state: rackPowerOn}, now: installEpoch}
 	h.r = &RackLinuxHostReconciler{
 		Client:             c,
 		Recorder:           record.NewFakeRecorder(50),
@@ -106,6 +107,7 @@ func newInstallHarness(t *testing.T, objs ...runtime.Object) *installHarness {
 		EgressNamespace:  "tailscale-operator",
 		EgressProxyGroup: "macmini-egress",
 		RunScript:        h.runner.run,
+		AMTPower:         h.amt.power,
 		ReadHostEK:       func(context.Context, *infrav1.RackLinuxHost) ([]byte, error) { return harnessEK, nil },
 		Now:              func() time.Time { return h.now },
 	}
