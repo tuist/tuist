@@ -72,6 +72,24 @@ install reboots (`casper.service`, overridden under `/run`): an ejected stick
 reports no medium until `eject -t` loads it, so the next reinstall would not
 find it.
 
+The stick's five minutes are on the clock: a machine without its
+provisioning lease sends the request out the default route an uplink's DHCP
+gave it, where nothing answers, so each try lasts until curl's ten-second
+connect timeout. While the boot server does not answer, the console says once
+a minute which addresses the installer holds, so a stick that never got a
+provisioning lease shows it.
+
+The installer's DHCP is the live ISO's own, `en*` (cloud-init prefers the
+ISO's system configuration to the seed's `network-config`). Once it has an
+install, subiquity applies that install's network section, DHCP on the
+uplinks only, to the live system and unmanages its 2.5G ports, about nine
+seconds after they come up. An installer that sends one `DHCPDISCOVER` on the
+management segment and then nothing is often just that; see "An offer in the
+log with no request after it" in
+[`infra/rack-switch-fleet`](../rack-switch-fleet/AGENTS.md). At the colo, where
+nothing serves DHCP on an edge's uplinks, it also takes away an edge install's
+only route out, its provisioning lease.
+
 - A box with an empty disk boots the stick on its own, with the firmware's
   defaults: Secure Boot on and the network stack off.
 - To reinstall a running host, the operator looks for a USB disk whose ISO

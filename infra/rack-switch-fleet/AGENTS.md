@@ -986,6 +986,43 @@ it, so lines the collector catches up on after an outage are stamped late;
 dnsmasq's own time is at the start of each line. On the node itself:
 `sudo crictl -r unix:///run/containerd/containerd.sock logs <container>`.
 
+**An offer in the log with no request after it** is not a reply that went
+missing on its own. What the switch-port dnsmasq does with a client in the
+provisioning range:
+
+- It pings the address before offering it and hears no other DHCP packet
+  while it waits, so `DHCPDISCOVER` is logged up to three seconds after the
+  packet arrived (the `available DHCP range` line beside it carries the
+  arrival), and a second client queued behind it waits its turn.
+- It unicasts the offer: it puts the address and the client's MAC in the
+  node's neighbor table and sends to the address out the switch port. A
+  `FAILED` neighbor entry for an offered address afterwards is only that entry
+  ageing out.
+- `tuist_rack_dhcp` changes the destination MAC of a reply to a known switch
+  and nothing else; a test pins that it has no verdict and no policy.
+- An installer is a Linux DHCP client, not firmware: it sends no client
+  architecture and no iPXE user class, so it gets the plain provisioning
+  offer, and `dhcp-no-override` and `dhcp-authoritative` change nothing for it.
+
+None of that loses an offer: Ubuntu's live installer, booted from its ISO with
+the stick's seed behind this dnsmasq, its nft table and the edge's start order,
+took both provisioning leases and reached the boot server on every run
+(2026-10-11). A client that goes quiet after one `DHCPDISCOVER` has stopped
+asking. An installer stops when subiquity applies the install's own network
+section, DHCP on the uplinks only, which unmanages its 2.5G ports about nine
+seconds after they come up (the journals of `ber1-edge-b`'s and
+`ber1-store-a`'s installers, kept in `/var/log/installer/installer-journal.txt`
+of the system they installed, show it).
+
+`ber1-mgmt` logs every port's link changes, which tells how long a client was
+on the segment: `show logging buffer` in a session opened the way
+`read_live_config` in `fleet.sh` opens one, through the edge. Its clock is
+UTC+1 (`no system-time dst`). On 2026-10-10 `ber1-edge-b`'s ports 2 and 47 came up at 10:01:05 UTC and
+stayed up until a power cycle at 10:05:18, while its any-host stick waited for
+the boot server; each port got one `DHCPDISCOVER` through, seven to ten
+seconds after coming up, and nothing more. Neither the edge nor the
+installer's software reproduces that.
+
 ### Power devices on the tailnet
 
 The operator switches the minis' outlets through the PDUs' REST API, from a
