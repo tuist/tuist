@@ -774,9 +774,15 @@ side_commits = fn plan ->
     {entries, _} =
       Enum.map_reduce(commits, {fork.state, fork.commit.label}, fn commit, {state, parent} ->
         # The selective heads change one screen, which their runs retest;
-        # #4330's leaves the search view model, whose test failed, alone.
+        # #4330's leaves the search view model, whose test failed, alone. Its
+        # first commit changes that view model, so the version of the test
+        # that failed exists only on its branch: a skipped test carries from
+        # the latest run of its version, wherever that ran.
         ops =
           case {commit.pull_request, commit.index} do
+            {4330, 0} ->
+              CoverageSeed.ops(state, commit.label, commit.kind, ["Sources/Features/Search/SearchViewModel.swift"])
+
             {4321, 1} ->
               CoverageSeed.ops(state, commit.label, :bump, ["Sources/Features/ProjectDetail/ProjectDetailView.swift"])
 
