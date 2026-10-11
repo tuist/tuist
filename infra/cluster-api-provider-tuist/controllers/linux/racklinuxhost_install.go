@@ -288,6 +288,7 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		TailnetKeyID:    key.ID,
 		Built:           now,
 		HostKey:         hostKey,
+		Edge:            rackEdgeNetwork(host.Spec.Edge),
 	}
 	userData, err := rackinstall.UserData(seed)
 	if err != nil {
@@ -688,3 +689,11 @@ var findInstallStickShell = `find_install_stick() {
   return 1
 }
 `
+
+// rackEdgeNetwork is an edge's spec.edge as its install builds it.
+func rackEdgeNetwork(e *infrav1.RackLinuxHostEdge) *rackinstall.EdgeNetwork {
+	if e == nil {
+		return nil
+	}
+	return &rackinstall.EdgeNetwork{Uplinks: e.Uplinks, VLAN: int(e.VRRP.VLAN), Address: e.VRRP.Address, Peer: e.VRRP.Peer}
+}

@@ -2,6 +2,7 @@ package linux
 
 import (
 	"encoding/json"
+	"fmt"
 	"path"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackinstall"
 )
 
 func edgeConvergeOptions() rackConvergeOptions {
@@ -230,7 +232,7 @@ func TestRackNodeConfigRunsAnEdgesUplinksWithoutAnAddress(t *testing.T) {
 		t.Fatalf("sysctl %+v does not apply the edge's", cfg.Sysctl)
 	}
 	for _, f := range cfg.Absent {
-		if strings.Contains(f.Path, "tuist-edge") {
+		if strings.Contains(f.Path, "tuist-edge") && !strings.Contains(f.Path, "tuist-edge-uplink-") {
 			t.Errorf("an edge removes %s", f.Path)
 		}
 	}
@@ -244,10 +246,12 @@ func TestRackNodeConfigDropsTheEdgeNetworkingFromOtherRoles(t *testing.T) {
 	cfg := rackNodeConfig(o)
 
 	edgeFiles := map[string]string{
-		"/etc/systemd/network/05-tuist-edge-uplinks.network": "network",
-		"/etc/systemd/networkd.conf.d/10-tuist-edge.conf":    "networkd",
-		"/etc/systemd/resolved.conf.d/10-tuist-edge.conf":    "resolved",
-		"/etc/sysctl.d/99-tuist-edge.conf":                   "sysctl",
+		"/etc/systemd/network/05-tuist-edge-uplinks.network":  "network",
+		"/etc/systemd/networkd.conf.d/10-tuist-edge.conf":     "networkd",
+		"/etc/systemd/resolved.conf.d/10-tuist-edge.conf":     "resolved",
+		"/etc/sysctl.d/99-tuist-edge.conf":                    "sysctl",
+		"/etc/systemd/network/05-tuist-edge-uplink-1.network": "network",
+		"/etc/systemd/network/05-tuist-edge-uplink-2.network": "network",
 	}
 	for _, f := range cfg.Files {
 		if _, ok := edgeFiles[f.Path]; ok {
@@ -355,4 +359,92 @@ func TestRackNodeConfigLeavesTheKubernetesServiceAloneWithoutAnAddressToTranslat
 			t.Errorf("%s: leaves an earlier rules file in place", name)
 		}
 	}
+}
+
+func ber1EdgeBSpec() *infrav1.RackLinuxHostEdge {
+	return &infrav1.RackLinuxHostEdge{
+		Uplinks: []string{"enp2s0f1np1", "enp2s0f0np0"},
+		VRRP:    infrav1.RackLinuxHostEdgeVRRP{VLAN: 4000, Address: "10.255.255.2/29", Peer: "10.255.255.1"},
+	}
+}
+
+// The converge's uplink files shadow netplan's, which stack the VRRP VLAN's
+// members on the uplinks. An edge that names its uplinks keeps stacking them,
+// so networkd builds the VRRP bond on every boot, also before the rack-edge
+// pod is installed.
+func TestRackNodeConfigKeepsTheVRRPVLANOnAnEdgesUplinks(t *testing.T) {
+	o := edgeConvergeOptions()
+	o.Edge = ber1EdgeBSpec()
+	cfg := rackNodeConfig(o)
+
+	for n, uplink := range map[int]string{1: "enp2s0f1np1", 2: "enp2s0f0np0"} {
+		f := configFile(t, cfg, fmt.Sprintf("/etc/systemd/network/05-tuist-edge-uplink-%d.network", n))
+		want := fmt.Sprintf("[Match]\nName=%s\n\n", uplink) +
+			"[Link]\nActivationPolicy=always-up\nRequiredForOnline=no\n\n" +
+			fmt.Sprintf("[Network]\nDHCP=no\nLinkLocalAddressing=no\nIPv6AcceptRA=no\nConfigureWithoutCarrier=yes\nVLAN=vrrp0-%d\n", n)
+		if f.Content != want || f.Group != "network" {
+			t.Errorf("uplink %d: %+v", n, f)
+		}
+		for _, other := range []string{"05-tuist-edge-uplinks.network", fmt.Sprintf("10-netplan-uplink-%d.network", n)} {
+			if !(path.Base(f.Path) < other) {
+				t.Errorf("%s does not sort before %s", f.Path, other)
+			}
+		}
+	}
+	configFile(t, cfg, "/etc/systemd/network/05-tuist-edge-uplinks.network")
+	for _, f := range cfg.Absent {
+		if strings.Contains(f.Path, "tuist-edge") {
+			t.Errorf("an edge naming two uplinks removes %s", f.Path)
+		}
+	}
+}
+
+func TestRackNodeConfigRemovesTheFileOfAnUplinkTheEdgeNoLongerNames(t *testing.T) {
+	o := edgeConvergeOptions()
+	o.Edge = ber1EdgeBSpec()
+	o.Edge.Uplinks = o.Edge.Uplinks[:1]
+	cfg := rackNodeConfig(o)
+
+	configFile(t, cfg, "/etc/systemd/network/05-tuist-edge-uplink-1.network")
+	removed := false
+	for _, f := range cfg.Absent {
+		removed = removed || (f.Path == "/etc/systemd/network/05-tuist-edge-uplink-2.network" && f.Group == "network")
+	}
+	if !removed {
+		t.Fatalf("absent %+v keeps the second uplink's file", cfg.Absent)
+	}
+}
+
+// The members the converge stacks on the uplinks are the ones the install
+// defines, and the resolvers it keeps are the ones the install writes, so a
+// first converge changes neither.
+func TestRackNodeConfigAgreesWithTheEdgesInstall(t *testing.T) {
+	o := edgeConvergeOptions()
+	o.Edge = ber1EdgeBSpec()
+	cfg := rackNodeConfig(o)
+	userData, err := edgeInstallUserData(o.Edge)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := 1; n <= 2; n++ {
+		member := fmt.Sprintf("vrrp0-%d", n)
+		if !strings.Contains(configFile(t, cfg, fmt.Sprintf("/etc/systemd/network/05-tuist-edge-uplink-%d.network", n)).Content, "VLAN="+member+"\n") ||
+			!strings.Contains(userData, "      "+member+":\n        id: 4000\n") {
+			t.Errorf("the converge and the install disagree on %s:\n%s", member, userData)
+		}
+	}
+	resolved := configFile(t, cfg, "/etc/systemd/resolved.conf.d/10-tuist-edge.conf")
+	if !strings.Contains(userData, "cat > /target"+resolved.Path+" <<'TUIST_EOF'\n      [Resolve]\n      DNS=1.1.1.1 8.8.8.8\n") {
+		t.Errorf("the install does not write the converge's resolvers:\n%s", userData)
+	}
+}
+
+// edgeInstallUserData is the install an edge with edge gets.
+func edgeInstallUserData(edge *infrav1.RackLinuxHostEdge) (string, error) {
+	return rackinstall.UserData(rackinstall.Seed{
+		Host: "ber1-edge", Role: "edge", User: "tuist", ConsolePassword: "c0nsolePassw0rdForTests",
+		AuthorizedKeys: []string{"ssh-ed25519 AAAAFLEET fleet"}, TailnetTags: []string{"tag:tuist-rack-edge"},
+		TailnetKey: "tskey-auth-kTEST1CNTRL-abc", TailnetKeyID: "kTEST1CNTRL",
+		Edge: rackEdgeNetwork(edge),
+	})
 }

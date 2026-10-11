@@ -35,7 +35,7 @@ ip addr replace "$vrrp_address" dev vrrp0
 edge_vlan_bond machines0 10
 ip addr replace "$machines_address" dev machines0
 edge_vlan_bond wan0 4001
-ip route replace default via "$peer_address" dev vrrp0 metric 200
+ip route replace default via "$peer_address" dev vrrp0 metric 200 proto static
 nexthops=""; for uplink in $uplinks; do nexthops="$nexthops nexthop dev $uplink"; done
 ip route replace 192.168.0.12/32 $nexthops
 ip route replace 192.168.0.11/32 $nexthops

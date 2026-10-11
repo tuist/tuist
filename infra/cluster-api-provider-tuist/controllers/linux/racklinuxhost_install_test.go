@@ -509,6 +509,31 @@ func TestRackInstallPublishesForAnEdgeAnotherEdgeOfItsSiteServes(t *testing.T) {
 	}
 }
 
+// An edge that names its VRRP VLAN gets an install that goes out through the
+// other edge on its first boot, with no DHCP on its uplinks.
+func TestRackInstallPublishesAnEdgesWayOutThroughTheOtherEdge(t *testing.T) {
+	edge := installableEdge()
+	edge.Spec.Edge = ber1EdgeBSpec()
+	h := newInstallHarness(t, edge, otherEdge("ber1-edge-b", rackTestNamespace, "ber1", "edge", true))
+	h.reconcile(t, edgeUUID)
+
+	userData := string(h.boot(t)[svcMACPath+".user-data"])
+	for _, want := range []string{
+		"      vrrp0-1:\n        id: 4000\n        link: uplink-1\n",
+		"          name: enp2s0f0np0\n        dhcp4: false\n",
+		"          - 10.255.255.2/29\n",
+		"            via: 10.255.255.1\n            metric: 200\n",
+		"/target/etc/systemd/resolved.conf.d/10-tuist-edge.conf",
+	} {
+		if !strings.Contains(userData, want) {
+			t.Errorf("user-data lacks %q", want)
+		}
+	}
+	if strings.Contains(userData, "dhcp4: true") {
+		t.Error("the edge's install takes DHCP")
+	}
+}
+
 func TestRackInstallNeverPublishesForAnEdgeNoOtherEdgeServes(t *testing.T) {
 	for name, others := range map[string][]runtime.Object{
 		"the only edge":                  nil,
