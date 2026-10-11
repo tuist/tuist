@@ -11,7 +11,8 @@
 #   mise run rack:card-password <device> [--role admin|controller] [--site ber1] [--vault <vault>]
 #
 # The vault defaults to the one the site's namespace syncs its secrets from:
-# tuist-staging reads tuist-k8s-staging. See "Rack card passwords" in
+# tuist-staging reads tuist-k8s-staging, and tuist, production's namespace,
+# reads tuist-k8s-production. See "Rack card passwords" in
 # infra/cluster-api-provider-tuist/AGENTS.md.
 
 set -euo pipefail
@@ -40,11 +41,10 @@ sites="$root/infra/rack-switch-fleet/sites"
 [ -f "$sites/$site.json" ] || { echo "error: no site definition $sites/$site.json" >&2; exit 1; }
 
 if [ -z "$vault" ]; then
-  namespace="$(jq -r '.kubernetes.namespace // empty' "$sites/$site.json")"
-  case "$namespace" in
-    tuist-*) vault="tuist-k8s-${namespace#tuist-}";;
-    *) echo "error: site $site's namespace '${namespace}' maps to no vault; pass --vault" >&2; exit 1;;
-  esac
+  # shellcheck source=/dev/null
+  source "$root/infra/rack-switch-fleet/lib/config.sh"
+  env="$(fleet_site_env "$sites/$site.json")" || { echo "error: pass --vault" >&2; exit 1; }
+  vault="tuist-k8s-$env"
 fi
 
 op read "op://$vault/$item/key" |

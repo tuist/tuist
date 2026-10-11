@@ -866,8 +866,21 @@
           phx-click="initiate_enterprise_upgrade"
         />
         <.button
+          :if={not @has_subscription}
+          variant="secondary"
+          label={dgettext("dashboard", "Start open source plan")}
+          phx-click="start_open_source_plan"
+          data-confirm={
+            dgettext(
+              "dashboard",
+              "Put %{account} on the Open Source plan? Its usage is never invoiced, and Kura does not serve open source accounts.",
+              account: @account.name
+            )
+          }
+        />
+        <.button
           :if={
-            current_plan(@account) in [:pro, :enterprise] and
+            current_plan(@account) in [:pro, :enterprise, :open_source] and
               subscription_status(@account) != :cancelled
           }
           variant="secondary"

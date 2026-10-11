@@ -33,6 +33,7 @@ Do not add README entries for internal operational details such as env var names
 
 - Upstream discovery is empty when `MCP_PROXY_SERVERS` is unset or blank. The Tuist-managed deployment explicitly sets `MCP_PROXY_SERVERS=tuist-managed` to retain its Tuist, Grafana, and Sentry servers; standalone deployments supply a JSON server list or use `[]`.
 - Administrators with `admin:write` can add, edit, and remove ordinary OAuth upstreams at `/admin/mcps` through the server modals. The `create_mcp_server` and `delete_mcp_server` tools provide add and remove operations. These rows are read on each proxy lookup, so changes take effect without a restart. Row actions use the Noora dropdown; deletion requires the server name in a Noora confirmation modal. Deployment-configured servers expose connection actions only. Editing settings or removing a server deletes its per-user OAuth sessions; saving an unchanged form preserves them. Deployment-configured names are reserved, and privileged identity headers, shared credentials, and custom request headers remain deployment-only. The form and tools accept public HTTPS endpoints and default to read-only tool discovery. Network egress policy remains the deployment's defense against DNS rebinding and private network access.
+- Client → Atlas OAuth stores opaque `state` in `oauth_tokens.state` as PostgreSQL `text`, not Boruta's default `varchar(255)`. Preserve it verbatim in authorization-code storage and redirects; MCP clients may send longer values. PKCE and long-state exchange coverage lives in `test/atlas_web/controllers/oauth/authorize_controller_test.exs`.
 - `Atlas.MCP.Proxy` discovers tools using the current caller's upstream OAuth session and MCP tool groups. Client → Atlas authorization is separate from Atlas → upstream authorization; reconnect the specific upstream at `/admin/mcps` only when diagnostics support doing so.
 - `get_mcp_connection_status` performs fresh discovery for one permitted upstream. Discovery failures also expose `<server>__atlas_connection_status` instead of silently removing every trace of that upstream. Both return sanitized failure categories/stages or currently permitted tool schemas; neither calls an upstream business tool.
 - Keep discovery diagnostics free of response bodies, tokens, and raw transport errors. Do not reuse schemas across users or after an authorization change. There is no schema/failure cache; after recovery, clients must request `tools/list` again to refresh their catalog. The diagnostic remains callable from an older catalog.
@@ -73,6 +74,7 @@ Do not add README entries for internal operational details such as env var names
 
 ## Markdown
 
+- Note previews and read-only notes use `AtlasWeb.Markdown.content/1` so they share MDEx sanitization, Noora typography, tables, and alerts. The editor uses Noora cards and a monospace source textarea; keep note-specific layout in `assets/css/routes/notes.css` rather than adding a separate Markdown renderer.
 - `AtlasWeb.Markdown.content/1` renders fenced `mermaid` blocks through the `MermaidDiagram` hook (`assets/js/hooks/mermaid_diagram.js`), which loads a pinned Mermaid build from jsDelivr only on pages that contain a diagram. Invalid diagrams fall back to their source.
 
 ## Proof-of-concept dashboard
@@ -167,6 +169,13 @@ custom classes must fully style the input
 - Use `Task.async_stream(collection, callback, options)` for concurrent enumeration with back-pressure. The majority of times you will want to pass `timeout: :infinity` as option
 - For running external system commands, **always** use `MuonTrap.cmd/3` instead of `System.cmd/3`. MuonTrap propagates process shutdowns to the child process, so a killed BEAM process does not leave orphaned subprocesses
 - For temporary files and directories, **always** use `Briefly` (`Briefly.create/1`, `Briefly.create!/1`) instead of building paths under `System.tmp_dir!/0` by hand. Briefly removes the temp file or directory automatically when the owning process exits, so you do not need manual `File.rm/1` cleanup
+
+## CI with Once
+
+- `.github/workflows/atlas.yml` builds, lints, and tests through [Once](https://github.com/tuist/once), pinned in `mise.toml` and `mise.lock`. Once derives the targets from `mix.exs`, so there is no Atlas-specific manifest. The root `once.toml` limits workspace discovery to Atlas, binds the shared cache to the `tuist/atlas` project, and declares `atlas_image` (this Dockerfile, cached in `tuist/atlas-oci`).
+- Run Once from the repository root with package-qualified targets (`once test atlas/mix_tests`). From `atlas/`, Once treats this directory as the workspace root, and the `../noora` path dependency fails as escaping the workspace.
+- `once run atlas/mix_lint` also runs `mix deps.unlock --check-unused`, so remove dependencies from `mix.lock` when you drop them from `mix.exs`.
+- The Dockerfile pins its base images by digest so Once can cache instructions individually. Update a digest together with its tag.
 
 ## Mix guidelines
 

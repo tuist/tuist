@@ -282,7 +282,8 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       status: status(test.state),
       duration_ms: microseconds_to_milliseconds(test.time),
       failures: failures(test.state, test.tags[:file]),
-      is_quarantined: test.tags[:quarantined] == true
+      is_quarantined: test.tags[:quarantined] == true,
+      async: test.tags[:async]
     }
   end
 
@@ -433,10 +434,18 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       name: module_name,
       status: status_of(tests),
       duration: Enum.reduce(tests, 0, &(&1.duration_ms + &2)),
+      execution_mode: execution_mode(tests),
       test_suites: suites,
       test_cases: cases
     }
+    |> Map.reject(fn {_, v} -> is_nil(v) end)
   end
+
+  # ExUnit runs `async: true` modules alongside each other and the others one
+  # at a time, which is what shard planning needs to know to price a module.
+  defp execution_mode([%{async: true} | _]), do: "parallel"
+  defp execution_mode([%{async: false} | _]), do: "serial"
+  defp execution_mode(_tests), do: nil
 
   defp build_suites(tests) do
     tests

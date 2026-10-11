@@ -124,6 +124,13 @@ RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
 
 FROM ubuntu:22.04
 
+# GitHub-hosted runners set ImageOS, and setup actions such as
+# erlef/setup-beam read it to pick a prebuilt binary for the OS. Keep it
+# in step with the base image above (ubuntu:24.04 -> ubuntu24). The image
+# is amd64-only (RUNNER_ARCH=x64); an arm64 build would need GitHub's
+# `ubuntu22-arm64`.
+ENV ImageOS=ubuntu22
+
 # renovate: datasource=github-releases depName=actions/runner
 ARG RUNNER_VERSION=2.337.0
 ARG RUNNER_ARCH=x64

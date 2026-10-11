@@ -475,44 +475,6 @@ defmodule Tuist.Runners.WorkflowJobsTest do
     end
   end
 
-  describe "get_executed_by_runner_name/2" do
-    test "returns the job GitHub ran on the runner, not the one it was minted for" do
-      account = account_fixture()
-      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_070))
-      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_071))
-      claimed_at = DateTime.utc_now()
-      :ok = WorkflowJobs.transition_claimed(910_070, "pod-1", claimed_at)
-      :ok = WorkflowJobs.transition_running(910_070, "runner-y", claimed_at)
-      :ok = WorkflowJobs.record_execution("runner-y", 910_071, account.id)
-
-      assert {:ok, %WorkflowJob{workflow_job_id: 910_071}} =
-               WorkflowJobs.get_executed_by_runner_name(account.id, "runner-y")
-    end
-
-    test "falls back to the minting job before GitHub reports the execution" do
-      account = account_fixture()
-      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_072))
-      claimed_at = DateTime.utc_now()
-      :ok = WorkflowJobs.transition_claimed(910_072, "pod-1", claimed_at)
-      :ok = WorkflowJobs.transition_running(910_072, "runner-z", claimed_at)
-
-      assert {:ok, %WorkflowJob{workflow_job_id: 910_072}} =
-               WorkflowJobs.get_executed_by_runner_name(account.id, "runner-z")
-    end
-
-    test "is scoped to the account" do
-      account = account_fixture()
-      other_account = account_fixture()
-      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_073))
-      claimed_at = DateTime.utc_now()
-      :ok = WorkflowJobs.transition_claimed(910_073, "pod-1", claimed_at)
-      :ok = WorkflowJobs.transition_running(910_073, "runner-w", claimed_at)
-
-      assert {:error, :not_found} = WorkflowJobs.get_executed_by_runner_name(other_account.id, "runner-w")
-      assert {:error, :not_found} = WorkflowJobs.get_executed_by_runner_name(account.id, "")
-    end
-  end
-
   describe "pick_queued_top_k/6" do
     test "returns queued candidates in (enqueued_at, workflow_job_id) order with the CH candidate shape" do
       account = account_fixture()

@@ -122,6 +122,20 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert inventory =~ "/runners/volumes/#{volume.id}"
   end
 
+  test "inventory truncates long volume names and keeps the full name in the title" do
+    assigns = assigns(true)
+    key = "cli-dependencies-m4-20261009-01-tuist-macos-27-0-volumes-" <> String.duplicate("a", 64)
+    volume = %{assigns.selected | key: key}
+    data = %{assigns.data.result | volumes: [volume]}
+
+    html = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil, data: AsyncResult.ok(data)})
+
+    cell = html |> Floki.parse_document!() |> Floki.find("#volumes-table td:first-child")
+    assert Floki.text(cell) =~ "cli-dependencies-m4-20261009-01-tuist-macos-27-…"
+    refute Floki.text(cell) =~ key
+    assert Floki.attribute(cell, "[title]", "title") == [key]
+  end
+
   test "account overview shows storage totals with missing measurement coverage" do
     html = render_component(&RunnerVolumesLive.render/1, %{assigns(true) | selected: nil})
     refute html =~ "7-day inactivity eviction"
@@ -171,6 +185,13 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert updated.assigns.storage_metric == "volumes"
     assert RunnerVolumesLive.storage_chart_options("volumes").yAxis.axisLabel.formatter == "fn:formatNumber"
     assert RunnerVolumesLive.storage_chart_options("used_bytes").yAxis.axisLabel.formatter == "fn:formatBytes"
+  end
+
+  test "storage charts use the themed grid line and label colors" do
+    options = RunnerVolumesLive.storage_chart_options("used_bytes")
+    assert options.yAxis.splitLine.lineStyle.color == "var:noora-chart-lines"
+    assert options.yAxis.axisLabel.color == "var:noora-surface-label-secondary"
+    assert options.xAxis.axisLabel.color == "var:noora-surface-label-secondary"
   end
 
   test "hit rate trends use percentage points and distinguish unavailable comparisons" do

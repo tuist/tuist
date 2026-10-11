@@ -19,20 +19,26 @@ public struct ServerCredentials: Sendable, Codable, Equatable {
     /// JWT refresh token
     public let refreshToken: String?
 
+    /// The OAuth client that issued this token pair. Absent for legacy and API-auth credentials.
+    public let oauthClientID: String?
+
     public init(
         accessToken: String,
-        refreshToken: String? = nil
+        refreshToken: String? = nil,
+        oauthClientID: String? = nil
     ) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
+        self.oauthClientID = oauthClientID
     }
 
     #if DEBUG
         public static func test(
             accessToken: String = "access-token",
-            refreshToken: String? = "refresh-token"
+            refreshToken: String? = "refresh-token",
+            oauthClientID: String? = nil
         ) -> ServerCredentials {
-            return ServerCredentials(accessToken: accessToken, refreshToken: refreshToken)
+            return ServerCredentials(accessToken: accessToken, refreshToken: refreshToken, oauthClientID: oauthClientID)
         }
     #endif
 }
@@ -119,6 +125,11 @@ public enum ServerCredentialsStoreBackend: Sendable {
         public func store(credentials: ServerCredentials, serverURL: URL) async throws {
             switch backend {
             case .keychain:
+                if let oauthClientID = credentials.oauthClientID {
+                    try keychain(serverURL: serverURL).set(oauthClientID, key: serverURL.absoluteString + "_oauth_client_id")
+                } else {
+                    try keychain(serverURL: serverURL).remove(serverURL.absoluteString + "_oauth_client_id")
+                }
                 if let refreshToken = credentials.refreshToken {
                     try keychain(serverURL: serverURL)
                         .comment("Refresh token against \(serverURL.absoluteString)")
@@ -149,7 +160,8 @@ public enum ServerCredentialsStoreBackend: Sendable {
                 let refreshToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_refresh_token")
                 return ServerCredentials(
                     accessToken: accessToken,
-                    refreshToken: refreshToken
+                    refreshToken: refreshToken,
+                    oauthClientID: try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_oauth_client_id")
                 )
             #if os(macOS)
                 case .fileSystem:
@@ -183,6 +195,7 @@ public enum ServerCredentialsStoreBackend: Sendable {
                 let keychain = keychain(serverURL: serverURL)
                 try keychain.remove(serverURL.absoluteString + "_refresh_token")
                 try keychain.remove(serverURL.absoluteString + "_access_token")
+                try keychain.remove(serverURL.absoluteString + "_oauth_client_id")
             #if os(macOS)
                 case .fileSystem:
                     let path = try credentialsFilePath(serverURL: serverURL)

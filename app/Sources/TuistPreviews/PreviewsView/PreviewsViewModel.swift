@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import TuistAppStorage
+import TuistAuthentication
 import TuistServer
 
 struct SelectedProjectFullHandleKey: AppStorageKey {
@@ -29,7 +30,7 @@ final class PreviewsViewModel: Sendable {
     init(
         listProjectsService: ListProjectsServicing = ListProjectsService(),
         listPreviewsService: ListPreviewsServicing = ListPreviewsService(),
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        serverEnvironmentService: ServerEnvironmentServicing = AppServerEnvironmentService(),
         appStorage: AppStoring = AppStorage()
     ) {
         self.listProjectsService = listProjectsService

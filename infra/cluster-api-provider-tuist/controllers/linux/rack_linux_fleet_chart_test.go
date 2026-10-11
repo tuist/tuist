@@ -67,7 +67,7 @@ func renderRackLinuxHosts(t *testing.T, chart, source string, extra ...string) (
 	t.Helper()
 	args := append([]string{"template", "test", chart, "--namespace", "tuist",
 		"--values", filepath.Join(source, "values-managed-common.yaml"),
-		"--values", filepath.Join(source, "values-managed-staging.yaml")}, extra...)
+		"--values", filepath.Join(source, "values-managed-production.yaml")}, extra...)
 	output, err := exec.Command(helmBinary(t), args...).CombinedOutput()
 	if err != nil {
 		return nil, string(output), err
@@ -92,7 +92,7 @@ func renderRackLinuxHosts(t *testing.T, chart, source string, extra ...string) (
 // rack:fleet render wrote it into the chart: each edge's VRRP address, the
 // other edge's as its peer, and its uplinks in the order the rack-edge pod
 // stacks the VRRP VLAN on them.
-func TestStagingRackLinuxEdgesCarryTheirWayOut(t *testing.T) {
+func TestRackLinuxEdgesCarryTheirWayOut(t *testing.T) {
 	chart, source := rackLinuxFleetChart(t)
 	hosts, output, err := renderRackLinuxHosts(t, chart, source)
 	if err != nil {

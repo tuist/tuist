@@ -8,7 +8,7 @@ export async function fixture(
   image,
   mode,
   output,
-  { limitedTarget = false } = {},
+  { limitedTarget = false, backfillBatchBytes } = {},
 ) {
   fs.mkdirSync(output, { recursive: true });
   const prefix = `spec98-mesh-${process.pid}`,
@@ -194,6 +194,8 @@ export async function fixture(
           POD_UID: names[i],
           POD_NODE_NAME: `fixture-host-${i}`,
         });
+      if (backfillBatchBytes)
+        env.KURA_BACKFILL_BATCH_BYTES = String(backfillBatchBytes);
       const args = [
         "run",
         "-d",

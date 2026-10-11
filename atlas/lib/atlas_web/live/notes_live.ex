@@ -24,7 +24,6 @@ defmodule AtlasWeb.NotesLive do
      |> assign(:form, note_form(%{}))
      |> assign(:preview_markdown, "# Untitled note\n\nStart writing in Markdown.")
      |> assign(:preview_title, "Untitled note")
-     |> assign(:preview_html, render_markdown("# Untitled note\n\nStart writing in Markdown."))
      |> stream(:notes, [], reset: true)}
   end
 
@@ -280,26 +279,31 @@ defmodule AtlasWeb.NotesLive do
       </div>
 
       <.form id="note-form" for={@form} phx-change="preview" phx-submit="save" data-part="editor">
-        <section data-part="pane" data-pane="source">
-          <.text_area
-            id="note-content"
-            field={@form[:content]}
-            label={gettext("Markdown")}
-            rows={24}
-            max_length={50_000}
-            phx-debounce="300"
-            show_character_count={false}
-          />
-          <div data-part="editor-actions">
-            <.button id="note-save-button" label={gettext("Save note")} type="submit" />
-          </div>
-        </section>
-        <section data-part="pane" data-pane="preview">
-          <h2 data-part="pane-title">{gettext("Preview")}</h2>
-          <article id="note-preview" data-part="markdown-preview">
-            {raw(@preview_html)}
-          </article>
-        </section>
+        <.card title={gettext("Markdown")} icon="devices_code" data-pane="source">
+          <.card_section data-part="pane">
+            <.text_area
+              id="note-content"
+              field={@form[:content]}
+              aria-label={gettext("Markdown")}
+              rows={24}
+              max_length={50_000}
+              phx-debounce="300"
+              show_character_count={false}
+            />
+            <div data-part="editor-actions">
+              <.button id="note-save-button" label={gettext("Save note")} type="submit" />
+            </div>
+          </.card_section>
+        </.card>
+        <.card title={gettext("Preview")} icon="eye" data-pane="preview">
+          <.card_section data-part="pane">
+            <AtlasWeb.Markdown.content
+              id="note-preview"
+              body={@preview_markdown}
+              data-part="note-body"
+            />
+          </.card_section>
+        </.card>
       </.form>
     </div>
     """
@@ -367,18 +371,10 @@ defmodule AtlasWeb.NotesLive do
     |> assign(:form, note_form(params))
     |> assign(:preview_markdown, markdown)
     |> assign(:preview_title, title)
-    |> assign(:preview_html, render_markdown(markdown))
   end
 
   defp note_form(params), do: to_form(params, as: :note)
   defp search_form(query), do: to_form(%{"query" => query}, as: :search)
-
-  defp render_markdown(markdown) do
-    MDEx.to_html!(markdown,
-      extension: [table: true, strikethrough: true, autolink: true, tasklist: true],
-      sanitize: MDEx.Document.default_sanitize_options()
-    )
-  end
 
   defp excerpt(content) do
     content

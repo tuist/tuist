@@ -330,7 +330,8 @@ struct PackageInfoCacheTests {
     }
 
     private func entryHashForTest(_ pin: ResolvedPin) -> String {
-        let input = "\(pin.location):\(pin.state.version ?? ""):\(pin.state.revision ?? "")"
+        let location = SourceControlLocations.canonicalLocation(pin.location)
+        let input = "\(location):\(pin.state.version ?? ""):\(pin.state.revision ?? "")"
         return String(Hashing.stable(input).prefix(16))
     }
 }

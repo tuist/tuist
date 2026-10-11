@@ -63,6 +63,30 @@ limitation explicit when reporting smoke results.
 and teardown/publication path on main. Run seed, then verify with the same key
 after publication; fail then verify checks that failed-job writes are discarded.
 Require the symlink/APFS mount and warm hit so a cold fallback cannot pass.
+The smoke retains real CLI Swift package dependencies in `.build` and runs
+`tuist install --force-resolved-versions` in both phases. Verify saved dependency
+manifest checksums before installing on warm runs. Its key includes the runner
+profile, Xcode version file, package manifest and lockfile; reuse all of them
+across phases. Keep authentication outside the cached directory and do not
+restore an archive cache into the same path.
+Retain `~/.cache/swifterpm` in a separate volume and pass it explicitly as
+`--cache-path`. A warm `.build` alone leaves SwifterPM's source cache cold and
+can delegate the install back to native SwiftPM. Require both volume hits and
+verify retained source manifests and registry checksum markers before installing.
+Wait for both snapshots to publish before verification. Use a fresh prefix when
+changing the set of retained paths; the two volumes publish independently.
+Keep smoke phase, hit and writer variables out of the installer environment:
+SwifterPM fingerprints manifest-visible variables, so test-control changes would
+otherwise invalidate its retained manifest JSON between phases and writers.
+The optional `concurrent` phase starts two warm writers on the same key. Each
+writes its own marker and waits until both jobs reach the attachment barrier
+before proceeding; dispatching two independent runs alone does not prove overlap.
+Require both private markers to survive, inspect the shared parent and publication
+outcomes, then run `verify` and compare its retained writer with the accepted HEAD.
+The barrier reads only its own workflow run attempt and fails if its peer fails
+or does not attach within 25 minutes. Keep it outside the timed install command.
+Rerun both jobs together: a failed-job-only retry cannot prove overlap with a
+writer from an earlier attempt.
 ## Bazel and Mix cache volumes
 
 Kura's `.bazelrc` configures repository downloads and disk action caching under
@@ -76,17 +100,30 @@ readable project/job keys. Mix owns compiler and dependency invalidation; do not
 add lockfile-hash keys, compatibility-marker scripts or physical-path rewrites.
 Always run dependency resolution and compilation on hits. Never retain ~/.hex
 or authentication configuration. Preserve setup-server-mix's explicit
-restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
+restore-mix-cache=false callers and its `deps` callers, which attach only the
+`deps` volume. Do not add volume-specific composite wrappers.
 
 ## Server test sharding
 
 `server.yml` compiles the test build once and creates separate four-shard plans
 for current and oldest-supported ClickHouse, with references scoped to the GitHub
 run, attempt, and variant. Each shard owns fresh PostgreSQL and ClickHouse databases.
-Bootstrap only `tuist_ex`, authenticate with `mix tuist.login` using GitHub
-OpenID Connect, and download with `mix tuist.test --prepare-only`. Run `db:reset`
+Only the build job compiles, so it stays on `tuist-linux-large` while the shards
+run on the default `tuist-linux` shape.
+Bootstrap only `tuist_ex` and download with `mix tuist.test --prepare-only`;
+`tuist_ex` exchanges the job's GitHub OpenID Connect token itself, so there is no
+login step. Run `db:reset`
 in a separate process before `mix tuist.test --no-download --warnings-as-errors`,
 so migration regression tests do not redefine modules already loaded by setup.
+Date the shard's checkout to the commit time before `db:reset`: a checkout newer
+than the downloaded build makes Mix treat `noora` and `tuist_common` as changed and
+recompile the app.
+The build job and shards attach only the `deps` volume (`restore-mix-cache: deps`):
+the build job compiles from an empty `_build` and the shards download theirs. They
+also pass `mise-cache: "false"`: installing Erlang and Elixir from scratch is
+faster than restoring mise-action's archive. Postgres service health checks poll
+every second as the `postgres` role; probing as `root` logs a FATAL on every check.
+In CI, `db:reset` creates, migrates and lists migrations in one Mix process.
 Take shard references from the build job's outputs, not the current run attempt,
 so rerunning only failed jobs reuses the original plan. Keep distinct `--scheme`
 labels for ClickHouse variants so their outcomes are not treated as flaky reruns.

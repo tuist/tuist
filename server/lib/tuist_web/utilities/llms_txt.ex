@@ -19,7 +19,7 @@ defmodule TuistWeb.Utilities.LlmsTxt do
 
   @locale "en"
 
-  @summary "Tuist is build infrastructure for productive teams. It integrates into existing build toolchains to share compatible build outputs across developer, CI, and agent environments, surface build and test insights, track flaky tests, and share app previews from a URL. Selective testing skips unchanged test targets in Tuist-generated Xcode projects. Managed runners are optional and currently invite-only."
+  @summary "Tuist is build infrastructure for productive teams. It embraces build-system diversity with native depth across Xcode, Gradle, Bazel, and Mix, with Once support in canary, so organizations can adopt one productivity platform rather than a separate product per build system. It prioritizes avoiding unnecessary project work before buying more compute. It integrates into existing build toolchains to share compatible build outputs across developer, CI, and agent environments, surface build and test insights, track flaky tests, and share app previews from a URL. Selective testing skips unchanged test targets in Tuist-generated Xcode projects. Managed runners are optional and currently invite-only."
 
   @notes [
     "Every documentation page has a plain-Markdown twin: swap `/docs/` for `/docs-markdown/` in any documentation URL to get the Markdown source instead of the rendered HTML page.",
@@ -124,6 +124,7 @@ defmodule TuistWeb.Utilities.LlmsTxt do
       link_section("Product", @product_pages),
       guide_section("Solve a problem", "/solutions/"),
       guide_section("Comparisons", "/compare"),
+      guide_section("Build systems", "/build-systems"),
       link_section("Company", @company_pages),
       link_section("Policies", @policy_pages),
       link_section("Optional", @optional_pages)

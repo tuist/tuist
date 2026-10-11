@@ -67,6 +67,60 @@ defmodule AtlasWeb.Oauth.AuthorizeControllerTest do
     assert is_binary(refresh_token)
   end
 
+  test "preserves long OAuth state through a PKCE authorization code exchange", %{conn: conn} do
+    redirect_uri = "http://127.0.0.1:3333/callback"
+    resource = "https://atlas.tuist.dev/mcp"
+    state = String.duplicate("opaque-state+/=&?", 64)
+    verifier = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+    challenge = :sha256 |> :crypto.hash(verifier) |> Base.url_encode64(padding: false)
+
+    registration_conn =
+      post(conn, ~p"/oauth2/register", %{
+        "client_name" => "Pi",
+        "redirect_uris" => [redirect_uri],
+        "grant_types" => ["authorization_code", "refresh_token"],
+        "response_types" => ["code"],
+        "token_endpoint_auth_method" => "none"
+      })
+
+    assert %{"client_id" => client_id} = json_response(registration_conn, 201)
+    {conn, _user} = log_in_user(build_conn())
+
+    conn =
+      get(conn, ~p"/oauth2/authorize", %{
+        "response_type" => "code",
+        "client_id" => client_id,
+        "redirect_uri" => redirect_uri,
+        "scope" => "mcp",
+        "state" => state,
+        "resource" => resource,
+        "code_challenge" => challenge,
+        "code_challenge_method" => "S256"
+      })
+
+    assert %{"code" => code, "state" => ^state} =
+             conn |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+
+    assert %Token{state: ^state} = Repo.get_by(Token, value: code)
+
+    token_conn =
+      post(build_conn(), ~p"/oauth2/token", %{
+        "grant_type" => "authorization_code",
+        "client_id" => client_id,
+        "redirect_uri" => redirect_uri,
+        "code" => code,
+        "code_verifier" => verifier,
+        "resource" => resource
+      })
+
+    assert %{"access_token" => access_token, "refresh_token" => refresh_token} =
+             json_response(token_conn, 200)
+
+    assert {:ok, %{"scopes" => ["mcp"]}} = Guardian.decode_and_verify(access_token)
+    assert %Token{resource: ^resource, previous_code: ^code} = Repo.get_by(Token, value: access_token)
+    assert is_binary(refresh_token)
+  end
+
   test "keeps the resource indicator on the token so refreshes are accepted", %{conn: conn} do
     redirect_uri = "https://claude.ai/api/mcp/auth_callback"
     resource = "https://atlas.tuist.dev/mcp"

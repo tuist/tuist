@@ -12,8 +12,9 @@ setup_file() {
     export FLEET_ROOT
     # The site's machines reference their RackHosts in the tuist chart's values,
     # which a test that runs the tools from a copy of this directory would
-    # otherwise look for beside the copy.
-    FLEET_RACK_VALUES="$(cd "$FLEET_ROOT/../helm/tuist" && pwd)/values-managed-staging.yaml"
+    # otherwise look for beside the copy. Those of the env the rack is in.
+    source "$FLEET_ROOT/lib/config.sh"
+    FLEET_RACK_VALUES="$(cd "$FLEET_ROOT/../helm/tuist" && pwd)/values-managed-$(fleet_site_env "$FLEET_ROOT/sites/ber1.json").yaml"
     export FLEET_RACK_VALUES
     export FIXTURE="$BATS_TEST_DIRNAME/fixtures/ber1-tor-b-running-config.txt"
 
@@ -1928,7 +1929,90 @@ run_resolve() {
     run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_BEFORE="$rendered" FAKE_AFTER="$rendered" \
         FAKE_STARTUP="$rendered" FAKE_REJECT="" "$copy/fleet.sh" publish ber1-tor-b --dry-run
     [ "$status" -eq 0 ]
-    [[ "$output" == *"status in namespace tuist-staging"* ]]
+    [[ "$output" == *"status in namespace tuist:"* ]]
+}
+
+# --- the env the rack belongs to ----------------------------------------------
+
+@test "the rack's env is its namespace's, by the tuist chart's convention" {
+    site="$BATS_TEST_TMPDIR/site.json"
+    jq '.kubernetes.namespace = "tuist"' "$SITE_FILE" > "$site"
+    run fleet_site_env "$site"
+    [ "$status" -eq 0 ]
+    [ "$output" = production ]
+    jq '.kubernetes.namespace = "tuist-canary"' "$SITE_FILE" > "$site"
+    run fleet_site_env "$site"
+    [ "$output" = canary ]
+    jq '.kubernetes.namespace = "omada"' "$SITE_FILE" > "$site"
+    run fleet_site_env "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"names no env"* ]]
+}
+
+@test "the render reads the RackHosts from the values of the rack's env" {
+    site="$BATS_TEST_TMPDIR/site.json"
+    jq '.kubernetes.namespace = "tuist"' "$SITE_FILE" > "$site"
+    FLEET_RACK_VALUES="" run fleet_rack_values "$site"
+    [ "$status" -eq 0 ]
+    [[ "$output" == */helm/tuist/values-managed-production.yaml ]]
+    FLEET_RACK_VALUES=/elsewhere.yaml run fleet_rack_values "$site"
+    [ "$output" = /elsewhere.yaml ]
+}
+
+@test "everything that names the rack's env agrees with its namespace" {
+    run fleet_check_env "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    run "$FLEET_ROOT/fleet.sh" --site ber1 env
+    [ "$status" -eq 0 ]
+    [ "$output" = "$(fleet_site_env "$SITE_FILE")" ]
+}
+
+@test "the rack switch controller and the edge take the rack from the site definition" {
+    run "$FLEET_ROOT/fleet.sh" --site ber1 helm-values rack-switch-controller
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.watchNamespace' <<<"$output")" = "$(jq -r '.kubernetes.namespace' "$SITE_FILE")" ]
+    [ "$(jq -r '.omada.site' <<<"$output")" = "$(jq -r '.management.controller.site' "$SITE_FILE")" ]
+    [ "$(jq -r '.omada.controllerAddress' <<<"$output")" = "$(jq -r '.management.controller.address' "$SITE_FILE")" ]
+    [ "$(jq -r '.credentials.omadaApiItem' <<<"$output")" = "$(jq -r '.management.controller.credential_item' "$SITE_FILE")" ]
+    [ "$(jq -r '.credentials.deviceAccountItem' <<<"$output")" = "$(jq -r '.management.controller.device_account_item' "$SITE_FILE")" ]
+    run "$FLEET_ROOT/fleet.sh" --site ber1 helm-values rack-edge
+    [ "$(jq -r '.site' <<<"$output")" = ber1 ]
+}
+
+@test "a controller vault, address or tailnet name from another env is refused" {
+    site="$BATS_TEST_TMPDIR/site.json"
+    env="$(fleet_site_env "$SITE_FILE")"
+    jq '.management.controller.vault = "tuist-k8s-elsewhere"' "$SITE_FILE" > "$site"
+    run fleet_check_env "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"whose cluster reads tuist-k8s-$env"* ]]
+    jq '.management.controller.address = ""' "$SITE_FILE" > "$site"
+    run fleet_check_env "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not a tailnet address"* ]]
+    jq '.management.controller.address = "192.168.0.10"' "$SITE_FILE" > "$site"
+    run fleet_check_env "$site"
+    [[ "$output" == *"is not a tailnet address"* ]]
+    jq '.management.controller.url = "https://omada-elsewhere.example.ts.net:8043"' "$SITE_FILE" > "$site"
+    run fleet_check_env "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"names omada-elsewhere.example.ts.net"* ]]
+}
+
+@test "a second env declaring the rack's hosts or pools is refused" {
+    helm="$BATS_TEST_TMPDIR/helm"
+    mkdir -p "$helm"
+    cp -R "$FLEET_ROOT/../helm/tuist" "$FLEET_ROOT/../helm/omada" "$helm/"
+    env="$(fleet_site_env "$SITE_FILE")"
+    run fleet_check_env "$SITE_FILE" "$helm"
+    [ "$status" -eq 0 ]
+    yq -i '.runnersFleet.pools = [{"name": "ber1", "site": "ber1"}]' "$helm/tuist/values-managed-canary.yaml"
+    run fleet_check_env "$SITE_FILE" "$helm"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"values-managed-canary.yaml declares ber1's hosts or runner pools, but the rack is in $env"* ]]
+    rm "$helm/tuist/values-managed-$env.yaml"
+    run fleet_check_env "$SITE_FILE" "$helm"
+    [[ "$output" == *"which has no values-managed-$env.yaml"* ]]
 }
 
 # --- the path from switches behind the edge node to the tailnet --------------
@@ -2281,7 +2365,7 @@ ADOPTED_FIXTURE="$BATS_TEST_DIRNAME/fixtures/ber1-mgmt-adopted.cfg"
     done
     # the device account lives with the API client, in the vault the cluster reads
     [ "$SWITCH_VAULT" = "$(jq -r '.management.controller.vault' "$SITE_FILE")" ]
-    [ "$SWITCH_VAULT" = "tuist-k8s-staging" ]
+    [ "$SWITCH_VAULT" = "tuist-k8s-production" ]
 }
 
 @test "the jump comes from the site definition, for the devices behind the edge" {
@@ -2550,6 +2634,48 @@ STUB
     jq '.management.edge.vrrp.members[0].node = "ber1-edge-a;reboot"' "$SITE_FILE" > "$site"
     run fleet_edge_check "$site"
     [ "$status" -ne 0 ]
+}
+
+@test "the switch port's dnsmasq runs only while this edge holds the edge address there" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    bin="$BATS_TEST_TMPDIR/edge-dhcp"
+    mkdir -p "$bin"
+    fleet_edge_dhcp_run "$SITE_FILE" > "$bin/dhcp.sh"
+    holds="$bin/holds"
+    log="$bin/log"
+    : > "$log"
+    cat > "$bin/ip" <<STUB
+#!/bin/sh
+[ -e "$holds" ] && echo "5: enp87s0    inet 192.168.0.10/24 scope global noprefixroute enp87s0"
+exit 0
+STUB
+    cat > "$bin/dnsmasq" <<STUB
+#!/bin/sh
+echo "started \$*" >> "$log"
+trap 'echo stopped >> "$log"; exit 0' TERM
+while :; do /bin/sleep 0.1; done
+STUB
+    printf '#!/bin/sh\nexec /bin/sleep 0.1\n' > "$bin/sleep"
+    chmod +x "$bin/ip" "$bin/dnsmasq" "$bin/sleep"
+
+    PATH="$bin:$PATH" sh "$bin/dhcp.sh" &
+    runner=$!
+    /bin/sleep 1
+    # nothing to serve from while keepalived has not given this node the address
+    [ ! -s "$log" ]
+    touch "$holds"
+    /bin/sleep 1
+    [ "$(grep -c '^started --no-daemon --conf-file=/etc/rack-edge/dnsmasq.conf$' "$log")" -eq 1 ]
+    # the address moves to the other edge: dnsmasq goes with it
+    rm "$holds"
+    /bin/sleep 1
+    grep -qx stopped "$log"
+    # and comes back with the address, once
+    touch "$holds"
+    /bin/sleep 1
+    [ "$(grep -c '^started' "$log")" -eq 2 ]
+    kill "$runner"
+    wait "$runner" || true
 }
 
 @test "a netbooting site hands UEFI firmware iPXE's Secure Boot shim, and iPXE its script, from the boot server" {
@@ -3302,7 +3428,7 @@ STUB
     cat > "$dir/op" <<'STUB'
 #!/usr/bin/env bash
 case "$2 $3" in
-    "get omada staging open api")
+    "get omada production open api")
         echo '{"fields":[{"label":"client-id","value":"cid"},{"label":"client-secret","value":"csecret"}]}';;
     "get ber1 switch device account")
         [ -f "$FAKE_LOG.account" ] || { echo '"ber1 switch device account" isn'"'"'t an item' >&2; exit 1; }
@@ -3339,7 +3465,7 @@ STUB
         "$FLEET_ROOT/omada.sh" adopt ber1-mgmt
     [ "$status" -eq 0 ]
     [[ "$output" == *"adopted and connected"* ]]
-    run grep -c 'POST https://omada.taild6d7bb.ts.net:8043/openapi/v1/OMC/sites/S1/devices/A8-29-48-FE-B4-BE/start-adopt' "$bin/log"
+    run grep -c "POST $(jq -r '.management.controller.url' "$SITE_FILE")/openapi/v1/OMC/sites/S1/devices/A8-29-48-FE-B4-BE/start-adopt" "$bin/log"
     [ "$output" = "1" ]
     run jq -r '"\(.username) \(.password)"' "$bin/log.adopt"
     [ "$output" = "tuist SwitchNotReal24chars0000" ]
@@ -3539,7 +3665,7 @@ Tq3!nW8e#Yb5Lc2V'
     omada_stub "$bin"
     run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_REFUSE=1 "$FLEET_ROOT/omada.sh" devices
     [ "$status" -ne 0 ]
-    [[ "$output" == *"refused the Open API client in 'omada staging open api'"* ]]
+    [[ "$output" == *"refused the Open API client in 'omada production open api'"* ]]
 }
 
 @test "inform needs the controller's tailnet address, since a switch cannot resolve its name" {
@@ -3825,6 +3951,20 @@ STUB
         "$FLEET_ROOT/ztp.sh" ber1-mgmt --via tuist@edge --interface enp89s0 --dry-run
     [ "$status" -ne 0 ]
     [[ "$output" == *"already serves DHCP (the rack-edge pod"* ]]
+}
+
+@test "the edge's DHCP reply table leaves every reply but a known switch's as dnsmasq sent it" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_path "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    chain="$(awk '/^table netdev tuist_rack_dhcp \{/ {t = 1} t && /^  chain replies \{/ {c = 1; next} c && /^  \}/ {exit} c' <<<"$output")"
+    [[ "$chain" == *"type filter hook egress device \"enp87s0\" priority 0;"* ]]
+    # no verdict and no policy: a provisioning lease's unicast offer to an
+    # installer's MAC goes out untouched
+    [[ "$chain" != *drop* ]]
+    [[ "$chain" != *policy* ]]
+    rules="$(grep -v 'type filter hook' <<<"$chain")"
+    [ "$rules" = "    udp sport 67 udp dport 68 @th,288,48 0xa82948feb4be ether daddr set a8:29:48:fe:b4:be" ]
 }
 
 @test "the edge node hands the switches behind it their site address and their controller" {

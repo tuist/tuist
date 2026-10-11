@@ -84,6 +84,7 @@ defmodule Tuist.Application do
     TransportLogger.attach(:tuist)
     QueryErrorContext.attach()
     Tuist.Repo.PromExPlugin.attach()
+    Tuist.ClickHouseRepo.PromExPlugin.attach()
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()
@@ -96,6 +97,8 @@ defmodule Tuist.Application do
       OpentelemetryEcto.setup([event_prefix: [:tuist, :ingest_repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :click_house_repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :ops_click_house_repo]] ++ ecto_skip_metrics)
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :shadow_click_house_repo]] ++ ecto_skip_metrics)
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :shadow_ingest_repo]] ++ ecto_skip_metrics)
 
       kick_opentelemetry_exporter_after_boot()
     end

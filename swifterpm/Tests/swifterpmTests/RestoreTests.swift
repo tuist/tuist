@@ -243,6 +243,61 @@ struct RestoreTests {
     }
 
     @Test
+    func writeWorkspaceStateRecordsRegistryOriginalLocationAsSCMURL() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("Package")
+            let scratch = root.appendingPathComponent("scratch")
+            try await writeCachedManifest(emptyManifest(), packageDir: package)
+
+            let resolved = ResolvedPins(
+                originHash: "origin",
+                pins: [
+                    ResolvedPin(
+                        identity: "apple.swift-log",
+                        kind: "registry",
+                        location: "",
+                        state: ResolvedState(branch: nil, revision: nil, version: "1.6.1"),
+                        originalLocation: "https://github.com/apple/swift-log.git"
+                    ),
+                    ResolvedPin(
+                        identity: "example.package",
+                        kind: "registry",
+                        location: "",
+                        state: ResolvedState(branch: nil, revision: nil, version: "2.3.4")
+                    ),
+                ],
+                version: 3
+            )
+
+            try await WorkspaceRestorer.writeWorkspaceState(
+                packageDir: package, scratchDir: scratch, mirrors: MirrorConfig(), resolved: resolved, disableSandbox: false
+            )
+
+            let statePath = scratch.appendingPathComponent("workspace-state.json")
+            let state = try #require(
+                try JSONSerialization.jsonObject(
+                    with: await fileSystem.readFile(at: statePath.absolutePath))
+                    as? [String: Any])
+            let object = try #require(state["object"] as? [String: Any])
+            let dependencies = try #require(object["dependencies"] as? [[String: Any]])
+            let states = Dictionary(
+                uniqueKeysWithValues: try dependencies.map { dependency in
+                    let identity = try #require(
+                        (dependency["packageRef"] as? [String: Any])?["identity"] as? String
+                    )
+                    return (identity, try #require(dependency["state"] as? [String: Any]))
+                }
+            )
+            let swiftLog = try #require(states["apple.swift-log"])
+            #expect(swiftLog["name"] as? String == "registryDownload")
+            #expect(swiftLog["scmUrl"] as? String == "https://github.com/apple/swift-log.git")
+            let examplePackage = try #require(states["example.package"])
+            #expect(examplePackage["name"] as? String == "registryDownload")
+            #expect(examplePackage["scmUrl"] == nil)
+        }
+    }
+
+    @Test
     func writeWorkspaceStatePreservesAndSanitizesExistingPrebuilts() async throws {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("Package")

@@ -1,5 +1,6 @@
 defmodule TuistEx.Analytics.ShardsTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   alias Mix.Tasks.Tuist.Test.Build
   alias TuistEx.Analytics.Shards
@@ -27,6 +28,67 @@ defmodule TuistEx.Analytics.ShardsTest do
     assert Shards.reference([], environment(%{"CI_PIPELINE_ID" => "7"})) == {:ok, "gitlab-7"}
     assert {:error, message} = Shards.reference([], environment(%{}))
     assert message =~ "TUIST_SHARD_REFERENCE"
+  end
+
+  test "asks for a plan that knows which modules run alongside others" do
+    Mimic.expect(TuistEx.Analytics.HTTP, :project_request, fn :post, "/tests/shards", body, _ ->
+      send(self(), {:body, body})
+      {:ok, %{}}
+    end)
+
+    Shards.create_plan("reference", ["CTest", "BTest", "ATest"], ["CTest", "ATest"],
+      shard_total: 2
+    )
+
+    assert_received {:body, body}
+    assert body.modules == ["ATest", "BTest", "CTest"]
+    assert body.concurrent_modules == ["ATest", "CTest"]
+    assert body.shard_total == 2
+  end
+
+  test "finds the units ExUnit runs alongside other modules", %{directory: directory} do
+    test_path = Path.join(directory, "test")
+    File.mkdir_p!(test_path)
+
+    File.write!(Path.join(test_path, "async_test.exs"), """
+    defmodule AsyncTest do
+      use ExUnit.Case, async: true
+      test "a", do: :ok
+    end
+    """)
+
+    File.write!(Path.join(test_path, "template_test.exs"), """
+    defmodule TemplateTest do
+      use Demo.DataCase, async: true
+    end
+    """)
+
+    File.write!(Path.join(test_path, "sync_test.exs"), """
+    defmodule SyncTest do
+      use ExUnit.Case, async: false
+    end
+    """)
+
+    File.write!(Path.join(test_path, "default_test.exs"), """
+    defmodule DefaultTest do
+      use ExUnit.Case
+    end
+    """)
+
+    # Only the module's own `use` counts, not a nested module's.
+    File.write!(Path.join(test_path, "nested_test.exs"), """
+    defmodule NestedTest do
+      use ExUnit.Case
+
+      defmodule Inner do
+        use ExUnit.Case, async: true
+      end
+    end
+    """)
+
+    assert {units, concurrent} = Shards.scan([test_path])
+    assert map_size(units) == 5
+    assert concurrent == ["AsyncTest", "TemplateTest"]
   end
 
   test "a run is sharded only when a shard index is given" do

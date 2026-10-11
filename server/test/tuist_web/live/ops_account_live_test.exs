@@ -699,6 +699,39 @@ defmodule TuistWeb.OpsAccountLiveTest do
     refute html =~ "kura-egress-limits-form"
   end
 
+  test "offers the open source plan only to an account with no subscription", %{conn: conn, user: user} do
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    assert html =~ "Start open source plan"
+
+    BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro)
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    refute html =~ "Start open source plan"
+  end
+
+  test "starts the open source plan and reloads the account", %{conn: conn, user: user} do
+    expect(Billing, :start_open_source_plan, fn account ->
+      assert account.id == user.account.id
+      {:ok, %{id: "sub_fake"}}
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv |> element("button", "Start open source plan") |> render_click()
+
+    flash = assert_redirect(lv, ~p"/ops/accounts/#{user.account.id}")
+    assert flash["info"] == "#{user.account.name} is now on the Open Source plan."
+  end
+
+  test "reports an account that already has a subscription", %{conn: conn, user: user} do
+    stub(Billing, :start_open_source_plan, fn _account -> {:error, :subscription_exists} end)
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert render_hook(lv, "start_open_source_plan", %{}) =~
+             "#{user.account.name} already has an active subscription."
+  end
+
   test "one-click upgrade when the Stripe customer already has billing details", %{conn: conn, user: user} do
     stub(Stripe.Customer, :retrieve, fn _customer_id ->
       {:ok,

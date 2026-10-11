@@ -68,8 +68,10 @@ func rackConsoleSecretName(fleet string) string { return fleet + "-console" }
 
 // reconcileInstall publishes an install for a host that has no tailnet device
 // yet, or whose spec.reinstallGeneration is above the generation its current
-// install ran for, and withdraws it once a new device shows the install ran,
-// recording the install's generation. An edge's install is published only
+// install ran for, and withdraws it once a new device joins, recording the
+// install's generation. The new device is held to the install's host key only
+// when the boot server handed out its seed; otherwise another installer, such
+// as the host's own stick, installed it. An edge's install is published only
 // while another edge of its site is connected to serve it, or once the edge
 // was rebooted into it. The reinstall of a running host is started by setting
 // its firmware to boot its installer once and rebooting it, and that of a
@@ -98,7 +100,8 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 	}
 
 	if inst != nil && device != nil && device.DeviceID != inst.PreviousDeviceID {
-		if inst.HostKeyFingerprint != "" {
+		handedOut := installHandedOut(host, inst)
+		if handedOut && inst.HostKeyFingerprint != "" {
 			if err := r.CredentialsManager.SetMachineHostFingerprint(ctx, rackLinuxPinKey(host.Name, device.DeviceID), inst.HostKeyFingerprint); err != nil {
 				return 0, fmt.Errorf("trust %s's new install by its host key: %w", host.Spec.Hostname, err)
 			}
@@ -107,8 +110,14 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 			return 0, err
 		}
 		host.Status.Provisioning.InstalledGeneration = inst.Generation
-		r.Recorder.Eventf(host, corev1.EventTypeNormal, "Installed",
-			"%s ran install %s (generation %d) and joined the tailnet as %s", host.Spec.Hostname, inst.KeyID, inst.Generation, device.DeviceID)
+		if handedOut {
+			r.Recorder.Eventf(host, corev1.EventTypeNormal, "Installed",
+				"%s ran install %s (generation %d) and joined the tailnet as %s", host.Spec.Hostname, inst.KeyID, inst.Generation, device.DeviceID)
+		} else {
+			r.Recorder.Eventf(host, corev1.EventTypeNormal, "InstalledElsewhere",
+				"%s joined the tailnet as %s from another installer, such as its own stick: the boot server never handed out install %s, so it is withdrawn and the host's SSH host key is pinned on first use",
+				host.Spec.Hostname, device.DeviceID, inst.KeyID)
+		}
 		conditions.MarkTrue(host, InstalledCondition)
 		setProvisioningState(host, infrav1.RackLinuxHostProvisioned, "", now)
 		return 0, nil
@@ -389,9 +398,16 @@ func renewDue(host *infrav1.RackLinuxHost, inst *infrav1.RackLinuxHostInstallSta
 	if now.After(inst.ExpiresAt.Time) {
 		return true
 	}
+	return !installHandedOut(host, inst) && now.After(inst.ExpiresAt.Add(-rackInstallRenewBefore))
+}
+
+// installHandedOut reports whether the boot server handed out inst's seed, which
+// it records in status.boot before it does. Only then can a device carry the
+// install's join key and host key; one that joins before came from another
+// installer, such as the host's own stick.
+func installHandedOut(host *infrav1.RackLinuxHost, inst *infrav1.RackLinuxHostInstallStatus) bool {
 	boot := host.Status.Boot
-	handedOut := boot != nil && boot.KeyID == inst.KeyID && boot.ServedAt != nil
-	return !handedOut && now.After(inst.ExpiresAt.Add(-rackInstallRenewBefore))
+	return boot != nil && boot.KeyID == inst.KeyID && boot.ServedAt != nil
 }
 
 // bootWaitsFor names the boot servers the install waits for before the host
@@ -597,8 +613,9 @@ func prepareRackHostSSH(ctx context.Context, c client.Client, creds *credentials
 
 // rackHostKnownKey is the SSH host key fingerprint a rack host's current
 // tailnet device is held to, and the key its pin is kept under: the pin, else,
-// for the device of a new install the operator gave a host key, that key.
-// Empty means the first key the host presents is trusted and pinned.
+// for the device of a new install the operator gave a host key and whose seed
+// the boot server handed out, that key. Empty means the first key the host
+// presents is trusted and pinned.
 func rackHostKnownKey(ctx context.Context, creds *credentials.Manager, host *infrav1.RackLinuxHost) (pinKey, known string, err error) {
 	pinKey = rackLinuxPinKey(host.Name, host.Status.Tailnet.DeviceID)
 	pin, err := creds.GetMachineBootstrap(ctx, pinKey)
@@ -608,7 +625,7 @@ func rackHostKnownKey(ctx context.Context, creds *credentials.Manager, host *inf
 	if pin != nil && pin.HostFingerprint != "" {
 		return pinKey, pin.HostFingerprint, nil
 	}
-	if inst := host.Status.Install; inst != nil && inst.HostKeyFingerprint != "" && inst.PreviousDeviceID != host.Status.Tailnet.DeviceID {
+	if inst := host.Status.Install; inst != nil && inst.HostKeyFingerprint != "" && inst.PreviousDeviceID != host.Status.Tailnet.DeviceID && installHandedOut(host, inst) {
 		return pinKey, inst.HostKeyFingerprint, nil
 	}
 	return pinKey, "", nil

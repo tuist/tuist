@@ -694,8 +694,16 @@ kura-runners-ingress-nginx:
 # network of its own and reaches no Service, so the gateway resolves through
 # the node; the node translates the kubernetes Service to the API server, and
 # the Kura pods it fronts sit on the same node.
+#
+# Configured here beside the other gateways, but deployed by the
+# rack-cache-gateways chart (infra/helm/rack-cache-gateways), a release that
+# install-platform.sh does not wait on: this chart's release is, and a dark
+# rack would fail it. Its objects are named after the gateway rather than that
+# release, whose name would push the metrics Service past the 63 characters a
+# Service name may have.
 kura-ber1-runners-ingress-nginx:
   enabled: false
+  fullnameOverride: kura-ber1-runners-ingress-nginx
   controller:
     kind: DaemonSet
     hostNetwork: true

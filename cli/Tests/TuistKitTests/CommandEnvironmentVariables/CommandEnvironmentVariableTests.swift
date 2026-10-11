@@ -95,6 +95,19 @@ struct CommandEnvironmentVariableTests {
         #expect(buildCommandWithArgs.buildOptions.passthroughXcodeBuildArguments == ["-configuration", "Debug"])
     }
 
+    @Test(.withMockedEnvironment()) func optionalOptionWithEnvVarRejectsInvalidArgument() throws {
+        setVariable(.buildOptionsPlatform, value: "ios")
+
+        let error = #expect(throws: (any Error).self) {
+            try BuildRunCommand.parse(["--platform", "android"])
+        }
+        #expect(
+            BuildRunCommand.message(for: try #require(error)) ==
+                "The value 'android' is invalid for '--platform <platform>': " +
+                "Please provide one of 'ios', 'macos', 'tvos', 'watchos', 'visionos'."
+        )
+    }
+
     @Test(.withMockedEnvironment()) func cleanCommandUsesEnvVars() throws {
         setVariable(.cleanCleanCategories, value: "dependencies")
         setVariable(.cleanPath, value: "/path/to/clean")

@@ -25,7 +25,13 @@ a passing retry can turn the exit code green, merges the attempts as
 repetitions and submits once. Sharding (`Shards`, `mix tuist.test.build`) plans with ExUnit modules, since
 that is what runs report timings for, discovered by parsing the test files
 without loading them, and runs test files, since that is what Mix can
-select. The build archive materializes dependency `deps/*/priv` directories whose
+select. Each reported module carries an `execution_mode` (`parallel` for
+`async: true`, `serial` otherwise, from the test's `:async` tag). The plan
+request declares `concurrent_modules`, the units whose module says
+`use ..., async: true`, read from the same parse, as the Xcode CLI declares
+`parallelizable_modules`; the server measures how many ran at once from
+earlier shards' reported modes and durations, and balances the shards' wall
+clock rather than their summed module durations. The build archive materializes dependency `deps/*/priv` directories whose
 real paths stay inside the checkout, including native libraries generated in
 `deps/` that are absent on cold workers. Preserve project `priv` links so nested
 checkout-relative resources (such as published agent skills) keep their original

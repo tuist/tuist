@@ -1,4 +1,6 @@
-# Defaults shared by every environment. Which rack lives in values-<env>.yaml.
+# Defaults shared by every environment. Which rack is the site whose definition
+# (infra/rack-switch-fleet/sites/<site>.json) has a controller;
+# omada-deployment.yml passes it with --set site=<site>.
 
 image:
   repository: ghcr.io/tuist/rack-edge

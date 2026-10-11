@@ -60,13 +60,17 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def valid_key?(key), do: is_binary(key) and Regex.match?(~r/^[a-zA-Z0-9][a-zA-Z0-9_.\/-]{0,199}$/, key)
 
+  # The session's executed binding is the proof that this runner runs the job.
+  # The job row can still be `queued` or `claimed` by another Pod until the
+  # unstarted-executions sweep moves it, or not exist until its `queued`
+  # webhook arrives.
   defp executing_job(pod, node) do
     case execution_binding(pod, node) do
-      {job, platform, executed_id} ->
+      {job, platform} ->
         if Environment.runner_cache_volumes_enabled?(platform) do
-          case {job, executed_id} do
-            {%WorkflowJob{} = job, _} -> {:ok, job, platform}
-            {nil, nil} -> {:error, :pending}
+          case job do
+            %WorkflowJob{status: status} = job when status in ~w(queued claimed running) -> {:ok, job, platform}
+            nil -> {:error, :pending}
             _ -> {:error, :unavailable}
           end
         else
@@ -84,11 +88,11 @@ defmodule Tuist.Runners.CacheVolumes do
         left_join: j in WorkflowJob,
         on:
           j.workflow_job_id == s.executed_workflow_job_id and j.account_id == s.account_id and
-            j.provider in ["github", "buildkite", "gitlab"] and j.status == "running",
+            j.provider in ["github", "buildkite", "gitlab"],
         where: s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform in [:linux, :macos],
         order_by: [desc: s.started_at],
         limit: 1,
-        select: {j, s.platform, s.executed_workflow_job_id}
+        select: {j, s.platform}
       )
     )
   end

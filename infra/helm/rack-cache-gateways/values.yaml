@@ -1,0 +1,6 @@
+# The chart reads the platform chart's values: install-platform.sh renders it
+# with infra/helm/platform/values.yaml and the cluster's overlays, so a
+# gateway is configured beside the cloud regions' gateways, from the same
+# shared nginx config. These defaults only let the chart render on its own.
+kura-ber1-runners-ingress-nginx:
+  enabled: false

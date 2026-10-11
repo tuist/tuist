@@ -27,7 +27,9 @@ Tuist only connects to your infrastructure over HTTPS, so you only need to allow
 
 ### Tuist Runners {#tuist-runners}
 
-Jobs that run on macOS <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> reach the internet directly from the machine they run on, not through the addresses above. If a job needs to reach infrastructure that restricts traffic by IP address, for example to check out a repository from a GitHub organization with an IP allow list, also allowlist the following addresses:
+Jobs that run on <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> reach the internet directly from the machine they run on, not through the addresses above. If a job needs to reach infrastructure that restricts traffic by IP address, for example to check out a repository from a GitHub organization with an IP allow list, also allowlist the addresses for every platform your workflows run on.
+
+#### macOS {#tuist-runners-macos}
 
 | IP address | CIDR notation |
 |---|---|
@@ -44,8 +46,23 @@ Jobs that run on macOS <.localized_link href="/guides/features/runners">Tuist Ru
 | 62.210.194.173 | `62.210.194.173/32` |
 | 62.210.195.116 | `62.210.195.116/32` |
 
+#### Linux {#tuist-runners-linux}
+
+| IP address | CIDR notation |
+|---|---|
+| 51.255.75.64 | `51.255.75.64/32` |
+| 51.255.75.145 | `51.255.75.145/32` |
+| 51.255.75.147 | `51.255.75.147/32` |
+| 51.255.75.149 | `51.255.75.149/32` |
+| 51.255.75.186 | `51.255.75.186/32` |
+| 51.255.93.93 | `51.255.93.93/32` |
+| 217.182.192.213 | `217.182.192.213/32` |
+| 217.182.192.222 | `217.182.192.222/32` |
+| 217.182.192.227 | `217.182.192.227/32` |
+| 217.182.193.152 | `217.182.193.152/32` |
+
 > [!NOTE]
-> This list changes when we add machines to the fleet. We are moving the runners to a dedicated IP range so the list stays stable.
+> These lists change when we add machines to the fleets. We are moving the runners to a dedicated IP range so the list stays stable.
 
 <!--
 MAINTAINERS: the first table is the customer-facing contract for the reserved egress

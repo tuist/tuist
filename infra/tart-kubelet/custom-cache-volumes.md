@@ -125,10 +125,62 @@ Old built-in volume code and images remain compatible throughout.
 
 ## Validation record
 
+### M4 storage budget and rollout
+
+Production M4 Pro replacement hosts use a 512 GiB shared cache filesystem,
+up from 240 GiB. M2 remains at 80 GiB. This is a sparse aggregate ceiling for
+built-in images, custom images, retained masters and transfer staging; custom
+volume capacity remains 20 decimal GB. No M5 rack capacity is enabled here.
+
+Cache admission, built-in convergence and built-in master eviction use the lesser
+of quota free space and physical host free space above the 15% golden-image
+reclamation floor. Raw quota free-space telemetry is unchanged. Probe errors
+decline new allocations. Existing jobs and non-cache host writes can still reduce
+physical free space; this admission guard complements the existing golden-image
+reclaimer and Node DiskPressure reporting rather than enforcing a disk partition.
+Custom requests first evict their own reusable masters, then may reclaim built-in
+masters and displace convergence staging under the built-in admission lock. Live
+branches and writer reservations remain protected, and actual filesystem space
+is remeasured after deletion because CoW clones can retain the removed blocks.
+
+The initial planning allowance is 512 GiB cache, 340 GiB for overlapping VM base
+images, 280 GiB for two guest disks, 100 GiB host data and approximately 300 GiB
+physical free reserve. Treat these as estimates: production's seven-day minimum
+root free-space readings on 2026-10-09 were about 269 and 441 GiB on the two M4s.
+The 512 GiB quota must not be deployed without the physical-space guard.
+
+1. Release/deploy the matching CAPI/tart-kubelet runtime through the normal
+   canary and production pipeline. Verify the new host binary before changing
+   physical cache capacity.
+2. Helm changes the M4 MachineTemplate to 512 GiB. The MachineDeployment uses
+   `OnDelete`, and bootstrap deliberately leaves an already-mounted APFS quota
+   untouched. Existing M4s therefore remain at 240 GiB after a chart-only deploy;
+   patching their quota field does not resize the filesystem.
+3. Through the existing human-elevated production fleet workflow, drain and
+   replace one M4 Machine at a time, confirming no owned job is still running
+   before replacement. Use CAPI Machine replacement, not direct Node deletion
+   or deleting/reformatting the cache volume under jobs. Verify the replacement
+   references the new 512 GiB template, becomes Ready and reports the expected
+   filesystem quota before proceeding to the second host.
+4. Run cold seed/publication/warm verification and failed-job isolation on a
+   confirmed M4, then repeat with two concurrent standard guests. Record root
+   free space, admission failures and cache hit rates through an image rollout
+   before increasing the budget further or adopting volumes in regular pipelines.
+
+Rollback of the chart affects replacement hosts only. Return to a smaller quota
+through the same drained replacement process; never shrink a live filesystem.
+Keep the host free-space guard in place on hosts already provisioned at 512 GiB.
+
 For deployed GitHub smoke validation, dispatch `macos-cache-volumes-smoke.yml`
-on `main` with a fresh key and phase `seed`. After successful teardown and host
-publication, dispatch `verify` with the same key: it requires a warm APFS volume
-with the original file contents, symlink and xattr. Run `fail` and then `verify`
+on `main` with a fresh key prefix and phase `seed`. The volume retains `.build`
+from the repository's real `tuist install --force-resolved-versions`. Its full key
+includes the runner label and a hash of `.xcode-version`, `Package.swift` and
+`Package.resolved`; use the same inputs and dependency versions for both phases.
+After successful teardown and host publication, dispatch `verify`: it requires
+a warm APFS volume, the original file contents, symlink and xattr, and matching
+dependency manifest checksums before running install again. Job summaries record
+install duration, retained package count and logical size before/after install.
+Run `fail` and then `verify`
 to prove failed-job writes are discarded. Clear that dedicated volume and run
 `seed` again to check invalidation. Do not use a key belonging to a build cache.
 

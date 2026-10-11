@@ -94,6 +94,26 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
     }
 
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
+    func map_whenProjectOptsOut_preservesItsSharedSourceNamespace() async throws {
+        try stubXcodeVersion(Version(27, 0, 0))
+        let tuist = Tuist(
+            project: .generated(.test(generationOptions: .test(enableCaching: true))),
+            fullHandle: nil,
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let project = Project.test(settings: .test(base: [
+            "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING": "NO",
+            "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "NO",
+        ]))
+
+        let (mappedProject, _) = try await XcodeCacheSettingsProjectMapper(tuist: tuist).map(project: project)
+
+        #expect(mappedProject.settings.base["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
+        #expect(mappedProject.settings.base["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
+    }
+
     /// The compiler writes mapped paths into the coverage mapping and xccov can't
     /// resolve them, so a build that gathers coverage (`CLANG_COVERAGE_MAPPING=YES`)
     /// must resolve prefix mapping off, and every other build on.

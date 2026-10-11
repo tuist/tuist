@@ -21,6 +21,10 @@ workflow code runs in the guest. Never expose host credentials or masters.
   or terminal pod phase alone never fences writers.
 - Built-in and custom admission share the existing quota-bounded APFS filesystem
   and account for each other's private-image capacity. Storage failure goes cold.
+  Admission, convergence and cache eviction also preserve the host's 15% physical
+  free-space floor. Custom admission reclaims its own masters first, then built-in
+  masters/convergence staging under the shared lock; remeasure actual space after
+  deletion because running CoW clones can pin blocks. Never reclaim live branches.
 - Run `go test -race ./internal/podagent` and shared lifecycle tests. Real APFS
   checks require macOS/hdiutil; Linux CI covers the injected lifecycle tests.
 - Migration, rollout and validation: [custom-cache-volumes.md](custom-cache-volumes.md).

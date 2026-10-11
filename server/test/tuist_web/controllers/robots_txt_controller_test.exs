@@ -57,6 +57,7 @@ defmodule TuistWeb.RobotsTxtControllerTest do
 
       refute body =~ "Content-Usage: /solutions"
       refute body =~ "Content-Usage: /compare"
+      refute body =~ "Content-Usage: /build-systems"
     end
 
     test "points crawlers at the sitemap", %{conn: conn} do

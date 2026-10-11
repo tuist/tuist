@@ -770,6 +770,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         refreshToken: JWT
     ) async throws -> ServerAuthenticationTokens {
         do {
+            let credentials = try await ServerCredentialsStore.current.read(serverURL: serverURL)
             let newTokens = if refreshToken.type == "account" {
                 try await refreshOAuthTokenService.refreshTokens(
                     serverURL: serverURL,
@@ -785,7 +786,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 .store(
                     credentials: ServerCredentials(
                         accessToken: newTokens.accessToken,
-                        refreshToken: newTokens.refreshToken
+                        refreshToken: newTokens.refreshToken,
+                        oauthClientID: credentials?.oauthClientID
                     ),
                     serverURL: serverURL
                 )

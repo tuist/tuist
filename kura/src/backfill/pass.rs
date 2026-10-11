@@ -1268,7 +1268,12 @@ where
                 None => {
                     state
                         .store
-                        .apply_replicated_inline_artifact_from_bytes(
+                        .apply_replicated_inline_artifact_from_bytes_with(
+                            ApplyProvenance {
+                                origin_region: meta.origin_region.as_deref(),
+                                content_sha256: meta.content_sha256.as_deref(),
+                                sync_feed_row: context.tuning.feed_rows,
+                            },
                             producer,
                             &meta.namespace_id,
                             &meta.key,
@@ -2177,6 +2182,54 @@ mod tests {
                 .await
                 .is_some()
         );
+    }
+
+    #[tokio::test]
+    async fn individual_inline_fetch_preserves_provenance_without_echoing_feed_rows() {
+        let peer = test_context(|_| {}).await;
+        let body = vec![0xAB; 4096];
+        peer.state
+            .store
+            .apply_replicated_inline_artifact_from_bytes_with(
+                ApplyProvenance {
+                    origin_region: Some("source-region"),
+                    content_sha256: Some("source-checksum"),
+                    sync_feed_row: true,
+                },
+                ArtifactProducer::Xcode,
+                "ios",
+                "individual-inline",
+                "application/octet-stream",
+                &body,
+                1000,
+                Some("main"),
+                None,
+            )
+            .await
+            .unwrap();
+        build_index(&peer);
+        let (peer_url, server) = spawn_server(router(peer.state.clone())).await;
+        let local = test_context(|_| {}).await;
+        local.state.store.sync_feed_activate().await.unwrap();
+        let before = local.state.store.sync_feed().head();
+        let mut individual = tuning();
+        individual.batch_bytes = 1024;
+        individual.feed_rows = false;
+        let (outcome, claims) = run_pass(&local, &peer_url, individual).await;
+        server.abort();
+        let BackfillPassOutcome::Completed { stats, .. } = outcome else {
+            panic!("expected completion, got {outcome:?}");
+        };
+        assert_eq!(stats.individual_fetches, 1);
+        assert!(claims.is_empty());
+        let applied = fetch_manifest(&local, ArtifactProducer::Xcode, "individual-inline")
+            .await
+            .unwrap();
+        assert_eq!(read_body(&local, &applied).await, body);
+        assert_eq!(applied.origin_region.as_deref(), Some("source-region"));
+        assert_eq!(applied.content_sha256.as_deref(), Some("source-checksum"));
+        assert_eq!(applied.branch.as_deref(), Some("main"));
+        assert_eq!(local.state.store.sync_feed().head(), before);
     }
 
     #[tokio::test]

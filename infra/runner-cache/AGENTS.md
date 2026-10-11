@@ -47,6 +47,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   retain journal recovery and bounded, separately reserved prefetch work.
   Cold creation needs one image's capacity; restoration and prefetch also need
   the archive budget. Keep the backend check and host reservation consistent.
+  After local-master eviction, the optional shared-filesystem reclamation hook
+  may reclaim built-in macOS masters. Remeasure free space before admitting;
+  successful deletion alone does not prove that CoW blocks were freed. Linux
+  has no shared reclaimer and retains its existing admission behavior.
 - Per-pod cleanup errors must not prevent cleanup of other fenced pods.
 - Pod cleanup checks external writer fences outside the global allocation lock,
   then rechecks the durable lease under that lock before removing a mailbox.

@@ -1694,7 +1694,6 @@ impl Capabilities for ReapiService {
             namespace_id: Some(namespace_id),
         };
         self.authorize_request(&request, auth).await?;
-        let chunking_enabled = self.state.config.reapi_blob_chunking_enabled;
         let response = Response::new(reapi::ServerCapabilities {
             cache_capabilities: Some(reapi::CacheCapabilities {
                 digest_functions: vec![reapi::digest_function::Value::Sha256 as i32],
@@ -1714,9 +1713,9 @@ impl Capabilities for ReapiService {
                 supported_compressors: vec![reapi::compressor::Value::Zstd as i32],
                 supported_batch_update_compressors: vec![reapi::compressor::Value::Zstd as i32],
                 max_cas_blob_size_bytes: MAX_MODULE_TOTAL_BYTES as i64,
-                split_blob_support: chunking_enabled,
-                splice_blob_support: chunking_enabled,
-                fast_cdc_2020_params: chunking_enabled.then_some(reapi::FastCdc2020Params {
+                split_blob_support: true,
+                splice_blob_support: true,
+                fast_cdc_2020_params: Some(reapi::FastCdc2020Params {
                     avg_chunk_size_bytes: FAST_CDC_AVERAGE_CHUNK_BYTES,
                     seed: 0,
                 }),
@@ -2564,9 +2563,6 @@ impl ContentAddressableStorage for ReapiService {
         &self,
         request: Request<reapi::SpliceBlobRequest>,
     ) -> Result<Response<reapi::SpliceBlobResponse>, Status> {
-        if !self.state.config.reapi_blob_chunking_enabled {
-            return Err(Status::unimplemented("SpliceBlob is not enabled"));
-        }
         if request.extensions().get::<GrpcWriteAdmission>().is_none() {
             return Err(Status::internal(
                 "write decode admission was not propagated",
@@ -7971,8 +7967,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn replicated_recipe_waits_for_every_chunk_and_remains_readable_when_disabled() {
-        let context = test_context(|config| config.reapi_blob_chunking_enabled = false).await;
+    async fn replicated_recipe_waits_for_every_chunk() {
+        let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
             state: context.state.clone(),
@@ -8084,34 +8080,9 @@ mod tests {
                 chunking_function: reapi::chunking_function::Value::FastCdc2020 as i32,
             }))
             .await
-            .expect("existing recipes must remain readable after disabling new splices")
+            .expect("a recipe must be readable once every chunk has arrived")
             .into_inner();
         assert_eq!(split.chunk_digests, vec![first_digest, second_digest]);
-
-        let capabilities = service
-            .get_capabilities(Request::new(reapi::GetCapabilitiesRequest {
-                instance_name: "ios".into(),
-            }))
-            .await
-            .expect("capabilities should load")
-            .into_inner()
-            .cache_capabilities
-            .expect("cache capabilities should be present");
-        assert!(!capabilities.split_blob_support);
-        assert!(!capabilities.splice_blob_support);
-        assert!(capabilities.fast_cdc_2020_params.is_none());
-
-        let splice_error = service
-            .splice_blob(Request::new(reapi::SpliceBlobRequest {
-                instance_name: "ios".into(),
-                blob_digest: Some(blob_digest),
-                chunk_digests: split.chunk_digests,
-                digest_function: 0,
-                chunking_function: reapi::chunking_function::Value::FastCdc2020 as i32,
-            }))
-            .await
-            .expect_err("disabled nodes must refuse new recipes");
-        assert_eq!(splice_error.code(), tonic::Code::Unimplemented);
     }
 
     #[tokio::test]

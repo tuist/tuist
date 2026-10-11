@@ -59,7 +59,7 @@ The benchmark alternates which implementation runs first and uses a separate rem
 - **cold-pull:** fetch all three SDKs into an empty local cache, including verification, decompression or local XCFramework reconstruction.
 - **ios-pull:** fetch only the iOS SDKs with REAPI. The archive baseline retrieves the complete original archive using its original exact key. That is the archive model's best-case transfer cost; it does not claim the old model can hit after a graph change that changes that key.
 
-Set optional `phases` to a nonempty subset of `["cold-push", "existing-push", "cold-pull", "ios-pull"]` to measure only the affected operations. For restore-only comparisons, preserve the producer’s `runID`, project, corpus names, repetition indices, and input bytes so both protocols hit the existing remote objects; each measured phase still creates a fresh local cache.
+Set optional `phases` to a nonempty subset of `["cold-push", "existing-push", "cold-pull", "ios-pull"]` to measure only the affected operations. For restore-only comparisons, preserve the producer’s `runID`, project, corpus names, repetition indices, and input bytes so both protocols hit the existing remote objects; each measured phase still creates a fresh local cache. Set optional `models` to `["reapi"]` or `["archive"]` to run one storage model.
 
 Timing excludes capability/token setup, metrics scraping, input compilation, post-transfer verification, and cleanup. After each pull, the harness checks declared SDK coverage and SHA-256/size equality for every expected regular file, excluding the regenerated top-level Info.plist. It writes each completed measurement to `results.json` and prints `TRANSFER_BENCHMARK` lines.
 
@@ -246,3 +246,29 @@ The final run excludes all development profiles and repeats the earlier validati
 **Budget limitation:** caches with an explicit runner disk budget still materialize serially, because admission can discard CAS payloads another materialization would need. Their correctness is covered, but their performance is not covered by this unbudgeted comparison. They still use the pooled transport, progressive blob publication, flat CAS and signing reuse. The on-wire actions, Trees, digests and SDK compatibility rules are unchanged by this optimization; the initial migration away from archive keys retains the rollout constraints described earlier. The temporary project-only benchmark credential was revoked and its absence verified after the run.
 
 The [raw final measurements and provenance](ModuleCacheTransferBenchmark.restore-production-2026-09-18.json) include all 36 unrounded timings without credentials.
+
+## Chunked uploads and split reads (2026-10-08)
+
+When the cache advertises `SpliceBlob`, blobs larger than a batch upload as content-defined chunks and are spliced, and reads of spliced blobs go through `SplitBlob` and batch reads. This compares that path with the whole-blob path on the same client build, against two local Kura 0.43.2 nodes started fresh for each sample: one with `KURA_REAPI_BLOB_CHUNKING_ENABLED=true` (the default), one with it `false`, which advertises no splicing and so gets the whole-blob ByteStream path. Runs used `models: ["reapi"]`, one shared `project`, and `independentRepetitionInputs`, so repetition 1 pushes an edited corpus into the namespace repetition 0 filled.
+
+The corpus is 10 XCFrameworks whose 30 slices are 30 distinct Debug Mach-O framework binaries from the Tuist workspace (2.4–124 MB, 301 MB of regular files). The edited repetition replaces three of them (TuistServer, TuistCore, TuistSupport) with the binaries rebuilt after adding one small public function to each module. Requests went through toxiproxy: `lan` adds nothing; `wan` adds 20 ms of latency in each direction and limits each connection to 3,125 KB/s in each direction, which with the client's four connections approximates a 40 ms, 100 Mbit/s link.
+
+Median seconds of three samples (min–max), Release build with the IssueReporting-only workaround:
+
+| Profile | Corpus | Phase | Whole blobs | Chunks |
+|---|---|---|---:|---:|
+| lan | base | cold-push | 2.07 (2.07–2.08) | 2.00 (2.00–2.04) |
+| lan | edited | cold-push | 1.44 (1.41–1.49) | 1.31 (1.28–1.31) |
+| lan | base | cold-pull | 0.63 (0.56–0.77) | 0.61 (0.52–0.73) |
+| lan | base | ios-pull | 0.52 (0.47–0.53) | 0.47 (0.47–0.63) |
+| lan | edited | ios-pull | 0.49 (0.44–0.55) | 0.53 (0.46–0.55) |
+| wan | base | cold-push | 10.89 (9.62–11.12) | 7.12 (7.06–7.21) |
+| wan | edited | cold-push | 8.37 (8.30–8.47) | 2.28 (2.25–2.34) |
+| wan | base | cold-pull | 7.23 (6.75–8.04) | 5.36 (5.34–5.43) |
+| wan | base | ios-pull | 7.46 (7.13–8.18) | 4.61 (4.59–4.62) |
+
+Kura's stored-byte counter for the edited push was 137 MB with whole blobs and 41 MB with chunks: content-defined boundaries realigned after each edit, so most chunks of the rebuilt binaries were already stored. Compressing 512 KiB pieces separately cost 2–3% more zstd output than compressing each binary whole.
+
+The first chunked implementation was slower, and the measurements drove two changes. Restores fetched each spliced blob's batches one at a time, so the 124 MB slice made 62 sequential round trips at the end of the plan (`wan` cold pull 12.54 seconds against 8.99); the large blobs of a download now share one pool of read permits sized to its transfer limit. Uploads spliced every blob only after all chunk uploads finished, and Kura verifies a splice by reading the blob back, which instrumentation showed as 1.03 of the 3.15 seconds of a `lan` cold push; each blob is now spliced as soon as its last missing chunk lands. Neither change raises the requests in flight.
+
+These are loopback measurements of the storage APIs with toxiproxy shaping, not WAN or production numbers, and the corpus repeats no binary across slices. Debug binaries are larger and less compressible than Release ones.

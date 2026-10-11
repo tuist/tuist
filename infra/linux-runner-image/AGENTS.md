@@ -79,6 +79,9 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   attached to the same Pod by the runners-controller. The
   runner's `docker` group is pinned to GID 123 to match the
   socket GID dockerd creates in the sidecar.
+- `ImageOS=ubuntu22`, as GitHub-hosted runners set it. Setup actions
+  such as `erlef/setup-beam` read it to pick a prebuilt binary and
+  fail without it. Change it together with the `ubuntu:22.04` base.
 - `/usr/local/lib/android/sdk` — Android SDK, with `ANDROID_HOME`
   and `ANDROID_SDK_ROOT` exported. Same path and same
   bake-it-into-the-image posture as GitHub's hosted Ubuntu image,

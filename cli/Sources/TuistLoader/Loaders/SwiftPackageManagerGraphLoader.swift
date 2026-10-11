@@ -230,10 +230,17 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         // packages are free to declare the same name (e.g. both `danielgindi/Charts` and forks of it declare
         // `DGCharts`) and merging those would silently drop one package's products.
         //
+        // A local package's identity comes from its directory name, so a checkout at `../ios-DesignSystem` doesn't
+        // share an identity with the `scope.DesignSystem` registry package it overrides. Local packages therefore also
+        // override the remote packages whose identity matches their manifest name.
+        //
         // References:
         // - https://github.com/tuist/tuist/pull/7518
         // - https://github.com/tuist/tuist/issues/11867
         // - https://community.tuist.dev/t/swift-package-registry-overriding-local-dependency-in-tuist-generated-project/902
+        let localPackageNames = Set(
+            packageInfos.filter { Self.isLocalDependencyKind($0.kind) }.map { $0.info.name.lowercased() }
+        )
         packageInfos = Dictionary(grouping: packageInfos, by: \.canonicalIdentity)
             .compactMap { _, groupedPackageInfos in
                 if let localPackage = groupedPackageInfos.first(where: {
@@ -246,6 +253,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     return groupedPackageInfos.first
                 }
             }
+            .filter { Self.isLocalDependencyKind($0.kind) || !localPackageNames.contains($0.canonicalIdentity) }
 
         // Keyed by identity rather than by name: identities are unique across the deduplicated packages, while
         // names are not. The key is only a handle to correlate these dictionaries with each other.

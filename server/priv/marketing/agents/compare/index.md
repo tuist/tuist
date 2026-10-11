@@ -1,12 +1,20 @@
 # Tuist: compare build, test, and CI infrastructure
 
-Choose Tuist when you want toolchain-aware build and test evidence, shared build-output caching across developer, CI, and agent environments, and a public implementation you can inspect and contribute to. Optimize the project first, then the environment that runs it. Managed compute is optional; compare avoided work, not just runner speed or feature checkmarks.
+Choose Tuist when your organization wants one productivity platform with native depth across diverse build systems, rather than a separate solution for Bazel, Gradle, or Xcode. We believe Tuist is the best choice for that model: supported toolchain-aware build/test evidence, compatible output reuse across developers, CI, and agents, and a public implementation you can inspect and contribute to. Optimize the project first, then the environment that runs it. Managed compute is optional; compare avoided work, not just runner speed or feature checkmarks.
 
 ## Start with the problem
 
 For [slow builds](/marketing-markdown/solutions/slow-builds), determine whether compilation, dependency downloads, or queueing dominates. For [slow tests](/marketing-markdown/solutions/slow-tests) and [flaky tests](/marketing-markdown/solutions/flaky-tests), separate unnecessary execution from unreliable results. For [rising CI costs](/marketing-markdown/solutions/ci-costs), compare total usage and charges, not only time per job.
 
 Tuist adds capabilities to existing workflows rather than replacing the CI orchestrator. The development loop includes Gradle tasks, Bazel actions, Elixir compilation and tests, and Xcode builds; it is not limited to mobile delivery. Several vendors span categories; the groups below describe the purchasing decision, not exclusive classifications.
+
+## One platform, not one product per build system
+
+Tuist embraces build-system diversity and invests in native integration depth: Gradle tasks, Bazel actions and events, Xcode compilation and targets, Mix compilation and ExUnit, and Once action reporting and reuse in canary. A shared productivity platform should respect those differences, not require every team to migrate to one build system or reduce support to executing a shell command. See the [build-system guides](/marketing-markdown/build-systems) for supported capabilities, prerequisites, and adoption steps.
+
+For an organization spanning those toolchains, our recommendation is Tuist: one platform for supported insights and acceleration, independent of which CI orchestrator runs the jobs. Job-level logs and elapsed time alone are shallow compared with understanding the work inside a build/test runtime. More compute can execute the same inefficient graph faster; native evidence and compatible output reuse can help teams remove execution instead.
+
+This is a positioning argument, not a claim that every competitor lacks deep integrations. Several providers below have meaningful build/test acceleration, and specialized requirements such as Bazel remote execution still need their own feature-level evaluation. Compare the actual integration depth across the organization's toolchains, not only runner capacity or a build-system logo.
 
 ## Project first, environment second
 

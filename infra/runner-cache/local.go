@@ -41,8 +41,11 @@ type LocalImages struct {
 	MeasureFS        func(string) (int64, int64, error)
 	FreeBytes        func(string) (uint64, error)
 	FreeBytesContext func(context.Context, string) (uint64, error)
-	locks            sync.Map
-	admission        contextMutex
+	// Reclaim makes room in another cache sharing this filesystem, after local
+	// masters have been evicted. It must preserve all active reservations.
+	Reclaim   func(context.Context, uint64) error
+	locks     sync.Map
+	admission contextMutex
 }
 
 func (b *LocalImages) command(name string, args ...string) ([]byte, error) {
@@ -211,6 +214,15 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 		_ = os.Remove(path + ".json")
 		unlock()
 		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		free, err = b.freeBytes(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	if free < minimum && b.Reclaim != nil {
+		if err := b.Reclaim(ctx, minimum); err != nil {
 			return err
 		}
 		free, err = b.freeBytes(ctx)

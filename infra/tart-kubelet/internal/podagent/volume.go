@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -265,6 +266,10 @@ type VolumeManager struct {
 	// keeps the quota volume above by dropping whole masters LRU.
 	LowWatermarkFraction float64
 
+	// HostDiskSpace bounds cache growth by physical host headroom in addition
+	// to the APFS quota. Tests with an injected backend can supply a probe.
+	HostDiskSpace func() (hostdisk.Stats, error)
+
 	backend volumeBackend
 
 	// mu serializes disk-mutating operations and the branch reservations. Every
@@ -313,14 +318,17 @@ func NewVolumeManager(root string, capGiB int, backend volumeBackend) *VolumeMan
 	if capGiB <= 0 {
 		capGiB = 20
 	}
+	var hostSpace func() (hostdisk.Stats, error)
 	if backend == nil {
 		backend = newVolumeBackend()
+		hostSpace = func() (hostdisk.Stats, error) { return hostdisk.Root("/") }
 	}
 	return &VolumeManager{
 		Root:                 root,
 		CapGiB:               capGiB,
 		LowWatermarkFraction: 0.20,
 		backend:              backend,
+		HostDiskSpace:        hostSpace,
 		now:                  time.Now,
 	}
 }
@@ -1307,7 +1315,7 @@ func (m *VolumeManager) EvictToWatermark() (evicted int, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	free, err := m.backend.freeBytes(m.Root)
+	free, err := m.availableBytes()
 	if err != nil {
 		return 0, err
 	}
@@ -1335,7 +1343,7 @@ func (m *VolumeManager) EvictToWatermark() (evicted int, err error) {
 			continue
 		}
 		evicted++
-		f, ferr := m.backend.freeBytes(m.Root)
+		f, ferr := m.availableBytes()
 		if ferr != nil {
 			return evicted, ferr
 		}
@@ -1458,7 +1466,7 @@ func (m *VolumeManager) PrepareConvergeSpace(key masterKey, total, remaining uin
 		want = afterInstall
 	}
 	if !mayEvict {
-		free, err := m.backend.freeBytes(m.Root)
+		free, err := m.availableBytes()
 		if err != nil {
 			return nil, err
 		}
@@ -1533,7 +1541,7 @@ func (m *VolumeManager) reservedBranches() int {
 // value is the space available after any eviction, so the caller can log why a
 // decline happened without a second statfs.
 func (m *VolumeManager) ensureFreeLocked(want uint64, keep masterKey) (uint64, error) {
-	free, err := m.backend.freeBytes(m.Root)
+	free, err := m.availableBytes()
 	if err != nil {
 		return 0, err
 	}
@@ -1554,7 +1562,7 @@ func (m *VolumeManager) ensureFreeLocked(want uint64, keep masterKey) (uint64, e
 		if err := os.RemoveAll(mm.path); err != nil {
 			continue
 		}
-		f, ferr := m.backend.freeBytes(m.Root)
+		f, ferr := m.availableBytes()
 		if ferr != nil {
 			return free, ferr
 		}

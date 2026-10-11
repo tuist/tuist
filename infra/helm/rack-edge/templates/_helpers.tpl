@@ -37,6 +37,8 @@ mgmt-path.sh: |
   {{- .Files.Get (printf "sites/%s/mgmt-path.sh" $site) | nindent 2 }}
 dnsmasq.conf: |
   {{- .Files.Get (printf "sites/%s/dnsmasq.conf" $site) | nindent 2 }}
+dhcp.sh: |
+  {{- .Files.Get (printf "sites/%s/dhcp.sh" $site) | nindent 2 }}
 dnsmasq-machines.conf: |
   {{- .Files.Get (printf "sites/%s/dnsmasq-machines.conf" $site) | nindent 2 }}
 tailnet-routes.sh: |

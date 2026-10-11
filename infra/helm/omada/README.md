@@ -6,7 +6,7 @@ so the controller's lifecycle is handled the way everything else here is.
 **The controller for the rack fleet, still under evaluation.** It exists to
 answer whether the controller can take over switch management from
 [`infra/rack-switch-fleet`](../../rack-switch-fleet/AGENTS.md)'s SSH driver, and it
-is deployed to the staging cluster, where the rack belongs while it is at home.
+is deployed to the production cluster, where the rack belongs.
 
 ## Why it might replace the SSH driver
 
@@ -32,8 +32,8 @@ The measurement and the per-setting table are in
 ## Where it runs, and how switches reach it
 
 One controller for the rack fleet, because a switch can be adopted by only one
-at a time: the staging cluster while the rack is at home, production once it is
-in the data center. There is no staging or canary copy per environment; the
+at a time: the cluster the rack belongs to, production for BER1 (it was staging
+while the rack was built at home). There is no copy per environment; the
 switch-side equivalent of a canary is the apply order the site definition
 enforces.
 
@@ -67,16 +67,21 @@ is why the console path and the fleet CLI stay whichever way this goes.
 
 ## Standing it up
 
-`.github/workflows/omada-deployment.yml` deploys it to staging on a merge that
-touches this chart, or on dispatch. It is a workflow rather than a command
-because creating the namespace needs rights an engineer does not have in
-staging.
+`.github/workflows/omada-deployment.yml` deploys it on a merge that touches
+this chart or the site definition, or on dispatch, to the cluster the rack
+belongs to: the env whose namespace the site definition's
+`kubernetes.namespace` is (`tuist-<env>`, or `tuist` for production;
+`mise run rack:fleet env`), with `values-<env>.yaml`. A dispatch naming another
+env installs the controller alone there, which is how the controller a rack
+moves to is stood up before its switches are pointed at it. It is a workflow
+rather than a command because creating the namespace needs rights an engineer
+does not have.
 
 The admin account and the Open API client are created in the controller's own
 first-boot wizard, at `https://omada.<tailnet>.ts.net:8043`, so no
 ExternalSecret can seed them. Store the admin login in 1Password, and the API
 client as the item `management.controller.credential_item` in the site
-definition names ("omada staging open api"), with `client-id` and
+definition names ("omada production open api"), with `client-id` and
 `client-secret` fields; `rack:omada` reads it from there. The API client needs
 the Administrator role over the site the switches are adopted into.
 
