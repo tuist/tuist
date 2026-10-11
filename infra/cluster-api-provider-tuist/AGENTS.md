@@ -351,6 +351,22 @@ deletion of Kubernetes Node associated with Machine as it is not allowed`,
 deletes the Node, without a drain: cordon and drain a host's Node before
 parking or retiring the host.
 
+### A host lent to another cluster
+
+`RackHost.spec.nodeCluster` keeps a host in this operator's inventory while
+its Node registers in another cluster (runbook: "Lending a host to another
+env" in [infra/rack-nodes/AGENTS.md](../rack-nodes/AGENTS.md)). The machine
+controller reads tart-kubelet's kubeconfig from the Secret it names instead of
+minting an identity, and only once it can read it does it revoke the host's
+identity here and delete its Node here (`retireLocalNode`), so a missing Secret
+leaves the host serving this cluster. It skips the missing-Node re-bootstrap,
+points custom cache volumes at `cacheVolumesURL`, and the RackHost controller
+puts `cluster.x-k8s.io/skip-remediation` on the Machine (marked with
+`tuist.dev/lent-skip-remediation`, so returning the host removes only that
+one). `spec.nodeFleet` replaces the Node's `tuist.dev/fleet` label, which the
+other cluster's pools select. Both are per-host, which `HostConfigHash` strips,
+so `desiredHostConfigHash` folds them in, and only for a lent host.
+
 ### Where it deliberately diverges from the Scaleway kind
 
 Everything that differs is about ownership, and each divergence has a failure

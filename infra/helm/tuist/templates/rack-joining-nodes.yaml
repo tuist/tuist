@@ -1,0 +1,62 @@
+{{- with .Values.rackFleet.joiningNodes }}
+{{- if not (or $.Values.macosFleet.enabled $.Values.kuraFleet.enabled) }}
+{{- fail "rackFleet.joiningNodes needs the tart-kubelet ClusterRole, which this chart renders with macosFleet or kuraFleet enabled" }}
+{{- end }}
+{{- $role := include "tuist.componentName" (dict "root" $ "component" "tart-kubelet") }}
+{{- /*
+Node identities for rack hosts another environment's operator lends this
+cluster. The host stays in that environment's inventory, but its tart-kubelet
+registers its Node here, so this cluster's runner pools and this server drive
+its guests. The names are the ones the CAPI provider's EnsureNodeIdentity gives
+a Machine's identity (`tart-kubelet-<machine>`), so the host authenticates
+here exactly as a host this cluster bootstrapped would, the runner-host token
+included.
+
+The lending environment needs the token below as a kubeconfig in its
+1Password vault; see "Lending a host to another env" in
+infra/rack-nodes/AGENTS.md. Removing an entry revokes the identity.
+*/}}
+{{- range $node := . }}
+{{- $sa := printf "tart-kubelet-%s" $node }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $sa }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: tart-kubelet
+    tuist.dev/joining-node: {{ $node | quote }}
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: {{ $sa }}-token
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    kubernetes.io/service-account.name: {{ $sa }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: tart-kubelet
+    tuist.dev/joining-node: {{ $node | quote }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $sa }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: tart-kubelet
+    tuist.dev/joining-node: {{ $node | quote }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $role }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $sa }}
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
+{{- end }}

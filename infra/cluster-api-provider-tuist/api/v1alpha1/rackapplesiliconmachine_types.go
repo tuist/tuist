@@ -37,6 +37,16 @@ type RackAppleSiliconMachineSpec struct {
 	// +optional
 	FleetName string `json:"fleetName,omitempty"`
 
+	// NodeFleet, when set, replaces FleetName as the `tuist.dev/fleet` label on
+	// the Node: the host's RackHost `nodeFleet`.
+	// +optional
+	NodeFleet string `json:"nodeFleet,omitempty"`
+
+	// NodeCluster, when set, is the other cluster the host's Node registers
+	// in: the host's RackHost `nodeCluster`.
+	// +optional
+	NodeCluster *RackHostNodeCluster `json:"nodeCluster,omitempty"`
+
 	// KubeletVersion override; defaults to the operator's chart-level value
 	// when empty.
 	// +optional

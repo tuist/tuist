@@ -1338,6 +1338,12 @@ rackFleet:
       power:
         pdu: ber1-pdu-b
         outlet: "1"
+      # Lent to staging: its Node registers in the staging cluster, where
+      # staging's rack pools run its guests (rackFleet.joiningNodes in
+      # values-managed-staging.yaml). Staging has no custom cache volumes.
+      nodeFleet: tuist-staging-rack-fleet
+      nodeCluster:
+        kubeconfigItem: BER1_RUNNER_B01_STAGING_KUBECONFIG
     - name: ber1-runner-b02
       serial: CRXK0M2VFY
       address: 10.10.0.102
