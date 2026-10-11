@@ -883,10 +883,12 @@ func TestRackInstallRenewsAJoinKeyOnlyWhileNoHostHasIt(t *testing.T) {
 }
 
 // The operator trusts the new install by the host key it gave it, rather than
-// by whatever answers first on the new device.
+// by whatever answers first on the new device. The boot server handed
+// out its seed, so the new device can be the install's.
 func TestRackInstallTrustsTheNewInstallByTheHostKeyItGaveIt(t *testing.T) {
 	host := withInstall(svcHost(), "kMINT1CNTRL", "", installEpoch.Add(-30*time.Minute), nil)
 	host.Status.Install.HostKeyFingerprint = "SHA256:operatorgenerated"
+	handedOut(host, installEpoch.Add(-20*time.Minute))
 	h := newInstallHarness(t, host, publishedBoot("kMINT1CNTRL"))
 	h.api.devices = []tailnet.Device{svcDevice("new", "2026-09-24T07:50:00Z", true)}
 
@@ -907,4 +909,45 @@ func TestRackInstallTrustsTheNewInstallByTheHostKeyItGaveIt(t *testing.T) {
 	if _, ok := h.boot(t)[svcMACPath+".install"]; ok {
 		t.Fatal("the withdrawn install's key ID is still published")
 	}
+}
+
+// A host installed by another installer while an install is published for it,
+// as from its own stick, joins with a host key of its own: the boot server
+// never handed out the install's seed, so its device is trusted on first use
+// rather than held to the install's host key, which it does not carry.
+func TestRackInstallTrustsAHostItsOwnStickInstalledOnFirstUse(t *testing.T) {
+	host := withInstall(svcHost(), "kMINT1CNTRL", "", installEpoch.Add(-30*time.Minute), nil)
+	host.Status.Install.HostKeyFingerprint = "SHA256:operatorgenerated"
+	host.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: "kMINT1CNTRL", Servers: []infrav1.RackLinuxHostBootServer{
+		{Node: "ber1-edge-a", HoldsAddress: true, At: metav1.NewTime(installEpoch.Add(-29 * time.Minute))},
+	}}
+	h := newInstallHarness(t, host, publishedBoot("kMINT1CNTRL"))
+	h.api.devices = []tailnet.Device{svcDevice("stick", "2026-09-24T07:50:00Z", true)}
+
+	got := h.reconcile(t, svcUUID)
+
+	if got.Status.Install != nil || !conditions.IsTrue(got, InstalledCondition) || got.Status.Provisioning.State != infrav1.RackLinuxHostProvisioned {
+		t.Fatalf("install %+v provisioning %+v, want it withdrawn and the host provisioned", got.Status.Install, got.Status.Provisioning)
+	}
+	ctx := context.Background()
+	pin, err := h.r.CredentialsManager.GetMachineBootstrap(ctx, rackLinuxPinKey(svcUUID, "stick"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pin != nil && pin.HostFingerprint != "" {
+		t.Fatalf("pinned %q; the stick's install carries its own host key", pin.HostFingerprint)
+	}
+	if _, known, err := rackHostKnownKey(ctx, h.r.CredentialsManager, got); err != nil || known != "" {
+		t.Fatalf("known %q %v, want the first key the host presents", known, err)
+	}
+	if len(h.api.revoked) != 1 || h.api.revoked[0] != "kMINT1CNTRL" {
+		t.Fatalf("revoked %v, want the unused install's key", h.api.revoked)
+	}
+}
+
+// handedOut records the published install's seed as handed out at, as the boot
+// server does before it hands it out.
+func handedOut(host *infrav1.RackLinuxHost, at time.Time) {
+	served := metav1.NewTime(at)
+	host.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: host.Status.Install.KeyID, ServedTo: host.Spec.BootMAC, ServedAt: &served}
 }

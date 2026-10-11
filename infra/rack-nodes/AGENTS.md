@@ -146,7 +146,10 @@ every other edge of the site. The chain a netbooting host goes through:
    two hours.
 5. Once a tailnet device that is not the one the install replaced shows up, the
    host controller withdraws the install, so the key stops being served, and
-   records the generation it installed.
+   records the generation it installed. It holds that device to the install's
+   host key only when the boot server handed out the seed
+   (`status.boot.servedAt`); a device that joins otherwise came from another
+   installer, such as the host's own stick, and is trusted on first use.
 
 The iPXE is the iPXE project's Secure Boot build (pinned in the operator's
 image): a shim signed by Microsoft's UEFI CA 2011, the CA that signs Ubuntu's
@@ -351,7 +354,9 @@ carries the same guard.
   the install replaces the host keys the package generated with it alone, and
   tells cloud-init to keep it, and the operator trusts the new install by its
   fingerprint rather than by whatever answers first. A per-host stick carries
-  none, and the host generates its own;
+  none, and the host generates its own, which the operator pins on first use
+  even while an install is published for the host, since the boot server never
+  handed that install's seed out;
 - a tailnet join key minted from the OAuth client in `TAILSCALE_RACK_NODES`:
   single-use, pre-authorized, not ephemeral, carrying the host's tags, and
   valid for two hours. One no host fetched is renewed before it expires, and a

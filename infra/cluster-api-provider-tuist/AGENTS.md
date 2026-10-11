@@ -1168,8 +1168,9 @@ and an older one of the host is not, the host controller deletes the older one
 and renames the newest to the hostname. Two connected devices are left alone
 and reported as `DuplicateDevices`. The machine reconciler keys reinstalls off
 the device ID: a new one is held to the SSH host key the install gave it
-(below), or, for an install the operator did not publish (a per-host stick),
-pinned to the first key it presents.
+(below) once the boot server handed out that install's seed, and otherwise,
+as for a host installed from its own stick, pinned to the first key it
+presents.
 
 **The host controller publishes installs** (`racklinuxhost_install.go`,
 rendered by `internal/rackinstall`) when `--rack-linux-fleet-name` and
@@ -1187,7 +1188,19 @@ since a new one would not reach that installer. A key the Secret no longer
 carries, renewed or withdrawn, is revoked. When the install's device joins, the
 host controller pins its host key for that device before recording the device,
 so the machine reconciler's first dial is held to the key the operator
-generated rather than trusting the first one it sees. The boot MAC is `spec.bootMAC`, or the management port the
+generated rather than trusting the first one it sees. A device is the
+install's only if the boot server handed out its seed (`status.boot.servedAt`
+under the install's key), which it records before handing it out: one that
+joins while the seed was never handed out came from another installer, such
+as a per-host stick that carries its own join key and lets the host generate
+its host key, so the install is withdrawn (`InstalledElsewhere`), its
+generation recorded as installed, and the device pinned to the first key it
+presents. The Tailscale API does not say which key a device joined with, so
+the hand-out record is what tells the two apart. A host a stick installed
+after its seed was handed out is still held to the install's key and fails its
+converge with a host key mismatch; deleting `host-fingerprint` from its
+`rack-linux-<host UUID>-<device ID>-bootstrap` Secret pins it on first use.
+The boot MAC is `spec.bootMAC`, or the management port the
 machine announced (its `RackLinuxCandidate`, below), in `status.bootMAC`; a
 host with neither is `Registering` until its stick announces it. The host takes
 what the machine announced once, into `status.hardware` (product, serial, NICs,
