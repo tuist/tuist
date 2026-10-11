@@ -231,13 +231,18 @@ jobs:
             if [ "${verdict}" != "dropped" ]; then reached=1; fi
           }
 
-          for address in ${gateway} ${public} ${HOST_ADDRESSES}; do
+          # DNS on the vmnet gateway is the guest's resolver and stays open; the
+          # previous step asserts it.
+          for port in 22 88 3283 5900 5901 8080 8081 9100 10250; do
+            probe "${gateway}" "${port}"
+          done
+          for address in ${public} ${HOST_ADDRESSES}; do
             for port in 22 53 88 3283 5900 5901 8080 8081 9100 10250; do
               probe "${address}" "${port}"
             done
           done
           if [ -n "${router6}" ]; then
-            for port in 22 53 88 3283 5900 8081; do
+            for port in 22 88 3283 5900 8081; do
               family=-6 probe "${router6}" "${port}"
             done
           fi
