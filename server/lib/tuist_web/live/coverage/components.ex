@@ -317,33 +317,6 @@ defmodule TuistWeb.Coverage.Components do
     """
   end
 
-  attr :id, :string, required: true
-  attr :title, :string, required: true
-  attr :ranges, :list, default: nil
-
-  # Line ranges shown briefly, with every range in a tooltip once they do not
-  # all fit (`full_line_ranges/1`).
-  defp line_ranges(assigns) do
-    assigns = assign(assigns, :full, full_line_ranges(assigns.ranges))
-
-    ~H"""
-    <span :if={is_nil(@ranges)}>{dgettext("dashboard_tests", "Unavailable")}</span>
-    <span :if={@ranges == []}>{dgettext("dashboard_tests", "None")}</span>
-    <span :if={@ranges not in [nil, []] and is_nil(@full)}>{brief_line_ranges(@ranges)}</span>
-    <.tooltip
-      :if={@full}
-      id={@id}
-      size="large"
-      title={@title}
-      description={@full}
-    >
-      <:trigger :let={attrs}>
-        <span {attrs} tabindex="0">{brief_line_ranges(@ranges)}</span>
-      </:trigger>
-    </.tooltip>
-    """
-  end
-
   @doc """
   Where a coverage page's back button leads when it was opened from another
   coverage page (the `from` parameter the links out of a branch or a commit
@@ -516,33 +489,6 @@ defmodule TuistWeb.Coverage.Components do
     end
   end
 
-  @brief_ranges 2
-
-  @doc "Line ranges (`[first, last]`) as `3–5, 9`; a dash for none."
-  def line_ranges_label(ranges) when ranges in [nil, []], do: "—"
-
-  def line_ranges_label(ranges) do
-    Enum.map_join(ranges, ", ", fn
-      [line, line] -> Integer.to_string(line)
-      [first, last] -> "#{first}–#{last}"
-    end)
-  end
-
-  @doc """
-  Line ranges as `line_ranges_label/1` words them, but at most two: past
-  them, an ellipsis, and `full_line_ranges/1` for the title holding them all.
-  """
-  def brief_line_ranges(ranges) when ranges in [nil, []], do: "—"
-
-  def brief_line_ranges(ranges) when length(ranges) > @brief_ranges,
-    do: line_ranges_label(Enum.take(ranges, @brief_ranges)) <> ", …"
-
-  def brief_line_ranges(ranges), do: line_ranges_label(ranges)
-
-  @doc "Every range, for the title of a `brief_line_ranges/1` that left some out; nil when it left none."
-  def full_line_ranges(ranges) when is_list(ranges) and length(ranges) > @brief_ranges, do: line_ranges_label(ranges)
-  def full_line_ranges(_ranges), do: nil
-
   @doc """
   Where a file's own page lives, on `branch` over the period the `params`
   carry (their `coverage-*` keys), leading back to `from`.
@@ -619,7 +565,6 @@ defmodule TuistWeb.Coverage.Components do
             value={format_number(length(@functions))}
           />
         </div>
-        <.carried_lines :if={Map.get(@file, :carried_lines, []) != []} lines={@file.carried_lines} />
       </.card_section>
     </.card>
     """
@@ -634,30 +579,7 @@ defmodule TuistWeb.Coverage.Components do
       points={@trend.points}
       grouping={@trend.grouping}
       selected_widget={@trend.selected_widget}
-    >
-      <:details :if={Map.get(@file, :carried_lines, []) != []}>
-        <.carried_lines lines={@file.carried_lines} />
-      </:details>
-    </.coverage_analytics_card>
-    """
-  end
-
-  attr :lines, :list, required: true
-
-  defp carried_lines(assigns) do
-    ~H"""
-    <dl data-part="file-details">
-      <div>
-        <dt>{dgettext("dashboard_tests", "Covered by skipped tests, carried forward")}</dt>
-        <dd id="coverage-file-carried-lines">
-          <.line_ranges
-            id="coverage-file-carried-lines-tooltip"
-            title={dgettext("dashboard_tests", "Covered by skipped tests, carried forward")}
-            ranges={Coverage.Evidence.line_ranges(@lines)}
-          />
-        </dd>
-      </div>
-    </dl>
+    />
     """
   end
 

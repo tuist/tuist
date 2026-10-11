@@ -22,7 +22,7 @@ The `target`, `suite` and `test` scopes are **evidence**. They record which file
 | Scope | Shown in the UI |
 | --- | --- |
 | `run` | A commit's and a branch's totals and trend, the targets and files tables, and each file's page: its figures, its functions (line, covered lines, executions) and its trend. Per-line execution counts are stored, but no page shows the source line by line yet. |
-| `target`, `suite`, `test` | Never shown on their own. They show up only through carried coverage: the commit's figure includes the lines carried from skipped tests, and a file's page lists them as "Covered by skipped tests, carried forward". Why a figure is `partial` (`coverage_commits.gap_reasons`) is stored but not displayed yet. |
+| `target`, `suite`, `test` | Never shown on their own. They show up only through carried coverage: the commit's and each file's figures include the lines carried from skipped tests, without saying which ones. Why a figure is `partial` (`coverage_commits.gap_reasons`) is stored but not displayed yet. |
 
 ## How the data flows
 
@@ -151,7 +151,7 @@ Which of them the pages read:
 
 - A commit's and a branch's totals and trend come from `coverage_commits`.
 - The files table, the targets, the changed files and a file's trend come from the deltas when they are current, and otherwise from the raw rows (`Tuist.Tests.Coverage.Deltas`).
-- A file's page at a commit (its figures, functions, per-line counts and carried lines) reads the raw `coverage_files` rows. Once those expire, a file's trend is still there, but its details at older commits are not.
+- A file's page at a commit (its figures, functions and per-line counts) reads the raw `coverage_files` rows. Once those expire, a file's trend is still there, but its details at older commits are not.
 
 ## Xcode
 
