@@ -1783,8 +1783,10 @@ func TestRenderVMEgressFirewallScript_GuardCoversGuestIPv6(t *testing.T) {
 	if !ok {
 		return
 	}
-	if !strings.Contains(parsed, "block drop in quick on bridge101 inet6 proto tcp from any to fe80::/10") {
-		t.Errorf("pfctl did not expand the IPv6 drop per bridge\n%s", parsed)
+	for _, bridge := range []string{"bridge100", "bridge101", "bridge102", "bridge103"} {
+		if !strings.Contains(parsed, "block drop in quick on "+bridge+" inet6 proto udp from any to ") {
+			t.Errorf("pfctl did not expand the IPv6 drop for %s\n%s", bridge, parsed)
+		}
 	}
 }
 
