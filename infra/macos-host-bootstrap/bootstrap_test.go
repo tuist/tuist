@@ -1632,7 +1632,7 @@ func TestRenderVMEgressFirewallScript_PassesRackCacheGatewaysOn443(t *testing.T)
 }
 
 func TestRenderVMEgressFirewallScript_NoCacheGatewayPassWhenUnset(t *testing.T) {
-	script, err := renderVMEgressFirewallScript(Config{VMKuraEgressCIDR: "10.128.0.0/12", VMCachePNCIDR: "172.16.0.0/22"})
+	script, err := renderVMEgressFirewallScript(Config{VMKuraEgressCIDR: "10.128.0.0/12"})
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -1803,7 +1803,7 @@ func TestRenderVMEgressFirewallScript_GuardKeepsEveryCarveOut(t *testing.T) {
 	for _, want := range []string{
 		"pass in quick proto tcp from <vm_sources> to 10.128.0.0/12 port 4000 keep state",
 		"pass in quick proto { tcp, udp } from <vm_sources> to 10.128.0.10 port 53 keep state",
-		"pass in quick proto tcp from <vm_sources> to 172.16.0.0/22 port 30000:32767 keep state",
+		"pass in quick proto tcp from <vm_sources> to 172.16.0.0/22 port { 443, 30000:32767 } keep state",
 	} {
 		if !strings.Contains(anchor, want) {
 			t.Errorf("guard is missing %q\n%s", want, anchor)
@@ -1831,5 +1831,43 @@ func TestRenderSSHIngressGuardScript_DeniesVMsPrivateNetworks(t *testing.T) {
 	}
 	if !strings.Contains(s, "table <vm_ssh_private> persist { "+vmPrivateDestinations+" }") {
 		t.Error("the SSH guard's private table is not the VM egress guard's")
+	}
+}
+
+// The fr-par runner cache is a private gateway: dispatch hands the VM an HTTPS
+// hostname that resolves to the gateway's Private Network address, so the PN
+// carve-out admits 443 beside the NodePorts older jobs were handed.
+func TestRenderVMEgressFirewallScript_PNCarveOutAdmitsPrivateGatewayHTTPS(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMCachePNCIDR: "172.16.0.0/22"})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if !strings.Contains(vmGuardAnchor(t, script), "pass in quick proto tcp from <vm_sources> to 172.16.0.0/22 port { 443, 30000:32767 } keep state") {
+		t.Fatalf("the guard drops the PN cache gateway's HTTPS\n%s", script)
+	}
+}
+
+// A carve-out names a whole range, and the host's own address can sit in it
+// (its PN address is in the PN CIDR), so the drop to the host comes first.
+func TestRenderVMEgressFirewallScript_GuardDropsHostBeforeCarveOuts(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{
+		VMKuraEgressCIDR:    "10.128.0.0/12",
+		VMCachePNCIDR:       "172.16.0.0/22",
+		VMCacheGatewayCIDRs: []string{"10.10.0.11/32"},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	selfBlock := strings.Index(anchor, "block drop in quick from <vm_sources> to self")
+	gatewayDNS := strings.Index(anchor, "pass in quick proto udp from <vm_sources> to <vm_sources> port { 53, 67 } keep state")
+	for _, carveOut := range []string{"to 10.128.0.0/12 port 4000", "to 172.16.0.0/22 port", "to 10.10.0.11/32 port 443"} {
+		at := strings.Index(anchor, carveOut)
+		if at < 0 || at < selfBlock {
+			t.Errorf("carve-out %q renders before the drop to the host's own addresses\n%s", carveOut, anchor)
+		}
+	}
+	if gatewayDNS < 0 || gatewayDNS > selfBlock {
+		t.Errorf("DNS and DHCP to the vmnet gateway must pass before the drop to the host\n%s", anchor)
 	}
 }

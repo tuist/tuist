@@ -323,9 +323,13 @@ carve-outs, and nothing else: not the host's listeners on any of its addresses
   arrives `in` on the vmnet bridge, so the filter lives there, in the
   `com.apple/tuist.vmguard` sub-anchor, with the same re-arm as the SSH guard
   (`dev.tuist.pfctl-vmguard`, every 60s, static `self`).
-- The carve-outs are `tuist.runners`'s, turned inbound. DNS and DHCP to the
-  vmnet gateway pass. Every other private range (RFC 1918, `100.64.0.0/10`,
-  link-local, multicast) and every host address is dropped.
+- DNS and DHCP to the vmnet gateway pass. Every host address is dropped
+  next, ahead of the carve-outs, since a carve-out range can hold one (the
+  host's PN address). Then the carve-outs, `tuist.runners`'s turned inbound,
+  and a drop for every other private range (RFC 1918, `100.64.0.0/10`,
+  link-local, multicast). The PN carve-out covers 443 as well as the
+  NodePorts: the fr-par runner cache is a private gateway whose HTTPS
+  hostname resolves to a PN address.
 - The host's own connections to a guest (the metrics forwarder, VNC relays)
   get state from an outbound pass, or the guest's reply would hit the drop.
 - IPv6 is keyed on the vmnet bridges (`bridge100`-`bridge103`; `bridge0` is

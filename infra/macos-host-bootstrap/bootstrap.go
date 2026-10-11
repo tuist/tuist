@@ -1771,13 +1771,14 @@ pass out quick proto tcp from <vm_sources> to %s port 4000 keep state
 			return "", fmt.Errorf("vm cache pn cidr %q is not an IPv4 CIDR: %v", cfg.VMCachePNCIDR, err)
 		}
 		carveOut += fmt.Sprintf(`
-# Runner-cache Private Network carve-out: VMs dial per-account Kura
-# NodePorts published by the kura node pool on the Scaleway Private
-# Network (the endpoint dispatch hands out on node-port regions).
-# 30000:32767 is Kubernetes' default NodePort range. The kura-side
-# NetworkPolicies admit only this subnet, and Kura's app-layer JWT
-# tenant check is the per-account boundary.
-pass out quick proto tcp from <vm_sources> to %s port 30000:32767 keep state
+# Runner-cache Private Network carve-out: VMs dial the kura node pool on
+# the Scaleway Private Network. Dispatch hands out the regional gateway's
+# HTTPS hostname, which resolves to its PN address (443), and jobs handed
+# the former node-address URL dial per-account NodePorts (30000:32767,
+# Kubernetes' default range). The kura-side NetworkPolicies admit only
+# this subnet, and Kura's app-layer JWT tenant check is the per-account
+# boundary.
+pass out quick proto tcp from <vm_sources> to %s port { 443, 30000:32767 } keep state
 `, cfg.VMCachePNCIDR)
 	}
 
@@ -1930,10 +1931,12 @@ const vmPrivateDestinations = "10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64
 // SSH ingress guard already filters it (verified from a runner VM on
 // ber1-proto-01), so the same filter is applied there.
 //
-// The carve-outs are the `tuist.runners` ones turned inbound. The guests'
-// DHCP and DNS are the host's, on the vmnet gateway, so those two pass to the
-// guest range; everything else private, and every host address (static
-// `self`, re-expanded by the re-arm), is dropped. Public destinations pass.
+// The guests' DHCP and DNS are the host's, on the vmnet gateway, so those two
+// pass first. Every host address (static `self`, re-expanded by the re-arm) is
+// dropped next, ahead of the carve-outs, because a carve-out range can hold
+// one of them (the host's PN address is in the PN CIDR). Then the carve-outs,
+// the `tuist.runners` ones turned inbound, and a drop for everything else
+// private. Public destinations pass.
 //
 // vmnet also gives every guest a link-local and a ULA IPv6 address, outside
 // the IPv4 guest range, and the host's listeners bind both families. pf
@@ -1960,12 +1963,12 @@ sudo tee /etc/pf.anchors/tuist.vmguard >/dev/null <<'PFCONF'
 vm_bridges = "{ bridge100, bridge101, bridge102, bridge103 }"
 table <vm_sources> persist { 192.168.64.0/22 }
 table <vm_private_dst> persist { %s }
-%s
 pass out quick from <vm_sources> to <vm_sources> flags any keep state
 pass in quick proto udp from <vm_sources> to <vm_sources> port { 53, 67 } keep state
 pass in quick proto tcp from <vm_sources> to <vm_sources> port 53 keep state
-block drop in quick from <vm_sources> to <vm_private_dst>
 block drop in quick from <vm_sources> to self
+%s
+block drop in quick from <vm_sources> to <vm_private_dst>
 pass in quick on $vm_bridges inet6 proto { tcp, udp } to self port 53 keep state
 block drop in quick on $vm_bridges inet6 proto { tcp, udp } to self
 block drop in quick on $vm_bridges inet6 proto { tcp, udp } to { fc00::/7, fe80::/10, ff00::/8 }
