@@ -26,7 +26,7 @@ defmodule TuistWeb.Router do
   @public_robots_txt [train_ai: true, search: true, ai_input: true]
   @marketing_route_metadata %{type: :marketing, robots_txt: @public_robots_txt}
   @docs_route_metadata %{type: :docs, robots_txt: @public_robots_txt}
-  @public_project_route_metadata %{public_project: true, robots_txt: false}
+  @public_project_route_metadata %{robots_txt: false}
 
   pipeline :open_api do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
@@ -1516,7 +1516,7 @@ defmodule TuistWeb.Router do
       live "/connect", ConnectLive
       get "/invocations", RedirectPlug, to: "/builds"
       live "/invocations/:invocation_id", BazelBuildInvocationLive, metadata: @public_project_route_metadata
-      live "/", OverviewLive, metadata: @public_project_route_metadata
+      live "/", OverviewLive, metadata: %{public_project: true, robots_txt: false}
       live "/analytics", OverviewLive, :analytics, metadata: @public_project_route_metadata
       live "/bundles", BundlesLive, metadata: @public_project_route_metadata
       live "/bundles/:bundle_id", BundleLive, metadata: @public_project_route_metadata

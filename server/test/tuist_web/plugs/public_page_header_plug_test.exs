@@ -36,7 +36,7 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
       assert conn.private[:tuist_public_project]
     end
 
-    test "allows indexing for a public project on the hosted production site", %{conn: conn} do
+    test "allows indexing for a public project overview on the hosted production site", %{conn: conn} do
       stub(Tuist.Environment, :prod?, fn -> true end)
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
 
@@ -54,19 +54,31 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
       }
 
       conn =
-        %{conn | request_path: "/#{project.account.name}/#{project.name}/builds"}
+        %{conn | request_path: "/#{project.account.name}/#{project.name}"}
         |> Plug.Conn.put_resp_header("x-robots-tag", "noindex, nofollow")
         |> PublicPageHeaderPlug.mark_public_project_page([])
 
       assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["index, follow"]
     end
 
-    test "settings and downloads remain non-indexable even for public projects", %{conn: conn} do
+    test "deeper pages remain non-indexable even for public projects", %{conn: conn} do
       stub(Tuist.Environment, :prod?, fn -> true end)
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
       project = Repo.preload(ProjectsFixtures.project_fixture(visibility: :public), :account)
 
-      for suffix <- ["settings", "settings/automations", "runs/123/download", "connect"] do
+      for suffix <- [
+            "analytics",
+            "builds",
+            "tests",
+            "tests/test-runs/123",
+            "module-cache",
+            "previews/123",
+            "once/builds",
+            "settings",
+            "settings/automations",
+            "runs/123/download",
+            "connect"
+          ] do
         conn = %{
           conn
           | request_path: "/#{project.account.name}/#{project.name}/#{suffix}",
@@ -91,7 +103,7 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
       for status <- [302, 403, 404, 500] do
         conn = %{
           conn
-          | request_path: "/#{project.account.name}/#{project.name}/builds",
+          | request_path: "/#{project.account.name}/#{project.name}",
             path_params: %{"account_handle" => project.account.name, "project_handle" => project.name}
         }
 
