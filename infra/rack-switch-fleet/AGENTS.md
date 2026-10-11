@@ -304,7 +304,7 @@ one:
   yet, which is most of them today, and a node with no links is a node that is
   reached some other way.
 - **`devices[].ports`** carries only what is neither a machine nor an appliance:
-  the ISL and the router uplink.
+  the ISL and the WAN ports.
 
 An appliance is a node like any other. Giving the PDU and the KVMs their own
 concept would put them back where the compute ports started, as port numbers
@@ -852,9 +852,11 @@ is in the data center. Where that stands on 2026-09-23:
 ## The edge nodes
 
 A site has two edge nodes, active and standby: `ber1-edge-a`, which is preferred,
-and `ber1-edge-b`. Each is a node of the rack's cluster that runs one pod: the
-rack-edge DaemonSet ([`infra/helm/rack-edge`](../helm/rack-edge)), deployed with
-the Omada controller by `omada-deployment.yml`. The pod runs what
+and `ber1-edge-b`. Each is a node of the rack's cluster that runs one pod, a
+kubelet static pod that the rack-edge DaemonSet
+([`infra/helm/rack-edge`](../helm/rack-edge)), deployed with the Omada
+controller by `omada-deployment.yml`, writes onto the node (see "Cold boot"
+below). The pod runs what
 `rack:fleet render` writes into `infra/helm/rack-edge/sites/<site>/` from the
 site definition (`lib/edge.sh`), and `render --check` in CI fails when those
 files no longer match it:
@@ -866,9 +868,10 @@ files no longer match it:
   gateway) without its prefix route, the provisioning address, a host route
   to each switch marked `behind_edge` and to each installed power device whose
   management link is on one, and the machines' gateway, as a /32 (see
-  "The machines segment" below). The Cogent /31 (`management.edge.wan`) is
-  empty until the data center has it; set, it floats the same way, so the
-  standby holds no WAN address until it takes over. The first member is
+  "The machines segment" below). The WAN address (`management.edge.wan`), its
+  IPv6 address and the default routes through them float the same way, so the
+  standby holds no WAN address until it takes over (see "The WAN" below). The
+  first member is
   preferred and takes the addresses back a minute after it returns, and an edge
   whose switch port has no link never becomes master. An advert counts only
   from the other edge's VRRP address and with the site's password, which the
@@ -884,7 +887,12 @@ files no longer match it:
   and the provisioning range, into tailscale0, clamps the MSS of what it
   forwards, and translates the provisioning range and the machines onto the
   uplinks; one addresses DHCP replies to each known switch's MAC; one keeps
-  the machines away from everything but the internet. It runs at pod
+  the machines away from everything but the internet. With a WAN it also
+  bonds the WAN VLAN (`wan0`), routes out through the other edge at a metric
+  keepalived's default route beats, routes the ToRs' management addresses over
+  the uplinks, translates the standby and the management segment onto the
+  WAN, and adds a fourth table that closes the WAN to everything the rack did
+  not start. It runs at pod
   start and again every five minutes, with the pod's node name picking its
   VRRP address, and refuses a port that carries the node's default route. What
   it installs stays in the kernel when the pod goes; the floating addresses go
@@ -896,6 +904,11 @@ files no longer match it:
   `mac`, gets its site address and the edge address as router,
   anything else the provisioning range, and both get the controller's tailnet
   address in option 138. That option is what makes a factory switch zero touch.
+- `dhcp.sh`, what runs that dnsmasq: only while the node holds the edge
+  address on the switch port, stopping it when keepalived moves the address
+  away and starting it again when it exits. A dnsmasq started before the node
+  held the address served nothing once it arrived, and an edge's pod starts
+  before keepalived holds anything.
 - `dnsmasq-machines.conf`, DHCP on the machines segment, a second dnsmasq that
   is not authoritative, since both edges answer there (see "The machines
   segment" below). Each serves one interface, which is what lets the two share
@@ -922,10 +935,9 @@ files no longer match it:
 The VLANs the edges talk over are `carried_by: edges` in the site's `vlans`:
 the switches tag them only on the ports facing an edge's data links and on the
 ISL, and declare them only where a port carries them. That is the VRRP VLAN and
-the machines VLAN. `management.edge.vrrp`
+the machines VLAN and the WAN VLAN. `management.edge.vrrp`
 names the VLAN, its prefix and the members, in order of preference, and every
-edge of the site has to be a member. The WAN-DMZ VLAN joins them the same way
-once it has an ID.
+edge of the site has to be a member.
 
 The pod uses host networking, with NET_ADMIN (and NET_RAW for keepalived and
 dnsmasq, and NET_BIND_SERVICE for dnsmasq) rather than privileged. The kernel
@@ -957,7 +969,7 @@ its InternalIP, and keeps it converged; see
 `10.254.254.0/24`, used by nothing, so it reports Ready, and its kubelet hands
 host-network pods systemd-resolved's stub, which answers tailnet names. An
 edge's own networks sit inside the pod CIDR (staging gave `192.168.0.0/24`, the
-house network, to a runner node), and a Cilium agent would route them into the
+management prefix, to a runner node), and a Cilium agent would route them into the
 tunnel and cut the node off. The operator refuses to join it until the
 cluster's Cilium agent stays off that label. The site definition names the node
 the fleet commands jump through (`management.edge.ssh`), and the addresses the
@@ -965,7 +977,7 @@ edges share (`.interface`, `.address`).
 
 Both edges advertise the same Tailscale subnet routes, the machines' /32s, so
 the tailnet fails over between them too. The management prefix is never
-advertised: at home it is the house network.
+advertised, so the tailnet reaches only the addresses the site names.
 
 **Reading the pod's logs.** `kubectl logs` and `exec` reach the edges' kubelets
 through a proxy Pod per node (see "Logs and exec" in
@@ -986,6 +998,82 @@ it, so lines the collector catches up on after an outage are stamped late;
 dnsmasq's own time is at the start of each line. On the node itself:
 `sudo crictl -r unix:///run/containerd/containerd.sock logs <container>`.
 
+### The WAN
+
+The rack's only way to the internet is its upstream's handoff, a static
+address with no DHCP: Cogent's `149.6.170.31/31` behind `149.6.170.30`, and
+`2001:978:2:b::4:11/127` behind `::4:10`, one public IPv4 address in all.
+`management.edge.wan` names the VLAN it rides (4001, `carried_by: edges`), the
+addresses and the gateways.
+
+- **The switches.** A port with `purpose: wan` carries the WAN VLAN untagged
+  and nothing else, with no spanning tree towards the upstream, so the
+  upstream sees the edges and nothing of the rack; without a WAN in the site
+  it stays on the management VLAN. `ber1-tor-a` 30 is the Cogent optic,
+  `ber1-tor-b` 30 holds the spare, so a failover is moving the LC jumper, and
+  `ber1-tor-a` 24 is a copper WAN port for standing in an upstream on the
+  bench (a laptop on `149.6.170.30/31` that translates onto its own uplink),
+  with nothing in it at the colo. The edges' trunks and the ISL tag the WAN
+  VLAN like the edges' other VLANs.
+- **One address, floated.** keepalived holds the WAN addresses and the default
+  routes through them on the master, so exactly one edge answers for the
+  address, and the upstream learns a failover from keepalived's gratuitous ARP
+  and unsolicited neighbour advertisement. The IPv6 address rides
+  `virtual_ipaddress_excluded`, since an IPv4 instance's adverts carry only
+  IPv4 addresses. An edge whose WAN bond has no link never becomes master.
+  The upstream's own link is not tracked: there is one, and the standby has no
+  address to test it from.
+- **The standby goes out through the master.** Every edge routes out through
+  the other's VRRP address at metric 200, which keepalived's default route
+  beats on the master; the master translates the VRRP prefix onto the WAN.
+  That is how the standby stays on the tailnet and in the cluster.
+- **No DHCP on the uplinks.** The operator's converge gives an edge's X710
+  uplinks no address and no DHCP, global resolvers and no router
+  advertisements (see "Rack-owned Linux hosts" in
+  [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)).
+  The switches' gateway is still the edge address: the master answers ARP for
+  it on its uplinks, and `mgmt-path.sh` routes the ToRs' management addresses
+  over both uplinks, the node skipping a nexthop whose link is down. The
+  management segment reaches the internet translated onto the WAN.
+- **Closed from outside.** `tuist_rack_wan` lets in replies to what the rack
+  started, ICMP and ICMPv6 (neighbour discovery included) and tailscaled's UDP
+  41641 for direct tailnet paths, and drops everything else arriving on
+  `wan0`, forwarded or not. The edges' SSH, kubelets and boot server are
+  reached over the tailnet only. IPv6 serves the edges themselves: a /127 has
+  no room for the machines.
+
+### Cold boot
+
+The edges' workload has to come back with nothing else up, because the WAN it
+brings up is how every node reaches the API server: a pod the kubelet only
+learns from the API server would never start after a power loss. So it is a
+kubelet static pod (`templates/_static-pod.tpl` in the chart). The rack-edge
+DaemonSet only installs it: it copies the rendered files to
+`/etc/rack-edge/<hash>` and the VRRP password to `/etc/rack-edge-vrrp`, then
+writes the manifest naming that directory into the kubelet's static pod path,
+`/etc/kubernetes/manifests`, which the operator configures on every rack node.
+The hash covers the site files and the manifest, so a change to either is a
+new manifest and the kubelet replaces the pod. The DaemonSet's pod is ready
+once the static pod's path has run with its hash (`/run/rack-edge/started`),
+and rolls one edge at a time, 90 seconds apart. `omada-deployment.yml` installs
+the release without waiting on it, like the other releases on rack nodes, since
+a dark edge would hold the wait. A configuration nothing runs any more is
+deleted once the new one runs.
+
+The static pod outlives the DaemonSet: deleting the release, or an edge's
+label, leaves it running, which is what keeps an edge up while its installer
+restarts. Taking the workload off an edge is deleting
+`/etc/kubernetes/manifests/rack-edge-<site>.yaml` there. Rolled out for the
+first time, the operator has to have given the edge its static pod path before
+the chart changes: otherwise the old pod goes and nothing starts the new one,
+and the rollout stops at the first edge, whose partner keeps the rack up.
+
+Tested in kind on 2026-10-09, on a worker named `ber1-edge-a` with dummy
+interfaces for its NICs: with the control plane stopped and every pod sandbox
+on the worker stopped, a kubelet restart brought the static pod back from its
+manifest, and keepalived put back the WAN address and the default route. A
+second configuration replaced the pod and removed the first's directory.
+
 ### Power devices on the tailnet
 
 The operator switches the minis' outlets through the PDUs' REST API, from a
@@ -996,16 +1084,16 @@ tailnet too. Three things make that path work, all rendered from the site:
 
 - **Only the master advertises them.** `ber1-mgmt` is reached only through the
   edges' switch ports, and only the master holds the edge address there and
-  the host routes to the devices behind it; the standby's route to the
-  management prefix leads to the house network. `tailnet-routes.sh` adds the
+  the host routes to the devices behind it; the standby reaches the
+  management segment only through the master. `tailnet-routes.sh` adds the
   power /32s only when the node holds the edge address on the switch port, so
   after a failover they follow the master on the script's next run, within
   15 seconds (`routesReapplySeconds`). At the management path's five minutes,
   an edge deploy left the cluster with no remote power for that long
   (measured 2026-10-05).
 - **The master translates what it forwards to them.** A power device
-  configured by hand has whatever gateway it was given (`ber1-pdu-b`'s is the
-  house router), so its reply to a tailnet address would leave on the wrong
+  configured by hand has whatever gateway it was given (`ber1-pdu-b`'s was set
+  by hand), so its reply to a tailnet address would leave on the wrong
   network. `mgmt-path.sh` masquerades
   connections from `tailscale0` to them on the switch port, so they arrive
   from the edge address, which is on-link for the device. Tailscale's own
@@ -1048,7 +1136,7 @@ service range (`10.128.0.0/12`) and the VRRP link.
   (the runners) is a machine. Its ToR port carries the machines VLAN untagged,
   as its native VLAN, and nothing tagged, so a machine never sees the
   management VLAN. The VLAN is `carried_by: edges`: tagged only on the edges'
-  ports and the ISL, and never on the router uplink. The controller writes the
+  ports and the ISL, and never on a WAN port. The controller writes the
   port's native VLAN through the Open API; its configuration-text form
   (`switchport general allowed vlan 10 untagged`, `switchport pvid 10`,
   `no switchport general allowed vlan 1`) has not been read off a switch yet.
@@ -1152,7 +1240,7 @@ Switches are applied one at a time, in the order `apply_order` gives:
 1. `ber1-tor-b`. No WAN path lands on it, so a bad change costs one half of the
    rack's redundancy rather than the site's connectivity. It is also the only
    switch a change is tried on.
-2. `ber1-tor-a`. Carries the WAN optic and the router uplink, so a bad change
+2. `ber1-tor-a`. Carries the WAN ports, so a bad change
    takes the site off the internet and takes the path used to fix it along with
    it.
 3. `ber1-mgmt`, alone and last. There is one management switch and it is the

@@ -11,10 +11,9 @@
 # management segment with the edge node.
 #
 # Translation rather than an advertised route, and the edge address on the
-# switch side without its prefix route, for the reason infra/tailscale/acls.json
-# gives: at home the management prefix is the house network, which must not
-# become a route every device on the tailnet can use, nor one the edge node
-# reaches through this port. The only routes the edges advertise are the
+# switch side without its prefix route: the management prefix must not become a
+# route every device on the tailnet can use, nor one the edge node reaches
+# through this port. The only routes the edges advertise are the
 # machines' own addresses on the machines segment and the installed power
 # devices' management addresses, one /32 each.
 #
@@ -53,7 +52,37 @@ fleet_edge_check() {
   fi
   fleet_edge_check_vrrp "$site_file" || return 1
   fleet_edge_check_machines "$site_file" || return 1
+  fleet_edge_check_wan "$site_file" || return 1
   fleet_edge_check_power "$site_file"
+}
+
+# The site's own way to the internet, when it has one: an address with its
+# prefix and the upstream's gateway inside it, and optionally the same for
+# IPv6. The VLAN it rides is checked with the edges' other VLANs.
+fleet_edge_check_wan() {
+  local site_file="$1" address gateway address6 gateway6 bad=""
+  address="$(jq -r '.management.edge.wan.address // empty' "$site_file")"
+  gateway="$(jq -r '.management.edge.wan.gateway // empty' "$site_file")"
+  address6="$(jq -r '.management.edge.wan.address6 // empty' "$site_file")"
+  gateway6="$(jq -r '.management.edge.wan.gateway6 // empty' "$site_file")"
+  if [ -n "$address" ]; then
+    if ! [[ "$address" =~ ^[0-9.]+/([0-9]|[12][0-9]|3[0-2])$ ]] || ! fleet_is_ipv4 "${address%/*}"; then
+      bad="management.edge.wan.address '$address' is not an address with its prefix length"
+    elif ! fleet_is_ipv4 "$gateway" || ! fleet_in_network "$gateway" "$address" || [ "$gateway" = "${address%/*}" ]; then
+      bad="management.edge.wan.gateway '$gateway' is not another address in $address"
+    fi
+  elif [ -n "$gateway$address6$gateway6" ]; then
+    bad="management.edge.wan has a gateway or an IPv6 address but no address"
+  fi
+  if [ -z "$bad" ] && [ -n "$address6$gateway6" ]; then
+    if ! [[ "$address6" =~ ^[0-9a-f:]+/([0-9]|[1-9][0-9]|1[01][0-9]|12[0-8])$ ]] || ! [[ "$gateway6" =~ ^[0-9a-f:]+$ ]]; then
+      bad="management.edge.wan.address6 and gateway6 are an IPv6 address with its prefix length and an IPv6 address, in lower case"
+    fi
+  fi
+  if [ -n "$bad" ]; then
+    echo "error: $bad" >&2
+    return 1
+  fi
 }
 
 # The power devices the tailnet reaches through the edge, one management
@@ -289,7 +318,7 @@ SCRIPT
   # This node's own end of VRRP. Each edge VLAN rides an active-backup bond
   # over one VLAN interface per uplink, so it survives losing either ToR, and
   # the edges never both believe the other is gone while both are up.
-  local node address uplink_names vrrp_length machines_vlan machines_gateway machines wan_vlan
+  local node address uplink_names vrrp_length machines_vlan machines_gateway machines wan_vlan peer
   vrrp_length="$(jq -r '.management.edge.vrrp.prefix' "$site_file" | cut -d/ -f2)"
   machines_vlan="$(jq -r '.management.edge.machines.vlan // empty' "$site_file")"
   machines_gateway="$(jq -r '.management.edge.machines.gateway // empty' "$site_file")"
@@ -302,7 +331,11 @@ SCRIPT
     if [ -n "$machines_vlan" ]; then
       machines=" machines_address=$(jq -r --arg n "$node" '.management.edge.machines.members[] | select(.node == $n) | .address' "$site_file")/${machines_gateway#*/}"
     fi
-    printf '  %s) vrrp_address=%s%s uplinks="%s" ;;\n' "$node" "$address/$vrrp_length" "$machines" "$uplink_names"
+    peer=""
+    if [ -n "$wan_vlan" ]; then
+      peer=" peer_address=$(fleet_edge_members "$site_file" | awk -F'\t' -v n="$node" '$1 != n {print $2; exit}')"
+    fi
+    printf '  %s) vrrp_address=%s%s%s uplinks="%s" ;;\n' "$node" "$address/$vrrp_length" "$machines" "$peer" "$uplink_names"
   done < <(fleet_edge_members "$site_file")
   cat <<'SCRIPT'
   *) echo "$NODE_NAME is not one of the site's edges" >&2; exit 1 ;;
@@ -313,6 +346,7 @@ edge_vlan_bond() {
   for uplink in $uplinks; do
     i=$((i + 1))
     member="$bond-$i"
+    ip link set "$uplink" up
     ip link show "$member" >/dev/null 2>&1 || ip link add link "$uplink" name "$member" type vlan id "$vlan"
     if [ ! -e "/sys/class/net/$member/master" ]; then
       ip link set "$member" down
@@ -336,7 +370,22 @@ SCRIPT
     # shellcheck disable=SC2016  # expanded by the rendered script, per edge
     echo 'ip addr replace "$machines_address" dev machines0'
   fi
-  [ -n "$wan_vlan" ] && echo "edge_vlan_bond wan0 $wan_vlan"
+  if [ -n "$wan_vlan" ]; then
+    echo "edge_vlan_bond wan0 $wan_vlan"
+    # The WAN address and the default route through it are keepalived's, on
+    # the master. Every edge also routes out through the other one, at a
+    # higher metric: that is the standby's only way out, and the master's
+    # while keepalived is giving the WAN up. Nothing here comes from DHCP, so
+    # the edges' uplinks carry no address on the management VLAN, and the
+    # switches on it are reached through whichever uplink has link (the node
+    # skips a nexthop whose link is down). The master answers them for the
+    # edge address, which is the switches' gateway.
+    # shellcheck disable=SC2016  # expanded by the rendered script, per edge
+    echo 'ip route replace default via "$peer_address" dev vrrp0 metric 200'
+    # shellcheck disable=SC2016  # expanded by the rendered script, per edge
+    echo 'nexthops=""; for uplink in $uplinks; do nexthops="$nexthops nexthop dev $uplink"; done'
+    jq -r '.devices[] | select(.behind_edge | not) | "ip route replace \(.mgmt_address)/32 $nexthops"' "$site_file"
+  fi
   # The floating addresses, and the routes that use them as their source, are
   # keepalived's, on whichever edge holds them. On the switch port they are
   # the only addresses: a port the site moved away from gives them up, or its
@@ -360,6 +409,13 @@ SCRIPT
   if [ -n "$machines_vlan" ]; then
     [ -n "$uplinks" ] && uplinks+=$'\n'
     uplinks+="    oifname != { \"tailscale0\", \"machines0\", \"$interface\" } ip saddr $(fleet_network "$machines_gateway") masquerade"
+  fi
+  # The standby edge goes out through the master from its address on the
+  # edges' link, and the switches and power devices reach their time and
+  # firmware servers through it too.
+  if [ -n "$wan_vlan" ]; then
+    [ -n "$uplinks" ] && uplinks+=$'\n'
+    uplinks+="    oifname \"wan0\" ip saddr { $(fleet_network "$(jq -r '.management.edge.vrrp.prefix' "$site_file")"), $(fleet_network "$(jq -r '.management.prefix' "$site_file")") } masquerade"
   fi
   # The tailnet reaches the power devices through the master's switch port,
   # translated to the edge address there: their gateway is not an edge, so a
@@ -405,6 +461,7 @@ SCRIPT
 }
 SCRIPT
   [ -n "$machines_vlan" ] && fleet_edge_machines_filter "$site_file"
+  [ -n "$wan_vlan" ] && fleet_edge_wan_filter
   echo NFT
 }
 
@@ -438,6 +495,61 @@ table inet tuist_rack_machines {
     iifname "machines0" drop
   }
 }
+SCRIPT
+}
+
+# What the internet may reach through the WAN: replies to what the rack
+# started, ping and neighbour discovery, and tailscaled's port for direct
+# tailnet paths. The edge's SSH, kubelet and boot server are reached over the
+# tailnet, never on the public address, and nothing new is forwarded inwards.
+fleet_edge_wan_filter() {
+  cat <<'SCRIPT'
+table inet tuist_rack_wan
+delete table inet tuist_rack_wan
+table inet tuist_rack_wan {
+  chain input {
+    type filter hook input priority filter;
+    iifname "wan0" ct state established,related accept
+    iifname "wan0" meta l4proto { icmp, ipv6-icmp } accept
+    iifname "wan0" udp dport 41641 accept
+    iifname "wan0" drop
+  }
+  chain forward {
+    type filter hook forward priority filter;
+    iifname "wan0" ct state established,related accept
+    iifname "wan0" drop
+  }
+}
+SCRIPT
+}
+
+# What runs dnsmasq on the switch port: it starts it only while this node
+# holds the edge address there, stops it when keepalived takes the address
+# away, and starts it again when dnsmasq exits by itself. A dnsmasq started
+# before keepalived gave the node the address served nothing at all once the
+# address arrived (ber1-edge-a, 2026-10-10: from the edge's boot until the pod
+# restarted an hour later), and an edge's rack-edge starts before keepalived
+# holds anything, at every boot and on the standby.
+fleet_edge_dhcp_run() {
+  local site_file="$1" interface edge_address
+  fleet_edge_check "$site_file" || return 1
+  interface="$(jq -r '.management.edge.interface' "$site_file")"
+  edge_address="$(jq -r '.management.edge.address' "$site_file")"
+  cat <<SCRIPT
+#!/bin/sh
+# generated by rack:fleet render from infra/rack-switch-fleet/sites/$(basename "$site_file")
+holds() { ip -4 -o addr show dev $interface 2>/dev/null | grep -qF ' $edge_address/'; }
+pid=""
+trap '[ -n "\$pid" ] && kill "\$pid" 2>/dev/null; exit 0' TERM INT
+while :; do
+  until holds; do sleep 2; done
+  dnsmasq --no-daemon --conf-file=/etc/rack-edge/dnsmasq.conf &
+  pid=\$!
+  while holds && kill -0 "\$pid" 2>/dev/null; do sleep 2; done
+  kill "\$pid" 2>/dev/null || true
+  wait "\$pid" 2>/dev/null || true
+  pid=""
+done
 SCRIPT
 }
 
@@ -568,16 +680,18 @@ CONF
 # keepalived's configuration for one edge node. The edges run one VRRP
 # instance, unicast between their addresses on the VRRP bond, and whichever is
 # master holds every floating address: the switches' gateway and the
-# provisioning address on the switch port, and the machines' gateway and the
-# WAN address once the site has them. The standby holds none, so it has no WAN
-# address until it takes over. The first member is preferred and takes the
-# addresses back a minute after it returns. An edge whose switch port has no
-# link never becomes master. An advert counts only when it comes from the other
-# edge's address and carries the site's password, which the rack-edge chart
-# generates and mounts; only the edges are on the VRRP VLAN, so a device that
-# could reach an edge's address cannot read it.
+# provisioning address on the switch port, and the machines' gateway, the WAN
+# addresses and the default routes through them once the site has them. The
+# standby holds none, so it has no WAN address until it takes over. The first
+# member is preferred and takes the addresses back a minute after it returns.
+# An edge whose switch port or WAN bond has no link never becomes master. An
+# advert counts only when it comes from the other edge's address and carries
+# the site's password, which the rack-edge chart generates and mounts; only the
+# edges are on the VRRP VLAN, so a device that could reach an edge's address
+# cannot read it.
 fleet_edge_keepalived() {
-  local site_file="$1" node="$2" interface edge_address length provisioning machines_gateway wan_address
+  local site_file="$1" node="$2" interface edge_address length provisioning machines_gateway
+  local wan_address wan_gateway wan_address6 wan_gateway6
   local self address priority peers=() member member_address
   fleet_edge_check "$site_file" || return 1
   self="$(fleet_edge_members "$site_file" | awk -F'\t' -v n="$node" '$1 == n')"
@@ -595,6 +709,9 @@ fleet_edge_keepalived() {
   provisioning="$(jq -r '.management.edge.provisioning // empty' "$site_file")"
   machines_gateway="$(jq -r '.management.edge.machines.gateway // empty' "$site_file")"
   wan_address="$(jq -r '.management.edge.wan.address // empty' "$site_file")"
+  wan_gateway="$(jq -r '.management.edge.wan.gateway // empty' "$site_file")"
+  wan_address6="$(jq -r '.management.edge.wan.address6 // empty' "$site_file")"
+  wan_gateway6="$(jq -r '.management.edge.wan.gateway6 // empty' "$site_file")"
 
   cat <<CONF
 # generated by rack:fleet render from infra/rack-switch-fleet/sites/$(basename "$site_file")
@@ -619,9 +736,9 @@ CONF
     printf '    %s\n' "${peers[@]}"
     printf '  }\n'
   fi
+  printf '  track_interface {\n    %s\n' "$interface"
+  [ -n "$wan_address" ] && printf '    wan0\n'
   cat <<CONF
-  track_interface {
-    $interface
   }
   virtual_ipaddress {
     $edge_address/$length dev $interface noprefixroute
@@ -630,12 +747,17 @@ CONF
   [ -n "$machines_gateway" ] && printf '    %s/32 dev machines0\n' "${machines_gateway%/*}"
   [ -n "$wan_address" ] && printf '    %s dev wan0\n' "$wan_address"
   printf '  }\n'
+  # An IPv4 instance's adverts carry IPv4 addresses only, so the IPv6 WAN
+  # address moves with the instance without being advertised.
+  [ -n "$wan_address6" ] && printf '  virtual_ipaddress_excluded {\n    %s dev wan0\n  }\n' "$wan_address6"
   local -a behind
   mapfile -t behind < <(jq -r '.devices[] | select(.behind_edge) | .mgmt_address' "$site_file"; fleet_edge_power "$site_file")
-  if [ "${#behind[@]}" -gt 0 ]; then
+  if [ "${#behind[@]}" -gt 0 ] || [ -n "$wan_address" ]; then
     printf '  virtual_routes {\n'
     local s
     for s in "${behind[@]}"; do printf '    %s/32 dev %s src %s\n' "$s" "$interface" "$edge_address"; done
+    [ -n "$wan_address" ] && printf '    0.0.0.0/0 via %s dev wan0\n' "$wan_gateway"
+    [ -n "$wan_address6" ] && printf '    ::/0 via %s dev wan0\n' "$wan_gateway6"
     printf '  }\n'
   fi
   printf '}\n'

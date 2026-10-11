@@ -11,8 +11,8 @@ if [ "$(cat /proc/sys/net/ipv4/ip_forward)" != 1 ]; then
 fi
 ip link set enp87s0 up
 case "${NODE_NAME:?the pod passes the name of the node it runs on}" in
-  ber1-edge-a) vrrp_address=10.255.255.1/29 machines_address=10.10.0.2/24 uplinks="enp2s0f1np1 enp2s0f0np0" ;;
-  ber1-edge-b) vrrp_address=10.255.255.2/29 machines_address=10.10.0.3/24 uplinks="enp2s0f1np1 enp2s0f0np0" ;;
+  ber1-edge-a) vrrp_address=10.255.255.1/29 machines_address=10.10.0.2/24 peer_address=10.255.255.2 uplinks="enp2s0f1np1 enp2s0f0np0" ;;
+  ber1-edge-b) vrrp_address=10.255.255.2/29 machines_address=10.10.0.3/24 peer_address=10.255.255.1 uplinks="enp2s0f1np1 enp2s0f0np0" ;;
   *) echo "$NODE_NAME is not one of the site's edges" >&2; exit 1 ;;
 esac
 edge_vlan_bond() {
@@ -21,6 +21,7 @@ edge_vlan_bond() {
   for uplink in $uplinks; do
     i=$((i + 1))
     member="$bond-$i"
+    ip link set "$uplink" up
     ip link show "$member" >/dev/null 2>&1 || ip link add link "$uplink" name "$member" type vlan id "$vlan"
     if [ ! -e "/sys/class/net/$member/master" ]; then
       ip link set "$member" down
@@ -33,6 +34,11 @@ edge_vlan_bond vrrp0 4000
 ip addr replace "$vrrp_address" dev vrrp0
 edge_vlan_bond machines0 10
 ip addr replace "$machines_address" dev machines0
+edge_vlan_bond wan0 4001
+ip route replace default via "$peer_address" dev vrrp0 metric 200
+nexthops=""; for uplink in $uplinks; do nexthops="$nexthops nexthop dev $uplink"; done
+ip route replace 192.168.0.12/32 $nexthops
+ip route replace 192.168.0.11/32 $nexthops
 ip -o -4 addr show | awk -v port='enp87s0' '$2 != port && ($4 == "192.168.0.10/24" || $4 == "192.168.50.1/24") {print $2, $4}' |
   while read -r dev address; do ip addr del "$address" dev "$dev"; done
 nft -f - <<'NFT'
@@ -45,6 +51,7 @@ table ip tuist_mgmt_path {
     iifname "tailscale0" oifname "enp87s0" ip daddr { 192.168.0.14,192.168.0.15,192.168.0.16 } masquerade
     oifname != { "tailscale0", "enp87s0" } ip saddr 192.168.50.0/24 masquerade
     oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade
+    oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade
   }
   chain forward {
     type filter hook forward priority mangle;
@@ -75,6 +82,22 @@ table inet tuist_rack_machines {
     iifname "machines0" udp dport 67 accept
     iifname "machines0" icmp type echo-request accept
     iifname "machines0" drop
+  }
+}
+table inet tuist_rack_wan
+delete table inet tuist_rack_wan
+table inet tuist_rack_wan {
+  chain input {
+    type filter hook input priority filter;
+    iifname "wan0" ct state established,related accept
+    iifname "wan0" meta l4proto { icmp, ipv6-icmp } accept
+    iifname "wan0" udp dport 41641 accept
+    iifname "wan0" drop
+  }
+  chain forward {
+    type filter hook forward priority filter;
+    iifname "wan0" ct state established,related accept
+    iifname "wan0" drop
   }
 }
 NFT
