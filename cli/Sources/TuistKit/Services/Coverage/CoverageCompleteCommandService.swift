@@ -97,7 +97,8 @@ struct CoverageCompleteCommandService: CoverageCompleteCommandServicing {
                     executableLines: coverage.executableLines,
                     schemes: coverage.schemes,
                     partialSchemes: coverage.partialSchemes,
-                    complete: coverage.complete
+                    complete: coverage.complete,
+                    incomplete: coverage.incomplete
                 )
             )
             return
@@ -105,10 +106,11 @@ struct CoverageCompleteCommandService: CoverageCompleteCommandServicing {
 
         let schemes = coverage.schemes.isEmpty ? "no scheme" : coverage.schemes.joined(separator: ", ")
         let partial = coverage.partialSchemes.isEmpty ? "" : " (partial: \(coverage.partialSchemes.joined(separator: ", ")))"
+        let incomplete = coverage.incomplete ? " The figure is incomplete, so the actual coverage may be higher." : ""
 
         AlertController.current.success(
             .alert(
-                "Coverage of commit \(coverage.gitCommitSHA.prefix(7)) is complete: \(coverage.coverage)% over \(schemes)\(partial)."
+                "Coverage of commit \(coverage.gitCommitSHA.prefix(7)) is complete: \(coverage.coverage)% over \(schemes)\(partial).\(incomplete)"
             )
         )
     }
@@ -134,6 +136,7 @@ private struct CoverageCompleteOutput: Codable {
     let schemes: [String]
     let partialSchemes: [String]
     let complete: Bool
+    let incomplete: Bool
 
     enum CodingKeys: String, CodingKey {
         case gitCommitSHA = "git_commit_sha"
@@ -143,5 +146,6 @@ private struct CoverageCompleteOutput: Codable {
         case schemes
         case partialSchemes = "partial_schemes"
         case complete
+        case incomplete
     }
 }

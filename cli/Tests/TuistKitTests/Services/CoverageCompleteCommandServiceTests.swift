@@ -102,6 +102,36 @@ struct CoverageCompleteCommandServiceTests {
         #expect(success.message.plain() == "Coverage of commit abcdef1 is complete: 82.5% over App, Core (partial: Core).")
     }
 
+    @Test(.withMockedEnvironment())
+    func saysWhenTheFigureIsIncomplete() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        try await givenProject()
+        let incomplete = CommitCoverage(
+            gitCommitSHA: "abcdef1234567",
+            coverage: 42.0,
+            coveredLines: 61800,
+            executableLines: 147_122,
+            schemes: ["App"],
+            partialSchemes: ["App"],
+            complete: true,
+            incomplete: true
+        )
+        given(completeCommitCoverageService)
+            .completeCommitCoverage(fullHandle: .any, serverURL: .any, gitCommitSHA: .any)
+            .willReturn(.complete(incomplete))
+        let alertController = AlertController()
+
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: nil, fullHandle: nil, commit: "abcdef1234567", json: false)
+        }
+
+        let success = try #require(alertController.success().last)
+        #expect(
+            success.message.plain() ==
+                "Coverage of commit abcdef1 is complete: 42.0% over App (partial: App). The figure is incomplete, so the actual coverage may be higher."
+        )
+    }
+
     @Test(.withMockedEnvironment(), .withMockedNoora)
     func printsTheCompleteCoverageAsJSON() async throws {
         Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
@@ -117,6 +147,7 @@ struct CoverageCompleteCommandServiceTests {
         #expect(output.contains("\"covered_lines\":165"))
         #expect(output.contains("\"partial_schemes\":[\"Core\"]"))
         #expect(output.contains("\"complete\":true"))
+        #expect(output.contains("\"incomplete\":false"))
         verify(gitController).gitInfo(workingDirectory: .any).called(0)
     }
 

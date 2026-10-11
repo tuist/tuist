@@ -12,6 +12,9 @@ public struct CommitCoverage: Equatable, Sendable {
     public let schemes: [String]
     public let partialSchemes: [String]
     public let complete: Bool
+    /// Whether the figure is a lower bound: the coverage of some tests the runs skipped, or of
+    /// some scheme, couldn't be determined.
+    public let incomplete: Bool
 
     public init(
         gitCommitSHA: String,
@@ -20,7 +23,8 @@ public struct CommitCoverage: Equatable, Sendable {
         executableLines: Int,
         schemes: [String],
         partialSchemes: [String],
-        complete: Bool
+        complete: Bool,
+        incomplete: Bool = false
     ) {
         self.gitCommitSHA = gitCommitSHA
         self.coverage = coverage
@@ -29,6 +33,7 @@ public struct CommitCoverage: Equatable, Sendable {
         self.schemes = schemes
         self.partialSchemes = partialSchemes
         self.complete = complete
+        self.incomplete = incomplete
     }
 }
 
@@ -105,7 +110,8 @@ public struct CompleteCommitCoverageService: CompleteCommitCoverageServicing {
                         executableLines: figure?.executable_lines ?? commit.executable_lines,
                         schemes: commit.schemes,
                         partialSchemes: commit.partial_schemes,
-                        complete: commit.complete
+                        complete: commit.complete,
+                        incomplete: figure?.kind == .partial
                     )
                 )
             }
