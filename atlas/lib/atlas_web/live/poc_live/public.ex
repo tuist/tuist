@@ -11,6 +11,8 @@ defmodule AtlasWeb.POCLive.Public do
   alias AtlasWeb.Markdown
   alias AtlasWeb.POCPublicController
 
+  @reconcile_interval :timer.seconds(30)
+
   @impl true
   def mount(%{"public_token" => token}, session, socket) do
     case POCs.get_poc_by_public_token(token) do
@@ -35,6 +37,8 @@ defmodule AtlasWeb.POCLive.Public do
       |> assign(:view_mode, :brief)
       |> assign(:poc, poc)
     else
+      if connected?(socket), do: Process.send_after(self(), :reconcile_access_request, @reconcile_interval)
+
       socket
       |> assign(:page_title, "#{poc.title} · Access required")
       |> assign(:view_mode, :gate)
@@ -100,23 +104,49 @@ defmodule AtlasWeb.POCLive.Public do
   @impl true
   def handle_info({:email, %Swoosh.Email{}}, socket), do: {:noreply, socket}
 
-  def handle_info({:poc_access_request_updated, %AccessRequest{} = request}, socket) do
-    socket = assign(socket, :pending_request, request)
+  def handle_info(:reconcile_access_request, socket) do
+    Process.send_after(self(), :reconcile_access_request, @reconcile_interval)
 
-    cond do
-      AccessRequest.active?(request) ->
-        {:noreply,
-         push_navigate(socket,
-           to: ~p"/p/pocs/#{socket.assigns.poc.public_token}/session/#{request.id}"
-         )}
+    case socket.assigns[:pending_request] do
+      %AccessRequest{id: request_id} -> handle_info({:poc_access_request_updated, request_id}, socket)
+      _ -> {:noreply, socket}
+    end
+  end
 
-      request.denied_at ->
-        {:noreply, put_flash(socket, :error, "Access was denied by the Tuist team.")}
+  def handle_info(
+        {:poc_access_request_updated, request_id},
+        %{assigns: %{pending_request: %AccessRequest{id: request_id} = current, poc: %{id: poc_id}}} = socket
+      )
+      when is_binary(request_id) do
+    case POCs.get_access_request(request_id) do
+      %AccessRequest{poc_id: ^poc_id} = request when request != current ->
+        socket = assign(socket, :pending_request, request)
 
-      true ->
+        cond do
+          AccessRequest.active?(request) ->
+            {:noreply,
+             push_navigate(socket,
+               to: ~p"/p/pocs/#{socket.assigns.poc.public_token}/session/#{request.id}"
+             )}
+
+          request.denied_at ->
+            {:noreply, put_flash(socket, :error, "Access was denied by the Tuist team.")}
+
+          true ->
+            {:noreply, socket}
+        end
+
+      _ ->
         {:noreply, socket}
     end
   end
+
+  # Older local publishers may still send a struct during a code upgrade.
+  # Treat it only as an ID hint; the database remains authoritative.
+  def handle_info({:poc_access_request_updated, %AccessRequest{id: id}}, socket),
+    do: handle_info({:poc_access_request_updated, id}, socket)
+
+  def handle_info(_message, socket), do: {:noreply, socket}
 
   defp put_access_pending_flash(socket, email) do
     put_flash(

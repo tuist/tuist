@@ -6,6 +6,7 @@ alias Atlas.TestSupport.Documents.Storage
 alias Atlas.TestSupport.ExchangeRatesClient
 alias Atlas.TestSupport.ScreenshotNoteAgent
 alias Atlas.TestSupport.StripeClient
+alias Phoenix.PubSub.PG2
 alias Swoosh.Adapters.Test
 
 Code.require_file("dev_instance.exs", __DIR__)
@@ -43,7 +44,7 @@ config :atlas, AtlasWeb.Endpoint,
 config :atlas, AtlasWeb.OutreachContactsLive, screenshot_note_agent: ScreenshotNoteAgent
 
 # Oban testing mode
-config :atlas, Oban, testing: :manual
+config :atlas, Oban, testing: :manual, notifier: Oban.Notifiers.PG
 
 config :atlas, :accounts,
   exchange_rates_client: ExchangeRatesClient,
@@ -57,6 +58,10 @@ config :atlas, :documents,
   embedding_model: "test-embedding"
 
 config :atlas, :licenses, signing_private_key: "ceVGk4YZk7sbZwxHUUlONbFr+rmJ1V9KlTWUdkHjyMI="
+
+# Sandbox transactions never commit, so their NOTIFY messages cannot arrive.
+# The Postgres adapter has separate integration coverage with unboxed queries.
+config :atlas, :pubsub, adapter: PG2
 
 config :atlas, :tax_certificate_profile,
   sender_name: "Configured Sender GmbH",

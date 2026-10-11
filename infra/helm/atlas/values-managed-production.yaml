@@ -42,10 +42,10 @@ image:
   # populated from a GHCR PAT in 1Password.
   pullSecretName: ghcr-pull
 
-# Atlas is a non-critical internal service on a single general-pool worker.
-# One replica, no autoscaling, no PodDisruptionBudget: HA isn't achievable
-# (or needed) on a single node, and a PDB would block node drains during
-# cluster upgrades.
+# Two interchangeable application replicas share PostgreSQL and object storage.
+# PubSub and Oban coordinate through PostgreSQL, not an Erlang mesh or sticky
+# ingress sessions. The PDB keeps one application replica available on drains;
+# dependency/node placement still determines end-to-end availability.
 replicaCount: 2
 
 resources:

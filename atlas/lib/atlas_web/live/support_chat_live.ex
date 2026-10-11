@@ -12,8 +12,11 @@ defmodule AtlasWeb.SupportChatLive do
 
   @token_salt "support-chat-conversation"
   @token_max_age 30 * 24 * 60 * 60
+  @reconcile_interval :timer.seconds(30)
 
   def mount(_params, _session, socket) do
+    if connected?(socket), do: Process.send_after(self(), :reconcile_thread, @reconcile_interval)
+
     {:ok,
      socket
      |> assign(:page_title, gettext("Support"))
@@ -101,8 +104,17 @@ defmodule AtlasWeb.SupportChatLive do
 
   def handle_info({:support_thread_updated, thread_id}, %{assigns: %{thread: %{id: thread_id}}} = socket) do
     case Support.get_thread(thread_id) do
-      %Thread{} = thread -> {:noreply, assign_thread(socket, thread, socket.assigns.source_url)}
-      nil -> {:noreply, socket}
+      %Thread{} = thread when thread != socket.assigns.thread -> {:noreply, assign_thread_messages(socket, thread)}
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_info(:reconcile_thread, socket) do
+    Process.send_after(self(), :reconcile_thread, @reconcile_interval)
+
+    case socket.assigns.thread do
+      %Thread{id: thread_id} -> handle_info({:support_thread_updated, thread_id}, socket)
+      _ -> {:noreply, socket}
     end
   end
 
@@ -553,14 +565,18 @@ defmodule AtlasWeb.SupportChatLive do
   defp receive_chat(thread, params), do: Support.receive_chat(thread, params)
 
   defp assign_thread(socket, thread, source_url) do
-    socket = subscribe_to_thread(socket, thread.id)
+    socket
+    |> subscribe_to_thread(thread.id)
+    |> assign(:source_url, source_url)
+    |> assign(:form, chat_form(thread, source_url))
+    |> assign_thread_messages(thread)
+  end
 
+  defp assign_thread_messages(socket, thread) do
     messages = public_messages(thread)
 
     socket
     |> assign(:thread, thread)
-    |> assign(:source_url, source_url)
-    |> assign(:form, chat_form(thread, source_url))
     |> assign(:messages_empty?, messages == [])
     |> stream(:messages, messages, reset: true)
   end

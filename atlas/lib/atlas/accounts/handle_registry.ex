@@ -1,6 +1,6 @@
 defmodule Atlas.Accounts.HandleRegistry do
   @moduledoc """
-  Authoritative in-process snapshot of the `handle -> account`
+  Rebuildable in-process snapshot of the `handle -> account`
   mapping. Backs the error-ingest hot path so resolving a Sentry
   event's `auth_account_handle` costs a single `:persistent_term`
   read instead of a Postgres roundtrip per event.
@@ -11,7 +11,9 @@ defmodule Atlas.Accounts.HandleRegistry do
   `"atlas:account_handles"` PubSub topic. Reads are lock-free and
   wait-free; writes are rare, and the module tolerates arbitrary
   `:reload` requests to fall back to a full reload when a broadcast
-  is missed or the payload cannot be applied incrementally.
+  is missed or the payload cannot be applied incrementally. A periodic full
+  reload repairs notifications missed during a database reconnect, deployment,
+  or transaction rollback. PostgreSQL, not this snapshot, is authoritative.
 
   ## Return shape
 
@@ -34,6 +36,7 @@ defmodule Atlas.Accounts.HandleRegistry do
   @topic "atlas:account_handles"
   @persistent_key {__MODULE__, :snapshot}
   @empty_snapshot %{}
+  @refresh_interval :timer.seconds(30)
 
   def topic, do: @topic
 
@@ -77,6 +80,7 @@ defmodule Atlas.Accounts.HandleRegistry do
   def init(_opts) do
     :ok = Phoenix.PubSub.subscribe(Atlas.PubSub, @topic)
     put_snapshot(load_snapshot())
+    schedule_refresh()
     {:ok, %{}}
   end
 
@@ -92,7 +96,17 @@ defmodule Atlas.Accounts.HandleRegistry do
     {:noreply, state}
   end
 
+  def handle_info(:refresh, state) do
+    put_snapshot(load_snapshot())
+    schedule_refresh()
+    {:noreply, state}
+  end
+
   def handle_info(_other, state), do: {:noreply, state}
+
+  defp schedule_refresh do
+    Process.send_after(self(), :refresh, @refresh_interval)
+  end
 
   ## Snapshot helpers
 

@@ -16,15 +16,12 @@ defmodule Atlas.Application do
   alias Atlas.Engineering.Errors.SelfMonitor
   alias Atlas.HTTP
   alias Atlas.Integrations.GitHubAppBootstrap
-  alias Atlas.Licenses.RateLimiter
-  alias EMCP.SessionStore.ETS
   alias Guardian.DB.Sweeper
 
   @impl true
   def start(_type, _args) do
     attach_sentry_logger()
     TelemetryHandler.attach()
-    ETS.init()
     HTTP.configure_req_defaults()
 
     :ok = Application.ensure_started(:logger)
@@ -58,13 +55,11 @@ defmodule Atlas.Application do
       Atlas.Repo,
       HTTP.finch_child_spec(),
       {DNSCluster, query: Application.get_env(:atlas, :dns_cluster_query) || :ignore},
-      {Phoenix.PubSub, name: Atlas.PubSub},
+      {Phoenix.PubSub, [name: Atlas.PubSub] ++ Application.fetch_env!(:atlas, :pubsub)},
       HandleRegistry,
-      RateLimiter,
       GitHubAppBootstrap,
       {Oban, Application.fetch_env!(:atlas, Oban)},
       {Task.Supervisor, name: Atlas.TaskSupervisor},
-      {Atlas.RateLimit, clean_period: :timer.minutes(10)},
       Sweeper
     ] ++
       clickhouse_children() ++

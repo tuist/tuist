@@ -6,6 +6,7 @@ defmodule AtlasWeb.SupportChatLiveTest do
   import Phoenix.LiveViewTest
 
   alias Atlas.Support
+  alias Atlas.Support.Message
   alias Atlas.Users.User
   alias AtlasWeb.SupportChatRateLimit
 
@@ -85,6 +86,37 @@ defmodule AtlasWeb.SupportChatLiveTest do
     assert reply.metadata["delivery_channel"] == "chat"
 
     assert has_element?(view, "#support-chat-messages [data-kind='outbound']", "We are investigating this now.")
+  end
+
+  test "reconciliation displays a reply whose notification was missed", %{conn: conn} do
+    stub(SupportChatRateLimit, :check, fn _ip, _email -> :ok end)
+    email = "support-reconcile-#{System.unique_integer([:positive])}@example.test"
+    {:ok, view, _html} = live(conn, ~p"/support/chat")
+
+    view
+    |> form("#support-chat-form", %{"chat" => %{"email" => email, "body" => "Initial question"}})
+    |> render_submit()
+
+    [thread] = Support.list_threads(query: email) |> elem(0)
+    agent = support_agent!()
+
+    Atlas.Repo.insert!(%Message{
+      thread_id: thread.id,
+      author_id: agent.id,
+      kind: "outbound",
+      message_id: Ecto.UUID.generate(),
+      sender_email: agent.email,
+      to_emails: [email],
+      body: "Recovered reply",
+      delivery_status: "delivered",
+      occurred_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      metadata: %{"delivery_channel" => "chat"}
+    })
+
+    refute has_element?(view, "#support-chat-messages [data-kind='outbound']", "Recovered reply")
+    send(view.pid, :reconcile_thread)
+    assert has_element?(view, "#support-chat-messages [data-kind='outbound']", "Recovered reply")
+    assert length(Registry.lookup(Atlas.PubSub, "support:thread:#{thread.id}")) == 1
   end
 
   test "shows the retry delay when the chat rate limit rejects a submission", %{conn: conn} do

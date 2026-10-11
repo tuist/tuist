@@ -31,11 +31,14 @@ alias Atlas.Nudges.Workers.RefreshAnalyticsSnapshots, as: RefreshNudgeAnalyticsS
 alias Atlas.Nudges.Workers.RefreshFeatureFirstSeen, as: RefreshNudgeFeatureFirstSeen
 alias Atlas.OAuth.AccessTokens
 alias Atlas.OAuth.Clients
+alias Atlas.OAuth.NoCache
 alias Atlas.OAuth.ResourceOwners
 alias Atlas.OAuth.TokenGenerator
 alias Atlas.Outreach.Workers.DiscoverCandidates
 alias Atlas.Outreach.Workers.ScheduleRecommendations
+alias Atlas.PubSub.Postgres
 alias Atlas.SupportInbox.Workers.WeeklyDigest, as: SupportInboxWeeklyDigest
+alias Atlas.Workers.PruneRateLimits
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Local
 
@@ -82,7 +85,8 @@ config :atlas, AtlasWeb.Endpoint,
 # Configure Oban
 config :atlas, Oban,
   repo: Atlas.Repo,
-  notifier: Oban.Notifiers.PG,
+  notifier: Oban.Notifiers.Postgres,
+  peer: Oban.Peers.Database,
   queues: [default: 10, briefs: 2, mailing: 5],
   plugins: [
     {Oban.Plugins.Cron,
@@ -114,6 +118,7 @@ config :atlas, Oban,
        # Deletes document rows and reserved storage objects for uploads the
        # client never finalized.
        {"*/15 * * * *", ExpirePendingUploads},
+       {"*/5 * * * *", PruneRateLimits},
        # Reconciles the engineering error summary. The worker no-ops when
        # `Atlas.Engineering.Errors.enabled?/0` is false, so it is safe to
        # schedule in every environment.
@@ -128,8 +133,7 @@ config :atlas, Oban,
 
 config :atlas, RateLimiter,
   max_attempts: 60,
-  window_milliseconds: :timer.minutes(1),
-  max_buckets: 10_000
+  window_milliseconds: :timer.minutes(1)
 
 config :atlas, :allowed_email_domain, "tuist.dev"
 config :atlas, :brave_search, api_key: nil
@@ -188,6 +192,8 @@ config :atlas, :pingen,
   print_spectrum: "color",
   receive_timeout: 15_000
 
+config :atlas, :pubsub, adapter: Postgres
+
 config :atlas, :support,
   from_name: "Tuist Support",
   from_email: "contact@tuist.dev"
@@ -198,6 +204,7 @@ config :atlas,
 
 config :boruta, Boruta.Oauth,
   repo: Atlas.Repo,
+  cache_backend: NoCache,
   contexts: [
     resource_owners: ResourceOwners,
     clients: Clients,
