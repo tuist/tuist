@@ -1693,7 +1693,7 @@ func TestRenderVMEgressFirewallScript_GuardsGuestsInboundBeforeNAT(t *testing.T)
 	anchor := vmGuardAnchor(t, script)
 	for _, line := range strings.Split(anchor, "\n") {
 		rule := strings.TrimSpace(line)
-		if rule == "" || strings.HasPrefix(rule, "#") || strings.HasPrefix(rule, "table") {
+		if rule == "" || strings.HasPrefix(rule, "#") || strings.HasPrefix(rule, "table") || rule == vmGuardHostToGuestPass {
 			continue
 		}
 		if !strings.Contains(rule, " in quick ") {
@@ -1728,8 +1728,31 @@ func TestRenderVMEgressFirewallScript_GuardsGuestsInboundBeforeNAT(t *testing.T)
 	if !ok {
 		return
 	}
+	if !strings.Contains(parsed, "pass out quick from <vm_sources> to <vm_sources> flags any keep state") {
+		t.Errorf("pfctl did not keep the host-to-guest pass\n%s", parsed)
+	}
 	if !strings.Contains(parsed, "from <vm_sources> to 127.0.0.1") {
 		t.Errorf("pfctl did not expand self to the host's addresses\n%s", parsed)
+	}
+}
+
+// The host dials its guests itself: tart-kubelet's metrics forwarder and VNC
+// relays connect from the bridge address. A guest's reply arrives inbound to a
+// host address, so without a state from the host's side it hits the drop.
+const vmGuardHostToGuestPass = "pass out quick from <vm_sources> to <vm_sources> flags any keep state"
+
+func TestRenderVMEgressFirewallScript_GuardAdmitsGuestRepliesToTheHost(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	pass := strings.Index(anchor, vmGuardHostToGuestPass)
+	if pass < 0 {
+		t.Fatalf("no stateful pass for host-to-guest connections, so a guest's replies to them are dropped\n%s", anchor)
+	}
+	if block := strings.Index(anchor, "block drop in quick from <vm_sources> to self"); pass > block {
+		t.Errorf("host-to-guest pass renders after the drop\n%s", anchor)
 	}
 }
 

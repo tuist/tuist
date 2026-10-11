@@ -1935,6 +1935,13 @@ const vmPrivateDestinations = "10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64
 // guest range; everything else private, and every host address (static
 // `self`, re-expanded by the re-arm), is dropped. Public destinations pass.
 //
+// The host dials its guests too (tart-kubelet's metrics forwarder and VNC
+// relays), from its bridge address, which is inside the guest range. Those
+// connections match no pass rule on the way out, so they leave no state, and
+// the guest's reply would arrive inbound to a host address and hit the drop.
+// The outbound pass gives them that state. It only matches the host's own
+// packets: a guest's packet is filtered inbound on the bridge first.
+//
 // Same sub-anchor trick and re-arm as installSSHIngressGuard: a
 // `com.apple/` sub-anchor is live the moment it is loaded, and the re-arm
 // restores it within a minute of a reboot or a flush.
@@ -1945,6 +1952,7 @@ sudo tee /etc/pf.anchors/tuist.vmguard >/dev/null <<'PFCONF'
 table <vm_sources> persist { 192.168.64.0/22 }
 table <vm_private_dst> persist { %s }
 %s
+pass out quick from <vm_sources> to <vm_sources> flags any keep state
 pass in quick proto udp from <vm_sources> to <vm_sources> port { 53, 67 } keep state
 pass in quick proto tcp from <vm_sources> to <vm_sources> port 53 keep state
 block drop in quick from <vm_sources> to <vm_private_dst>
