@@ -1062,7 +1062,8 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   # What each source run reported per path: the blob, whether it is test
-  # code, and, when `lines:` is set, the executable lines.
+  # code, the targets that compiled it, and, when `lines:` is set, the
+  # executable lines.
   defp source_files(project_id, run_ids, opts \\ [])
   defp source_files(_project_id, [], _opts), do: %{}
 
@@ -1092,6 +1093,7 @@ defmodule Tuist.Tests.Coverage.Reported do
           %{
             git_blob_id: path_rows |> Enum.map(& &1.git_blob_id) |> Enum.find("", &(&1 != "")),
             is_test: Enum.all?(path_rows, & &1.is_test),
+            targets: path_rows |> Enum.flat_map(& &1.targets) |> Enum.uniq(),
             line_numbers: path_rows |> Enum.flat_map(& &1.line_numbers) |> MapSet.new()
           }}
        end)}
@@ -1106,6 +1108,7 @@ defmodule Tuist.Tests.Coverage.Reported do
           path: f.path,
           git_blob_id: f.git_blob_id,
           is_test: f.is_test,
+          targets: f.targets,
           line_numbers: f.line_numbers
         }
       )
@@ -1118,6 +1121,7 @@ defmodule Tuist.Tests.Coverage.Reported do
           path: f.path,
           git_blob_id: f.git_blob_id,
           is_test: f.is_test,
+          targets: f.targets,
           line_numbers: fragment("CAST([] AS Array(UInt32))")
         }
       )
@@ -1176,9 +1180,10 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     Enum.reduce(unbuilt_paths, files, fn path, files ->
       case get_in(source_files, [sources[path].run_id, path]) do
-        %{line_numbers: executable, git_blob_id: git_blob_id} ->
+        %{line_numbers: executable, git_blob_id: git_blob_id, targets: targets} ->
           Map.put(files, path, %{
             git_blob_id: git_blob_id,
+            targets: targets,
             source_run_ids: [sources[path].run_id],
             covered_lines: MapSet.size(MapSet.intersection(carried_lines[path], executable)),
             executable_lines: MapSet.size(executable)
