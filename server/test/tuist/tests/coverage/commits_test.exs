@@ -494,6 +494,27 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert DateTime.diff(job.scheduled_at, before) >= flush_seconds + 1
   end
 
+  test "uniqueness lock contention still persists the requested delayed fold", %{project: project} do
+    # Oban returns an unsaved conflict when another transaction holds the
+    # uniqueness lock, not the persisted job returned by ordinary debouncing.
+    expect(Oban, :insert, fn changeset ->
+      {:ok, %{Ecto.Changeset.apply_changes(changeset) | id: nil, conflict?: true}}
+    end)
+
+    expect(Oban, :insert, fn changeset ->
+      Mimic.call_original(Oban, :insert, [changeset])
+    end)
+
+    before = DateTime.utc_now()
+    assert {:ok, job} = CommitWorker.enqueue_refold(project.id, "contended", 600)
+    assert job.id
+    assert job.state == "scheduled"
+    assert DateTime.diff(job.scheduled_at, before) >= 600
+    assert [persisted] = all_enqueued(worker: CommitWorker)
+    assert persisted.id == job.id
+    assert persisted.args == %{"project_id" => project.id, "git_commit_sha" => "contended"}
+  end
+
   test "a later report never pulls a later scheduled fold forward", %{project: project} do
     assert {:ok, refold} = CommitWorker.enqueue_refold(project.id, "abc123", 600)
     assert {:ok, _job} = CommitWorker.enqueue(project.id, "abc123")
