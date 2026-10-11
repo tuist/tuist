@@ -346,6 +346,18 @@ public struct PackageInfoMapper: PackageInfoMapping {
         return ResolvedExternalDependencies(products: externalDependencies, packageProducts: packageProducts)
     }
 
+    /// Returns the products of the package a product dependency names. A registry package overridden by a local package is
+    /// no longer part of the graph, so a `scope.name` reference to it falls back to the package that goes by `name`.
+    private static func products(
+        ofPackage package: String,
+        in packageProducts: [String: [String: [ProjectDescription.TargetDependency]]]
+    ) -> [String: [ProjectDescription.TargetDependency]]? {
+        let reference = package.lowercased()
+        if let products = packageProducts[reference] { return products }
+        guard let scopeSeparator = reference.firstIndex(of: ".") else { return nil }
+        return packageProducts[String(reference[reference.index(after: scopeSeparator)...])]
+    }
+
     /// Maps the manifest name and the name part of a registry identity of each package to its lowercased identity, skipping
     /// the ones that several packages share.
     private static func packageReferenceAliases(packageInfos: [(key: String, value: PackageInfo)]) -> [String: String] {
@@ -1394,7 +1406,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         // Product names are only unique within a package, so a product dependency that names its package resolves against that
         // package's products.
         if let targetPackage, moduleAliases?[name] == nil,
-           let productDependencies = packageProducts[targetPackage.lowercased()]?[name]
+           let productDependencies = Self.products(ofPackage: targetPackage, in: packageProducts)?[name]
         {
             return productDependencies.map { $0.withCondition(platformCondition) }
         }
