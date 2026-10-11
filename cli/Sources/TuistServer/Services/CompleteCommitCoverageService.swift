@@ -94,12 +94,15 @@ public struct CompleteCommitCoverageService: CompleteCommitCoverageServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(commit):
+                // The figure the dashboard shows: what the runs measured, with the coverage of
+                // the tests they skipped carried forward.
+                let figure = commit.reported
                 return .complete(
                     CommitCoverage(
                         gitCommitSHA: commit.git_commit_sha,
-                        coverage: commit.coverage,
-                        coveredLines: commit.covered_lines,
-                        executableLines: commit.executable_lines,
+                        coverage: figure?.coverage ?? commit.coverage,
+                        coveredLines: figure?.covered_lines ?? commit.covered_lines,
+                        executableLines: figure?.executable_lines ?? commit.executable_lines,
                         schemes: commit.schemes,
                         partialSchemes: commit.partial_schemes,
                         complete: commit.complete

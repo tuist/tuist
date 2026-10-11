@@ -35,6 +35,44 @@ struct CompleteCommitCoverageServiceTests {
         )))
     }
 
+    @Test func takesTheReportedFigureWhenSkippedTestsWereCarried() throws {
+        let response = Output.ok(.init(body: .json(.init(
+            complete: true,
+            completeness: "complete",
+            coverage: 31.9,
+            covered_lines: 45914,
+            executable_lines: 143_800,
+            git_commit_sha: "abcdef1234567",
+            measured_files_count: 12,
+            partial: true,
+            partial_schemes: ["App"],
+            reported: .init(
+                carried_from: ["0123456789abc"],
+                carried_tests_count: 1771,
+                coverage: 43.5,
+                covered_lines: 64055,
+                executable_lines: 147_122,
+                gap_files_count: 0,
+                kind: .reported,
+                skipped_tests_count: 1771
+            ),
+            schemes: ["App"],
+            targets: [],
+            test_run_ids: ["run-1"],
+            unmeasured_files_count: 0
+        ))))
+
+        #expect(try CompleteCommitCoverageService.completion(from: response) == .complete(CommitCoverage(
+            gitCommitSHA: "abcdef1234567",
+            coverage: 43.5,
+            coveredLines: 64055,
+            executableLines: 147_122,
+            schemes: ["App"],
+            partialSchemes: ["App"],
+            complete: true
+        )))
+    }
+
     @Test func isPendingWhenTheServerKeptTheSignal() throws {
         let response = Output.accepted(.init(body: .json(.init(message: "No run has reported coverage yet."))))
 
