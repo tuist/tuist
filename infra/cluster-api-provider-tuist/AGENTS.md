@@ -309,6 +309,38 @@ Two auxiliary controllers run alongside it:
   re-rolls a target Deployment when the Ready Mac mini set changes so
   Pods spread across newly-joined hosts.
 
+### VM egress guard
+
+A Tart guest runs customer code. It may reach the internet and its cache
+carve-outs, and nothing else: not the host's listeners on any of its addresses
+(Screen Sharing, ARD, mDNSResponder, tart-kubelet, node_exporter, Tailscale's
+`100.100.100.100`), not the networks the host sits on, not link-local.
+
+- The `tuist.runners` anchor's rules are `out` rules on the `192.168.64.x`
+  source. They do not filter: pf filters translated packets, and the host
+  NATs that source to its own address on every leg (`renderVMNATScript`,
+  InternetSharing). A guest's packet carries its own source only while it
+  arrives `in` on the vmnet bridge, so the filter lives there, in the
+  `com.apple/tuist.vmguard` sub-anchor, with the same re-arm as the SSH guard
+  (`dev.tuist.pfctl-vmguard`, every 60s, static `self`).
+- The carve-outs are `tuist.runners`'s, turned inbound. DNS and DHCP to the
+  vmnet gateway pass. Every other private range (RFC 1918, `100.64.0.0/10`,
+  link-local, multicast) and every host address is dropped.
+- The host's own connections to a guest (the metrics forwarder, VNC relays)
+  get state from an outbound pass, or the guest's reply would hit the drop.
+- IPv6 is keyed on the vmnet bridges (`bridge100`-`bridge103`; `bridge0` is
+  Thunderbolt Bridge), since pf cannot tell a guest's ULA or link-local source
+  from the host's own. DNS to the host passes: the guest's first resolver is
+  the host's link-local address.
+- The SSH guard drops a guest's `:22` to a private range itself, so the result
+  does not depend on which sub-anchor pf evaluates first.
+- InternetSharing's `com.apple.internet-sharing/network_isolation` anchor
+  carries `pass quick on bridge100` between `192.168.64.0/24` addresses. No
+  rule in the main ruleset references it once the boot-time `pfctl -f
+  /etc/pf.conf` has run, so it does not override the guard today.
+- `runners-staging-smoke.yml` with `vm_isolation` probes all of this from a
+  staging runner VM.
+
 ## Rack-owned hosts
 
 `RackAppleSiliconMachine` joins Mac minis we bought, in a rack we operate. It
@@ -420,8 +452,8 @@ mode behind it:
   unseen for its `graceHours` (7 days), so the router entry in the guard, not
   the standard device, is what reaches a box that was off for longer.
 - **Its VMs reach the rack's cache gateways.** The VM egress firewall drops
-  every private destination, and a rack's Kura gateway sits on the machines
-  segment. `rackFleet.vmCacheGatewayCIDRs` renders
+  every private destination (see "VM egress guard"), and a rack's Kura
+  gateway sits on the machines segment. `rackFleet.vmCacheGatewayCIDRs` renders
   `--rackhost-vm-cache-gateway-cidrs`, which `rackFleetConfig` overlays as
   `VMCacheGatewayCIDRs`: a pf pass to each CIDR on TCP 443 ahead of the drop.
   The traffic leaves on the host's default route, so the VM NAT's general leg
