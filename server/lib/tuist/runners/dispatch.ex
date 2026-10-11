@@ -609,7 +609,9 @@ defmodule Tuist.Runners.Dispatch do
        `linux` and `macos` default profiles mean `<prefix>linux` /
        `<prefix>macos` (`tuist-linux` / `tuist-macos` on production,
        env-prefixed elsewhere) resolve here too — no separate legacy
-       alias path needed.
+       alias path needed. An account on the `runner_site` flag gets the
+       same Xcode and shape racked at a site when one is
+       (`Catalog.site_pool_name/1`).
     2. **Legacy pool match** — `spec.dispatchLabel` matched against a
        Helm-rendered `RunnerPool`. Backstop for any out-of-rotation
        pool the operator manually renders via `runnersFleet.pools[]`
@@ -627,7 +629,7 @@ defmodule Tuist.Runners.Dispatch do
       {:ok, %Profile{} = profile} ->
         {:ok,
          %{
-           pool_name: Catalog.pool_name(profile),
+           pool_name: profile_pool_name(account, profile),
            requested_dispatch_label: Profile.dispatch_label(profile),
            platform: profile.platform,
            vcpus: profile.vcpus,
@@ -636,6 +638,17 @@ defmodule Tuist.Runners.Dispatch do
 
       {:error, :no_matching_profile} = err ->
         err
+    end
+  end
+
+  # An account on the `runner_site` flag runs at a site whenever one racks the
+  # profile's pool, and on the rented fleet otherwise.
+  defp profile_pool_name(account, profile) do
+    with true <- FeatureFlags.runner_site_enabled?(account),
+         site_pool when is_binary(site_pool) <- Catalog.site_pool_name(profile) do
+      site_pool
+    else
+      _ -> Catalog.pool_name(profile)
     end
   end
 
