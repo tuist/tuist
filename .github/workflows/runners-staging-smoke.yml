@@ -217,45 +217,36 @@ jobs:
         run: |
           set -uo pipefail
           gateway=$(route -n get default | awk '/gateway/{print $2}')
+          router6=$(route -n get -inet6 default 2>/dev/null | awk '/gateway/{print $2}')
           public=$(curl -fsS -m 10 https://api.ipify.org || true)
-          echo "vmnet gateway ${gateway}, public egress ${public:-unknown}"
+          echo "vmnet gateway ${gateway} ${router6}, public egress ${public:-unknown}"
 
           reached=0
           probe() {
-            out=$(nc -z -G 3 -w 3 "$1" "$2" 2>&1); rc=$?
-            if [ "${rc}" -eq 0 ]; then verdict="open"
+            # shellcheck disable=SC2086
+            if out=$(nc ${family:-} -z -G 3 -w 3 "$1" "$2" 2>&1); then verdict="open"
             elif echo "${out}" | grep -qi "refused"; then verdict="refused"
             else verdict="dropped"; fi
-            printf '%-8s %s:%s %s\n' "${verdict}" "$1" "$2" "$(echo "${out}" | tail -1)"
-            [ "${verdict}" = "dropped" ] || reached=1
+            printf '%-8s %s %s\n' "${verdict}" "$1:$2" "$(echo "${out}" | tail -1)"
+            if [ "${verdict}" != "dropped" ]; then reached=1; fi
           }
 
           for address in ${gateway} ${public} ${HOST_ADDRESSES}; do
-            for port in 22 53 5900 5901 8080 8081 9100 10250; do
+            for port in 22 53 88 3283 5900 5901 8080 8081 9100 10250; do
               probe "${address}" "${port}"
             done
           done
+          if [ -n "${router6}" ]; then
+            for port in 22 53 88 3283 5900 8081; do
+              family=-6 probe "${router6}" "${port}"
+            done
+          fi
           probe 100.100.100.100 53
           probe 169.254.169.254 80
           probe 169.254.42.42 80
-          # The cache node is reachable on its carve-out port only.
-          cache_host=$(echo "${TUIST_CACHE_ENDPOINT:-}" | sed -E 's#^[a-z]+://([^/:]+).*#\1#')
-          case "${cache_host}" in
-            10.*|172.*|192.168.*) probe "${cache_host}" 22; probe "${cache_host}" 10250 ;;
-          esac
           for target in ${PRIVATE_TARGETS}; do
             probe "${target%:*}" "${target##*:}"
           done
-
-          # Reported, not asserted: the host's IPv6 router address on the
-          # bridge, which the IPv4 guard does not cover.
-          router6=$(route -n get -inet6 default 2>/dev/null | awk '/gateway/{print $2}')
-          if [ -n "${router6}" ]; then
-            for port in 22 8081; do
-              out=$(nc -6 -z -G 3 -w 3 "${router6}" "${port}" 2>&1) && v=open || v=$(echo "${out}" | grep -qi refused && echo refused || echo dropped)
-              printf 'ipv6     %-8s [%s]:%s\n' "${v}" "${router6}" "${port}"
-            done
-          fi
 
           if [ "${reached}" -ne 0 ]; then
             echo "::error::the runner VM reached the host or a private network"
