@@ -1167,12 +1167,14 @@ defmodule Tuist.Tests.Coverage.Reported do
       )
       |> ClickHouseRepo.all()
       |> Enum.map(fn {path, git_blob_id, targets, executable} ->
+        carried = carried_lines[path]
+
         {path,
          %{
            git_blob_id: git_blob_id,
            targets: targets,
            source_run_ids: [run_id],
-           covered_lines: Enum.count(executable, &MapSet.member?(carried_lines[path], &1)),
+           covered_lines: Enum.count(executable, &MapSet.member?(carried, &1)),
            executable_lines: length(executable)
          }}
       end)
