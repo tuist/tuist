@@ -406,9 +406,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
-          restore-mix-cache: "false"
+          restore-mix-cache: deps
+          mise-cache: "false"
       - name: Signal that the commit's coverage is complete
-        run: mix 'do' deps.compile tuist_ex + tuist.login + tuist.coverage.complete
+        run: mix 'do' deps.compile tuist_ex + tuist.coverage.complete
   test-unsharded:
     name: Test (unsharded fallback, ${{ matrix.clickhouse }})
     runs-on: tuist-linux-large
