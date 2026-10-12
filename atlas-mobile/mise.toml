@@ -1,0 +1,41 @@
+[tools]
+"github:tuist/once" = "0.67.1"
+rust = "1.96.0"
+kotlin = "2.4.10"
+ktlint = "1.7.1"
+
+# Mobile tool installation must not run the monorepo's CLI bootstrap hook.
+[hooks]
+postinstall = "true"
+
+[tasks.check]
+description = "Validate the graph, check Rust formatting, and test the shared core"
+run = ["once query validate-workspace", "rustfmt --edition 2024 --check core/src/*.rs", "once test AtlasCoreTests"]
+
+[tasks."build:android"]
+description = "Build the arm64 Android preview APK"
+run = "once build AtlasAndroid"
+
+[tasks."build:ios"]
+description = "Build the arm64 iOS simulator app"
+run = "once build AtlasIOS"
+
+[tasks."test:core"]
+description = "Test the shared Rust core and JNI bridge"
+run = "once test AtlasCoreTests"
+
+[tasks."lint:rust"]
+description = "Check Rust formatting and Clippy warnings"
+run = ["rustfmt --edition 2024 --check core/src/*.rs", "cargo clippy --locked --manifest-path core/Cargo.toml --all-targets -- -D warnings"]
+
+[tasks."lint:swift"]
+description = "Lint the Swift app and bridge tests"
+run = "once lint AtlasSwiftLint"
+
+[tasks."lint:kotlin"]
+description = "Check Kotlin style"
+run = "ktlint 'android/src/**/*.kt'"
+
+[tasks."test:ios"]
+description = "Test the Swift bridge on an iOS simulator"
+run = "once test AtlasIOSTests"

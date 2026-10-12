@@ -1,0 +1,5 @@
+.once/
+core/target/
+delivery/
+Atlas-ios-simulator.zip
+.DS_Store
