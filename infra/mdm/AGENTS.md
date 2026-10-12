@@ -47,6 +47,14 @@ image versions).
   creating a new one changes the push topic and orphans every
   enrollment.
 - The enroller's `/webhook` must never be routed by the ingress.
+- The operator APIs are reached as `mdm-api` and `mdm-dep` on the
+  tailnet (`tailnet.*Hostname`, set on the Services and served by the
+  Tailscale operator). Tailscale assigns a name when a device registers
+  and never gives it back: if another device still holds the name, the
+  new proxy becomes `mdm-api-1` and keeps that name after the other
+  device is gone. Uninstall the release in the old cluster before
+  deploying it to a new one. If a `-1` name shows up anyway, rename the
+  device in the Tailscale admin console.
 - Host update policy and Setup Assistant suppression come from the SSH
   bootstrap ("Host macOS updates" in
   `infra/cluster-api-provider-tuist/AGENTS.md`). Do not add a
