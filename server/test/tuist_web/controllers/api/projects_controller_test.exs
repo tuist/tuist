@@ -241,6 +241,24 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                Projects.get_project_by_slug("#{user.account.name}/my-once-project")
     end
 
+    test "creates a Mix project", %{conn: conn, user: user} do
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects",
+          full_handle: "#{user.account.name}/my-mix-project",
+          build_system: "mix"
+        )
+
+      response = json_response(conn, :ok)
+      refute Map.has_key?(response, "build_system")
+
+      assert {:ok, %{build_system: :mix}} =
+               Projects.get_project_by_slug("#{user.account.name}/my-mix-project")
+    end
+
     test "returns an error if the provided account doesn't exist", %{
       conn: conn,
       user: user

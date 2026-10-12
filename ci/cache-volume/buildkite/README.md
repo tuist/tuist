@@ -1,6 +1,6 @@
 # Tuist cache volumes for Buildkite
 
-Attach one or more private persistent directories on a Tuist Linux runner:
+Attach one or more private persistent directories on a Tuist Linux or macOS runner:
 
 ```yaml
 steps:
@@ -42,7 +42,7 @@ builds can read but cannot save. Eligibility comes from Buildkite's server API,
 not plugin options or shell variables. Saving happens after the job and its
 writers have been torn down, not in a post-command hook.
 
-Requires a Tuist Linux fleet with cache volumes enabled, the installed
+Requires a Tuist Linux or macOS fleet with cache volumes enabled, the installed
 `tuist-cache-volume` client, Bash, jq and a current Buildkite agent providing
 `BUILDKITE_PLUGIN_CONFIGURATION` (included in Tuist's image).
 An unavailable volume falls back to an ordinary empty directory; invalid
@@ -50,14 +50,21 @@ arguments or a nonempty target fail the hook. Caches are disposable, not storage
 for secrets or irreplaceable data.
 
 This integration targets native Buildkite commands. Docker-plugin commands
-require the private `/home/runner/work/_tuist_cache` root mapped to that same path
-in the child container, in addition to the checkout: cache targets are symlinks.
+need explicit volume mapping and mount-namespace integration so the child
+container sees the attached Linux directories.
 Automatic Docker-plugin wiring is not included, and that configuration needs
 its own fleet smoke test before use. macOS support is separate.
 
-Targets are attached as symlinks. Cache download directories such as `~/.npm`
-or `~/.gradle/caches`; `node_modules` is rejected because npm replaces symlinks.
-Other tools that replace their cache directory are also incompatible. For a
+Linux targets are bind-mounted as ordinary directories. On macOS, targets are
+attached as symlinks. Cache download directories such as `~/.npm`
+or `~/.gradle/caches`; `node_modules` is rejected on macOS because npm replaces symlinks.
+Other tools that replace their cache directory are also incompatible on macOS.
+For a macOS
 workspace path, ignore the link without a trailing slash (for example `.gradle`,
 not `.gradle/`, in `.gitignore`). Paths must be a single line without control
 characters; use a plain YAML string instead of `path: |`.
+
+On macOS, use a macOS runner profile. Native jobs are supported; Linux container
+examples do not apply to macOS. Volumes mount in the macOS guest, so a separate
+Docker VM does not inherit them. Built-in Tuist and Xcode caches stay automatic;
+custom volumes use separate empty directories and platform-specific identities.

@@ -7,7 +7,9 @@ defmodule AtlasWeb.LayoutLive do
 
   alias Atlas.Accounts
   alias Atlas.Audit
+  alias Atlas.Demo
   alias Atlas.Users
+  alias AtlasWeb.DemoLiveGuard
 
   @search_palette_result_limit 10
 
@@ -23,18 +25,18 @@ defmodule AtlasWeb.LayoutLive do
   defp load_user(_session), do: nil
 
   defp mount_authenticated(session, socket, opts \\ []) do
-    case load_user(session) do
+    case if(Demo.enabled?(), do: Demo.user(), else: load_user(session)) do
       nil ->
         {:halt, redirect(socket, to: ~p"/login")}
 
       user ->
         case Keyword.get(opts, :scope) do
           nil ->
-            {:cont, socket |> assign_user(user) |> assign_search_palette()}
+            finish_mount(socket, user)
 
           scope ->
             if Users.has_scope?(user, scope) do
-              {:cont, socket |> assign_user(user) |> assign_search_palette()}
+              finish_mount(socket, user)
             else
               {:halt,
                socket
@@ -45,8 +47,13 @@ defmodule AtlasWeb.LayoutLive do
     end
   end
 
+  defp finish_mount(socket, user) do
+    socket = socket |> assign_user(user) |> assign_search_palette()
+    if Demo.enabled?(), do: DemoLiveGuard.attach(socket), else: {:cont, socket}
+  end
+
   defp assign_user(socket, user) do
-    Audit.put_context(%{actor: user, interface: "dashboard"})
+    if !Demo.enabled?(), do: Audit.put_context(%{actor: user, interface: "dashboard"})
 
     socket
     |> assign(:current_user, user)

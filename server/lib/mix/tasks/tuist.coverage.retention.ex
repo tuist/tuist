@@ -6,7 +6,8 @@ defmodule Mix.Tasks.Tuist.Coverage.Retention do
 
   The tables get their time-to-live when they are created, from
   `TUIST_COVERAGE_FILE_RETENTION_DAYS` (per-file detail) and
-  `TUIST_COVERAGE_RUN_RETENTION_DAYS` (run totals). Changing either variable
+  `TUIST_COVERAGE_RUN_RETENTION_DAYS` (run totals), and the commits' file
+  deltas and targets from `TUIST_COVERAGE_COMMIT_RETENTION_DAYS`. Changing a variable
   afterwards changes nothing on its own; run this task to alter the tables to
   the values now in effect. It also drops the commits' coverage past its own
   retention (`Tuist.Tests.Coverage.Commits.prune/1`), which
@@ -26,7 +27,7 @@ defmodule Mix.Tasks.Tuist.Coverage.Retention do
     Mix.Task.run("app.start")
 
     for {table, days} <- Coverage.apply_retention() do
-      Mix.shell().info("#{table}: rows expire #{days} days after insertion")
+      Mix.shell().info("#{table}: rows expire after #{days} days")
     end
 
     Mix.shell().info("coverage_commits: #{Coverage.Commits.prune()} rows past retention dropped")

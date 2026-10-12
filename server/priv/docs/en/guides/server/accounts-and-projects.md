@@ -35,7 +35,7 @@ Users can become organization members through an invitation, automatic single si
 
 Authenticating with an organization's identity provider does not grant membership by itself. The organization's <.localized_link href="/guides/integrations/authentication/sso#choose-an-enrollment-policy">single sign-on enrollment policy</.localized_link> determines whether a user from its trusted domain needs an invitation or may join automatically.
 
-Administrators can invite a member from the dashboard or with <.localized_link href="/cli/organization/invite">`tuist organization invite`</.localized_link>.
+Administrators can invite a member from the dashboard or with <.localized_link href="/cli/organization/invite">`tuist organization invite`</.localized_link>. Pass `--role admin` or `--role viewer` to give the invitee a role other than `user` when they accept.
 
 ### Roles {#roles}
 

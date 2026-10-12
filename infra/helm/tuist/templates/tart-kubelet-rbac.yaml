@@ -65,7 +65,8 @@ rules:
   # CreateContainerConfigError "services have not yet been read"), a CSINode,
   # RuntimeClasses, and — with webhook auth/authz + serverTLSBootstrap — token/
   # access reviews and a serving-cert CSR. These mirror the built-in
-  # system:node role; the tart-kubelet shim simply doesn't exercise them.
+  # system:node role; the tart-kubelet shim doesn't exercise most of them.
+  # Both kubelets renew their Node's Lease in kube-node-lease.
   - apiGroups: ["coordination.k8s.io"]
     resources: [leases]
     verbs: [get, list, watch, create, update, patch, delete]

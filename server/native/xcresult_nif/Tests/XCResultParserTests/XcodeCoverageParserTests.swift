@@ -196,6 +196,40 @@ struct XcodeCoverageParserTests {
     }
 
     @Test
+    func readsCountsThatWrappedAroundAsTheOnesOnTheirLineThatDidNot() async throws {
+        // The entry counter lost an increment to a parallel test, so the `else` body ran once more
+        // than the function was entered and everything after the guard came out as -1. A subrange
+        // wraps around 64 bits rather than 48.
+        let json = report("""
+        {"name": "A", "coveredLines": 12, "executableLines": 12, "lineCoverage": 1, "buildProductPath": "/a",
+         "files": [{"name": "Dump.swift", "path": "/repo/Dump.swift", "coveredLines": 12, "executableLines": 12, "lineCoverage": 1, "functions": []}]}
+        """)
+        let archive = """
+        {"/repo/Dump.swift": [{"line": 5, "isExecutable": true, "executionCount": 347},
+                              {"line": 6, "isExecutable": true, "executionCount": 281474976710655,
+                               "subranges": [{"column": 1, "executionCount": 347, "length": 9},
+                                             {"column": 10, "executionCount": 348, "length": 10}]},
+                              {"line": 7, "isExecutable": true, "executionCount": 281474976710655},
+                              {"line": 8, "isExecutable": true, "executionCount": 281474976710602,
+                               "subranges": [{"column": 1, "executionCount": 281474976710655, "length": 4}]},
+                              {"line": 9, "isExecutable": true, "executionCount": 2,
+                               "subranges": [{"column": 5, "executionCount": 18446744073709549608, "length": 3}]}]}
+        """
+        let subject = XccovStub(reportJSON: json, archiveJSON: archive).parser
+
+        let got = try #require(await parse(
+            subject,
+            manifest: XcodeCoverageManifest(rootDirectories: ["/repo"], partial: false, files: [])
+        ))
+
+        let file = try #require(got.files.first)
+        #expect(file.lineNumbers == [5, 6, 7, 8, 9])
+        #expect(file.executionCounts == [347, 348, 0, 0, 2])
+        #expect(file.coveredLines == 3)
+        #expect(file.executableLines == 5)
+    }
+
+    @Test
     func handsXccovAPathWithTheXcresultExtension() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "xcode-coverage-parser-tests") { root in
             // xcodebuild's own layout for `-resultBundlePath run`: `run.xcresult` plus a `run` link to it.

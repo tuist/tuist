@@ -2,7 +2,7 @@ package macos
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -112,6 +112,12 @@ type RackHostReconciler struct {
 	// SecretsNamespace is where per-endpoint power credential Secrets live (the
 	// operator's own namespace, same as every other Secret it reads).
 	SecretsNamespace string
+
+	// EgressNamespace and EgressProxyGroup, when both set, have an outlet of a
+	// RackPDU dialled through the PDU's egress Service. Empty dials the card
+	// directly.
+	EgressNamespace  string
+	EgressProxyGroup string
 
 	// PowerCycleSettle overrides how long a cycle holds the outlet down. Zero
 	// means defaultPowerCycleSettle. Not an operator-facing knob (no flag and
@@ -321,7 +327,12 @@ func (r *RackHostReconciler) observePower(ctx context.Context, host *infrav1.Rac
 	driver, outlet, err := r.outletFor(ctx, host)
 	if err != nil {
 		host.Status.Power = string(power.StateUnknown)
-		conditions.MarkFalse(host, PowerReachableCondition, "PowerNotConfigured",
+		reason := "PowerNotConfigured"
+		var notReady *pduNotReadyError
+		if errors.As(err, &notReady) {
+			reason = "PDUNotReady"
+		}
+		conditions.MarkFalse(host, PowerReachableCondition, reason,
 			clusterv1.ConditionSeverityWarning, "%v", err)
 		return
 	}
@@ -346,34 +357,16 @@ func (r *RackHostReconciler) observePower(ctx context.Context, host *infrav1.Rac
 	conditions.MarkTrue(host, PowerReachableCondition)
 }
 
-// outletFor resolves the driver and the fully-populated outlet, reading the
-// endpoint's credentials when the host names a Secret.
 func (r *RackHostReconciler) outletFor(ctx context.Context, host *infrav1.RackHost) (power.Driver, power.Outlet, error) {
-	if host.Spec.Power == nil {
-		return nil, power.Outlet{}, fmt.Errorf("host has no power outlet configured; it cannot be rebooted remotely")
-	}
-	if r.Power == nil {
-		return nil, power.Outlet{}, fmt.Errorf("no power drivers wired into this operator build")
-	}
-	driver, err := r.Power.Get(host.Spec.Power.Driver)
-	if err != nil {
-		return nil, power.Outlet{}, err
-	}
+	return rackHostOutlet(ctx, r.Client, r.Power, r.SecretsNamespace, r.egressConfig(), host)
+}
 
-	outlet := power.Outlet{
-		Driver: host.Spec.Power.Driver,
-		Host:   host.Spec.Power.Host,
-		Outlet: host.Spec.Power.Outlet,
+func (r *RackHostReconciler) egressConfig() egressConfig {
+	return egressConfig{
+		Namespace:  r.EgressNamespace,
+		ProxyGroup: r.EgressProxyGroup,
+		ManagedBy:  operatorName,
 	}
-	if ref := host.Spec.Power.CredentialsSecretRef; ref != nil && ref.Name != "" {
-		secret := &corev1.Secret{}
-		if err := r.Get(ctx, types.NamespacedName{Namespace: r.SecretsNamespace, Name: ref.Name}, secret); err != nil {
-			return nil, power.Outlet{}, fmt.Errorf("read power credentials %s/%s: %w", r.SecretsNamespace, ref.Name, err)
-		}
-		outlet.Username = string(secret.Data["username"])
-		outlet.Password = string(secret.Data["password"])
-	}
-	return driver, outlet, nil
 }
 
 func recordRackHostMetrics(host *infrav1.RackHost) {
@@ -416,7 +409,32 @@ func (r *RackHostReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&infrav1.RackAppleSiliconMachine{},
 			handler.EnqueueRequestsFromMapFunc(rackHostForRackMachine),
 		).
+		Watches(
+			&infrav1.RackPDU{},
+			handler.EnqueueRequestsFromMapFunc(r.rackHostsForRackPDU),
+		).
 		Complete(r)
+}
+
+// rackHostsForRackPDU maps a RackPDU event to the hosts plugged into it, so a
+// PDU becoming Ready, or not, reaches them at once rather than at their poll.
+func (r *RackHostReconciler) rackHostsForRackPDU(ctx context.Context, o client.Object) []reconcile.Request {
+	pdu, ok := o.(*infrav1.RackPDU)
+	if !ok {
+		return nil
+	}
+	hosts := &infrav1.RackHostList{}
+	if err := r.List(ctx, hosts, client.InNamespace(pdu.Namespace)); err != nil {
+		log.FromContext(ctx).Error(err, "list the hosts on a RackPDU", "pdu", pdu.Name)
+		return nil
+	}
+	var reqs []reconcile.Request
+	for _, host := range hosts.Items {
+		if host.Spec.Power != nil && host.Spec.Power.PDU == pdu.Name {
+			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: host.Namespace, Name: host.Name}})
+		}
+	}
+	return reqs
 }
 
 // rackHostForRackMachine maps a machine event to the host it is.

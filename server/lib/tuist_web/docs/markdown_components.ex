@@ -46,7 +46,8 @@ defmodule TuistWeb.Docs.MarkdownComponents do
 
   attr :supported_for, :string,
     default: nil,
-    doc: ~s(Comma-separated build-system slugs to render under the card. Accepts "apple", "android", "gradle", "bazel".)
+    doc:
+      ~s(Comma-separated build-system slugs to render under the card. Accepts "apple", "android", "gradle", "bazel", "elixir".)
 
   def home_card(assigns) do
     href =
@@ -60,7 +61,7 @@ defmodule TuistWeb.Docs.MarkdownComponents do
       (assigns.supported_for || "")
       |> String.split(",", trim: true)
       |> Enum.map(&String.trim/1)
-      |> Enum.filter(&(&1 in ~w(apple android gradle bazel)))
+      |> Enum.filter(&(&1 in ~w(apple android gradle bazel elixir)))
 
     assigns =
       assigns

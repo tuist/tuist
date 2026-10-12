@@ -11,6 +11,8 @@ defmodule TuistWeb.IntegrationsLive do
   alias Tuist.Runners.GitLab
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
+  alias Tuist.VCS.GitHubAppInstallation
+  alias TuistWeb.Errors.UnauthorizedError
 
   # The fields the Buildkite modal renders an input for.
   @buildkite_form_fields [:organization_slug, :agent_token]
@@ -18,7 +20,7 @@ defmodule TuistWeb.IntegrationsLive do
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
     if Authorization.authorize(:account_update, current_user, selected_account) != :ok do
-      raise TuistWeb.Errors.UnauthorizedError,
+      raise UnauthorizedError,
             dgettext("dashboard_integrations", "You are not authorized to perform this action.")
     end
 
@@ -48,6 +50,8 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(selected_repository_full_handle: nil)
       |> assign(github_client_url: if(default_to_enterprise?, do: "", else: VCS.default_client_url()))
       |> assign(github_client_url_error: nil)
+      |> assign(github_api_url: if(github_installation, do: github_installation.api_url || "", else: ""))
+      |> assign(github_api_url_error: nil)
       |> assign(github_app_owner: "")
       |> assign(github_app_owner_error: nil)
       |> assign(show_github_enterprise_input: default_to_enterprise?)
@@ -219,17 +223,52 @@ defmodule TuistWeb.IntegrationsLive do
   def handle_event("update-github-client-url", params, socket) do
     raw_url = Map.get(params, "github_client_url", socket.assigns.github_client_url)
     raw_owner = Map.get(params, "github_app_owner", socket.assigns.github_app_owner)
+    raw_api_url = Map.get(params, "github_api_url", socket.assigns.github_api_url)
     {url, error} = validate_github_client_url(raw_url, socket.assigns.show_github_enterprise_input)
+    {api_url, api_error} = validate_github_api_url(raw_api_url, socket.assigns.show_github_enterprise_input)
     {github_app_owner, github_app_owner_error} = validate_github_app_owner(raw_owner)
 
     socket =
       socket
       |> assign(github_client_url: url)
       |> assign(github_client_url_error: error)
+      |> assign(github_api_url: api_url, github_api_url_error: api_error)
       |> assign(github_app_owner: github_app_owner)
       |> assign(github_app_owner_error: github_app_owner_error)
 
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("validate-github-api-url", params, socket) do
+    {url, error} = validate_github_api_url(Map.get(params, "github_api_url", ""), true)
+    {:noreply, assign(socket, github_api_url: url, github_api_url_error: error)}
+  end
+
+  @impl true
+  def handle_event("save-github-api-url", params, socket) do
+    account = socket.assigns.selected_account
+
+    if Authorization.authorize(:account_update, socket.assigns.current_user, account) != :ok do
+      raise UnauthorizedError,
+            dgettext("dashboard_integrations", "You are not authorized to perform this action.")
+    end
+
+    with {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id),
+         true <- GitHubAppInstallation.enterprise?(installation),
+         {:ok, updated} <- VCS.update_github_app_api_url(installation, Map.get(params, "github_api_url", "")) do
+      {:noreply,
+       socket
+       |> assign(github_app_installation: updated, github_api_url: updated.api_url || "", github_api_url_error: nil)
+       |> put_flash(:info, dgettext("dashboard_integrations", "GitHub API URL updated."))}
+    else
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply, assign(socket, github_api_url_error: dgettext("dashboard_integrations", "Invalid URL"))}
+
+      _ ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("dashboard_integrations", "GitHub Enterprise integration not found."))}
+    end
   end
 
   @impl true
@@ -239,6 +278,7 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(show_github_enterprise_input: false)
       |> assign(github_client_url: VCS.default_client_url())
       |> assign(github_client_url_error: nil)
+      |> assign(github_api_url: "", github_api_url_error: nil)
       |> assign(github_app_owner: "")
       |> assign(github_app_owner_error: nil)
 
@@ -257,6 +297,7 @@ defmodule TuistWeb.IntegrationsLive do
         # github.com App, which is exactly the wrong target.
         |> assign(github_client_url: "")
         |> assign(github_client_url_error: nil)
+        |> assign(github_api_url: "", github_api_url_error: nil)
         |> assign(github_app_owner: "")
         |> assign(github_app_owner_error: nil)
 
@@ -441,6 +482,7 @@ defmodule TuistWeb.IntegrationsLive do
   #     to `https://github.com/apps//installations/new`, which 404s.
   defp install_button_disabled?(assigns) do
     not is_nil(assigns.github_client_url_error) or
+      not is_nil(assigns.github_api_url_error) or
       not is_nil(assigns.github_app_owner_error) or
       (assigns.show_github_enterprise_input and
          (assigns.github_client_url in ["", nil] or
@@ -494,6 +536,15 @@ defmodule TuistWeb.IntegrationsLive do
 
   defp validate_enterprise_github_client_url(url, false) do
     {url, nil}
+  end
+
+  defp validate_github_api_url(_raw_url, false), do: {"", nil}
+
+  defp validate_github_api_url(raw_url, true) do
+    case VCS.validate_api_url(raw_url) do
+      {:ok, url} -> {url || "", nil}
+      {:error, _} -> {to_string(raw_url), dgettext("dashboard_integrations", "Invalid URL")}
+    end
   end
 
   defp validate_github_app_owner(raw_owner) do

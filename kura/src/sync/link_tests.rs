@@ -176,6 +176,27 @@ async fn a_sibling_that_fell_off_the_feed_rebootstraps_completely() {
     b.see(&[&a]);
     let warm = a.write("warm", b"w").await;
     b.wait_for(&warm).await;
+    // Warm bodies can be visible before bootstrap persists the feed cursor.
+    // Disconnect only after the state required for a floor-410 is committed.
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let links = b.state().sync.link_statuses();
+            if b.state()
+                .store
+                .sync_cursor(&a.url)
+                .expect("persisted cursor")
+                .is_some()
+                && links.len() == 1
+                && links[0].settled
+                && links[0].phase == LinkPhase::Forward
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("bootstrap must persist its cursor before disconnect");
 
     // b loses sight of a: its link closes, its cursor stays persisted.
     b.see(&[]);

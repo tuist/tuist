@@ -20,16 +20,18 @@ func TestUserDataCarriesItsInstallID(t *testing.T) {
 }
 
 type stickFakes struct {
-	bin, curlLog, seed, autoinstall, console, sys, announced, prev, calls, node, asked string
+	bin, curlLog, seed, autoinstall, console, sys, announced, prev, calls, node, asked, uptime string
 }
 
 // stickWorld is what the live installer finds: a boot server that publishes
 // an install for the machine's second NIC once it has been asked failures
 // times (never, when failures is negative), or that cannot be reached at all,
-// and a rack install on the disks or none.
+// refusing the connection or, blackholed, never answering it, and a rack
+// install on the disks or none.
 type stickWorld struct {
 	failures    int
 	unreachable bool
+	blackholed  bool
 	installed   bool
 }
 
@@ -53,6 +55,10 @@ func newStickWorld(t *testing.T, w stickWorld) stickFakes {
 		calls:       filepath.Join(dir, "calls"),
 		node:        filepath.Join(dir, "rack-node"),
 		asked:       filepath.Join(dir, "asked"),
+		uptime:      filepath.Join(dir, "uptime"),
+	}
+	if err := os.WriteFile(f.uptime, []byte("1000.42 3000.17\n"), 0o644); err != nil {
+		t.Fatal(err)
 	}
 	writeFakeSys(t, f.sys)
 	published, err := UserData(edgeSeed())
@@ -79,20 +85,38 @@ func newStickWorld(t *testing.T, w stickWorld) stickFakes {
 	if w.unreachable {
 		unreachable = "1"
 	}
+	blackholed := "0"
+	if w.blackholed {
+		blackholed = "1"
+	}
+	// The installer's clock moves on only while it sleeps or a connection
+	// waits out its timeout.
+	elapse := `elapse() { awk -v n="$1" '{printf "%.2f %s\n", $1 + n, $2}' "` + f.uptime + `" >"` + f.uptime + `.new" && mv "` + f.uptime + `.new" "` + f.uptime + `"; }
+`
 	lsblk := `:`
 	if w.installed {
 		lsblk = `echo "/dev/nvme0n1p2 ext4"`
 	}
 	fakes := map[string]string{
-		"ip": `cat <<'OUT'
+		"ip": `if [ "$*" = "-4 -o addr show scope global" ]; then
+  echo '2: enp2s0f0np0    inet 192.168.0.26/24 metric 100 brd 192.168.0.255 scope global dynamic enp2s0f0np0\       valid_lft 86393sec preferred_lft 86393sec'
+  exit 0
+fi
+cat <<'OUT'
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000\    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
 2: enp2s0f0np0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000\    link/ether 58:47:CA:7A:1B:2C brd ff:ff:ff:ff:ff:ff
 3: enp89s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000\    link/ether 38:05:25:38:b5:b5 brd ff:ff:ff:ff:ff:ff
 OUT`,
-		"curl": `out= url= data=
+		"curl": elapse + `out= url= data= connect= max=
 while [ $# -gt 0 ]; do
-  case "$1" in -o) out="$2"; shift 2 ;; --data-binary) data="$2"; shift 2 ;; http*) url="$1"; shift ;; *) shift ;; esac
+  case "$1" in -o) out="$2"; shift 2 ;; --data-binary) data="$2"; shift 2 ;; --connect-timeout) connect="$2"; shift 2 ;; --max-time) max="$2"; shift 2 ;; http*) url="$1"; shift ;; *) shift ;; esac
 done
+if [ ` + blackholed + ` = 1 ]; then
+  [ "$data" != @- ] || cat >/dev/null
+  [ "$url" = http://192.168.50.1:8480/cgi-bin/announce ] || echo "$url" >>"` + f.curlLog + `"
+  elapse "${connect:-$max}"
+  exit 28
+fi
 if [ "$url" = http://192.168.50.1:8480/cgi-bin/announce ] && [ "$data" = @- ]; then
   { cat; echo ---; } >>"` + f.announced + `"
   exit 0
@@ -102,7 +126,7 @@ echo "$url" >>"` + f.curlLog + `"
 [ "$url" = http://192.168.50.1:8480/tools/rack-node ] || exit 22
 cp "` + filepath.Join(dir, "fake-rack-node") + `" "$out"`,
 		"lsblk":  lsblk,
-		"sleep":  `:`,
+		"sleep":  elapse + `elapse "$1"`,
 		"mount":  `echo "mount $*" >>"` + f.calls + `"`,
 		"umount": `echo "umount $*" >>"` + f.calls + `"`,
 		"chroot": `shift; exec "$@"`,
@@ -148,7 +172,7 @@ func (f stickFakes) command(t *testing.T) *exec.Cmd {
 	if err != nil {
 		t.Skip("no sh")
 	}
-	script := stickScript("http://192.168.50.1:8480", stickPaths{Seed: f.seed, Autoinstall: f.autoinstall, Console: f.console, Sys: f.sys, Node: f.node})
+	script := stickScript("http://192.168.50.1:8480", stickPaths{Seed: f.seed, Autoinstall: f.autoinstall, Console: f.console, Sys: f.sys, Node: f.node, Uptime: f.uptime})
 	cmd := exec.Command(sh, "-c", strings.ReplaceAll(script, "/run/tuist-prev", f.prev))
 	cmd.Env = append(os.Environ(), "PATH="+f.bin+":"+os.Getenv("PATH"))
 	return cmd
@@ -398,6 +422,50 @@ func TestStickWaitsOutAnUnreachableBootServer(t *testing.T) {
 	if n := strings.Count(string(asked), "/tools/rack-node\n"); n < 30 {
 		t.Fatalf("tried %d times before handing over, want five minutes' worth", n)
 	}
+	if waited := f.waited(t); waited < 300 {
+		t.Fatalf("handed over after %ds, want five minutes", waited)
+	}
+}
+
+// A boot server that never answers, as one the machine reaches only through
+// an uplink's default route, makes each try last until its connect timeout.
+// The stick still hands over five minutes in, not after thirty tries.
+func TestStickHandsOverOnTheClockWhenTheBootServerNeverAnswers(t *testing.T) {
+	f := newStickWorld(t, stickWorld{failures: -1, blackholed: true, installed: true})
+
+	f.runToReboot(t)
+
+	if waited := f.waited(t); waited < 300 || waited > 360 {
+		t.Fatalf("handed over after %ds, want five minutes", waited)
+	}
+	console, _ := os.ReadFile(f.console)
+	if !strings.Contains(string(console), "tuist: no answer from http://192.168.50.1:8480; addresses: enp2s0f0np0 192.168.0.26/24; \n") {
+		t.Fatalf("did not say which addresses it reached the boot server from:\n%s", console)
+	}
+}
+
+// A machine the boot server answers does not list its addresses.
+func TestStickListsNoAddressesWhenTheBootServerAnswers(t *testing.T) {
+	f := newStickFakes(t, 3)
+	f.run(t)
+	console, _ := os.ReadFile(f.console)
+	if strings.Contains(string(console), "no answer from") {
+		t.Fatalf("console %q", console)
+	}
+}
+
+// waited is how long the installer's clock ran from the fakes' start.
+func (f stickFakes) waited(t *testing.T) int {
+	t.Helper()
+	raw, err := os.ReadFile(f.uptime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now, err := strconv.ParseFloat(strings.Fields(string(raw))[0], 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return int(now) - 1000
 }
 
 // A machine that is installed and has an install published is reinstalled.

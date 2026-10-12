@@ -684,9 +684,17 @@ extension SettingsDictionary {
             case let .string(value):
                 settings[key] = .string(value)
             case let .array(value):
+                // A bare token is never a standalone Swift flag, so it is the argument of the flag before it
+                // (`-module-alias A=B`, `-D FOO`, `-cas-plugin-option k=v`). Deduplicating it on its own would
+                // drop a repeated flag and orphan its next argument, which swift-driver reads as an input file.
+                func takesArgument(at index: Int) -> Bool {
+                    guard value[index].hasPrefix("-"), index + 1 < value.endIndex else { return false }
+                    let next = value[index + 1]
+                    return value[index].isFlagWithArgument || (!next.hasPrefix("-") && next != "$(inherited)")
+                }
                 func isWarningGroupFlag(at index: Int) -> Bool {
                     (value[index] == "-Werror" || value[index] == "-Wwarning") &&
-                        (index == 0 || !value[index - 1].isFlagWithArgument)
+                        (index == 0 || !takesArgument(at: index - 1))
                 }
                 var seen = Set<String>()
                 let uniqueFlags = value.enumerated().filter {
@@ -696,24 +704,13 @@ extension SettingsDictionary {
                     {
                         return true
                     }
-                    if $0.element.isFlagWithArgument {
-                        if value.endIndex > $0.offset + 1 {
-                            return !seen.contains($0.element + value[$0.offset + 1])
-                        } else {
-                            return true
-                        }
-                    } else {
-                        if $0.offset == 0 {
-                            return seen.insert($0.element).inserted
-                        } else {
-                            let previousElement = value[$0.offset - 1]
-                            if previousElement.isFlagWithArgument {
-                                return seen.insert(previousElement + $0.element).inserted
-                            } else {
-                                return seen.insert($0.element).inserted
-                            }
-                        }
+                    if takesArgument(at: $0.offset) {
+                        return !seen.contains($0.element + value[$0.offset + 1])
                     }
+                    if $0.offset > 0, takesArgument(at: $0.offset - 1) {
+                        return seen.insert(value[$0.offset - 1] + $0.element).inserted
+                    }
+                    return seen.insert($0.element).inserted
                 }
                 settings[key] = .array(
                     uniqueFlags.map(\.element)

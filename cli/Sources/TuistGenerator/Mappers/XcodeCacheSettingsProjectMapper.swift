@@ -60,9 +60,12 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         // that gather coverage.
         if await Self.isPrefixMappingSupported() {
             baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
-            baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] = "YES"
+            // A shared source namespace can opt out of per-project /^src aliases.
+            baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] =
+                baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] ?? "YES"
             baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
-            baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] = "YES"
+            baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] =
+                baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] ?? "YES"
             baseSettings["\(Self.prefixMappingForCoverageSetting)_"] = "YES"
             baseSettings["\(Self.prefixMappingForCoverageSetting)_NO"] = "YES"
             baseSettings["\(Self.prefixMappingForCoverageSetting)_YES"] = "NO"
@@ -113,6 +116,11 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                 baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] = .string(
                     Environment.current.casProxySocketPathString()
                 )
+                // With a remote service, every local miss is followed by a key query
+                // task that asks the remote cache. On execution lanes only a few run
+                // at once, so a cold build waits on the cache round trips a lane at a
+                // time; detached, the queries overlap.
+                baseSettings["COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES"] = "YES"
             } else {
                 // The bundled dylib is absent, so the build silently falls back to
                 // local-only caching (no remote). Warn rather than let a cold cache

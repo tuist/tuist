@@ -7,7 +7,6 @@ defmodule TuistWeb.RunnerCacheVolumesController do
 
   def authorize(conn, params) do
     with :ok <- authenticate(conn),
-         true <- Application.get_env(:tuist, :runner_linux_cache_volumes, false),
          {:ok, identity} <- CacheVolumes.allocate(params) do
       conn |> put_resp_header("cache-control", "no-store") |> json(identity)
     else

@@ -28,6 +28,7 @@ defmodule TuistWeb.BuildRunLive do
   alias Tuist.Tests
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.RunnerJobLive
   alias TuistWeb.RunnerWorkflowsLive
   alias TuistWeb.Utilities.Query
@@ -77,6 +78,7 @@ defmodule TuistWeb.BuildRunLive do
     socket =
       socket
       |> assign(:run, run)
+      |> assign(:failure_category, Tuist.BuildMetrics.failure_category(run.project_id, "xcode", run.id))
       |> assign(:timeline, AsyncResult.loading())
       |> assign(:timeline_version, 0)
       |> assign(:machine_metrics, run.machine_metrics)
@@ -99,6 +101,13 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:expanded_target_names, MapSet.new())
       |> assign(:task_cas_outputs_map, %{})
       |> assign_build_data(run)
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: if(run.scheme == "", do: dgettext("dashboard_builds", "Build Run"), else: run.scheme),
+          subtitle: Enum.join(Enum.reject([run.configuration, run.git_branch], &(&1 in [nil, ""])), " · "),
+          badge: run.status |> to_string() |> String.capitalize()
+        )
+      )
 
     {:ok, socket}
   end
@@ -237,6 +246,7 @@ defmodule TuistWeb.BuildRunLive do
       {:noreply,
        socket
        |> assign(:run, run)
+       |> assign(:failure_category, Tuist.BuildMetrics.failure_category(run.project_id, "xcode", run.id))
        |> assign(:machine_metrics, run.machine_metrics)
        |> assign_build_data(run)
        |> TuistWeb.BuildTimelineLoader.select_tab(socket.assigns.selected_tab, run)
@@ -536,6 +546,10 @@ defmodule TuistWeb.BuildRunLive do
     {:noreply,
      socket
      |> assign(:run, refreshed_run)
+     |> assign(
+       :failure_category,
+       Tuist.BuildMetrics.failure_category(refreshed_run.project_id, "xcode", refreshed_run.id)
+     )
      |> assign(:machine_metrics, refreshed_run.machine_metrics)
      |> assign_build_data(refreshed_run)
      |> TuistWeb.BuildTimelineLoader.select_tab(socket.assigns.selected_tab, refreshed_run)
@@ -1306,8 +1320,7 @@ defmodule TuistWeb.BuildRunLive do
   #
   # See `TuistWeb.TestRunLive.cached_run_query/4` for why the key is a
   # list with a SHA-256 flop_params fragment rather than a tuple with
-  # a phash2, and for why `locking: false` is required to keep the
-  # `:tuist` cache's Locksmith GenServer off the CLI-token auth path.
+  # a phash2.
   defp cached_build_run_query(run_id, tab, flop_params, func) do
     cache_key = [
       :build_run_flop,

@@ -8,7 +8,11 @@
       light-dark(var(--noora-neutral-light-500), var(--noora-neutral-dark-700))
       inset,
     0px 0px 0px 1px
-      light-dark(rgba(132, 143, 154, 0.25), rgba(113, 113, 113, 0.4)) inset;
+      light-dark(
+        oklch(from var(--noora-neutral-light-800) l c h / 0.25),
+        oklch(from var(--noora-neutral-dark-500) l c h / 0.4)
+      )
+      inset;
   background: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-1) var(--noora-spacing-3);
   color: var(--noora-surface-label-secondary);

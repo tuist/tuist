@@ -92,6 +92,50 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert html =~ "request_delete"
   end
 
+  test "built-in volumes use the same presentation and measured sizes without a type label" do
+    assigns = assigns(true)
+
+    volume = %{
+      assigns.selected
+      | builtin_name: "tuist-cache",
+        key: "tuist-cache",
+        platform: "macos",
+        architecture: "arm64"
+    }
+
+    data = assigns.data.result
+    stats = Map.update!(data.stats, volume.id, &Map.put(&1, :retained_capacity_bytes, 20_000_000_000))
+    data = %{data | volumes: [volume], stats: stats}
+    assigns = %{assigns | selected: volume, data: AsyncResult.ok(data)}
+    detail = render_component(&RunnerVolumesLive.render/1, assigns)
+    assert detail =~ "tuist-cache"
+    assert detail =~ "macOS"
+    assert detail =~ "20.0 GB"
+    refute detail =~ "Automatic"
+    badges = detail |> Floki.parse_document!() |> Floki.find(".noora-badge") |> Floki.text()
+    assert badges =~ "macOS"
+    refute badges =~ "Custom"
+    refute detail =~ "phx-click=\"request_delete\""
+    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil})
+    assert inventory =~ "tuist-cache"
+    assert inventory =~ "20.0 GB"
+    assert inventory =~ "/runners/volumes/#{volume.id}"
+  end
+
+  test "inventory truncates long volume names and keeps the full name in the title" do
+    assigns = assigns(true)
+    key = "cli-dependencies-m4-20261009-01-tuist-macos-27-0-volumes-" <> String.duplicate("a", 64)
+    volume = %{assigns.selected | key: key}
+    data = %{assigns.data.result | volumes: [volume]}
+
+    html = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil, data: AsyncResult.ok(data)})
+
+    cell = html |> Floki.parse_document!() |> Floki.find("#volumes-table td:first-child")
+    assert Floki.text(cell) =~ "cli-dependencies-m4-20261009-01-tuist-macos-27-…"
+    refute Floki.text(cell) =~ key
+    assert Floki.attribute(cell, "[title]", "title") == [key]
+  end
+
   test "account overview shows storage totals with missing measurement coverage" do
     html = render_component(&RunnerVolumesLive.render/1, %{assigns(true) | selected: nil})
     refute html =~ "7-day inactivity eviction"
@@ -141,6 +185,13 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert updated.assigns.storage_metric == "volumes"
     assert RunnerVolumesLive.storage_chart_options("volumes").yAxis.axisLabel.formatter == "fn:formatNumber"
     assert RunnerVolumesLive.storage_chart_options("used_bytes").yAxis.axisLabel.formatter == "fn:formatBytes"
+  end
+
+  test "storage charts use the themed grid line and label colors" do
+    options = RunnerVolumesLive.storage_chart_options("used_bytes")
+    assert options.yAxis.splitLine.lineStyle.color == "var:noora-chart-lines"
+    assert options.yAxis.axisLabel.color == "var:noora-surface-label-secondary"
+    assert options.xAxis.axisLabel.color == "var:noora-surface-label-secondary"
   end
 
   test "hit rate trends use percentage points and distinguish unavailable comparisons" do
@@ -356,12 +407,9 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert jobs =~ "Continuous integration"
     assert RunnerVolumesLive.workflow_label(%{usage | workflow_name: nil}) == "Unknown"
     assert RunnerVolumesLive.workflow_label(%{usage | workflow_name: ""}) == "Unknown"
-    assert jobs =~ "Cache status"
-    assert jobs =~ "Saved"
-    assert jobs =~ "Changes from this job were saved to the volume for future job runs."
-    assert jobs =~ ~s(id="volume-use-status-#{usage.id}")
-    assert jobs =~ ~s(data-type="status_badge")
-    refute jobs =~ "Published"
+    assert jobs =~ "Hit"
+    refute jobs =~ "Cache status"
+    refute jobs =~ ~s(id="volume-use-status-#{usage.id}")
     assert RunnerVolumesLive.job_label(%{usage | job_name: nil}) == "# 1024"
     assert RunnerVolumesLive.job_label(%{usage | job_name: ""}) == "# 1024"
     assert jobs =~ ~s(id="volume-history")

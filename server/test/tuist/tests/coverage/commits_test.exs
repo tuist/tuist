@@ -90,16 +90,89 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     first = Commits.summary(project.id, "abc123")
 
     dirty = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 1])], %{git_dirty: true})
-    assert Commits.enqueue_recompute(dirty) == :skipped
+    assert {:ok, _job} = Commits.enqueue_recompute(dirty)
     assert Commits.recompute(project, "abc123").covered_lines == 1
     assert Commits.run_ids(project.id, "abc123") != [dirty.id]
 
     second = Commits.summary(project.id, "abc123")
     assert second.version > first.version
     assert second.inserted_at == first.inserted_at
+    # A clean run measured the dirty run's scheme, so the figure is whole.
+    refute Commits.incomplete?(second)
 
     assert Commits.recompute(project, "nothing-measured") == nil
     assert Commits.summary(project.id, "nothing-measured") == nil
+  end
+
+  test "a scheme only runs from a dirty checkout measured leaves the figure a lower bound, and its runs are listed on request",
+       %{project: project, account: account} do
+    # Alone, a dirty run folds nothing: no run that counts measured the commit.
+    dirty =
+      CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1, 1])], %{
+        scheme: "AppTests",
+        git_dirty: true
+      })
+
+    assert Commits.summary(project.id, "abc123") == nil
+
+    clean = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+
+    summary = Commits.summary(project.id, "abc123")
+    assert {summary.schemes, summary.covered_lines, summary.executable_lines} == {["App"], 1, 2}
+    assert {summary.reported_kind, Commits.gap_reasons(summary)} == {"partial", [:dirty_run_excluded]}
+    assert Commits.status(summary) == :in_progress
+    assert Commits.status(Commits.signal_complete(project, "abc123")) == :incomplete
+
+    assert Enum.map(Commits.run_cursor_page(project.id, {:commit, "abc123"}).runs, &{&1.test_run_id, &1.git_dirty}) ==
+             [{clean.id, false}]
+
+    assert project.id
+           |> Commits.run_cursor_page({:commit, "abc123"}, dirty: true)
+           |> Map.fetch!(:runs)
+           |> Enum.map(&{&1.test_run_id, &1.git_dirty})
+           |> Enum.sort() == Enum.sort([{clean.id, false}, {dirty.id, true}])
+
+    # A clean run of the scheme makes the figure whole again.
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1, 1])], %{scheme: "AppTests"})
+    summary = Commits.summary(project.id, "abc123")
+    assert {summary.schemes, Commits.gap_reasons(summary)} == {["App", "AppTests"], []}
+    assert Commits.status(summary) == :complete
+  end
+
+  test "a dirty run landing after the commit's clean runs still leaves the figure a lower bound", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+    refute Commits.incomplete?(Commits.signal_complete(project, "abc123"))
+
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1, 1])], %{
+      scheme: "AppTests",
+      git_dirty: true
+    })
+
+    summary = Commits.summary(project.id, "abc123")
+    assert {summary.schemes, Commits.gap_reasons(summary)} == {["App"], [:dirty_run_excluded]}
+    assert Commits.status(summary) == :incomplete
+  end
+
+  test "a local dirty run of a scheme CI never ran leaves a complete commit whole", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+    Commits.signal_complete(project, "abc123")
+
+    local =
+      CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1])], %{
+        scheme: "LocalScheme",
+        is_ci: false,
+        git_dirty: true
+      })
+
+    assert Commits.enqueue_recompute(local) == :skipped
+    summary = Commits.recompute(project, "abc123")
+    assert {Commits.status(summary), Commits.gap_reasons(summary)} == {:complete, []}
   end
 
   test "signals completion and keeps it across recomputes", %{project: project, account: account} do
@@ -371,14 +444,16 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert Commits.summary(project.id, "abc123").unmeasured_files_count == 1
   end
 
-  test "a run that does not say whether its checkout was dirty is folded as a clean one", %{
+  test "a run schedules its commit's fold whether its checkout was dirty or not, and one without a commit none", %{
     project: project,
     account: account
   } do
     run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])], %{recompute: false})
 
     assert {:ok, _job} = Commits.enqueue_recompute(%{run | git_dirty: nil})
-    assert Commits.enqueue_recompute(%{run | git_dirty: true}) == :skipped
+    assert {:ok, _job} = Commits.enqueue_recompute(%{run | git_dirty: true})
+    assert Commits.enqueue_recompute(%{run | git_dirty: true, is_ci: false}) == :skipped
+    assert Commits.enqueue_recompute(%{run | git_commit_sha: ""}) == :skipped
   end
 
   test "a report that lands while the fold runs gets a job of its own", %{project: project, account: account} do
@@ -475,6 +550,33 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       assert new_version > version
     end
 
+    test "refold the commit when a repository target came from the binary cache", %{project: project, account: account} do
+      run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+
+      cached = %{
+        name: "App",
+        projects: [
+          %{
+            "targets" => [
+              %{"name" => "Core", "binary_cache_metadata" => %{"hit" => "remote"}},
+              %{
+                "name" => "Alamofire",
+                "binary_cache_metadata" => %{"hit" => "local", "subhashes" => %{"external" => "5.9.0"}}
+              }
+            ]
+          }
+        ]
+      }
+
+      assert {:ok, %Oban.Job{}} =
+               Coverage.refold_after_selective_testing(%{test_run_id: run.id, project_id: project.id}, cached)
+
+      remote_package_only = update_in(cached, [:projects, Access.at(0), "targets"], &tl/1)
+
+      assert Coverage.refold_after_selective_testing(%{test_run_id: run.id, project_id: project.id}, remote_package_only) ==
+               :skipped
+    end
+
     test "schedule nothing when no target was skipped, or the event has no run", %{project: project, account: account} do
       run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
 
@@ -522,6 +624,49 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       # x1's own run, older than y1's.
       Commits.recompute(project, "x1")
       assert CoverageFixtures.branch_head(repository_id, "feature") == "y1"
+    end
+
+    # n1's own advance moves nothing either way: observed before n2's run
+    # moved main, or finding main already holds n1.
+    for {exit, n1_ago, n2_ago} <- [{"older", -7200, -3600}, {"newer", -3600, -7200}] do
+      test "publishes the commit's place when its child's fold advanced the branch past it mid-fold (#{exit} run)", %{
+        account: account,
+        project: project
+      } do
+        repository_id =
+          CoverageFixtures.seed_history(account, [
+            CoverageFixtures.commit("d", [], 0),
+            CoverageFixtures.commit("n1", ["d"], 1),
+            CoverageFixtures.commit("n2", ["n1"], 2)
+          ])
+
+        now = NaiveDateTime.utc_now()
+        file = [CoverageFixtures.file("Sources/A.swift", [1, 0])]
+
+        for {sha, ago} <- [{"n1", unquote(n1_ago)}, {"n2", unquote(n2_ago)}] do
+          CoverageFixtures.run_with_coverage(project, account, file, %{
+            git_commit_sha: sha,
+            ran_at: NaiveDateTime.add(now, ago),
+            recompute: false
+          })
+        end
+
+        # n1's fold has read where n1 stands (nowhere yet) when n2's fold
+        # advances main through n1, before n1's row exists to be synced.
+        stub(Repo, :transaction, &Mimic.call_original(Repo, :transaction, [&1, &2]))
+
+        expect(Repo, :transaction, fn fun, opts ->
+          Commits.recompute(project, "n2")
+          Mimic.call_original(Repo, :transaction, [fun, opts])
+        end)
+
+        Commits.recompute(project, "n1")
+
+        assert {ref_id, position} = GitHistory.position(repository_id, "n1")
+        assert %{ref_id: ^ref_id, position: ^position} = Commits.summary(project.id, "n1")
+        assert %{ref_id: ref_id_n2, position: position_n2} = Commits.summary(project.id, "n2")
+        assert {ref_id_n2, position_n2} == GitHistory.position(repository_id, "n2")
+      end
     end
   end
 

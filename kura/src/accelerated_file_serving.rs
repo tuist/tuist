@@ -513,7 +513,10 @@ async fn classify_route(
     state: &SharedState,
     header_buffer: &mut [u8],
 ) -> Option<(ParsedRequest, ArtifactRequest)> {
-    if !cfg!(target_os = "linux") || state.runtime.is_draining() {
+    if !cfg!(target_os = "linux")
+        || state.runtime.is_draining()
+        || state.runtime.authority.enabled()
+    {
         return None;
     }
     let parsed = match peek_request(stream, header_buffer).await {

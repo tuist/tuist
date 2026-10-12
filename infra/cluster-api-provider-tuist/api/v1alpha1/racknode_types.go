@@ -10,11 +10,17 @@ import (
 // DaemonSet on the node afterwards.
 type RackNodeConfig struct {
 	// Hash fingerprints the configuration. The node records the one it last
-	// applied, and restarts containerd and the kubelet when it changes.
+	// applied, and restarts containerd and the kubelet when it changes, and
+	// systemd-networkd and systemd-resolved when the configuration carries
+	// files of theirs.
 	Hash string `json:"hash"`
 
 	// Hostname is the host's OS hostname, its Node's name.
 	Hostname string `json:"hostname"`
+
+	// Directories are created, with their parents, when missing.
+	// +optional
+	Directories []string `json:"directories,omitempty"`
 
 	// Files are written, in order, when their content or mode differs.
 	// +optional
@@ -32,6 +38,11 @@ type RackNodeConfig struct {
 	// +optional
 	Sysctl []RackNodeSysctl `json:"sysctl,omitempty"`
 
+	// Nftables files are loaded with `nft -f` on every apply. Each recreates
+	// a table of its own, so loading it again undoes whatever flushed it.
+	// +optional
+	Nftables []string `json:"nftables,omitempty"`
+
 	// Containerd is installed, and its configuration is its default with the
 	// systemd cgroup driver.
 	Containerd RackNodeContainerd `json:"containerd"`
@@ -41,8 +52,10 @@ type RackNodeConfig struct {
 }
 
 // RackNodeFile is one file on a rack node. Group names what a change to it
-// takes: modules, sysctl, network (networkd reloaded), systemd (systemd
-// re-executed), containerd or kubelet (restarted), or none.
+// takes: modules, sysctl, network (networkd reloaded), networkd or resolved
+// (systemd-networkd or systemd-resolved restarted, for their own
+// configuration), systemd (systemd re-executed), containerd or kubelet
+// (restarted), or none.
 type RackNodeFile struct {
 	Path string `json:"path"`
 	// +optional

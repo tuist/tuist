@@ -87,6 +87,8 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         .array([
             "$(inherited)",
             #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)/Tuist/.build=/^spm""#,
+            #""$(OBJROOT)=/^intermediates""#,
+            #""$(SYMROOT)=/^products""#,
             #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#,
         ])
     }
@@ -157,7 +159,7 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
     /// Without packages there is no scratch directory to map, but first-party sources
     /// outside their own project directory still need the root mapping.
     @Test(.withMockedXcodeController)
-    func map_whenNoExternalProjects_mapsOnlyTheRootDirectory() async throws {
+    func map_whenNoExternalProjects_mapsBuildAndRootDirectories() async throws {
         // Given
         try stubXcodeVersion(Version(27, 0, 0))
         let subject = makeSubject()
@@ -170,7 +172,12 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         // Then
         #expect(
             mapped.projects.first?.settings.base["SWIFT_OTHER_PREFIX_MAPPINGS"]
-                == .array(["$(inherited)", #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#])
+                == .array([
+                    "$(inherited)",
+                    #""$(OBJROOT)=/^intermediates""#,
+                    #""$(SYMROOT)=/^products""#,
+                    #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#,
+                ])
         )
     }
 
@@ -192,7 +199,12 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         // Then
         #expect(
             mapped.projects.first?.settings.base["SWIFT_OTHER_PREFIX_MAPPINGS"]
-                == .array(["/opt/shared=/^shared", #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#])
+                == .array([
+                    "/opt/shared=/^shared",
+                    #""$(OBJROOT)=/^intermediates""#,
+                    #""$(SYMROOT)=/^products""#,
+                    #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#,
+                ])
         )
     }
 
@@ -237,6 +249,8 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
             mapped.projects.first?.settings.base["CLANG_OTHER_PREFIX_MAPPINGS"] == .array([
                 "$(inherited)",
                 #""/Volumes/Shared Cache/say \"hi\"/.build=/^spm""#,
+                #""$(OBJROOT)=/^intermediates""#,
+                #""$(SYMROOT)=/^products""#,
                 #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#,
             ])
         )

@@ -4,6 +4,7 @@ This subsystem projects Once lifecycle events into run summaries and declared ac
 
 - Only `ActionCompleted` creates an action row. `TargetCompleted` is a target summary and must not create a substitute action or overwrite action zero.
 - An action is identified by run, target execution, capability, and action index. Replayed completion events must not increment run counters again.
+- `ActionCompleted.display_name` and `source_files` are presentation only. Keep `identifier` and action identity intact; missing/empty names fall back to legacy labels and missing files to an empty list. Action and cache-action search include both names and source paths; name sorting uses the display name with identifier fallback.
 - Accept both numeric and decoded enum forms of terminal results.
 - Keep durations and cache outcomes from the individual action events. Do not infer them from the enclosing target or command.
 - Regression coverage lives in `test/tuist/once_events_test.exs`.
@@ -17,3 +18,7 @@ This subsystem projects Once lifecycle events into run summaries and declared ac
 - The credential is read when a stream opens and again every few minutes while it stays open, so a revoked token or a removed member cannot keep writing for hours.
 - Credential work is bounded: the subject lookup is cached for a minute under a hash of the token (successes only), and each client address is limited per minute (`once_events_rate_limit_bucket_size`, keyed on the ingress's `x-forwarded-for`). An unknown project runs the same permission check, against a placeholder, as one the caller cannot access.
 - Refuse a call through `refuse!/3` in `RunEventService`, never a bare `raise GRPC.RPCError`. It counts the refusal (`tuist_once_events_refused_total` by call, stage and status), and `Tuist.OnceEvents.GRPCExceptionFilter` keeps `unauthenticated`, `permission_denied` and `resource_exhausted` out of error reporting, because elixir-grpc's Cowboy adapter logs every `GRPC.RPCError`, raised or returned, at error level. Alert on the counter, not on error issues.
+
+- Record the authenticated credential account on the first RunStarted in nullable `once_runs.account_id`; project credentials and historical runs remain unattributed. Replays must never replace the original actor, including with a different credential. This is server attribution and does not change the client event protocol.
+
+- Native build listings opt into the virtual failure-category column from `BuildMetrics`. Use the shared classifier before database filtering, sorting and pagination, scope evidence to the selected project, and leave stored records and legacy listing defaults unchanged.

@@ -1,5 +1,6 @@
 defmodule TuistEx.Analytics.ShardsTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   alias Mix.Tasks.Tuist.Test.Build
   alias TuistEx.Analytics.Shards
@@ -27,6 +28,67 @@ defmodule TuistEx.Analytics.ShardsTest do
     assert Shards.reference([], environment(%{"CI_PIPELINE_ID" => "7"})) == {:ok, "gitlab-7"}
     assert {:error, message} = Shards.reference([], environment(%{}))
     assert message =~ "TUIST_SHARD_REFERENCE"
+  end
+
+  test "asks for a plan that knows which modules run alongside others" do
+    Mimic.expect(TuistEx.Analytics.HTTP, :project_request, fn :post, "/tests/shards", body, _ ->
+      send(self(), {:body, body})
+      {:ok, %{}}
+    end)
+
+    Shards.create_plan("reference", ["CTest", "BTest", "ATest"], ["CTest", "ATest"],
+      shard_total: 2
+    )
+
+    assert_received {:body, body}
+    assert body.modules == ["ATest", "BTest", "CTest"]
+    assert body.concurrent_modules == ["ATest", "CTest"]
+    assert body.shard_total == 2
+  end
+
+  test "finds the units ExUnit runs alongside other modules", %{directory: directory} do
+    test_path = Path.join(directory, "test")
+    File.mkdir_p!(test_path)
+
+    File.write!(Path.join(test_path, "async_test.exs"), """
+    defmodule AsyncTest do
+      use ExUnit.Case, async: true
+      test "a", do: :ok
+    end
+    """)
+
+    File.write!(Path.join(test_path, "template_test.exs"), """
+    defmodule TemplateTest do
+      use Demo.DataCase, async: true
+    end
+    """)
+
+    File.write!(Path.join(test_path, "sync_test.exs"), """
+    defmodule SyncTest do
+      use ExUnit.Case, async: false
+    end
+    """)
+
+    File.write!(Path.join(test_path, "default_test.exs"), """
+    defmodule DefaultTest do
+      use ExUnit.Case
+    end
+    """)
+
+    # Only the module's own `use` counts, not a nested module's.
+    File.write!(Path.join(test_path, "nested_test.exs"), """
+    defmodule NestedTest do
+      use ExUnit.Case
+
+      defmodule Inner do
+        use ExUnit.Case, async: true
+      end
+    end
+    """)
+
+    assert {units, concurrent} = Shards.scan([test_path])
+    assert map_size(units) == 5
+    assert concurrent == ["AsyncTest", "TemplateTest"]
   end
 
   test "a run is sharded only when a shard index is given" do
@@ -205,6 +267,74 @@ defmodule TuistEx.Analytics.ShardsTest do
       refute File.exists?(Path.join(restored, "stale"))
       refute File.exists?(Path.join(restored, ".tuist-links"))
       refute File.exists?(restored <> ".tuist-download")
+    end
+
+    test "packages generated priv files for a cold worker without following other links", %{
+      checkout: checkout,
+      directory: directory,
+      archive: archive
+    } do
+      build = Path.join(checkout, "_build/test")
+      native = Path.join(checkout, "deps/lumis/priv/native")
+      File.mkdir_p!(native)
+      File.write!(Path.join(native, "lumis.so"), "native library")
+      File.mkdir_p!(Path.join(build, "lib/lumis"))
+      File.ln_s!("../../../../deps/lumis/priv", Path.join(build, "lib/lumis/priv"))
+      File.ln_s!("/etc", Path.join(native, "outside"))
+
+      assert :ok = Shards.archive(build, archive)
+      File.rm_rf!(Path.join(checkout, "deps"))
+      restored = Path.join(directory, "cold/_build/test")
+      assert :ok = Shards.extract(archive, restored)
+
+      assert File.read!(Path.join(restored, "lib/lumis/priv/native/lumis.so")) == "native library"
+
+      assert {:ok, %File.Stat{type: :directory}} =
+               File.lstat(Path.join(restored, "lib/lumis/priv"))
+
+      assert File.lstat(Path.join(restored, "lib/lumis/priv/native/outside")) == {:error, :enoent}
+    end
+
+    test "preserves project priv links and their checkout-relative resources", %{
+      checkout: checkout,
+      archive: archive
+    } do
+      project = Path.join(checkout, "project")
+      build = Path.join(project, "_build/test")
+      File.mkdir_p!(Path.join(project, "priv/static"))
+      File.mkdir_p!(Path.join(checkout, "skills/skills"))
+      File.write!(Path.join(checkout, "skills/skills/SKILL.md"), "published skill")
+      File.ln_s!("../../../skills/skills", Path.join(project, "priv/static/skills"))
+      File.mkdir_p!(Path.join(build, "lib/project"))
+      File.ln_s!("../../../../priv", Path.join(build, "lib/project/priv"))
+
+      assert :ok = Shards.archive(build, archive)
+      File.rm_rf!(build)
+      assert :ok = Shards.extract(archive, build)
+
+      assert File.read_link!(Path.join(build, "lib/project/priv")) == "../../../../priv"
+
+      assert File.read!(Path.join(build, "lib/project/priv/static/skills/SKILL.md")) ==
+               "published skill"
+    end
+
+    test "does not package priv through an ancestor symlink leaving the checkout", %{
+      checkout: checkout,
+      directory: directory,
+      archive: archive
+    } do
+      outside = Path.join(directory, "external/priv")
+      File.mkdir_p!(outside)
+      File.write!(Path.join(outside, "secret"), "not an artifact")
+      File.mkdir_p!(Path.join(checkout, "deps"))
+      File.ln_s!(Path.dirname(outside), Path.join(checkout, "deps/external"))
+      build = Path.join(checkout, "_build/test")
+      File.mkdir_p!(Path.join(build, "lib/external"))
+      File.ln_s!("../../../../deps/external/priv", Path.join(build, "lib/external/priv"))
+
+      assert :ok = Shards.archive(build, archive)
+      assert {:ok, entries} = :erl_tar.table(String.to_charlist(archive), [:compressed])
+      refute ~c"lib/external/priv/secret" in entries
     end
 
     test "a crafted link list cannot reach outside the build through a link it just created", %{

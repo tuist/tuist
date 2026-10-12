@@ -53,6 +53,7 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.Runners.GitLab.Job, as: GitLabJob
   alias Tuist.Runners.Job
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
@@ -1333,6 +1334,19 @@ defmodule Tuist.Runners.Jobs do
   """
   def get_orphaned_running(workflow_job_id) when is_integer(workflow_job_id) do
     WorkflowJobs.get_orphaned_running(workflow_job_id)
+  end
+
+  @doc """
+  The lifecycle row of the job that ran on `runner_name` within
+  `account_id`. See `Tuist.Runners.RunnerSessions.workflow_job_id_for_runner/2`.
+  """
+  def get_executed_by_runner_name(account_id, runner_name) do
+    with {:ok, workflow_job_id} <- RunnerSessions.workflow_job_id_for_runner(runner_name, account_id),
+         %WorkflowJob{} = job <- Repo.get_by(WorkflowJob, account_id: account_id, workflow_job_id: workflow_job_id) do
+      {:ok, job}
+    else
+      _ -> {:error, :not_found}
+    end
   end
 
   @doc """

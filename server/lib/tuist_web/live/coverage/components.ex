@@ -83,6 +83,7 @@ defmodule TuistWeb.Coverage.Components do
   attr :targets, :list, required: true, doc: "The targets that moved most, as `files`."
   attr :files_href, :string, required: true, doc: "Where the files' View more leads."
   attr :targets_href, :string, required: true, doc: "Where the targets' View more leads."
+  attr :targets_title, :string, required: true, doc: "What the project's build system calls the targets."
   attr :empty_title, :string, required: true
   attr :rest, :global
 
@@ -100,7 +101,7 @@ defmodule TuistWeb.Coverage.Components do
           :for={
             {side, title, items, href} <- [
               {"files", dgettext("dashboard_tests", "Files"), @files, @files_href},
-              {"targets", dgettext("dashboard_tests", "Targets"), @targets, @targets_href}
+              {"targets", @targets_title, @targets, @targets_href}
             ]
           }
           data-part="changes-section"
@@ -109,6 +110,7 @@ defmodule TuistWeb.Coverage.Components do
           <div data-part="header">
             <span data-part="title">{title}</span>
             <.button
+              :if={items != []}
               variant="secondary"
               label={dgettext("dashboard_tests", "View more")}
               size="small"
@@ -241,34 +243,31 @@ defmodule TuistWeb.Coverage.Components do
   end
 
   attr :id, :string, required: true
-  attr :commit, :map, required: true, doc: "A commit row with its `change`."
+  attr :partial, :boolean, default: nil
+  attr :dirty, :boolean, default: false
 
   @doc """
-  A commit's change in a list, or, when its figure is incomplete
-  (`Tuist.Tests.Coverage.Commits.incomplete?/1`) and so has no change, an
-  Incomplete badge saying why.
+  Whether a run measured every test (Full) or selective testing left some out
+  (Partial), or, for a run from a dirty checkout, that its coverage was
+  discarded;
+  nil for no run.
   """
-  def commit_change_cell(assigns) do
-    ~H"""
-    <.tooltip_badge_cell
-      :if={Commits.incomplete?(@commit)}
-      id={@id}
-      label={dgettext("dashboard_tests", "Incomplete")}
-      color="neutral"
-      description={incomplete_title(@commit)}
-    />
-    <.change_cell :if={not Commits.incomplete?(@commit)} delta={@commit.change} />
-    """
-  end
-
-  attr :id, :string, required: true
-  attr :partial, :boolean, default: nil
-
-  @doc "Whether a run measured every test (Full) or selective testing left some out (Partial); nil for no run."
   def run_kind_cell(assigns) do
     ~H"""
     <.tooltip_badge_cell
-      :if={not is_nil(@partial)}
+      :if={@dirty}
+      id={@id}
+      label={dgettext("dashboard_tests", "Discarded")}
+      color="warning"
+      description={
+        dgettext(
+          "dashboard_tests",
+          "The run came from a checkout with uncommitted changes, so it measured code that isn't the commit's and its coverage was discarded."
+        )
+      }
+    />
+    <.tooltip_badge_cell
+      :if={not @dirty and not is_nil(@partial)}
       id={@id}
       label={
         if @partial,
@@ -315,33 +314,6 @@ defmodule TuistWeb.Coverage.Components do
         </:trigger>
       </.tooltip>
     </div>
-    """
-  end
-
-  attr :id, :string, required: true
-  attr :title, :string, required: true
-  attr :ranges, :list, default: nil
-
-  # Line ranges shown briefly, with every range in a tooltip once they do not
-  # all fit (`full_line_ranges/1`).
-  defp line_ranges(assigns) do
-    assigns = assign(assigns, :full, full_line_ranges(assigns.ranges))
-
-    ~H"""
-    <span :if={is_nil(@ranges)}>{dgettext("dashboard_tests", "Unavailable")}</span>
-    <span :if={@ranges == []}>{dgettext("dashboard_tests", "None")}</span>
-    <span :if={@ranges not in [nil, []] and is_nil(@full)}>{brief_line_ranges(@ranges)}</span>
-    <.tooltip
-      :if={@full}
-      id={@id}
-      size="large"
-      title={@title}
-      description={@full}
-    >
-      <:trigger :let={attrs}>
-        <span {attrs} tabindex="0">{brief_line_ranges(@ranges)}</span>
-      </:trigger>
-    </.tooltip>
     """
   end
 
@@ -395,8 +367,18 @@ defmodule TuistWeb.Coverage.Components do
   What the page says about a commit whose figure is incomplete
   (`Tuist.Tests.Coverage.Commits.incomplete?/1`).
   """
-  def incomplete_title(%{reported_kind: "partial", skipped_tests_count: skipped, carried_tests_count: carried})
-      when skipped > carried do
+  def incomplete_title(commit) do
+    if :dirty_run_excluded in Commits.gap_reasons(commit),
+      do:
+        dgettext(
+          "dashboard_tests",
+          "Some coverage only came from runs on a checkout with uncommitted changes, which don't count, so the actual coverage may be higher."
+        ),
+      else: skipped_title(commit)
+  end
+
+  defp skipped_title(%{reported_kind: "partial", skipped_tests_count: skipped, carried_tests_count: carried})
+       when skipped > carried do
     dngettext(
       "dashboard_tests",
       "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher.",
@@ -406,7 +388,7 @@ defmodule TuistWeb.Coverage.Components do
     )
   end
 
-  def incomplete_title(_commit),
+  defp skipped_title(_commit),
     do:
       dgettext(
         "dashboard_tests",
@@ -414,21 +396,48 @@ defmodule TuistWeb.Coverage.Components do
       )
 
   @doc """
-  A commit's status in a list: `Not measured` when no run measured it (a
-  branch lists every commit on it), otherwise `Complete` or `In Progress` as its
-  pipeline signalled it finished or not.
+  A commit's status (`Tuist.Tests.Coverage.Commits.status/1`), in a list or
+  on its own page: `Not measured`, `In Progress`, `Incomplete` or `Complete`.
   """
-  def commit_status_label(%{measured: false}), do: dgettext("dashboard_tests", "Not measured")
-  def commit_status_label(commit), do: ref_status_label(commit)
+  def commit_status_label(commit) do
+    case Commits.status(commit) do
+      :not_measured -> dgettext("dashboard_tests", "Not measured")
+      :in_progress -> dgettext("dashboard_tests", "In Progress")
+      :incomplete -> dgettext("dashboard_tests", "Incomplete")
+      :complete -> dgettext("dashboard_tests", "Complete")
+    end
+  end
 
-  @doc "What a commit's status in a list means, for the status's tooltip."
-  def commit_status_title(%{measured: false}),
-    do: dgettext("dashboard_tests", "No run of this commit gathered coverage, so it has no figure of its own.")
+  @doc "What a commit's status means, for the status's tooltip."
+  def commit_status_title(commit) do
+    case Commits.status(commit) do
+      :not_measured ->
+        dgettext("dashboard_tests", "No run of this commit gathered coverage, so it has no figure of its own.")
 
-  def commit_status_title(commit), do: head_status_title(commit)
+      :in_progress ->
+        dgettext(
+          "dashboard_tests",
+          "This commit's coverage pipeline has not signalled completion yet, so more runs may still land and its gates wait."
+        )
 
-  def commit_status_color(%{measured: false}), do: "neutral"
-  def commit_status_color(commit), do: ref_status_color(commit)
+      :incomplete ->
+        incomplete_title(commit)
+
+      :complete ->
+        dgettext(
+          "dashboard_tests",
+          "This commit's coverage pipeline signalled it finished, so its figure is final and its gates are decided."
+        )
+    end
+  end
+
+  def commit_status_color(commit) do
+    case Commits.status(commit) do
+      :in_progress -> "information"
+      :complete -> "success"
+      _status -> "neutral"
+    end
+  end
 
   @doc """
   When a point of a coverage series happened, for the chart's axis: the start
@@ -479,59 +488,6 @@ defmodule TuistWeb.Coverage.Components do
       dir -> dir
     end
   end
-
-  @doc """
-  A branch's state. Chaining is about a trend, which a
-  single head commit has none of, so a ref is either complete or still
-  waiting for its pipeline to say so.
-  """
-  def ref_status_label(%{complete: true}), do: dgettext("dashboard_tests", "Complete")
-  def ref_status_label(_ref), do: dgettext("dashboard_tests", "In Progress")
-
-  @doc "What the status of the commit a page describes means, for its title."
-  def head_status_title(%{complete: true}),
-    do:
-      dgettext(
-        "dashboard_tests",
-        "This commit's coverage pipeline signalled it finished, so its figure is final and its gates are decided."
-      )
-
-  def head_status_title(_commit),
-    do:
-      dgettext(
-        "dashboard_tests",
-        "This commit's coverage pipeline has not signalled completion yet, so more runs may still land and its gates wait."
-      )
-
-  def ref_status_color(%{complete: true}), do: "success"
-  def ref_status_color(_ref), do: "information"
-
-  @brief_ranges 2
-
-  @doc "Line ranges (`[first, last]`) as `3–5, 9`; a dash for none."
-  def line_ranges_label(ranges) when ranges in [nil, []], do: "—"
-
-  def line_ranges_label(ranges) do
-    Enum.map_join(ranges, ", ", fn
-      [line, line] -> Integer.to_string(line)
-      [first, last] -> "#{first}–#{last}"
-    end)
-  end
-
-  @doc """
-  Line ranges as `line_ranges_label/1` words them, but at most two: past
-  them, an ellipsis, and `full_line_ranges/1` for the title holding them all.
-  """
-  def brief_line_ranges(ranges) when ranges in [nil, []], do: "—"
-
-  def brief_line_ranges(ranges) when length(ranges) > @brief_ranges,
-    do: line_ranges_label(Enum.take(ranges, @brief_ranges)) <> ", …"
-
-  def brief_line_ranges(ranges), do: line_ranges_label(ranges)
-
-  @doc "Every range, for the title of a `brief_line_ranges/1` that left some out; nil when it left none."
-  def full_line_ranges(ranges) when is_list(ranges) and length(ranges) > @brief_ranges, do: line_ranges_label(ranges)
-  def full_line_ranges(_ranges), do: nil
 
   @doc """
   Where a file's own page lives, on `branch` over the period the `params`
@@ -609,7 +565,6 @@ defmodule TuistWeb.Coverage.Components do
             value={format_number(length(@functions))}
           />
         </div>
-        <.carried_lines :if={Map.get(@file, :carried_lines, []) != []} lines={@file.carried_lines} />
       </.card_section>
     </.card>
     """
@@ -624,30 +579,7 @@ defmodule TuistWeb.Coverage.Components do
       points={@trend.points}
       grouping={@trend.grouping}
       selected_widget={@trend.selected_widget}
-    >
-      <:details :if={Map.get(@file, :carried_lines, []) != []}>
-        <.carried_lines lines={@file.carried_lines} />
-      </:details>
-    </.coverage_analytics_card>
-    """
-  end
-
-  attr :lines, :list, required: true
-
-  defp carried_lines(assigns) do
-    ~H"""
-    <dl data-part="file-details">
-      <div>
-        <dt>{dgettext("dashboard_tests", "Covered by skipped tests, carried forward")}</dt>
-        <dd id="coverage-file-carried-lines">
-          <.line_ranges
-            id="coverage-file-carried-lines-tooltip"
-            title={dgettext("dashboard_tests", "Covered by skipped tests, carried forward")}
-            ranges={Coverage.Evidence.line_ranges(@lines)}
-          />
-        </dd>
-      </div>
-    </dl>
+    />
     """
   end
 

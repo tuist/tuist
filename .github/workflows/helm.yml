@@ -92,6 +92,8 @@ jobs:
             "infra/helm/tuist|values-k3s-smoke.yaml"
             "infra/helm/k8s-monitoring|"
             "infra/helm/platform|"
+            "infra/helm/rack-nodes|"
+            "infra/helm/rack-cache-gateways|"
           )
           failed=()
           for entry in "${configs[@]}"; do
@@ -216,6 +218,30 @@ jobs:
             echo "::error::render/validation failed for: ${failed[*]}"
             exit 1
           fi
+      # A release a deploy waits on must not run pods on a rack node, or a dark
+      # rack fails every deploy. See "Deploys and the rack's health" in
+      # infra/rack-nodes/AGENTS.md.
+      - name: Rack workloads stay out of waited releases
+        run: infra/mise/tasks/helm/rack-independence.sh
+      # The rack charts render with another chart's values, which the loop
+      # above cannot express.
+      - name: kubeconform the rack charts
+        run: |
+          set -euo pipefail
+          for env in staging production; do
+            helm template tuist-rack-nodes infra/helm/rack-nodes --namespace tuist \
+              -f infra/helm/tuist/values.yaml \
+              -f infra/helm/tuist/values-managed-common.yaml \
+              -f "infra/helm/tuist/values-managed-$env.yaml" > rack-nodes.yaml
+            kubeconform -strict -summary rack-nodes.yaml
+          done
+          for overlay in values-tuist-staging.yaml values-tuist.yaml; do
+            helm template rack-cache-gateways infra/helm/rack-cache-gateways --namespace platform \
+              -f infra/helm/platform/values.yaml \
+              -f infra/helm/platform/values-hetzner.yaml \
+              -f "infra/helm/platform/$overlay" > rack-cache-gateways.yaml
+            kubeconform -strict -summary rack-cache-gateways.yaml
+          done
 
   k3s:
     name: K3s Smoke Install

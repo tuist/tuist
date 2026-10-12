@@ -89,9 +89,19 @@ struct RegistryConfig: Sendable {
     }
 
     private static func globalRegistriesPath() -> URL? {
-        ProcessInfo.processInfo.environment["HOME"].map {
+        Environment.current["HOME"].map {
             URL(fileURLWithPath: $0).appendingPathComponent(
                 ".swiftpm/configuration/registries.json")
+        }
+    }
+
+    fileprivate func containsOrigin(of url: URL) -> Bool {
+        let registries = Array(scopedRegistryURLs.values) + [defaultRegistryURL].compactMap { $0 }
+        return registries.contains {
+            $0.scheme?.lowercased() == url.scheme?.lowercased()
+                && $0.host?.lowercased() == url.host?.lowercased()
+                && ($0.port ?? ($0.scheme == "https" ? 443 : 80))
+                == (url.port ?? (url.scheme == "https" ? 443 : 80))
         }
     }
 
@@ -113,20 +123,27 @@ struct RegistryCredential: Sendable {
 }
 
 enum RegistryAuthorization {
-    static func header(for url: URL, registryConfig: RegistryConfig) async -> String? {
+    static func header(
+        for url: URL,
+        registryConfig: RegistryConfig,
+        keychain: (URL) async -> RegistryCredential? = { await KeychainAuthorization.credential(for: $0) }
+    ) async -> String? {
         let environment = Environment.current
-        if let token = nonEmpty(environment["SWIFTPM_REGISTRY_TOKEN"]) {
-            return bearerHeader(token)
-        }
-
-        if let login = nonEmpty(environment["SWIFTPM_REGISTRY_LOGIN"]),
-           let password = nonEmpty(environment["SWIFTPM_REGISTRY_PASSWORD"])
-        {
-            return header(
-                for: RegistryCredential(user: login, password: password),
-                url: url,
-                registryConfig: registryConfig
-            )
+        let token = nonEmpty(environment["SWIFTPM_REGISTRY_TOKEN"])
+        let login = nonEmpty(environment["SWIFTPM_REGISTRY_LOGIN"])
+        let password = nonEmpty(environment["SWIFTPM_REGISTRY_PASSWORD"])
+        if token != nil || (login != nil && password != nil) {
+            // Selecting the environment provider also excludes fallback for other origins.
+            guard registryConfig.containsOrigin(of: url) else { return nil }
+            let credential: RegistryCredential
+            if let token {
+                credential = RegistryCredential(user: "token", password: token)
+            } else if let login, let password {
+                credential = RegistryCredential(user: login, password: password)
+            } else {
+                return nil
+            }
+            return header(for: credential, url: url, registryConfig: registryConfig)
         }
 
         let netrc = Environment.netrc
@@ -137,10 +154,11 @@ enum RegistryAuthorization {
         // and nothing else. Gating this call site as well would silently diverge from
         // `swift package resolve` on the same inputs.
         if let credential = await prioritizedCredential(
+            environmentNetrcIsConfigured: netrc.hasEnvironmentSource,
             environmentNetrc: netrc.credential(for: url, from: .environment),
             fileNetrc: netrc.credential(for: url, from: .file),
-            forcesNetrc: netrc.forcesNetrc,
-            keychain: { await KeychainAuthorization.credential(for: url) }
+            usesKeychain: KeychainAuthorization.isSupported && !netrc.forcesNetrc,
+            keychain: { await keychain(url) }
         ) {
             return header(for: credential, url: url, registryConfig: registryConfig)
         }
@@ -148,24 +166,17 @@ enum RegistryAuthorization {
         return nil
     }
 
-    /// Registry credentials in SwiftPM's order: inline netrc data, then the OS
-    /// credential store, then any netrc file. `makeRegistryAuthorizationProvider`
-    /// returns immediately on `SWIFTPM_NETRC_DATA` and otherwise takes
-    /// `providers.first` with the keychain appended ahead of netrc, so this is the
-    /// reverse of how its download provider is composed.
-    ///
-    /// Where it differs on purpose: upstream selects one provider and stops, so a
-    /// host missing from the chosen one gets no credentials, while a miss here falls
-    /// through to the next source. That fall-through is what lets `--netrc-file`
-    /// reach registry auth at all when a keychain item exists.
+    /// Registry auth selects one provider, unlike the HTTP composite: a missing
+    /// host in inline data or a missing keychain item must not fall through to files.
     static func prioritizedCredential(
+        environmentNetrcIsConfigured: Bool,
         environmentNetrc: RegistryCredential?,
         fileNetrc: RegistryCredential?,
-        forcesNetrc: Bool,
+        usesKeychain: Bool,
         keychain: () async -> RegistryCredential?
     ) async -> RegistryCredential? {
-        if let environmentNetrc { return environmentNetrc }
-        if !forcesNetrc, let credential = await keychain() { return credential }
+        if environmentNetrcIsConfigured { return environmentNetrc }
+        if usesKeychain { return await keychain() }
         return fileNetrc
     }
 
@@ -203,6 +214,14 @@ enum RegistryAuthorization {
 }
 
 enum KeychainAuthorization {
+    static var isSupported: Bool {
+        #if canImport(Security)
+            true
+        #else
+            false
+        #endif
+    }
+
     static func credential(for url: URL) async -> RegistryCredential? {
         #if canImport(Security)
             guard let searchQuery = query(for: url, includeData: false) else { return nil }

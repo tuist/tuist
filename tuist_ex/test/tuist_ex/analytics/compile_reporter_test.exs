@@ -17,6 +17,10 @@ defmodule TuistEx.Analytics.CompileReporterTest do
     start_supervised!({CompileReporter, opts}, id: make_ref())
   end
 
+  defp compiled_files do
+    [%{path: "lib/foo.ex", compile_duration_ms: 1}]
+  end
+
   test "records each compiler's diagnostics and submits a merged payload" do
     parent = self()
 
@@ -40,7 +44,7 @@ defmodule TuistEx.Analytics.CompileReporterTest do
 
     CompileReporter.record(reporter, :elixir, {:ok, [diagnostic]})
     CompileReporter.record(reporter, :app, {:ok, []})
-    :ok = CompileReporter.finish(reporter)
+    :ok = CompileReporter.finish(reporter, compiled_files())
 
     assert_receive {:submitted, payload}, 2000
     assert payload.status == "success"
@@ -127,7 +131,7 @@ defmodule TuistEx.Analytics.CompileReporterTest do
                    2000
 
     CompileReporter.record(reporter, :elixir, {:ok, []})
-    :ok = CompileReporter.finish(reporter)
+    :ok = CompileReporter.finish(reporter, compiled_files())
 
     assert_receive {:submitted, payload}, 2000
     assert [%{cpu_usage_percent: _, memory_total_bytes: _} | _] = payload.machine_metrics
@@ -165,7 +169,7 @@ defmodule TuistEx.Analytics.CompileReporterTest do
     reporter = start(submit: submit, shell: shell)
 
     CompileReporter.record(reporter, :elixir, {:ok, []})
-    :ok = CompileReporter.finish(reporter)
+    :ok = CompileReporter.finish(reporter, compiled_files())
 
     assert_receive {:shell, message}, 2000
     assert message =~ "failed to submit compile run"
@@ -182,7 +186,7 @@ defmodule TuistEx.Analytics.CompileReporterTest do
       )
 
     CompileReporter.record(reporter, :elixir, {:ok, []})
-    assert :ok = CompileReporter.finish(reporter)
+    assert :ok = CompileReporter.finish(reporter, compiled_files())
     assert_receive {:shell, message}, 2000
     assert message =~ "credentials could not be saved"
   end
@@ -242,6 +246,35 @@ defmodule TuistEx.Analytics.CompileReporterTest do
 
     CompileReporter.record(reporter, :elixir, {:noop, []})
     CompileReporter.record(reporter, :app, {:noop, []})
+    :ok = CompileReporter.finish(reporter)
+
+    refute_receive {:submitted, _}, 200
+  end
+
+  test "reports nothing when idle compilers return :ok instead of :noop" do
+    parent = self()
+
+    reporter = start(submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end)
+
+    CompileReporter.record(reporter, :elixir, {:ok, []})
+    CompileReporter.record(reporter, :boundary, {:ok, []})
+    CompileReporter.record(reporter, :app, {:noop, []})
+    :ok = CompileReporter.finish(reporter, [], [%{name: "compile.boundary", duration_ms: 1}])
+
+    refute_receive {:submitted, _}, 200
+  end
+
+  test "reports nothing when idle compilers emit only warnings" do
+    parent = self()
+
+    reporter = start(submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end)
+
+    CompileReporter.record(
+      reporter,
+      :elixir,
+      {:ok, [%{severity: :warning, message: "cached warning"}]}
+    )
+
     :ok = CompileReporter.finish(reporter)
 
     refute_receive {:submitted, _}, 200
@@ -338,7 +371,7 @@ defmodule TuistEx.Analytics.CompileReporterTest do
     second = start(submit: submit, sampler: nil)
     assert second != first
     CompileReporter.record(second, :elixir, {:ok, []})
-    :ok = CompileReporter.finish(second)
+    :ok = CompileReporter.finish(second, compiled_files())
 
     assert_receive {:submitted, payload}, 2000
     assert payload.status == "success"

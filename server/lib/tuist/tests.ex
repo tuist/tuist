@@ -36,7 +36,6 @@ defmodule Tuist.Tests do
   alias Tuist.Shards.ShardRun
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.CrashReport
-  alias Tuist.Tests.Enumeration
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.QuarantinedTestCase
@@ -482,7 +481,7 @@ defmodule Tuist.Tests do
   end
 
   def create_test(attrs) do
-    attrs = normalize_string_keys(attrs)
+    attrs = attrs |> normalize_string_keys() |> Coverage.normalize_attrs()
 
     attrs =
       Map.put(attrs, :coverage_evidence_status, Coverage.Evidence.status(Map.get(attrs, :coverage_evidence)))
@@ -515,8 +514,7 @@ defmodule Tuist.Tests do
     has_flaky_tests = has_any_flaky_test_case?(test_modules)
     stress_new_tests = Map.get(attrs, :stress_new_tests)
 
-    xcode_coverage =
-      Coverage.rows(Map.get(attrs, :project_id), Map.get(attrs, :xcode_coverage))
+    coverage = Coverage.rows(Map.get(attrs, :project_id), Map.get(attrs, :coverage))
 
     attrs =
       if has_flaky_tests and is_ci do
@@ -545,7 +543,7 @@ defmodule Tuist.Tests do
       create_run_changed_files(test, Map.get(attrs, :changed_files, []))
       StressNewTests.insert_candidates(test, stress_new_tests)
       expected_shards = (shard_plan && shard_plan.shard_count) || 1
-      record_coverage_data(test, attrs, xcode_coverage, shard_index, expected_shards)
+      record_coverage_data(test, attrs, coverage, shard_index, expected_shards)
 
       {test_case_ids_with_flaky_run, test_case_runs} =
         create_test_modules(
@@ -677,19 +675,17 @@ defmodule Tuist.Tests do
 
   defp create_run_changed_files(_test, _files), do: :ok
 
-  # Coverage, the enumerated tests and the evidence enrich a run: a failure
-  # storing one of them costs that data, not the run's test cases, which are
-  # written after them and which a retry with the same id would never add.
-  defp record_coverage_data(test, attrs, xcode_coverage, shard_index, expected_shards) do
-    enrich(test, "coverage", fn -> Coverage.publish(test, xcode_coverage, shard_index, expected_shards) end)
+  # Coverage and the evidence enrich a run: a failure storing one of them
+  # costs that data, not the run's test cases, which are written after them
+  # and which a retry with the same id would never add.
+  defp record_coverage_data(test, attrs, coverage, shard_index, expected_shards) do
+    enrich(test, "coverage", fn -> Coverage.publish(test, coverage, shard_index, expected_shards) end)
 
-    if storage_key = Map.get(attrs, :xcode_coverage_storage_key) do
+    with %{storage_key: storage_key} = uploaded when is_binary(storage_key) <- Map.get(attrs, :coverage) do
       enrich(test, "uploaded coverage", fn ->
-        Coverage.enqueue_publish(test, storage_key, Map.get(attrs, :xcode_coverage_partial), shard_index, expected_shards)
+        Coverage.enqueue_publish(test, uploaded, shard_index, expected_shards)
       end)
     end
-
-    enrich(test, "enumerated tests", fn -> Enumeration.record(test, Map.get(attrs, :enumerated_tests)) end)
 
     enrich(test, "coverage evidence", fn ->
       Coverage.Evidence.record(test, Map.get(attrs, :coverage_evidence), shard_index)
@@ -891,8 +887,8 @@ defmodule Tuist.Tests do
           stress_new_tests = Map.get(attrs, :stress_new_tests)
           StressNewTests.insert_candidates(existing_test, stress_new_tests)
 
-          xcode_coverage = Coverage.rows(project_id, Map.get(attrs, :xcode_coverage))
-          record_coverage_data(existing_test, attrs, xcode_coverage, shard_index, expected_shard_count)
+          coverage = Coverage.rows(project_id, Map.get(attrs, :coverage))
+          record_coverage_data(existing_test, attrs, coverage, shard_index, expected_shard_count)
 
           updated_test =
             merged_test
@@ -2176,11 +2172,10 @@ defmodule Tuist.Tests do
     do: {test_case_data, []}
 
   defp check_cross_run_flakiness(test, test_case_data) do
-    test_case_ids = Enum.map(test_case_data, & &1.test_case_id)
     scheme = test.scheme || ""
 
     existing_runs =
-      get_existing_ci_runs_for_commit(test_case_ids, test.git_commit_sha, test.project_id, scheme)
+      get_existing_ci_runs_for_commit(test_case_data, test.git_commit_sha, test.project_id, scheme)
 
     Enum.map_reduce(test_case_data, [], fn data, historical_runs ->
       {data, flaky_failures} = resolve_cross_run_flaky_failures(data, existing_runs)
@@ -2198,53 +2193,83 @@ defmodule Tuist.Tests do
     {data, []}
   end
 
-  defp resolve_cross_run_flaky_failures(data, existing_runs) do
-    existing = Map.get(existing_runs, data.test_case_id, [])
-    {existing_successes, existing_failures} = Enum.split_with(existing, &(to_string(&1.status) == "success"))
-
+  defp resolve_cross_run_flaky_failures(data, {passed_test_case_ids, failures_by_test_case_id}) do
     cond do
       # This run failed and the test already passed on the commit: the current
       # failure is the flake. Earlier failures were already flagged when their
       # passing sibling arrived, so there is nothing to back-mark.
-      data.status == "failure" and existing_successes != [] ->
+      data.status == "failure" and MapSet.member?(passed_test_case_ids, data.test_case_id) ->
         {%{data | is_flaky: true}, []}
 
       # This run passed and the test already failed on the commit: those earlier
       # failures are now proven flaky, so back-mark them.
-      data.status == "success" and existing_failures != [] ->
-        {data, Enum.reject(existing_failures, & &1.is_flaky)}
+      data.status == "success" ->
+        {data, failures_by_test_case_id |> Map.get(data.test_case_id, []) |> Enum.reject(& &1.is_flaky)}
 
       true ->
         {data, []}
     end
   end
 
-  defp get_existing_ci_runs_for_commit([], _git_commit_sha, _project_id, _scheme), do: %{}
-
-  defp get_existing_ci_runs_for_commit(test_case_ids, git_commit_sha, project_id, scheme) do
-    test_case_id_set = MapSet.new(test_case_ids)
-
-    query =
+  # Two narrow reads rather than every run on the commit: a commit CI re-runs
+  # continuously accumulates a very large number of runs, and grouping all of
+  # them by `id` held hundreds of MiB per ingestion until it timed out. A run's
+  # `status` is in the table's sort key and never changes, so each read stays
+  # in range, and passes are only looked up for the test cases that failed now.
+  defp get_existing_ci_runs_for_commit(test_case_data, git_commit_sha, project_id, scheme) do
+    runs_on_commit =
       from(tcr in TestCaseRunByCommit,
         where: tcr.project_id == ^project_id,
         where: tcr.git_commit_sha == ^git_commit_sha,
         where: tcr.scheme == ^scheme,
-        where: tcr.is_ci == true,
+        where: tcr.is_ci == true
+      )
+
+    failed_test_case_ids = test_case_ids_with_status(test_case_data, "failure")
+    passed_test_case_ids = test_case_ids_with_status(test_case_data, "success")
+
+    {passed_on_commit(runs_on_commit, failed_test_case_ids),
+     failures_on_commit(runs_on_commit, MapSet.new(passed_test_case_ids))}
+  end
+
+  defp test_case_ids_with_status(test_case_data, status) do
+    for %{status: ^status, test_case_id: test_case_id} <- test_case_data, not is_nil(test_case_id), uniq: true do
+      test_case_id
+    end
+  end
+
+  defp passed_on_commit(_runs_on_commit, []), do: MapSet.new()
+
+  defp passed_on_commit(runs_on_commit, test_case_ids) do
+    test_case_ids
+    |> all_by_uuid_chunks(fn ids ->
+      from(tcr in runs_on_commit,
+        where: tcr.status == "success",
+        where: tcr.test_case_id in ^ids,
+        distinct: true,
+        select: tcr.test_case_id
+      )
+    end)
+    |> MapSet.new()
+  end
+
+  defp failures_on_commit(runs_on_commit, test_case_id_set) do
+    if MapSet.size(test_case_id_set) == 0 do
+      %{}
+    else
+      from(tcr in runs_on_commit,
+        where: tcr.status == "failure",
         group_by: [tcr.id, tcr.test_case_id],
         select: %{
           id: tcr.id,
           test_case_id: tcr.test_case_id,
-          status: fragment("argMax(?, ?)", tcr.status, tcr.inserted_at),
           is_flaky: fragment("argMax(?, ?)", tcr.is_flaky, tcr.inserted_at)
         }
       )
-
-    query
-    |> ClickHouseRepo.all()
-    |> Enum.filter(fn run ->
-      to_string(run.status) in ["success", "failure"] and run.test_case_id in test_case_id_set
-    end)
-    |> Enum.group_by(& &1.test_case_id)
+      |> ClickHouseRepo.all()
+      |> Enum.filter(&MapSet.member?(test_case_id_set, &1.test_case_id))
+      |> Enum.group_by(& &1.test_case_id)
+    end
   end
 
   defp check_new_test_cases(test, test_case_data, default_branch) do
@@ -3307,11 +3332,9 @@ defmodule Tuist.Tests do
     filters = Map.get(attrs, :filters, [])
     offset = (page - 1) * page_size
 
-    search_term = extract_search_term(filters)
-
     results =
       project_id
-      |> build_flaky_test_cases_query(search_term, opts)
+      |> build_flaky_test_cases_query(filters, opts)
       |> apply_flaky_order(order_by, order_direction)
       |> from(limit: ^page_size, offset: ^offset)
       |> ClickHouseRepo.all()
@@ -3320,7 +3343,7 @@ defmodule Tuist.Tests do
 
     total_count =
       project_id
-      |> build_flaky_test_cases_count_query(search_term, opts)
+      |> build_flaky_test_cases_count_query(filters, opts)
       |> ClickHouseRepo.one()
 
     total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
@@ -3347,7 +3370,7 @@ defmodule Tuist.Tests do
   # or a test whose recent flaky runs sit in a different `:is_ci` segment.
   # `inner_join` here would silently drop such rows and put the list out of
   # sync with the analytics card, which counts purely off events.
-  defp build_flaky_test_cases_query(project_id, search_term, opts) do
+  defp build_flaky_test_cases_query(project_id, filters, opts) do
     base_query =
       from(test_case in TestCase,
         hints: ["FINAL"],
@@ -3376,10 +3399,10 @@ defmodule Tuist.Tests do
         }
       )
 
-    apply_name_search(base_query, search_term)
+    apply_flaky_test_case_filters(base_query, filters)
   end
 
-  defp build_flaky_test_cases_count_query(project_id, search_term, opts) do
+  defp build_flaky_test_cases_count_query(project_id, filters, opts) do
     base_query =
       from(test_case in TestCase,
         hints: ["FINAL"],
@@ -3391,7 +3414,29 @@ defmodule Tuist.Tests do
         select: count(test_case.id)
       )
 
-    apply_name_search(base_query, search_term)
+    apply_flaky_test_case_filters(base_query, filters)
+  end
+
+  defp apply_flaky_test_case_filters(query, filters) do
+    {search_filters, identity_filters} =
+      Enum.split_with(filters, &(&1[:field] == :name and &1[:op] == :ilike_and))
+
+    flop = Tuist.ClickHouseFlop.validate!(%{filters: identity_filters}, for: TestCase)
+    query = Tuist.ClickHouseFlop.filter(query, flop, for: TestCase)
+
+    case extract_search_term(search_filters) do
+      nil ->
+        query
+
+      term ->
+        pattern = "%#{term}%"
+
+        from(test_case in query,
+          where:
+            ilike(test_case.name, ^pattern) or ilike(test_case.suite_name, ^pattern) or
+              ilike(test_case.module_name, ^pattern)
+        )
+    end
   end
 
   defp flaky_stats_subquery(project_id, opts) do
@@ -3496,7 +3541,9 @@ defmodule Tuist.Tests do
       marked_flaky_at: row.marked_flaky_at,
       flaky_runs_count: row.flaky_runs_count,
       last_flaky_at: row.last_flaky_at,
-      last_flaky_run_id: row.last_flaky_run_id
+      # The untyped fragment decodes the UUID as its raw 16 bytes, which
+      # breaks the run links built from it.
+      last_flaky_run_id: row.last_flaky_run_id && Ecto.UUID.cast!(row.last_flaky_run_id)
     }
   end
 

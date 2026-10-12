@@ -496,6 +496,84 @@ func TestHostConfigHash_IndependentOfPerHostFields(t *testing.T) {
 	}
 }
 
+// The hash is stamped on Machine status, which the read-only tier can read,
+// and SHA-256 is cheap to brute-force. No credential may reach what it
+// digests, and rotating one must not move it.
+func TestHostConfigHash_KeepsCredentialsOutOfTheHashedMaterial(t *testing.T) {
+	fleet := Config{
+		TartKubeletBinary:    []byte("kubelet-v1"),
+		TailscaleBinaries:    []byte("ts-v1"),
+		LogShipperBinary:     []byte("shipper"),
+		LogShipURL:           "http://receiver:3100/loki/api/v1/push",
+		TailscaleTags:        []string{"tag:tuist-macmini"},
+		VMKuraEgressCIDR:     "10.96.0.0/12",
+		SSHIngressAllowCIDRs: []string{"10.0.0.0/8"},
+	}
+	credentials := func(suffix string) PerHost {
+		return PerHost{
+			UserPassword:     "sudo-password-" + suffix,
+			SSHPrivateKey:    []byte("ssh-private-key-" + suffix),
+			Kubeconfig:       "kubeconfig-token-" + suffix,
+			TailscaleAuthKey: "tskey-auth-" + suffix,
+			TailscaleState:   []byte("tailscaled-state-" + suffix),
+			GHActionsRunner: &GHActionsRunnerConfig{
+				GHOrg:                     "tuist",
+				GHRunnerRegistrationToken: "runner-registration-token-" + suffix,
+			},
+		}
+	}
+
+	first := fleet.WithPerHost(credentials("first"))
+	rotated := fleet.WithPerHost(credentials("rotated"))
+	if HostConfigHash(first) != HostConfigHash(fleet) || HostConfigHash(rotated) != HostConfigHash(fleet) {
+		t.Fatal("HostConfigHash must not depend on per-host credentials")
+	}
+
+	material := hostConfigMaterial(first)
+	for _, secret := range []string{
+		"sudo-password-first",
+		"ssh-private-key-first",
+		"kubeconfig-token-first",
+		"tskey-auth-first",
+		"tailscaled-state-first",
+		"runner-registration-token-first",
+	} {
+		if strings.Contains(material, secret) {
+			t.Errorf("hashed material contains the credential %q", secret)
+		}
+	}
+}
+
+// A render that fails is folded in as the inputs it rejected, not as the
+// error's text: the hashed material is built from Config values alone, so
+// nothing an error message carries can reach the digest on Machine status.
+func TestHostConfigHash_FoldsARenderFailureAsItsInputs(t *testing.T) {
+	for name, broken := range map[string]Config{
+		"firewall":          {VMKuraEgressCIDR: "10.96.0.0/99"},
+		"ssh-ingress-guard": {SSHIngressAllowCIDRs: []string{"10.0.0.0/99"}},
+		"cache-gateway":     {VMCacheGatewayCIDRs: []string{"10.0.0.0/99"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			material := hostConfigMaterial(broken)
+			if strings.Contains(material, "not an IPv4") {
+				t.Fatalf("hashed material carries the render error's text:\n%q", material)
+			}
+			if !strings.Contains(material, "10.0.0.0/99") && !strings.Contains(material, "10.96.0.0/99") {
+				t.Fatalf("hashed material must carry the rejected input:\n%q", material)
+			}
+		})
+	}
+
+	// A second broken value is still a different config, so it must still
+	// lift a FailedHostConfigHash pinned on the first.
+	if HostConfigHash(Config{VMKuraEgressCIDR: "10.96.0.0/99"}) == HostConfigHash(Config{VMKuraEgressCIDR: "10.96.0.0/98"}) {
+		t.Fatal("two different rejected firewall inputs must hash differently")
+	}
+	if HostConfigHash(Config{SSHIngressAllowCIDRs: []string{"10.0.0.0/99"}}) == HostConfigHash(Config{SSHIngressAllowCIDRs: []string{"10.0.0.0/98"}}) {
+		t.Fatal("two different rejected ssh ingress inputs must hash differently")
+	}
+}
+
 func TestHostConfigHash_ChangesWhenFleetConfigChanges(t *testing.T) {
 	base := Config{
 		TartKubeletBinary: []byte("kubelet-v1"),
@@ -1292,6 +1370,7 @@ var hashPartInstaller = map[string]string{
 	"software-update-policy":  "installSoftwareUpdatePolicy",
 	"setup-assistant":         "installSetupAssistantSuppression",
 	"log-shipper":             "installLogShipper",
+	"host-sensors":            "installHostSensors",
 	"tart-kubelet-install":    "installTartKubelet",
 	"ssh-reachability":        "installSSHReachability",
 	"ssh-ingress-guard":       "installSSHIngressGuard",
@@ -1300,6 +1379,7 @@ var hashPartInstaller = map[string]string{
 	"tailscale-binaries":   "installTailscale",
 	"node-exporter-binary": "installNodeExporter",
 	"log-shipper-binary":   "installLogShipper",
+	"host-sensors-binary":  "installHostSensors",
 }
 
 // Reads the source rather than the behaviour because the invariant is
@@ -1343,12 +1423,12 @@ func TestUpdateTartKubelet_AppliesEveryHashedStep(t *testing.T) {
 }
 
 // hashedPartNames returns the `name` field of every element of the
-// `[]struct{ name, script string }` table HostConfigHash iterates.
+// `[]struct{ name, script string }` table hostConfigMaterial iterates.
 func hashedPartNames(t *testing.T, file *ast.File) []string {
 	t.Helper()
 
 	var names []string
-	ast.Inspect(findFunc(t, file, "HostConfigHash"), func(n ast.Node) bool {
+	ast.Inspect(findFunc(t, file, "hostConfigMaterial"), func(n ast.Node) bool {
 		lit, ok := n.(*ast.CompositeLit)
 		if !ok {
 			return true
@@ -1525,5 +1605,55 @@ func TestAutoLoginScriptNeedsNoDeveloperTools(t *testing.T) {
 		if strings.Contains(script, forbidden) {
 			t.Errorf("auto-login script runs %q, which needs Xcode Command Line Tools that a rack host does not have", forbidden)
 		}
+	}
+}
+
+func TestRenderVMEgressFirewallScript_PassesRackCacheGatewaysOn443(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{
+		VMKuraEgressCIDR:    "10.128.0.0/12",
+		VMCacheGatewayCIDRs: []string{"10.10.0.11/32", "10.10.0.12/32"},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	block := strings.Index(script, "block drop out quick from <vm_sources> to <blocked_dst>")
+	for _, want := range []string{
+		"pass out quick proto tcp from <vm_sources> to 10.10.0.11/32 port 443 keep state",
+		"pass out quick proto tcp from <vm_sources> to 10.10.0.12/32 port 443 keep state",
+	} {
+		pass := strings.Index(script, want)
+		if pass < 0 {
+			t.Fatalf("missing %q in rendered script\n%s", want, script)
+		}
+		if block < 0 || pass > block {
+			t.Fatalf("%q must render before the blocked_dst drop (first quick match wins)\n%s", want, script)
+		}
+	}
+}
+
+func TestRenderVMEgressFirewallScript_NoCacheGatewayPassWhenUnset(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMKuraEgressCIDR: "10.128.0.0/12", VMCachePNCIDR: "172.16.0.0/22"})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if strings.Contains(script, "port 443") || strings.Contains(script, "gateway carve-out") {
+		t.Fatalf("a fleet without cache gateways must not pass 443\n%s", script)
+	}
+}
+
+func TestRenderVMEgressFirewallScript_RejectsMalformedCacheGatewayCIDR(t *testing.T) {
+	for _, bad := range []string{"10.10.0.11", "10.10.0.11/33", "fd00::1/128", "10.10.0.11/32 port 22"} {
+		if _, err := renderVMEgressFirewallScript(Config{VMCacheGatewayCIDRs: []string{bad}}); err == nil {
+			t.Fatalf("expected %q to be rejected", bad)
+		}
+	}
+}
+
+func TestHostConfigHash_ChangesWithVMCacheGatewayCIDRs(t *testing.T) {
+	base := Config{VMKuraEgressCIDR: "10.128.0.0/12"}
+	gateway := base
+	gateway.VMCacheGatewayCIDRs = []string{"10.10.0.11/32"}
+	if HostConfigHash(base) == HostConfigHash(gateway) {
+		t.Fatal("HostConfigHash must change when the cache gateway CIDRs change, or existing hosts never get the pass rule")
 	}
 }

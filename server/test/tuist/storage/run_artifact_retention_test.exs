@@ -33,7 +33,7 @@ defmodule Tuist.Storage.RunArtifactRetentionTest do
                %{key: command_event_session_key, last_modified: days_ago(31)},
                %{key: legacy_run_key, last_modified: days_ago(400)},
                %{key: result_bundle_object_key, last_modified: days_ago(31)},
-               %{key: recent_bundle_key, last_modified: days_ago(29)},
+               %{key: recent_bundle_key, last_modified: days_ago(6)},
                %{key: build_key, last_modified: days_ago(31)},
                %{key: test_attachment_key, last_modified: days_ago(31)}
              ],
@@ -65,7 +65,7 @@ defmodule Tuist.Storage.RunArtifactRetentionTest do
            body: %{
              contents: [
                %{key: expired_orphan_key, last_modified: days_ago(31)},
-               %{key: recent_orphan_key, last_modified: days_ago(29)}
+               %{key: recent_orphan_key, last_modified: days_ago(6)}
              ],
              is_truncated: false
            }
@@ -74,6 +74,45 @@ defmodule Tuist.Storage.RunArtifactRetentionTest do
 
       expect(Repo, :all, fn _query -> [] end)
       expect_delete_objects([expired_orphan_key], "storage-bucket")
+
+      assert RunArtifactRetention.delete_expired() == {:ok, nil}
+    end
+
+    test "keeps run artifacts for the account plan's window" do
+      air_key = "air-account/app/runs/018fb6aa-c19d-7829-8ed3-934375dfba53/result_bundle.zip"
+      pro_expired_key = "pro-account/app/runs/018fb6aa-c19d-7829-8ed3-934375dfba53/result_bundle.zip"
+      pro_recent_key = "pro-account/app/runs/019e2c6c-d9ed-7391-8110-2f38ddd27d2c/result_bundle.zip"
+      enterprise_expired_key = "enterprise-account/app/runs/018fb6aa-c19d-7829-8ed3-934375dfba53/result_bundle.zip"
+      enterprise_recent_key = "enterprise-account/app/runs/019e2c6c-d9ed-7391-8110-2f38ddd27d2c/result_bundle.zip"
+
+      expect(Environment, :s3_bucket_name, fn -> "storage-bucket" end)
+
+      expect(Storage, :list_objects_from_bucket, fn "storage-bucket", _opts ->
+        {:ok,
+         %{
+           body: %{
+             contents: [
+               %{key: air_key, last_modified: days_ago(8)},
+               %{key: pro_expired_key, last_modified: days_ago(31)},
+               %{key: pro_recent_key, last_modified: days_ago(29)},
+               %{key: enterprise_expired_key, last_modified: days_ago(31)},
+               %{key: enterprise_recent_key, last_modified: days_ago(29)}
+             ],
+             is_truncated: false
+           }
+         }}
+      end)
+
+      expect_accounts_and_plans(
+        [
+          %Account{id: 1, name: "air-account"},
+          %Account{id: 2, name: "pro-account"},
+          %Account{id: 3, name: "enterprise-account"}
+        ],
+        %{2 => :pro, 3 => :enterprise}
+      )
+
+      expect_delete_objects([air_key, pro_expired_key, enterprise_expired_key], "storage-bucket")
 
       assert RunArtifactRetention.delete_expired() == {:ok, nil}
     end

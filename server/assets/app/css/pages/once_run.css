@@ -8,10 +8,15 @@
     }
   }
 
-  /* Mirror of `#build-run [data-part="bazel-cache-card-section"]`
-     in bazel_invocation.css so the Once Cache tab lays out
-     pixel-for-pixel like the Bazel Cache tab. Keep the two blocks
-     in sync when either page changes. */
+  & [data-part="cache-summary-section"] > .tuist-widget,
+  & [data-part="latency-widgets"] > .tuist-widget,
+  & [data-part="throughput-widgets"] > .tuist-widget {
+    gap: var(--noora-spacing-4);
+    padding: var(--noora-spacing-6);
+    min-height: unset;
+  }
+
+  /* Reuse the Bazel cache breakdown layout, with compact value-only widgets. */
   & [data-part="bazel-cache-card-section"] {
     gap: var(--noora-spacing-8);
     padding: var(--noora-spacing-8);
@@ -436,6 +441,17 @@
 
     & .noora-pagination-group {
       margin-top: var(--noora-spacing-7);
+    }
+  }
+
+  & [data-part="cell"][data-source-files] {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--noora-spacing-1);
+    max-width: 320px;
+
+    & > [data-part="label"] {
+      max-width: 100%;
     }
   }
 

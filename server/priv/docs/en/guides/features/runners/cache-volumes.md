@@ -2,20 +2,23 @@
 {
   "title": "Cache volumes",
   "titleTemplate": ":title · Runners · Features · Guides · Tuist",
-  "description": "Persist dependency directories between Tuist Linux runner jobs with cache volumes for GitHub Actions, Buildkite, and GitLab CI."
+  "description": "Persist dependency directories between Tuist Linux or macOS runner jobs with cache volumes for GitHub Actions, Buildkite, and GitLab CI."
 }
 ---
 # Cache volumes {#cache-volumes}
 
-Cache volumes persist dependency directories between jobs on Tuist Linux runners.
+Cache volumes persist dependency directories between jobs on Tuist Linux or macOS runners.
 Each job gets a private writable copy of the latest saved contents.
 
 Choose a stable `key` and a `path`, then attach the volume before installing
 dependencies. The path must be empty or absent. Remove any archive cache or
 artifact restore that writes to the same directory.
 
-Paths are mounted as ordinary directories, so tools can use their usual locations
+On Linux, paths are mounted as ordinary directories, so tools can use their usual locations
 such as `deps`, `_build`, and `node_modules`. Keep your normal `.gitignore` rules.
+On macOS, paths are symlinks: use download caches such as `~/.npm` or
+`~/.gradle/caches`; `node_modules` and tools that replace their cache directory
+are unsupported. Ignore workspace links without a trailing slash in `.gitignore`.
 Each action call attaches one directory; use a different key for each directory.
 
 ## GitHub Actions {#github-actions}
@@ -50,7 +53,7 @@ jobs and containers running as different users have separate volumes.
 
 ## Buildkite {#buildkite}
 
-Add the plugin to a step on your Tuist Linux queue. It attaches after checkout,
+Add the plugin to a step on your Tuist Linux or macOS queue. It attaches after checkout,
 before the command runs:
 
 ```yaml
@@ -83,8 +86,16 @@ test:
     - ./gradlew test
 ```
 
-Buildkite and GitLab support native Linux commands; GitLab uses the shell
-executor. Custom volumes on macOS are not supported yet.
+For macOS, select your macOS runner profile in the examples above. All three
+providers support native macOS commands; GitLab uses the shell executor.
+GitHub container jobs and Docker actions require Linux. macOS custom volumes
+are APFS images mounted in the macOS guest and are not automatically shared
+with a separate Docker VM.
+
+Built-in Tuist and Xcode compilation caches continue working automatically.
+Custom volumes are additional opt-in caches; use a separate empty directory
+and do not target the built-in cache mount. Linux and macOS volumes with the
+same key are separate.
 
 ## Saving changes {#saving-changes}
 

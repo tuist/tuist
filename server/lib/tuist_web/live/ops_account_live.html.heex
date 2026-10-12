@@ -683,6 +683,107 @@
         </div>
       </.form>
     </.card_section>
+    <.card_section>
+      <p data-part="prepaid-pool-description">
+        {dgettext(
+          "dashboard",
+          "A pool is runner credit paid up front for a contract term of up to a year, usually by bank transfer. It stays usable for the whole term instead of expiring each month, so quiet months do not forfeit minutes the customer already paid for, and usage past it is billed on demand. A term shorter than a year lines a new contract up with the end of an earlier one. The pool pays the invoices that carry the term's usage, shown below once both dates are in. Granting a pool bills nothing: charge for it on its own invoice, and enter that invoice's id here so the credit can be traced to it. The minutes field above leaves pools alone."
+        )}
+      </p>
+      <.form
+        for={%{}}
+        id="prepaid-pool-form"
+        phx-change="quote_prepaid_pool"
+        phx-submit="grant_prepaid_pool"
+      >
+        <.text_input
+          id="prepaid-pool-paid-input"
+          name="paid"
+          value=""
+          label={dgettext("dashboard", "Amount paid (USD)")}
+          placeholder="8000.00"
+        />
+        <.text_input
+          id="prepaid-pool-credit-multiplier-input"
+          name="credit_multiplier"
+          value={standard_credit_multiplier()}
+          label={dgettext("dashboard", "Credit multiplier")}
+          hint={credit_multiplier_hint()}
+        />
+        <.select
+          id="prepaid-pool-platforms"
+          name="platforms"
+          value="all"
+          label={dgettext("dashboard", "Platforms")}
+        >
+          <:item value="all" label={dgettext("dashboard", "macOS and Linux")} />
+          <:item value="macos" label={dgettext("dashboard", "macOS")} />
+          <:item value="linux" label={dgettext("dashboard", "Linux")} />
+        </.select>
+        <.text_input
+          id="prepaid-pool-starts-on-input"
+          name="starts_on"
+          value=""
+          input_type="date"
+          label={dgettext("dashboard", "Contract's first day")}
+        />
+        <.text_input
+          id="prepaid-pool-expires-on-input"
+          name="expires_on"
+          value=""
+          input_type="date"
+          label={dgettext("dashboard", "Contract's last day")}
+        />
+        <.text_input
+          id="prepaid-pool-invoice-input"
+          name="invoice_id"
+          value=""
+          label={dgettext("dashboard", "Stripe invoice (optional)")}
+          placeholder="in_..."
+        />
+        <dl :if={@prepaid_pool_quote} data-part="prepaid-pool-quote">
+          <div>
+            <dt>{dgettext("dashboard", "Credit granted")}</dt>
+            <dd data-part="prepaid-pool-quote-granted">
+              {format_money(@prepaid_pool_quote.granted)}
+            </dd>
+          </div>
+          <div>
+            <dt>{dgettext("dashboard", "Baseline minutes")}</dt>
+            <dd data-part="prepaid-pool-quote-minutes">
+              {format_number(@prepaid_pool_quote.minutes)}
+            </dd>
+          </div>
+        </dl>
+        <dl :if={@prepaid_pool_coverage} data-part="prepaid-pool-coverage">
+          <div :if={@prepaid_pool_coverage.first_invoice_at}>
+            <dt>{dgettext("dashboard", "First invoice paid from the pool")}</dt>
+            <dd data-part="prepaid-pool-first-invoice">
+              {prepaid_pool_invoice_label(@prepaid_pool_coverage.first_invoice_at)}
+            </dd>
+          </div>
+          <div :if={@prepaid_pool_coverage.last_invoice_at}>
+            <dt>{dgettext("dashboard", "Last invoice paid from the pool")}</dt>
+            <dd data-part="prepaid-pool-last-invoice">
+              {prepaid_pool_invoice_label(@prepaid_pool_coverage.last_invoice_at)}
+            </dd>
+          </div>
+          <div :if={is_nil(@prepaid_pool_coverage.last_invoice_at)}>
+            <dt>{dgettext("dashboard", "Invoices paid from the pool")}</dt>
+            <dd data-part="prepaid-pool-no-invoices">
+              {dgettext("dashboard", "No subscription to invoice against")}
+            </dd>
+          </div>
+        </dl>
+        <div data-part="actions">
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Grant pool")}
+          />
+        </div>
+      </.form>
+    </.card_section>
   </.card>
 
   <.card title={dgettext("dashboard", "Visibility")} icon="eye">
@@ -765,8 +866,21 @@
           phx-click="initiate_enterprise_upgrade"
         />
         <.button
+          :if={not @has_subscription}
+          variant="secondary"
+          label={dgettext("dashboard", "Start open source plan")}
+          phx-click="start_open_source_plan"
+          data-confirm={
+            dgettext(
+              "dashboard",
+              "Put %{account} on the Open Source plan? Its usage is never invoiced, and Kura does not serve open source accounts.",
+              account: @account.name
+            )
+          }
+        />
+        <.button
           :if={
-            current_plan(@account) in [:pro, :enterprise] and
+            current_plan(@account) in [:pro, :enterprise, :open_source] and
               subscription_status(@account) != :cancelled
           }
           variant="secondary"

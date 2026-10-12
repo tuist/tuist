@@ -1,0 +1,51 @@
+# Canonical names share the default network; private names are region-local.
+services:
+  kura-us:
+    environment:
+      KURA_PEER_TOPOLOGY: '{"provider":"vultr","private_network":"test-ord","private_url":"https://private-us.kura.internal:7443","canonical_networks":["test-scl"]}'
+    networks: !override
+      default:
+        aliases: [kura-us.kura.internal, kura-ring.kura.internal]
+      ord-private:
+        aliases: [kura-us.kura.internal]
+  kura-eu:
+    environment:
+      KURA_PEER_TOPOLOGY: '{"provider":"vultr","private_network":"test-ord","private_url":"https://private-eu.kura.internal:7443","canonical_networks":["test-scl"]}'
+    networks: !override
+      default:
+        aliases: [kura-eu.kura.internal, kura-ring.kura.internal]
+      ord-private:
+        aliases: [kura-eu.kura.internal]
+  kura-ap:
+    environment:
+      KURA_PEER_TOPOLOGY: '{"provider":"vultr","private_network":"test-scl","private_url":"https://private-ap.kura.internal:7443","canonical_networks":["test-ord"]}'
+    networks: !override
+      default:
+        aliases: [kura-ap.kura.internal, kura-ring.kura.internal]
+      scl-private:
+        aliases: [private-ap.kura.internal]
+  private-us:
+    image: node:24-bookworm-slim
+    command: [node, /fixture/private-proxy.mjs]
+    environment:
+      KURA_UPSTREAM: kura-us.kura.internal
+    volumes:
+      - ${KURA_MTLS_CERT_DIR}:/certs:ro
+      - ./test/e2e/provider-topology/private-proxy.mjs:/fixture/private-proxy.mjs:ro
+    networks:
+      ord-private:
+        aliases: [private-us.kura.internal]
+  private-eu:
+    image: node:24-bookworm-slim
+    command: [node, /fixture/private-proxy.mjs]
+    environment:
+      KURA_UPSTREAM: kura-eu.kura.internal
+    volumes:
+      - ${KURA_MTLS_CERT_DIR}:/certs:ro
+      - ./test/e2e/provider-topology/private-proxy.mjs:/fixture/private-proxy.mjs:ro
+    networks:
+      ord-private:
+        aliases: [private-eu.kura.internal]
+networks:
+  ord-private: {}
+  scl-private: {}

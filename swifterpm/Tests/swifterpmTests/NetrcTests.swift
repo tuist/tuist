@@ -21,22 +21,19 @@ struct NetrcTests {
                 .password == "fallback-secret")
     }
 
-    @Test
-    func credentialUsesTheFirstEntryForADuplicatedHost() throws {
-        // SwiftPM's own netrc resolves duplicates with `machines.firstIndex(where:)`,
-        // and curl sends the first entry too, so a file that both tools read one way
-        // must not authenticate differently here.
+    @Test(arguments: [(NetrcOrigin.file, "two"), (.environment, "one")])
+    func duplicateHostLookupMatchesSwiftPM(origin: NetrcOrigin, password: String) throws {
         let machines = NetrcParser.machines(
             in: """
             machine registry.example.com login first password one
             machine registry.example.com login second password two
             """
         )
-        let netrc = Netrc(sources: [NetrcSource(origin: .file, machines: machines)])
+        let netrc = Netrc(sources: [NetrcSource(origin: origin, machines: machines)])
 
         #expect(
             netrc.credential(for: try #require(URL(string: "https://registry.example.com")))?
-                .password == "one")
+                .password == password)
     }
 
     @Test
@@ -170,8 +167,8 @@ struct NetrcTests {
 
     @Test
     func credentialFromAnOriginIgnoresTheOtherSources() async throws {
-        // The registry path asks for each origin separately so it can consult the
-        // keychain between them, the way SwiftPM's registry provider does.
+        // Registry provider selection must distinguish an inline miss from an
+        // absent inline provider, while HTTP auth can fall through to the file.
         try await withTemporaryDirectory { root in
             try await fileSystem.atomicWrite(
                 "machine registry.example.com login example password from-home",
@@ -214,7 +211,7 @@ struct NetrcTests {
     }
 
     @Test
-    func disabledNetrcIgnoresEveryCredentialSource() async throws {
+    func disabledNetrcKeepsInlineAndRegistryFileCredentials() async throws {
         try await withTemporaryDirectory { root in
             try await fileSystem.atomicWrite(
                 "machine registry.example.com login example password from-home",
@@ -230,9 +227,78 @@ struct NetrcTests {
                 ]
             )
 
-            #expect(
-                netrc.credential(for: try #require(URL(string: "https://registry.example.com")))
-                    == nil)
+            let url = try #require(URL(string: "https://registry.example.com"))
+            #expect(netrc.credential(for: url)?.password == "from-environment")
+            #expect(netrc.credential(for: url, from: .file)?.password == "from-home")
+
+            let fileOnly = try await Netrc.resolve(
+                SwifterPMNetrcConfiguration(isEnabled: false), environment: ["HOME": root.path]
+            )
+            #expect(fileOnly.credential(for: url) == nil)
+            #expect(fileOnly.credential(for: url, from: .file)?.password == "from-home")
+        }
+    }
+
+    @Test(arguments: ["", "# placeholder credentials\n"])
+    func emptyExplicitNetrcFileIsAccepted(content: String) async throws {
+        try await withTemporaryDirectory { root in
+            let path = root.appendingPathComponent("netrc")
+            try await fileSystem.atomicWrite(content, to: path)
+            let netrc = try await Netrc.resolve(.init(path: path), environment: [:])
+            #expect(netrc.credential(for: try #require(URL(string: "https://registry.example.com"))) == nil)
+        }
+    }
+
+    @Test
+    func explicitNetrcRejectsAMisplacedDefaultEntry() async throws {
+        try await withTemporaryDirectory { root in
+            let path = root.appendingPathComponent("netrc")
+            try await fileSystem.atomicWrite(
+                """
+                default login fallback password secret
+                machine registry.example.com login user password secret
+                """, to: path
+            )
+            await #expect(throws: (any Error).self) {
+                try await Netrc.resolve(.init(path: path), environment: [:])
+            }
+        }
+    }
+
+    @Test(arguments: ["inline-miss", "disabled-inline", "malformed-inline"])
+    func registrySelectionAndHTTPFallbackRemainSeparate(mode: String) async throws {
+        try await withTemporaryDirectory { root in
+            try await fileSystem.atomicWrite(
+                "machine registry.example.com login file password secret", to: root.appendingPathComponent(".netrc")
+            )
+            let data: String
+            switch mode {
+            case "inline-miss": data = "machine other.example.com login inline password secret"
+            case "disabled-inline": data = "machine registry.example.com login inline password secret"
+            default:
+                data = "default login fallback password secret\nmachine registry.example.com login inline password secret"
+            }
+            let netrc = try await Netrc.resolve(
+                .init(isEnabled: mode != "disabled-inline", forcesNetrc: true, disableKeychain: true),
+                environment: ["HOME": root.path, "SWIFTPM_NETRC_DATA": data]
+            )
+            try await Environment.$values.withValue([:]) {
+                let config = try await RegistryConfig.load(
+                    packageDir: root, configPath: nil, defaultRegistryURL: "https://registry.example.com"
+                )
+                let url = try #require(URL(string: "https://registry.example.com"))
+                try await Environment.withNetrc(netrc) {
+                    let http = await HTTPAuthorization.header(for: url)
+                    let registry = await RegistryAuthorization.header(
+                        for: url, registryConfig: config,
+                        keychain: { _ in Issue.record("keychain consulted despite --netrc"); return nil }
+                    )
+                    let user = mode == "disabled-inline" ? "inline" : "file"
+                    let expected = "Basic " + Data("\(user):secret".utf8).base64EncodedString()
+                    #expect(http == expected)
+                    #expect(registry == (mode == "inline-miss" ? nil : expected))
+                }
+            }
         }
     }
 
@@ -287,6 +353,11 @@ struct NetrcTests {
                 SwifterPMNetrcConfiguration(isEnabled: false), environment: [:])
             #expect(disabled.swiftPackageArguments == ["--disable-netrc"])
 
+            let independentlyDisabled = try await Netrc.resolve(
+                .init(isEnabled: false, forcesNetrc: true, disableKeychain: true), environment: [:]
+            )
+            #expect(independentlyDisabled.swiftPackageArguments == ["--disable-netrc", "--netrc", "--disable-keychain"])
+
             let defaults = try await Netrc.resolve(
                 SwifterPMNetrcConfiguration(), environment: [:])
             #expect(defaults.swiftPackageArguments.isEmpty)
@@ -312,34 +383,46 @@ struct NetrcTests {
     }
 
     @Test
-    func registryPrecedenceIsEnvironmentThenKeychainThenFile() async throws {
+    func registrySelectsOneProviderWithoutCredentialFallback() async throws {
         let environmentNetrc = RegistryCredential(user: "u", password: "environment")
         let fileNetrc = RegistryCredential(user: "u", password: "file")
         let keychain = RegistryCredential(user: "u", password: "keychain")
 
         let environmentWins = await RegistryAuthorization.prioritizedCredential(
+            environmentNetrcIsConfigured: true,
             environmentNetrc: environmentNetrc,
             fileNetrc: fileNetrc,
-            forcesNetrc: false,
+            usesKeychain: true,
             keychain: { Issue.record("keychain consulted despite inline netrc data"); return keychain }
         )
         #expect(environmentWins?.password == "environment")
 
         let keychainWins = await RegistryAuthorization.prioritizedCredential(
-            environmentNetrc: nil, fileNetrc: fileNetrc, forcesNetrc: false, keychain: { keychain })
+            environmentNetrcIsConfigured: false,
+            environmentNetrc: nil, fileNetrc: fileNetrc, usesKeychain: true, keychain: { keychain })
         #expect(keychainWins?.password == "keychain")
 
         let forced = await RegistryAuthorization.prioritizedCredential(
+            environmentNetrcIsConfigured: false,
             environmentNetrc: nil,
             fileNetrc: fileNetrc,
-            forcesNetrc: true,
+            usesKeychain: false,
             keychain: { Issue.record("keychain consulted despite --netrc"); return keychain }
         )
         #expect(forced?.password == "file")
 
-        let fileFallback = await RegistryAuthorization.prioritizedCredential(
-            environmentNetrc: nil, fileNetrc: fileNetrc, forcesNetrc: false, keychain: { nil })
-        #expect(fileFallback?.password == "file")
+        let keychainMiss = await RegistryAuthorization.prioritizedCredential(
+            environmentNetrcIsConfigured: false,
+            environmentNetrc: nil, fileNetrc: fileNetrc, usesKeychain: true, keychain: { nil }
+        )
+        #expect(keychainMiss == nil)
+
+        let inlineMiss = await RegistryAuthorization.prioritizedCredential(
+            environmentNetrcIsConfigured: true,
+            environmentNetrc: nil, fileNetrc: fileNetrc, usesKeychain: true,
+            keychain: { Issue.record("keychain consulted despite inline provider"); return keychain }
+        )
+        #expect(inlineMiss == nil)
     }
 
     @Test
@@ -356,7 +439,7 @@ struct NetrcTests {
                 defaultRegistryURL: "https://registry.example.com"
             )
             let netrc = try await Netrc.resolve(
-                SwifterPMNetrcConfiguration(path: netrcFile), environment: [:])
+                SwifterPMNetrcConfiguration(path: netrcFile, forcesNetrc: true), environment: [:])
 
             let header = try await Environment.$values.withValue([:]) {
                 try await Environment.withNetrc(netrc) {

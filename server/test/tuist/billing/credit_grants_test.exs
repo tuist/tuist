@@ -45,9 +45,28 @@ defmodule Tuist.Billing.CreditGrantsTest do
                })
     end
 
+    test "sends when the grant starts applying" do
+      effective_at = ~U[2026-11-01 00:00:01Z]
+      effective_at_unix = DateTime.to_unix(effective_at)
+
+      expect(Stripe.Request, :make_request, fn %{params: %{effective_at: ^effective_at_unix}} ->
+        {:ok, %{id: "credgr_1"}}
+      end)
+
+      assert {:ok, _grant} =
+               CreditGrants.create(%{
+                 customer_id: "cus_1",
+                 amount_cents: 100,
+                 currency: "usd",
+                 price_ids: ["price_macos"],
+                 effective_at: effective_at
+               })
+    end
+
     test "omits the optional terms it was not given" do
       expect(Stripe.Request, :make_request, fn %{params: params, headers: headers} ->
         refute Map.has_key?(params, :expires_at)
+        refute Map.has_key?(params, :effective_at)
         refute Map.has_key?(params, :name)
         refute Map.has_key?(params, :priority)
         refute Map.has_key?(headers, "Idempotency-Key")

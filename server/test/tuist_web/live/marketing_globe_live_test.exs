@@ -13,11 +13,14 @@ defmodule TuistWeb.Marketing.MarketingGlobeLiveTest do
     {:ok, view, html} = live(conn, ~p"/globe")
 
     assert html =~ "Cache download requests today"
-    assert has_element?(view, "#marketing-globe[data-demo=false]")
+    assert has_element?(view, "#marketing-globe[data-demo=false][data-illustrative-arcs=true]")
+    assert has_element?(view, "#globe-status [data-status=live]", "Cache activity")
+    assert html =~ "Cache downloads served today, including repeated and partial requests."
+    refute html =~ "Arcs estimate request origins and replay reported activity"
     assert has_element?(view, "#marketing-globe-canvas[phx-hook=DitherGlobe]")
     assert has_element?(view, "#marketing-globe [data-part=navbar] a[href='/']")
     assert has_element?(view, "#globe-flaps[phx-hook=SplitFlap]")
-    assert has_element?(view, "#marketing-globe [data-part=regions] [data-region=eu-west]")
+    assert has_element?(view, "#marketing-globe [data-part=regions][hidden] [data-region=eu-west][hidden]")
     refute html =~ "marketing-navbar"
     refute html =~ "marketing-footer"
     refute html =~ "support/chat.js"
@@ -27,6 +30,26 @@ defmodule TuistWeb.Marketing.MarketingGlobeLiveTest do
 
     assert render(view) =~ "&quot;downloads&quot;:321"
     assert render(view) =~ "&quot;breakdown&quot;:{&quot;all&quot;:75.0}"
+  end
+
+  test "only regions with measured daily downloads are initially visible", %{conn: conn} do
+    snapshot = CacheGlobe.empty()
+
+    snapshot = %{
+      snapshot
+      | downloads: 10,
+        regions:
+          Enum.map(snapshot.regions, fn region ->
+            if region.id == "eu-west", do: %{region | downloads: 10}, else: region
+          end)
+    }
+
+    stub(Stats, :get_globe, fn -> snapshot end)
+    {:ok, view, _html} = live(conn, ~p"/globe")
+
+    assert has_element?(view, "#marketing-globe [data-part=regions]:not([hidden])")
+    assert has_element?(view, "#globe-region-eu-west:not([hidden])")
+    assert has_element?(view, "#globe-region-sa-west[hidden]")
   end
 
   test "live and demo requests are counted by the Cloudflare public-page limits", %{conn: conn} do
@@ -44,6 +67,8 @@ defmodule TuistWeb.Marketing.MarketingGlobeLiveTest do
     {:ok, view, html} = live(conn, ~p"/globe?demo=true")
 
     assert has_element?(view, "#marketing-globe[data-demo=true]")
+    assert has_element?(view, "#marketing-globe [data-part=regions]:not([hidden])")
+    assert has_element?(view, "#globe-region-sa-west:not([hidden])")
     assert html =~ "Demo · illustrative data"
     assert has_element?(view, "a[href='/globe']", "View live activity")
   end

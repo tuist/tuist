@@ -650,6 +650,32 @@ func TestRackHostJoinsTheTailnetAsAStandardDevice(t *testing.T) {
 	}
 }
 
+// The rack's cache gateways reach a rack host through the same overlay as its
+// other rack-only settings, so both the push and the stamped hash carry them,
+// and the rented fleets sharing FleetConfig never pass them.
+func TestRackHostCarriesTheCacheGatewaysIntoItsFirewall(t *testing.T) {
+	r := &RackAppleSiliconMachineReconciler{
+		FleetConfig:          bootstrap.Config{VMKuraEgressCIDR: "10.128.0.0/12"},
+		VMCacheGatewayCIDRs:  []string{"10.10.0.11/32"},
+		DefaultGuestCapacity: 1,
+	}
+	machine := rackMachine("m")
+	host := rackHost("mini-01")
+
+	pushed := r.hostConfig(machine, host, bootstrap.PerHost{})
+	if want := []string{"10.10.0.11/32"}; !slices.Equal(pushed.VMCacheGatewayCIDRs, want) {
+		t.Fatalf("pushed cache gateways = %v, want %v", pushed.VMCacheGatewayCIDRs, want)
+	}
+	if len(r.FleetConfig.VMCacheGatewayCIDRs) != 0 {
+		t.Fatalf("the rack overlay changed the shared fleet config to %v; rented minis would pass the rack's gateways", r.FleetConfig.VMCacheGatewayCIDRs)
+	}
+
+	without := &RackAppleSiliconMachineReconciler{FleetConfig: r.FleetConfig, DefaultGuestCapacity: 1}
+	if r.desiredHostConfigHash(machine, host) == without.desiredHostConfigHash(machine, host) {
+		t.Fatal("adding a cache gateway does not drift the host; an already bootstrapped mini would keep dropping it")
+	}
+}
+
 // --- egress + node binding --------------------------------------------------
 
 // Both macOS kinds must produce an identically-shaped egress Service: alloy
@@ -710,6 +736,37 @@ func TestNodeLabelsMatchTheScalewayKind(t *testing.T) {
 	}
 	if labels := rackMachineNodeLabels(rackMachine("x", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.FleetName = "" })); labels != nil {
 		t.Fatalf("labels for a fleetless machine = %v, want nil", labels)
+	}
+}
+
+// A host lent to another fleet registers its Node in that fleet, so the
+// operator's own pools stop selecting it and the other fleet's start.
+func TestNodeFleetReplacesTheNodesFleetLabel(t *testing.T) {
+	m := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.NodeFleet = "tuist-staging-rack-fleet" })
+	if got := rackMachineNodeLabels(m)["tuist.dev/fleet"]; got != "tuist-staging-rack-fleet" {
+		t.Fatalf("fleet label = %q, want the node fleet", got)
+	}
+}
+
+// Node labels are per-host and HostConfigHash strips them, so the node fleet
+// has to reach the stamped hash or a running host would never get the new
+// label. A host on the operator's fleet must hash exactly as before, or every
+// rack host would re-push on the deploy that ships the field.
+func TestNodeFleetDriftsOnlyTheLentHost(t *testing.T) {
+	r := &RackAppleSiliconMachineReconciler{DefaultGuestCapacity: 1}
+	host := rackHost("mini-01")
+	own := rackMachine("m")
+	lent := rackMachine("m", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.NodeFleet = "tuist-staging-rack-fleet" })
+	other := rackMachine("m", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.NodeFleet = "tuist-canary-rack-fleet" })
+
+	if want, have := hostConfigHashFor(r.rackFleetConfig(host), r.hostSizing(own)), r.desiredHostConfigHash(own, host); want != have {
+		t.Fatalf("a host on the operator's fleet hashes %s, want the unchanged %s", have, want)
+	}
+	if r.desiredHostConfigHash(own, host) == r.desiredHostConfigHash(lent, host) {
+		t.Fatal("lending the host does not drift it")
+	}
+	if r.desiredHostConfigHash(lent, host) == r.desiredHostConfigHash(other, host) {
+		t.Fatal("moving the host between lent fleets does not drift it")
 	}
 }
 
@@ -948,6 +1005,12 @@ func TestPerHostConfigDialsTheEgressServiceNotTheAddress(t *testing.T) {
 	}
 	if perHost.SSHUser != "tuist" {
 		t.Fatalf("SSHUser = %q, want the host's service account", perHost.SSHUser)
+	}
+	// Whatever answers at the address is only this host if it reports this
+	// host's serial; otherwise another box would be bootstrapped, and its key
+	// pinned, under this host's name.
+	if perHost.ExpectedSerial != host.Spec.Serial {
+		t.Fatalf("ExpectedSerial = %q, want the RackHost's serial %q", perHost.ExpectedSerial, host.Spec.Serial)
 	}
 
 	// And the dial target must NOT reach the host-config hash, or two hosts

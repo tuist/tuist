@@ -50,11 +50,12 @@ COMPILATION_CACHE_ENABLE_CACHING = YES
 COMPILATION_CACHE_ENABLE_PLUGIN = YES
 COMPILATION_CACHE_PLUGIN_PATH = $HOME/.local/state/tuist/libtuist_cas_plugin.dylib
 COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/cas-proxy.sock
+COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES = YES
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 OTHER_SWIFT_FLAGS = $(inherited) -cas-plugin-option tuist-instance=your-org/your-project
 ```
 
-Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, and `COMPILATION_CACHE_REMOTE_SERVICE_PATH` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI.
+Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, `COMPILATION_CACHE_REMOTE_SERVICE_PATH`, and `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI.
 
 > [!NOTE]
 > **Plugin Path**
@@ -71,6 +72,11 @@ Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, an
 >
 > It is easy to read this setting as "where the cache service lives" and treat it as optional. It is also the switch that decides whether C, Objective-C, precompiled modules and precompiled headers are shared at all: the build system only runs its caching for those when a remote cache service is configured. Leave it out and you still get Swift compilations shared, but every C/Objective-C file and every module is recompiled on any machine that has not built the project before.
 
+> [!NOTE]
+> **Concurrent cache lookups**
+>
+> `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` runs the remote cache lookups the build system makes for each compilation alongside the rest of the build, instead of a few at a time on the build's execution lanes. Builds that miss or restore many compilations from a distant cache finish sooner.
+
 You can also specify these settings when running `xcodebuild` by adding the following flags, such as:
 
 ```
@@ -79,6 +85,7 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_PLUGIN=YES \
     COMPILATION_CACHE_PLUGIN_PATH=$HOME/.local/state/tuist/libtuist_cas_plugin.dylib \
     COMPILATION_CACHE_REMOTE_SERVICE_PATH=$HOME/.local/state/tuist/cas-proxy.sock \
+    COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES=YES \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
     'OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=your-org/your-project'
 ```

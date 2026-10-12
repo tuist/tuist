@@ -4,7 +4,9 @@ defmodule TuistWeb.OverviewLive do
   use Noora
 
   alias Tuist.Projects.Project
+  alias TuistWeb.Authorization
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.PublicOverviewCache
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -14,7 +16,12 @@ defmodule TuistWeb.OverviewLive do
         :head_title,
         "#{dgettext("dashboard_projects", "Overview")} · #{account.name}/#{project.name} · Tuist"
       )
-      |> assign(OpenGraph.og_image_assigns("overview"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_projects", "Overview"),
+          subtitle: dgettext("dashboard_projects", "Project dashboard")
+        )
+      )
 
     socket =
       if Project.xcode_project?(project) do
@@ -84,6 +91,25 @@ defmodule TuistWeb.OverviewLive do
     params = Query.query_params(request_uri)
     full_uri = URI.parse(request_uri)
 
+    project =
+      if connected?(socket) do
+        Authorization.require_user_can_read_project(%{
+          user: socket.assigns.current_user,
+          account_handle: project.account.name,
+          project_handle: project.name
+        })
+      else
+        project
+      end
+
+    socket =
+      socket
+      |> assign(:selected_project, project)
+      |> assign(
+        :cached_public_overview,
+        is_nil(socket.assigns[:current_user]) and PublicOverviewCache.public_root?(project, request_uri)
+      )
+
     socket =
       cond do
         Project.once_project?(project) ->
@@ -105,6 +131,6 @@ defmodule TuistWeb.OverviewLive do
           socket
       end
 
-    {:noreply, socket}
+    {:noreply, PublicOverviewCache.resolve_pending(socket)}
   end
 end

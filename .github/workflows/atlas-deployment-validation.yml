@@ -19,9 +19,15 @@ jobs:
       ATLAS_SCREENSHOT_DIR: ${{ github.workspace }}/atlas-deployment-screenshots
     steps:
       - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4.3.1
+      - uses: ./.github/actions/mise
         with:
-          version: v4.2.0
+          install_args: "--locked helm yq jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Validate agent execution boundary
+        run: |
+          bash infra/helm/atlas/test-agent-boundary.sh
+          bash atlas/deploy/test-sandbox-retention.sh
       - uses: helm/kind-action@v1.14.0
         with:
           install_only: true

@@ -173,6 +173,8 @@ pdcAgent:
       memory: 1Gi
 
 kuraController:
+  servingAuthority:
+    enabled: false
   privateReplication:
     enabled: false
   enabled: false
@@ -196,6 +198,7 @@ kuraController:
     enabled: false
   namespace: kura
   replicaCount: 2
+  nodeSelector: {}
   tolerations: []
   image:
     repository: ghcr.io/tuist/kura-controller
@@ -1435,6 +1438,9 @@ capi:
   enabled: true
   vultrPrivateNetwork:
     enabled: false
+    # Per region: description, cidr, qualified, canonicalPeers (region names).
+    # Reciprocal approvals permit canonical mTLS between resolved VPC IDs.
+    # Upgrade existing runtimes before qualifying an additional region.
     regions: {}
   ovhPrivateNetwork:
     enabled: false
@@ -1621,6 +1627,11 @@ rackFleet:
   # `sshIngressAllowCIDRs`.
   sshIngressAllowCIDRs: []
 
+  # The rack's runner-cache gateways, as IPv4 CIDRs, which a rack host's Tart
+  # VMs may reach on TCP 443 through the VM egress firewall. Every other
+  # private destination stays blocked. Empty passes none.
+  vmCacheGatewayCIDRs: []
+
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl
   # history. Removing one is also `kubectl delete rackhost <name>`: Helm keeps
@@ -1644,14 +1655,39 @@ rackFleet:
   #     shelf: s3
   #     positionU: 12
   #     power:                  # the fleet's remote reboot: Apple silicon boots
-  #       driver: shelly        # on power-apply and every host runs
-  #       host: 192.168.0.50    # `pmset autorestart 1`, so an outlet cycle is a
-  #       outlet: "0"           # cold boot with nobody at a console.
-  #       credentialsSecret: "" # optional; omit for an unauthenticated plug
+  #       pdu: ber1-pdu-b       # on power-apply and every host runs
+  #       outlet: "1"           # `pmset autorestart 1`, so an outlet cycle is
+  #                             # a cold boot with nobody at a console. `pdu`
+  #                             # names a RackPDU (rendered from the site
+  #                             # definition in infra/rack-switch-fleet), whose
+  #                             # outlets are 1-based. A plug that is not a
+  #                             # RackPDU takes `driver` (shelly), `host`,
+  #                             # `outlet` ("0") and `credentialsSecret`
+  #                             # instead.
   #     parked: false           # keeps the box declared with no Machine (bench
   #                             # work, an RMA, a box that is off); parking a
   #                             # host deletes its Node undrained
+  #     nodeFleet: ""           # lends the host to another fleet's runner pools:
+  #                             # its Node's tuist.dev/fleet label, which the
+  #                             # rack fleet's own pools then skip
+  #     nodeCluster:            # lends the host to another env: its Node
+  #       kubeconfigItem: ""    # registers in that env's cluster with the
+  #       cacheVolumesURL: ""   # kubeconfig in this 1Password item (field
+  #                             # `kubeconfig`; see "Lending a host to another
+  #                             # env" in infra/rack-nodes/AGENTS.md); drain
+  #                             # the Node first.
+  #                             # cacheVolumesURL is that env's server's
+  #                             # cache-volumes endpoint, empty for none
   hosts: []
+
+  # Rack hosts another env lends this cluster, by Machine name: each gets the
+  # node identity its tart-kubelet registers with here
+  # (templates/rack-joining-nodes.yaml). The lending env sets the host's
+  # `nodeCluster` to a kubeconfig built from its token (see "Lending a host
+  # to another env" in infra/rack-nodes/AGENTS.md). This env runs the rack catalog's pools on them through
+  # `runners` below, with `name` set to the hosts' `nodeFleet`, and does not
+  # enable the fleet itself.
+  joiningNodes: []
 
   # Each host's node sizing. Each field falls back to the operator's global
   # default when unset.
@@ -1665,6 +1701,43 @@ rackFleet:
     # host" (the only setting that fits a 256 GB prototype box) and is
     # deliberately distinguishable from unset, which inherits the global.
     runnerCacheVolumeGiB: null
+
+  # The runner catalog on this fleet. Enabled, every `runnersFleet.xcodeVersions`
+  # entry renders a second macOS pool, on the catalog's default shape, that
+  # selects this fleet: `<release>-runner-pool-macos-<site>-<xcode-dashes>`,
+  # with the same image as the rented fleet's pool for that Xcode. Accounts on
+  # the server's `runner_site` flag have their profiles routed to these pools,
+  # and the server falls back to the rented fleet for a profile the site has no
+  # pool for. The pools select only this fleet, so the runners-controller
+  # apportions this fleet's guest slots among them and among any explicit
+  # `runnersFleet.pools` entry that selects it and autoscales. A Tart guest
+  # cannot be newer than its host: every catalog image has to fit the hosts'
+  # macOS.
+  runners:
+    enabled: false
+    # Every rack pool's scaling unless its `xcodeOverrides` entry sets its own.
+    # `maxReplicas` is a per-pool ceiling against this fleet's slots (hosts x
+    # guestCapacity); the allocator caps the pools' joint sum.
+    autoscaling: {}
+    #   enabled: true
+    #   minWarmPoolFloor: 0
+    #   maxReplicas: 18
+    # rollout:
+    #   maxConcurrentPercent: 5
+    # Per-Xcode scaling on this fleet, keyed by `xcodeVersion`: `replicas`,
+    # `autoscaling`, `rollout`, `idleTimeoutSeconds`. The image, runner labels
+    # and pod sizing are the Xcode's (`runnersFleet.xcodeOverrides`).
+    xcodeOverrides: {}
+    # Non-default catalog shapes this fleet runs, keyed `<vcpus>vcpu-<gb>gb`,
+    # each with its `autoscaling` (and optional `rollout`). A shape not named
+    # here gets no pool on this fleet. Its `maxReplicas` is the hosts that fit
+    # one, as on the rented fleet.
+    shapes: {}
+    #   12vcpu-28gb:
+    #     autoscaling:
+    #       enabled: true
+    #       minWarmPoolFloor: 0
+    #       maxReplicas: 9
 
   # The fleet SSH key + the service account's password, synced from 1Password.
   # NOT optional: the controller never mints a replacement, because a credential
@@ -1681,12 +1754,29 @@ rackFleet:
       publicKey: public-key
       sudoPassword: sudo-password
 
-  # PDU / smart-plug credentials, if the endpoint has any. A plug on a
-  # management segment with no password needs none; leave disabled and omit
+  # The root key every rack power card's passwords (RackPDU, RackATS) are
+  # derived from, synced read-only from 1Password into `secretName` in the
+  # release namespace, which the operator reads as --rack-card-root-secret.
+  # Without it the operator adopts no card. A rebuilt cluster derives the same
+  # passwords from the same item, so it re-adopts the cards with nobody at the
+  # rack.
+  cardRootKey:
+    enabled: false
+    item: BER1_RACK_CARD_ROOT
+    field: key
+    secretName: rack-card-root
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+
+  # Credentials of a smart plug that is not a RackPDU (a Shelly on a desk), if
+  # it has any. A RackPDU's credentials are derived by its controller from
+  # `cardRootKey`. A plug with no password needs none; leave disabled and omit
   # `power.credentialsSecret` on the hosts.
   powerExternalSecret:
     enabled: false
-    item: BER1_PDU
+    item: ""
     secretName: ""       # default: <fleet-name>-power
     refreshInterval: 1h
     storeRef:
@@ -1746,6 +1836,9 @@ rackLinuxFleet:
   #       activate: false        # default: amt.products decides
   #       address: 192.168.50.21/24   # default: one from amt.addressRange
   #       gateway: 192.168.50.1  # default: amt.gateway
+  # An edge's way out on the first boot of an install (spec.edge) comes from
+  # rack-sites/<site>.yaml, which `mise run rack:fleet render` writes from the
+  # site definition, not from here.
   hosts: []
 
   # Intel AMT. The operator activates, in admin control mode, the AMT of each
@@ -1773,6 +1866,8 @@ rackLinuxFleet:
   # is not on the tailnet yet, or whose reinstallGeneration asks for one, and
   # the host installs itself when it netboots or boots its stick. The site
   # definition's management.edge.netboot points the edge node's DHCP here.
+  # The rack-nodes chart (infra/helm/rack-nodes) renders its DaemonSet, and the
+  # rack node agent's, from these values; this chart configures the operator.
   boot:
     enabled: false
     site: ""           # default: rackLinuxFleet.site; the tuist.dev/rack-edge value
@@ -1812,6 +1907,8 @@ macosFleet:
     # but not production.
     tag: ""
     pullPolicy: IfNotPresent
+  # Placement of the provider Deployment, not of the Mac minis.
+  operatorNodeSelector: {}
   # External URL of the cluster API server that Mac minis dial when
   # joining. Auto-discovered from the kube-public/cluster-info
   # ConfigMap that kubeadm/CAPI write during cluster bootstrap; only
@@ -2187,6 +2284,8 @@ macosFleet:
 # default-deny NetworkPolicy + GitHub-only egress limits a
 # compromised runner's reachability into the cluster.
 runnersFleet:
+  customCacheVolumes:
+    enabled: false
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every macOS pool (a per-pool
   # or per-xcodeOverride `idleTimeoutSeconds` wins). Bounds how long a
@@ -2475,10 +2574,12 @@ runnersFleet:
   # is true; the chart fails the render with an empty list.
   pools: []
     # Example entry. Defaults are applied per field; only `name`,
-    # `runnerImage`, and `dispatchLabel` are required.
+    # `runnerImage` (or `xcodeVersion`), and `dispatchLabel` are required.
     # - name: default          # Suffix for the RunnerPool CR name.
     #   replicas: 0            # spec.replicas — number of Pods the controller maintains.
-    #   runnerImage: ""        # Required. Digest-pinned in production.
+    #   runnerImage: ""        # Required unless xcodeVersion is set. Digest-pinned in production.
+    #   xcodeVersion: ""       # Instead of runnerImage: the catalog image for this Xcode,
+    #                          # which follows runnerImageSemver and xcodeOverrides[].imageTag.
     #   dispatchLabel: ""      # Required. The label customers put in `runs-on`.
     #   # GitHub runner labels stamped at JIT-mint time, in addition
     #   # to `dispatchLabel` (always appended). Defaults per-OS in
@@ -2851,6 +2952,7 @@ runnersController:
     limits:
       cpu: 500m
       memory: 256Mi
+  nodeSelector: {}
 # The standalone cache service is deprecated for new deployments. Hosted
 # Tuist has moved cache serving into Kura (see kuraController / kuraRuntime)
 # and disables this workload (`cache.enabled: false` in

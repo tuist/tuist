@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -560,6 +561,6 @@ func (r *VultrMachineReconciler) event(machine *infrav1.VultrMachine, reason, fo
 
 func (r *VultrMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1.VultrMachine{}).
+		For(&infrav1.VultrMachine{}, builder.WithPredicates(ignoreOwnStatusWrites())).
 		Complete(r)
 }

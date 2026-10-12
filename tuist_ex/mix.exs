@@ -7,6 +7,9 @@ defmodule TuistEx.MixProject do
       version: "0.1.0",
       description: "Build and test instrumentation for Elixir projects",
       elixir: "~> 1.18",
+      # `cover` belongs to the :tools application, which `mix test --cover`
+      # starts and which no project lists among its dependencies.
+      elixirc_options: [no_warn_undefined: [:cover]],
       deps: [
         {:quokka, "~> 2.13", only: [:dev, :test], runtime: false},
         {:mimic, "~> 2.0", only: :test},

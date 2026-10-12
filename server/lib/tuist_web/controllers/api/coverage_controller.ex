@@ -64,7 +64,7 @@ defmodule TuistWeb.API.CoverageController do
   operation(:create_upload,
     summary: "Get a signed URL to upload a test run's code coverage.",
     description:
-      "Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `xcode_coverage_storage_key`, and the server reads it back once the run exists.",
+      "Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists.",
     operation_id: "createCoverageUpload",
     parameters: @path_parameters,
     request_body:
@@ -90,7 +90,7 @@ defmodule TuistWeb.API.CoverageController do
            properties: %{
              storage_key: %Schema{
                type: :string,
-               description: "The key to send with the run as `xcode_coverage_storage_key`."
+               description: "The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`)."
              },
              upload_url: %Schema{type: :string, description: "A short-lived URL to PUT the compressed coverage to."}
            },
@@ -118,7 +118,7 @@ defmodule TuistWeb.API.CoverageController do
         type: :string,
         enum: ["measured", "reported", "partial", "observed"],
         description:
-          "`measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: some skipped tests or files could not be carried, and the figure is a lower bound. `observed`: the runs listed no candidate tests, so what they skipped is unknown."
+          "`measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown."
       },
       coverage: %Schema{type: :number},
       covered_lines: %Schema{type: :integer},

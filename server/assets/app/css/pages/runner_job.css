@@ -658,6 +658,7 @@
     padding: var(--noora-spacing-5) var(--noora-spacing-7);
     max-height: 480px;
     overflow: auto;
+    overscroll-behavior-y: contain;
   }
 
   /* Two attribute selectors so this beats the `display: flex` above —

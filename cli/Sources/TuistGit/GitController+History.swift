@@ -72,10 +72,11 @@ extension GitController {
         )
     }
 
-    /// The commits reachable from the head within the window, less a shallow clone's boundary
-    /// commits (its `shallow` file): `git log` lists them without the parents they have, which
-    /// the server would store as roots for good, while leaving them out lets a deeper checkout
-    /// upload them.
+    /// The commits reachable from the head within the window. `git log` lists a shallow clone's
+    /// boundary commits (its `shallow` file) without parents, so theirs are read from the commit
+    /// objects, which the raw format prints regardless of the shallow grafts. In a depth-1 clone
+    /// the head is such a commit. When they cannot be read, the boundary commits are left out
+    /// rather than stored as roots.
     private func windowCommits(
         git: [String],
         workingDirectory: AbsolutePath,
@@ -96,7 +97,17 @@ extension GitController {
               let boundary = try? String(contentsOfFile: path.pathString, encoding: .utf8)
         else { return GitHistoryParser.parseCommits(output) }
         let boundarySHAs = Set(boundary.split(whereSeparator: \.isNewline).map(String.init))
-        return GitHistoryParser.parseCommits(output).filter { !boundarySHAs.contains($0.sha) }
+        let commits = GitHistoryParser.parseCommits(output)
+        let windowBoundary = commits.map(\.sha).filter(boundarySHAs.contains)
+        guard !windowBoundary.isEmpty else { return commits }
+
+        let raw = try? await capture(arguments: git + ["log", "--no-walk", "--no-decorate", "--format=raw"] + windowBoundary)
+        let parents = raw.map(GitHistoryParser.parseRawParents) ?? [:]
+        return commits.compactMap { commit in
+            guard boundarySHAs.contains(commit.sha) else { return commit }
+            guard let real = parents[commit.sha] else { return nil }
+            return GitHistoryCommit(sha: commit.sha, parents: real, committedAt: commit.committedAt)
+        }
     }
 
     /// The merge base between the head and the base branch, fetching the base ref when the

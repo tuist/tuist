@@ -6,8 +6,7 @@ set -euo pipefail
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 
 if [ -n "${CI:-}" ]; then
-  $SCRIPT_DIR/create.sh
-  $SCRIPT_DIR/migrate.sh
+  $SCRIPT_DIR/migrate.sh --create
 else
   $SCRIPT_DIR/drop.sh
   $SCRIPT_DIR/create.sh

@@ -13,6 +13,8 @@ import TuistConfig
 import TuistConfigLoader
 import TuistConstants
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistGenerator
 import TuistGit
 import TuistLoader
@@ -212,7 +214,6 @@ final class TestServiceTests: TuistUnitTestCase {
             gitController: gitController,
             uploadResultBundleService: uploadResultBundleService,
             derivedDataLocator: derivedDataLocator,
-            testEnumerationService: noTestEnumeration(),
             createTestService: createTestService,
             serverEnvironmentService: serverEnvironmentService,
             ciController: ciController,
@@ -620,6 +621,64 @@ final class TestServiceTests: TuistUnitTestCase {
                 passthroughXcodeBuildArguments: .value(["-destination", "id=device-id"])
             )
             .called(1)
+    }
+
+    func test_run_bumps_coverage_counters_atomically_when_coverage_is_uploaded() async throws {
+        for uploadsCoverage in [true, false] {
+            try await withMockedEnvironment {
+                Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+                Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = uploadsCoverage ? "1" : "0"
+                // Given
+                xcodebuildController.reset()
+                given(xcodebuildController)
+                    .test(
+                        .any, scheme: .any, clean: .any, destination: .any, action: .any, rosetta: .any,
+                        derivedDataPath: .any, resultBundlePath: .any, arguments: .any, retryCount: .any,
+                        testTargets: .any, skipTestTargets: .any, testPlanConfiguration: .any,
+                        passthroughXcodeBuildArguments: .any
+                    )
+                    .willProduce { _, _, _, _, _, _, _, _, _, _, _, _, _, _ in }
+                givenGenerator()
+                given(configLoader)
+                    .loadConfig(path: .any)
+                    .willReturn(.test(project: .testGeneratedProject()))
+                given(generator)
+                    .generateWithGraph(path: .any, options: .any)
+                    .willProduce { path, _ in
+                        (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
+                    }
+                given(buildGraphInspector)
+                    .testableTarget(
+                        scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                        graphTraverser: .any,
+                        action: .any
+                    )
+                    .willReturn(.test(target: .test(destinations: [.iPhone, .mac])))
+                given(simulatorController)
+                    .findAvailableDevice(udid: .any)
+                    .willReturn(.test(device: .test(name: "Test iPhone")))
+
+                // When
+                try await testRun(
+                    schemeName: "TestScheme",
+                    path: try temporaryPath(),
+                    passthroughXcodeBuildArguments: ["-destination", "id=device-id"]
+                )
+
+                // Then
+                let expected = uploadsCoverage
+                    ? AtomicCoverageCounters.adding(to: ["-destination", "id=device-id"])
+                    : ["-destination", "id=device-id"]
+                verify(xcodebuildController)
+                    .test(
+                        .any, scheme: .any, clean: .any, destination: .any, action: .any, rosetta: .any,
+                        derivedDataPath: .any, resultBundlePath: .any, arguments: .any, retryCount: .any,
+                        testTargets: .any, skipTestTargets: .any, testPlanConfiguration: .any,
+                        passthroughXcodeBuildArguments: .value(expected)
+                    )
+                    .called(1)
+            }
+        }
     }
 
     func test_run_tests_for_only_specified_scheme() async throws {
@@ -7995,8 +8054,7 @@ private struct TestServiceSchemePlanningFixture {
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader,
             xcodeBuildArgumentParser: xcodeBuildArgumentParser,
-            derivedDataLocator: derivedDataLocator,
-            testEnumerationService: noTestEnumeration()
+            derivedDataLocator: derivedDataLocator
         )
     }
 
@@ -8359,7 +8417,6 @@ private struct TestServiceStressNewTestsFixture {
             xcodeBuildArgumentParser: xcodeBuildArgumentParser,
             gitController: gitController,
             derivedDataLocator: derivedDataLocator,
-            testEnumerationService: noTestEnumeration(),
             serverEnvironmentService: serverEnvironmentService,
             uploadBuildRunService: nil,
             stressNewTestsService: stressNewTestsService
@@ -8447,17 +8504,4 @@ extension StressNewTestsResult {
             ]
         )
     }
-}
-
-/// The tests of a run are listed with a second xcodebuild invocation, which these tests have no
-/// products for.
-private func noTestEnumeration() -> MockTestEnumerationServicing {
-    let service = MockTestEnumerationServicing()
-    given(service)
-        .record(
-            resultBundlePath: .any, target: .any, scheme: .any, destination: .any, rosetta: .any,
-            derivedDataPath: .any, testPlan: .any, xcodebuildArguments: .any
-        )
-        .willReturn(nil)
-    return service
 }

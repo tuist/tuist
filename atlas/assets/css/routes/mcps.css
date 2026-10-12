@@ -40,11 +40,12 @@
     gap: var(--noora-spacing-4);
   }
 
-  & [data-part="session-state"] {
+  & [data-part="cell"][data-type="mcp-session"] {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     gap: var(--noora-spacing-2);
-    flex-wrap: wrap;
+    padding: var(--noora-spacing-5) var(--noora-spacing-7);
   }
 
   & [data-part="session-expiry"] {

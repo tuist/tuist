@@ -38,10 +38,8 @@ import XcodeGraph
                 \(failures.count) of \(failures.count + storedCount) targets failed to upload to the remote cache:
                 \(failedTargets)
 
-                If the failures were temporary, warming again uploads them from a machine that doesn't have them \
-                in its local cache. On this machine, run tuist clean binaries first, since targets in the local \
-                cache count as cached. If every warm fails the same way, cleaning won't help: resolve the \
-                reported cause first.
+                If the failures were temporary, warming again uploads them. If every warm fails the same way, \
+                resolve the reported cause first.
                 """
             case let .diskExhausted(scratchDirectory, space, underlyingError):
                 return """
@@ -232,6 +230,9 @@ import XcodeGraph
             let cacheableTargetNames = Set(cacheableTargets.map(\.0.target.name))
             guard !cacheableTargets.isEmpty else {
                 Logger.current.info("All cacheable targets are already cached")
+                if !noUpload, !generateOnly {
+                    try await republishIfNeeded(hashedGraph.localHits, cacheStorage: cacheStorage)
+                }
                 await logCacheWarmSummary()
                 return
             }
@@ -274,12 +275,30 @@ import XcodeGraph
                 scratchDirectory: scratchDirectoryMode
             )
 
+            if !noUpload {
+                try await republishIfNeeded(hashedGraph.localHits, cacheStorage: cacheStorage)
+            }
+
             Logger.current.info(
                 "All cacheable targets have been cached successfully as xcframeworks",
                 metadata: .success
             )
 
             await logCacheWarmSummary()
+        }
+
+        private func republishIfNeeded(
+            _ localHits: [CacheStorableItem: AbsolutePath],
+            cacheStorage: CacheStoring
+        ) async throws {
+            do {
+                try await cacheStorage.republishIfNeeded(localHits, cacheCategory: .binaries)
+            } catch let error as CacheUploadError {
+                throw CacheWarmCommandServiceError.uploadsFailed(
+                    failures: error.failures,
+                    storedCount: Set(localHits.keys).subtracting(error.failures.map(\.item)).count
+                )
+            }
         }
 
         /// Prints how cacheable targets were resolved during this run: how many were served from the
@@ -1186,14 +1205,12 @@ import XcodeGraph
                 }
             }
 
-            let cacheItems = try await cacheStorage.fetch(
-                Set(selectedHashesByCacheableTarget.map { CacheStorableItem(
-                    name: $0.key.target.name,
-                    hash: $0.value.hash,
-                    metadata: .init(binaryCacheFingerprints: $0.value.binaryCacheFingerprints)
-                ) }),
-                cacheCategory: .binaries
-            )
+            let requestedItems = Set(selectedHashesByCacheableTarget.map { CacheStorableItem(
+                name: $0.key.target.name,
+                hash: $0.value.hash,
+                metadata: .init(binaryCacheFingerprints: $0.value.binaryCacheFingerprints)
+            ) })
+            let cacheItems = try await cacheStorage.fetch(requestedItems, cacheCategory: .binaries)
 
             await RunMetadataStorage.current.update(
                 binaryCacheItems: selectedHashesByCacheableTarget.reduce(into: [:]) { result, element in
@@ -1213,6 +1230,15 @@ import XcodeGraph
                 }
             )
 
+            let localPaths = Dictionary(
+                cacheItems.filter { $0.key.source == .local }.map { ($0.key.hash, $0.value) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            let localHits = Dictionary(
+                requestedItems.compactMap { item in localPaths[item.hash].map { (item, $0) } },
+                uniquingKeysWith: { first, _ in first }
+            )
+
             let existingTargetHashes = Set(
                 cacheItems.map(\.key.hash)
             )
@@ -1225,7 +1251,8 @@ import XcodeGraph
                 fingerprints: Dictionary(
                     selectedHashesByCacheableTarget.values.map { ($0.hash, $0.binaryCacheFingerprints) },
                     uniquingKeysWith: { first, _ in first }
-                )
+                ),
+                localHits: localHits
             )
         }
     }
@@ -1244,12 +1271,17 @@ import XcodeGraph
 
         let fingerprints: [String: [String: String]]
 
+        /// Targets the local cache served, with the path it returned for each.
+        let localHits: [CacheStorableItem: AbsolutePath]
+
         init(
             targetsToBuild: [(GraphTarget, String)],
             hashes: [GraphTarget: TargetContentHash],
-            fingerprints: [String: [String: String]] = [:]
+            fingerprints: [String: [String: String]] = [:],
+            localHits: [CacheStorableItem: AbsolutePath] = [:]
         ) {
             self.fingerprints = fingerprints
+            self.localHits = localHits
             self.targetsToBuild = targetsToBuild
             targetHashes = Dictionary(
                 uniqueKeysWithValues: hashes.map {

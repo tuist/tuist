@@ -1,5 +1,6 @@
 import Ecto.Query
 
+alias Ecto.Adapters.SQL.Sandbox
 alias Tuist.Accounts
 alias Tuist.Accounts.AccountToken
 alias Tuist.Alerts.Alert
@@ -45,6 +46,16 @@ alias Tuist.Tests.TestCaseFailure
 alias Tuist.Tests.TestCaseRun
 alias Tuist.Tests.TestModuleRun
 alias Tuist.Tests.TestSuiteRun
+alias Tuist.Xcode.XcodeGraph
+alias Tuist.Xcode.XcodeProject
+alias Tuist.Xcode.XcodeTarget
+
+# CI seeds with MIX_ENV=test, where both repos use the SQL sandbox pool. Its
+# implicit checkout drops this script's connection after the default 120s
+# ownership timeout, which a full seed now exceeds.
+for repo <- [Repo, IngestRepo], repo.config()[:pool] == Sandbox do
+  :ok = Sandbox.checkout(repo, sandbox: false, ownership_timeout: :infinity)
+end
 
 # =============================================================================
 # Configuration via Environment Variables
@@ -81,10 +92,6 @@ alias Tuist.Tests.TestSuiteRun
 # as production data grows.
 #
 # =============================================================================
-
-alias Tuist.Xcode.XcodeGraph
-alias Tuist.Xcode.XcodeProject
-alias Tuist.Xcode.XcodeTarget
 
 # Scale presets
 seed_scale = System.get_env("SEED_SCALE", "small")

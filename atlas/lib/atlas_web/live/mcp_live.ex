@@ -15,6 +15,8 @@ defmodule AtlasWeb.MCPLive do
      |> assign(:page_title, gettext("MCPs"))
      |> assign(:can_manage?, Users.has_scope?(socket.assigns.current_user, "admin:write"))
      |> assign(:editing_server, nil)
+     |> assign(:deleting_server, nil)
+     |> assign(:delete_server_form, to_form(%{"name" => ""}, as: :delete_server))
      |> assign_form(MCP.change_server_configuration(%ServerConfiguration{}))}
   end
 
@@ -119,13 +121,52 @@ defmodule AtlasWeb.MCPLive do
     end
   end
 
-  def handle_event("delete_server", %{"id" => id}, %{assigns: %{can_manage?: true}} = socket) do
-    case MCP.delete_server_configuration(id) do
-      {:ok, _server} ->
-        {:noreply, socket |> put_flash(:info, gettext("Server removed.")) |> load_servers()}
+  def handle_event("open_delete_server_modal", %{"id" => id}, %{assigns: %{can_manage?: true}} = socket) do
+    case MCP.get_server_configuration(id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, gettext("Server not found."))}
 
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, gettext("Could not remove server."))}
+      server ->
+        {:noreply,
+         socket
+         |> assign(:deleting_server, server)
+         |> assign(:delete_server_form, to_form(%{"name" => ""}, as: :delete_server))
+         |> push_event("open-modal", %{id: "delete-mcp-server-modal"})}
+    end
+  end
+
+  def handle_event("close_delete_server_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:deleting_server, nil)
+     |> push_event("close-modal", %{id: "delete-mcp-server-modal"})}
+  end
+
+  def handle_event(
+        "delete_server",
+        %{"delete_server" => %{"name" => name}},
+        %{assigns: %{can_manage?: true, deleting_server: %ServerConfiguration{} = server}} = socket
+      ) do
+    if name == server.name do
+      case MCP.delete_server_configuration(server.id) do
+        {:ok, _server} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, gettext("Server removed."))
+           |> assign(:deleting_server, nil)
+           |> load_servers()
+           |> push_event("close-modal", %{id: "delete-mcp-server-modal"})}
+
+        {:error, _reason} ->
+          {:noreply, put_flash(socket, :error, gettext("Could not remove server."))}
+      end
+    else
+      {:noreply,
+       assign(
+         socket,
+         :delete_server_form,
+         to_form(%{"name" => name}, as: :delete_server, errors: [name: {gettext("Server name does not match."), []}])
+       )}
     end
   end
 
@@ -273,12 +314,66 @@ defmodule AtlasWeb.MCPLive do
               </.modal_footer>
             </:footer>
           </.modal>
+          <.modal
+            id="delete-mcp-server-modal"
+            title={gettext("Delete server?")}
+            description={gettext("Remove this upstream server from Atlas.")}
+            header_size="large"
+            on_dismiss="close_delete_server_modal"
+          >
+            <:trigger :let={attrs}><button type="button" hidden {attrs}></button></:trigger>
+            <.line_divider />
+            <.alert
+              status="warning"
+              type="secondary"
+              size="small"
+              title={
+                gettext(
+                  "Deleting this server permanently removes all saved user connections. This action cannot be undone."
+                )
+              }
+            />
+            <.form
+              id="mcp-server-delete-form"
+              for={@delete_server_form}
+              phx-submit="delete_server"
+              data-part="form"
+            >
+              <.text_input
+                id="mcp-server-delete-name"
+                field={@delete_server_form[:name]}
+                label={gettext("Enter the server's name to confirm")}
+                placeholder={if @deleting_server, do: @deleting_server.name}
+              />
+            </.form>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    label={gettext("Cancel")}
+                    variant="secondary"
+                    phx-click="close_delete_server_modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    id="mcp-server-delete"
+                    label={gettext("Delete")}
+                    variant="destructive"
+                    type="submit"
+                    form="mcp-server-delete-form"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
         </div>
       </div>
 
       <.card title={gettext("Servers")} icon="server" data-part="servers-card">
         <.card_section data-part="servers-table-section">
-          <.table id="mcp-servers-table" rows={@servers}>
+          <.table id="mcp-servers-table" rows={@servers} row_key={& &1.server.name}>
             <:col :let={entry} label={gettext("Server")}>
               <.text_and_description_cell
                 label={entry.server.name}
@@ -286,7 +381,7 @@ defmodule AtlasWeb.MCPLive do
               />
             </:col>
             <:col :let={entry} label={gettext("Auth")}>
-              <.badge
+              <.badge_cell
                 id={"mcp-auth-#{entry.server.name}"}
                 label={auth_label(entry.server.auth_type)}
                 color="neutral"
@@ -294,12 +389,13 @@ defmodule AtlasWeb.MCPLive do
               />
             </:col>
             <:col :let={entry} label={gettext("Session")}>
-              <div data-part="session-state">
+              <div data-part="cell" data-type="mcp-session">
                 <.badge
                   id={"mcp-session-#{entry.server.name}"}
                   label={status_label(entry.status)}
                   color={status_color(entry.status)}
                   style="light-fill"
+                  size="large"
                 />
                 <span :if={entry.session && entry.session.expires_at} data-part="session-expiry">
                   {expires_label(entry.session)}
@@ -308,37 +404,47 @@ defmodule AtlasWeb.MCPLive do
             </:col>
             <:col :let={entry} label={gettext("Actions")}>
               <.button_cell>
-                <:button :if={entry.server.auth_type == :oauth2}>
-                  <.button
-                    id={"mcp-connect-#{entry.server.name}"}
-                    href={~p"/mcps/#{entry.server.name}/authorize?return_to=/admin/mcps"}
-                    label={action_label(entry.status)}
-                    size="small"
-                    variant={if(entry.status == :connected, do: "secondary", else: "primary")}
+                <:button :if={
+                  entry.server.auth_type == :oauth2 ||
+                    (@can_manage? && Map.has_key?(@configuration_ids, entry.server.name))
+                }>
+                  <.dropdown
+                    id={"mcp-actions-#{entry.server.name}"}
+                    label={gettext("Server actions")}
+                    size="medium"
+                    icon_only
                   >
-                    <:icon_right><.arrow_right /></:icon_right>
-                  </.button>
-                </:button>
-                <:button :if={@can_manage? && Map.has_key?(@configuration_ids, entry.server.name)}>
-                  <.button
-                    id={"mcp-edit-#{entry.server.name}"}
-                    phx-click="open_edit_server_modal"
-                    phx-value-id={@configuration_ids[entry.server.name]}
-                    label={gettext("Edit")}
-                    size="small"
-                    variant="secondary"
-                  />
-                </:button>
-                <:button :if={@can_manage? && Map.has_key?(@configuration_ids, entry.server.name)}>
-                  <.button
-                    id={"mcp-remove-#{entry.server.name}"}
-                    phx-click="delete_server"
-                    phx-value-id={@configuration_ids[entry.server.name]}
-                    data-confirm={gettext("Remove this server and its saved connections?")}
-                    label={gettext("Remove")}
-                    size="small"
-                    variant="secondary"
-                  />
+                    <:icon><.dots_vertical /></:icon>
+                    <.dropdown_item
+                      :if={entry.server.auth_type == :oauth2}
+                      id={"mcp-connect-#{entry.server.name}"}
+                      value="connect"
+                      href={~p"/mcps/#{entry.server.name}/authorize?return_to=/admin/mcps"}
+                      label={action_label(entry.status)}
+                    >
+                      <:left_icon><.arrow_right /></:left_icon>
+                    </.dropdown_item>
+                    <.dropdown_item
+                      :if={@can_manage? && Map.has_key?(@configuration_ids, entry.server.name)}
+                      id={"mcp-edit-#{entry.server.name}"}
+                      value="edit"
+                      on_click="open_edit_server_modal"
+                      phx-value-id={@configuration_ids[entry.server.name]}
+                      label={gettext("Edit")}
+                    >
+                      <:left_icon><.pencil /></:left_icon>
+                    </.dropdown_item>
+                    <.dropdown_item
+                      :if={@can_manage? && Map.has_key?(@configuration_ids, entry.server.name)}
+                      id={"mcp-remove-#{entry.server.name}"}
+                      value="delete"
+                      on_click="open_delete_server_modal"
+                      phx-value-id={@configuration_ids[entry.server.name]}
+                      label={gettext("Delete")}
+                    >
+                      <:left_icon><.trash /></:left_icon>
+                    </.dropdown_item>
+                  </.dropdown>
                 </:button>
               </.button_cell>
             </:col>
@@ -363,7 +469,7 @@ defmodule AtlasWeb.MCPLive do
   defp status_label(:connected), do: gettext("Connected")
   defp status_label(:shared_credentials), do: gettext("Shared")
   defp status_label(:not_connected), do: gettext("Not connected")
-  defp status_label(:needs_authorization), do: gettext("Reconnect")
+  defp status_label(:needs_authorization), do: gettext("Reconnect required")
   defp status_label(:expired), do: gettext("Expired")
 
   defp status_color(status) when status in [:connected, :shared_credentials], do: "success"
@@ -374,6 +480,12 @@ defmodule AtlasWeb.MCPLive do
   defp action_label(_status), do: gettext("Connect")
 
   defp expires_label(%OAuthSession{expires_at: expires_at}) do
-    gettext("Expires %{datetime}", datetime: Calendar.strftime(expires_at, "%Y-%m-%d %H:%M UTC"))
+    datetime = Calendar.strftime(expires_at, "%b %-d, %Y at %H:%M UTC")
+
+    if DateTime.after?(expires_at, DateTime.utc_now()) do
+      gettext("Expires %{datetime}", datetime: datetime)
+    else
+      gettext("Expired %{datetime}", datetime: datetime)
+    end
   end
 end

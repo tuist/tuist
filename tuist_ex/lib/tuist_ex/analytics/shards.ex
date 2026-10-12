@@ -85,17 +85,29 @@ defmodule TuistEx.Analytics.Shards do
   or parsed stops the plan: leaving it out would let every shard pass while
   the suite itself cannot compile.
   """
-  def test_units(test_paths \\ test_paths()) do
+  def test_units(test_paths \\ test_paths()), do: test_paths |> scan() |> elem(0)
+
+  @doc """
+  Returns `{units, concurrent}`: the units of `test_units/1`, and those of
+  them ExUnit runs alongside other modules, the ones whose module says
+  `use ..., async: true`. A unit planned under its path is not one of them.
+  """
+  def scan(test_paths \\ test_paths()) do
     units =
       for path <- test_paths,
           file <- Path.wildcard(Path.join(path, "**/*_test.exs")),
           do: {unit(file), file}
 
-    counts = Enum.frequencies_by(units, &elem(&1, 0))
+    counts = Enum.frequencies_by(units, fn {{name, _async?}, _file} -> name end)
 
-    Map.new(units, fn {unit, file} ->
-      if counts[unit] == 1, do: {unit, file}, else: {file, file}
-    end)
+    {units, concurrent} =
+      Enum.reduce(units, {%{}, []}, fn {{name, async?}, file}, {units, concurrent} ->
+        if counts[name] == 1,
+          do: {Map.put(units, name, file), if(async?, do: [name | concurrent], else: concurrent)},
+          else: {Map.put(units, file, file), concurrent}
+      end)
+
+    {units, Enum.sort(concurrent)}
   end
 
   defp test_paths, do: Mix.Project.config()[:test_paths] || ["test"]
@@ -106,20 +118,31 @@ defmodule TuistEx.Analytics.Shards do
       {_ast, modules} =
         Macro.prewalk(ast, [], fn
           # Not walked into: a nested module's name is relative to its parent.
-          {:defmodule, _meta, [{:__aliases__, _, parts} | _]}, acc when is_list(parts) ->
+          {:defmodule, _meta, [{:__aliases__, _, parts} | rest]}, acc when is_list(parts) ->
             if Enum.all?(parts, &is_atom/1),
-              do: {nil, [Enum.join(parts, ".") | acc]},
+              do: {nil, [{Enum.join(parts, "."), async?(rest)} | acc]},
               else: {nil, acc}
 
           node, acc ->
             {node, acc}
         end)
 
-      Enum.min(modules, fn -> file end)
+      Enum.min_by(modules, &elem(&1, 0), fn -> {file, false} end)
     else
       _ -> Mix.raise("Cannot plan the shards: #{file} could not be read or parsed.")
     end
   end
+
+  # `use ExUnit.Case, async: true`, or a case template given the option,
+  # among the module's own statements.
+  defp async?([[do: {:__block__, _meta, statements}]]), do: Enum.any?(statements, &async_use?/1)
+  defp async?([[do: statement]]), do: async_use?(statement)
+  defp async?(_rest), do: false
+
+  defp async_use?({:use, _meta, [_module, options]}) when is_list(options),
+    do: Enum.any?(options, &match?({:async, true}, &1))
+
+  defp async_use?(_statement), do: false
 
   @doc """
   The test files a shard runs, given the units it was assigned.
@@ -180,16 +203,18 @@ defmodule TuistEx.Analytics.Shards do
   end
 
   @doc """
-  Asks the server to split `modules` into shards. Returns the plan: its
+  Asks the server to split `modules` into shards, `concurrent` being those
+  ExUnit runs alongside other modules. Returns the plan: its
   `"shard_count"` and, per shard, its `"index"`, `"test_targets"` and
   `"estimated_duration_ms"`.
   """
-  def create_plan(reference, modules, options) do
+  def create_plan(reference, modules, concurrent, options) do
     body =
       %{
         reference: reference,
         modules: Enum.sort(modules),
         granularity: "module",
+        concurrent_modules: Enum.sort(concurrent),
         shard_min: Keyword.get(options, :shard_min),
         shard_max: Keyword.get(options, :shard_max),
         shard_total: Keyword.get(options, :shard_total),
@@ -288,43 +313,61 @@ defmodule TuistEx.Analytics.Shards do
 
   @links ".tuist-links"
 
-  # A build links out of itself: a dependency's `priv` directory points into
-  # `deps/`, and the project's own into the checkout. The archive tool
-  # refuses to extract links that leave the directory, so they travel as a
-  # list instead and are recreated after extraction.
+  # Dependency priv directories contain generated native libraries absent on
+  # cold workers. Package those contents, but preserve project priv links so
+  # checkout-relative resources keep resolving from their original location.
   @doc false
   def archive(build_path, archive) do
     {files, links} = walk(build_path, "")
 
     entries =
       [{String.to_charlist(@links), :erlang.term_to_binary(links)}] ++
-        Enum.map(files, &{String.to_charlist(&1), String.to_charlist(Path.join(build_path, &1))})
+        Enum.map(files, fn {path, source} ->
+          {String.to_charlist(path), String.to_charlist(source)}
+        end)
 
     :erl_tar.create(String.to_charlist(archive), entries, [:compressed])
   end
 
   defp walk(root, relative) do
     root
-    |> Path.join(relative)
     |> File.ls!()
     |> Enum.reduce({[], []}, fn entry, {files, links} ->
       path = Path.join(relative, entry)
+      source = Path.join(root, entry)
 
-      case File.lstat!(Path.join(root, path)) do
+      case File.lstat!(source) do
         %File.Stat{type: :symlink} ->
-          {files, [{path, File.read_link!(Path.join(root, path))} | links]}
+          target = File.read_link!(source)
+          resolved = Path.expand(target, Path.dirname(source))
+
+          if dependency_priv?(path, resolved) do
+            {inner_files, inner_links} = walk(resolved, path)
+            {inner_files ++ files, inner_links ++ links}
+          else
+            {files, [{path, target} | links]}
+          end
 
         %File.Stat{type: :directory} ->
-          {inner_files, inner_links} = walk(root, path)
+          {inner_files, inner_links} = walk(source, path)
           {inner_files ++ files, inner_links ++ links}
 
         %File.Stat{type: :regular} ->
-          {[path | files], links}
+          {[{path, source} | files], links}
 
         _other ->
           {files, links}
       end
     end)
+  end
+
+  defp dependency_priv?(path, resolved) do
+    checkout = Path.expand(File.cwd!())
+
+    match?(["lib", _, "priv"], Path.split(path)) and
+      match?(["deps", _, "priv"], Enum.take(Path.split(resolved), -3)) and
+      String.starts_with?(resolved, checkout <> "/") and File.dir?(resolved) and
+      real_directories?(checkout, Path.split(Path.relative_to(resolved, checkout)))
   end
 
   # The build is unpacked next to the build directory and takes its place

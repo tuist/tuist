@@ -282,12 +282,12 @@ public struct TuistCommand: AsyncParsableCommand {
         let exitCode = exitCode(for: error).rawValue
 
         if error.localizedDescription.contains("ArgumentParser") {
-            await finishHARRecordingBeforeExit()
+            await prepareForExit(exitCode: exitCode, error: error)
             exit(withError: error)
         }
 
         if let remoteExit = error as? RunnerShellRemoteExitError {
-            await finishHARRecordingBeforeExit()
+            await prepareForExit(exitCode: remoteExit.status, error: error)
             _exit(remoteExit.status)
         }
 
@@ -318,7 +318,7 @@ public struct TuistCommand: AsyncParsableCommand {
         }
 
         if !errorHandled, isParsingError, self.exitCode(for: error).rawValue == 0 {
-            await finishHARRecordingBeforeExit()
+            await prepareForExit(exitCode: exitCode, error: error)
             exit(withError: error)
         } else if !errorHandled, let localizedError = error as? LocalizedError {
             errorAlertMessage =
@@ -333,14 +333,15 @@ public struct TuistCommand: AsyncParsableCommand {
             errorAlertMessage: errorAlertMessage,
             errorAlertNextSteps: errorAlertNextSteps
         )
-        await finishHARRecordingBeforeExit()
+        await prepareForExit(exitCode: exitCode, error: error)
         _exit(exitCode)
     }
 
-    private static func finishHARRecordingBeforeExit() async {
+    private static func prepareForExit(exitCode: Int32, error: Error) async {
         #if os(macOS)
             await HARRecorder.finishCurrent()
         #endif
+        ProgramStatusReporter.current.finish(exitCode: exitCode, cancelled: error is CancellationError)
     }
 
     private static func outputCompletion(

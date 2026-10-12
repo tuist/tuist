@@ -3,14 +3,31 @@ import React, { useEffect, useState } from 'react';
 import { QueryEditorProps, SelectableValue } from '@grafana/data';
 import { InlineField, InlineFieldRow, MultiSelect, RadioButtonGroup, Select } from '@grafana/ui';
 
+import { BuildHealthQueryOptions } from './BuildHealthQueryOptions';
 import { DataSource } from '../datasource';
 import { TuistDataSourceOptions, TuistQuery, TuistQueryType, TuistSeries } from '../types';
 
 type Props = QueryEditorProps<DataSource, TuistQuery, TuistDataSourceOptions>;
 
 const queryTypeOptions: Array<SelectableValue<TuistQueryType>> = [
-  { label: 'Build durations', value: 'buildDuration' },
+  { label: 'Xcode build durations', value: 'buildDuration' },
   { label: 'Test durations', value: 'testDuration' },
+  { label: 'Build health', value: 'buildHealth' },
+  { label: 'Health by workload', value: 'buildWorkloads' },
+  { label: 'Failure reasons', value: 'buildFailureReasons' },
+  { label: 'Recent failed builds', value: 'buildRecentFailures' },
+];
+
+const legacyQueryTypeOptions: Array<SelectableValue<TuistQueryType>> = [
+  { label: 'Gradle build health', value: 'gradleHealth' },
+  { label: 'Gradle health by workload', value: 'gradleWorkloads' },
+  { label: 'Gradle failure reasons', value: 'gradleFailureReasons' },
+  { label: 'Recent failed Gradle builds', value: 'gradleRecentFailures' },
+];
+
+const buildHealthQueryTypes: TuistQueryType[] = [
+  'buildHealth', 'buildWorkloads', 'buildFailureReasons', 'buildRecentFailures',
+  'gradleHealth', 'gradleWorkloads', 'gradleFailureReasons', 'gradleRecentFailures',
 ];
 
 const seriesOptions: Array<SelectableValue<TuistSeries>> = [
@@ -39,6 +56,7 @@ const categoryOptions: Array<SelectableValue<string>> = [
 ];
 
 export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) {
+  const isBuildHealth = buildHealthQueryTypes.includes(query.queryType);
   const entity = query.queryType === 'testDuration' ? 'tests' : 'builds';
 
   const [projects, setProjects] = useState<Array<SelectableValue<string>>>([]);
@@ -54,6 +72,9 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
 
   useEffect(() => {
     let active = true;
+    if (isBuildHealth) {
+      return;
+    }
     datasource
       .getDimensionValues(entity, 'scheme', query.projectHandle ?? '')
       .then((items) => {
@@ -69,12 +90,12 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     return () => {
       active = false;
     };
-  }, [datasource, entity, query.projectHandle]);
+  }, [datasource, entity, query.projectHandle, isBuildHealth]);
 
   useEffect(() => {
     let active = true;
     const load =
-      entity === 'builds' && query.projectHandle
+      !isBuildHealth && entity === 'builds' && query.projectHandle
         ? datasource.getDimensionValues('builds', 'configuration', query.projectHandle)
         : Promise.resolve<string[]>([]);
     load
@@ -91,7 +112,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     return () => {
       active = false;
     };
-  }, [datasource, entity, query.projectHandle]);
+  }, [datasource, entity, query.projectHandle, isBuildHealth]);
 
   const environment = query.environment ?? 'any';
 
@@ -103,81 +124,117 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   return (
     <>
       <InlineFieldRow>
-        <InlineField label="Metric" labelWidth={16}>
+        <InlineField label="Query" labelWidth={16}>
           <Select
             width={28}
-            options={queryTypeOptions}
+            options={[...queryTypeOptions, ...legacyQueryTypeOptions.filter((option) => option.value === query.queryType)]}
             value={query.queryType ?? 'buildDuration'}
-            onChange={(v) => update({ queryType: v.value })}
+            onChange={(v) => {
+              const switchingBuildSystem = Boolean(isBuildHealth) !== Boolean(v.value && buildHealthQueryTypes.includes(v.value));
+              update({
+                queryType: v.value,
+                ...(switchingBuildSystem
+                  ? {
+                      status: undefined,
+                      scheme: undefined,
+                      configuration: undefined,
+                      category: undefined,
+                      gitBranch: undefined,
+                      workload: undefined,
+                      metric: undefined,
+                      slowBuildThresholdMs: undefined,
+                    }
+                  : {}),
+              });
+            }}
           />
         </InlineField>
         <InlineField label="Project" labelWidth={16} grow>
           <Select
+            allowCustomValue
             options={projects}
-            value={query.projectHandle}
+            value={query.projectHandle ? { label: query.projectHandle, value: query.projectHandle } : undefined}
             placeholder="Select a project"
             onChange={(v) => update({ projectHandle: v.value })}
           />
         </InlineField>
       </InlineFieldRow>
 
-      <InlineFieldRow>
-        <InlineField label="Series" labelWidth={16} grow>
-          <MultiSelect
-            options={seriesOptions}
-            value={query.series ?? ['p50', 'p90', 'p99']}
-            onChange={(values) => update({ series: values.map((v) => v.value!).filter(Boolean) as TuistSeries[] })}
-          />
-        </InlineField>
-        <InlineField label="Environment" labelWidth={16}>
-          <RadioButtonGroup
-            options={environmentOptions}
-            value={environment}
-            onChange={(v) => update({ environment: v })}
-          />
-        </InlineField>
-      </InlineFieldRow>
+      {isBuildHealth ? (
+        <BuildHealthQueryOptions query={query} update={update} datasource={datasource} />
+      ) : (
+        <>
+          <InlineFieldRow>
+            <InlineField label="Result" labelWidth={16}>
+              <RadioButtonGroup
+                options={[
+                  { label: 'Time series', value: 'series' },
+                  { label: 'Whole period', value: 'total' },
+                ]}
+                value={query.resultMode ?? 'series'}
+                onChange={(v) => update({ resultMode: v === 'total' ? 'total' : 'series' })}
+              />
+            </InlineField>
+          </InlineFieldRow>
+          <InlineFieldRow>
+            <InlineField label="Series" labelWidth={16} grow>
+              <MultiSelect
+                options={seriesOptions}
+                value={query.series ?? ['p50', 'p90', 'p99']}
+                onChange={(values) => update({ series: values.map((v) => v.value!).filter(Boolean) as TuistSeries[] })}
+              />
+            </InlineField>
+            <InlineField label="Environment" labelWidth={16}>
+              <RadioButtonGroup
+                options={environmentOptions}
+                value={environment}
+                onChange={(v) => update({ environment: v })}
+              />
+            </InlineField>
+          </InlineFieldRow>
 
-      <InlineFieldRow>
-        <InlineField label="Scheme" labelWidth={16} grow>
-          <Select
-            isClearable
-            options={schemes}
-            value={query.scheme}
-            placeholder="All schemes"
-            onChange={(v) => update({ scheme: v?.value })}
-          />
-        </InlineField>
-        {entity === 'builds' && (
-          <InlineField label="Configuration" labelWidth={16} grow>
-            <Select
-              isClearable
-              options={configurations}
-              value={query.configuration}
-              placeholder="All configurations"
-              onChange={(v) => update({ configuration: v?.value })}
-            />
-          </InlineField>
-        )}
-      </InlineFieldRow>
+          <InlineFieldRow>
+            <InlineField label="Scheme" labelWidth={16} grow>
+              <Select
+                isClearable
+                options={schemes}
+                value={query.scheme}
+                placeholder="All schemes"
+                onChange={(v) => update({ scheme: v?.value })}
+              />
+            </InlineField>
+            {entity === 'builds' && (
+              <InlineField label="Configuration" labelWidth={16} grow>
+                <Select
+                  isClearable
+                  options={configurations}
+                  value={query.configuration}
+                  placeholder="All configurations"
+                  onChange={(v) => update({ configuration: v?.value })}
+                />
+              </InlineField>
+            )}
+          </InlineFieldRow>
 
-      {entity === 'builds' && (
-        <InlineFieldRow>
-          <InlineField label="Status" labelWidth={16}>
-            <RadioButtonGroup
-              options={statusOptions}
-              value={query.status ?? ''}
-              onChange={(v) => update({ status: v })}
-            />
-          </InlineField>
-          <InlineField label="Category" labelWidth={16}>
-            <RadioButtonGroup
-              options={categoryOptions}
-              value={query.category ?? ''}
-              onChange={(v) => update({ category: v })}
-            />
-          </InlineField>
-        </InlineFieldRow>
+          {entity === 'builds' && (
+            <InlineFieldRow>
+              <InlineField label="Status" labelWidth={16}>
+                <RadioButtonGroup
+                  options={statusOptions}
+                  value={query.status ?? ''}
+                  onChange={(v) => update({ status: v })}
+                />
+              </InlineField>
+              <InlineField label="Category" labelWidth={16}>
+                <RadioButtonGroup
+                  options={categoryOptions}
+                  value={query.category ?? ''}
+                  onChange={(v) => update({ category: v })}
+                />
+              </InlineField>
+            </InlineFieldRow>
+          )}
+        </>
       )}
     </>
   );

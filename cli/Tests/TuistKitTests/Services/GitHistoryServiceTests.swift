@@ -261,6 +261,60 @@ struct GitHistoryServiceTests {
     }
 
     @Test(.withMockedEnvironment())
+    func neverMovesTheBranchToAHeadTheHistoryDoesNotList() async throws {
+        // A re-run of a commit older than the window lists nothing; the server would take an
+        // unknown head as the branch's new one.
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let gitController = MockGitControlling()
+        given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
+        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController)
+            .gitHistory(workingDirectory: .any, headSHA: .any, baseBranch: .any, limits: .any)
+            .willReturn(
+                GitHistory(
+                    objectFormat: "sha1",
+                    headSHA: "old",
+                    baseBranch: nil,
+                    mergeBaseSHA: nil,
+                    commits: [],
+                    changedFiles: [],
+                    fallbackReason: "no base branch is known"
+                )
+            )
+        let subject = GitHistoryService(
+            gitController: gitController,
+            settingsService: settingsService,
+            missingCommitsService: missingCommitsService,
+            uploadCommitsService: uploadCommitsService,
+            missingListingsService: missingListingsService,
+            uploadListingService: uploadListingService
+        )
+        given(missingListingsService)
+            .findMissingCommitListings(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
+            .willReturn([])
+        let rerun = GitInfo(ref: "refs/heads/main", branch: "main", sha: "old", remoteURLOrigin: "git@github.com:acme/app.git")
+
+        let collected = await subject.collect(
+            gitInfo: rerun,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL
+        )
+        await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+
+        verify(uploadCommitsService)
+            .uploadCommits(
+                fullHandle: .any,
+                serverURL: .any,
+                repositoryURL: .any,
+                objectFormat: .any,
+                commits: .any,
+                branchHeads: .any
+            )
+            .called(0)
+    }
+
+    @Test(.withMockedEnvironment())
     func uploadsNothingWithoutARemote() async throws {
         Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)

@@ -36,18 +36,20 @@ defmodule TuistWeb.RunnersController do
             fleet_platform: fleet_platform
           } = dispatched} <-
            Runners.dispatch_for_sa(ns, sa_name) do
-      json(
-        conn,
-        dispatch_response(
-          credential,
+      response =
+        credential
+        |> dispatch_response(
           account,
           workflow_job_id,
           on_cluster_network,
           fleet_platform,
+          Map.get(dispatched, :fleet_site),
           Map.get(dispatched, :cache_signing_grant),
           Map.get(dispatched, :volume_head)
         )
-      )
+        |> Map.merge(setup_info_fields(credential, account, Map.get(dispatched, :runner_name)))
+
+      json(conn, response)
     else
       {:error, :no_work_yet} ->
         send_resp(conn, :no_content, "")
@@ -339,16 +341,17 @@ defmodule TuistWeb.RunnersController do
   #     in by `serve_claim`: can this fleet's runtime resolve and route
   #     `*.svc.cluster.local` at all (Linux kata Pods always; macOS
   #     Tart VMs only in environments that wired the tailnet route).
-  #   * locality — the fleet's platform, which
-  #     `runner_cache_endpoint_url/2` matches against the private
-  #     region's `runner_platforms`, so a node co-located with one
-  #     fleet never serves a fleet on the wrong side of a WAN.
+  #   * locality — the fleet's platform and site, which
+  #     `runner_cache_endpoint_url/3` matches against the private
+  #     region's `runner_platforms` and `site`, so a node co-located with
+  #     one fleet never serves a fleet on the wrong side of a WAN.
   defp dispatch_response(
          credential,
          account,
          workflow_job_id,
          fleet_on_cluster_network,
          fleet_platform,
+         fleet_site,
          cache_signing_grant,
          volume_head
        ) do
@@ -373,7 +376,7 @@ defmodule TuistWeb.RunnersController do
     with true <- fleet_on_cluster_network,
          true <- fleet_platform in [:linux, :macos],
          url when is_binary(url) and url != "" <-
-           Tuist.Kura.runner_cache_endpoint_url(account, fleet_platform) do
+           Tuist.Kura.runner_cache_endpoint_url(account, fleet_platform, fleet_site) do
       Map.put(base, :cache_endpoint_url, url)
     else
       _ -> base
@@ -404,6 +407,19 @@ defmodule TuistWeb.RunnersController do
       buildkite_report_token: credential.report_token
     }
   end
+
+  # Groups the GitHub runner prints in the job's "Set up job" step. The VM
+  # writes them verbatim to the runner's `.setup_info`, which the runner
+  # reads before it is given a job, so the link names the runner and the
+  # dashboard resolves it to whichever job GitHub placed there.
+  defp setup_info_fields(%{kind: :github}, account, runner_name) when is_binary(runner_name) and runner_name != "" do
+    job_url =
+      Tuist.Environment.app_url(path: "/#{account.name}/runners/by-runner/#{URI.encode_www_form(runner_name)}")
+
+    %{setup_info: [%{group: "Tuist Runner", detail: "Job details: #{job_url}"}]}
+  end
+
+  defp setup_info_fields(_credential, _account, _runner_name), do: %{}
 
   defp bearer_token(conn) do
     case Plug.Conn.get_req_header(conn, "authorization") do

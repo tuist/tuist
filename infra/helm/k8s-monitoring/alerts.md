@@ -5788,12 +5788,17 @@ sum by (cluster, namespace, result) (
 - Folder `Alerts`, group `Server`
 - Summary: `ClickHouse reads are failing with {{ $labels.result }} in {{ $labels.cluster }}`
 - `tuist_clickhouse_query_count` is emitted by `Tuist.ClickHouseRepo.PromExPlugin`
-  for every query the read-only ClickHouse repo runs. `result` is `ok`,
+  for reads against both physical Cloud and shadow ClickHouse repositories.
+  The `repo` label distinguishes `clickhouse_read` from
+  `clickhouse_shadow_read`; this rule aggregates both. Adding shadow event
+  coverage can surface failures that were previously unobserved, without a
+  threshold change. `result` is `ok`,
   `clickhouse_<code>` for an error ClickHouse returned (`clickhouse_159` is
-  `TIMEOUT_EXCEEDED`, which the repo's `max_execution_time` produces for a
+  `TIMEOUT_EXCEEDED`, which the Cloud repo's `max_execution_time` produces for a
   slow read; `clickhouse_241` the memory limit), `transport_closed` for a
   connection the client dropped, `queue_timeout` for a pool checkout that never
-  got a connection.
+  got a connection. The shadow repo does not configure `max_execution_time`:
+  a client timeout alone does not establish that its server-side query stopped.
 - The threshold is `> 0` on purpose, the same reasoning as the Kura
   NetworkPolicy rule above: the errors are rare enough that any magnitude floor
   would be tuned blind and hide a low-rate variant. Duration does the
@@ -5821,10 +5826,15 @@ histogram_quantile(
 - Severity: warning
 - Folder `Alerts`, group `Server`
 - Summary: `p90 ClickHouse read took over 5s for 10 minutes in {{ $labels.cluster }}`
-- Same histogram as the failures rule, all outcomes included so a query that
-  ran into its timeout counts as slow rather than disappearing from the
-  distribution. The repo stops a read at 15 s server-side and 20 s
-  client-side, so the histogram's top buckets are 15 000, 20 000 and 30 000.
+- Same histogram as the failures rule, aggregating Cloud and shadow physical
+  read repositories. Newly instrumented shadow reads can change the observed
+  p90 and make this rule fire. All outcomes are included so a query that ran
+  into its timeout counts as slow rather than disappearing from the distribution.
+  Cloud reads have a 15 s server-side limit and a 20 s client timeout. Shadow
+  reads do not configure a server-side execution limit and use the driver's
+  default 15 s client timeout; a client timeout does not guarantee server-side
+  cancellation. The histogram's top finite buckets are 15 000, 20 000 and
+  30 000; longer observations fall into `+Inf`.
 - This is the rule that covers dashboard pages. They are LiveViews: the
   initial render returns in milliseconds and the data is loaded afterwards
   over the socket, so the HTTP request duration rules stay flat while a page

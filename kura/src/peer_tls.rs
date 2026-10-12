@@ -464,6 +464,7 @@ mod tests {
 
         let private_url = format!("https://localhost:{}", addr.port());
         let topology = crate::peer_topology::PeerTopology {
+            canonical_networks: Vec::new(),
             provider: "ovh".into(),
             private_network: Some("verified-vrack".into()),
             private_url: Some(private_url.clone()),

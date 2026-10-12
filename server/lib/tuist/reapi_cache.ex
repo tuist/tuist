@@ -3,6 +3,7 @@ defmodule Tuist.ReapiCache do
 
   import Ecto.Query
 
+  alias Tuist.Bazel.CacheActionNames
   alias Tuist.Bazel.Invocation
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
@@ -40,6 +41,7 @@ defmodule Tuist.ReapiCache do
           duration_us: duration_us(event),
           invocation_id: event.invocation_id,
           action_mnemonic: event.action_mnemonic,
+          output_path: output_path(event),
           target_label: event.target_label,
           configuration_id: event.configuration_id,
           project_id: event.project_id,
@@ -56,6 +58,13 @@ defmodule Tuist.ReapiCache do
       entries,
       DedupToken.insert_all_opts(events, "reapi-cache-events")
     )
+  end
+
+  defp output_path(event) do
+    case Map.get(event, :output_path) do
+      path when is_binary(path) and byte_size(path) <= 1024 -> path
+      _ -> ""
+    end
   end
 
   defp duration_us(event) do
@@ -456,6 +465,7 @@ defmodule Tuist.ReapiCache do
   def list_invocation_cache_events(project_id, invocation_id, flop_params \\ %{}, options \\ []) do
     project_id
     |> invocation_cache_event_query(invocation_id, options)
+    |> CacheActionNames.query(project_id, invocation_id)
     |> ClickHouseFlop.validate_and_run!(flop_params, for: CacheEvent)
   end
 

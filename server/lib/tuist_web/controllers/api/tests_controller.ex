@@ -14,6 +14,7 @@ defmodule TuistWeb.API.TestsController do
   alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
+  alias TuistWeb.API.Schemas.Tests.Coverage, as: CoverageSchema
   alias TuistWeb.API.Schemas.Tests.StressNewTestsResult
   alias TuistWeb.API.Schemas.Tests.Test
   alias TuistWeb.API.Schemas.Tests.XcodeCoverage
@@ -386,7 +387,8 @@ defmodule TuistWeb.API.TestsController do
            skip_test_identifiers: %Schema{
              type: :array,
              items: %Schema{type: :string},
-             description: "The tests the caller asked this run to exclude."
+             description:
+               "The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran."
            },
            shard_index: %Schema{
              type: :integer,
@@ -405,34 +407,6 @@ defmodule TuistWeb.API.TestsController do
              enum: ["parallel", "serial"],
              description:
                "Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown."
-           },
-           enumerated_tests: %Schema{
-             type: :array,
-             maxItems: 500_000,
-             description:
-               "The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.",
-             items: %Schema{
-               type: :object,
-               properties: %{
-                 module: %Schema{type: :string, description: "The test target."},
-                 suite: %Schema{
-                   type: :string,
-                   description:
-                     "The suite that declares the test, the innermost one when suites nest; empty outside any suite."
-                 },
-                 name: %Schema{type: :string, description: "The test's name as the run reports it, `testExample()`."},
-                 function: %Schema{
-                   type: :string,
-                   description:
-                     "The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test(\"…\")`)."
-                 },
-                 enabled: %Schema{
-                   type: :boolean,
-                   description: "False when the scheme or the test plan disables the test."
-                 }
-               },
-               required: [:module, :name]
-             }
            },
            coverage_evidence: %Schema{
              type: :object,
@@ -496,6 +470,7 @@ defmodule TuistWeb.API.TestsController do
              },
              required: [:paths, :scopes]
            },
+           coverage: CoverageSchema,
            xcode_coverage: XcodeCoverage,
            xcode_coverage_storage_key: %Schema{
              type: :string,
@@ -845,7 +820,7 @@ defmodule TuistWeb.API.TestsController do
       {:error, :invalid_coverage_storage_key} ->
         conn
         |> put_status(:bad_request)
-        |> json(%{message: "xcode_coverage_storage_key must be the key createCoverageUpload returned for this run's id"})
+        |> json(%{message: "The coverage storage key must be the key createCoverageUpload returned for this run's id"})
 
       {:error, _changeset} ->
         conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
@@ -1026,14 +1001,14 @@ defmodule TuistWeb.API.TestsController do
 
   # An uploaded coverage file is only ever read back under the run's own key
   # (`Tuist.Tests.Coverage.storage_key/2`), so a run cannot point at another's.
+  # Every key the request names is checked: either one may be the one read.
   defp validate_coverage_storage_key(params, test_id) do
-    case Map.get(params, :xcode_coverage_storage_key) do
-      nil ->
-        :ok
+    own = Coverage.storage_key(params.project, test_id)
 
-      key ->
-        if key == Coverage.storage_key(params.project, test_id), do: :ok, else: {:error, :invalid_coverage_storage_key}
-    end
+    [Map.get(params, :xcode_coverage_storage_key), Map.get(Map.get(params, :coverage) || %{}, :storage_key)]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.all?(&(&1 == own))
+    |> if(do: :ok, else: {:error, :invalid_coverage_storage_key})
   end
 
   defp get_or_create_test(params, test_id) do
@@ -1085,8 +1060,8 @@ defmodule TuistWeb.API.TestsController do
           only_test_identifiers: Map.get(params, :only_test_identifiers, []),
           skip_test_identifiers: Map.get(params, :skip_test_identifiers, []),
           stress_new_tests: Map.get(params, :stress_new_tests),
-          enumerated_tests: Map.get(params, :enumerated_tests),
           coverage_evidence: Map.get(params, :coverage_evidence),
+          coverage: Map.get(params, :coverage),
           xcode_coverage: Map.get(params, :xcode_coverage),
           xcode_coverage_storage_key: Map.get(params, :xcode_coverage_storage_key),
           xcode_coverage_partial: Map.get(params, :xcode_coverage_partial)

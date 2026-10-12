@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Path
 import Testing
 import TSCUtility
 import TuistEnvironment
@@ -406,6 +407,129 @@ struct GitControllerTests {
         #expect(gitInfo.pullRequestNumber == nil)
     }
 
+    @Test func ciBuildParameters_parse_reads_javas_xml_properties_format() throws {
+        let properties = try #require(CIBuildParameters.parse(Data(
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+            <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+            <properties>
+            <comment>TeamCity configuration parameters</comment>
+            <entry key="vcsroot.url">https://github.example.com/org/repo.git</entry>
+            <entry key="path">C:\\agent\\temp\\config.parameters</entry>
+            <entry key="escaped">a &lt;b&gt; &amp; &quot;c&quot;</entry>
+            <entry key="unicode">café 😀</entry>
+            <entry key="empty"/>
+            </properties>
+            """.utf8
+        )))
+
+        #expect(properties["vcsroot.url"] == "https://github.example.com/org/repo.git")
+        #expect(properties["path"] == "C:\\agent\\temp\\config.parameters")
+        #expect(properties["escaped"] == "a <b> & \"c\"")
+        #expect(properties["unicode"] == "café 😀")
+        #expect(properties["empty"] == "")
+        #expect(properties.count == 5)
+        #expect(CIBuildParameters.parse(Data("<properties><entry key=".utf8)) == nil)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_builds_a_pull_request() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(
+            at: path,
+            configuration: [
+                "teamcity.build.branch": "pull/42",
+                "teamcity.pullRequest.number": "42",
+                "teamcity.pullRequest.source.branch": "refs/heads/feature",
+                "teamcity.pullRequest.target.branch": "refs/heads/master",
+            ]
+        )
+        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse"])
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == "refs/pull/42/merge")
+        #expect(gitInfo.pullRequestNumber == 42)
+        #expect(gitInfo.branch == "feature")
+        #expect(gitInfo.baseBranch == "master")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_builds_a_branch() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(at: path, configuration: ["teamcity.build.branch": "master"])
+        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse"])
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == nil)
+        #expect(gitInfo.pullRequestNumber == nil)
+        #expect(gitInfo.branch == "master")
+        #expect(gitInfo.baseBranch == nil)
+    }
+
+    /// Without a branch specification naming it, TeamCity calls the default branch `<default>`.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_builds_the_default_branch_without_a_name() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(at: path, configuration: ["teamcity.build.branch": "<default>"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD"], output: "master-sha\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "branch", "--show-current"], output: "master\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "")
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.branch == "master")
+    }
+
+    /// Writes the parameter files a TeamCity agent writes for a build, in the XML format it writes
+    /// next to the `.properties` ones, and points the environment at them.
+    private func mockTeamCity(at path: AbsolutePath, configuration: [String: String]) async throws {
+        let buildParameters = path.appending(component: "teamcity.build.parameters")
+        let configurationParameters = path.appending(component: "teamcity.config.parameters")
+        try await writeJavaXMLProperties(
+            ["teamcity.configuration.properties.file": configurationParameters.pathString],
+            to: buildParameters
+        )
+        try await writeJavaXMLProperties(configuration, to: configurationParameters)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "TEAMCITY_VERSION": "2025.07 (build 197242)",
+            "TEAMCITY_BUILD_PROPERTIES_FILE": buildParameters.pathString,
+            "BUILD_NUMBER": "1234",
+        ]
+    }
+
+    private func writeJavaXMLProperties(_ properties: [String: String], to path: AbsolutePath) async throws {
+        let escape = { (string: String) in
+            string.replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+                .replacingOccurrences(of: "\"", with: "&quot;")
+        }
+        let entries = properties.sorted { $0.key < $1.key }
+            .map { "<entry key=\"\(escape($0.key))\">\(escape($0.value))</entry>" }
+        try await FileSystem().writeText(
+            ([
+                #"<?xml version="1.0" encoding="UTF-8" standalone="no"?>"#,
+                #"<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">"#,
+                "<properties>",
+            ] + entries + ["</properties>"]).joined(separator: "\n"),
+            at: path.parentDirectory.appending(component: path.basename + ".xml")
+        )
+    }
+
     @Test func parseCommits_reads_sha_parents_and_time() {
         let commits = GitHistoryParser.parseCommits("head mid 1700000000\nmid base other 1600000000\nroot 1500000000\nbad\n")
 
@@ -691,8 +815,84 @@ struct GitControllerTests {
         ]))
     }
 
-    @Test(.inTemporaryDirectory) func gitHistory_leaves_out_a_shallow_clones_boundary_commits() async throws {
-        // `git log` lists a shallow clone's boundary commit with no parents, which it has.
+    @Test(.inTemporaryDirectory) func gitHistory_reads_a_shallow_clones_boundary_parents_from_the_commit_objects() async throws {
+        // `git log` lists a shallow clone's boundary commits with no parents, which they have.
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
+        try await FileSystem().writeText("boundary\nside\n", at: path.appending(components: ".git", "shallow"))
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
+            output: "head mid side 1700000200\nmid boundary 1700000100\nside  1700000050\nboundary  1700000000\n"
+        )
+        commandRunner.succeedCommand(
+            git + ["log", "--no-walk", "--no-decorate", "--format=raw", "side", "boundary"],
+            output: """
+            commit side
+            tree t
+            parent fork
+            author A <a@tuist.dev> 1700000050 +0000
+            committer A <a@tuist.dev> 1700000050 +0000
+            gpgsig -----BEGIN PGP SIGNATURE-----
+             parent signature
+             -----END PGP SIGNATURE-----
+
+                parent message
+
+            commit boundary
+            tree t
+            parent outside
+            parent other
+            author A <a@tuist.dev> 1700000000 +0000
+            committer A <a@tuist.dev> 1700000000 +0000
+
+                merge
+
+            """
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path, headSHA: "head", baseBranch: nil, limits: GitHistoryLimits()
+        )
+
+        #expect(history.commits.map(\.sha) == ["head", "mid", "side", "boundary"])
+        #expect(history.commits.map(\.parents) == [["mid", "side"], ["boundary"], ["fork"], ["outside", "other"]])
+        #expect(history.commits.map(\.committedAt.timeIntervalSince1970) == [
+            1_700_000_200,
+            1_700_000_100,
+            1_700_000_050,
+            1_700_000_000,
+        ])
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_keeps_a_depth_one_clones_head_with_its_parent() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
+        try await FileSystem().writeText("head\n", at: path.appending(components: ".git", "shallow"))
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
+            output: "head  1700000000\n"
+        )
+        commandRunner.succeedCommand(
+            git + ["log", "--no-walk", "--no-decorate", "--format=raw", "head"],
+            output: "commit head (grafted, HEAD -> main)\ntree t\nparent previous\nauthor A <a@tuist.dev> 1700000000 +0000\n\n    message\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path, headSHA: "head", baseBranch: nil, limits: GitHistoryLimits()
+        )
+
+        #expect(history.commits == [
+            GitHistoryCommit(sha: "head", parents: ["previous"], committedAt: Date(timeIntervalSince1970: 1_700_000_000)),
+        ])
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_leaves_out_boundary_commits_whose_parents_cannot_be_read() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
         try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
@@ -701,15 +901,15 @@ struct GitControllerTests {
         commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
         commandRunner.succeedCommand(
             git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
-            output: "head mid 1700000200\nmid boundary 1700000100\nboundary  1700000000\n"
+            output: "head boundary 1700000100\nboundary  1700000000\n"
         )
+        commandRunner.errorCommand(git + ["log", "--no-walk", "--no-decorate", "--format=raw", "boundary"])
 
         let history = try await subject.gitHistory(
             workingDirectory: path, headSHA: "head", baseBranch: nil, limits: GitHistoryLimits()
         )
 
-        #expect(history.commits.map(\.sha) == ["head", "mid"])
-        #expect(history.commits.map(\.parents) == [["mid"], ["boundary"]])
+        #expect(history.commits.map(\.sha) == ["head"])
     }
 
     /// A remote that stops answering leaves `git fetch` waiting forever. The stand-in's fetch

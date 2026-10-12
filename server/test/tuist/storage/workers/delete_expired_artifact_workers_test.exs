@@ -332,13 +332,13 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
       expired_run =
         command_event_fixture(
           project_id: project.id,
-          ran_at: DateTime.add(DateTime.utc_now(), -31, :day)
+          ran_at: DateTime.add(DateTime.utc_now(), -8, :day)
         )
 
       recent_run =
         command_event_fixture(
           project_id: project.id,
-          ran_at: DateTime.add(DateTime.utc_now(), -29, :day)
+          ran_at: DateTime.add(DateTime.utc_now(), -6, :day)
         )
 
       project = %{project | account: account}

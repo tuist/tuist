@@ -1448,3 +1448,87 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Server updated."
 msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:319
+#, elixir-autogen, elixir-format
+msgid "Delete server?"
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:331
+#, elixir-autogen, elixir-format
+msgid "Deleting this server permanently removes all saved user connections. This action cannot be undone."
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:345
+#, elixir-autogen, elixir-format
+msgid "Enter the server's name to confirm"
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:488
+#, elixir-autogen, elixir-format
+msgid "Expired %{datetime}"
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:472
+#, elixir-autogen, elixir-format
+msgid "Reconnect required"
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:320
+#, elixir-autogen, elixir-format
+msgid "Remove this upstream server from Atlas."
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:413
+#, elixir-autogen, elixir-format
+msgid "Server actions"
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:168
+#, elixir-autogen, elixir-format
+msgid "Server name does not match."
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Demo"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Docs"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:47
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:84
+#, elixir-autogen, elixir-format
+msgid "Explore Atlas"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:64
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:90
+#, elixir-autogen, elixir-format
+msgid "Finance"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:19
+#, elixir-autogen, elixir-format
+msgid "Fictional data. Read-only."
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:36
+#, elixir-autogen, elixir-format
+msgid "Self-host Atlas"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:58
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:89
+#, elixir-autogen, elixir-format
+msgid "Tasks"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:70
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:91
+#, elixir-autogen, elixir-format
+msgid "Vendor costs"
+msgstr ""

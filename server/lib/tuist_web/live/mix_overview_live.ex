@@ -12,6 +12,7 @@ defmodule TuistWeb.MixOverviewLive do
   alias Tuist.Tests
   alias Tuist.Tests.Analytics, as: TestsAnalytics
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.PublicOverviewCache
   alias TuistWeb.Utilities.Query
 
   @doc """
@@ -48,25 +49,25 @@ defmodule TuistWeb.MixOverviewLive do
       builds_environment: builds_environment,
       builds_environment_label: environment_label(builds_environment)
     )
-    |> assign_async(:build_duration_analytics, fn ->
+    |> PublicOverviewCache.assign_async(:build_duration_analytics, fn ->
       {:ok, %{build_duration_analytics: BuildAnalytics.build_duration_analytics(project.id, analytics_opts)}}
     end)
-    |> assign_async(:test_duration_analytics, fn ->
+    |> PublicOverviewCache.assign_async(:test_duration_analytics, fn ->
       {:ok,
        %{
          test_duration_analytics:
            TestsAnalytics.test_run_duration_analytics(project.id, Keyword.delete(analytics_opts, :schema))
        }}
     end)
-    |> assign_async(
+    |> PublicOverviewCache.assign_async(
       [:recent_test_runs, :failed_test_runs_count, :passed_test_runs_count],
       fn -> fetch_test_runs_data(project) end
     )
-    |> assign_async(
+    |> PublicOverviewCache.assign_async(
       [:recent_build_runs, :successful_builds_count, :failed_builds_count],
       fn -> fetch_build_runs_data(project) end
     )
-    |> assign_async(:builds_duration_analytics, fn ->
+    |> PublicOverviewCache.assign_async(:builds_duration_analytics, fn ->
       {:ok, %{builds_duration_analytics: BuildAnalytics.build_duration_analytics(project.id, builds_opts)}}
     end)
   end

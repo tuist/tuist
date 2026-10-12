@@ -90,6 +90,18 @@ defmodule TuistWeb.IntegrationsLiveTest do
     html = render_click(lv, "select-github-enterprise")
     assert html =~ "Server URL"
     assert html =~ "Organization"
+    assert has_element?(lv, "#github-client-url[required]")
+
+    assert has_element?(
+             lv,
+             "#github-enterprise-registration-form > .noora-text-input:first-child [data-part=required-indicator]",
+             "*"
+           )
+
+    refute has_element?(lv, "#github-api-url[required]")
+    refute html =~ "API URL (optional)"
+    assert has_element?(lv, "#github-api-url-hint", "Leave empty to use the Server URL followed by /api/v3.")
+    refute has_element?(lv, "#github-enterprise-registration-form > .noora-text-input:nth-child(2) > .noora-hint-text")
   end
 
   test "shows a validation error and disables the install button for malformed URLs", %{
@@ -156,6 +168,67 @@ defmodule TuistWeb.IntegrationsLiveTest do
       |> render_change()
 
     assert html =~ "Use a GitHub Enterprise Server URL"
+  end
+
+  test "carries a separate API URL in the signed registration link", %{conn: conn, organization: organization} do
+    {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+    render_click(lv, "select-github-enterprise")
+    assert has_element?(lv, "#github-api-url")
+
+    html =
+      lv
+      |> form("form[phx-change=update-github-client-url]", %{
+        "github_client_url" => "https://github.internal.example.com",
+        "github_api_url" => "  https://proxy.example.com/api/v3/  "
+      })
+      |> render_change()
+
+    assert has_element?(lv, "a", "Install GitHub App")
+    assert [_, url] = Regex.run(~r/href="([^"]*\/integrations\/github\/manifest\/start[^\"]*)"/, html)
+    token = url |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query() |> Map.fetch!("state")
+
+    assert {:ok, %{client_url: "https://github.internal.example.com", api_url: "https://proxy.example.com/api/v3"}} =
+             VCS.verify_github_state_token(token)
+  end
+
+  test "invalid API URLs disable installation but an empty override is allowed", %{conn: conn, organization: organization} do
+    {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+    render_click(lv, "select-github-enterprise")
+
+    for value <- ["invalid", "https://proxy.example.com/api/v3?token=secret", "https://u:p@proxy.example.com/api/v3"] do
+      html =
+        lv
+        |> form("form[phx-change=update-github-client-url]", %{
+          "github_client_url" => "https://github.internal.example.com",
+          "github_api_url" => value
+        })
+        |> render_change()
+
+      assert html =~ "Invalid URL"
+      assert has_element?(lv, "button[disabled]", "Install GitHub App")
+    end
+
+    lv |> form("form[phx-change=update-github-client-url]", %{"github_api_url" => ""}) |> render_change()
+    assert has_element?(lv, "a", "Install GitHub App")
+  end
+
+  test "switching tabs clears the API URL and any errors", %{conn: conn, organization: organization} do
+    {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+    render_click(lv, "select-github-enterprise")
+
+    lv
+    |> form("form[phx-change=update-github-client-url]", %{
+      "github_client_url" => "https://github.internal.example.com",
+      "github_api_url" => "invalid"
+    })
+    |> render_change()
+
+    render_click(lv, "select-github-com")
+    refute has_element?(lv, "#github-api-url")
+    assert has_element?(lv, "a", "Install GitHub App")
+    html = render_click(lv, "select-github-enterprise")
+    assert has_element?(lv, "#github-api-url[value='']")
+    refute html =~ "Invalid URL"
   end
 
   test "passes the optional GitHub organization to the manifest flow", %{
@@ -319,6 +392,145 @@ defmodule TuistWeb.IntegrationsLiveTest do
     end
   end
 
+  test "updates and clears an existing Enterprise API URL without replacing the App or project connections", %{
+    conn: conn,
+    organization: organization,
+    account: account,
+    project: project
+  } do
+    installation =
+      VCSFixtures.github_app_installation_fixture(
+        account_id: account.id,
+        client_url: "https://github.internal.example.com",
+        api_url: "https://old-proxy.example.com/api/v3",
+        app_id: "42",
+        private_key: "pem",
+        webhook_secret: "secret"
+      )
+
+    {:ok, connection} =
+      Tuist.Projects.create_vcs_connection(%{
+        project_id: project.id,
+        provider: :github,
+        repository_full_handle: "org/repo",
+        github_app_installation_id: installation.id
+      })
+
+    stub(VCS, :get_github_app_installation_repositories, fn _ -> {:ok, []} end)
+    {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+
+    assert has_element?(
+             lv,
+             "[data-part=github-card-section] > [data-part=header] > [data-part=title]",
+             "GitHub Enterprise Server"
+           )
+
+    assert has_element?(lv, "#github-client-url[readonly][value='https://github.internal.example.com']")
+    assert has_element?(lv, "#github-api-url-form > .noora-text-input:first-child [data-part=label]", "Server URL")
+    assert has_element?(lv, "#github-api-url[value='https://old-proxy.example.com/api/v3']")
+    refute has_element?(lv, "#github-api-url[required]")
+    refute render(lv) =~ "API URL (optional)"
+    assert has_element?(lv, "#github-api-url-hint", "Leave empty to use the Server URL followed by /api/v3.")
+    assert has_element?(lv, "#github-api-url-hint [data-part=trigger][tabindex='0']")
+    refute has_element?(lv, "#github-api-url-form > .noora-text-input:nth-child(2) > .noora-hint-text")
+
+    lv
+    |> form("form[phx-submit=save-github-api-url]", %{"github_api_url" => "https://new-proxy.example.com/api/v3/"})
+    |> render_submit()
+
+    assert {:ok, updated} = VCS.get_github_app_installation_for_account(account.id)
+    assert updated.api_url == "https://new-proxy.example.com/api/v3"
+    assert updated.id == installation.id
+    assert updated.client_url == installation.client_url
+    assert updated.installation_id == installation.installation_id
+    assert updated.private_key == installation.private_key
+    assert updated.webhook_secret == installation.webhook_secret
+    assert {:ok, ^connection} = Tuist.Projects.get_vcs_connection(connection.id)
+
+    lv |> form("form[phx-submit=save-github-api-url]", %{"github_api_url" => ""}) |> render_submit()
+    assert {:ok, cleared} = VCS.get_github_app_installation_for_account(account.id)
+    assert cleared.api_url == nil
+    assert cleared.id == installation.id
+    assert cleared.client_url == installation.client_url
+    assert VCS.installation_api_url(cleared) == "https://github.internal.example.com/api/v3"
+    assert has_element?(lv, "#github-client-url[readonly][value='https://github.internal.example.com']")
+  end
+
+  test "identifies an existing Enterprise instance without an API override", %{
+    conn: conn,
+    organization: organization,
+    account: account
+  } do
+    VCSFixtures.github_app_installation_fixture(account_id: account.id, client_url: "https://github.internal.example.com")
+    stub(VCS, :get_github_app_installation_repositories, fn _ -> {:ok, []} end)
+    {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+
+    assert has_element?(
+             lv,
+             "[data-part=github-card-section] > [data-part=header] > [data-part=title]",
+             "GitHub Enterprise Server"
+           )
+
+    assert has_element?(lv, "#github-client-url[readonly][value='https://github.internal.example.com']")
+    assert has_element?(lv, "#github-api-url[value='']")
+  end
+
+  test "rejects invalid API updates even when submitted without client-side validation", %{
+    conn: conn,
+    organization: organization,
+    account: account
+  } do
+    installation =
+      VCSFixtures.github_app_installation_fixture(
+        account_id: account.id,
+        client_url: "https://github.internal.example.com",
+        api_url: "https://proxy.example.com/api/v3"
+      )
+
+    stub(VCS, :get_github_app_installation_repositories, fn _ -> {:ok, []} end)
+    {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+
+    html =
+      lv
+      |> form("form[phx-submit=save-github-api-url]", %{"github_api_url" => "https://api.github.com"})
+      |> render_submit()
+
+    assert html =~ "Invalid URL"
+    assert {:ok, unchanged} = VCS.get_github_app_installation_for_account(account.id)
+    assert unchanged.api_url == installation.api_url
+  end
+
+  test "cannot update another account's API URL through a forged installation ID", %{
+    conn: conn,
+    organization: organization,
+    account: account
+  } do
+    own = VCSFixtures.github_app_installation_fixture(account_id: account.id, client_url: "https://own.example.com")
+
+    other =
+      VCSFixtures.github_app_installation_fixture(
+        client_url: "https://other.example.com",
+        api_url: "https://other-proxy.example.com/api/v3"
+      )
+
+    stub(VCS, :get_github_app_installation_repositories, fn _ -> {:ok, []} end)
+    {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+
+    render_hook(lv, "save-github-api-url", %{
+      "id" => other.id,
+      "github_client_url" => "https://spoofed.example.com",
+      "github_api_url" => "https://new-proxy.example.com/api/v3"
+    })
+
+    assert {:ok, own_updated} = VCS.get_github_app_installation_for_account(account.id)
+    assert own_updated.id == own.id
+    assert own_updated.client_url == own.client_url
+    assert has_element?(lv, "#github-client-url[readonly][value='https://own.example.com']")
+    assert own_updated.api_url == "https://new-proxy.example.com/api/v3"
+    assert {:ok, other_unchanged} = VCS.get_github_app_installation_for_account(other.account_id)
+    assert other_unchanged.api_url == other.api_url
+  end
+
   test "shows GitHub repositories when GitHub app is installed", %{
     conn: conn,
     organization: organization,
@@ -333,6 +545,8 @@ defmodule TuistWeb.IntegrationsLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     assert has_element?(lv, "button", "Add new project connection")
+    assert has_element?(lv, "[data-part=github-card-section] > [data-part=header] > [data-part=title]", "GitHub")
+    refute has_element?(lv, "#github-client-url")
 
     html = render_async(lv)
     assert html =~ "test-org/test-repo"

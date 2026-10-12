@@ -293,7 +293,7 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       CoverageFixtures.seed_history(account, commits, branch_heads: [{"main", "c2"}])
 
       run(project, account, %{git_commit_sha: "c0"}, [1, 0, 0, 0])
-      # A selective run whose skipped tests nothing listed: its figure is incomplete.
+      # A selective run nothing says the skips of: its figure is incomplete.
       run(project, account, %{git_commit_sha: "c1", partial: true}, [0, 0, 0, 0])
       run(project, account, %{git_commit_sha: "c2"}, [1, 1, 0, 0])
       for sha <- ~w(c0 c1 c2), do: Commits.signal_complete(project, sha)
@@ -305,6 +305,16 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
 
       page = History.commit_cursor_page(project, "main")
       assert Enum.map(page.commits, &{&1.git_commit_sha, &1.change}) == [{"c2", 25.0}, {"c1", nil}, {"c0", nil}]
+      assert Enum.map(page.commits, &Commits.status/1) == [:complete, :incomplete, :complete]
+
+      assert Enum.map(History.commit_cursor_page(project, "main", status: "incomplete").commits, & &1.git_commit_sha) == [
+               "c1"
+             ]
+
+      assert Enum.map(History.commit_cursor_page(project, "main", status: "complete").commits, & &1.git_commit_sha) == [
+               "c2",
+               "c0"
+             ]
     end
   end
 

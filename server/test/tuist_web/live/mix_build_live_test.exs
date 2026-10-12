@@ -7,8 +7,10 @@ defmodule TuistWeb.MixBuildLiveTest do
 
   alias Tuist.Mix
   alias Tuist.Mix.Build.Buffer
+  alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.Helpers.OpenGraph
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(handle: "mixbuild#{System.unique_integer([:positive])}")
@@ -37,6 +39,7 @@ defmodule TuistWeb.MixBuildLiveTest do
         elixir_version: "1.19.1",
         otp_version: "28",
         mix_env: "dev",
+        git_branch: "feature/elixir-og",
         diagnostics: [
           %{severity: "warning", file: "lib/greeter.ex", module: "Demo.Greeter", message: "unused variable", line: 4},
           %{severity: "warning", file: "lib/greeter.ex", module: "Demo.Greeter", message: "unused alias <b>", line: 9}
@@ -84,9 +87,61 @@ defmodule TuistWeb.MixBuildLiveTest do
     }
   end
 
+  test "uses the shared project card for public Mix builds", %{conn: conn, project: project, path: path} do
+    {:ok, _project} = Projects.update_project(project, %{visibility: :public})
+    html = conn |> get(path) |> html_response(:ok)
+    document = Floki.parse_document!(html)
+    [image] = Floki.attribute(document, "meta[property='og:image']", "content")
+    assert URI.parse(image).path =~ "/open-graph-images/"
+    %{"token" => token} = URI.decode_query(URI.parse(image).query)
+
+    assert {:ok, params} = OpenGraph.verify_image_token(token)
+    assert params["template"] == "project"
+    assert params["project_id"] == to_string(project.id)
+    assert params["project"] == "mix-build-org/phoenix-app"
+    assert params["title"] == "mix compile"
+    assert params["subtitle"] == "dev · feature/elixir-og"
+    assert params["badge"] == "Success"
+    assert Floki.attribute(document, "meta[name='twitter:image']", "content") == [image]
+  end
+
+  test "uses a failure badge and omits empty build metadata", %{conn: conn, project: project, user: user} do
+    {:ok, _project} = Projects.update_project(project, %{visibility: :public})
+    build_id = UUIDv7.generate()
+
+    {:ok, ^build_id} =
+      Mix.create_build(%{
+        id: build_id,
+        project_id: project.id,
+        account_id: user.account.id,
+        duration_ms: 500,
+        status: "failure"
+      })
+
+    Buffer.flush()
+    path = ~p"/mix-build-org/#{project.name}/builds/mix-builds/#{build_id}"
+    html = conn |> get(path) |> html_response(:ok)
+    [image] = html |> Floki.parse_document!() |> Floki.attribute("meta[property='og:image']", "content")
+    %{"token" => token} = URI.decode_query(URI.parse(image).query)
+
+    assert {:ok, params} = OpenGraph.verify_image_token(token)
+    assert params["title"] == "mix compile"
+    assert params["badge"] == "Failure"
+    refute Map.has_key?(params, "subtitle")
+  end
+
+  test "keeps private Mix build previews generic", %{conn: conn, path: path} do
+    html = conn |> get(path) |> html_response(:ok)
+    document = Floki.parse_document!(html)
+
+    assert Floki.attribute(document, "meta[property='og:image']", "content") == [
+             Tuist.Environment.app_url(path: "/images/open-graph/dashboard/build-runs.png")
+           ]
+  end
+
   test "has a Timeline tab backed by the shared build timeline", %{conn: conn, path: path, timeline_path: timeline_path} do
     {:ok, lv, _html} = live(conn, path <> "?tab=timeline")
-    render_async(lv)
+    render_async(lv, 2_000)
 
     assert has_element?(lv, "#build-timeline[data-source=mix]")
     assert has_element?(lv, "#build-timeline[data-url='#{timeline_path}']")

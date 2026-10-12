@@ -532,6 +532,12 @@ defmodule Atlas.Inference do
       {"role", value}, message when is_binary(value) ->
         Map.put(message, "role", value)
 
+      {"tool_calls", calls}, message when is_list(calls) ->
+        Map.update(message, "tool_calls", merge_streamed_tool_calls([], calls), &merge_streamed_tool_calls(&1, calls))
+
+      {"function_call", call}, message when is_map(call) ->
+        Map.update(message, "function_call", call, &merge_streamed_function_call(&1, call))
+
       {key, value}, message when not is_nil(value) ->
         Map.put(message, key, value)
 
@@ -542,6 +548,44 @@ defmodule Atlas.Inference do
 
   defp merge_streamed_message(message, _delta), do: message
 
+  # Tool arguments arrive in fragments, often without the id/name from the first delta.
+  # Keep each call's index until the completion is built so parallel calls cannot overwrite one another.
+  defp merge_streamed_tool_calls(existing, deltas) do
+    calls = Map.new(existing, &{&1["index"], &1})
+
+    deltas
+    |> Enum.reduce(calls, fn %{"index" => index} = delta, calls ->
+      Map.put(calls, index, merge_streamed_function_call(Map.get(calls, index, %{}), delta))
+    end)
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.map(&elem(&1, 1))
+  end
+
+  defp merge_streamed_function_call(existing, delta) do
+    Enum.reduce(delta, existing, fn
+      {_key, nil}, call ->
+        call
+
+      {"function", function}, call when is_map(function) ->
+        Map.put(call, "function", merge_streamed_function_call(Map.get(call, "function", %{}), function))
+
+      {key, fragment}, call when key in ["id", "name", "arguments"] and is_binary(fragment) ->
+        Map.update(call, key, fragment, &((&1 || "") <> fragment))
+
+      {key, value}, call ->
+        Map.put(call, key, value)
+    end)
+  end
+
+  defp finalize_streamed_choice(choice) do
+    update_in(choice, ["message"], fn message ->
+      case message do
+        %{"tool_calls" => calls} -> Map.put(message, "tool_calls", Enum.map(calls, &Map.delete(&1, "index")))
+        _ -> message
+      end
+    end)
+  end
+
   defp put_choice_value(choice, payload, key) do
     case Map.get(payload, key) do
       nil -> choice
@@ -551,7 +595,7 @@ defmodule Atlas.Inference do
 
   defp build_streamed_completion(response, %{id: id, created: created, model: model, choices: choices} = completion)
        when is_binary(id) and is_integer(created) and is_binary(model) do
-    choices = choices |> Map.values() |> Enum.sort_by(& &1["index"])
+    choices = choices |> Map.values() |> Enum.sort_by(& &1["index"]) |> Enum.map(&finalize_streamed_choice/1)
 
     if choices == [] do
       {:error, :invalid_streamed_completion}

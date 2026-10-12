@@ -1406,6 +1406,44 @@ defmodule Tuist.KuraTest do
     # private region that omits `data_plane` would fall back to.
   end
 
+  describe "runner_cache_endpoint_url/3 site routing" do
+    setup do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-west", "scw-fr-par-runners", "ber1-runners"]
+      end)
+
+      stub(Provisioner, :external_endpoint, fn %Server{region: region} ->
+        {:ok,
+         %{url: "https://tuist-#{region}.kura.tuist.dev", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
+      end)
+
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      for region <- ["scw-fr-par-runners", "ber1-runners"] do
+        {:ok, server} = Kura.create_server(%{account_id: account.id, region: region, image_tag: "0.5.2"})
+        {:ok, _active} = Kura.activate_server(server, "0.5.2")
+      end
+
+      %{account: account}
+    end
+
+    test "a fleet racked at a site takes that site's cache", %{account: account} do
+      assert Kura.runner_cache_endpoint_url(account, :macos, "ber1") == "https://tuist-ber1-runners.kura.tuist.dev"
+    end
+
+    test "a fleet at no site never takes a site's cache", %{account: account} do
+      assert Kura.runner_cache_endpoint_url(account, :macos) == "https://tuist-scw-fr-par-runners.kura.tuist.dev"
+    end
+
+    test "a fleet at a site without a cache gets none rather than another site's", %{account: account} do
+      assert Kura.runner_cache_endpoint_url(account, :macos, "ams1") == nil
+    end
+  end
+
   describe "runner_cache_endpoint_url/2 public in-cluster fallback" do
     setup do
       stub(Tuist.Environment, :dev?, fn -> false end)

@@ -47,10 +47,21 @@ func main() {
 		}
 		return
 	}
+	detach := flag.Bool("detach-all", false, "Detach macOS volumes after the job")
 	key := flag.String("key", "", "Stable cache name; change it to invalidate")
 	var targets paths
 	flag.Var(&targets, "path", "Directory to cache (repeatable; relative to the working directory)")
 	flag.Parse()
+	if *detach {
+		if runtime.GOOS != "darwin" {
+			os.Exit(2)
+		}
+		if err := detachMac(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if !keyPattern.MatchString(*key) || len(targets) == 0 {
 		fmt.Fprintln(os.Stderr, "usage: tuist-cache-volume --key NAME --path DIR [--path DIR]")
 		os.Exit(2)
@@ -66,8 +77,14 @@ func main() {
 func attach(key string, targets []string) error {
 	client := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	root := "/home/runner/work/_tuist_cache"
+	if runtime.GOOS == "darwin" {
+		root = macMountRoot
+	}
 	if info, err := os.Stat("/__w/_tuist_cache"); err == nil && info.IsDir() {
 		root = "/__w/_tuist_cache"
+	}
+	if runtime.GOOS == "darwin" {
+		return attachMac(key, targets, root)
 	}
 	return attachWithClient(key, targets, root, client)
 }
@@ -75,6 +92,9 @@ func attachWithClient(key string, targets []string, root string, client *http.Cl
 	return attachWithMounter(key, targets, root, client, bindDirectory)
 }
 func attachWithMounter(key string, targets []string, root string, client *http.Client, mount func(string, string, string) error) error {
+	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquire(client, key) }, mount)
+}
+func attachUsing(key string, targets []string, root string, getVolume func() (string, string, bool, error), mount func(string, string, string) error) error {
 	// Validate all paths before acquiring storage. Never replace existing content.
 	absolute := make([]string, len(targets))
 	for i, p := range targets {
@@ -115,7 +135,7 @@ func attachWithMounter(key string, targets []string, root string, client *http.C
 			}
 		}
 	}
-	directory, lease, warm, err := acquire(client, key)
+	directory, lease, warm, err := getVolume()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "::warning::Cache volume unavailable: %v\n", err)
 		return coldDirectories(absolute)

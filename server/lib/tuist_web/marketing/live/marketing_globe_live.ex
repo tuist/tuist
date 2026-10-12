@@ -60,6 +60,7 @@ defmodule TuistWeb.Marketing.MarketingGlobeLive do
 
     socket
     |> assign(:snapshot, snapshot)
+    |> assign(:server_now, DateTime.to_iso8601(DateTime.utc_now()))
     |> assign(:markers, JSON.encode!(markers))
   end
 end

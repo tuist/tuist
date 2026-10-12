@@ -50,6 +50,7 @@ defmodule Tuist.GitHistory do
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.Tests.Coverage.Deltas
   alias Tuist.Tests.Coverage.ExcludedPaths
 
   @defaults %{
@@ -708,32 +709,61 @@ defmodule Tuist.GitHistory do
   # A commit's coverage keeps a copy of its place, so a branch's history
   # outlives the graph's window; it follows every move while the commit is in
   # the graph. Only the commits an advance touched can have moved; a rebuild
-  # may have moved any of them.
+  # may have moved any of them. A complete commit that moved has its file
+  # deltas moved with it (`Tuist.Tests.Coverage.Deltas`).
   defp sync_coverage(repository_id) do
-    Repo.query!(
-      """
-      UPDATE coverage_commits cc SET ref_id = c.ref_id, position = c.position
-      FROM git_commits c
-      WHERE cc.repository_id = $1 AND c.repository_id = $1 AND c.sha = cc.git_commit_sha
-        AND (cc.ref_id IS DISTINCT FROM c.ref_id OR cc.position IS DISTINCT FROM c.position)
-      """,
-      [repository_id]
-    )
+    %{rows: moved} =
+      Repo.query!(
+        """
+        UPDATE coverage_commits cc SET ref_id = c.ref_id, position = c.position
+        FROM git_commits c
+        WHERE cc.repository_id = $1 AND c.repository_id = $1 AND c.sha = cc.git_commit_sha
+          AND (cc.ref_id IS DISTINCT FROM c.ref_id OR cc.position IS DISTINCT FROM c.position)
+        RETURNING cc.project_id, cc.git_commit_sha, cc.complete
+        """,
+        [repository_id]
+      )
+
+    move_deltas(moved)
+  end
+
+  @doc """
+  Copies the commits' current places onto their coverage rows, under the
+  repository's ref lock: an advance that moved one of them either committed
+  before (and is read here) or runs after, when the row exists for it to sync.
+  """
+  def sync_coverage_places(repository_id, shas) do
+    {:ok, _result} =
+      Repo.transaction(fn ->
+        lock_refs(repository_id)
+        sync_coverage(repository_id, shas)
+      end)
+
+    :ok
   end
 
   defp sync_coverage(_repository_id, []), do: :ok
 
   defp sync_coverage(repository_id, shas) do
-    Repo.query!(
-      """
-      UPDATE coverage_commits cc SET ref_id = c.ref_id, position = c.position
-      FROM git_commits c
-      WHERE cc.repository_id = $1 AND cc.git_commit_sha = ANY ($2::varchar[])
-        AND c.repository_id = $1 AND c.sha = cc.git_commit_sha
-        AND (cc.ref_id IS DISTINCT FROM c.ref_id OR cc.position IS DISTINCT FROM c.position)
-      """,
-      [repository_id, Enum.uniq(shas)]
-    )
+    %{rows: moved} =
+      Repo.query!(
+        """
+        UPDATE coverage_commits cc SET ref_id = c.ref_id, position = c.position
+        FROM git_commits c
+        WHERE cc.repository_id = $1 AND cc.git_commit_sha = ANY ($2::varchar[])
+          AND c.repository_id = $1 AND c.sha = cc.git_commit_sha
+          AND (cc.ref_id IS DISTINCT FROM c.ref_id OR cc.position IS DISTINCT FROM c.position)
+        RETURNING cc.project_id, cc.git_commit_sha, cc.complete
+        """,
+        [repository_id, Enum.uniq(shas)]
+      )
+
+    move_deltas(moved)
+  end
+
+  defp move_deltas(moved) do
+    for [project_id, sha, true] <- moved, do: Deltas.enqueue(project_id, sha)
+    :ok
   end
 
   defp now, do: DateTime.truncate(DateTime.utc_now(), :second)
@@ -741,6 +771,17 @@ defmodule Tuist.GitHistory do
   @doc "Whether the repository has a commit stored for the SHA."
   def known?(repository_id, sha) do
     Repo.exists?(from(c in Commit, where: c.repository_id == ^repository_id and c.sha == ^sha))
+  end
+
+  @doc "The commit's parents in Git's order, as far as their edges are stored."
+  def parents(repository_id, sha) do
+    Repo.all(
+      from(p in CommitParent,
+        where: p.repository_id == ^repository_id and p.child_sha == ^sha,
+        order_by: p.position,
+        select: p.parent_sha
+      )
+    )
   end
 
   @doc """
@@ -998,6 +1039,10 @@ defmodule Tuist.GitHistory do
     ) || 0
   end
 
+  # One HTTP form field per bound path or directory, and ClickHouse refuses a
+  # request over `http_max_fields` (1000 by default).
+  @blob_paths_chunk 900
+
   @doc """
   The files of a commit with their blobs, by path, optionally narrowed to
   the paths one glob pattern matches (`match:` a pattern from
@@ -1022,6 +1067,29 @@ defmodule Tuist.GitHistory do
   end
 
   @doc """
+  The files of a commit directly inside any of `directories`, as
+  `Path.dirname/1` names them (`.` for the root), with their blobs.
+  """
+  def files_in(_repository_id, _sha, []), do: []
+
+  def files_in(repository_id, sha, directories) do
+    directories
+    |> Enum.uniq()
+    |> Enum.chunk_every(@blob_paths_chunk)
+    |> Enum.flat_map(fn chunk ->
+      ClickHouseRepo.all(
+        from(f in CommitFile,
+          where:
+            f.repository_id == ^repository_id and f.sha == ^sha and
+              fragment("if(position(?, '/') > 0, replaceRegexpOne(?, '/[^/]*$', ''), '.')", f.path, f.path) in ^chunk,
+          group_by: f.path,
+          select: %{path: f.path, git_blob_id: fragment("argMax(?, ?)", f.git_blob_id, f.inserted_at)}
+        )
+      )
+    end)
+  end
+
+  @doc """
   The tracked files of a commit for a project: the paths in the commit's
   listing that the tracked globs (`settings/1`) match, with their blobs.
   Empty when the project tracks nothing or the listing is not stored.
@@ -1037,13 +1105,9 @@ defmodule Tuist.GitHistory do
   The blob of each of `paths` at a commit, keyed by path, from the commit's
   listing; a path the listing lacks is absent.
   """
-  @blob_paths_chunk 900
-
   def blobs_at(_repository_id, _sha, []), do: %{}
 
   def blobs_at(repository_id, sha, paths) do
-    # One HTTP form field per bound path, and ClickHouse refuses a request
-    # over `http_max_fields` (1000 by default).
     paths
     |> Enum.chunk_every(@blob_paths_chunk)
     |> Enum.flat_map(fn chunk ->

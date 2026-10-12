@@ -20,6 +20,10 @@ defmodule TuistWeb.Plugs.PublicPageChallengePlug do
       valid user token means the visitor is already signed in and the
       dashboard is already gated by its own authorization checks.
 
+    * The request is the public project root with default overview
+      parameters (tracking parameters are ignored). Its bounded,
+      cached overview is rendered without a challenge for all visitors.
+
     * The session already carries a fresh
       `public_page_challenge_verified_at` timestamp inside the
       freshness window (see
@@ -42,6 +46,7 @@ defmodule TuistWeb.Plugs.PublicPageChallengePlug do
   alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias TuistWeb.Authentication
+  alias TuistWeb.PublicOverviewCache
 
   @session_key "public_page_challenge_verified_at"
   @return_to_key "public_page_return_to"
@@ -61,6 +66,9 @@ defmodule TuistWeb.Plugs.PublicPageChallengePlug do
   def call(conn, _opts) do
     cond do
       not FeatureFlags.public_page_challenge_enabled?() ->
+        conn
+
+      public_project_root?(conn) ->
         conn
 
       Authentication.current_user(conn) ->
@@ -98,6 +106,12 @@ defmodule TuistWeb.Plugs.PublicPageChallengePlug do
   end
 
   defp fresh?(_), do: false
+
+  defp public_project_root?(conn) do
+    conn.private[:tuist_public_project] == true and conn.method in ["GET", "HEAD"] and
+      length(conn.path_info) == 2 and
+      PublicOverviewCache.default_params?(fetch_query_params(conn).query_params)
+  end
 
   defp return_to(conn) do
     case conn.query_string do

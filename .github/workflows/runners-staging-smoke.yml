@@ -25,6 +25,10 @@ name: Runners Staging Smoke Test
 on:
   workflow_dispatch:
     inputs:
+      custom_cache_apfs:
+        description: Run the candidate custom cache APFS tests inside a staging Mac VM
+        type: boolean
+        default: false
       hold_seconds:
         description: >-
           Seconds to hold the runner busy before finishing. Defaults to 0,
@@ -99,6 +103,18 @@ jobs:
           # somewhere we can curl from the workflow.
           curl -fsSL -o /dev/null -w "github.com → HTTP %{http_code}\n" https://github.com
 
+      # GitHub-hosted runners set ImageOS, and setup actions read it to
+      # pick a prebuilt binary; erlef/setup-beam fails outright without it.
+      - name: ImageOS reaches steps
+        run: |
+          set -euo pipefail
+          echo "ImageOS: ${ImageOS:-<unset>}"
+          [ -n "${ImageOS:-}" ] || { echo "::error::ImageOS is not set in the step environment"; exit 1; }
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
       - name: Hold the runner to produce a billable window
         if: >-
           github.event_name == 'workflow_dispatch' &&
@@ -126,3 +142,17 @@ jobs:
           cat /tmp/up 2>/dev/null || true; echo
           [ "${code}" = "200" ] || { echo "::error::cache /up over the PN returned ${code}"; exit 1; }
           echo "Runner reached the Kura runner-cache over the PN."
+
+  custom-cache-apfs:
+    if: github.repository == 'tuist/tuist' && inputs.custom_cache_apfs
+    runs-on: tuist-staging-macos
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/tart-kubelet/go.mod
+      - name: Exercise real APFS and custom cache lifecycle
+        run: go test -race -v ./infra/runner-cache/... ./infra/tart-kubelet/internal/podagent ./infra/linux-runner-image/cmd/tuist-cache-volume

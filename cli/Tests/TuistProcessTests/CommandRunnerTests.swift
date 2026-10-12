@@ -1,3 +1,5 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Testing
 @testable import TuistProcess
@@ -37,6 +39,44 @@ import Testing
         }
     }
 
+    @Test(.inTemporaryDirectory) func drainsBothPipesWithoutSchedulingOutputConsumptionTasks() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let marker = directory.appending(component: "finished")
+        let runner = CommandRunner(processStartedHook: {
+            // Force the starvation window without depending on core count or scheduler timing:
+            // no output consumption task has been created, and this worker cannot suspend.
+            let deadline = Date().addingTimeInterval(30)
+            while !FileManager.default.fileExists(atPath: marker.pathString), Date() < deadline {
+                Thread.sleep(forTimeInterval: 0.01)
+            }
+            #expect(
+                FileManager.default.fileExists(atPath: marker.pathString),
+                "The child filled a pipe before the cooperative pool could start its drainer."
+            )
+        })
+
+        await expectCompletes {
+            let events = try await runner.run(arguments: [
+                "/bin/sh", "-c",
+                "dd if=/dev/zero bs=65536 count=16 2>/dev/null; "
+                    + "{ dd if=/dev/zero bs=65536 count=16 2>/dev/null; } >&2; "
+                    + "printf done > \"$1\"",
+                "sh", marker.pathString,
+            ]).reduce(into: [ProcessEvent]()) { $0.append($1) }
+
+            let stdout = events.reduce(0) { count, event in
+                if case let .standardOutput(bytes) = event { return count + bytes.count }
+                return count
+            }
+            let stderr = events.reduce(0) { count, event in
+                if case let .standardError(bytes) = event { return count + bytes.count }
+                return count
+            }
+            #expect(stdout == 1024 * 1024)
+            #expect(stderr == 1024 * 1024)
+        }
+    }
+
     @Test func reportsNonzeroExitWithStandardError() async throws {
         await expectCompletes {
             let stream = CommandRunner().run(arguments: ["/bin/sh", "-c", "printf failure >&2; exit 3"])
@@ -50,6 +90,19 @@ import Testing
                         "The command '/bin/sh -c printf failure >&2; exit 3' terminated with the code 3:\nfailure"
                 )
             }
+        }
+    }
+
+    @Test func reportsLaunchFailuresAndReleasesProcessPermits() async throws {
+        await expectCompletes {
+            let runner = CommandRunner(maximumConcurrentProcesses: 1)
+            for _ in 0 ..< 200 {
+                await #expect(throws: (any Error).self) {
+                    try await runner.run(arguments: ["/nonexistent/tuist-process-test"]).awaitCompletion()
+                }
+            }
+            let output = try await runner.run(arguments: ["/bin/sh", "-c", "printf recovered"]).concatenatedString()
+            #expect(output == "recovered")
         }
     }
 

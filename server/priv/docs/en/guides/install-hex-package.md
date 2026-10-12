@@ -65,7 +65,26 @@ mix tuist.login --url http://localhost:8080
 
 Keep the hostname spelling consistent. For example, a login stored for `localhost` is separate from one stored for `127.0.0.1`.
 
-For automated runners, set the `TUIST_TOKEN` environment variable to a project token instead of logging in. Follow the <.localized_link href="/guides/integrations/continuous-integration#authentication">continuous integration authentication guide</.localized_link> to create one.
+On GitHub Actions, CircleCI, and Bitrise, continuous integration needs no login step. The first time a task sends a report, it exchanges the provider's OpenID Connect token for a Tuist token. <.localized_link href="/guides/integrations/gitforge/github">Connect your GitHub repository</.localized_link> to your Tuist project, and on GitHub Actions give the job the `id-token: write` permission:
+
+```yaml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.18'
+          otp-version: '27'
+      - run: mix deps.get
+      - run: mix tuist.test
+```
+
+Pull requests from forks don't get an OpenID Connect token, so their runs aren't reported and still pass or fail as usual. On other providers, set the `TUIST_TOKEN` environment variable to an account token. Follow the <.localized_link href="/guides/integrations/continuous-integration#authentication">continuous integration authentication guide</.localized_link> to create one.
 
 ## 4. Keep using `mix test` and `mix compile` {#aliases}
 

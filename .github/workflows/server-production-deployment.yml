@@ -393,7 +393,7 @@ jobs:
     name: Release runners-controller
     needs: check-releases
     if: needs.check-releases.outputs.runners-controller-should-release == 'true'
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -434,6 +434,11 @@ jobs:
           )
 
           git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.runners-controller-next-version }}" -o CHANGELOG.md 2>/dev/null
+
+      # The cache-volumes stage runs apt-get for linux/arm64, which needs
+      # emulation on the amd64 runner.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -1331,7 +1336,7 @@ jobs:
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
     # runner mid-build ("lost communication"). Mirrors server.yml's
     # docker_build job.
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux-large
     timeout-minutes: 75
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
@@ -1634,7 +1639,7 @@ jobs:
     name: Kura canary rollout gate
     needs: [check-releases, build, canary]
     if: ${{ always() && needs.canary.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4

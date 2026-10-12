@@ -8,7 +8,6 @@ defmodule Tuist.Tests.Coverage.EarlyAccessTest do
 
   @attrs %{
     recompute: false,
-    enumerated_tests: [%{module: "AppTests", suite: "ATests", name: "testA()"}],
     coverage_evidence: %{
       paths: ["Sources/A.swift"],
       scopes: [%{kind: "test", module: "AppTests", suite: "ATests", name: "testA()", files: [0]}]
@@ -33,7 +32,6 @@ defmodule Tuist.Tests.Coverage.EarlyAccessTest do
 
     assert run.git_repository_id == 0
     assert CoverageFixtures.run_summary(project.id, run.id) == nil
-    assert CoverageFixtures.enumerated_tests(run) == []
     assert CoverageFixtures.evidence_rows(run) == []
     assert CoverageFixtures.changed_files(run) == []
   end
@@ -43,7 +41,6 @@ defmodule Tuist.Tests.Coverage.EarlyAccessTest do
 
     assert run.git_repository_id > 0
     assert %{covered_lines: 1} = CoverageFixtures.run_summary(project.id, run.id)
-    assert [%{name: "testA()"}] = CoverageFixtures.enumerated_tests(run)
     assert [%{scope_kind: "test", path: "Sources/A.swift"}] = CoverageFixtures.evidence_rows(run)
     assert [%{path: "Sources/A.swift", hunk_starts: [1], hunk_ends: [2]}] = CoverageFixtures.changed_files(run)
   end

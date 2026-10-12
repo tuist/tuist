@@ -29,6 +29,7 @@ defmodule Tuist.Tests.Coverage.History do
   alias Tuist.Repo
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.Coverage.Deltas
   alias Tuist.Tests.CoverageCommit
 
   @doc """
@@ -157,13 +158,19 @@ defmodule Tuist.Tests.Coverage.History do
   its page reads it at that commit (`Commits.file_detail/4`): its lines
   merged over the commit's runs and, where coverage was carried into the
   commit, covered too by the skipped tests that covered them, so the trend
-  ends on the figure the page shows. Commits nothing was carried into are
-  read in one pass over their runs.
+  ends on the figure the page shows. Complete commits whose stored deltas
+  are current (`Tuist.Tests.Coverage.Deltas.file_figures/3`) are read from
+  the file's rows along their chain, the rest from their runs (all of them
+  with `stored: false`): commits nothing was carried into in one pass.
   """
-  def file_points(_project, _path, []), do: []
+  def file_points(project, path, points, opts \\ [])
 
-  def file_points(%Project{} = project, path, points) do
-    rows_by_sha = Commits.by_shas(project.id, Enum.map(points, & &1.git_commit_sha))
+  def file_points(_project, _path, [], _opts), do: []
+
+  def file_points(%Project{} = project, path, points, opts) do
+    summaries = Commits.by_shas(project.id, Enum.map(points, & &1.git_commit_sha))
+    stored = if Keyword.get(opts, :stored, true), do: Deltas.file_figures(project.id, path, summaries), else: %{}
+    rows_by_sha = Map.drop(summaries, Map.keys(stored))
     {carried, measured} = Enum.split_with(rows_by_sha, fn {_sha, row} -> Commits.carried?(row) end)
 
     commit_of = for {sha, row} <- measured, id <- row.test_run_ids, into: %{}, do: {id, sha}
@@ -175,7 +182,7 @@ defmodule Tuist.Tests.Coverage.History do
       |> Map.new(fn {sha, rows} -> {sha, Coverage.detail(path, rows)} end)
 
     carried_files = Map.new(carried, fn {sha, _row} -> {sha, Commits.file_detail(project.id, sha, path)} end)
-    files = Map.merge(measured_files, carried_files)
+    files = measured_files |> Map.merge(carried_files) |> Map.merge(stored)
 
     Enum.flat_map(points, fn point ->
       case Map.get(files, point.git_commit_sha) do
@@ -241,10 +248,11 @@ defmodule Tuist.Tests.Coverage.History do
   (`since`/`until`); `page_size` is 20 by default.
 
   `search` keeps the commits whose SHA starts with it and `status` those of
-  one status: `complete` (its pipeline signalled it finished), `in-progress`
-  (measured, not yet signalled) or `not-measured` (on the branch, no run
-  measured it). Each is stored, so they narrow the query the page is read
-  with.
+  one status (`Tuist.Tests.Coverage.Commits.status/1`): `complete` (its
+  pipeline signalled it finished and its figure is whole), `incomplete`
+  (signalled, its figure a lower bound), `in-progress` (measured, not yet
+  signalled) or `not-measured` (on the branch, no run measured it). Each is
+  stored, so they narrow the query the page is read with.
   """
   def commit_cursor_page(%Project{} = project, branch, opts \\ []) do
     size = Keyword.get(opts, :page_size, 20)
@@ -267,7 +275,7 @@ defmodule Tuist.Tests.Coverage.History do
       measured =
         from(m in CoverageCommit, where: m.project_id == ^project_id)
         |> Commits.comparable()
-        |> select([m], %{sha: m.git_commit_sha, complete: m.complete})
+        |> select([m], %{sha: m.git_commit_sha, complete: m.complete, reported_kind: m.reported_kind})
 
       fn query ->
         query = if search == "", do: query, else: where(query, [c], like(c.sha, ^sha_prefix(search)))
@@ -282,7 +290,20 @@ defmodule Tuist.Tests.Coverage.History do
     do: from(c in query, left_join: m in subquery(measured), on: m.sha == c.sha, where: is_nil(m.sha))
 
   defp by_status(query, "complete", measured),
-    do: from(c in query, join: m in subquery(measured), on: m.sha == c.sha, where: m.complete)
+    do:
+      from(c in query,
+        join: m in subquery(measured),
+        on: m.sha == c.sha,
+        where: m.complete and m.reported_kind != "partial"
+      )
+
+  defp by_status(query, "incomplete", measured),
+    do:
+      from(c in query,
+        join: m in subquery(measured),
+        on: m.sha == c.sha,
+        where: m.complete and m.reported_kind == "partial"
+      )
 
   defp by_status(query, "in-progress", measured),
     do: from(c in query, join: m in subquery(measured), on: m.sha == c.sha, where: not m.complete)
@@ -297,7 +318,8 @@ defmodule Tuist.Tests.Coverage.History do
 
     case status do
       "" -> query
-      "complete" -> where(query, [c], c.complete)
+      "complete" -> where(query, [c], c.complete and c.reported_kind != "partial")
+      "incomplete" -> where(query, [c], c.complete and c.reported_kind == "partial")
       "in-progress" -> where(query, [c], not c.complete)
       _other -> where(query, false)
     end

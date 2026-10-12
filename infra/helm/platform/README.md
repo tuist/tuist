@@ -46,6 +46,12 @@ running more than one box also needs `kuraGatewayNetworkPolicy.enabled`, or a
 gateway can only serve the Kura pods that happen to share its box and answers
 504 for the rest. See `templates/kura-gateway-network-policy.yaml`.
 
+A rack's gateway (`kura-ber1-runners`) is configured in this chart's values but
+deployed by `infra/helm/rack-cache-gateways`, which `k8s:install-platform`
+installs after this release, from the same values, without waiting on it. This
+release is waited on, and a DaemonSet with a pod on a dark rack node never
+reads as ready.
+
 `k8s:install-platform` also loads `values-<cluster-name>.yaml` when present.
 Use that cluster overlay for static environment configuration such as stable
 egress IPs and managed-cluster LoadBalancer locations.

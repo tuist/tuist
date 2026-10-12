@@ -128,7 +128,7 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
                     let data = try JSONStreamScanner.value(at: location.offset, length: location.length, in: archiveURL)
                     lines = try decoder.decode([XccovLine].self, from: data).filter(\.isExecutable).sorted { $0.line < $1.line }
                 }
-                let counts = lines.map { $0.executionCount ?? 0 }
+                let counts = lines.map(\.count)
                 let targets = targetsByPath[absolutePath] ?? []
                 let productTargets = targets.filter { !testTargets.contains($0) }
                 let isTest = !targets.isEmpty && productTargets.isEmpty
@@ -324,7 +324,27 @@ private struct XccovFunction: Decodable {
 }
 
 private struct XccovLine: Decodable {
+    struct Subrange: Decodable {
+        let executionCount: UInt64?
+    }
+
     let line: Int
     let isExecutable: Bool
-    let executionCount: Int?
+    let executionCount: UInt64?
+    let subranges: [Subrange]?
+
+    /// xccov derives a region's count by subtracting its children's from its parent's.
+    /// Instrumented code bumps its counters without atomics, so tests running in parallel lose
+    /// increments, a child can end up ahead of its parent, and the difference wraps around: to
+    /// just under 2^48 for a line, to just under 2^64 for a subrange. Such a line falls back to
+    /// the counts on it that did not wrap.
+    var count: Int {
+        guard let executionCount else { return 0 }
+        guard Self.wrapped(executionCount) else { return Int(executionCount) }
+        return (subranges ?? []).compactMap(\.executionCount).filter { !Self.wrapped($0) }.max().map(Int.init) ?? 0
+    }
+
+    private static func wrapped(_ count: UInt64) -> Bool {
+        count >= 1 << 47
+    }
 }

@@ -5572,6 +5572,78 @@ defmodule Tuist.TestsTest do
   end
 
   describe "cross-run flaky detection" do
+    test "does not mark a failure as flaky when the test only failed before on the commit" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "repeated_failure_#{System.unique_integer([:positive])}"
+
+      failing_run = fn ->
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: "failure",
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 500,
+              test_cases: [%{name: "testBroken", status: "failure", duration: 250}]
+            }
+          ]
+        )
+      end
+
+      {:ok, _first_test} = failing_run.()
+      {:ok, second_test} = failing_run.()
+
+      {[second_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: second_test.id}]
+        })
+
+      refute second_run.is_flaky
+      refute second_test.is_flaky
+    end
+
+    test "flags every failure of a run with more failures than fit in one lookup" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "many_failures_#{System.unique_integer([:positive])}"
+      test_case_count = 5_000
+
+      run_with_status = fn status ->
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: status,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: status,
+              duration: 500,
+              test_cases: for(i <- 1..test_case_count, do: %{name: "test#{i}", status: status, duration: 1})
+            }
+          ]
+        )
+      end
+
+      {:ok, _passing_test} = run_with_status.("success")
+      {:ok, failing_test} = run_with_status.("failure")
+
+      assert {:ok, %{is_flaky: true}} = Tests.get_test(failing_test.id)
+
+      assert ClickHouseRepo.aggregate(
+               from(tcr in TestCaseRun,
+                 where: tcr.test_run_id == ^failing_test.id and tcr.is_flaky == true
+               ),
+               :count
+             ) == test_case_count
+    end
+
     test "does not compare unrelated Bazel runs without commit metadata" do
       project = ProjectsFixtures.project_fixture(build_system: :bazel)
 
@@ -6766,6 +6838,54 @@ defmodule Tuist.TestsTest do
   end
 
   describe "list_flaky_test_cases/2" do
+    test "combines identity filters and search before paginating and counting" do
+      project = ProjectsFixtures.project_fixture()
+
+      for {name, suite_name, module_name} <- [
+            {"selectedFirst", "CoordinatorTests", "AppTests"},
+            {"selectedSecond", "CoordinatorTests", "AppTests"},
+            {"selectedOtherSuite", "OtherTests", "AppTests"},
+            {"selectedOtherModule", "CoordinatorTests", "OtherModule"},
+            {"excludedBySearch", "CoordinatorTests", "AppTests"}
+          ] do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: name,
+            suite_name: suite_name,
+            module_name: module_name
+          )
+
+        IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+        RunsFixtures.test_case_event_fixture(
+          project_id: project.id,
+          test_case_id: test_case.id,
+          event_type: "marked_flaky",
+          inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+        )
+      end
+
+      for {name, page} <- [{"selectedFirst", 1}, {"selectedSecond", 2}] do
+        {results, meta} =
+          Tests.list_flaky_test_cases(project.id, %{
+            filters: [
+              %{field: "suite_name", op: :==, value: "CoordinatorTests"},
+              %{field: "module_name", op: :==, value: "AppTests"},
+              %{field: :name, op: :ilike_and, value: "selected"}
+            ],
+            order_by: [:name],
+            order_directions: [:asc],
+            page_size: 1,
+            page: page
+          })
+
+        assert Enum.map(results, & &1.name) == [name]
+        assert meta.total_count == 2
+        assert meta.total_pages == 2
+      end
+    end
+
     test "returns empty list when no flaky test cases exist" do
       project = ProjectsFixtures.project_fixture()
 
@@ -6801,7 +6921,7 @@ defmodule Tuist.TestsTest do
           test_modules: test_modules.("success")
         )
 
-      {:ok, _second_test} =
+      {:ok, second_test} =
         RunsFixtures.test_fixture(
           project_id: project.id,
           account_id: project.account_id,
@@ -6831,6 +6951,7 @@ defmodule Tuist.TestsTest do
       assert flaky_test.module_name == "TestModule"
       # Only the failing run is flaky; the passing run on the same commit stays clean
       assert flaky_test.flaky_runs_count == 1
+      assert flaky_test.last_flaky_run_id == second_test.id
     end
 
     test "supports ordering by marked_flaky_at" do
@@ -7257,6 +7378,7 @@ defmodule Tuist.TestsTest do
 
       assert old.flaky_runs_count == 0
       refute old.last_flaky_at
+      refute old.last_flaky_run_id
 
       {all_results, all_meta} = Tests.list_flaky_test_cases(project.id, %{})
 
@@ -7326,6 +7448,7 @@ defmodule Tuist.TestsTest do
       assert no_ci_only.name == "ciFlaky"
       assert no_ci_only.flaky_runs_count == 0
       refute no_ci_only.last_flaky_at
+      refute no_ci_only.last_flaky_run_id
     end
 
     test "scopes flaky-run stats by combined time range and environment filters" do

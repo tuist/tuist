@@ -11,6 +11,7 @@ defmodule TuistWeb.GradleBuildRunsLive do
   alias Tuist.Accounts
   alias Tuist.Gradle
   alias Tuist.Repo
+  alias TuistWeb.Components.BuildHealth
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
@@ -159,11 +160,7 @@ defmodule TuistWeb.GradleBuildRunsLive do
 
     flop_filters = base_flop_filters ++ filter_flop_filters ++ ran_by_flop_filters ++ is_ci_flop_filters
 
-    order_by =
-      case build_runs_sort_by do
-        "duration" -> [:duration_ms]
-        _ -> [:inserted_at]
-      end
+    order_by = sort_fields(build_runs_sort_by)
 
     order_directions =
       case build_runs_sort_order do
@@ -178,10 +175,15 @@ defmodule TuistWeb.GradleBuildRunsLive do
       page: page,
       page_size: @page_size,
       order_by: order_by,
-      order_directions: order_directions
+      order_directions: List.duplicate(hd(order_directions), length(order_by))
     }
 
-    {builds, meta} = Gradle.list_builds(project.id, flop_params, requested_tasks_filters: requested_tasks_query_filters)
+    {builds, meta} =
+      Gradle.list_builds(project.id, flop_params,
+        requested_tasks_filters: requested_tasks_query_filters,
+        failure_category: true
+      )
+
     builds = Repo.preload(builds, :built_by_account)
 
     socket
@@ -212,8 +214,13 @@ defmodule TuistWeb.GradleBuildRunsLive do
     "?#{URI.encode_query(query_params)}"
   end
 
+  defp sort_fields("failure-category"), do: [:failure_category, :inserted_at, :id]
+  defp sort_fields("duration"), do: [:duration_ms]
+  defp sort_fields(_), do: [:inserted_at]
+
   defp define_filters(project, tags) do
     base = [
+      BuildHealth.category_filter(),
       %Filter.Filter{
         id: "status",
         field: :status,

@@ -32,6 +32,9 @@ type Device struct {
 	Name         string `json:"name"`
 	Status       int    `json:"status"`
 	DetailStatus *int   `json:"detailStatus"`
+	// Utilization in percent, as the controller last measured it.
+	CPUUtil *int `json:"cpuUtil"`
+	MemUtil *int `json:"memUtil"`
 }
 
 // Detail is the device's detailStatus, or -1 when the controller gives none.
