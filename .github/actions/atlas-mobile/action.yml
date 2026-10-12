@@ -1,0 +1,105 @@
+name: Build or test Atlas mobile
+description: Run a distinct build or test operation through Once.
+
+inputs:
+  platform:
+    description: android, ios or core
+    required: true
+  operation:
+    description: build or test
+    required: true
+  authenticated:
+    description: Whether this trusted job may authenticate the shared Tuist cache
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/mise-install
+      with:
+        working-directory: atlas-mobile
+        install: ${{ inputs.platform == 'android' && 'rust kotlin java github:tuist/once' || 'rust github:tuist/once' }}
+
+    - name: Install Once runtime libraries
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y libasound2t64
+
+    - name: Install Android SDK packages
+      if: inputs.platform == 'android'
+      shell: bash
+      run: |
+        sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.3.13750724"
+        echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724" >> "$GITHUB_ENV"
+
+    - name: Install Rust mobile standard library
+      if: inputs.platform != 'core'
+      shell: bash
+      working-directory: atlas-mobile
+      env:
+        MOBILE_PLATFORM: ${{ inputs.platform }}
+      run: |
+        if [ "$MOBILE_PLATFORM" = android ]; then
+          mise exec -- rustup target add aarch64-linux-android
+        else
+          mise exec -- rustup target add aarch64-apple-ios-sim
+        fi
+
+    - name: Authenticate the Once cache
+      id: auth
+      if: inputs.authenticated == 'true'
+      continue-on-error: true
+      shell: bash
+      working-directory: atlas-mobile
+      run: mise exec -- once auth login --provider tuist --no-browser
+
+    - name: Validate graph
+      shell: bash
+      working-directory: atlas-mobile
+      run: mise exec -- once query validate-workspace
+
+    - name: Build native app
+      if: inputs.operation == 'build'
+      shell: bash
+      working-directory: atlas-mobile
+      env:
+        MOBILE_PLATFORM: ${{ inputs.platform }}
+        ONCE_CACHE_PROVIDER: ${{ steps.auth.outcome == 'success' && 'tuist' || 'local' }}
+      run: |
+        mise run "build:$MOBILE_PLATFORM"
+        if [ "$MOBILE_PLATFORM" = ios ]; then
+          ditto -c -k --sequesterRsrc --keepParent .once/out/AtlasIOS/Atlas.app Atlas-ios-simulator.zip
+        fi
+
+    - name: Test
+      if: inputs.operation == 'test'
+      shell: bash
+      working-directory: atlas-mobile
+      env:
+        MOBILE_PLATFORM: ${{ inputs.platform }}
+        ONCE_CACHE_PROVIDER: ${{ steps.auth.outcome == 'success' && 'tuist' || 'local' }}
+      run: mise run "test:$MOBILE_PLATFORM"
+
+    - name: Upload preview artifact
+      if: inputs.operation == 'build'
+      uses: actions/upload-artifact@v4
+      with:
+        name: atlas-mobile-${{ inputs.platform }}
+        path: ${{ inputs.platform == 'android' && 'atlas-mobile/.once/out/AtlasAndroid/AtlasAndroid.apk' || 'atlas-mobile/Atlas-ios-simulator.zip' }}
+        if-no-files-found: error
+        retention-days: 14
+        include-hidden-files: true
+
+    - name: Upload test reports
+      if: always() && inputs.operation == 'test'
+      uses: actions/upload-artifact@v4
+      with:
+        name: atlas-mobile-tests-${{ inputs.platform }}
+        path: |
+          atlas-mobile/.once/out/AtlasCoreTests/test/
+          atlas-mobile/.once/out/AtlasIOSTests/test/
+        if-no-files-found: ignore
+        retention-days: 14
+        include-hidden-files: true

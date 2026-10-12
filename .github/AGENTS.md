@@ -21,6 +21,19 @@ agent under the same version. Its release tag requires both images to exist;
 managed production selects that agent version and provisions host cache storage
 through Helm, without a separate human kubectl elevation.
 
+## Atlas mobile
+
+`workflows/atlas-mobile.yml` builds both native apps through Once using
+`actions/atlas-mobile/` (see its `AGENTS.md`). Fork jobs have no OIDC permission
+and use only the local cache. Trusted builds use the `tuist/atlas-mobile` cache
+when authentication succeeds. Main builds publish the tested artifacts to the
+private Tuist project's `nightly` preview track after distinct build, test and
+language-specific lint jobs pass; pull requests never publish. The single
+`atlas-mobile.yml` pipeline's automatic path filters include only `atlas-mobile/**`
+and all jobs skip draft pull requests. These are debug Android APKs and arm64 iOS
+simulator bundles, not store releases.
+The Tuist project must be connected to `tuist/tuist` for GitHub OIDC access.
+
 ## Community notifications
 
 `workflows/community-notifications.yml` sends new community issues and PRs to
