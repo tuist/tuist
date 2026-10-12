@@ -91,7 +91,7 @@ defmodule TuistEx.Analytics.Coverage do
             end)
           end)
 
-        clauses = Enum.flat_map(modules, &elem(&1, 3))
+        clauses = modules |> Enum.flat_map(&elem(&1, 3)) |> Enum.uniq()
         owners = owners(clauses, lines)
 
         # Only the lines a listed function owns count: the others hold code
@@ -185,7 +185,6 @@ defmodule TuistEx.Analytics.Coverage do
   defp owners(clauses, lines) do
     starts =
       clauses
-      |> Enum.uniq()
       |> Enum.map(fn {head, _body, function} -> {head, function} end)
       |> Enum.sort()
 
@@ -204,8 +203,6 @@ defmodule TuistEx.Analytics.Coverage do
   # calls, or cover's own count when that is higher: the calls a module Mimic
   # copied took before the copy are only in its lines.
   defp functions(clauses, lines, owners, calls) do
-    clauses = Enum.uniq(clauses)
-
     head_lines =
       clauses
       |> Enum.sort()
