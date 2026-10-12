@@ -199,12 +199,13 @@ struct TuistCacheEEAcceptanceTests {
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withFixture("generated_ios_app_with_cached_xctest_support")
-    ) func generated_ios_app_with_cached_xctest_support() async throws {
+    ) func generated_ios_app_with_cached_xctest_support_and_kept_source_targets() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let mockedEnvironment = try #require(Environment.mocked)
         let fileSystem = FileSystem()
         let xcodeprojPath = fixtureDirectory.appending(component: "CachedXCTestSupport.xcodeproj")
+        let xcworkspacePath = fixtureDirectory.appending(component: "CachedXCTestSupport.xcworkspace")
 
         try await TuistTest.run(
             CacheCommand.self,
@@ -235,7 +236,6 @@ struct TuistCacheEEAcceptanceTests {
         try await TuistTest.run(
             TestCommand.self,
             [
-                "App",
                 "--build-only",
                 "--no-upload",
                 "--no-selective-testing",
@@ -258,6 +258,16 @@ struct TuistCacheEEAcceptanceTests {
         try TuistAcceptanceTest.expectXCFrameworkLinked("SwiftTestingSupport", by: "AppTests", xcodeprojPath: xcodeprojPath)
         try TuistAcceptanceTest.expectXCFrameworkNotLinked("TestSupport", by: "App", xcodeprojPath: xcodeprojPath)
         try TuistAcceptanceTest.expectXCFrameworkNotLinked("SwiftTestingSupport", by: "App", xcodeprojPath: xcodeprojPath)
+
+        let workspaceScheme = try XCScheme(
+            pathString: xcworkspacePath
+                .appending(components: "xcshareddata", "xcschemes", "CachedXCTestSupport-Workspace.xcscheme")
+                .pathString
+        )
+        let workspaceBuildTargets = Set(
+            workspaceScheme.buildAction?.buildActionEntries.map(\.buildableReference.blueprintName) ?? []
+        )
+        #expect(workspaceBuildTargets.isDisjoint(with: ["Feature", "TestSupport", "SwiftTestingSupport"]))
     }
 
     @Test(
