@@ -8,6 +8,11 @@ directly in that same workflow. Keep permission decisions in the workflow:
 
 - Run Once from `atlas-native/`, which is an independent workspace and retains
   the `tuist/atlas-mobile` cache identity. Do not add it to the root Atlas graph.
+- The pipeline sets `MISE_AUTO_INSTALL=0`: every job must explicitly install its
+  tool subset. Without it, `mise exec` and `mise run` install the entire inherited
+  monorepo tool set, even for Rust-only jobs.
+- Initialize Android command-line tools with `android-actions/setup-android`
+  before invoking `sdkmanager`; hosted images do not put it on PATH by default.
 - Install only the tools used by the selected platform. Linux needs Once's ALSA
   runtime library. Only Android/iOS need Rust cross-compilation standard
   libraries; CLI and core tests use the host toolchain.

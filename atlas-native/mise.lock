@@ -2,6 +2,24 @@
 
 lockfile_version = 1
 
+[[tools."github:ktlint/ktlint"]]
+version = "1.7.1"
+backend = "github:ktlint/ktlint"
+specifiers = ["1.7.1"]
+
+[tools."github:ktlint/ktlint".options]
+asset_pattern = "ktlint-*.zip"
+
+[tools."github:ktlint/ktlint"."platforms.linux-x64"]
+checksum = "sha256:d453b8347587241559d583102c18993a6efc7d7d1064d1a380f8a58eb53a0675"
+url = "https://github.com/ktlint/ktlint/releases/download/1.7.1/ktlint-1.7.1.zip"
+url_api = "https://api.github.com/repos/ktlint/ktlint/releases/assets/274981513"
+
+[tools."github:ktlint/ktlint"."platforms.macos-arm64"]
+checksum = "sha256:d453b8347587241559d583102c18993a6efc7d7d1064d1a380f8a58eb53a0675"
+url = "https://github.com/ktlint/ktlint/releases/download/1.7.1/ktlint-1.7.1.zip"
+url_api = "https://api.github.com/repos/ktlint/ktlint/releases/assets/274981513"
+
 [[tools."github:tuist/once"]]
 version = "0.67.1"
 backend = "github:tuist/once"
@@ -34,21 +52,6 @@ url_api = "https://api.github.com/repos/JetBrains/kotlin/releases/assets/4765755
 checksum = "sha256:473dd66c7a3ef4b182065b3da670466c1bf2773a9dbb0ed8b33a39fe9d4f876d"
 url = "https://github.com/JetBrains/kotlin/releases/download/v2.4.10/kotlin-compiler-2.4.10.zip"
 url_api = "https://api.github.com/repos/JetBrains/kotlin/releases/assets/476575537"
-
-[[tools.ktlint]]
-version = "1.7.1"
-backend = "aqua:ktlint/ktlint"
-specifiers = ["1.7.1"]
-
-[tools.ktlint."platforms.linux-x64"]
-checksum = "sha256:d453b8347587241559d583102c18993a6efc7d7d1064d1a380f8a58eb53a0675"
-url = "https://github.com/ktlint/ktlint/releases/download/1.7.1/ktlint-1.7.1.zip"
-url_api = "https://api.github.com/repos/ktlint/ktlint/releases/assets/274981513"
-
-[tools.ktlint."platforms.macos-arm64"]
-checksum = "sha256:d453b8347587241559d583102c18993a6efc7d7d1064d1a380f8a58eb53a0675"
-url = "https://github.com/ktlint/ktlint/releases/download/1.7.1/ktlint-1.7.1.zip"
-url_api = "https://api.github.com/repos/ktlint/ktlint/releases/assets/274981513"
 
 [[tools.rust]]
 version = "1.96.0"

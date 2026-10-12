@@ -18,7 +18,10 @@ browser. It does not implement a native API client or store Atlas credentials.
 - `android/`: Kotlin UI, JNI adapter, Android manifest and resources.
 - `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge tests.
 - `mise.toml` / `mise.lock`: pinned Once, Rust, Kotlin and ktlint toolchains.
-  The local postinstall hook prevents unrelated monorepo CLI bootstrapping.
+  ktlint uses an explicit GitHub backend and locked archive, compatible with the
+  repository's pinned CI Mise version. Do not rely on a backend name that only
+  exists in a newer local Mise registry. The local postinstall hook prevents
+  unrelated monorepo CLI bootstrapping.
 - `tuist.toml`: Tuist preview and bundle-inspection project configuration.
 
 ## Validation

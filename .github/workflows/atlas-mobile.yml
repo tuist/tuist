@@ -19,6 +19,7 @@ concurrency:
 env:
   MISE_GITHUB_TOKEN: ${{ github.token }}
   MISE_GITHUB_ATTESTATIONS: "0"
+  MISE_AUTO_INSTALL: "0"
 
 defaults:
   run:
@@ -64,7 +65,7 @@ jobs:
       - uses: ./.github/actions/mise-install
         with:
           working-directory: atlas-native
-          install: java ktlint
+          install: java github:ktlint/ktlint
       - run: mise run lint:kotlin
 
   build:

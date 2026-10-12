@@ -27,6 +27,9 @@ runs:
         sudo apt-get update -y
         sudo apt-get install -y libasound2t64
 
+    - uses: android-actions/setup-android@v3
+      if: inputs.platform == 'android'
+
     - name: Install Android SDK packages
       if: inputs.platform == 'android'
       shell: bash
