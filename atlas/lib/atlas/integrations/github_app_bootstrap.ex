@@ -44,11 +44,25 @@ defmodule Atlas.Integrations.GitHubAppBootstrap do
          owner = Keyword.get(config, :owner, "tuist"),
          repo = Keyword.get(config, :repo, "tuist"),
          {:ok, installation_id} <- installation_id(config, owner),
-         {:ok, app} <- upsert_app(config, installation_id),
-         {:ok, _repository} <- upsert_repository(app, owner, repo) do
+         {:ok, app} <- persist_configuration(config, installation_id, owner, repo) do
       Logger.info("GitHub App #{app.name} configured for #{owner}/#{repo}")
       :ok
     end
+  end
+
+  defp persist_configuration(config, installation_id, owner, repo) do
+    Repo.transaction(fn ->
+      # All replicas bootstrap at startup, including during rolling deploys.
+      # Serialize the read-then-insert paths and commit both rows together.
+      Repo.query!("SELECT pg_advisory_xact_lock($1)", [1_947_320_681])
+
+      with {:ok, app} <- upsert_app(config, installation_id),
+           {:ok, _repository} <- upsert_repository(app, owner, repo) do
+        app
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
   end
 
   defp validate_config(config) do

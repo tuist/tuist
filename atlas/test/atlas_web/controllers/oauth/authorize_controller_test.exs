@@ -2,6 +2,7 @@ defmodule AtlasWeb.Oauth.AuthorizeControllerTest do
   use AtlasWeb.ConnCase, async: true
 
   alias Atlas.Guardian
+  alias Atlas.OAuth.AccessTokens
   alias Atlas.Repo
   alias Boruta.Ecto.Scope
   alias Boruta.Ecto.Scopes
@@ -65,6 +66,24 @@ defmodule AtlasWeb.Oauth.AuthorizeControllerTest do
 
     assert {:ok, %{"scopes" => ["mcp"]}} = Guardian.decode_and_verify(access_token)
     assert is_binary(refresh_token)
+
+    # A request on another replica must see revocation without relying on the
+    # instance that originally minted or looked up the token to evict a cache.
+    token = AccessTokens.get_by(value: access_token)
+    assert is_nil(token.revoked_at)
+    assert {:ok, _revoked} = AccessTokens.revoke(token)
+    assert AccessTokens.get_by(value: access_token).revoked_at
+    assert {:error, :token_not_found} = Guardian.decode_and_verify(access_token)
+
+    replay_conn =
+      post(build_conn(), ~p"/oauth2/token", %{
+        "grant_type" => "authorization_code",
+        "client_id" => client_id,
+        "redirect_uri" => redirect_uri,
+        "code" => code
+      })
+
+    assert %{"error" => "invalid_grant"} = json_response(replay_conn, 400)
   end
 
   test "preserves long OAuth state through a PKCE authorization code exchange", %{conn: conn} do
