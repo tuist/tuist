@@ -43,8 +43,10 @@ mise run lint:kotlin
 Install the Rust standard library for the platform before building:
 `mise exec -- rustup target add aarch64-linux-android aarch64-apple-ios-sim`.
 Android needs `ANDROID_HOME`, SDK 35, build-tools 35.0.0 and an NDK selected by
-`ANDROID_NDK_HOME` (CI pins 27.3.13750724). iOS needs Apple Silicon macOS, Xcode,
-and an installed iOS simulator runtime. Do not switch this workspace to Gradle,
+`ANDROID_NDK_HOME` (CI pins 27.3.13750724). CI initializes command-line SDK tools
+with `setup-android`, explicitly requesting `platform-tools` rather than its
+retired default `tools` package. iOS needs Apple Silicon macOS, Xcode, and an
+installed iOS simulator runtime. Do not switch this workspace to Gradle,
 SwiftPM, or generated Xcode projects to work around Once build failures.
 
 ## Boundaries
