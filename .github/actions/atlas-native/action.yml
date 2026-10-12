@@ -40,6 +40,18 @@ runs:
         sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.3.13750724"
         echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724" >> "$GITHUB_ENV"
 
+    - name: Generate Android debug keystore
+      if: inputs.platform == 'android'
+      shell: bash
+      working-directory: atlas-native
+      run: |
+        keystore="$RUNNER_TEMP/atlas-debug.keystore"
+        mise exec -- keytool -genkeypair -noprompt \
+          -keystore "$keystore" -storepass android -keypass android \
+          -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+          -dname "CN=Android Debug,O=Android,C=US"
+        echo "ANDROID_DEBUG_KEYSTORE=$keystore" >> "$GITHUB_ENV"
+
     - name: Install Rust mobile standard library
       if: inputs.platform == 'android' || inputs.platform == 'ios'
       shell: bash

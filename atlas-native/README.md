@@ -63,9 +63,34 @@ Install Java 21 and Kotlin, then install the Android SDK packages:
 ```sh
 mise install --locked java kotlin
 export ANDROID_HOME=/path/to/android-sdk
+export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
 sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.3.13750724"
 export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.3.13750724"
 mise exec -- rustup target add aarch64-linux-android
+```
+
+Once requires a debug keystore to produce an installable APK. It uses
+`ANDROID_DEBUG_KEYSTORE` or the standard `~/.android/debug.keystore`. On a fresh
+machine without either, create a workspace-local key before building:
+
+```sh
+mkdir -p .once
+export ANDROID_DEBUG_KEYSTORE="$PWD/.once/debug.keystore"
+if [ ! -f "$ANDROID_DEBUG_KEYSTORE" ]; then
+  mise exec -- keytool -genkeypair -noprompt \
+    -keystore "$ANDROID_DEBUG_KEYSTORE" -storepass android -keypass android \
+    -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+    -dname "CN=Android Debug,O=Android,C=US"
+fi
+```
+
+CI generates an ephemeral key in the runner's temporary directory. The password
+`android` is the standard public debug-signing password, not a production
+credential. Keystores are not committed or uploaded as workflow artifacts.
+
+Build, install and launch the app:
+
+```sh
 ONCE_CACHE_PROVIDER=local mise run build:android
 adb install -r .once/out/AtlasAndroid/AtlasAndroid.apk
 adb shell am start -n dev.tuist.atlas/.MainActivity

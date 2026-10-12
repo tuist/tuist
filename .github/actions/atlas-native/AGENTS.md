@@ -13,6 +13,10 @@ directly in that same workflow. Keep permission decisions in the workflow:
   monorepo tool set, even for Rust-only jobs.
 - Initialize Android command-line tools with `android-actions/setup-android`
   before invoking `sdkmanager`; hosted images do not put it on PATH by default.
+  Request `platform-tools` explicitly, not the retired default `tools` package.
+- Generate an ephemeral Android debug keystore and export
+  `ANDROID_DEBUG_KEYSTORE`; Once does not create a key automatically on clean
+  runners. The standard public debug password is `android`, not a secret.
 - Install only the tools used by the selected platform. Linux needs Once's ALSA
   runtime library. Only Android/iOS need Rust cross-compilation standard
   libraries; CLI and core tests use the host toolchain.

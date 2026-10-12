@@ -45,8 +45,10 @@ Install the Rust standard library for the platform before building:
 Android needs `ANDROID_HOME`, SDK 35, build-tools 35.0.0 and an NDK selected by
 `ANDROID_NDK_HOME` (CI pins 27.3.13750724). CI initializes command-line SDK tools
 with `setup-android`, explicitly requesting `platform-tools` rather than its
-retired default `tools` package. iOS needs Apple Silicon macOS, Xcode, and an
-installed iOS simulator runtime. Do not switch this workspace to Gradle,
+retired default `tools` package, and generates an ephemeral debug keystore for
+Once's required APK signing. Local setups need `ANDROID_DEBUG_KEYSTORE` or
+`~/.android/debug.keystore`; see the README for key generation. iOS needs Apple
+Silicon macOS, Xcode, and an installed iOS simulator runtime. Do not switch this workspace to Gradle,
 SwiftPM, or generated Xcode projects to work around Once build failures.
 
 ## Boundaries
@@ -69,7 +71,9 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
   it must not be sent to Tuist's mobile preview endpoints.
 - GitHub CI uses the existing private Once project. Its repository connection to
   `tuist/tuist` is required for OIDC authorization. Do not put project tokens,
-  signing passwords, or service account credentials in source or cached actions.
+  production signing credentials, or service account credentials in source or
+  cached actions. Android debug signing uses the standard public `android`
+  password; never commit or upload the generated keystore.
 - The single `.github/workflows/atlas-mobile.yml` pipeline triggers automatically
   only for `atlas-native/**` changes and skips draft PRs. Keep building, testing
   and each language's linting in distinct jobs. There is no unconditional merge
