@@ -20,6 +20,17 @@ defmodule Tuist.Kura.SelfHostedClients do
 
   @client_id_prefix "cache"
 
+  @doc """
+  Whether a client id has the self-hosted credential shape. These ids are not
+  UUIDs, so callers routing between OAuth clients and self-hosted credentials
+  branch on this before UUID-validating request parsing.
+  """
+  def self_hosted_client_id?(client_id) when is_binary(client_id) do
+    String.starts_with?(client_id, @client_id_prefix <> "_")
+  end
+
+  def self_hosted_client_id?(_client_id), do: false
+
   @doc "Lists the self-hosted credentials issued for an account."
   def list_self_hosted_clients(%Account{} = account) do
     Repo.all(
