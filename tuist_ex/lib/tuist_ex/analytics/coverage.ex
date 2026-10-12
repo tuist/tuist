@@ -91,21 +91,12 @@ defmodule TuistEx.Analytics.Coverage do
             end)
           end)
 
-        clauses = modules |> Enum.flat_map(&elem(&1, 3)) |> Enum.uniq()
-        owners = owners(clauses, lines)
-
-        # Only the lines a listed function owns count: the others hold code
-        # nobody wrote or tests directly, such as what `defmodule`, `schema`
-        # or `use` generate on their own line, and no function would account
-        # for them.
-        lines = Map.filter(lines, fn {line, _count} -> listed?(owners[line]) end)
-
         %{
           path: path,
           app: modules |> hd() |> elem(1),
           test?: Enum.any?(test_dirs, &String.starts_with?(path, &1 <> "/")),
           lines: lines,
-          functions: functions(clauses, lines, owners, calls)
+          functions: functions(Enum.flat_map(modules, &elem(&1, 3)), lines, calls)
         }
       end)
     end
@@ -177,32 +168,20 @@ defmodule TuistEx.Analytics.Coverage do
 
   defp clause_starts(_abstract_code), do: []
 
-  # Each executable line belongs to the function whose clause body starts
+  # Each executable line belongs to the function whose clause head starts
   # closest above it, including the anonymous functions inside it, whichever
   # of the file's modules it is in. Functions the compiler generates
   # (`__info__/1`, `__struct__/0`, `module_info/0`) are not listed, but still
-  # own their lines and end the function before them.
-  defp owners(clauses, lines) do
+  # end the function before them. A function's executions are the runs of its
+  # clauses' first expressions, as cover counts calls, or cover's own count
+  # when that is higher: the calls a module Mimic copied took before the copy
+  # are only in its lines.
+  defp functions(clauses, lines, calls) do
+    clauses = Enum.uniq(clauses)
+
     starts =
-      clauses
-      |> Enum.map(fn {head, _body, function} -> {head, function} end)
-      |> Enum.sort()
+      clauses |> Enum.map(fn {head, _body, function} -> {head, function} end) |> Enum.sort()
 
-    lines
-    |> Map.keys()
-    |> Enum.sort()
-    |> Enum.reduce({starts, nil, %{}}, fn line, {starts, owner, acc} ->
-      {starts, owner} = advance(starts, owner, line)
-      {starts, owner, if(owner, do: Map.put(acc, line, owner), else: acc)}
-    end)
-    |> elem(2)
-  end
-
-  # The listed functions, from lines a listed function owns. A function's
-  # executions are the runs of its clauses' first expressions, as cover counts
-  # calls, or cover's own count when that is higher: the calls a module Mimic
-  # copied took before the copy are only in its lines.
-  defp functions(clauses, lines, owners, calls) do
     head_lines =
       clauses
       |> Enum.sort()
@@ -225,7 +204,14 @@ defmodule TuistEx.Analytics.Coverage do
       end)
 
     lines
-    |> Enum.group_by(fn {line, _count} -> owners[line] end, fn {_line, count} -> count end)
+    |> Enum.sort()
+    |> Enum.reduce({starts, nil, %{}}, fn {line, count}, {starts, owner, acc} ->
+      {starts, owner} = advance(starts, owner, line)
+      acc = if owner, do: Map.update(acc, owner, [count], &[count | &1]), else: acc
+      {starts, owner, acc}
+    end)
+    |> elem(2)
+    |> Enum.reject(fn {{_module, {name, _arity}}, _counts} -> generated?(name) end)
     |> Enum.map(fn {{module, {name, arity}} = function, counts} ->
       %{
         name: "#{name}/#{arity}",
@@ -243,10 +229,8 @@ defmodule TuistEx.Analytics.Coverage do
 
   defp advance(starts, owner, _line), do: {starts, owner}
 
-  defp listed?({_module, {name, _arity}}),
-    do: name != :module_info and not String.starts_with?(Atom.to_string(name), "__")
-
-  defp listed?(nil), do: false
+  defp generated?(name),
+    do: name == :module_info or String.starts_with?(Atom.to_string(name), "__")
 
   defp application(module) do
     case :application.get_application(module) do

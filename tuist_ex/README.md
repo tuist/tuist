@@ -184,9 +184,10 @@ Tuist reads the counters Erlang's `cover` collected once the suite finishes,
 so your coverage tool keeps working as before: `mix test`'s HTML report and
 threshold, or excoveralls. Each covered file is reported with the OTP
 application it belongs to and the Git blob it had, and files under your test
-paths count as test code, which no figure includes. Lines that hold only code the
-compiler or a macro generates, such as the line `defmodule`, `schema` or `use`
-sits on, aren't counted either. A run that picks its tests
+paths count as test code, which no figure includes. Each file also lists its
+functions; lines that hold only code the compiler or a macro generates, such as
+the line `defmodule`, `schema` or `use` sits on, count for the file but belong
+to no function. A run that picks its tests
 (`--only`, `--exclude`, `--failed`, `--stale`, or test files on the command
 line) is reported as partial and stays out of the branch's coverage trend.
 Shards each report their share and Tuist merges them.

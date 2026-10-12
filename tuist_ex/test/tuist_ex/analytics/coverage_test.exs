@@ -191,8 +191,9 @@ defmodule TuistEx.Analytics.CoverageTest do
                directory |> Coverage.snapshot(app: :calculator) |> Enum.find(&(&1.path == source))
 
       # A line only a generated function owns, as the `__schema__/1` Ecto's
-      # `schema` defines on its own line, is not executable here.
-      assert lines == %{3 => 1, 7 => 0, 11 => 0, 14 => 1, 15 => 1, 16 => 2}
+      # `schema` defines on its own line, counts for the file but belongs to
+      # no listed function.
+      assert lines == %{3 => 1, 7 => 0, 11 => 0, 14 => 1, 15 => 1, 16 => 2, 17 => 1}
 
       # Each function with the line it starts at, how many times it was
       # called, and its lines; the generated `__info__/1` is left out.
@@ -257,7 +258,7 @@ defmodule TuistEx.Analytics.CoverageTest do
       assert %{lines: lines} =
                directory |> Coverage.snapshot(ignored) |> Enum.find(&(&1.path == source))
 
-      assert Map.keys(lines) == [3, 7, 14, 15, 16]
+      assert Map.keys(lines) == [3, 7, 14, 15, 16, 17]
 
       ignored = [
         app: :calculator,
