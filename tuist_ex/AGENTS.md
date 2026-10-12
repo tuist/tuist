@@ -79,7 +79,11 @@ so `mix test`'s report, threshold and excoveralls keep working. A run is
 partial only when its own arguments pick tests; the files a shard appends are
 not counted. Paths are relative to the Git root, a build compiled elsewhere is
 matched by path suffix, the OTP application is the target, and files under the
-test paths are test code. Coverage that compresses past the server's inline
+test paths are test code. A line belongs to the function whose clause head
+starts closest above it, and only lines a listed function owns count: those
+of generated functions (`__*`, `module_info`), such as a `defmodule`,
+`schema` or `use` line, are dropped, so a file's figures match its listed
+functions. Coverage that compresses past the server's inline
 threshold is uploaded first (`/tests/coverage/uploads`). Retries never carry
 `--cover`. `mix tuist.coverage.complete` signals the commit's coverage
 complete, as `tuist coverage complete` does. Tests that start or stop `cover`

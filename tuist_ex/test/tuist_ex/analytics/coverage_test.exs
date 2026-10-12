@@ -121,6 +121,7 @@ defmodule TuistEx.Analytics.CoverageTest do
         def kind(0), do: :zero
         def kind(n), do: n
         def greet(name \\\\ "you"), do: name
+        def __schema__(:source), do: "calculators"
       end
       """)
 
@@ -184,10 +185,13 @@ defmodule TuistEx.Analytics.CoverageTest do
       :zero = apply(TuistExCoverFixture.Calculator, :kind, [0])
       5 = apply(TuistExCoverFixture.Calculator, :kind, [5])
       "you" = apply(TuistExCoverFixture.Calculator, :greet, [])
+      "calculators" = apply(TuistExCoverFixture.Calculator, :__schema__, [:source])
 
       assert %{app: "calculator", test?: false, lines: lines, functions: functions} =
                directory |> Coverage.snapshot(app: :calculator) |> Enum.find(&(&1.path == source))
 
+      # A line only a generated function owns, as the `__schema__/1` Ecto's
+      # `schema` defines on its own line, is not executable here.
       assert lines == %{3 => 1, 7 => 0, 11 => 0, 14 => 1, 15 => 1, 16 => 2}
 
       # Each function with the line it starts at, how many times it was

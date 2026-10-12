@@ -179,6 +179,8 @@ Limitations that apply to all the attributed scopes:
 
 `mix tuist.test --cover` (the `tuist_ex` package) measures only the `run` scope, read from Erlang's `cover` once the suite finishes, and sends it as the `coverage` block (`tool` `cover`). An OTP application is a target, and the files under the project's test paths are test code. Mix collects no `target`, `suite` or `test` evidence.
 
+Each executable line belongs to the function whose clause starts closest above it. A line that only functions the compiler or a macro generates own (`__info__/1`, `__schema__/1` and the like, on the line `defmodule`, `schema` or `use` sits on) isn't counted: nobody writes or tests that code directly, and no listed function would account for it, so a file's figures always match its functions. Tuist's figures therefore differ from `mix test --cover`'s own report in three ways: they leave test code out, they count a line once per file rather than once per module, and they skip those generated lines.
+
 | Scope | Source | Requirements |
 | --- | --- | --- |
 | `run` | Erlang's `cover`. | `--cover`. |
