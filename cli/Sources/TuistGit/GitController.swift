@@ -75,8 +75,9 @@ public protocol GitControlling {
 
     /// What the checkout can tell about `headSHA`'s place in the repository's history: the merge
     /// base with `baseBranch` and the commits reachable from the head within `limits`. A shallow
-    /// clone is deepened within the budget to find the merge base. Nothing here throws for a missing piece: it comes back nil with a
-    /// reason, and the server may complete it from the VCS provider.
+    /// clone is deepened within the budget to find the merge base. Nothing here throws for a
+    /// missing piece: it comes back nil with a reason, and the server may complete it from the
+    /// VCS provider.
     /// - Parameters:
     ///   - workingDirectory: The repository's top level.
     ///   - headSHA: The commit the run is for; HEAD when nil.
