@@ -412,6 +412,33 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         return test
     }
 
+    private func writeQuarantinedTests(
+        _ quarantinedTests: [TestIdentifier],
+        to resultBundlePath: AbsolutePath
+    ) async throws {
+        let entries = quarantinedTests.map { test in
+            QuarantinedTestEntry(
+                target: test.target,
+                class: test.class,
+                method: test.method
+            )
+        }
+        let filePath = resultBundlePath.appending(component: "quarantined_tests.json")
+        try await fileSystem.writeAsJSON(entries, at: filePath)
+    }
+
+    private func rootDirectory() async throws -> AbsolutePath? {
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
+        if await gitController.isInGitRepository(workingDirectory: workingDirectory) {
+            return try await gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
+        } else {
+            return try await rootDirectoryLocator.locate(from: workingDirectory)
+        }
+    }
+}
+
+extension UploadResultBundleService {
     private func uploadAttachments(
         for testCase: TestCase,
         fullHandle: String,
@@ -460,33 +487,6 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         }
     }
 
-    private func writeQuarantinedTests(
-        _ quarantinedTests: [TestIdentifier],
-        to resultBundlePath: AbsolutePath
-    ) async throws {
-        let entries = quarantinedTests.map { test in
-            QuarantinedTestEntry(
-                target: test.target,
-                class: test.class,
-                method: test.method
-            )
-        }
-        let filePath = resultBundlePath.appending(component: "quarantined_tests.json")
-        try await fileSystem.writeAsJSON(entries, at: filePath)
-    }
-
-    private func rootDirectory() async throws -> AbsolutePath? {
-        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-        let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
-        if await gitController.isInGitRepository(workingDirectory: workingDirectory) {
-            return try await gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
-        } else {
-            return try await rootDirectoryLocator.locate(from: workingDirectory)
-        }
-    }
-}
-
-extension UploadResultBundleService {
     private func testCaseRunsByIdentity(
         testCaseRuns: [Components.Schemas.RunsTest.test_case_runsPayloadPayload]
     ) -> [String: Components.Schemas.RunsTest.test_case_runsPayloadPayload] {
