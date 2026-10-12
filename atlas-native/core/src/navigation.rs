@@ -1,6 +1,7 @@
 use core::ffi::CStr;
 
 pub struct Section {
+    pub id: &'static str,
     pub title: &'static CStr,
     pub description: &'static CStr,
     pub url: &'static CStr,
@@ -8,16 +9,19 @@ pub struct Section {
 
 pub static SECTIONS: &[Section] = &[
     Section {
+        id: "accounts",
         title: c"Accounts",
         description: c"Customer relationships and sales",
         url: c"https://atlas.tuist.dev/commercial/sales/accounts",
     },
     Section {
+        id: "tasks",
         title: c"Tasks",
         description: c"Your team's work and reminders",
         url: c"https://atlas.tuist.dev/tasks",
     },
     Section {
+        id: "notes",
         title: c"Notes",
         description: c"Shared knowledge and documents",
         url: c"https://atlas.tuist.dev/library/notes",
@@ -55,6 +59,20 @@ mod tests {
                     .iter()
                     .all(|other| other.url != section.url)
             );
+        }
+    }
+
+    #[test]
+    fn section_ids_are_unique_and_shell_friendly() {
+        for (index, section) in SECTIONS.iter().enumerate() {
+            assert!(!section.id.is_empty());
+            assert!(
+                section
+                    .id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte == b'-')
+            );
+            assert!(SECTIONS[..index].iter().all(|other| other.id != section.id));
         }
     }
 

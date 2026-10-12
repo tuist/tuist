@@ -1,24 +1,28 @@
-name: Atlas Mobile
+name: Atlas Native
 
 on:
   push:
     branches: [main]
-    paths: [atlas-mobile/**]
+    paths: [atlas-native/**]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths: [atlas-mobile/**]
+    paths: [atlas-native/**]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: atlas-mobile-${{ github.head_ref || github.ref }}
+  group: atlas-native-${{ github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   MISE_GITHUB_TOKEN: ${{ github.token }}
   MISE_GITHUB_ATTESTATIONS: "0"
+
+defaults:
+  run:
+    working-directory: atlas-native
 
 jobs:
   lint-rust:
@@ -26,14 +30,11 @@ jobs:
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: atlas-mobile
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
         with:
-          working-directory: atlas-mobile
+          working-directory: atlas-native
           install: rust
       - run: mise exec -- rustup component add clippy rustfmt
       - run: mise run lint:rust
@@ -43,16 +44,13 @@ jobs:
     if: github.event.pull_request.draft != true
     runs-on: tuist-macos-27-0
     timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: atlas-mobile
     env:
       ONCE_CACHE_PROVIDER: local
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
         with:
-          working-directory: atlas-mobile
+          working-directory: atlas-native
           install: swiftlint github:tuist/once
       - run: mise run lint:swift
 
@@ -61,14 +59,11 @@ jobs:
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: atlas-mobile
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
         with:
-          working-directory: atlas-mobile
+          working-directory: atlas-native
           install: java ktlint
       - run: mise run lint:kotlin
 
@@ -86,11 +81,13 @@ jobs:
             runner: ubuntu-24.04
           - platform: ios
             runner: tuist-macos-27-0
+          - platform: cli
+            runner: ubuntu-24.04
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/atlas-mobile
+      - uses: ./.github/actions/atlas-native
         with:
           platform: ${{ matrix.platform }}
           operation: build
@@ -109,11 +106,13 @@ jobs:
             runner: ubuntu-24.04
           - platform: ios
             runner: tuist-macos-27-0
+          - platform: cli
+            runner: ubuntu-24.04
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/atlas-mobile
+      - uses: ./.github/actions/atlas-native
         with:
           platform: ${{ matrix.platform }}
           operation: build
@@ -132,11 +131,13 @@ jobs:
             runner: ubuntu-24.04
           - platform: ios
             runner: tuist-macos-27-0
+          - platform: cli
+            runner: ubuntu-24.04
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/atlas-mobile
+      - uses: ./.github/actions/atlas-native
         with:
           platform: ${{ matrix.platform }}
           operation: test
@@ -155,11 +156,13 @@ jobs:
             runner: ubuntu-24.04
           - platform: ios
             runner: tuist-macos-27-0
+          - platform: cli
+            runner: ubuntu-24.04
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/atlas-mobile
+      - uses: ./.github/actions/atlas-native
         with:
           platform: ${{ matrix.platform }}
           operation: test
@@ -174,22 +177,19 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    defaults:
-      run:
-        working-directory: atlas-mobile
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: atlas-mobile-android
-          path: atlas-mobile/delivery/android
+          path: atlas-native/delivery/android
       - uses: actions/download-artifact@v4
         with:
           name: atlas-mobile-ios
-          path: atlas-mobile/delivery/ios
+          path: atlas-native/delivery/ios
       - uses: ./.github/actions/mise-install
         with:
-          working-directory: atlas-mobile
+          working-directory: atlas-native
           install: tuist
       - name: Authenticate with Tuist
         run: mise exec -- tuist auth login

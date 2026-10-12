@@ -1,8 +1,8 @@
-# Atlas mobile
+# Atlas native
 
-This is an independent Once workspace for Atlas's mobile clients. The shared
-Rust core owns the section catalog and destinations; Android uses Kotlin with
-platform widgets, and iOS uses SwiftUI. Native views must not duplicate catalog
+This is an independent Once workspace for Atlas's native clients. The shared
+Rust core owns the section catalog and destinations; the CLI is Rust, Android
+uses Kotlin with platform widgets, and iOS uses SwiftUI. Native views must not duplicate catalog
 strings or routes. The initial app opens authenticated Atlas pages in the system
 browser. It does not implement a native API client or store Atlas credentials.
 
@@ -10,7 +10,10 @@ browser. It does not implement a native API client or store Atlas credentials.
 
 - `once.toml`: typed build graph and shared cache identity (`tuist/atlas-mobile`).
 - `core/src/`: shared navigation, C ABI, and primitive-only JNI bridge.
-- `core/Cargo.toml`: editor and Clippy support, not the native build graph.
+- `Cargo.toml` / `Cargo.lock`: Rust workspace for editor and Clippy support. Once
+  excludes Cargo discovery here to avoid duplicate targets alongside the authored
+  graph.
+- `cli/`: host Rust executable sharing the catalog; see `cli/AGENTS.md`.
 - `core/include/`: authored C header and Clang module map imported by Swift.
 - `android/`: Kotlin UI, JNI adapter, Android manifest and resources.
 - `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge tests.
@@ -24,6 +27,8 @@ Run commands from this directory, not the monorepo root:
 
 ```sh
 ONCE_CACHE_PROVIDER=local mise run check
+ONCE_CACHE_PROVIDER=local mise run build:cli
+ONCE_CACHE_PROVIDER=local mise run test:cli
 ONCE_CACHE_PROVIDER=local mise run build:android
 ONCE_CACHE_PROVIDER=local mise run build:ios
 ONCE_CACHE_PROVIDER=local mise run test:ios
@@ -47,16 +52,21 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
   panic. Keep UTF-8 decoding and boundary checks covered by tests.
 - The Android package, Kotlin class/method names and JNI exported symbols must
   agree. Renaming any of these requires rebuilding and launching the Android app.
+- Swift's generated module caches embed absolute paths. After a directory rename,
+  discard `.once/out/AtlasIOS/ModuleCache` and the equivalent test target cache
+  before rebuilding; do not move those precompiled caches between roots.
 - `Info.plist` is a complete template, not a merge into Once's default plist.
   Keep its identifier, executable, families and supported platform consistent
   with the manifest, and smoke-test simulator installation after changes.
-- These builds are arm64 Android debug APKs and arm64 iOS simulator apps. Store
+- Mobile builds are arm64 Android debug APKs and arm64 iOS simulator apps. Store
   delivery requires separate device targets, signing, app icons and store setup.
+  The CLI builds for the host and is distributed as an executable tar archive;
+  it must not be sent to Tuist's mobile preview endpoints.
 - GitHub CI uses the existing private Once project. Its repository connection to
   `tuist/tuist` is required for OIDC authorization. Do not put project tokens,
   signing passwords, or service account credentials in source or cached actions.
 - The single `.github/workflows/atlas-mobile.yml` pipeline triggers automatically
-  only for `atlas-mobile/**` changes and skips draft PRs. Keep building, testing
+  only for `atlas-native/**` changes and skips draft PRs. Keep building, testing
   and each language's linting in distinct jobs. There is no unconditional merge
   queue trigger because it cannot apply GitHub path filters.
 - Main-branch delivery uses the `nightly` Tuist preview track, gated by all build,

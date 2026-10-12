@@ -9,8 +9,16 @@ ktlint = "1.7.1"
 postinstall = "true"
 
 [tasks.check]
-description = "Validate the graph, check Rust formatting, and test the shared core"
-run = ["once query validate-workspace", "rustfmt --edition 2024 --check core/src/*.rs", "once test AtlasCoreTests"]
+description = "Validate the graph, check Rust formatting, and test the Rust surfaces"
+run = ["once query validate-workspace", "cargo fmt --all -- --check", "once test AtlasCoreTests", "once test AtlasCLITests"]
+
+[tasks."build:cli"]
+description = "Build the Atlas Rust CLI for the host"
+run = "once build AtlasCLI"
+
+[tasks."test:cli"]
+description = "Test CLI commands against the shared Rust catalog"
+run = "once test AtlasCLITests"
 
 [tasks."build:android"]
 description = "Build the arm64 Android preview APK"
@@ -26,7 +34,7 @@ run = "once test AtlasCoreTests"
 
 [tasks."lint:rust"]
 description = "Check Rust formatting and Clippy warnings"
-run = ["rustfmt --edition 2024 --check core/src/*.rs", "cargo clippy --locked --manifest-path core/Cargo.toml --all-targets -- -D warnings"]
+run = ["cargo fmt --all -- --check", "cargo clippy --locked --workspace --all-targets -- -D warnings"]
 
 [tasks."lint:swift"]
 description = "Lint the Swift app and bridge tests"

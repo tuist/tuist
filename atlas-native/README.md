@@ -1,11 +1,12 @@
-# Atlas mobile
+# Atlas native
 
-Native mobile clients for Atlas, with a shared Rust core and builds powered by
+Native clients for Atlas, with a shared Rust core and builds powered by
 [Once](https://github.com/tuist/once).
 
 | Layer | Technology |
 | --- | --- |
 | Shared core | Rust, exposed through a C ABI and JNI |
+| Command line | Rust, using the shared core directly |
 | Android | Kotlin and native Android widgets |
 | iOS | Swift and SwiftUI |
 | Build, test and cache | Once |
@@ -19,11 +20,11 @@ features, not a WebView wrapper or a completed native Atlas client.
 
 ## Develop
 
-Run all commands from `atlas-mobile/`. It is a separate Once workspace, so the
+Run all commands from `atlas-native/`. It is a separate Once workspace, so the
 Atlas server's graph and cache remain unchanged.
 
 ```sh
-cd atlas-mobile
+cd atlas-native
 mise install rust github:tuist/once
 ONCE_CACHE_PROVIDER=local mise run check
 ```
@@ -32,6 +33,28 @@ The toolchain pins Once 0.67.1, Rust 1.96.0, Kotlin 2.4.10 and ktlint 1.7.1.
 SwiftLint uses the monorepo's pinned version. To test changes to
 Once itself, invoke the executable built from a local Once checkout in this
 workspace in place of `mise exec -- once`.
+
+### Rust CLI
+
+Build the CLI with Once, then run the `atlas` executable directly:
+
+```sh
+ONCE_CACHE_PROVIDER=local mise run build:cli
+ONCE_CACHE_PROVIDER=local mise run test:cli
+.once/out/AtlasCLI/atlas --help
+.once/out/AtlasCLI/atlas sections
+.once/out/AtlasCLI/atlas url tasks
+```
+
+`sections` emits tab-separated IDs, titles and URLs from the shared catalog.
+`url tasks` prints `https://atlas.tuist.dev/tasks` followed by a newline, suitable
+for shell scripts. Invalid arguments print an actionable error to stderr and
+exit with code 2. The CLI does not fetch customer data or store credentials.
+
+The CLI builds for the host, with no mobile SDK required. `once run AtlasCLI --
+url tasks` also works, but Once captures the command output in
+`.once/out/AtlasCLI/run/stdout.log`. The pipeline builds a Linux CLI archive;
+local builds also work on Apple Silicon macOS.
 
 ### Android
 
@@ -69,7 +92,9 @@ builds for arm64 simulators, not physical devices or TestFlight.
 
 ## Tuist integration and delivery
 
-Both `once.toml` and `tuist.toml` point to the existing private Once project
+The directory was renamed from `atlas-mobile/` to `atlas-native/` to include the
+CLI, but the pipeline remains `atlas-mobile.yml` and the Tuist project identity
+is unchanged. Both `once.toml` and `tuist.toml` point to the existing private Once project
 `tuist/atlas-mobile`. Once uses it for shared build caching and run reporting;
 Tuist uses it for previews and bundle insights.
 
@@ -86,12 +111,15 @@ mise run build:android
 
 `.github/workflows/atlas-mobile.yml`:
 
-- Runs automatically only for changes under `atlas-mobile/`; draft pull requests
+- Runs automatically only for changes under `atlas-native/`; draft pull requests
   skip all jobs. A manual dispatch remains available.
 - Runs SwiftLint, Rust formatting and Clippy, and ktlint in separate lint jobs.
-- Builds Android and iOS in build jobs, independently of the Rust and iOS test
-  jobs. The Swift tests exercise the adapter against the real Rust library.
-- Retains APK, simulator ZIP and test reports as GitHub artifacts for 14 days.
+- Builds the Rust CLI, Android and iOS in build jobs, independently of the core,
+  CLI and iOS test jobs. The Swift tests exercise the adapter against the real
+  Rust library.
+- Retains the CLI tar archive, APK, simulator ZIP and test reports as GitHub
+  artifacts for 14 days. The CLI archive preserves executable permissions and
+  its artifact name identifies the build host's OS and architecture.
 - Uses shared caching in trusted jobs when authentication succeeds. Forks build
   with only the local cache and have no OIDC permission.
 - Publishes the built artifacts to Tuist's `nightly` preview track only after all
@@ -102,8 +130,9 @@ mise run build:android
 
 Run language checks locally with `mise run lint:rust`,
 `ONCE_CACHE_PROVIDER=local mise run lint:swift`, and `mise run lint:kotlin`.
-The core's Cargo manifest supports Clippy and editor tooling; Once still builds
-and tests the native apps and shared core directly from its graph.
+The Rust Cargo workspace supports Clippy and editor tooling; Once excludes Cargo
+manifest discovery and builds/tests the CLI, native apps and shared core directly
+from its authored graph.
 
 Delivery uses the `atlas-mobile-previews` GitHub environment. Add protection rules
 there if preview publication needs approval. App Store and Google Play publishing

@@ -1,5 +1,6 @@
 [workspace]
 include = ["once.toml"]
+exclude = ["**/Cargo.toml"]
 
 [infrastructure.cache]
 provider = "tuist"
@@ -22,6 +23,40 @@ apple_target = "aarch64-apple-ios-sim"
 android_target = "aarch64-linux-android"
 android_abi = "arm64-v8a"
 android_api = 26
+
+[[target]]
+name = "AtlasCoreHost"
+kind = "rust_library"
+srcs = ["core/src/**/*.rs"]
+
+[target.attrs]
+crate_name = "atlas_core"
+crate_root = "core/src/lib.rs"
+edition = "2024"
+
+[[target]]
+name = "AtlasCLI"
+kind = "rust_binary"
+srcs = ["cli/src/**/*.rs"]
+deps = ["./AtlasCoreHost"]
+
+[target.attrs]
+crate_name = "atlas"
+crate_root = "cli/src/main.rs"
+edition = "2024"
+rustc_flags = ["-Dwarnings"]
+
+[[target]]
+name = "AtlasCLITests"
+kind = "rust_test"
+srcs = ["cli/src/**/*.rs"]
+deps = ["./AtlasCoreHost"]
+
+[target.attrs]
+crate_name = "atlas_cli_tests"
+crate_root = "cli/src/main.rs"
+edition = "2024"
+rustc_flags = ["-Dwarnings"]
 
 [[target]]
 name = "AtlasCoreTests"

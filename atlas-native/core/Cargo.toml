@@ -7,5 +7,3 @@ publish = false
 
 [lib]
 path = "src/lib.rs"
-
-[workspace]
