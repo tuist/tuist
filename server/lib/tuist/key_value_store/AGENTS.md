@@ -20,3 +20,7 @@ This context owns key-value caching with Redis and in-memory fallbacks.
 - Parent business logic: `server/lib/tuist/AGENTS.md`
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
+
+## Replica-safety rollout
+
+Display invalidation is broadcast to connected nodes. On node join/leave, clear the display cache and FunWithFlags membership cache, never the dedicated immutable token-proof or license caches. Persistent-key invalidation also removes the shared Redis value. These are regenerable views, not authoritative authorization state.
