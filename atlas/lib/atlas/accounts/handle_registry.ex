@@ -11,9 +11,9 @@ defmodule Atlas.Accounts.HandleRegistry do
   `"atlas:account_handles"` PubSub topic. Reads are lock-free and
   wait-free; writes are rare, and the module tolerates arbitrary
   `:reload` requests to fall back to a full reload when a broadcast
-  is missed or the payload cannot be applied incrementally. A periodic full
-  reload repairs notifications missed during a database reconnect, deployment,
-  or transaction rollback. PostgreSQL, not this snapshot, is authoritative.
+  is missed or the payload cannot be applied incrementally. A full reload every
+  30 seconds picks up changes made on other replicas without requiring clustered
+  PubSub. PostgreSQL, not this snapshot, is authoritative.
 
   ## Return shape
 
@@ -61,9 +61,10 @@ defmodule Atlas.Accounts.HandleRegistry do
   def lookup(_handle), do: :error
 
   @doc """
-  Broadcasts an account-handle change so every node with a running
-  registry patches its snapshot. Called from `Atlas.Accounts` after
-  successful writes; also safe to call from tests to prime state.
+  Broadcasts an account-handle change so the local registry patches its
+  snapshot immediately. Other replicas pick it up during their periodic reload.
+  Called from `Atlas.Accounts` after successful writes; also safe to call from
+  tests to prime state.
   """
   def broadcast_change(payload) do
     Phoenix.PubSub.broadcast(Atlas.PubSub, @topic, {:account_handle_changed, payload})
@@ -71,7 +72,7 @@ defmodule Atlas.Accounts.HandleRegistry do
 
   @doc """
   Forces a full reload from Postgres. Reserved for tests and for
-  operational recovery — the PubSub incremental path handles the
+  operational recovery. Local PubSub updates and periodic reloads handle the
   steady-state case.
   """
   def reload(server \\ __MODULE__), do: GenServer.call(server, :reload)

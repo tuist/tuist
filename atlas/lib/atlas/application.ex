@@ -55,7 +55,7 @@ defmodule Atlas.Application do
       Atlas.Repo,
       HTTP.finch_child_spec(),
       {DNSCluster, query: Application.get_env(:atlas, :dns_cluster_query) || :ignore},
-      {Phoenix.PubSub, [name: Atlas.PubSub] ++ Application.fetch_env!(:atlas, :pubsub)},
+      {Phoenix.PubSub, name: Atlas.PubSub},
       HandleRegistry,
       GitHubAppBootstrap,
       {Oban, Application.fetch_env!(:atlas, Oban)},

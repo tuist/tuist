@@ -36,7 +36,6 @@ alias Atlas.OAuth.ResourceOwners
 alias Atlas.OAuth.TokenGenerator
 alias Atlas.Outreach.Workers.DiscoverCandidates
 alias Atlas.Outreach.Workers.ScheduleRecommendations
-alias Atlas.PubSub.Postgres
 alias Atlas.SupportInbox.Workers.WeeklyDigest, as: SupportInboxWeeklyDigest
 alias Atlas.Workers.PruneRateLimits
 alias Cloak.Ciphers.AES.GCM
@@ -191,8 +190,6 @@ config :atlas, :pingen,
   print_mode: "simplex",
   print_spectrum: "color",
   receive_timeout: 15_000
-
-config :atlas, :pubsub, adapter: Postgres
 
 config :atlas, :support,
   from_name: "Tuist Support",

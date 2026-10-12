@@ -166,7 +166,9 @@ defmodule AtlasWeb.POCLive.PublicTest do
     end
   end
 
-  test "reconciliation unlocks an approved request when its notification was missed", %{conn: conn} do
+  test "reconciliation unlocks an approval published on another instance's PubSub", %{conn: conn} do
+    remote_pubsub = __MODULE__.RemotePubSub
+    start_supervised!({Phoenix.PubSub, name: remote_pubsub})
     owner = user()
     published = published_poc(owner, account())
     {:ok, view, _html} = live(conn, ~p"/p/pocs/#{published.public_token}")
@@ -182,6 +184,12 @@ defmodule AtlasWeb.POCLive.PublicTest do
     |> Ecto.Changeset.change(verified_at: now, approved_at: now, approved_by_user_id: owner.id)
     |> Atlas.Repo.update!()
 
+    topic = "poc_access:#{request.id}"
+    :ok = Phoenix.PubSub.subscribe(remote_pubsub, topic)
+    :ok = Phoenix.PubSub.broadcast(remote_pubsub, topic, {:poc_access_request_updated, request.id})
+    assert_receive {:poc_access_request_updated, request_id} when request_id == request.id
+
+    assert has_element?(view, "#poc-public-gate [data-part='status-title']", "Waiting on the Tuist team")
     send(view.pid, :reconcile_access_request)
     assert_redirect(view, ~p"/p/pocs/#{published.public_token}/session/#{request.id}")
   end

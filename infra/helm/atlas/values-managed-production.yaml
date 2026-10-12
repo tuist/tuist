@@ -43,9 +43,10 @@ image:
   pullSecretName: ghcr-pull
 
 # Two interchangeable application replicas share PostgreSQL and object storage.
-# PubSub and Oban coordinate through PostgreSQL, not an Erlang mesh or sticky
-# ingress sessions. The PDB keeps one application replica available on drains;
-# dependency/node placement still determines end-to-end availability.
+# Oban coordinates through PostgreSQL; local PubSub plus periodic database
+# reconciliation updates UI/caches without an Erlang mesh or sticky ingress.
+# The PDB keeps one application replica available on drains; dependency/node
+# placement still determines end-to-end availability.
 replicaCount: 2
 
 resources:

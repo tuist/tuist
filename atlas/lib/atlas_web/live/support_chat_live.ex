@@ -12,7 +12,7 @@ defmodule AtlasWeb.SupportChatLive do
 
   @token_salt "support-chat-conversation"
   @token_max_age 30 * 24 * 60 * 60
-  @reconcile_interval :timer.seconds(30)
+  @reconcile_interval :timer.seconds(10)
 
   def mount(_params, _session, socket) do
     if connected?(socket), do: Process.send_after(self(), :reconcile_thread, @reconcile_interval)

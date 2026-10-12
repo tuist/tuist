@@ -11,7 +11,7 @@ defmodule AtlasWeb.POCLive.Public do
   alias AtlasWeb.Markdown
   alias AtlasWeb.POCPublicController
 
-  @reconcile_interval :timer.seconds(30)
+  @reconcile_interval :timer.seconds(10)
 
   @impl true
   def mount(%{"public_token" => token}, session, socket) do
