@@ -8,8 +8,10 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias Tuist.FeatureFlags
   alias Tuist.GitHub.Releases
   alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.CacheGlobe
   alias Tuist.Marketing.Changelog
   alias Tuist.Marketing.Newsletter
+  alias Tuist.Marketing.Stats
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Marketing.Localization
@@ -45,6 +47,34 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert link_header =~ ~s(profile="https://www.rfc-editor.org/info/rfc9727")
       assert link_header =~ ~s(</api/spec>; rel="service-desc"; type="application/json")
       assert link_header =~ ~s(</api/docs>; rel="service-doc"; type="text/html")
+    end
+
+    test "shows today's cache download count linking to the globe page", %{conn: conn} do
+      stub(Stats, :get_globe, fn ->
+        Map.merge(CacheGlobe.empty(), %{
+          downloads: 658_422,
+          recent_downloads: 1_200,
+          updated_at: "2026-10-13T12:00:00Z",
+          observed_at: "2026-10-13T11:58:00Z",
+          status: :available
+        })
+      end)
+
+      html = conn |> get("/") |> html_response(200)
+
+      assert [eyebrow] = html |> LazyHTML.from_document() |> LazyHTML.query("#home-hero-cache-count") |> Enum.to_list()
+      assert LazyHTML.attribute(eyebrow, "href") == ["/globe"]
+      assert LazyHTML.attribute(eyebrow, "data-recent-downloads") == ["1200"]
+      assert LazyHTML.text(eyebrow) =~ "Cache download requests today:"
+      assert LazyHTML.text(eyebrow) =~ "658,422"
+    end
+
+    test "omits the cache download count while the globe has no data", %{conn: conn} do
+      stub(Stats, :get_globe, fn -> CacheGlobe.empty() end)
+
+      html = conn |> get("/") |> html_response(200)
+
+      refute html =~ "home-hero-cache-count"
     end
 
     test "describes the site and the product with structured data", %{conn: conn} do

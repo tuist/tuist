@@ -1,62 +1,68 @@
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
   <main id="marketing-home">
-    <div data-part="platform-hero" id="marketing-platform-hero" phx-hook="PlatformBackground">
-      <div data-part="stage">
-        <TuistWeb.Marketing.MarketingHomeComponents.platform_hero_panels />
-        <div data-part="layout">
-          <div data-part="hero-row">
-            <section data-part="hero">
-              <span data-part="edge-glow" aria-hidden="true"></span>
-              <header data-part="title">
-                <h1 id="hero-title">
-                  <span data-part="line">{dgettext("marketing", "Your platform team,")}</span>
-                  <span data-part="line">{dgettext("marketing", "as a service")}</span>
-                </h1>
-              </header>
-
-              <div data-part="subtitle">
-                <p>
-                  {dgettext(
-                    "marketing",
-                    "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
-                  )}
-                </p>
-              </div>
-
-              <div data-part="actions" role="group" aria-labelledby="hero-title">
-                <.button
-                  href={~p"/users/register"}
-                  label={dgettext("marketing", "Get started")}
-                ></.button>
-                <.button
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
-                  variant="secondary"
-                  label={dgettext("marketing", "Talk to us")}
-                ></.button>
-              </div>
-            </section>
-          </div>
+    <section
+      data-part="hero"
+      id="home-hero"
+      phx-hook="HomeHeroWave"
+      aria-labelledby="hero-title"
+    >
+      <canvas data-part="wave" aria-hidden="true"></canvas>
+      <div data-part="copy">
+        <%!-- Live cache download count from the globe page's snapshot. The
+        HomeCacheCount hook carries it forward between reports from recent
+        activity, only while the snapshot is fresh, and hides it once the UTC
+        day it counts has ended (cached copies of this page can be old). --%>
+        <a
+          :if={is_integer(@cache_globe.downloads)}
+          id="home-hero-cache-count"
+          data-part="eyebrow"
+          phx-hook="HomeCacheCount"
+          href={localized_href("/globe")}
+          title={
+            dgettext(
+              "marketing",
+              "Cache downloads served today, including repeated and partial requests. Counters are estimated between reports using recent activity. Totals reset at midnight UTC."
+            )
+          }
+          data-downloads={@cache_globe.downloads}
+          data-recent-downloads={@cache_globe.recent_downloads}
+          data-updated-at={@cache_globe.updated_at}
+          data-observed-at={@cache_globe.observed_at}
+        >
+          <span data-part="label">{dgettext("marketing", "Cache download requests today")}:</span>
+          <span data-part="value">{TuistWeb.CldrHelpers.format_count(@cache_globe.downloads)}</span>
+          <span data-part="arrow" aria-hidden="true"><.chevron_right /></span>
+        </a>
+        <h1 id="hero-title">
+          <span data-part="line">{dgettext("marketing", "Your platform team,")}</span>
+          <span data-part="line">{dgettext("marketing", "as a service")}</span>
+        </h1>
+        <p>
+          {dgettext(
+            "marketing",
+            "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
+          )}
+        </p>
+        <div data-part="actions" role="group" aria-labelledby="hero-title">
+          <.button
+            href={~p"/users/register"}
+            label={dgettext("marketing", "Get started")}
+          ></.button>
+          <.button
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+            variant="secondary"
+            label={dgettext("marketing", "Talk to us")}
+          ></.button>
         </div>
       </div>
-    </div>
+    </section>
 
     <section
       data-part="company-logos"
       aria-label={dgettext("marketing", "Organizations using Tuist")}
     >
-      <div data-part="side-panel" aria-hidden="true">
-        <div data-part="box"></div>
-        <div data-part="box"></div>
-        <div data-part="grid-block"></div>
-        <div data-part="grid-block"></div>
-        <div data-part="grid-block"></div>
-        <div data-part="grid-block" data-fill></div>
-        <div data-part="grid-block" data-fill></div>
-        <div data-part="grid-block" data-fill></div>
-      </div>
-
       <div data-part="logos" phx-hook="LogoTransition" id="company-logos">
         <div data-part="logo-group">
           <%= if Gettext.get_locale() == "ko" do %>
@@ -88,17 +94,6 @@
           <.org_logo name="chegg" label="Chegg" />
           <.org_logo name="bending_spoons" label="Bending Spoons" />
         </div>
-      </div>
-
-      <div data-part="side-panel" aria-hidden="true">
-        <div data-part="box"></div>
-        <div data-part="box"></div>
-        <div data-part="grid-block"></div>
-        <div data-part="grid-block"></div>
-        <div data-part="grid-block"></div>
-        <div data-part="grid-block" data-fill></div>
-        <div data-part="grid-block" data-fill></div>
-        <div data-part="grid-block" data-fill></div>
       </div>
     </section>
 

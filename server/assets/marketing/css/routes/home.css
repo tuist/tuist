@@ -144,119 +144,15 @@
     flex-direction: row;
     justify-content: center;
     align-items: stretch;
-    /* 2px seams matching the hero canvas; same inset on mobile. */
-    gap: var(--noora-spacing-1);
+    /* 2px inset matching the hero; same inset on mobile. */
     margin: 0 var(--noora-spacing-1);
     height: 88px;
 
     @media (min-width: 1024px) {
       margin: 0;
       width: 100%;
-      /* Match the hero stage: its 1497px composition is centered and
-         framed by empty margins on wider viewports (pages.css would
-         otherwise cap sections at 1296px). The canvas panels are drawn
-         with a 2px inset from the stage edges, so the strip's visible
-         bounds match 1497px minus that inset on each side. */
-      max-width: calc(1497px - 2 * var(--noora-spacing-1));
-      /* Like the hero stage, the fixed-width logos box is cropped
-         symmetrically on viewports narrower than it. */
-      overflow-x: clip;
-    }
-
-    /* Blueprint-style empty boxes filling the leftover space beside the
-       logos so the strip reads as part of the hero canvas. Mirrored on the
-       right; three more boxes cascade below the strip with fading opacity,
-       hanging out of it without affecting layout. */
-    & > [data-part="side-panel"] {
-      display: none;
-
-      @media (min-width: 1024px) {
-        display: flex;
-        position: relative;
-        flex: 1 1 0;
-        gap: var(--noora-spacing-1);
-        min-width: 0;
-
-        & > [data-part="box"] {
-          border: 1px solid var(--marketing-stroke-default);
-
-          &:first-child {
-            flex: 1 1 0;
-          }
-
-          &:nth-child(2) {
-            flex: 2 1 0;
-            opacity: 0.8;
-          }
-        }
-
-        & > [data-part="grid-block"] {
-          position: absolute;
-          left: 0;
-          /* border-box, or the 1px borders widen each box and swallow the
-             2px seam between the row's two boxes. */
-          box-sizing: border-box;
-          border: 1px solid var(--marketing-stroke-default);
-          height: 88px;
-
-          &:nth-child(3) {
-            top: calc(100% + var(--noora-spacing-1));
-            opacity: 0.6;
-            width: 75%;
-          }
-
-          &:nth-child(4) {
-            top: calc(100% + 88px + 2 * var(--noora-spacing-1));
-            opacity: 0.4;
-            width: 55%;
-          }
-
-          &:nth-child(5) {
-            top: calc(100% + 176px + 3 * var(--noora-spacing-1));
-            opacity: 0.2;
-            width: 35%;
-          }
-
-          /* Inner partners completing each cascade row up to the logos-side
-             edge, across the 2px seam. */
-          &[data-fill] {
-            right: 0;
-            left: auto;
-          }
-
-          &[data-fill]:nth-child(6) {
-            top: calc(100% + var(--noora-spacing-1));
-            opacity: 0.6;
-            width: calc(25% - var(--noora-spacing-1));
-          }
-
-          &[data-fill]:nth-child(7) {
-            top: calc(100% + 88px + 2 * var(--noora-spacing-1));
-            opacity: 0.4;
-            width: calc(45% - var(--noora-spacing-1));
-          }
-
-          &[data-fill]:nth-child(8) {
-            top: calc(100% + 176px + 3 * var(--noora-spacing-1));
-            opacity: 0.2;
-            width: calc(65% - var(--noora-spacing-1));
-          }
-        }
-      }
-
-      &:last-of-type {
-        flex-direction: row-reverse;
-
-        & > [data-part="grid-block"] {
-          right: 0;
-          left: auto;
-
-          &[data-fill] {
-            right: auto;
-            left: 0;
-          }
-        }
-      }
+      /* Same frame as the hero above it. */
+      max-width: var(--marketing-page-width);
     }
 
     & > [data-part="logos"] {
@@ -274,8 +170,6 @@
 
       @media (min-width: 1024px) {
         position: relative;
-        flex: none;
-        width: 1200px;
         overflow: visible;
       }
 

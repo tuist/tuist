@@ -15,7 +15,8 @@ import { CacheMinimalOverhead } from "./hooks/cache-minimal-overhead.js";
 import { CacheObservability } from "./hooks/cache-observability.js";
 import { CacheBuildDecks } from "./hooks/cache-build-decks.js";
 import { KaTeX } from "./hooks/katex.js";
-import { PlatformBackground } from "./hooks/platform-background.js";
+import { HomeHeroWave } from "./hooks/home-hero-wave.js";
+import { HomeCacheCount } from "./hooks/home-cache-count.js";
 import { DitherTexture } from "./hooks/dither-texture.js";
 import { ComputeSpark } from "./hooks/compute-spark.js";
 import { ComputeHeroDiff } from "./hooks/compute-hero-diff.js";
@@ -50,7 +51,8 @@ import { SplitFlap } from "./hooks/split-flap.js";
 
 const Hooks = {
   GoogleOneTap,
-  PlatformBackground,
+  HomeHeroWave,
+  HomeCacheCount,
   DitherTexture,
   DitherBlocks,
   CustomersDitherDots,

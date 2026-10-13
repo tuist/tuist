@@ -12,6 +12,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias Tuist.Marketing.Customers
   alias Tuist.Marketing.Newsletter
   alias Tuist.Marketing.Pages
+  alias Tuist.Marketing.Stats
   alias TuistWeb.AgentDiscovery
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
@@ -45,7 +46,32 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:home_testimonials, get_home_testimonials())
+    # The hero eyebrow's live count: the cache globe's cached snapshot (a
+    # GenServer read, no ClickHouse query on the request path).
+    |> assign(:cache_globe, home_cache_globe())
     |> render(:home, layout: false)
+  end
+
+  # Local development has no Kura usage data, so the eyebrow would never
+  # render there. In dev only, and only while the globe has no measured count,
+  # preview it with an illustrative snapshot; every other environment shows
+  # measured data or nothing.
+  defp home_cache_globe do
+    snapshot = Stats.get_globe()
+
+    if Tuist.Environment.dev?() and is_nil(snapshot.downloads) do
+      now = DateTime.utc_now()
+
+      Map.merge(snapshot, %{
+        downloads: 658_422,
+        recent_downloads: 1_200,
+        status: :available,
+        updated_at: DateTime.to_iso8601(now),
+        observed_at: now |> DateTime.add(-60, :second) |> DateTime.to_iso8601()
+      })
+    else
+      snapshot
+    end
   end
 
   # The new home's testimonial marquee: two rows in the design's order,
