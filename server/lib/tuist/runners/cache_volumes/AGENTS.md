@@ -102,3 +102,7 @@ these schemas persist volume identities and per-job uses.
 
 - Allocation resolves execution binding and platform in one session query. Apply
   the platform rollout flag to that same result, including pending (425) sessions.
+
+- GitHub custom volumes have bounded exact additional writer branches, editable only through account-update authorization. Empty lists preserve default-branch publishing. Verify same-repository PR head metadata; forks and pull_request_target never qualify. Persist commit intent at allocation, reject intent changes on retry, and record the granting branch. Revoke only removed branch grants under the publication lock; additions/reordering preserve pending saves and default-branch writers. Grants only affect new uses; false always disables publication. Other provider and built-in policies are unchanged.
+
+- Additional GitHub writer grants require verified same-repository PR head metadata. Push/dispatch head_branch may be a tag and cannot authorize an additional branch grant.

@@ -21,8 +21,11 @@ import TuistTesting
 struct CacheConfigCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let cacheURL = URL(string: "https://cache.tuist.dev")!
-    private let farCacheURL = URL(string: "https://far-cache.tuist.dev")!
-    private func makeSubject(cacheURLError: CacheURLStoreError? = nil) -> (
+    private func makeSubject(
+        cacheURLError: CacheURLStoreError? = nil,
+        cacheToken: String = "scoped-cache-token",
+        cacheTokenError: GetCacheTokenServiceError? = nil
+    ) -> (
         subject: CacheConfigCommandService,
         serverEnvironmentService: MockServerEnvironmentServicing,
         serverAuthenticationController: MockServerAuthenticationControlling,
@@ -35,6 +38,14 @@ struct CacheConfigCommandServiceTests {
         let serverEnvironmentService = MockServerEnvironmentServicing()
         let serverAuthenticationController = MockServerAuthenticationControlling()
         let cacheURLStore = MockCacheURLStoring()
+        let tokenService = MockGetCacheTokenServicing()
+        if let cacheTokenError {
+            given(tokenService).getCacheToken(serverURL: .any, fullHandle: .any)
+                .willThrow(cacheTokenError)
+        } else {
+            given(tokenService).getCacheToken(serverURL: .any, fullHandle: .any)
+                .willReturn(CacheToken(token: cacheToken, expiresIn: 1800))
+        }
         let fullHandleService = MockFullHandleServicing()
         let configLoader = MockConfigLoading()
         let ciOIDCAuthenticator = MockCIOIDCAuthenticating()
@@ -62,14 +73,11 @@ struct CacheConfigCommandServiceTests {
                 .willReturn(cacheURL)
         }
 
-        given(cacheURLStore)
-            .getCacheEndpoints(for: .any, accountHandle: .any)
-            .willReturn([cacheURL, farCacheURL])
-
         let subject = CacheConfigCommandService(
             serverEnvironmentService: serverEnvironmentService,
             serverAuthenticationController: serverAuthenticationController,
             cacheURLStore: cacheURLStore,
+            getCacheTokenService: tokenService,
             fullHandleService: fullHandleService,
             configLoader: configLoader,
             ciOIDCAuthenticator: ciOIDCAuthenticator,
@@ -86,6 +94,26 @@ struct CacheConfigCommandServiceTests {
             ciOIDCAuthenticator,
             exchangeOIDCTokenService
         )
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora, arguments: [404, 503])
+    func run_propagates_exchange_failure_without_printing_credentials(status: Int) async throws {
+        let error = GetCacheTokenServiceError.unknownError(status)
+        let (subject, _, authentication, _, _, _, _, _) = makeSubject(cacheTokenError: error)
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("raw-token"))
+        await #expect(throws: error) {
+            try await subject.run(fullHandle: "my-account/my-project", json: true, forceRefresh: false, directory: nil, url: nil)
+        }
+        #expect(ui().isEmpty)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func run_returns_the_scoped_cache_token_for_the_proxy() async throws {
+        let (subject, _, authentication, _, _, _, _, _) = makeSubject(cacheToken: "scoped-cache-token")
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("raw-token"))
+        try await subject.run(fullHandle: "my-account/my-project", json: true, forceRefresh: false, directory: nil, url: nil)
+        let decoded = try #require(JSONSerialization.jsonObject(with: Data(ui().utf8)) as? [String: Any])
+        #expect(decoded["token"] as? String == "scoped-cache-token")
     }
 
     @Test(.withMockedEnvironment())
@@ -163,7 +191,7 @@ struct CacheConfigCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
-    func run_reports_every_endpoint_the_account_is_served_from() async throws {
+    func run_reports_only_the_resolved_endpoint() async throws {
         // Given
         let (
             subject,
@@ -191,11 +219,12 @@ struct CacheConfigCommandServiceTests {
         // Then
         let output = ui()
         #expect(output.contains("\"endpoints\""))
-        #expect(output.contains("far-cache.tuist.dev"))
+        let decoded = try #require(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        #expect(decoded["endpoints"] as? [String] == [cacheURL.absoluteString])
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
-    func run_exits_with_a_temporary_failure_while_the_remote_cache_is_being_prepared() async throws {
+    func run_reports_missing_discovered_remote_configuration() async throws {
         // Given
         let (
             subject,
@@ -206,13 +235,13 @@ struct CacheConfigCommandServiceTests {
             _,
             _,
             _
-        ) = makeSubject(cacheURLError: .endpointBeingPrepared)
+        ) = makeSubject(cacheURLError: .noEndpointsAvailable)
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(.project("account-token-123"))
 
         // When/Then
-        await #expect(throws: ExitCode(75)) {
+        await #expect(throws: CacheURLStoreError.noEndpointsAvailable) {
             try await subject.run(
                 fullHandle: "my-account/my-project",
                 json: false,
@@ -221,7 +250,6 @@ struct CacheConfigCommandServiceTests {
                 url: nil
             )
         }
-        #expect(ui().contains("The remote cache is being prepared"))
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies())

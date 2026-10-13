@@ -295,3 +295,7 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   Launch hdiutil without RUNNER_TRACKING_ID so GitHub's orphan cleanup cannot
   kill the image helper before dispatch detaches it. Keep job process tracking
   intact for all other commands and preserve the clean-detach publication gate.
+
+- The shared client accepts --commit auto/true/false and forwards intent through Linux HTTP or the macOS mailbox. Explicit modes require a matching response before mounting; unsupported replies fail visibly instead of degrading into a writable cache.
+
+- Explicit commit modes use versioned acquisition/authorization paths (macOS .commit-request mailboxes) so older components cannot allocate before rejecting them. Auto retains legacy paths. Echo can_publish and warn on an unauthorized explicit save; publication still rechecks policy.

@@ -149,10 +149,12 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 let name = dependency.packageRef.name
                 let packageFolder: AbsolutePath
                 let hash: String?
+                let resolution: SwifterPMPackageInfoCache.Resolution
                 switch dependency.packageRef.kind {
                 case "remote", "remoteSourceControl":
                     packageFolder = checkoutsFolder.appending(component: sanitizedSwiftPackageManagerPath(dependency.subpath))
                     hash = dependency.state?.checkoutState?.revision
+                    resolution = .revision(hash)
                 case "local", "fileSystem", "localSourceControl":
                     // Depending on the swift version, the information is available either in `path` or in `location`
                     guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
@@ -168,19 +170,21 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                         relativeTo: scratchDirectory
                     )
                     hash = nil
+                    resolution = .local
                 case "registry":
                     let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
                     packageFolder = registryFolder.appending(
                         try RelativePath(validating: sanitizedSwiftPackageManagerPath(dependency.subpath))
                     )
                     hash = try dependency.state?.version.map { try contentHasher.hash([dependency.packageRef.identity, $0]) }
+                    resolution = .version(dependency.state?.version)
                 default:
                     throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
                 }
 
                 let packageInfo: PackageInfo
                 if let packageInfoCache,
-                   let cachedPackageInfo = packageInfoCache.packageInfo(for: packageFolder)
+                   let cachedPackageInfo = packageInfoCache.packageInfo(for: packageFolder, resolution: resolution)
                 {
                     packageInfo = cachedPackageInfo
                 } else {
@@ -541,6 +545,13 @@ private func mapPackagePrebuilts(
 }
 
 private struct SwifterPMPackageInfoCache {
+    /// A checkout can change version without its `Package.swift` becoming newer than the cached entry.
+    enum Resolution {
+        case revision(String?)
+        case version(String?)
+        case local
+    }
+
     private struct Index: Decodable {
         let schemaVersion: Int
         let root: Entry
@@ -555,11 +566,15 @@ private struct SwifterPMPackageInfoCache {
 
     private struct Entry: Decodable {
         let kind: String
+        let version: String?
+        let revision: String?
         let packagePath: String
         let packageInfoPath: String
 
         enum CodingKeys: String, CodingKey {
             case kind
+            case version
+            case revision
             case packagePath = "package_path"
             case packageInfoPath = "package_info_path"
         }
@@ -567,6 +582,8 @@ private struct SwifterPMPackageInfoCache {
 
     private struct CachedPackageInfo {
         let packagePath: AbsolutePath
+        let version: String?
+        let revision: String?
         let packageInfo: PackageInfo
     }
 
@@ -626,8 +643,19 @@ private struct SwifterPMPackageInfoCache {
         return root.packageInfo
     }
 
-    func packageInfo(for packagePath: AbsolutePath) -> PackageInfo? {
-        packagesByPath[Self.normalizedPackagePath(packagePath.pathString)]?.packageInfo
+    func packageInfo(for packagePath: AbsolutePath, resolution: Resolution) -> PackageInfo? {
+        guard let cachedPackageInfo = packagesByPath[Self.normalizedPackagePath(packagePath.pathString)] else {
+            return nil
+        }
+        switch resolution {
+        case let .revision(revision):
+            guard revision != nil, cachedPackageInfo.revision == revision else { return nil }
+        case let .version(version):
+            guard version != nil, cachedPackageInfo.version == version else { return nil }
+        case .local:
+            break
+        }
+        return cachedPackageInfo.packageInfo
     }
 
     private static func cachedPackageInfo(
@@ -649,7 +677,12 @@ private struct SwifterPMPackageInfoCache {
             return nil
         }
 
-        return CachedPackageInfo(packagePath: packagePath, packageInfo: packageInfo)
+        return CachedPackageInfo(
+            packagePath: packagePath,
+            version: entry.version,
+            revision: entry.revision,
+            packageInfo: packageInfo
+        )
     }
 
     private static func isFreshPackageInfo(

@@ -20,6 +20,13 @@ Describe 'Local serving-authority qualification'
     The output should include '"lateWriteAbsent":true'
   End
 
+  It 'resumes only the same live writer after explicit fencing and drained uploads'
+    Skip if 'requires KURA_E2E_AUTHORITY_RESOURCES=1 and a local candidate image' qualification_disabled
+    When call run_resource_case resume
+    The status should be success
+    The output should include '"sameWriterResumed":true'
+  End
+
   It 'rejects an incomplete corpus under disk pressure and recovers after space is restored'
     Skip if 'requires KURA_E2E_AUTHORITY_RESOURCES=1 and an 8 GiB Docker VM' qualification_disabled
     When call run_resource_case pressure

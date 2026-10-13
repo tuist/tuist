@@ -797,7 +797,7 @@ enum WorkspaceRestorer {
                 )
             } catch {
                 try await resetDirectory(temp)
-                try await shallowFetchCheckout(pin: pin, location: location, destination: temp)
+                try await fetchCheckout(pin: pin, location: location, destination: temp)
             }
 
             try await writeSourceRevisionMarker(directory: temp, revision: expectedRevision)
@@ -1137,7 +1137,7 @@ enum WorkspaceRestorer {
         try await rejectArchiveWithSubmodules(destination)
     }
 
-    private static func shallowFetchCheckout(
+    private static func fetchCheckout(
         pin: ResolvedPin,
         location fetchLocation: String,
         destination: URL
@@ -1153,11 +1153,24 @@ enum WorkspaceRestorer {
                 try await SystemProcess.run(
                     "/usr/bin/git", ["-C", destination.path, "remote", "add", "origin", location]
                 )
-                try await SystemProcess.run(
-                    "/usr/bin/git",
-                    ["-C", destination.path, "fetch", "--depth=1", "origin", revision],
-                    environment: SystemProcess.nonInteractiveGitEnvironment
-                )
+                do {
+                    try await SystemProcess.run(
+                        "/usr/bin/git",
+                        ["-C", destination.path, "fetch", "--depth=1", "origin", revision],
+                        environment: SystemProcess.nonInteractiveGitEnvironment
+                    )
+                } catch {
+                    guard case let ToolError.message(message) = error,
+                          message.contains("Server does not support shallow clients")
+                    else {
+                        throw error
+                    }
+                    try await SystemProcess.run(
+                        "/usr/bin/git",
+                        ["-C", destination.path, "fetch", "origin", revision],
+                        environment: SystemProcess.nonInteractiveGitEnvironment
+                    )
+                }
                 try await SystemProcess.run(
                     "/usr/bin/git", ["-C", destination.path, "checkout", "--detach", "FETCH_HEAD"]
                 )
