@@ -145,7 +145,7 @@ defmodule Tuist.Authentication.TokenVerificationCacheTest do
   test "a correct secret is unavailable, never invalid, when its flight cannot complete", %{cache: cache} do
     secret = Base.encode64(:crypto.strong_rand_bytes(20))
     stored_hash = Bcrypt.hash_pwd_salt(secret, log_rounds: 12)
-    assert Mimic.call_original(Bcrypt, :verify_pass, [secret, stored_hash])
+    assert Bcrypt.verify_pass(secret, stored_hash)
     reject(Bcrypt, :verify_pass, 2)
     key = :crypto.hash(:sha256, :erlang.term_to_binary({secret, stored_hash}))
     table = String.to_existing_atom("#{cache}_flights")

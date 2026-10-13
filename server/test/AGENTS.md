@@ -89,3 +89,5 @@ This directory contains ExUnit tests for the Tuist Server.
 - Authentication fills must have no cache-wide dispatch/fan-out mailbox. Test direct reads and per-key fills with the ETS owner and Cachex Courier suspended; cover concurrent production-cost proofs, independent keys, worker/coordinator death, bounded timeouts, owner loss and recovery without retaining errors.
 
 - Authentication availability regressions cover real project/account credential lookups with injected proof failure: strict HTTP returns 503, cached authentication retains no errors, and Once returns gRPC unavailable with refusal telemetry. Suspend the per-key coordinator to test deadline/restart publication races, and independently restart only Cachex to prove writes target the captured data generation even when claim checks still succeed.
+
+- Mimic creates original-module copies lazily on the first stub, expect or reject. Before any mock is installed, call the real module directly for sanity checks; use `Mimic.call_original/3` only after mocking is initialized, such as inside a counting expectation. Run these regressions alone as well as in suites to catch order dependencies.
