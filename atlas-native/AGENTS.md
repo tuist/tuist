@@ -3,13 +3,18 @@
 This is an independent Once workspace for Atlas's native clients. The shared
 Rust core owns the section catalog and destinations; the CLI is Rust, Android
 uses Kotlin with platform widgets, and iOS uses SwiftUI. Native views must not duplicate catalog
-strings or routes. The initial app opens authenticated Atlas pages in the system
-browser. It does not implement a native API client or store Atlas credentials.
+strings or routes. Authentication networking and OAuth state live in the independent
+Rust `auth/` crate (see `auth/AGENTS.md`); native adapters own browser presentation
+and secure persistence. Workspace sections still open in the system browser and
+may require a separate browser sign-in. OAuth tokens are not browser cookies.
 
 ## Layout
 
 - `once.toml`: typed build graph and shared cache identity (`tuist/atlas-mobile`).
-- `core/src/`: shared navigation, C ABI, and primitive-only JNI bridge.
+- `core/src/`: dependency-free shared navigation, C ABI, and primitive-only JNI bridge.
+- `auth/`: Rust OAuth networking, owned JSON C ABI, and string JNI bridge. Keep it
+  independent of navigation/CLI builds. Platform-specific Cargo dependency targets
+  expose individual crates to Once for parallel compilation and reusable cache keys.
 - `Cargo.toml` / `Cargo.lock`: Rust workspace for editor and Clippy support. Once
   excludes Cargo discovery here to avoid duplicate targets alongside the authored
   graph.
@@ -53,10 +58,27 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
 
 ## Boundaries
 
-- C strings are immutable, process-lifetime pointers. Never free them in Swift.
-- JNI exports accept only integer values and opaque environment/object pointers;
-  they never dereference JNI pointers. Invalid indices return a sentinel, not a
-  panic. Keep UTF-8 decoding and boundary checks covered by tests.
+- Navigation C strings are immutable, process-lifetime pointers. Never free them
+  in Swift. Authentication responses are separately owned allocations: release each
+  exactly once with `atlas_auth_free` and never log requests/results.
+- Navigation JNI exports accept only integer values and opaque pointers; they never
+  dereference JNI pointers. Authentication uses the `jni` crate for VM string ownership.
+  Keep UTF-8 decoding and boundary checks covered by tests.
+- Rust auth calls are synchronous and bounded; invoke them from a background executor,
+  never the UI thread. Serialize session changes/refresh rotation in native coordinators,
+  not through an app-wide lock that would block unrelated future API requests.
+- iOS uses ThisDeviceOnly Keychain entries and a simulator-specific Keychain entitlement;
+  device builds must derive their entitlement from the actual signing team/profile.
+  Once 0.67.1's iOS XCTest agent is unhosted and cannot access app Keychain; test
+  storage request/failure semantics with a per-test adapter, not mutable global stubs.
+  Android uses AES-GCM with Android Keystore
+  keys and backup-disabled encrypted preferences. Native code must successfully persist
+  credentials before publishing signed-in state. Retain credentials on transient refresh
+  failures, and discard rejected registrations so the next login can register again.
+- `mise run prepare:rust` materializes locked third-party sources in ignored `.once/vendor`.
+  Build/test tasks depend on it; run it before invoking Once directly on a clean checkout.
+  The Android task exposes API-26 NDK clang and LLVM tools to Cargo build scripts through
+  declared `build_script_tools`, so their contents participate in cache identity.
 - The Android package, Kotlin class/method names and JNI exported symbols must
   agree. Renaming any of these requires rebuilding and launching the Android app.
 - Swift's generated module caches embed absolute paths. After a directory rename,
