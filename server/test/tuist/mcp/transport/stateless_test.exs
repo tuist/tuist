@@ -87,13 +87,13 @@ defmodule Tuist.MCP.Transport.StatelessTest do
     assert %{"code" => -32_022, "data" => %{"requested" => "2027-01-01"}} = result_body(response)["error"]
   end
 
-  test "leaves legacy requests on the existing transport" do
+  test "legacy clients cannot allocate an event stream" do
     response =
       :get
       |> conn("/mcp")
       |> StreamableHTTP.call(server: Server)
 
-    assert response.status == 406
+    assert response.status == 405
   end
 
   defp request(method, header_method \\ nil) do
