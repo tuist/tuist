@@ -65,7 +65,7 @@ defmodule Tuist.MCP.Transport.Stateless do
   end
 
   defp valid_origin?(conn, opts) do
-    origins = Keyword.get_lazy(opts, :allowed_origins, fn -> [Tuist.Environment.app_url()] end)
+    origins = Keyword.get_lazy(opts, :allowed_origins, fn -> [Tuist.Environment.app_url(route_type: :app)] end)
 
     case get_req_header(conn, "origin") do
       [] -> true
