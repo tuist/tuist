@@ -38,7 +38,8 @@ for sequential resource comparisons; failed runs retain measurements and logs.
 `KURA_E2E_AUTHORITY_STANDBY_IMAGE` exercises adjacent-version batch negotiation.
 `resume.mjs` interrupts the local authority API, holds an admitted upload across
 expiry and supplies explicit fencing/resumption grants; it verifies drained
-publication, retained reads, persistent-channel writes and dirty-restart refusal.
+publication, recovery when a replacement grant arrives after expiry, retained
+reads, persistent-channel writes and dirty-restart refusal.
 It is still a simulator. `client.mjs api-recovery` exercises the real controller
 with the isolated pod's API-partition policy, requiring the same incarnation,
 one new epoch and absence of the rejected upload after API access returns.

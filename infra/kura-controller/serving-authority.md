@@ -75,8 +75,7 @@ floor and remain prohibited after activation.
 `plannedHandover` names one destination pod UID and runtime incarnation. The
 controller waits for the source to report the current valid Serving grant before
 starting preparation, including after a live-writer resumption.
-The
-source rejects new mutations, drains admitted work, and freezes metadata
+The source rejects new mutations, drains admitted work, and freezes metadata
 publication and eviction. The destination must have durably reached the source's
 final feed incarnation/head before freezing its retained corpus. Verification
 walks the complete retained index in bounded pages, hashes metadata and bodies
