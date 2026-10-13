@@ -4,7 +4,6 @@ defmodule TuistEx.Auth do
   alias TuistEx.Analytics.Config
   alias TuistEx.{HTTP, Lock}
 
-  @default_url "https://tuist.dev"
   @github_identity_token_attempts 5
 
   def login(options \\ []) do
@@ -21,7 +20,8 @@ defmodule TuistEx.Auth do
       end
 
     case Lock.with_lock(lock_path(server_url, environment), fn ->
-           save(credentials_path(server_url, environment), credentials)
+           with {:ok, path} <- credentials_path(server_url, environment),
+                do: save(path, credentials)
          end) do
       :ok -> :ok
       {:error, reason} -> Mix.raise(reason)
@@ -51,17 +51,7 @@ defmodule TuistEx.Auth do
 
       case environment.("TUIST_TOKEN") do
         nil ->
-          case File.stat(credentials_path(server_url, environment)) do
-            {:ok, _} ->
-              stored_token(server_url, environment)
-
-            {:error, :enoent} ->
-              provider_or_network_token(server_url, environment, options)
-
-            {:error, _} ->
-              {:error,
-               "Could not read Tuist credentials. Sign in again or deliberately remove them."}
-          end
+          stored_or_network_token(server_url, environment, options)
 
         token when is_binary(token) ->
           if String.trim(token) == "",
@@ -73,6 +63,21 @@ defmodule TuistEx.Auth do
       end
     else
       __MODULE__.token(options)
+    end
+  end
+
+  defp stored_or_network_token(server_url, environment, options) do
+    with {:ok, path} <- credentials_path(server_url, environment) do
+      case File.stat(path) do
+        {:ok, _} ->
+          stored_token(server_url, environment)
+
+        {:error, :enoent} ->
+          provider_or_network_token(server_url, environment, options)
+
+        {:error, _} ->
+          {:error, "Could not read Tuist credentials. Sign in again or deliberately remove them."}
+      end
     end
   end
 
@@ -134,15 +139,9 @@ defmodule TuistEx.Auth do
   end
 
   defp server_url(options, environment) do
-    project_url = Keyword.get(Mix.Project.config()[:tuist] || [], :url)
-    url = environment.("TUIST_URL") || Keyword.get(options, :url) || project_url || @default_url
-    uri = URI.parse(url)
-
-    if uri.scheme in ["http", "https"] and is_binary(uri.host) and uri.host != "" and
-         is_nil(uri.userinfo) and is_nil(uri.query) and is_nil(uri.fragment) do
-      String.trim_trailing(url, "/")
-    else
-      Mix.raise("Invalid server URL: #{url}")
+    case Config.resolve_url(options, environment) do
+      {:ok, url} -> url
+      {:error, message} -> Mix.raise(message)
     end
   end
 
@@ -356,9 +355,8 @@ defmodule TuistEx.Auth do
   end
 
   defp stored_token(server_url, environment) do
-    path = credentials_path(server_url, environment)
-
-    with {:ok, credentials} <- read(path),
+    with {:ok, path} <- credentials_path(server_url, environment),
+         {:ok, credentials} <- read(path),
          %{"accessToken" => access} <- credentials,
          false <- Map.get(credentials, "rejected", false),
          true <- is_binary(access) and String.trim(access) != "" do
@@ -440,8 +438,35 @@ defmodule TuistEx.Auth do
   defp credentials_path(server_url, environment) do
     config_home = configured_home(environment, "XDG_CONFIG_HOME", ".config")
 
-    Path.join([config_home, "tuist", "credentials", "#{URI.parse(server_url).host}.json"])
+    directory = Path.join([config_home, "tuist", "credentials"])
+    host = credential_host(URI.parse(server_url).host)
+    canonical = Path.join(directory, "#{host}.json")
+
+    if File.exists?(canonical) do
+      {:ok, canonical}
+    else
+      case File.ls(directory) do
+        {:ok, files} ->
+          name =
+            files
+            |> Enum.sort()
+            |> Enum.find(fn name ->
+              String.ends_with?(name, ".json") and
+                credential_host(String.trim_trailing(name, ".json")) == host
+            end)
+
+          {:ok, if(name, do: Path.join(directory, name), else: canonical)}
+
+        {:error, :enoent} ->
+          {:ok, canonical}
+
+        {:error, reason} ->
+          {:error, "Could not inspect Tuist credentials: #{:file.format_error(reason)}"}
+      end
+    end
   end
+
+  defp credential_host(host), do: host |> String.downcase() |> String.trim_trailing(".")
 
   defp lock_path(server_url, environment) do
     state_home = configured_home(environment, "XDG_STATE_HOME", ".local/state")

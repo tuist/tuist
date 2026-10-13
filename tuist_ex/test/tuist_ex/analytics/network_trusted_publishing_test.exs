@@ -100,6 +100,62 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
     end
   end
 
+  test "an existing uninspectable credentials directory fails closed", %{tmp_dir: directory} do
+    File.mkdir_p!(Path.join(directory, "tuist"))
+    File.write!(Path.join([directory, "tuist", "credentials"]), "not a directory")
+    reject(HTTP, :request, 4)
+    assert {:error, _} = Auth.reporting_token(options(directory))
+    assert {:error, _} = Auth.token(options(directory))
+    assert {:error, _} = AnalyticsHTTP.submit_mix_build(%{}, options(directory))
+  end
+
+  test "umbrella reporting and credential lookup use the same root project configuration", %{
+    tmp_dir: directory
+  } do
+    opts =
+      options(directory, %{"TUIST_URL" => nil}) ++
+        [
+          project_config: [
+            url: "https://tuist.umbrella.example",
+            project: "acme/widgets",
+            network_trusted_publishing: true
+          ]
+        ]
+
+    assert {:ok, nil} = Auth.reporting_token(opts)
+    path = Path.join([directory, "tuist", "credentials", "tuist.umbrella.example.json"])
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, JSON.encode!(%{"accessToken" => "rejected", "rejected" => true}))
+    assert {:error, _} = Auth.reporting_token(opts)
+    assert {:error, _} = Auth.token(opts)
+    reject(HTTP, :request, 4)
+    assert {:error, _} = AnalyticsHTTP.submit_mix_build(%{}, opts)
+  end
+
+  test "hostname aliases cannot hide rejected or corrupt credentials", %{tmp_dir: directory} do
+    credentials = Path.join([directory, "tuist", "credentials"])
+    File.mkdir_p!(credentials)
+
+    for filename <- ["tuist.example.json", "Tuist.Example..json"] do
+      path = Path.join(credentials, filename)
+
+      for contents <- [
+            "not-json",
+            JSON.encode!(%{"accessToken" => "rejected", "rejected" => true})
+          ] do
+        File.write!(path, contents)
+
+        for url <- ["https://tuist.example", "https://TUIST.EXAMPLE."] do
+          assert {:error, _} = Auth.reporting_token(options(directory, %{"TUIST_URL" => url}))
+          assert {:error, _} = Auth.reporting_token(options(directory, %{"TUIST_URL" => url}))
+          assert File.read!(path) == contents
+        end
+      end
+
+      File.rm!(path)
+    end
+  end
+
   test "failed refresh never downgrades this or subsequent reports", %{tmp_dir: directory} do
     path = Path.join([directory, "tuist", "credentials", "tuist.example.json"])
     File.mkdir_p!(Path.dirname(path))
@@ -161,6 +217,35 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
 
     assert {:error, _} =
              Auth.reporting_token(options(directory, %{"ACTIONS_ID_TOKEN_REQUEST_TOKEN" => ""}))
+  end
+
+  test "ordinary authenticated OIDC fallback survives directory errors without enabling unsigned reporting",
+       %{tmp_dir: directory} do
+    File.mkdir_p!(Path.join(directory, "tuist"))
+    File.write!(Path.join([directory, "tuist", "credentials"]), "not a directory")
+
+    opts =
+      options(directory, %{
+        "GITHUB_ACTIONS" => "true",
+        "ACTIONS_ID_TOKEN_REQUEST_URL" => "https://actions.example/token",
+        "ACTIONS_ID_TOKEN_REQUEST_TOKEN" => "identity-secret"
+      })
+
+    assert {:error, _} = Auth.reporting_token(opts)
+
+    expect(HTTP, :request, fn :get,
+                              "https://actions.example/token?audience=tuist",
+                              nil,
+                              _headers ->
+      {:ok, 200, %{"value" => "identity"}}
+    end)
+
+    expect(HTTP, :request, fn :post, _url, %{token: "identity"} ->
+      {:ok, 200, %{"access_token" => "exchanged-access"}}
+    end)
+
+    assert {:ok, "exchanged-access"} = Auth.token(opts)
+    assert {:error, _} = Auth.reporting_token(opts)
   end
 
   test "network reporting retries supplied GitHub identity and propagates the sleep option", %{
