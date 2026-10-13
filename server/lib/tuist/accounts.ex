@@ -23,6 +23,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
+  alias Tuist.Authentication.TokenVerificationCache
   alias Tuist.Base64
   alias Tuist.Billing
   alias Tuist.Billing.UsagePricing
@@ -34,6 +35,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Identity
   alias Tuist.Kura.Origins
+  alias Tuist.Kura.Registrations
   alias Tuist.Kura.StableEndpoint
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
@@ -2489,7 +2491,7 @@ defmodule Tuist.Accounts do
   # Bcrypt does CPU-intensive operations and it can easily slow-down requests when
   # there are bursts of requests coming through the API.
   defp verify_pass(token, token_hash) do
-    Bcrypt.verify_pass(
+    TokenVerificationCache.verify_pass(
       token_hash <> Environment.secret_key_password(),
       token.encrypted_token_hash
     )
@@ -2989,7 +2991,7 @@ defmodule Tuist.Accounts do
     # Self-hosting is Enterprise-only, so do not surface a downgraded account's
     # registered node addresses to the CLI even while their leases are still live.
     if Billing.Entitlements.allows?(account, :self_hosted_cache) do
-      Tuist.Kura.Registrations.active_advertised_urls(account)
+      Registrations.active_advertised_urls(account)
     else
       []
     end

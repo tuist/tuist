@@ -10,7 +10,7 @@
 
 Tuist's cache runs as a **mesh of nodes** that replicate artifacts to each other. You can run your own cache nodes on your infrastructure so the cache sits next to your developers and CI, cutting the network distance that would otherwise eat into the speed caching is meant to provide.
 
-A self-hosted node is a single container (`ghcr.io/tuist/kura`) that stores artifacts on local disk and, when it joins a peer mesh, talks to the rest of that mesh over the internal peer port. Tuist acts as the **control plane**: it authenticates traffic, tells the Tuist CLI which cache endpoint to use, and meters usage. It never reaches into your nodes.
+A self-hosted node is a single container (`ghcr.io/tuist/kura`) that stores artifacts on local disk and, when it joins a peer mesh, talks to the rest of that mesh over the internal peer port. Tuist acts as the **control plane**: it authenticates traffic, provisions managed cache capacity, and meters usage. It never reaches into your nodes.
 
 > [!NOTE]
 > Self-hosting cache nodes requires an **Enterprise plan**.
@@ -29,7 +29,7 @@ This is the right choice when you want the speed of an on-prem cache without giv
 
 ### Standalone: your nodes only {#topology-standalone}
 
-Your account runs **no** managed cache region. Your nodes form their own isolated mesh on your infrastructure. Tuist still knows your nodes exist (so the CLI routes cache traffic to them and usage is metered), but **no data is exchanged with any Tuist-managed mesh**, because there isn't one. Peer membership and replication happen entirely within your own nodes.
+Your account runs **no** managed cache region. Your nodes form their own isolated mesh on your infrastructure. Tuist still knows your nodes exist (so usage is metered), but **no data is exchanged with any Tuist-managed mesh**, because there isn't one. Peer membership and replication happen entirely within your own nodes.
 
 ```mermaid
 graph LR
@@ -45,7 +45,20 @@ graph LR
 
 The key difference in configuration is that the **bridged** topology uses **enrollment**, where the node generates its keypair on boot and Tuist issues its mesh certificate, while the **standalone** topology has no Tuist-issued mesh certificate. A single standalone node can run with peer TLS disabled; a multi-node standalone mesh uses peer TLS material that you provide.
 
+## Configure the CLI endpoint {#cli-endpoint}
+
+Tuist’s managed cache uses `https://<account>.cache.tuist.dev`. With a self-hosted Tuist server, the CLI retrieves the cache URL from the server’s `TUIST_CACHE_ENDPOINTS` setting. Set it to the URL of your main cache server or load balancer. If it contains multiple URLs, the first is used.
+
+When connecting private/custom cache nodes to the **hosted Tuist server**, configure an explicit endpoint in developer shells and CI:
+
+```sh
+export TUIST_CACHE_ENDPOINT=https://cache.example.com
+```
+
+This override takes precedence on either server type and is optional for a self-hosted Tuist server. For the Xcode cache daemon, rerun `tuist setup cache` after setting it so the LaunchAgent receives the updated environment. For multiple nodes, use your load balancer or DNS routing name.
+
 ## Prerequisites {#prerequisites}
+
 
 - Docker and Docker Compose (or any container runtime)
 - A running Tuist server (hosted or self-hosted)
@@ -76,10 +89,7 @@ With a valid deployment-level control-plane credential, registration and peer di
 
 ## How clients reach your nodes {#routing}
 
-How the Tuist CLI is pointed at your nodes depends on which server your nodes report to:
-
-- **Hosted Tuist server (`tuist.dev`).** The server routes clients to your nodes automatically from their registration heartbeats. Set `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` on each node (below), and the advertised URL is handed to the CLI once the node is ready.
-- **Self-hosted Tuist server.** Use the same registration heartbeat flow. Set `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` on each node; the server advertises each ready, non-expired endpoint to Kura-enabled CLI clients.
+Configure the cache URL [above](#cli-endpoint) so developer machines and CI can reach your nodes. To report each node’s address and readiness in the dashboard, set `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` on the node.
 
 ## Bridged setup {#bridged-setup}
 
@@ -102,7 +112,7 @@ services:
       KURA_CONTROL_PLANE_CLIENT_SECRET: "<secret>"
       KURA_TENANT_ID: "<permanent-kura-tenant>"
 
-      # Register so the node shows in the dashboard and the CLI routes to it
+      # Report the node’s address and readiness to the dashboard
       KURA_REGISTRATION_URL: "https://tuist.dev/_internal/kura/mesh/registrations"
       KURA_ADVERTISED_HTTP_URL: "https://kura.acme.internal"   # where your CLI/CI reach the cache
       KURA_NODE_URL: "https://kura.acme.internal:7443"         # this node's peer identity on your network
@@ -139,7 +149,7 @@ What you provide: the control-plane client, the two addresses (`KURA_NODE_URL`, 
 
 ## Standalone setup {#standalone-setup}
 
-With no managed region there is no Tuist-issued mesh CA, so enrollment does not apply (the enroll endpoint returns `503 ca_unavailable`). The node still uses your Tuist server for token authentication, dashboard registration heartbeats, usage, and CLI endpoint routing.
+With no managed region there is no Tuist-issued mesh CA, so enrollment does not apply (the enroll endpoint returns `503 ca_unavailable`). The node uses your Tuist server for token authentication, dashboard registration heartbeats, and usage reporting.
 
 ```yaml
 # docker-compose.yml for a single node connected to a self-hosted Tuist server
@@ -182,7 +192,7 @@ volumes:
 
 For a single node, leave peer TLS unset and set `KURA_PEERS` to an empty string. When `KURA_PEERS` is unset, Kura seeds static peer discovery from `KURA_NODE_URL` and periodically checks that URL's `/_internal/status` endpoint. With peer TLS disabled, `KURA_NODE_URL` must use the `http://` scheme even when the node is reachable through a private network name.
 
-`KURA_CONTROL_PLANE_URL` is not needed in this example because authorization and the usage reporter both use `KURA_AUTH_TUIST_URL` as the Tuist base URL. `KURA_ADVERTISED_HTTP_URL` must be the URL that your developers and CI can reach; the Tuist server advertises ready, registered endpoints to Kura-enabled CLI clients.
+`KURA_CONTROL_PLANE_URL` is not needed in this example because authorization and the usage reporter both use `KURA_AUTH_TUIST_URL` as the Tuist base URL. `KURA_ADVERTISED_HTTP_URL` identifies the node’s client-facing address in the dashboard. Set `TUIST_CACHE_ENDPOINTS=https://kura.acme.internal` on the Tuist server so the CLI uses that address for cache requests.
 
 ### Kubernetes with Helm {#standalone-helm}
 

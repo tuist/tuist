@@ -18,16 +18,18 @@ const macShare = "/Volumes/My Shared Files/custom-cache"
 const macMountRoot = "/Users/runner/.tuist-custom-cache"
 
 type macResponse struct {
-	Directory string `json:"directory"`
-	ID        string `json:"id"`
-	Warm      bool   `json:"warm"`
-	Error     string `json:"error"`
+	CanPublish bool   `json:"can_publish"`
+	Commit     string `json:"commit"`
+	Directory  string `json:"directory"`
+	ID         string `json:"id"`
+	Warm       bool   `json:"warm"`
+	Error      string `json:"error"`
 }
 
-func acquireMac(key string) (string, string, bool, error) {
+func acquireMac(key string, commit string) (string, string, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	return acquireMacAt(ctx, key, macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) })
+	return acquireMacAt(ctx, key, macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) }, commit)
 }
 func macCommandContext(ctx context.Context, args ...string) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
@@ -42,16 +44,19 @@ func macCommandContext(ctx context.Context, args ...string) error {
 	}
 	return nil
 }
-func acquireMacAt(ctx context.Context, key, share, mountRoot string, command func(...string) error) (string, string, bool, error) {
+func acquireMacAt(ctx context.Context, key, share, mountRoot string, command func(...string) error, commit string) (string, string, bool, error) {
 	if _, err := os.Stat(share); err != nil {
 		return "", "", false, err
 	}
-	data, _ := json.Marshal(map[string]any{"key": key, "uid": os.Getuid()})
+	data, _ := json.Marshal(map[string]any{"key": key, "uid": os.Getuid(), "commit": commit})
 	temp, err := os.CreateTemp(share, ".request-")
 	if err != nil {
 		return "", "", false, err
 	}
 	name := filepath.Base(temp.Name()) + ".request"
+	if commit != "auto" {
+		name = filepath.Base(temp.Name()) + ".commit-request"
+	}
 	defer os.Remove(temp.Name())
 	defer os.Remove(filepath.Join(share, name+".response"))
 	defer os.Remove(filepath.Join(share, name))
@@ -72,6 +77,9 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 		}
 		select {
 		case <-ctx.Done():
+			if commit != "auto" {
+				return "", "", false, errCommitUnsupported
+			}
 			return "", "", false, ctx.Err()
 		case <-time.After(250 * time.Millisecond):
 		}
@@ -79,8 +87,14 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 	if err := ctx.Err(); err != nil {
 		return "", "", false, err
 	}
+	if response.Error == "unsupported_commit" {
+		return "", "", false, errCommitUnsupported
+	}
 	if response.Error != "" || !directoryPattern.MatchString(response.Directory) || response.ID == "" {
 		return "", "", false, errors.New("cache unavailable")
+	}
+	if err := checkCommit(commit, response.Commit, response.CanPublish, os.Stderr); err != nil {
+		return "", "", false, err
 	}
 	base := filepath.Join(mountRoot, response.Directory)
 	shared := filepath.Join(share, response.Directory)
@@ -173,11 +187,11 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 	return errors.Join(failures...)
 }
 
-func attachMac(key string, targets []string, root string) error {
+func attachMac(key string, targets []string, root string, commit string) error {
 	if err := validateMacTargets(targets); err != nil {
 		return err
 	}
-	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquireMac(key) }, func(_ string, source, target string) error { return linkMacDirectory(root, source, target) })
+	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquireMac(key, commit) }, func(_ string, source, target string) error { return linkMacDirectory(root, source, target) })
 }
 func validateMacTargets(targets []string) error {
 	for _, target := range targets {

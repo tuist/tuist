@@ -27,7 +27,7 @@ same data even if the mount path changes. Do not attach the same key twice in
 one job under different paths.
 
 PRs consume warm snapshots and write
-to their own clones; only successful default-branch push, manual, and scheduled
+to their own clones; by default only successful default-branch push, manual, and scheduled
 jobs publish. Failed jobs and disallowed writers are discarded. Publications
 use last-publication-wins. Cache data is disposable and must not contain secrets.
 
@@ -43,6 +43,7 @@ teardown; unavailable agents remain pending. A future use of the key starts fres
 | --- | --- |
 | `key` | Required stable name within the repository, architecture and execution user. Use a new key to start a separate cache. |
 | `path` | Required absent or empty directory. Absolute paths, workspace-relative paths and `~/` are supported. |
+| `commit` | Optional `auto`, `'true'`, or `'false'`; save intent never overrides the server writer policy. |
 | `cache-hit` | Output string `true` for a mounted saved snapshot; `false` for a cold directory or unavailable storage. |
 
 Use `id: dependencies` to access `${{ steps.dependencies.outputs.cache-hit }}`.
@@ -55,6 +56,30 @@ A missing client fails with a Tuist Linux or macOS runner requirement. Unavailab
 storage warns and falls back to a job-local directory. Invalid or nonempty paths
 fail without replacing their contents. The default volume capacity is 20 GB.
 Linux and macOS fleets must have cache volumes enabled.
+
+### Commit controls and writer branches
+
+The GitHub action accepts `commit: auto` (the default), `commit: 'false'` (discard
+this job's changes), and `commit: 'true'` (request a save). Both `auto` and `true`
+remain subject to the server's writer policy and successful job completion;
+`true` cannot grant a branch permission or save a failed job. If the job lacks permission at attachment, the action emits a warning and its changes are discarded.
+
+Account administrators can open a GitHub custom volume under **Runners → Volumes**
+and edit **Writer branches**. Default-branch publishing remains enabled. Up to
+20 additional exact branch names can publish from verified same-repository
+pull-request runs. These additional grants do not authorize push, schedule or
+manual-dispatch runs: GitHub's workflow-run branch name cannot distinguish a
+branch from a same-named tag. Fork PRs and `pull_request_target` cannot publish.
+Wildcards are not supported. Buildkite, GitLab and built-in macOS volume policies
+are unchanged. Removing a branch revokes only pending saves authorized by that
+grant. Default-branch saves and retained grants continue. Adding or reordering
+branches does not revoke saves; additions apply only to new volume attachments.
+
+Explicit `true`/`false` modes require updated runner clients, host agents and
+server. The default `auto` action invocation remains compatible with older
+clients. The transport requires explicit server/host acknowledgement of a new
+mode before exposing the mounted cache, so an older component cannot silently
+ignore `commit: 'false'`.
 
 ## Releases
 

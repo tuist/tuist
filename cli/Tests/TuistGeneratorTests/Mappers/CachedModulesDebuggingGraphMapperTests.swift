@@ -530,19 +530,23 @@ struct CachedModulesDebuggingGraphMapperTests {
 
         _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment, workingDirectory: projectPath)
         let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
-        let sourceMap = try #require(contents.split(separator: "\n").first { $0.hasPrefix("settings append target.source-map ") })
+        let sourceMap = try #require(contents.split(separator: "\n").first { $0.hasPrefix("settings set target.source-map ") })
         let parsed = try runProcess(
             "/usr/bin/python3",
             arguments: ["-c", "import json, shlex, sys; print(json.dumps(shlex.split(sys.argv[1])))", String(sourceMap)],
             environment: environment
         )
         let arguments = try JSONDecoder().decode([String].self, from: Data(parsed.utf8))
-        #expect(arguments == [
-            "settings", "append", "target.source-map",
-            "/^xcode", developer, "/^toolchain", toolchain,
-            "/^spm", scratch, "/^sdk", sdk, "/^root", root, "/^custom", custom,
+        #expect(Array(arguments.prefix(3)) == ["settings", "set", "target.source-map"])
+        let pairs = stride(from: 3, to: arguments.count - 1, by: 2).map { (arguments[$0], arguments[$0 + 1]) }
+        #expect(Dictionary(pairs, uniquingKeysWith: { first, _ in first }) == [
+            "/^xcode": developer, "/^toolchain": toolchain, "/^spm": scratch,
+            "/^sdk": sdk, "/^root": root, "/^custom": custom,
         ])
-        #expect(contents.hasPrefix("command source -s 0 "))
+        let projectAliases: Set = ["/^spm", "/^root", "/^custom", "/^toolchain"]
+        #expect(pairs.map(\.0).filter(projectAliases.contains) == ["/^spm", "/^root", "/^custom", "/^toolchain"])
+        #expect(contents.hasPrefix("settings set target.source-map "))
+        #expect(contents.contains("\ncommand source -s 0 "))
         #expect(!contents.contains("symbols.cas-"))
         #expect(!contents.contains("symbols.use-swift-explicit-module-loader"))
         #expect(!contents.contains("target.swift-framework-search-paths"))
@@ -606,7 +610,7 @@ struct CachedModulesDebuggingGraphMapperTests {
                 environment: environment
             )
             let arguments = try JSONDecoder().decode([String].self, from: Data(parsed.utf8))
-            #expect(arguments == ["settings", "append", "target.source-map", "/^root", root])
+            #expect(arguments == ["settings", "set", "target.source-map", "/^root", root])
         }
     }
 
@@ -642,7 +646,7 @@ struct CachedModulesDebuggingGraphMapperTests {
                 workingDirectory: projectPath
             )
             let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
-            #expect(contents.hasPrefix("settings append target.source-map \"/^root\" \"\(projectPath.pathString)\""))
+            #expect(contents.hasPrefix("settings set target.source-map \"/^root\" \"\(projectPath.pathString)\""))
             #expect(contents.split(separator: "\n").count == 1)
 
             environment["COMPILATION_CACHE_ENABLE_CACHING"] = "NO"
@@ -654,6 +658,51 @@ struct CachedModulesDebuggingGraphMapperTests {
             )
             #expect(try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8).isEmpty)
         }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func generatedScript_ordersSourceMapTheWayTheCompilersResolvePrefixes() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath, customLLDBInitFiles: false)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let (mapped, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let runAction = try #require(mapped.projects[projectPath]?.schemes.first?.runAction)
+        let scriptPath = projectPath.appending(component: "debugger.sh")
+        try await FileSystem().writeText(#require(runAction.preActions.first?.scriptText), at: scriptPath)
+        let root = projectPath.pathString
+        let products = root + "/DerivedData/Build/Products"
+        let intermediates = root + "/DerivedData/Build/Intermediates.noindex"
+        try writeCompilationPrefixMap([
+            "/^src": root,
+            "/^workspace": root,
+            "/^root": root,
+            "/^spm": root + "/Tuist/.build",
+            "/^products": products,
+            "/^built": products + "/Debug-iphonesimulator",
+            "/^intermediates": intermediates,
+            "/^derived": intermediates + "/App.build",
+        ], at: projectPath)
+        let environment = [
+            "PATH": "/usr/bin:/bin",
+            "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+            "SWIFT_ENABLE_PREFIX_MAPPING": "YES",
+            "TARGET_TEMP_DIR": projectPath.pathString,
+        ]
+
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment)
+
+        let initPath = try #require(runAction.customLLDBInitFile)
+        let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        let parsed = try runProcess(
+            "/usr/bin/python3",
+            arguments: ["-c", "import json, shlex, sys; print(json.dumps(shlex.split(sys.argv[1])))", contents],
+            environment: environment
+        )
+        let arguments = try JSONDecoder().decode([String].self, from: Data(parsed.utf8))
+        #expect(Array(arguments.prefix(3)) == ["settings", "set", "target.source-map"])
+        #expect(stride(from: 3, to: arguments.count, by: 2).map { arguments[$0] } == [
+            "/^derived", "/^built", "/^intermediates", "/^products", "/^spm", "/^root", "/^workspace", "/^src",
+        ])
     }
 
     @Test(.inTemporaryDirectory, arguments: [false, true])
@@ -675,6 +724,31 @@ struct CachedModulesDebuggingGraphMapperTests {
         }
 
         _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment)
+
+        let initPath = try #require(runAction.customLLDBInitFile)
+        let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        #expect(contents.hasPrefix("command source -s 0 "))
+        #expect(!contents.contains("target.source-map"))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func generatedScript_preservesCustomInitializerWhenPrefixMapCannotBeRead() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let (mapped, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let runAction = try #require(mapped.projects[projectPath]?.schemes.first?.runAction)
+        let scriptPath = projectPath.appending(component: "debugger.sh")
+        try await FileSystem().writeText(#require(runAction.preActions.first?.scriptText), at: scriptPath)
+        try await FileSystem().writeText("{", at: projectPath.appending(component: "compilation-prefix-map.json"))
+        let environment = [
+            "PATH": "/usr/bin:/bin",
+            "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+            "SWIFT_ENABLE_PREFIX_MAPPING": "YES",
+            "TARGET_TEMP_DIR": projectPath.pathString,
+        ]
+
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment, expectedStatus: 1)
 
         let initPath = try #require(runAction.customLLDBInitFile)
         let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
@@ -747,7 +821,8 @@ struct CachedModulesDebuggingGraphMapperTests {
         _ executable: String,
         arguments: [String],
         environment: [String: String],
-        workingDirectory: AbsolutePath? = nil
+        workingDirectory: AbsolutePath? = nil,
+        expectedStatus: Int32 = 0
     ) throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -763,7 +838,7 @@ struct CachedModulesDebuggingGraphMapperTests {
         let errorData = errors.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         let text = String(decoding: data, as: UTF8.self)
-        #expect(process.terminationStatus == 0, Comment(rawValue: text + String(decoding: errorData, as: UTF8.self)))
+        #expect(process.terminationStatus == expectedStatus, Comment(rawValue: text + String(decoding: errorData, as: UTF8.self)))
         return text
     }
 
