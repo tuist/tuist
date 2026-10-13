@@ -157,6 +157,15 @@ defmodule Tuist.Kura.LifecycleTest do
     reload_lifecycle(account)
   end
 
+  # Moves the archival a minute into the past, so demand recorded by the
+  # test lands after it rather than in the same second.
+  defp backdate_archival(account) do
+    account
+    |> reload_lifecycle()
+    |> Ecto.Changeset.change(%{archived_at: DateTime.truncate(DateTime.add(DateTime.utc_now(), -60, :second), :second)})
+    |> Repo.update!()
+  end
+
   # Rewinds the drain clock so the next tick sees the drain window as elapsed.
   defp elapse_drain(account) do
     started_at =
@@ -286,8 +295,61 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload_lifecycle(account).drain_started_at
     end
 
-    test "leaves an instance alone inside its inactive window" do
+    test "drains an Air instance after a week without cache demand" do
       account = account()
+      server = active_instance(account)
+      with_demand(account, 8)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :drain_pending
+      assert reload_lifecycle(account).drain_reason == :inactive
+    end
+
+    test "leaves an Air instance alone inside its week" do
+      account = account()
+      server = active_instance(account)
+      with_demand(account, 6)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "caps Air's window at the window every plan uses" do
+      stub(Environment, :kura_inactive_days, fn -> 3 end)
+      account = account()
+      server = active_instance(account)
+      with_demand(account, 4)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :drain_pending
+    end
+
+    test "returns an Air instance archived for inactivity only on demand after the archival" do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+      account = account()
+      server = active_instance(account)
+      with_demand(account, 8)
+
+      assert :ok = Lifecycle.sweep()
+      elapse_drain(account)
+      assert :ok = Lifecycle.reconcile()
+      assert reload(server).status == :archived
+      backdate_archival(account)
+
+      assert :ok = Lifecycle.reconcile()
+      assert reload(server).status == :archived
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+      assert reload(server).status == :provisioning
+    end
+
+    test "leaves an instance alone inside its inactive window" do
+      account = account(plan: :pro, region: :usa)
       server = active_instance(account)
       with_demand(account, 89)
 
@@ -361,6 +423,8 @@ defmodule Tuist.Kura.LifecycleTest do
 
   describe "Air capacity pressure" do
     setup do
+      # Pressure only reaches Air where its own window is the longer one.
+      stub(Environment, :kura_air_inactive_days, fn -> 90 end)
       stub(Environment, :kura_capacity_admission_required?, fn -> true end)
       stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, 1)}])
       :ok
@@ -738,6 +802,7 @@ defmodule Tuist.Kura.LifecycleTest do
       elapse_drain(account)
       Lifecycle.reconcile()
       assert reload(server).status == :archived
+      backdate_archival(account)
       server
     end
 
@@ -984,6 +1049,7 @@ defmodule Tuist.Kura.LifecycleTest do
       elapse_drain(account)
       Lifecycle.reconcile()
       assert reload(server).status == :archived
+      backdate_archival(account)
 
       Demand.record(account.id)
       Lifecycle.reconcile()
@@ -1884,6 +1950,7 @@ defmodule Tuist.Kura.LifecycleTest do
       elapse_drain(account)
       Lifecycle.reconcile()
       assert reload(server).status == :archived
+      backdate_archival(account)
       server
     end
 
