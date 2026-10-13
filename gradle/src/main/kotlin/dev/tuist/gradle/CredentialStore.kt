@@ -51,10 +51,16 @@ class CredentialStore(
     }
 
     private fun credentialFile(hostname: String): File {
-        val normalized = File(credentialsDir, "${hostname.lowercase(Locale.ROOT)}.json")
+        val host = hostname.lowercase(Locale.ROOT).trimEnd('.')
+        val normalized = File(credentialsDir, "$host.json")
         if (normalized.exists()) return normalized
-        return credentialsDir.listFiles()?.firstOrNull { it.name.equals("$hostname.json", ignoreCase = true) }
-            ?: File(credentialsDir, "$hostname.json")
+        val files = credentialsDir.listFiles()
+        if (files == null && credentialsDir.exists()) {
+            throw IllegalStateException("Could not inspect existing Tuist credentials in $credentialsDir; fix directory access before publishing.")
+        }
+        return files?.sortedBy { it.name }?.firstOrNull {
+            it.name.endsWith(".json") && it.name.removeSuffix(".json").lowercase(Locale.ROOT).trimEnd('.') == host
+        } ?: normalized
     }
 
     companion object {

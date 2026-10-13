@@ -79,6 +79,12 @@ class TokenProviderTest {
     }
 
     @Test
+    fun `an existing uninspectable credentials directory never becomes absence`() {
+        File(tempDir, "credentials").writeText("not a directory")
+        assertFailsWith<IllegalStateException> { createProvider().getOptionalToken() }
+    }
+
+    @Test
     fun `network publishing cannot send credential-free reports to the implicit hosted destination`() {
         for (host in listOf("tuist.dev", "www.tuist.dev", "canary.tuist.dev", "staging.tuist.dev", "cloud.tuist.io", "TUIST.DEV", "tuist.dev.", "other.tuist.dev")) {
             val provider = ReportConfigurationProvider(
@@ -120,6 +126,23 @@ class TokenProviderTest {
         assertEquals(1, files.size)
         assertEquals("Tuist.Dev.json", files.single().name)
         assertEquals("refreshed-token", Gson().fromJson(files.single().readText(), Credentials::class.java).accessToken)
+    }
+
+    @Test
+    fun `hostname aliases cannot hide rejected or corrupt credentials`() {
+        val directory = File(tempDir, "credentials").apply { mkdirs() }
+        val store = createCredentialStore()
+        for (filename in listOf("tuist.example.json", "Tuist.Example..json")) {
+            val file = File(directory, filename)
+            for (contents in listOf("not-json", "{\"accessToken\":\"rejected\",\"rejected\":true}")) {
+                file.writeText(contents)
+                for (url in listOf("https://tuist.example", "https://TUIST.EXAMPLE.")) {
+                    repeat(2) { assertFailsWith<IllegalStateException> { store.readValidated(URI(url)) } }
+                    assertEquals(contents, file.readText())
+                }
+            }
+            file.delete()
+        }
     }
 
     @Test
