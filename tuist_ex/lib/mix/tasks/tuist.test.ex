@@ -41,7 +41,9 @@ defmodule Mix.Tasks.Tuist.Test do
   instrumented counts lines with the runtime's native counters, which the
   task switches on: Mix's coverage tool, and with it its report, is left out,
   and only the modules Mimic copies are cover compiled. A runtime without the
-  JIT cannot count natively and uses Mix's coverage tool.
+  JIT cannot count natively and uses Mix's coverage tool; on a shard, that
+  tool exports the coverage (`--export-coverage shard-<index>`, unless one is
+  given) instead of holding the shard to the project's threshold.
 
   `--scheme LABEL` names an execution variant in analytics, such as a database
   version. Variants with different labels are not compared as flaky reruns.
@@ -172,6 +174,7 @@ defmodule Mix.Tasks.Tuist.Test do
         # Forwarded arguments are kept as given, in order: repeated options
         # such as `--include a --include b` mean something.
         {test_args, files} = Shards.restrict(test_args, files)
+        test_args = Coverage.with_shard_export(test_args, index)
 
         if files == [] and options[:prepare_only] != true do
           Mix.shell().info("Tuist: shard #{index} of #{reference} has no tests to run.")

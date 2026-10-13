@@ -336,16 +336,12 @@ jobs:
       # cache install writes checksums into mise.lock and deps.get can rewrite
       # mix.lock, neither of which changes the measured code. Git is told to
       # ignore them rather than having them restored, which would leave the
-      # fetched dependencies out of step with mix.lock and stop Mix. On the
-      # instrumented build `mix tuist.test` leaves Mix's coverage tool out; if
-      # it falls back to it, the tool only exports its data, instead of
-      # failing the shard under its 90% default threshold and writing HTML
-      # for every module.
+      # fetched dependencies out of step with mix.lock and stop Mix.
       - name: Ignore lockfile changes for coverage
         if: github.event_name == 'push'
         run: git update-index --assume-unchanged ../mise.lock mix.lock
       - name: Run shard ${{ matrix.shard }}
-        run: mix tuist.test --no-download --scheme clickhouse-current --warnings-as-errors ${{ github.event_name == 'push' && '--cover --export-coverage shard' || '' }}
+        run: mix tuist.test --no-download --scheme clickhouse-current --warnings-as-errors ${{ github.event_name == 'push' && '--cover' || '' }}
   test-clickhouse-floor:
     name: Test (oldest supported ClickHouse)
     # Keep exercising the release declared by Tuist.ClickHouseVersions, including

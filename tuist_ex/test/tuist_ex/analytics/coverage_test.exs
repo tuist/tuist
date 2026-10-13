@@ -389,6 +389,23 @@ defmodule TuistEx.Analytics.CoverageTest do
     end
   end
 
+  describe "with_shard_export/2" do
+    test "exports a measured shard's coverage instead of holding it to Mix's threshold" do
+      assert Coverage.with_shard_export(["--cover", "--trace"], 2) ==
+               ["--cover", "--trace", "--export-coverage", "shard-2"]
+    end
+
+    test "keeps an export the run names, and adds none without coverage" do
+      for args <- [
+            ["--cover", "--export-coverage", "mine"],
+            ["--cover", "--export-coverage=mine"],
+            ["--trace"]
+          ] do
+        assert Coverage.with_shard_export(args, 0) == args
+      end
+    end
+  end
+
   describe "without_cover/1" do
     test "leaves Mix's coverage tool out and keeps everything else" do
       assert Coverage.without_cover([

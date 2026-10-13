@@ -289,6 +289,26 @@ defmodule TuistEx.Analytics.Coverage do
   end
 
   @doc """
+  A shard's arguments for `mix test`, exporting its coverage when it is
+  measured and nothing exports it yet. Mix's coverage tool would otherwise
+  hold a shard, which runs only part of the suite, to the whole project's
+  threshold (90% unless configured) and write its report there. Tuist reads
+  the counters itself, so what Mix exports, under `cover/shard-<index>`, is
+  only for the project's own tools.
+  """
+  def with_shard_export(test_args, index) do
+    exported? =
+      Enum.any?(
+        test_args,
+        &(&1 == "--export-coverage" or String.starts_with?(&1, "--export-coverage="))
+      )
+
+    if requested?(test_args) and not exported?,
+      do: test_args ++ ["--export-coverage", "shard-#{index}"],
+      else: test_args
+  end
+
+  @doc """
   The arguments for `mix test` without Mix's own coverage tool, which a run of
   an instrumented build does not need: it would compile every module again.
   """
