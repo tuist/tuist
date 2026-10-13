@@ -455,4 +455,38 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     socket = %Socket{assigns: %{__changed__: %{}, selected_account: %{id: 1}, can_manage: true}}
     assert {:noreply, ^socket} = RunnerVolumesLive.handle_event("request_delete", %{"id" => id}, socket)
   end
+
+  test "only managers can edit GitHub custom-volume writer branches" do
+    assert render_component(&RunnerVolumesLive.render/1, assigns(true)) =~ "volume-writer-policy"
+    refute render_component(&RunnerVolumesLive.render/1, assigns(false)) =~ "volume-writer-policy"
+
+    for changes <- [%{builtin_name: "tuist-cache"}, %{provider: "gitlab"}] do
+      values = assigns(true)
+      volume = struct!(values.selected, changes)
+      refute render_component(&RunnerVolumesLive.render/1, %{values | selected: volume}) =~ "volume-writer-policy"
+    end
+  end
+
+  test "writer policy save reauthorizes and scopes the selected volume" do
+    values = assigns(true)
+    id = values.selected.id
+    socket = %Socket{assigns: Map.merge(values, %{__changed__: %{}, current_user: :user, flash: %{}})}
+    expect(Authorization, :authorize, fn :account_update, :user, %{id: 1} -> :ok end)
+
+    expect(CacheVolumes, :update_writer_branches, fn 1, ^id, ["codex/test"] ->
+      {:ok, %{values.selected | writer_branches: ["codex/test"]}}
+    end)
+
+    assert {:noreply, updated} =
+             RunnerVolumesLive.handle_event("save_writer_branches", %{"writer_branches" => "  codex/test\n\n"}, socket)
+
+    assert updated.assigns.selected.writer_branches == ["codex/test"]
+    expect(Authorization, :authorize, fn :account_update, :user, %{id: 1} -> {:error, :unauthorized} end)
+    reject(CacheVolumes, :update_writer_branches, 3)
+
+    assert {:noreply, rejected} =
+             RunnerVolumesLive.handle_event("save_writer_branches", %{"writer_branches" => "other"}, updated)
+
+    assert rejected.assigns.selected.writer_branches == ["codex/test"]
+  end
 end

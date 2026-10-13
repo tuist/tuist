@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -15,13 +16,13 @@ func TestColdFallbackPreservesExistingContent(t *testing.T) {
 	t.Setenv("TUIST_CACHE_VOLUME_URL", "")
 	root := t.TempDir()
 	path := filepath.Join(root, ".gradle/caches/modules-2")
-	if err := attach("gradle", []string{path}); err != nil {
+	if err := attach("gradle", []string{path}, "auto"); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(path, "dependency"), []byte("keep"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := attach("gradle", []string{path}); err == nil {
+	if err := attach("gradle", []string{path}, "auto"); err == nil {
 		t.Fatal("replaced nonempty directory")
 	}
 	if b, err := os.ReadFile(filepath.Join(path, "dependency")); err != nil || string(b) != "keep" {
@@ -231,5 +232,41 @@ func TestAcquireDeadlineContinuesWithWritableColdDirectory(t *testing.T) {
 	data, err := os.ReadFile(output)
 	if err != nil || string(data) != "cache-hit=false\n" {
 		t.Fatal(string(data), err)
+	}
+}
+
+func TestExplicitCommitRequiresServerAcknowledgement(t *testing.T) {
+	for _, mode := range []string{"true", "false"} {
+		t.Run(mode, func(t *testing.T) {
+			acknowledged := false
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var body map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Error(err)
+				}
+				if body["commit"] != mode {
+					t.Errorf("lost commit intent: %v", body["commit"])
+				}
+				response := map[string]any{"directory": digest("volume"), "id": "lease", "warm": true}
+				if acknowledged {
+					response["commit"] = mode
+				}
+				json.NewEncoder(w).Encode(response)
+			}))
+			defer server.Close()
+			t.Setenv("TUIST_CACHE_VOLUME_URL", server.URL)
+			if _, _, _, err := acquire(server.Client(), "key", mode); !errors.Is(err, errCommitUnsupported) {
+				t.Fatal("accepted legacy response", err)
+			}
+			acknowledged = true
+			if _, _, _, err := acquire(server.Client(), "key", mode); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	target := filepath.Join(t.TempDir(), "cache")
+	err := attachUsing("key", []string{target}, t.TempDir(), func() (string, string, bool, error) { return "", "", false, errCommitUnsupported }, func(string, string, string) error { t.Fatal("mounted unsupported volume"); return nil })
+	if !errors.Is(err, errCommitUnsupported) {
+		t.Fatal("silently ignored explicit commit policy", err)
 	}
 }

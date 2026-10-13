@@ -24,15 +24,18 @@ defmodule Tuist.Runners.CacheVolumes do
 
   @retention_seconds 7 * 24 * 60 * 60
 
-  def allocate(%{
-        "pod_name" => pod,
-        "pod_uid" => uid,
-        "node_name" => node,
-        "key" => key,
-        "architecture" => arch,
-        "uid" => user_id
-      }) do
-    with true <- valid_key?(key),
+  def allocate(
+        %{
+          "pod_name" => pod,
+          "pod_uid" => uid,
+          "node_name" => node,
+          "key" => key,
+          "architecture" => arch,
+          "uid" => user_id
+        } = params
+      ) do
+    with true <- Map.get(params, "commit", "auto") in ["auto", "true", "false"],
+         true <- valid_key?(key),
          true <- arch in ["amd64", "arm64"],
          true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
          true <- is_binary(uid) and Regex.match?(~r/^[a-zA-Z0-9-]{1,128}$/, uid),
@@ -43,6 +46,7 @@ defmodule Tuist.Runners.CacheVolumes do
         pod_uid: uid,
         node_name: node,
         key: key,
+        commit_mode: Map.get(params, "commit", "auto"),
         architecture: arch,
         platform: to_string(platform),
         uid: user_id
@@ -102,9 +106,10 @@ defmodule Tuist.Runners.CacheVolumes do
   # Also used by lifecycle tests with already verified provider metadata.
   def allocate_for_job(job, identity, attrs) do
     identity = Identity.storage_scope(identity)
-    attrs = Map.put_new(attrs, :platform, "linux")
+    attrs = attrs |> Map.put_new(:platform, "linux") |> Map.put_new(:commit_mode, "auto")
 
     Repo.transaction(fn ->
+      if attrs.commit_mode not in ["auto", "true", "false"], do: Repo.rollback(:unavailable)
       # One admission lock per pod also bounds concurrent requests for new keys.
       Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
         "cache-volume:#{job.account_id}:#{attrs.pod_uid}"
@@ -151,7 +156,8 @@ defmodule Tuist.Runners.CacheVolumes do
           content_digest: head && head.content_digest,
           workflow_job_id: job.workflow_job_id,
           workflow_run_id: job.workflow_run_id,
-          can_publish: identity.trusted,
+          commit_mode: attrs.commit_mode,
+          can_publish: attrs.commit_mode != "false" and writer_allowed?(volume, identity),
           inserted_at: timestamp,
           updated_at: timestamp
         })
@@ -163,9 +169,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
       usage = Repo.get_by!(Usage, volume_id: volume.id, generation: volume.generation, pod_uid: attrs.pod_uid)
 
-      if usage.node_name != attrs.node_name or usage.workflow_job_id != job.workflow_job_id do
-        Repo.rollback(:unavailable)
-      end
+      ensure_allocation_matches!(usage, job, attrs)
 
       Repo.update!(
         Ecto.Changeset.change(volume,
@@ -184,10 +188,61 @@ defmodule Tuist.Runners.CacheVolumes do
         image_digest: usage.image_digest,
         content_digest: usage.content_digest,
         can_publish: usage.can_publish,
+        commit: usage.commit_mode,
         uid: volume.uid
       }
     end)
   end
+
+  defp ensure_allocation_matches!(usage, job, attrs) do
+    if usage.node_name != attrs.node_name or usage.workflow_job_id != job.workflow_job_id or
+         usage.commit_mode != attrs.commit_mode do
+      Repo.rollback(:unavailable)
+    end
+  end
+
+  defp writer_allowed?(volume, identity) do
+    identity.trusted or
+      (identity.provider == "github" and Map.get(identity, :same_repository, false) and
+         is_binary(Map.get(identity, :writer_branch)) and identity.writer_branch in volume.writer_branches)
+  end
+
+  def update_writer_branches(account_id, id, branches) do
+    Repo.transaction(fn ->
+      volume = Repo.one(from(v in Volume, where: v.account_id == ^account_id and v.id == ^id, lock: "FOR UPDATE"))
+
+      if is_nil(volume) or not is_nil(volume.builtin_name) or volume.provider != "github",
+        do: Repo.rollback(:not_found)
+
+      if not valid_writer_branches?(branches), do: Repo.rollback(:invalid_parameters)
+
+      branches = Enum.uniq(branches)
+
+      if volume.writer_branches == branches do
+        volume
+      else
+        # Revoke pending permissions under the publication lock. New grants only
+        # apply to new jobs; retries cannot upgrade an existing private clone.
+        Repo.update_all(
+          from(u in Usage, where: u.volume_id == ^id and u.status not in ["published", "discarded"]),
+          set: [can_publish: false]
+        )
+
+        Repo.update!(Ecto.Changeset.change(volume, writer_branches: branches))
+      end
+    end)
+  end
+
+  defp valid_writer_branches?(branches) when is_list(branches) do
+    length(branches) <= 20 and
+      Enum.all?(branches, fn branch ->
+        is_binary(branch) and byte_size(branch) in 1..200 and
+          Regex.match?(~r/\A[a-zA-Z0-9][a-zA-Z0-9_.\/-]*\z/, branch) and
+          not String.contains?(branch, ["..", "//"]) and not String.ends_with?(branch, ["/", ".", ".lock"])
+      end)
+  end
+
+  defp valid_writer_branches?(_), do: false
 
   defp ensure_job_capacity!(job, identity, attrs) do
     count =

@@ -457,6 +457,7 @@ The archive contains everything needed to understand the account's complete data
   provider, provider instance, immutable scope ID, optional numeric repository/project ID,
   repository or pipeline display name, user-chosen key, platform (Linux or macOS), architecture,
   execution UID, generation, published head use UUID, optional built-in storage name,
+  administrator-configured additional writer branch names (empty by default),
   last use, logical deletion and creation/update timestamps. Identity is unique
   per account/provider/instance/scope/key/platform/architecture/UID. GitHub uses github.com
   and repository ID; Buildkite uses organization UUID plus pipeline UUID and a
@@ -468,7 +469,7 @@ The archive contains everything needed to understand the account's complete data
 - **Usage history** (`runner_cache_volume_uses`, PostgreSQL): use UUID and volume
   foreign key, invalidation generation, parent use UUID, shared HEAD base/published
   generations, image SHA-1 and content SHA-256 digests, workflow run/job IDs, pod name/UID,
-  node name, publication permission, lifecycle status, warm/cold result, logical
+  node name, commit intent (`auto`, `true`, `false`), publication permission, lifecycle status, warm/cold result, logical
   filesystem used/capacity bytes, attachment milliseconds, last report, attachment/finish/
   physical-deletion and creation/update timestamps. Export via the volume's
   account ID. Daily cleanup removes history 90 days after acknowledged physical

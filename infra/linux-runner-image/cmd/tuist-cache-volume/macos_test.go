@@ -174,3 +174,17 @@ func TestMacBusyDetachRetriesBeforePublishing(t *testing.T) {
 		t.Fatal(string(marker))
 	}
 }
+
+func TestMacExplicitCommitRejectsLegacyHostBeforeMount(t *testing.T) {
+	for _, mode := range []string{"true", "false"} {
+		t.Run(mode, func(t *testing.T) {
+			share, mount := t.TempDir(), t.TempDir()
+			data, _ := json.Marshal(macResponse{Directory: digest("volume"), ID: "lease", Warm: true})
+			respondMac(t, share, data)
+			_, _, _, err := acquireMacAt(context.Background(), "key", share, mount, func(...string) error { t.Fatal("mounted without commit acknowledgement"); return nil }, mode)
+			if !errors.Is(err, errCommitUnsupported) {
+				t.Fatal(err)
+			}
+		})
+	}
+}

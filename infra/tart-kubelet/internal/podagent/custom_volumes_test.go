@@ -68,11 +68,12 @@ func TestCustomVolumeMailboxUsesHostIdentity(t *testing.T) {
 	if err := os.MkdirAll(share, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(share, "cache.request"), []byte(`{"key":"gradle","uid":501,"pod_name":"victim","node_name":"victim","platform":"linux"}`), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(share, "cache.request"), []byte(`{"key":"gradle","uid":501,"pod_name":"victim","node_name":"victim","platform":"linux","commit":"false"}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	id := "11111111-1111-4111-8111-111111111111"
 	scope := strings.Repeat("a", 64)
+	acknowledge := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/authorize" || r.Header.Get("Authorization") != "Bearer host-only" {
 			t.Error("unexpected request")
@@ -81,10 +82,14 @@ func TestCustomVolumeMailboxUsesHostIdentity(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
 			t.Error(err)
 		}
-		if got["pod_name"] != "host-pod" || got["pod_uid"] != "host-uid" || got["node_name"] != "host-node" || got["architecture"] != "arm64" || got["uid"] != float64(501) || got["platform"] != nil {
+		if got["pod_name"] != "host-pod" || got["pod_uid"] != "host-uid" || got["node_name"] != "host-node" || got["architecture"] != "arm64" || got["uid"] != float64(501) || got["platform"] != nil || got["commit"] != "false" {
 			t.Errorf("untrusted identity: %v", got)
 		}
-		_ = json.NewEncoder(w).Encode(cachevolumes.Identity{ID: id, Scope: scope, Account: 1, UID: 501})
+		identity := cachevolumes.Identity{ID: id, Scope: scope, Account: 1, UID: 501}
+		if acknowledge {
+			identity.Commit = "false"
+		}
+		_ = json.NewEncoder(w).Encode(identity)
 	}))
 	defer server.Close()
 	kube := fake.NewSimpleClientset()
@@ -107,6 +112,20 @@ func TestCustomVolumeMailboxUsesHostIdentity(t *testing.T) {
 	if err := c.requests(context.Background(), pod); err != nil {
 		t.Fatal(err)
 	}
+	denied, err := os.ReadFile(filepath.Join(share, "cache.request.response"))
+	if err != nil || !strings.Contains(string(denied), `"error"`) {
+		t.Fatal("legacy server ignored commit mode", string(denied), err)
+	}
+	if _, err := os.Stat(filepath.Join(share, scope)); !os.IsNotExist(err) {
+		t.Fatal("exposed volume before commit acknowledgement")
+	}
+	if err := os.Remove(filepath.Join(share, "cache.request.response")); err != nil {
+		t.Fatal(err)
+	}
+	acknowledge = true
+	if err := c.requests(context.Background(), pod); err != nil {
+		t.Fatal(err)
+	}
 	data, err := os.ReadFile(filepath.Join(share, "cache.request.response"))
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +134,7 @@ func TestCustomVolumeMailboxUsesHostIdentity(t *testing.T) {
 	if err := json.Unmarshal(data, &response); err != nil {
 		t.Fatal(err)
 	}
-	if response["id"] != id || response["directory"] != scope {
+	if response["id"] != id || response["directory"] != scope || response["commit"] != "false" {
 		t.Fatal(string(data))
 	}
 	// An exposed file is not proof that the guest successfully mounted it.

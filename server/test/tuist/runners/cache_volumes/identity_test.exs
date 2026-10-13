@@ -228,4 +228,43 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
     refute Identity.gitlab_writer?(remote, branches)
     refute Identity.gitlab_writer?(Map.put(remote, "source", "api"), branches)
   end
+
+  test "GitHub additional writers use provider-verified branch and PR repository identity" do
+    job = %{repository: "org/repo", workflow_run_id: 42, run_attempt: 1}
+
+    run = %{
+      "id" => 42,
+      "run_attempt" => 1,
+      "repository" => %{"id" => 123, "full_name" => "org/repo", "default_branch" => "main"},
+      "head_repository" => %{"id" => 123},
+      "head_branch" => "feature",
+      "event" => "push"
+    }
+
+    for event <- ["push", "workflow_dispatch", "schedule"] do
+      assert {:ok, %{trusted: false, writer_branch: "feature"}} = Identity.github_identity(job, %{run | "event" => event})
+    end
+
+    for event <- ["pull_request_target", "merge_group", "unknown"] do
+      assert {:ok, %{writer_branch: nil}} = Identity.github_identity(job, %{run | "event" => event})
+    end
+
+    pr =
+      Map.merge(run, %{
+        "event" => "pull_request",
+        "pull_requests" => [%{"head" => %{"repo" => %{"id" => 123}, "ref" => "feature"}}]
+      })
+
+    assert {:ok, %{trusted: false, writer_branch: "feature"}} = Identity.github_identity(job, pr)
+
+    for prs <- [
+          [],
+          [%{"head" => %{"repo" => %{"id" => 999}, "ref" => "feature"}}],
+          [%{"head" => %{"repo" => %{"id" => 123}, "ref" => "other"}}]
+        ] do
+      assert {:ok, %{writer_branch: nil}} = Identity.github_identity(job, %{pr | "pull_requests" => prs})
+    end
+
+    assert {:ok, %{writer_branch: nil}} = Identity.github_identity(job, %{pr | "head_repository" => %{"id" => 999}})
+  end
 end

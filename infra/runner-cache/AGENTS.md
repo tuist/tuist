@@ -54,3 +54,5 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Per-pod cleanup errors must not prevent cleanup of other fenced pods.
 - Pod cleanup checks external writer fences outside the global allocation lock,
   then rechecks the durable lease under that lock before removing a mailbox.
+
+- Identity commit acknowledgement gates explicit save modes before exposure; false additionally requires CanPublish=false. Legacy auto requests retain their wire compatibility. Policy revocation is enforced by the server at publication.

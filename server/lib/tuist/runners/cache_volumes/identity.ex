@@ -78,11 +78,40 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
          event when is_binary(event) <- run["event"] do
       same_repository = get_in(run, ["head_repository", "id"]) == id
       trusted = same_repository and branch == default and event in ["push", "schedule", "workflow_dispatch"]
-      {:ok, %{repository_id: id, trusted: trusted, same_repository: same_repository}}
+
+      {:ok,
+       %{
+         repository_id: id,
+         trusted: trusted,
+         same_repository: same_repository,
+         writer_branch: github_writer_branch(run, id, same_repository)
+       }}
     else
       _ -> {:error, :unavailable}
     end
   end
+
+  # Use provider-fetched repository IDs and PR head metadata. A workflow cannot
+  # grant itself publication by supplying a branch name or commit input.
+  defp github_writer_branch(run, repository_id, true) do
+    branch = run["head_branch"]
+
+    case run["event"] do
+      event when event in ["push", "schedule", "workflow_dispatch"] ->
+        branch
+
+      "pull_request" ->
+        case run["pull_requests"] do
+          [%{"head" => %{"repo" => %{"id" => ^repository_id}, "ref" => ^branch}} | _] -> branch
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp github_writer_branch(_, _, _), do: nil
 
   def buildkite_identity(assigned, %{"id" => id, "env" => env}) when is_map(env) do
     with true <- id == assigned.job_uuid,

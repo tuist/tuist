@@ -99,7 +99,7 @@ same key are separate.
 
 ## Saving changes {#saving-changes}
 
-Successful jobs on the default branch save their changes for future runs when
+By default, successful jobs on the default branch save their changes for future runs when
 triggered by these events:
 
 | Provider | Events that save changes |
@@ -108,9 +108,36 @@ triggered by these events:
 | Buildkite | Webhook, schedule |
 | GitLab CI | Push, schedule, web |
 
-Other jobs, including pull requests, merge requests and tags, can use the cache,
+Without an additional writer-branch grant, other jobs, including pull requests, merge requests and tags, can use the cache,
 but their changes are discarded. Concurrent jobs work independently; changes
 from different jobs are not merged. Never cache credentials or irreplaceable data.
+
+### Commit controls and writer branches
+
+The GitHub action accepts `commit: auto` (the default), `commit: 'false'` (discard
+this job's changes), and `commit: 'true'` (request a save). Both `auto` and `true`
+remain subject to the server's writer policy and successful job completion;
+`true` cannot grant a branch permission or save a failed job.
+
+Account administrators can open a GitHub custom volume under **Runners → Volumes**
+and edit **Writer branches**. Default-branch publishing remains enabled. Up to
+20 additional exact branch names can publish from same-repository push, schedule,
+manual-dispatch and verified pull-request runs. Fork PRs and `pull_request_target`
+cannot publish. Wildcards are not supported. Buildkite, GitLab and built-in macOS
+volume policies are unchanged. Saving a changed policy revokes pending saves from
+running jobs; permissions added by the change apply only to new volume attachments.
+
+For a cold/warm experiment before merging a workflow:
+
+1. Attach dedicated keys, such as `cli-build-experiment` and
+   `cli-swifterpm-experiment`. The first branch job creates the volume records.
+2. Add the exact test branch to **Writer branches** on both volumes.
+3. Run the branch workflow with `commit: 'true'` on both attachment steps. Wait
+   for a successful job and for both saved snapshots to appear in volume history.
+4. Rerun with the same keys, toolchain and dependency inputs. Require both cache
+   hits and record dependency-install time separately from queue/attachment time.
+5. Remove the test branch from the policy and clear the experimental volumes
+   when finished. Production cache keys are unaffected.
 
 ## Capacity and retention {#capacity-and-retention}
 

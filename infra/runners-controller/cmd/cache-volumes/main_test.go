@@ -35,6 +35,8 @@ func TestAcquireBindsSourceIPNodeUIDAndAuthorization(t *testing.T) {
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "runner", Namespace: "runners", UID: types.UID("uid"), Labels: map[string]string{"tuist.dev/runner": "true"}}, Spec: corev1.PodSpec{NodeName: "node"}, Status: corev1.PodStatus{PodIP: "10.0.0.5", Phase: corev1.PodRunning}}
 	authorized := false
 	allow := true
+	commit := ""
+	acknowledge := false
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authorized = true
 		if r.Header.Get("Authorization") != "Bearer agent-token" {
@@ -42,21 +44,25 @@ func TestAcquireBindsSourceIPNodeUIDAndAuthorization(t *testing.T) {
 		}
 		var body map[string]any
 		json.NewDecoder(r.Body).Decode(&body)
-		if body["pod_name"] != "runner" || body["key"] != "gradle" {
+		if body["pod_name"] != "runner" || body["key"] != "gradle" || body["commit"] != commitMode(commit) {
 			t.Error("lost execution identity")
 		}
 		if !allow {
 			http.Error(w, "denied", 403)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{"id": "00000000-0000-0000-0000-000000000001", "account_id": 1, "scope": strings.Repeat("a", 64)})
+		response := map[string]any{"id": "00000000-0000-0000-0000-000000000001", "account_id": 1, "scope": strings.Repeat("a", 64)}
+		if acknowledge {
+			response["commit"] = commit
+		}
+		json.NewEncoder(w).Encode(response)
 	}))
 	defer upstream.Close()
 	tokenPath := filepath.Join(root, "token")
 	os.WriteFile(tokenPath, []byte("agent-token"), 0600)
 	a := &agent{tokenPath: tokenPath, store: s, kube: fake.NewSimpleClientset(pod), namespace: "runners", node: "node", authorizeURL: upstream.URL, http: upstream.Client()}
 	call := func(uid, ip string) int {
-		body, _ := json.Marshal(request{PodName: "runner", PodUID: uid, Key: "gradle"})
+		body, _ := json.Marshal(request{PodName: "runner", PodUID: uid, Key: "gradle", Commit: commit})
 		req := httptest.NewRequest("POST", "/acquire", bytes.NewReader(body))
 		req.RemoteAddr = ip + ":1234"
 		req.Header.Set("Authorization", "Bearer attacker-input")
@@ -83,6 +89,14 @@ func TestAcquireBindsSourceIPNodeUIDAndAuthorization(t *testing.T) {
 		t.Fatal("exposed data before authorization")
 	}
 	allow = true
+	commit = "false"
+	if got := call("uid", "10.0.0.5"); got != http.StatusNotImplemented {
+		t.Fatal("legacy server ignored read-only intent", got)
+	}
+	if _, err := os.Stat(filepath.Join(root, "pods/uid")); !os.IsNotExist(err) {
+		t.Fatal("exposed data without commit acknowledgement")
+	}
+	acknowledge = true
 	if got := call("uid", "10.0.0.5"); got != 200 {
 		t.Fatal("valid request rejected", got)
 	}

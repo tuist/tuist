@@ -375,8 +375,9 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			continue
 		}
 		var input struct {
-			Key string `json:"key"`
-			UID int    `json:"uid"`
+			Commit string `json:"commit"`
+			Key    string `json:"key"`
+			UID    int    `json:"uid"`
 		}
 		err = json.NewDecoder(io.LimitReader(file, 4096)).Decode(&input)
 		file.Close()
@@ -389,16 +390,19 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		}
 		acquireCtx, cancel := context.WithDeadline(ctx, deadline)
 		var identity cachevolumes.Identity
-		status, err := c.request(acquireCtx, "authorize", map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID}, &identity)
+		status, err := c.request(acquireCtx, "authorize", map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID, "commit": customVolumeCommit(input.Commit)}, &identity)
 		if status == http.StatusTooEarly && acquireCtx.Err() == nil {
 			cancel()
 			continue
 		}
 		response := map[string]any{"error": "unavailable"}
-		if err == nil {
+		if err == nil && !identity.AcceptsCommit(input.Commit) {
+			response["error"] = "unsupported_commit"
+		}
+		if err == nil && identity.AcceptsCommit(input.Commit) {
 			warm, err := c.Store.Acquire(acquireCtx, identity, pod.Name, string(pod.UID))
 			if err == nil {
-				response = map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": warm}
+				response = map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": warm, "commit": identity.Commit}
 			} else if errors.Is(err, context.DeadlineExceeded) {
 				c.prefetch.start(identity)
 			}
@@ -436,4 +440,11 @@ func (c *CustomVolumes) guard(ctx context.Context) (func(), error) {
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
+}
+
+func customVolumeCommit(mode string) string {
+	if mode == "" {
+		return "auto"
+	}
+	return mode
 }
