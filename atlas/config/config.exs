@@ -20,6 +20,7 @@ alias Atlas.Finance.Workers.CategorizeTransactions
 alias Atlas.Finance.Workers.ScheduleSourceSyncs
 alias Atlas.Granola.Workers.SyncNotes
 alias Atlas.GTM.Workers.ResumeStalledDeliveries
+alias Atlas.Letters.Workers.ScheduleDeliveryChecks
 alias Atlas.Licenses.RateLimiter
 alias Atlas.Licenses.Workers.NotifyExpiringLicenses
 alias Atlas.MCP.Workers.RefreshOAuthSessions
@@ -101,6 +102,7 @@ config :atlas, Oban,
        {"45 3 * * *", SyncNotes, args: %{mode: "backfill"}},
        {"35 */6 * * *", EnsureDocumentClassifications},
        {"*/10 * * * *", RefreshOAuthSessions},
+       {"*/5 * * * *", ScheduleDeliveryChecks},
        {"*/30 * * * *", ScheduleSourceSyncs},
        {"20 4 * * *", CategorizeTransactions},
        {"40 4 * * *", BackfillQontoInvoices},

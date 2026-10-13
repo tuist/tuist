@@ -113,6 +113,8 @@ Do not add README entries for internal operational details such as env var names
 
 - Tax-certificate requests prepend a mailing cover page with a clean recipient address window. The two official form pages follow at 85% scale so their decorative marks clear the postal provider's restricted borders. Preserve the checksum-verified government template and apply layout changes through the incremental document update.
 - Keep the cover address inside the provider's documented left-window area. Do not remove official form text or signature content to satisfy postal layout checks.
+- Postal status checks run every five minutes through `ScheduleDeliveryChecks` and `SyncDelivery`, independently of webhook configuration. They only fetch existing Pingen letters, never submit or retry postage. Poll recently sent letters for up to 30 days and continue checking provider-blocked letters so manual provider-side corrections reconcile. Treat `action_required` as a visible failure, not processing. Polls and callbacks serialize updates against the latest stored row so terminal outcomes cannot be overwritten by a stale snapshot.
+- Pingen callbacks identify the letter through `relationships.deliverable`; accept the legacy `relationships.letter` shape too. Dashboard badges distinguish every stored state, expose failure details, and offer a manual provider refresh for submitted letters. The open postal page reconciles stored state every 15 seconds without resetting the confirmation form. MCP letter results include `last_error`.
 
 ## Project guidelines
 
