@@ -2628,21 +2628,18 @@
       & > [data-part="card"] {
         display: grid;
         position: relative;
-        transition: background-color 400ms var(--ease-out-cubic);
-        background: var(--slide-color);
+        border-top: 1px solid var(--marketing-stroke-default);
+        background: var(--noora-surface-background-primary);
         /* Room for the dot field along the bottom edge (216px, matching
            HEIGHT in customers-dots-morph.js). */
         padding: var(--noora-spacing-9) var(--noora-spacing-4) 216px;
         overflow: hidden;
-        /* Text and dots in Noora's lightest neutral, which reads on every
-           brand colour; the dot field's ink is a touch translucent so the
-           brand shows through, and each dot's tone scales it further. */
-        color: var(--noora-neutral-light-50);
-        --home-customers-dots-ink: color-mix(in oklch, var(--noora-neutral-light-50) 88%, transparent);
-
-        @media (prefers-reduced-motion: reduce) {
-          transition: none;
-        }
+        color: var(--noora-surface-label-primary);
+        /* The brand shows in the dot field only: the hook reads this ink
+           (the active slide's --slide-color, set inline by the carousel) on
+           every slide change and blends from the previous brand to the next
+           over the morph. Each dot's tone scales it further. */
+        --home-customers-dots-ink: var(--slide-color);
 
         & > [data-part="slide"] {
           display: flex;
@@ -2678,13 +2675,6 @@
               width: auto;
               height: 100%;
             }
-
-            /* Vector parts are recoloured to currentColor on the server;
-               an embedded bitmap (Toss's gradient mark) can't be, so it is
-               flattened to a white silhouette here, keeping its shape. */
-            & image {
-              filter: brightness(0) invert(1);
-            }
           }
 
           /* Runs the full card width, inside its 8px side padding. */
@@ -2693,12 +2683,8 @@
             font: var(--noora-font-weight-regular) var(--noora-font-heading-xlarge);
           }
 
-          /* Always the light secondary button: on a brand colour the dark
-             one reads as a hole. Noora's button colours and shadows resolve
-             through light-dark(), so the light scheme here is enough. */
           & > .noora-button {
             margin-top: var(--noora-spacing-9);
-            color-scheme: light;
           }
 
           /* A quote slide (OpenAI) names its author instead of linking. */
@@ -2713,7 +2699,7 @@
             }
 
             & > [data-part="role"] {
-              opacity: 0.72;
+              color: var(--noora-surface-label-secondary);
               font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
             }
           }

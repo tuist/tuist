@@ -5,8 +5,9 @@ defmodule TuistWeb.Marketing.MarketingHomeComponents do
   use TuistWeb, :live_component
 
   # Customer logos for the home customers carousel, read at compile time from
-  # the case-study logo files and recoloured to currentColor so they render
-  # in the slide's ink (white on the brand colour). The files pad the mark
+  # the case-study logo files. Brand colours are kept; only the files' black
+  # ink (Trendyol's wordmark, monday.com's lettering) becomes currentColor so
+  # it follows the page's light or dark text. The files pad the mark
   # inside a shared 40-unit-tall frame; the side padding is cropped (each
   # viewBox narrowed to the mark's measured horizontal extent) so a logo
   # lines up with the text below it, while the shared height keeps their
@@ -32,7 +33,7 @@ defmodule TuistWeb.Marketing.MarketingHomeComponents do
                      svg =
                        path
                        |> File.read!()
-                       |> String.replace(~r/fill="(?!none")[^"]*"/, ~s(fill="currentColor"))
+                       |> String.replace(~r/fill="(?:#231f20|#333333|#000000|#000|black)"/i, ~s(fill="currentColor"))
                        |> String.replace(~r/viewBox="0 0 [\d.]+ ([\d.]+)"/, ~s(viewBox="#{x} 0 #{width} \\1"),
                          global: false
                        )

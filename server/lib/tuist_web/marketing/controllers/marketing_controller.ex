@@ -54,7 +54,9 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   # The home customers carousel: OpenAI's quote first, then one slide per
-  # case study with a headline
+  # case study with a headline result, each with a colour for the dot field:
+  # the Noora hue nearest the company's brand colour, so the dots keep the
+  # palette's contrast against the page surface in both themes, with a headline
   # result, in its brand colour (taken from each company's logo or brand
   # palette), linking to the case study. `figure` names the dot graph the
   # card morphs into for that story (see customers-dots-morph.js): bars or
@@ -67,14 +69,15 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   # OpenAI leads the carousel: a quote rather than a case study, so it shows
-  # its author instead of a link, on OpenAI's black.
+  # its author instead of a link. Its "brand" ink for the dots is the page's
+  # text colour (OpenAI's black would vanish in dark mode).
   defp openai_slide do
     openai = get_openai_testimonial()
 
     %{
       slug: "openai",
       company: "OpenAI",
-      color: "#000000",
+      color: "var(--noora-surface-label-primary)",
       figure: "rise",
       statement: openai.quote,
       href: nil,
@@ -88,27 +91,27 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     Enum.flat_map(
       [
-        {"monzo", "bars", "#FF4F40",
+        {"monzo", "bars", noora_hue("red"),
          dgettext(
            "marketing",
            "Monzo reduced its pull request CI times by 71%, from 52 minutes to just 15 minutes, using Tuist's binary caching and selective testing. By eliminating redundant builds and running only relevant tests, Monzo improved development efficiency for its 45+ iOS engineers working across nearly 200 modules."
          )},
-        {"toss", "histogram", "#0064FF",
+        {"toss", "histogram", noora_hue("blue"),
          dgettext(
            "marketing",
            "Toss, Korea's leading financial super-app, more than tripled the share of local builds that finish within a minute using Tuist's binary cache. Across close to 1,000 modules, product developers now build only the modules they own, with most of the graph served from cache."
          )},
-        {"trendyol", "fall", "#FF6720",
+        {"trendyol", "fall", noora_hue("orange"),
          dgettext(
            "marketing",
            "Trendyol reduced build times by 65% with Tuist's caching, cutting CI builds to 10 minutes and local UI test setup to 30 seconds. Running a self-hosted Tuist instance, it keeps feedback loops fast for 170+ developers across more than 10 domain teams."
          )},
-        {"monday", "steps", "#6161FF",
+        {"monday", "steps", noora_hue("purple"),
          dgettext(
            "marketing",
            "monday.com's CI merge workflow dropped from more than 20 minutes to about 9, with Tuist's module cache playing a significant role. Its team of almost 20 iOS engineers now maintains around 200 modules, and creating a new one is simple enough for anyone on the team."
          )},
-        {"delivery-hero", "pairs", "#D61F26",
+        {"delivery-hero", "pairs", noora_hue("red"),
          dgettext(
            "marketing",
            "Delivery Hero scaled its iOS rider app to around 115 modules with Tuist, cutting clean builds from 2.5 to 0.5 minutes and CI build and test time by 2.5x. Its Logistics team uses Tuist to keep modularization manageable and local builds fast."
@@ -136,6 +139,10 @@ defmodule TuistWeb.Marketing.MarketingController do
       end
     )
   end
+
+  # A Noora palette hue as the dot field's ink: the 500 shade on the light
+  # surface, the lighter 400 shade on the dark one.
+  defp noora_hue(hue), do: "light-dark(var(--noora-#{hue}-500), var(--noora-#{hue}-400))"
 
   defp case_study_link(case_study) do
     if Customers.external_case_study?(case_study),

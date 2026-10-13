@@ -18,8 +18,6 @@ import { onThemeChange } from "../lib/theme.js";
  *   rise       — a rising line with a dither gradient under it (a quote
  *                without a single metric, such as OpenAI's)
  *
- * A dotted baseline stays put as the chart's frame.
- *
  * When the carousel changes slide it dispatches "customers:figure" with the
  * next chart's name. The dots then morph the way the reference (Stripe's
  * stats section) does, with depth: they leave the chart and gather into a
@@ -39,7 +37,7 @@ const HEIGHT = 216; // keep in sync with the card's dot band in home.css
 const CELL = 4; // grid pitch, CSS px
 const ROWS = HEIGHT / CELL; // 54
 const PLOT_TOP = 3;
-const PLOT_BOTTOM = ROWS - 3; // the baseline sits just below it
+const PLOT_BOTTOM = ROWS - 1; // the last row: fills reach the bottom edge
 
 const GATHER_MS = 360;
 const HOVER_MS = 650;
@@ -74,6 +72,12 @@ function seedOf(text) {
 }
 
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+// A fill's density near the bottom edge: a faint floor over its last 15%,
+// so every chart's dots reach the edge (a fill that fades to nothing leaves
+// the last rows empty, since the ordered dither's thresholds never drop
+// below 0.28 on some rows).
+const GROUND = 0.32;
+const ground = (depth) => GROUND * clamp01((depth - 0.8) / 0.12);
 const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 const clamp01 = (t) => (t < 0 ? 0 : t > 1 ? 1 : t);
 const rowOf = (v) => Math.round(PLOT_BOTTOM - clamp01(v) * (PLOT_BOTTOM - PLOT_TOP));
@@ -100,13 +104,18 @@ function canvasOf(cols) {
 function column(c, cx, width, v, { body = 0.62, fade = 0.42, tone = 0.7, ghost = false } = {}) {
   const top = rowOf(v);
   const height = Math.max(1, PLOT_BOTTOM - top);
-  for (let x = cx; x < cx + width; x++) {
+  for (let x = cx; x < Math.min(cx + width, c.cols); x++) {
     const side = x === cx + width - 1 && width > 1 ? 0.55 : 1;
     c.plot(x, top, ghost ? 0.9 : 1, ghost ? 0.42 : 1);
     for (let y = top + 1; y <= PLOT_BOTTOM; y++) {
       const depth = (y - top) / height;
       const edge = ghost && (x === cx || x === cx + width - 1) ? 0.55 : 0;
-      c.plot(x, y, Math.max((body - fade * depth) * side, edge), ghost ? 0.32 : tone * side + 0.15);
+      c.plot(
+        x,
+        y,
+        Math.max((body - fade * depth) * side, edge, ghost ? 0 : ground(depth)),
+        ghost ? 0.32 : tone * side + 0.15,
+      );
     }
   }
 }
@@ -128,7 +137,7 @@ function lineChart(c, level, { before = null } = {}) {
     const span = Math.max(1, PLOT_BOTTOM - row - 1);
     for (let y = row + 2; y <= PLOT_BOTTOM; y++) {
       const depth = (y - row - 2) / span;
-      c.plot(cx, y, 0.5 * Math.pow(1 - depth, 1.4), 0.55);
+      c.plot(cx, y, Math.max(0.5 * Math.pow(1 - depth, 1.4), ground(depth)), 0.55);
     }
     // The "before" level as a dashed line, so the change reads at a glance.
     if (before !== null && cx % 4 < 2) c.plot(cx, rowOf(before), 1, 0.4);
@@ -138,7 +147,7 @@ function lineChart(c, level, { before = null } = {}) {
 const FIGURES = {
   bars: (rng, cols) => {
     const c = canvasOf(cols);
-    for (let cx = 1; cx < cols - 3; cx += 4) {
+    for (let cx = 0; cx < cols; cx += 4) {
       const u = cx / cols;
       column(c, cx, 3, (0.92 - 0.62 * u) * (0.84 + 0.16 * rng()));
     }
@@ -150,7 +159,7 @@ const FIGURES = {
     // "before" column (the old spread, centred on slower builds) and a solid
     // "after" column (builds now piled up at the fast end); where after
     // rises above before it covers it, elsewhere the ghost shows the shift.
-    for (let cx = 1; cx < cols - 3; cx += 4) {
+    for (let cx = 0; cx < cols; cx += 4) {
       const u = cx / cols;
       const jitter = 0.92 + 0.08 * rng();
       const before = (0.06 + 0.6 * Math.exp(-Math.pow((u - 0.52) / 0.24, 2))) * jitter;
@@ -189,7 +198,7 @@ const FIGURES = {
   },
   pairs: (rng, cols) => {
     const c = canvasOf(cols);
-    for (let cx = 1; cx < cols - 9; cx += 12) {
+    for (let cx = 0; cx < cols; cx += 12) {
       const before = 0.82 + 0.12 * rng();
       column(c, cx, 4, before, { ghost: true, body: 0.22, fade: 0.08 });
       column(c, cx + 5, 4, before * 0.2, { body: 0.9, fade: 0.2, tone: 0.85 });
@@ -203,13 +212,6 @@ const FIGURES = {
     return c.dots();
   },
 };
-
-// The chart frame: a dotted baseline.
-function frameDots(cols) {
-  const dots = [];
-  for (let cx = 0; cx < cols; cx += 2) dots.push({ x: cx * CELL + 1, y: (PLOT_BOTTOM + 1) * CELL + 1, tone: 0.42 });
-  return dots;
-}
 
 function resolveColor(host, name) {
   const probe = document.createElement("span");
@@ -241,8 +243,12 @@ export const CustomersDotsMorph = {
     this.raf = 0;
     this.running = false;
 
+    // The ink is the active slide's brand colour. A slide change blends it
+    // from the previous brand to the next over the gather and hover.
     this.resolveColors = () => {
       this.ink = resolveColor(this.host, "--home-customers-dots-ink");
+      this.inkFrom = this.ink;
+      this.inkTo = this.ink;
     };
     this.resolveColors();
     this.offTheme = onThemeChange(() => {
@@ -302,7 +308,6 @@ export const CustomersDotsMorph = {
   // invisible, on its own dots. Resizing snaps to the current chart.
   layout() {
     const cols = Math.floor(this.w / CELL);
-    this.frame = frameDots(cols);
     this.figures = {};
     let count = 0;
     for (const [name, make] of Object.entries(FIGURES)) {
@@ -361,6 +366,7 @@ export const CustomersDotsMorph = {
     this.figure = figure;
     if (this.reduced) {
       this.assign(figure, "at");
+      this.resolveColors();
       this.render(performance.now());
       return;
     }
@@ -371,7 +377,18 @@ export const CustomersDotsMorph = {
       p.from = { x: pos.x, y: pos.y, tone: pos.tone * pos.alpha, visible: pos.visible };
     }
     this.assign(figure, "to");
+    this.inkFrom = this.ink;
+    this.inkTo = resolveColor(this.host, "--home-customers-dots-ink");
     this.morph = { start: now };
+  },
+
+  // The ink at `now`: the previous brand easing into the next while the dots
+  // gather and hover, so they fly out already in the new slide's colour.
+  blendInk(now) {
+    if (!this.morph) return this.inkTo;
+    const t = easeInOut(clamp01((now - this.morph.start) / (GATHER_MS + GATHER_STAGGER_MS + HOVER_MS)));
+    const mix = (k) => this.inkFrom[k] + (this.inkTo[k] - this.inkFrom[k]) * t;
+    return { r: Math.round(mix("r")), g: Math.round(mix("g")), b: Math.round(mix("b")), alpha: mix("alpha") };
   },
 
   // The particle's place in the transition form at `now`, projected with
@@ -478,8 +495,8 @@ export const CustomersDotsMorph = {
   render(now) {
     if (!this.ctx || !this.w || !this.pixels) return;
     this.pixels.fill(0);
+    this.ink = this.blendInk(now);
     const base = this.ink.alpha || 1;
-    for (const d of this.frame) this.dot(d.x, d.y, 2, d.tone * base);
 
     let done = true;
     for (const p of this.particles) {
