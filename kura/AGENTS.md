@@ -12,6 +12,12 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   Handover rejections must identify the verification stage and record on both
   peers, with bounded reasons and no artifact bodies in logs. Preserve rejection
   details across mixed runtime versions without weakening the retained-data barrier.
+  Live-writer resumption requires the same process's publication-mutex fencing
+  acknowledgment and drained mutations, then a new CAS epoch bound to that
+  acknowledgment. Keep the unclean marker and refuse restarted incarnations;
+  this acknowledgment never authorizes another replica. Handover batches must
+  negotiate support, bound descriptors and referenced bytes, preserve ordered
+  full-corpus verification, and retain the individual-record fallback.
   Qualification fixtures and their simulator limits are documented in
   [`test/e2e/serving-authority/AGENTS.md`](test/e2e/serving-authority/AGENTS.md).
 - High-level architecture overview: `docs/architecture.md` — start here when onboarding or reasoning about how subsystems interact

@@ -5,11 +5,14 @@ import { fixture, handover } from "./fixture.mjs";
 
 const [image, output] = process.argv.slice(2);
 assert(image && output, "usage: inline-handover.mjs IMAGE OUTPUT_DIR");
-const f = await fixture(image, "active", output, { backfillBatchBytes: 1024 });
+const f = await fixture(image, "active", output, {
+  backfillBatchBytes: 1024,
+  standbyImage: process.env.KURA_E2E_AUTHORITY_STANDBY_IMAGE ?? image,
+});
 const value = "retained-inline-metadata-".repeat(256);
 const query = "?tenant_id=default&namespace_id=inline-handover";
 const count = Number(process.env.KURA_E2E_INLINE_RECORDS ?? 64);
-assert(Number.isInteger(count) && count > 0 && count <= 2048);
+assert(Number.isInteger(count) && count > 0 && count <= 16384);
 const samples = [];
 let collecting = true;
 const collector = (async () => {
@@ -39,7 +42,11 @@ try {
   result.loadEnd = f.snapshot();
   await sleep(10000);
   result.settled = f.snapshot();
-  const barrier = await handover(f, { deadlineMs: 30000 });
+  result.beforeHandoverMetrics = await Promise.all([0, 1].map(f.metric));
+  const handoverStart = Date.now();
+  const barrier = await handover(f, { deadlineMs: 300000 });
+  result.handoverSeconds = (Date.now() - handoverStart) / 1000;
+  result.afterHandoverMetrics = await Promise.all([0, 1].map(f.metric));
   assert(
     barrier,
     "individual inline metadata did not satisfy retained-corpus verification",
@@ -53,6 +60,7 @@ try {
   }
   result.individualInlineHandover = true;
   result.barrier = barrier;
+  await sleep(20000);
   console.log(JSON.stringify({ individualInlineHandover: true, count }));
 } catch (error) {
   result.error = error.message;

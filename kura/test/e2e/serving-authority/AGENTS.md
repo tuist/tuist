@@ -35,5 +35,13 @@ compares sustained replication and verifies the retained corpus after handover.
 individual inline fetches and checks the full retained barrier. Its optional
 `KURA_E2E_INLINE_RECORDS` and `KURA_E2E_INLINE_INTERVAL_MS` extend the same workload
 for sequential resource comparisons; failed runs retain measurements and logs.
+`KURA_E2E_AUTHORITY_STANDBY_IMAGE` exercises adjacent-version batch negotiation.
+`resume.mjs` interrupts the local authority API, holds an admitted upload across
+expiry and supplies explicit fencing/resumption grants; it verifies drained
+publication, recovery when a replacement grant arrives after expiry, retained
+reads, persistent-channel writes and dirty-restart refusal.
+It is still a simulator. `client.mjs api-recovery` exercises the real controller
+with the isolated pod's API-partition policy, requiring the same incarnation,
+one new epoch and absence of the rejected upload after API access returns.
 Run-specific manifests, keys, logs and results belong in a temporary output
 directory, never in the repository. Remove only resources created by the fixture.

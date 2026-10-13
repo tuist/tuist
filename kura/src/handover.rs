@@ -9,6 +9,10 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::time::Duration;
 
+const MAX_BATCH_RECORDS: usize = 32;
+const MAX_BATCH_BODY_BYTES: u64 = 8 * 1024 * 1024;
+const MAX_BATCH_METADATA_BYTES: usize = 64 * 1024;
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Intent {
     pub id: String,
@@ -46,6 +50,8 @@ pub struct VerifyRequest {
     intent: Intent,
     source: Holder,
     record: Option<Record>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    records: Vec<Record>,
     receipt: Option<Receipt>,
 }
 
@@ -53,16 +59,22 @@ fn verification_context(request: &VerifyRequest) -> String {
     if request.begin {
         "begin".into()
     } else if let Some(record) = &request.record {
-        format!(
-            "record kind={} id={:?} version={} size={}",
-            bounded_detail(&record.kind),
-            bounded_detail(&record.id),
-            record.version,
-            record.size
-        )
+        record_context(record)
+    } else if !request.records.is_empty() {
+        format!("batch records={}", request.records.len())
     } else {
         "receipt".into()
     }
+}
+
+fn record_context(record: &Record) -> String {
+    format!(
+        "record kind={} id={:?} version={} size={}",
+        bounded_detail(&record.kind),
+        bounded_detail(&record.id),
+        record.version,
+        record.size
+    )
 }
 
 fn bounded_detail(detail: &str) -> String {
@@ -159,6 +171,12 @@ async fn verify_inner(
     state: &SharedState,
     request: VerifyRequest,
 ) -> Result<serde_json::Value, String> {
+    if request.records.len() > MAX_BATCH_RECORDS
+        || (!request.records.is_empty()
+            && (request.begin || request.record.is_some() || request.receipt.is_some()))
+    {
+        return Err("invalid retained record batch".into());
+    }
     let authority = &state.runtime.authority;
     let grant = authority.intent().ok_or("no handover intent")?;
     if grant.phase != "Quiescing"
@@ -187,7 +205,9 @@ async fn verify_inner(
             return Err("another handover owns the retained corpus".into());
         }
         *hold = Some(request.intent.id.clone());
-        return Ok(serde_json::json!({"destination": authority.identity()}));
+        return Ok(
+            serde_json::json!({"destination": authority.identity(), "max_batch_records": MAX_BATCH_RECORDS}),
+        );
     }
     if state
         .store
@@ -199,37 +219,18 @@ async fn verify_inner(
     {
         return Err("retained corpus not held".into());
     }
-    if let Some(expected) = request.record {
-        let kind = BackfillRecordKind::from_wire_name(&expected.kind)
-            .ok_or("unknown retained record kind")?;
-        let actual = match record(state, kind, &expected.id, expected.version).await? {
-            Some(actual) => actual,
-            None => {
-                let version = if kind == BackfillRecordKind::NamespaceTombstone {
-                    state.store.namespace_tombstone_version(&expected.id)?
-                } else {
-                    state
-                        .store
-                        .manifest_from_db(&expected.id)?
-                        .as_ref()
-                        .map(manifest_version_ms)
-                };
-                return Err(format!(
-                    "retained record missing or version differs: expected_version={} actual_version={version:?}",
-                    expected.version
-                ));
-            }
-        };
-        if actual.size != expected.size || actual.digest != expected.digest {
-            return Err(format!(
-                "retained record content mismatch: expected_size={} actual_size={} expected_digest={} actual_digest={}",
-                expected.size,
-                actual.size,
-                bounded_detail(&expected.digest),
-                actual.digest
-            ));
+    if request.record.is_some() || !request.records.is_empty() {
+        let records = request.record.into_iter().chain(request.records);
+        let mut count = 0;
+        for expected in records {
+            verify_record(state, &expected)
+                .await
+                .map_err(|error| format!("{}; {error}", record_context(&expected)))?;
+            count += 1;
         }
-        return Ok(serde_json::json!({"destination": authority.identity()}));
+        return Ok(
+            serde_json::json!({"destination": authority.identity(), "verified_records": count}),
+        );
     }
     let receipt = request.receipt.ok_or("missing receipt")?;
     if receipt.id != request.intent.id
@@ -253,6 +254,39 @@ async fn verify_inner(
         .await?;
     *authority.barrier.lock().map_err(|_| "barrier poisoned")? = Some(receipt.clone());
     Ok(serde_json::json!({"receipt": receipt}))
+}
+
+async fn verify_record(state: &SharedState, expected: &Record) -> Result<(), String> {
+    let kind =
+        BackfillRecordKind::from_wire_name(&expected.kind).ok_or("unknown retained record kind")?;
+    let actual = match record(state, kind, &expected.id, expected.version).await? {
+        Some(actual) => actual,
+        None => {
+            let version = if kind == BackfillRecordKind::NamespaceTombstone {
+                state.store.namespace_tombstone_version(&expected.id)?
+            } else {
+                state
+                    .store
+                    .manifest_from_db(&expected.id)?
+                    .as_ref()
+                    .map(manifest_version_ms)
+            };
+            return Err(format!(
+                "retained record missing or version differs: expected_version={} actual_version={version:?}",
+                expected.version
+            ));
+        }
+    };
+    if actual.size != expected.size || actual.digest != expected.digest {
+        return Err(format!(
+            "retained record content mismatch: expected_size={} actual_size={} expected_digest={} actual_digest={}",
+            expected.size,
+            actual.size,
+            bounded_detail(&expected.digest),
+            actual.digest
+        ));
+    }
+    Ok(())
 }
 
 async fn send(
@@ -282,6 +316,39 @@ async fn send(
         ));
     }
     serde_json::from_slice(&bytes).map_err(|e| e.to_string())
+}
+
+fn check_destination(answer: &serde_json::Value, intent: &Intent) -> Result<(), String> {
+    if answer["destination"]
+        != serde_json::to_value(&intent.destination).map_err(|e| e.to_string())?
+    {
+        return Err("destination incarnation changed".into());
+    }
+    Ok(())
+}
+
+async fn send_records(
+    state: &SharedState,
+    intent: &Intent,
+    source: &Holder,
+    mut records: Vec<Record>,
+    batched: bool,
+) -> Result<(), String> {
+    let count = records.len();
+    let request = VerifyRequest {
+        begin: false,
+        intent: intent.clone(),
+        source: source.clone(),
+        record: if batched { None } else { records.pop() },
+        records,
+        receipt: None,
+    };
+    let answer = send(state, intent, &request).await?;
+    check_destination(&answer, intent)?;
+    if batched && answer["verified_records"].as_u64() != Some(count as u64) {
+        return Err("destination did not acknowledge the complete batch".into());
+    }
+    Ok(())
 }
 
 async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String> {
@@ -318,20 +385,31 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
     };
     let mut after = None;
     let mut digest = Sha256::new();
-    send(
+    let answer = send(
         state,
         intent,
         &VerifyRequest {
             begin: true,
             intent: intent.clone(),
             source: receipt.source.clone(),
+            records: Vec::new(),
             record: None,
             receipt: Some(receipt.clone()),
         },
     )
     .await?;
+    check_destination(&answer, intent)?;
+    let batch_size = answer["max_batch_records"]
+        .as_u64()
+        .unwrap_or(1)
+        .clamp(1, MAX_BATCH_RECORDS as u64) as usize;
     loop {
-        let page = state.store.backfill_index_page(after.as_deref(), 32)?;
+        let page = state
+            .store
+            .backfill_index_page(after.as_deref(), MAX_BATCH_RECORDS)?;
+        let mut batch = Vec::with_capacity(batch_size);
+        let mut body_bytes = 0u64;
+        let mut metadata_bytes = 0usize;
         for row in page.entries {
             // Stale index rows are not retained objects. Only the exact current
             // tuple is verified, and all subsequent pages are still visited.
@@ -339,26 +417,42 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
                 continue;
             };
             let encoded = serde_json::to_vec(&value).map_err(|e| e.to_string())?;
+            if !batch.is_empty()
+                && (body_bytes.saturating_add(value.size) > MAX_BATCH_BODY_BYTES
+                    || metadata_bytes.saturating_add(encoded.len()) > MAX_BATCH_METADATA_BYTES)
+            {
+                send_records(
+                    state,
+                    intent,
+                    &receipt.source,
+                    std::mem::take(&mut batch),
+                    batch_size > 1,
+                )
+                .await?;
+                body_bytes = 0;
+                metadata_bytes = 0;
+            }
+            metadata_bytes += encoded.len();
             digest.update((encoded.len() as u64).to_be_bytes());
             digest.update(encoded);
-            let answer = send(
-                state,
-                intent,
-                &VerifyRequest {
-                    begin: false,
-                    intent: intent.clone(),
-                    source: receipt.source.clone(),
-                    record: Some(value),
-                    receipt: None,
-                },
-            )
-            .await?;
-            if answer["destination"]
-                != serde_json::to_value(&intent.destination).map_err(|e| e.to_string())?
-            {
-                return Err("destination incarnation changed".into());
-            }
+            body_bytes = body_bytes.saturating_add(value.size);
+            batch.push(value);
             receipt.records += 1;
+            if batch.len() == batch_size {
+                send_records(
+                    state,
+                    intent,
+                    &receipt.source,
+                    std::mem::take(&mut batch),
+                    batch_size > 1,
+                )
+                .await?;
+                body_bytes = 0;
+                metadata_bytes = 0;
+            }
+        }
+        if !batch.is_empty() {
+            send_records(state, intent, &receipt.source, batch, batch_size > 1).await?;
         }
         after = page.next_after;
         if after.is_none() {
@@ -376,6 +470,7 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
             begin: false,
             intent: intent.clone(),
             source: receipt.source.clone(),
+            records: Vec::new(),
             record: None,
             receipt: Some(receipt.clone()),
         },
@@ -474,6 +569,7 @@ mod tests {
             begin: false,
             intent: intent.clone(),
             source: holder,
+            records: Vec::new(),
             record: Some(Record {
                 kind: "segment".into(),
                 id: "artifact-id".into(),
@@ -574,6 +670,7 @@ mod tests {
             expires_ms: crate::utils::now_ms() + 15_000,
             handover: Some(intent.clone()),
             barrier: None,
+            resume_epoch: None,
         };
         let _ = state.runtime.authority.install(grant);
         let receipt = Receipt {
@@ -590,6 +687,7 @@ mod tests {
             begin,
             intent: intent.clone(),
             source: source.clone(),
+            records: Vec::new(),
             record,
             receipt,
         };
@@ -611,6 +709,7 @@ mod tests {
         verify_inner(state, request(true, None, Some(receipt.clone())))
             .await
             .unwrap();
+        let mut records = Vec::new();
         for (kind, id, version) in [
             (
                 BackfillRecordKind::InlineArtifact,
@@ -629,6 +728,7 @@ mod tests {
             ),
         ] {
             let expected = record(state, kind, id, version).await.unwrap().unwrap();
+            records.push(expected.clone());
             let mut wrong = expected.clone();
             wrong.digest.push('0');
             let error = verify_inner(state, request(false, Some(wrong), None))
@@ -640,6 +740,34 @@ mod tests {
                 .await
                 .unwrap();
         }
+        let mut batch = request(false, None, None);
+        batch.records = records.clone();
+        let answer = verify_inner(state, batch).await.unwrap();
+        assert_eq!(answer["verified_records"], 3);
+        let mut batch = request(false, None, None);
+        batch.records = records.clone();
+        batch.records[2].digest.push('0');
+        let error = verify_inner(state, batch).await.unwrap_err();
+        assert!(
+            error.contains("test/deleted") && error.contains("content mismatch"),
+            "{error}"
+        );
+        let mut batch = request(false, None, None);
+        batch.records = vec![records[0].clone(); MAX_BATCH_RECORDS + 1];
+        assert!(
+            verify_inner(state, batch)
+                .await
+                .unwrap_err()
+                .contains("invalid retained record batch")
+        );
+        let mut batch = request(false, Some(records[0].clone()), None);
+        batch.records = records;
+        assert!(
+            verify_inner(state, batch)
+                .await
+                .unwrap_err()
+                .contains("invalid retained record batch")
+        );
         assert!(
             state
                 .store
@@ -664,5 +792,53 @@ mod tests {
         let mut wrong_destination = request(false, None, None);
         wrong_destination.intent.destination.incarnation.push('x');
         assert!(verify_inner(state, wrong_destination).await.is_err());
+    }
+    #[tokio::test]
+    async fn batches_require_complete_acknowledgments_and_legacy_requests_stay_individual() {
+        let ctx = test_context(|_| {}).await;
+        for (batched, complete) in [(true, true), (true, false), (false, true)] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let holder = ctx.state.runtime.authority.identity().clone();
+            let destination = holder.clone();
+            let app = axum::Router::new().route("/_internal/handover/verify", axum::routing::post(
+                move |Json(request): Json<VerifyRequest>| {
+                    let destination = destination.clone();
+                    async move {
+                        if batched {
+                            assert!(request.record.is_none());
+                            assert_eq!(request.records.len(), 2);
+                            Json(serde_json::json!({"destination": destination, "verified_records": if complete { 2 } else { 1 }}))
+                        } else {
+                            assert!(request.record.is_some());
+                            assert!(request.records.is_empty());
+                            // The preceding runtime does not send a record count.
+                            Json(serde_json::json!({"destination": destination}))
+                        }
+                    }
+                }
+            ));
+            let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            let intent = Intent {
+                id: "batch".into(),
+                destination: holder.clone(),
+                destination_url: format!("http://{address}"),
+                source_url: "http://source".into(),
+                deadline_ms: crate::utils::now_ms() + 300_000,
+            };
+            let records = vec![
+                Record {
+                    kind: "inline".into(),
+                    id: "record".into(),
+                    version: 1,
+                    size: 1,
+                    digest: "digest".into()
+                };
+                if batched { 2 } else { 1 }
+            ];
+            let result = send_records(&ctx.state, &intent, &holder, records, batched).await;
+            server.abort();
+            assert_eq!(result.is_ok(), complete, "{result:?}");
+        }
     }
 }
