@@ -5157,6 +5157,51 @@ mod bytestream_recovery_tests;
 #[cfg(test)]
 mod tests {
 
+    #[test]
+    fn supplied_bes_credentials_never_select_unsigned_publishing() {
+        for credential in ["", "Bearer ", "Bearer invalid", "Bearer token"] {
+            let mut metadata = tonic::metadata::MetadataMap::new();
+            metadata.insert(
+                "x-tuist-network-trusted-publishing",
+                "true".parse().unwrap(),
+            );
+            metadata.insert("authorization", credential.parse().unwrap());
+            assert!(!network_build_event_request(&metadata).unwrap());
+            metadata.append("authorization", "Bearer other".parse().unwrap());
+            assert!(!network_build_event_request(&metadata).unwrap());
+        }
+    }
+
+    #[test]
+    fn unsigned_bes_requires_one_exact_marker_and_never_an_actor_claim() {
+        let mut metadata = tonic::metadata::MetadataMap::new();
+        metadata.insert("x-tuist-actor-id", "claimed-admin".parse().unwrap());
+        assert!(!network_build_event_request(&metadata).unwrap());
+        for marker in ["", "false", "TRUE", " true", "true "] {
+            metadata.insert(
+                "x-tuist-network-trusted-publishing",
+                marker.parse().unwrap(),
+            );
+            assert_eq!(
+                network_build_event_request(&metadata).unwrap_err().code(),
+                tonic::Code::InvalidArgument
+            );
+        }
+        metadata.insert(
+            "x-tuist-network-trusted-publishing",
+            "true".parse().unwrap(),
+        );
+        assert!(network_build_event_request(&metadata).unwrap());
+        metadata.append(
+            "x-tuist-network-trusted-publishing",
+            "true".parse().unwrap(),
+        );
+        assert_eq!(
+            network_build_event_request(&metadata).unwrap_err().code(),
+            tonic::Code::InvalidArgument
+        );
+    }
+
     // gRPC has no payment-required code, so the refusal arrives as an ordinary
     // permission denial. Clients that keep working through it need the reason
     // without matching on message text.
