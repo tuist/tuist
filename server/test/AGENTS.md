@@ -83,3 +83,5 @@ This directory contains ExUnit tests for the Tuist Server.
 - Verify that detail classification matches listing/Grafana evidence and is project scoped, while default run tables omit category columns and retain filters. Cumulative task-time widgets use one label with no repeated caption. The standard Grafana dashboard tests keep total failures separate and pair each cache value with its coverage.
 
 - Cumulative task-time comparisons cover positive, zero and missing previous estimates with neutral styling, matching environment filters and custom range boundaries. Failure-category hints must be focusable and use the shared Noora tooltip interaction.
+
+- Account endpoint-migration tests must assert frozen regional/private routing separately from stable DNS intent. Stable hostnames follow the current handle in staging, canary and production even while regional migration is paused; do not compare the entire hosted manifest to a test-environment manifest without including the expected stable fields.

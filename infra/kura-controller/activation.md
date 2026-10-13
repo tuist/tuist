@@ -78,6 +78,11 @@ now controls only legacy `/endpoints` hand-out. Disabling it must not withdraw
 a hostname that new clients derive locally. All public regions must support
 stable DNS before CLI release; private regions remain excluded.
 
+The account endpoint-migration gate controls regional/private hostnames and their
+aliases. It does not freeze the stable hostname: hosted clients derive that from
+the current account handle. Rename regressions must check that regional routing
+stays frozen while stable DNS intent uses the current handle and environment.
+
 Self-hosted servers return their main configured URL automatically;
 `TUIST_CACHE_ENDPOINT` is optional there. Hosted accounts using custom or registered
 nodes need that override because known hosted URLs bypass discovery. Empty
