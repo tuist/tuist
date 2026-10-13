@@ -1357,6 +1357,18 @@ xcresultProcessor:
     authKeySecretName: ""
     authKeySecretKey: "auth-key"
   extraEnv: []
+  # Evaluated by tart-kubelet against the guest's `GET /ready` on port
+  # 9092 (Tuist.Readiness.Plug). The delay counts from VM launch, which
+  # precedes the tailnet join and the BEAM boot; probes before the BEAM
+  # is up only fail into an already NotReady Pod. Turning this off falls
+  # back to Ready as soon as the VM has an IP.
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 3
   # Pair with the topology spread in the Deployment template (one
   # replica per Mac mini hostname, ScheduleAnyway). minAvailable: 1
   # keeps at least one queue consumer up across voluntary disruptions
