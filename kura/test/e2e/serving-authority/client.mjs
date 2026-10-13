@@ -7,9 +7,9 @@ import { field, number, frame, request } from "./protocol.mjs";
 
 const [mode, primaryURL, standbyURL, primaryPod, standbyPod] =
   process.argv.slice(2);
-if (!["handover", "partition", "leader-restart"].includes(mode) || !standbyPod)
+if (!["handover", "partition", "api-recovery", "leader-restart"].includes(mode) || !standbyPod)
   throw new Error(
-    "usage: client.mjs handover|partition|leader-restart PRIMARY_URL STANDBY_URL PRIMARY_POD STANDBY_POD",
+    "usage: client.mjs handover|partition|api-recovery|leader-restart PRIMARY_URL STANDBY_URL PRIMARY_POD STANDBY_POD",
   );
 const context = process.env.KURA_SPEC98_CONTEXT;
 if (!context)
@@ -297,6 +297,30 @@ try {
         observations,
       }),
     );
+    if (mode === "api-recovery") {
+      kube("label", "pod", primaryPod, "spec98.tuist.dev/api-partition-");
+      policyInstalled = false;
+      let resumed;
+      for (let i = 0; i < 60; i++) {
+        resumed = await report(primaryURL);
+        if (resumed.valid && resumed.epoch > before.epoch) break;
+        await sleep(1000);
+      }
+      assert.equal(resumed.valid, true, "live writer did not resume after API recovery");
+      assert.equal(resumed.epoch, before.epoch + 1);
+      assert.deepEqual(resumed.identity, before.identity);
+      assert.equal((await report(standbyURL)).valid, false);
+      assert.equal((await write(sessions[0])).status, 204);
+      assert.equal((await capabilities(sessions[0])).grpc, "0");
+      const read = await request(sessions[0], `/api/cache/keyvalue/${key}${query}`);
+      assert.equal(read.status, 200);
+      assert.equal(JSON.parse(read.body).entries[0].value, key);
+      const missing = await request(sessions[0], "/google.bytestream.ByteStream/Read", "POST",
+        frame(field(1, `e2e/blobs/${lateHash}/${lateBlob.length}`)), true);
+      assert.equal(missing.grpc, "5", "expired write appeared after resumption");
+      console.log(JSON.stringify({ mode, sameWriterResumed: true, epoch: resumed.epoch,
+        persistentHTTP: true, persistentGRPC: true, retainedRead: true, lateWriteAbsent: true }));
+    }
   }
 } finally {
   if (policyInstalled)

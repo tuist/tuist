@@ -259,3 +259,58 @@ func TestAuthorityExplicitRefusalFencesWithoutWaitingForExpiry(t *testing.T) {
 		})
 	}
 }
+
+func TestAuthorityResumesOnlyThePositivelyFencedLiveWriter(t *testing.T) {
+	for _, fault := range []string{"none", "old-runtime", "wrong-epoch", "wrong-observation", "wrong-holder", "restarted", "valid", "mutations", "missing", "handover", "operator-promotion"} {
+		t.Run(fault, func(t *testing.T) {
+			r, instance, statuses := authorityFixture(t)
+			grant := authorityStep(t, r)
+			grant.Phase = "Fencing"
+			grant.ExpiresMS = time.Now().UnixMilli() - 1000
+			if fault == "handover" {
+				grant.Handover = &handoverIntent{ID: "interrupted"}
+			}
+			writeAuthorityGrant(t, r, grant)
+			sample := statuses[grant.PodName]
+			observed := grant
+			sample.ServingAuthority.Observed = &observed
+			sample.ServingAuthority.FencedEpoch = grant.Epoch
+			switch fault {
+			case "old-runtime":
+				sample.ServingAuthority.FencedEpoch = 0
+			case "wrong-epoch":
+				sample.ServingAuthority.FencedEpoch++
+			case "wrong-observation":
+				observed.Phase = "Serving"
+			case "wrong-holder":
+				observed.Holder.Incarnation = "another-process"
+			case "restarted":
+				sample.ServingAuthority.Identity.Incarnation = "replacement"
+			case "valid":
+				sample.ServingAuthority.Valid = true
+			case "mutations":
+				sample.ServingAuthority.Mutations = 1
+			case "operator-promotion":
+				if err := r.Get(context.Background(), client.ObjectKeyFromObject(instance), instance); err != nil {
+					t.Fatal(err)
+				}
+				instance.Spec.PrimaryPromotion = &kurav1alpha1.PrimaryPromotionRequest{PreviousEpoch: grant.Epoch}
+				if err := r.Update(context.Background(), instance); err != nil {
+					t.Fatal(err)
+				}
+			}
+			statuses[grant.PodName] = sample
+			if fault == "missing" {
+				delete(statuses, grant.PodName)
+			}
+			next := authorityStep(t, r)
+			if fault == "none" {
+				if next.Phase != "Serving" || next.Epoch != grant.Epoch+1 || next.ResumeEpoch != grant.Epoch || next.Holder != grant.Holder || next.PodName != grant.PodName || next.Barrier != nil {
+					t.Fatal(next)
+				}
+			} else if next.Phase != "Fencing" || next.Epoch != grant.Epoch {
+				t.Fatal("unsafe resumption", next)
+			}
+		})
+	}
+}

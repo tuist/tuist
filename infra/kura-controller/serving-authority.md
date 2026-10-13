@@ -29,11 +29,26 @@ success acknowledgments on existing HTTP/2 and gRPC channels. A missed status
 probe or readiness flap leaves a still-valid grant unchanged, without extending
 it, during both serving and handover preparation. Renewal resumes only when the
 same holder is observed healthy before the two-second safety boundary. Expiry
-or an explicit refusal from that holder requires positive fencing.
+or an explicit refusal from that holder requires positive fencing. Authority HTTP
+errors include bounded cause chains and timeout/connect classification, so a
+transport failure is distinguishable from a rejected grant.
+
+After an interruption during ordinary serving, a compatible **same live writer**
+can acknowledge `fenced_epoch`: it takes the publication mutex, closes admission
+and publication, and waits for all admitted mutations to finish. The controller
+requires that acknowledgment from the exact current pod, host and incarnation,
+with an observed `Fencing` grant and zero mutations, before issuing a new epoch
+to that same holder with `resume_epoch` bound to the fenced epoch. The runtime
+requires its own in-memory ownership and fencing acknowledgment to accept it.
+Old request permits stay invalid. The unclean-volume marker stays on disk; this
+does not authorize a restart, a different replica, or an unresponsive process.
+A current operator promotion request takes precedence. Interrupted handovers
+continue to require the recovery procedure below.
 
 There is **no automatic promotion on lease expiry** and no 30-second partition
 RTO claim. Arbitrary OS/disk pauses inside publication cannot be proven bounded.
-The controller moves to `Fencing` and waits for a `primaryPromotion` request
+Without the live writer acknowledgment above, the controller moves to `Fencing`
+and waits for a `primaryPromotion` request
 bound to the previous epoch, pod UID, incarnation and host, plus a positive
 external fence receipt. A missing Node, failed probe, deleted API object or
 elapsed timeout is not a fence receipt. Only verified cessation of the old
@@ -61,6 +76,14 @@ walks the complete retained index in bounded pages, hashes metadata and bodies
 with a 64 KiB buffer, and verifies namespace tombstones against that destination.
 A bootstrapped state, cursor or consumer count alone cannot satisfy the barrier.
 Missing, capacity-skipped, changed or unreadable data fails preparation.
+Compatible destinations advertise bounded batch verification on the initial
+response. The source sends at most 32 record descriptors, 64 KiB of descriptor
+JSON and 8 MiB of referenced bodies per batch (a single larger record travels
+alone). Both peers still hash every byte sequentially with the same buffer and
+ordered receipt digest. This removes per-record network round trips without
+adding parallel readers. Older destinations use the individual-record path;
+older sources remain supported. Rejections name the failing record within a
+batch, and a partial batch acknowledgment cannot complete preparation.
 
 Both nodes fsync the same named receipt. The source then positively acknowledges
 revocation while holding the same publication mutex used by public writes.
@@ -135,14 +158,19 @@ automatic rolling replacement stays paused.
 in-flight mutations, receipt and revocation acknowledgment. The ConfigMap keeps
 the epoch, phase, reason and fence evidence. Recovery phases/IDs are in the CR's
 status. Inspect these alongside request errors, sync lag and controller errors;
-`Fencing` is a required intervention, not a healthy steady state.
+`Fencing` is unavailable until the live writer handshake completes or an operator
+supplies external fence evidence; a persistent `Fencing` state requires intervention.
 Controller metrics expose phase gauges and the latest valid-holder observation.
 `serving-authority-alerts.yaml` supplies example rules for fencing, an
 unacknowledged holder and a stalled rebuild; install them in the environment's
 alerting system before activation. They are not installed by the staging fixture.
 The authority-enabled controller uses 5/3/1-second leader lease/renew/retry
 timings and releases leadership on graceful cancellation. A longer interruption
-still expires authority and requires positive fencing.
+still expires authority and requires positive fencing. Upgrade runtime and
+controller in either order: old runtimes cannot acknowledge live-writer fencing,
+and old controllers ignore that additive report. Recovery becomes automatic only
+when both support it; rollback to either old component leaves an expired writer
+closed and needing the original external recovery procedure.
 
 ## Isolated staging validation
 
