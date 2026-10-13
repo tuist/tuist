@@ -149,7 +149,8 @@ defmodule TuistEx.Analytics.Coverage do
   so that a run counting natively (`enable_native/1`) needs to compile
   nothing. The Elixir compiler leaves the counters out
   even when asked for them, which is why this starts from the debug info.
-  Chunks only Elixir writes, such as the docs doctests read, are kept. A
+  The module keeps its own debug info, which protocol consolidation reads,
+  and the chunks only Elixir writes, such as the docs doctests read. A
   module without debug info stays as it was and is listed in the marker the
   build carries, so `native_build?/1` can tell the build is ready. Returns
   how many modules were instrumented and the ones that could not be.
@@ -175,6 +176,7 @@ defmodule TuistEx.Analytics.Coverage do
          {:ok, ^module, binary} <- :compile.forms(forms, native_options(info)),
          {:ok, _module, original} <- :beam_lib.all_chunks(beam),
          {:ok, _module, chunks} <- :beam_lib.all_chunks(binary),
+         chunks = Enum.reject(chunks, &(elem(&1, 0) == ~c"Dbgi")),
          ids = MapSet.new(chunks, &elem(&1, 0)),
          {:ok, binary} <-
            :beam_lib.build_module(

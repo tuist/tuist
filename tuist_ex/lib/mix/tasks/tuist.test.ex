@@ -211,12 +211,14 @@ defmodule Mix.Tasks.Tuist.Test do
     end
   end
 
-  # A build `mix tuist.test.build --cover` instrumented counts with the
-  # runtime's native line counters, without Mix's coverage tool, which would
-  # compile every module for `cover` again.
+  # A shard of a build `mix tuist.test.build --cover` instrumented counts with
+  # the runtime's native line counters, without Mix's coverage tool, which
+  # would compile every module for `cover` again. A run that is no shard keeps
+  # Mix's tool, its report and threshold, even on a build instrumented in place.
   defp native_coverage(options, test_args) do
     cond do
-      options[:coverage] != true or options[:prepare_only] == true ->
+      options[:coverage] != true or options[:prepare_only] == true or
+          is_nil(options[:shard_index]) ->
         {options, test_args}
 
       not Coverage.native_build?(Mix.Project.compile_path()) ->

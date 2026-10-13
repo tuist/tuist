@@ -334,6 +334,10 @@ defmodule TuistEx.Analytics.CoverageTest do
 
       assert :line_coverage in info[:options]
 
+      # Protocol consolidation reads Elixir's own debug info.
+      assert {:ok, {_, [debug_info: {:debug_info_v1, :elixir_erl, _}]}} =
+               :beam_lib.chunks(String.to_charlist(beam), [:debug_info])
+
       # Doctests read the docs off the build.
       assert {:docs_v1, _, :elixir, _, %{"en" => "Adds."}, _, _} =
                Code.fetch_docs(beam)

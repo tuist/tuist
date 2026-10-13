@@ -234,6 +234,8 @@ jobs:
       - run: mix tuist.test --cover
   complete:
     needs: test
+    # A shard with a failing test still reported its coverage.
+    if: ${{ !cancelled() }}
     steps:
       # checkout, Elixir, mix deps.get
       - run: mix tuist.coverage.complete
