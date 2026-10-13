@@ -689,6 +689,7 @@ mod tests {
         let source = test_context(|_| {}).await;
         let target = test_context(|_| {}).await;
         let state = &target.state;
+        state.store.sync_feed_activate().await.unwrap();
         source
             .state
             .store

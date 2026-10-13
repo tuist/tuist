@@ -49,3 +49,11 @@ directory, never in the repository. Remove only resources created by the fixture
 The pressure case restores free space and repeats handover on the same standby
 incarnation. Preserve this no-restart check: restarting could mask missing
 retained records behind a new bootstrap rather than testing named repair.
+Its source has a 3 GiB ring and the destination a 4 GiB ring in a bounded 6 GiB
+tmpfs, initially pressured with a 2.25 GiB filler. Restoring free bytes alone
+does not guarantee that equal-sized fragmented rings can converge; the extra
+destination capacity makes the successful recovery case explicit without
+bypassing the production capacity guard.
+Capture the expected pressure corpus only after both receipts exist, while the
+source hold prevents read-time promotion and eviction. A pre-hold walk of a full
+ring can evict records it counted earlier and is not the retained barrier.

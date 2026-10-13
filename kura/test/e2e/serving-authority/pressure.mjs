@@ -24,7 +24,7 @@ try {
     "if=/dev/zero",
     "of=/data/metadata-pressure",
     "bs=1M",
-    "count=1280",
+    "count=2304",
     "status=none",
   );
   const before = snapshot();
@@ -87,8 +87,8 @@ try {
   });
   await write.arrayBuffer();
   assert.equal(write.status, 204);
-  // Capture what the source actually retains; capacity churn is allowed to miss
-  // older cache entries, but a handover must preserve every retained record.
+  // Exercise hot reads after pressure. These can promote and evict records;
+  // only the later frozen-corpus snapshot defines the handover guarantee.
   for (let i = 0; i < 512; i++) {
     const r = await fetch(url(0, i), { signal: AbortSignal.timeout(30000) });
     const data = Buffer.from(await r.arrayBuffer());
@@ -96,15 +96,55 @@ try {
     assert.equal(r.status, 200);
     body.writeUInt32BE(i);
     assert(data.equals(body));
-    retained.push(i);
   }
   docker("exec", names[1], "rm", "/data/metadata-pressure");
   // Recovery must repair the existing caught-up standby, without a restart
   // that would hide the hole behind a fresh bootstrap pass.
   const beforeRepair = (await report(1)).serving_authority.identity;
-  const receipt = await handover(f, { id: "capacity-restored" });
+  const receipt = await handover(f, {
+    id: "capacity-restored",
+    beforePromotion: async (barrier) => {
+      // Both receipts now exist and the source hold prevents these reads from
+      // promoting/evicting an earlier member of the expected corpus.
+      for (let i = 0; i < 512; i++) {
+        const r = await fetch(url(0, i), { signal: AbortSignal.timeout(30000) });
+        const data = Buffer.from(await r.arrayBuffer());
+        if (r.status === 404) continue;
+        assert.equal(r.status, 200);
+        body.writeUInt32BE(i);
+        assert(data.equals(body));
+        retained.push(i);
+      }
+      assert.equal(
+        barrier.records,
+        retained.length + 1,
+        "snapshot must cover the full frozen corpus, including after-abort",
+      );
+      fs.writeFileSync(
+        `${output}/frozen-corpus.json`,
+        JSON.stringify({ retained, barrier }),
+      );
+    },
+  });
   assert(receipt, "complete corpus did not hand over after pressure removal");
   assert.deepEqual((await report(1)).serving_authority.identity, beforeRepair);
+  const repair = f.logs(names[1])
+    .split("\n")
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line)];
+      } catch {
+        return [];
+      }
+    })
+    .find((event) =>
+      event["event.name"] === "kura.handover.reconciled" &&
+      event.id === "capacity-restored",
+    );
+  assert(
+    repair?.applied > 0,
+    "fixture must repair missing retained bodies on the same process",
+  );
   for (const i of retained) {
     const r = await fetch(url(1, i), { signal: AbortSignal.timeout(30000) });
     const data = Buffer.from(await r.arrayBuffer());
@@ -133,6 +173,8 @@ try {
     incompleteHandoverRejected: true,
     sourceResumedAfterAbort: true,
     repairedWithoutRestart: true,
+    repairedRecords: repair.applied,
+    repairedBytes: repair.bytes,
     receipt,
     before,
     pressureState,
@@ -146,7 +188,9 @@ try {
       retainedRecords: retained.length,
       incompleteHandoverRejected: true,
       sourceResumedAfterAbort: true,
-    repairedWithoutRestart: true,
+      repairedWithoutRestart: true,
+      repairedRecords: repair.applied,
+      repairedBytes: repair.bytes,
       completedEpoch: 2,
     }),
   );
