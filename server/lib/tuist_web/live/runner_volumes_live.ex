@@ -297,14 +297,9 @@ defmodule TuistWeb.RunnerVolumesLive do
   end
 
   def hit_rate_trend(current, previous) when is_number(current) and is_number(previous) do
-    difference = Float.round((current - previous) * 1.0, 1)
-
     %{
-      value: difference,
-      value_label:
-        if(difference != 0,
-          do: dgettext("dashboard_runners", "%{change} pp", change: "#{if difference > 0, do: "+"}#{difference}")
-        ),
+      value: if(previous == 0, do: 0.0, else: Float.round(current / previous * 100 - 100, 1)),
+      value_label: nil,
       label: dgettext("dashboard_runners", "since last period")
     }
   end
@@ -450,7 +445,7 @@ defmodule TuistWeb.RunnerVolumesLive do
       if period, do: %{min: DateTime.to_iso8601(elem(period, 0)), max: DateTime.to_iso8601(elem(period, 1))}, else: %{}
 
     %{
-      grid: %{left: 12, right: 24, top: 20, bottom: 36, containLabel: true},
+      grid: %{left: 12, right: 24, top: 20, bottom: 4, containLabel: true},
       xAxis:
         Map.merge(
           %{

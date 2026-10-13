@@ -195,10 +195,12 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert options.xAxis.axisLabel.color == "var:noora-surface-label-secondary"
   end
 
-  test "hit rate trends use percentage points and distinguish unavailable comparisons" do
-    assert %{value: 25.0, value_label: "+25.0 pp"} = RunnerVolumesLive.hit_rate_trend(75.0, 50.0)
-    assert %{value: -25.0, value_label: "-25.0 pp"} = RunnerVolumesLive.hit_rate_trend(50.0, 75.0)
-    assert %{value: 50.0, value_label: "+50.0 pp"} = RunnerVolumesLive.hit_rate_trend(50.0, 0.0)
+  test "hit rate trends are relative changes and distinguish unavailable comparisons" do
+    assert %{value: 50.0, value_label: nil, label: "since last period"} = RunnerVolumesLive.hit_rate_trend(75.0, 50.0)
+    assert %{value: -33.3, value_label: nil} = RunnerVolumesLive.hit_rate_trend(50.0, 75.0)
+    assert %{value: -100.0} = RunnerVolumesLive.hit_rate_trend(0.0, 50.0)
+    assert %{value: no_base, value_label: nil} = RunnerVolumesLive.hit_rate_trend(50.0, 0.0)
+    assert no_base == 0.0
     assert %{value: unchanged_rate, value_label: nil} = RunnerVolumesLive.hit_rate_trend(50.0, 50.0)
     assert unchanged_rate == 0.0
     assert %{value: 0, value_label: "No previous data"} = RunnerVolumesLive.hit_rate_trend(75.0, nil)
@@ -206,7 +208,8 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     period = {~U[2026-09-15 10:00:00Z], ~U[2026-09-22 10:00:00Z]}
     assert RunnerVolumesLive.previous_period(period) == {~U[2026-09-08 10:00:00.000000Z], ~U[2026-09-15 09:59:59.999999Z]}
     html = render_component(&RunnerVolumesLive.render/1, %{assigns(true) | selected: nil})
-    assert html =~ "+25.0 pp"
+    assert html =~ "+50.0%"
+    refute html =~ " pp"
   end
 
   test "inventory hit rate charts work without storage measurements and preserve unknown results" do
@@ -442,7 +445,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
 
     assert widget.("volume-used") =~ "+100.0%"
     assert widget.("volume-used") =~ "since last period"
-    assert widget.("volume-hit-rate") =~ "+25.0 pp"
+    assert widget.("volume-hit-rate") =~ "+50.0%"
     assert widget.("volume-uses") =~ "+100.0%"
   end
 
