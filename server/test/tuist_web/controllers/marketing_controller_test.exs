@@ -69,19 +69,21 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert LazyHTML.text(eyebrow) =~ "658,422"
     end
 
-    test "renders the customer stories carousel with the first story active", %{conn: conn} do
+    test "renders the customer stories carousel with OpenAI's quote first", %{conn: conn} do
       html = conn |> get("/") |> html_response(200) |> LazyHTML.from_document()
 
       slides = html |> LazyHTML.query("#customers-carousel [data-part=slide]") |> Enum.to_list()
 
       assert Enum.flat_map(slides, &LazyHTML.attribute(&1, "data-company")) ==
-               ["monzo", "toss", "trendyol", "monday", "delivery-hero"]
+               ["openai", "monzo", "toss", "trendyol", "monday", "delivery-hero"]
 
       assert [first | rest] = slides
       assert LazyHTML.attribute(first, "data-active") == ["true"]
       assert LazyHTML.attribute(first, "inert") == []
       assert Enum.all?(rest, &(LazyHTML.attribute(&1, "inert") != []))
-      assert LazyHTML.text(first) =~ "Monzo reduced its pull request CI times by 71%"
+      assert LazyHTML.text(first) =~ "Tuist has made a meaningful difference to developer productivity"
+      assert LazyHTML.text(first) =~ "Eric Burke"
+      assert first |> LazyHTML.query("a") |> Enum.count() == 0
 
       assert html |> LazyHTML.query("#customers-carousel a[href='/customers/monzo']") |> Enum.count() == 1
 

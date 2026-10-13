@@ -1133,77 +1133,6 @@
         }
       }
     }
-
-    & > [data-part="quote-feature"] {
-      display: flex;
-      position: relative;
-      flex-direction: column;
-      box-sizing: border-box;
-      border-top: 1px solid var(--marketing-stroke-default);
-      border-bottom: 1px solid var(--marketing-stroke-default);
-
-      & > [data-part="text"] {
-        display: flex;
-        position: relative;
-        flex-direction: column;
-        align-items: flex-start;
-        /* 24px between the quote and the author. */
-        gap: var(--noora-spacing-8);
-        box-sizing: border-box;
-        /* 32px top/bottom, 8px sides. */
-        padding: var(--noora-spacing-9) var(--noora-spacing-4);
-        width: 100%;
-
-        & > [data-part="quote"] {
-          /* align-items: flex-start sizes children to content width, so the
-             quote wouldn't wrap to the column and would overflow on the
-             right. Stretch it to fill the column so it wraps. */
-          align-self: stretch;
-          color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-regular) var(--noora-font-heading-xlarge);
-
-          & > strong {
-            font-weight: var(--noora-font-weight-medium);
-          }
-        }
-
-        & > [data-part="author"] {
-          display: flex;
-          align-items: center;
-          align-self: flex-start;
-          gap: var(--noora-spacing-4);
-
-          @media (min-width: 1024px) {
-            align-self: flex-end;
-          }
-
-          & > [data-part="logo"] {
-            flex-shrink: 0;
-            width: 90px;
-            height: 24px;
-            /* Paths use fill="currentColor" so they pick up this token. */
-            color: var(--noora-surface-label-primary);
-          }
-
-          & > [data-part="identity"] {
-            display: flex;
-            flex-direction: column;
-            border-left: 1px solid var(--marketing-stroke-default);
-            padding-left: var(--noora-spacing-4);
-
-            & > [data-part="name"] {
-              color: var(--noora-surface-label-primary);
-              font: var(--noora-font-weight-medium) var(--noora-font-body-large);
-            }
-
-            & > [data-part="role"] {
-              color: var(--noora-surface-label-secondary);
-              font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-            }
-          }
-        }
-      }
-    }
   }
 
   /* ── Frameworks ("Built for every stack") ── */
@@ -2701,17 +2630,15 @@
         position: relative;
         transition: background-color 400ms var(--ease-out-cubic);
         background: var(--slide-color);
-        /* Room for the dot field along the bottom edge. */
-        padding: var(--noora-spacing-9) var(--noora-spacing-4) 180px;
+        /* Room for the dot field along the bottom edge (216px, matching
+           HEIGHT in customers-dots-morph.js). */
+        padding: var(--noora-spacing-9) var(--noora-spacing-4) 216px;
         overflow: hidden;
-        color: #fff;
-        /* The dot field's neutral ramp, lifted to white tints so it reads
-           on every brand colour. */
-        --marketing-customers-dither-shallow: color-mix(in srgb, #fff 45%, transparent);
-        --marketing-customers-dither-mid: color-mix(in srgb, #fff 80%, transparent);
-        --marketing-customers-dither-hover-strong: #fff;
-        --marketing-customers-dither-hover-mid: color-mix(in srgb, #fff 80%, transparent);
-        --marketing-customers-dither-hover-soft: color-mix(in srgb, #fff 55%, transparent);
+        /* Text and dots in Noora's lightest neutral, which reads on every
+           brand colour; the dot field's ink is a touch translucent so the
+           brand shows through, and each dot's tone scales it further. */
+        color: var(--noora-neutral-light-50);
+        --home-customers-dots-ink: color-mix(in oklch, var(--noora-neutral-light-50) 88%, transparent);
 
         @media (prefers-reduced-motion: reduce) {
           transition: none;
@@ -2773,6 +2700,23 @@
             margin-top: var(--noora-spacing-9);
             color-scheme: light;
           }
+
+          /* A quote slide (OpenAI) names its author instead of linking. */
+          & > [data-part="author"] {
+            display: flex;
+            flex-direction: column;
+            gap: var(--noora-spacing-1);
+            margin-top: var(--noora-spacing-9);
+
+            & > [data-part="name"] {
+              font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+            }
+
+            & > [data-part="role"] {
+              opacity: 0.72;
+              font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+            }
+          }
         }
 
         /* Dither-dot field (the Figma export's dots, canvas-animated)
@@ -2785,7 +2729,7 @@
           bottom: 0;
           left: 0;
           width: 100%;
-          height: 180px;
+          height: 216px;
           pointer-events: none;
         }
       }
