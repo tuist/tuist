@@ -72,6 +72,21 @@ jobs:
             echo "Verified $(wc -l < "$RUNNER_TEMP/workspace-verified.txt") workspace and $(wc -l < "$RUNNER_TEMP/sources-verified.txt") source files"
           fi
           shasum -a 256 Package.resolved > "$RUNNER_TEMP/lockfile.sha256"
+      - name: Retain native manifest compiler caches
+        run: |
+          set -euo pipefail
+          retain_cache() {
+            local source="$1" destination="$2" backup="$3"
+            mkdir -p "$destination" "$(dirname "$source")"
+            if [[ -e "$source" || -L "$source" ]]; then
+              mv "$source" "$RUNNER_TEMP/$backup"
+            fi
+            ln -s "$destination" "$source"
+          }
+          retain_cache "$HOME/Library/Caches/org.swift.swiftpm/manifests" \
+            "$GITHUB_WORKSPACE/.build/native-manifest-cache/swiftpm" swiftpm-manifests-before-volume
+          retain_cache "$HOME/.cache/clang/ModuleCache" \
+            "$GITHUB_WORKSPACE/.build/native-manifest-cache/modules" clang-modules-before-volume
       - uses: ./.github/actions/mise
         with:
           install_args: 'tuist swiftlint swiftformat'

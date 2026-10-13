@@ -29,9 +29,13 @@ if File.exist?(state_path)
   rewritten = state.keys.select { |path| previous[path] && previous[path]['mtime'] != state[path]['mtime'] }
   changed_fingerprints = rewritten.select { |path| path.end_with?('.envhash') && previous[path]['digest'] != state[path]['digest'] }
   puts "#{phase}: #{rewritten.length} cached manifest files rewritten; #{changed_fingerprints.length} environment fingerprints changed"
+  puts "#{phase}: rewritten manifest-cache paths: #{rewritten.sort.join(', ')}"
   puts "#{phase}: root package-info rewritten: #{rewritten.include?('.build/swifterpm/package-info/root.json')}"
 else
   puts "#{phase}: #{state.length} retained manifest-cache files"
 end
 File.write(state_path, JSON.generate(state))
 File.write(environment_path, JSON.generate(fingerprints)) if phase == 'after-first'
+if phase == 'after-first'
+  system('du', '-sh', '.build/native-manifest-cache/swiftpm', '.build/native-manifest-cache/modules')
+end
