@@ -273,7 +273,7 @@ The following data is stored in ClickHouse for analytics purposes:
 
 ### Client report actor claims
 
-Swift, Gradle, and Elixir clients can send an optional `x-tuist-actor-id` header on report creation. The label comes from `TUIST_ACTOR_ID`, supported client configuration, or the first nonempty `USER`, `USERNAME`, or `LOGNAME` environment value. It may contain personal information; an empty `TUIST_ACTOR_ID` disables automatic claims. It is not a credential or verified identity. The current server does not parse or persist this header, so it adds no database fields, storage paths, application retention rules, or export records. Operators who configure HTTP tooling to capture request headers must include any retained claims in their own log retention and export procedures.
+Swift, Gradle, and Elixir clients send the optional `x-tuist-actor-id` header on report creation only when explicitly configured through `TUIST_ACTOR_ID` or supported client configuration. They do not detect operating-system usernames or send a claim by default. The label may contain personal information; an empty `TUIST_ACTOR_ID` suppresses configured claims. It is not a credential or verified identity. The server does not parse the claim into report storage, and its Sentry header scrubber excludes it from error request contexts. This adds no database fields, storage paths, report retention rules, or application export records. Older server versions without this scrubber may include explicitly supplied claims in error-tracker request contexts. Operators must include any retained claims in their error-tracker or HTTP-tooling log retention and export procedures.
 
 ### Operational Telemetry (logs)
 
