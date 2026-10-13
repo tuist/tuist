@@ -158,6 +158,9 @@ This directory contains the core business logic and domain modules for the serve
   invalidation as erasure. See
   [`infra/runners-controller/cache-volumes.md`](../../../infra/runners-controller/cache-volumes.md).
   Schema/lifecycle rules: [`runners/cache_volumes/AGENTS.md`](runners/cache_volumes/AGENTS.md).
+
+- `CacheEndpoints.primary_endpoint_url/0` uses the first configured URL as the main self-hosted cache endpoint. Keep configuration order; this read never probes nodes, records demand, or provisions capacity. The legacy endpoint list remains available for older clients.
+
 - Once run event projection and action identity: [once_events/AGENTS.md](once_events/AGENTS.md).
 
 - Build-health classification shares verification/infrastructure_tooling/unknown across toolchains. Explicit category metadata overrides detected evidence. Only generic failure queries include the all-failures row; legacy Gradle rows remain unchanged. Xcode issue lookups must first restrict build identifiers by authorized project and time range.

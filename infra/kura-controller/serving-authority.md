@@ -29,11 +29,30 @@ success acknowledgments on existing HTTP/2 and gRPC channels. A missed status
 probe or readiness flap leaves a still-valid grant unchanged, without extending
 it, during both serving and handover preparation. Renewal resumes only when the
 same holder is observed healthy before the two-second safety boundary. Expiry
-or an explicit refusal from that holder requires positive fencing.
+or an explicit refusal from that holder requires positive fencing. Authority HTTP
+errors include bounded cause chains and timeout/connect classification, so a
+transport failure is distinguishable from a rejected grant.
+
+After an interruption during ordinary serving, a compatible **same live writer**
+can acknowledge `fenced_epoch`: it takes the publication mutex, closes admission
+and publication, and waits for all admitted mutations to finish. The controller
+requires that acknowledgment from the exact current pod, host and incarnation,
+with an observed `Fencing` grant and zero mutations, before issuing a new epoch
+to that same holder with `resume_epoch` bound to the fenced epoch. The runtime
+requires its own in-memory ownership and fencing acknowledgment to accept it.
+Old request permits stay invalid. The unclean-volume marker stays on disk; this
+does not authorize a restart, a different replica, or an unresponsive process.
+If a replacement grant itself expires before delivery, its persisted resume
+binding lets the already-fenced original process join publication again and
+acknowledge that missed epoch. The controller must still issue another new epoch;
+an expired grant is never reopened.
+A current operator promotion request takes precedence. Interrupted handovers
+continue to require the recovery procedure below.
 
 There is **no automatic promotion on lease expiry** and no 30-second partition
 RTO claim. Arbitrary OS/disk pauses inside publication cannot be proven bounded.
-The controller moves to `Fencing` and waits for a `primaryPromotion` request
+Without the live writer acknowledgment above, the controller moves to `Fencing`
+and waits for a `primaryPromotion` request
 bound to the previous epoch, pod UID, incarnation and host, plus a positive
 external fence receipt. A missing Node, failed probe, deleted API object or
 elapsed timeout is not a fence receipt. Only verified cessation of the old
@@ -54,7 +73,9 @@ floor and remain prohibited after activation.
 ## Planned handover
 
 `plannedHandover` names one destination pod UID and runtime incarnation. The
-source rejects new mutations, drains admitted work, and freezes metadata
+controller waits for the source to report the current valid Serving grant before
+starting preparation, including after a live-writer resumption.
+The source rejects new mutations, drains admitted work, and freezes metadata
 publication and eviction. The destination must have durably reached the source's
 final feed incarnation/head before freezing its retained corpus. Verification
 walks the complete retained index in bounded pages, hashes metadata and bodies
@@ -74,6 +95,14 @@ Each replica evicts on its own schedule, so two long-running replicas never
 retain identical corpora. The source logs `kura.handover.prepared` with the
 number of records accepted under each reason. A record the destination holds at
 another version still fails preparation.
+Compatible destinations advertise bounded batch verification on the initial
+response. The source sends at most 32 record descriptors, 64 KiB of descriptor
+JSON and 8 MiB of referenced bodies per batch (a single larger record travels
+alone). Both peers still hash every byte sequentially with the same buffer and
+ordered receipt digest. This removes per-record network round trips without
+adding parallel readers. Older destinations use the individual-record path;
+older sources remain supported. Rejections name the failing record within a
+batch, and a partial batch acknowledgment cannot complete preparation.
 
 Both nodes fsync the same named receipt. The source then positively acknowledges
 revocation while holding the same publication mutex used by public writes.
@@ -143,19 +172,30 @@ controller flag stops renewal and eventually serving. Keep the capable controlle
 and runtime pair; an old controller is below the rollback floor. Qualifying a new
 runtime image and deliberately updating the pin is an operator procedure while
 automatic rolling replacement stays paused.
+For an already activated instance, replace the clean standby first, then perform
+a named handover before replacing the positively revoked old primary. Do not
+restart an active primary onto its marked volume. The first handover from an old
+source still uses individual-record verification; batching applies after the
+source supports negotiation too. Keep `OnDelete` and the explicit image pin
+through this procedure.
 
 `/status/rollout.serving_authority` exposes identity, observed grant, deadline,
 in-flight mutations, receipt and revocation acknowledgment. The ConfigMap keeps
 the epoch, phase, reason and fence evidence. Recovery phases/IDs are in the CR's
 status. Inspect these alongside request errors, sync lag and controller errors;
-`Fencing` is a required intervention, not a healthy steady state.
+`Fencing` is unavailable until the live writer handshake completes or an operator
+supplies external fence evidence; a persistent `Fencing` state requires intervention.
 Controller metrics expose phase gauges and the latest valid-holder observation.
 `serving-authority-alerts.yaml` supplies example rules for fencing, an
 unacknowledged holder and a stalled rebuild; install them in the environment's
 alerting system before activation. They are not installed by the staging fixture.
 The authority-enabled controller uses 5/3/1-second leader lease/renew/retry
 timings and releases leadership on graceful cancellation. A longer interruption
-still expires authority and requires positive fencing.
+still expires authority and requires positive fencing. Upgrade runtime and
+controller in either order: old runtimes cannot acknowledge live-writer fencing,
+and old controllers ignore that additive report. Recovery becomes automatic only
+when both support it; rollback to either old component leaves an expired writer
+closed and needing the original external recovery procedure.
 
 ## Isolated staging validation
 
@@ -174,9 +214,13 @@ if the fixture namespace is overridden, render the policy into that namespace
 too. The client removes the fault label when the case exits.
 
 The opt-in ShellSpec harness in `kura/spec/e2e/serving_authority_spec.sh`
-exercises existing HTTP/2 and gRPC sessions. Its partition mode leaves the old
-primary fenced: the operator must positively stop it, promote the exact survivor,
-and rebuild the quarantined ordinal. Cilium policy propagation is asynchronous;
+exercises existing HTTP/2 and gRPC sessions. Its partition mode verifies refusal
+while API access is denied. `KURA_E2E_AUTHORITY_MODE=api-recovery` also waits for
+the live-writer handshake after removing the fault, checks the unchanged
+incarnation and new epoch, and proves the rejected upload remains absent.
+Without a compatible runtime/controller pair, the old primary remains fenced:
+positively stop it, promote the exact survivor and rebuild the quarantined ordinal.
+Cilium policy propagation is asynchronous;
 the test waits for observed expiry and sustained rejection rather than treating
 the label write as proof of a partition. Keep physical host power-off tests on
 dedicated hosts; process termination on shared staging hosts does not qualify

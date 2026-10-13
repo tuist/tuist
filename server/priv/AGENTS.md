@@ -28,6 +28,7 @@ This directory contains database migrations and other private assets.
 - The standard `repo/seeds.exs` creates `tuist/xcode-comparison` and `tuist/bazel-comparison` with matching test histories, including healthy, flaky, muted, and skipped cases. Keep their scenarios aligned for visual comparison; rerunning seeds preserves existing comparison runs.
 
 ## Guardrails
+- Regenerate Gettext `.pot` templates with `mix gettext.extract` (without `--merge`) after moving translated calls as well as changing strings: CI checks source-line references too. Commit generated `.pot` changes only; never edit `.po` translations.
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
 - REAPI cache output hints default to empty strings for historical rows and older Kura nodes. Append physical ClickHouse columns in schema order; these identifiers correlate profile descriptions and are never repository source links.
@@ -86,3 +87,5 @@ This directory contains database migrations and other private assets.
   legacy index. Do not roll back to pre-platform server images after enablement.
 
 - The Grafana guide distinguishes the neutral percentile-based failed-or-slow metric from explicit duration targets, documents paired cache savings/coverage, and points native failure classification to build details and category filters rather than default table columns.
+
+- Cache-volume writer policy adds an empty-default exact branch list on volumes and auto-default commit intent and nullable additional-branch grant provenance on uses. Preserve existing volume identity, clear epochs and default-branch permissions; document policy data in the export inventory.

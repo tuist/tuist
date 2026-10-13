@@ -7,11 +7,18 @@ thread observes Kubernetes CAS grants bound to immutable identities; public
 middleware and store commits carry epoch permits. Peer replication stays enabled
 on standbys. Expired primaries retain an unclean-volume marker, preventing a
 restarted stale store from rejoining peers. Named planned handover freezes both
-retained corpora, verifies every retained record, persists matching receipts and
+retained corpora, verifies every retained record in negotiated bounded batches,
+persists matching receipts and
 positively revokes the old writer. Crash promotion requires external fence
 evidence and accepts an unreplicated tail. See the
 [authority and recovery runbook](../../infra/kura-controller/serving-authority.md)
 for limitations, activation and rollback.
+
+An expired live writer can acknowledge publication fencing under its publication
+mutex once admitted mutations have drained. Only this exact process can resume
+its retained store through a new controller CAS epoch bound to that acknowledgment.
+Its unclean marker remains, and permits from the old epoch stay invalid. This
+recovery path never promotes a standby or authorizes a dirty-volume restart.
 
 Optional provider-aware replication keeps canonical peer identities and persisted
 watermarks separate from transport endpoints. Membership status advertises the

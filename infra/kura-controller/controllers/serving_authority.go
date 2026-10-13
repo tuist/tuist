@@ -30,6 +30,7 @@ type servingHolder struct {
 	Host        string `json:"host"`
 }
 type servingGrant struct {
+	ResumeEpoch   uint64           `json:"resume_epoch,omitempty"`
 	Handover      *handoverIntent  `json:"handover,omitempty"`
 	LastHandover  string           `json:"last_handover,omitempty"`
 	Barrier       *handoverReceipt `json:"barrier,omitempty"`
@@ -42,6 +43,7 @@ type servingGrant struct {
 	FenceEvidence string           `json:"fence_evidence,omitempty"`
 }
 type servingReport struct {
+	FencedEpoch  uint64           `json:"fenced_epoch"`
 	RevokedEpoch uint64           `json:"revoked_epoch"`
 	Observed     *servingGrant    `json:"observed"`
 	Mutations    uint64           `json:"mutations"`
@@ -207,7 +209,8 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			break
 		}
 		handover := instance.Spec.PlannedHandover
-		if handover != nil && handover.ID != "" && handover.ID != grant.LastHandover && now < grant.ExpiresMS-2000 {
+		sourceHasGrant := sourceReport.Valid && sourceReport.Epoch == grant.Epoch && sourceReport.Observed != nil && sourceReport.Observed.Epoch == grant.Epoch && sourceReport.Observed.Phase == "Serving"
+		if handover != nil && handover.ID != "" && handover.ID != grant.LastHandover && sourceHasGrant && now < grant.ExpiresMS-2000 {
 			target, present := holders[handover.PodName]
 			source, sourcePresent := holders[grant.PodName]
 			if present && sourcePresent && source == grant.Holder && target.PodUID == handover.PodUID && target.Incarnation == handover.Incarnation && target.Host != grant.Holder.Host && samples[handover.PodName].BackfillInitialCycle == backfillCycleComplete {
@@ -286,8 +289,26 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		grant.LastHandover = grant.Handover.ID
 		grant.Holder, grant.PodName, grant.Epoch, grant.ExpiresMS, grant.Phase, grant.Reason = grant.Handover.Destination, targetName, grant.Epoch+1, now+15000, "Serving", "Planned handover after named retained-data barrier and positive runtime revoke"
 		grant.Handover = nil
+		grant.ResumeEpoch = 0
 	case "Fencing":
 		promotion := instance.Spec.PrimaryPromotion
+		// Only the exact existing process can resume its own retained writer.
+		// This acknowledgment joins its publication mutex and drains admitted
+		// mutations; expiry, a probe failure, or a replacement pod cannot make it.
+		// An operator's current promotion request takes precedence, even if it
+		// still needs correction. Interrupted handovers require their old recovery.
+		report := samples[grant.PodName].ServingAuthority
+		holder, present := holders[grant.PodName]
+		if (promotion == nil || promotion.PreviousEpoch != grant.Epoch) && grant.Handover == nil && present && holder == grant.Holder && report.Observed != nil && report.Observed.Epoch == grant.Epoch && report.Observed.Phase == "Fencing" && report.Observed.Holder == grant.Holder && report.FencedEpoch == grant.Epoch && grant.Epoch != 0 && !report.Valid && report.Mutations == 0 {
+			if grant.Epoch == ^uint64(0) {
+				return result, fmt.Errorf("serving epoch exhausted")
+			}
+			grant.ResumeEpoch = grant.Epoch
+			grant.Epoch++
+			grant.Phase, grant.ExpiresMS, grant.Reason = "Serving", now+15000, "Resumed the same live writer after positive publication fencing"
+			grant.Barrier = nil
+			break
+		}
 		if promotion == nil || promotion.PreviousEpoch != grant.Epoch || promotion.PreviousPodUID != grant.Holder.PodUID || promotion.PreviousIncarnation != grant.Holder.Incarnation || promotion.PreviousHost != grant.Holder.Host || promotion.FenceEvidence == "" {
 			return result, nil
 		}
