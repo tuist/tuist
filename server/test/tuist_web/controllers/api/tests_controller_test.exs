@@ -1197,7 +1197,8 @@ defmodule TuistWeb.API.TestsControllerTest do
         history_source: "none",
         history_fallback_reason: "shallow clone",
         git_dirty: true,
-        execution_mode: "serial"
+        execution_mode: "serial",
+        coverage_enabled: false
       })
       |> json_response(:ok)
 
@@ -1223,7 +1224,8 @@ defmodule TuistWeb.API.TestsControllerTest do
                history_source: "none",
                history_fallback_reason: "shallow clone",
                git_dirty: true,
-               execution_mode: "serial"
+               execution_mode: "serial",
+               coverage_enabled: false
              } = run
 
       assert run.git_repository_id == Tuist.GitHistory.repository_id(user.account.id, "https://github.com/tuist/app")

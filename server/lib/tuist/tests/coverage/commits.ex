@@ -388,13 +388,16 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   # A commit's runs from a clean checkout, measured or not, oldest first, with
   # what they reported about where the commit is: what labels a commit whose
-  # every scheme was skipped whole and moves its refs.
+  # every scheme was skipped whole and moves its refs. Runs not set up to
+  # collect coverage are left out, as `Reported` leaves them out.
   defp clean_runs(project_id, sha) do
     ClickHouseRepo.all(
       from(t in Test,
         where: t.project_id == ^project_id and t.git_commit_sha == ^sha,
         group_by: t.id,
-        having: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false,
+        having:
+          fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false and
+            fragment("ifNull(argMax(?, ?), true)", t.coverage_enabled, t.inserted_at),
         order_by: [asc: min(t.ran_at)],
         select: %{
           test_run_id: t.id,

@@ -390,6 +390,11 @@ defmodule TuistWeb.API.TestsController do
              description:
                "The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran."
            },
+           coverage_enabled: %Schema{
+             type: :boolean,
+             description:
+               "Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown."
+           },
            shard_index: %Schema{
              type: :integer,
              description: "The zero-based shard index for this test result.",
@@ -788,6 +793,7 @@ defmodule TuistWeb.API.TestsController do
               git_repository_id: test_run.git_repository_id,
               git_dirty: test_run.git_dirty,
               execution_mode: test_run.execution_mode,
+              coverage_enabled: test_run.coverage_enabled,
               account_id: test_run.account_id,
               project_id: selected_project.id,
               account_handle: selected_project.account.name,
@@ -1059,6 +1065,7 @@ defmodule TuistWeb.API.TestsController do
           shard_index: Map.get(params, :shard_index),
           only_test_identifiers: Map.get(params, :only_test_identifiers, []),
           skip_test_identifiers: Map.get(params, :skip_test_identifiers, []),
+          coverage_enabled: Map.get(params, :coverage_enabled),
           stress_new_tests: Map.get(params, :stress_new_tests),
           coverage_evidence: Map.get(params, :coverage_evidence),
           coverage: Map.get(params, :coverage),
