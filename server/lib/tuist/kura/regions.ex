@@ -539,7 +539,8 @@ defmodule Tuist.Kura.Regions do
     },
     # The BER1 rack's cache, on its storage node beside the rack's minis.
     # Only the site's runner pools take it (`Tuist.Runners.Catalog.fleet_site/1`)
-    # and only accounts enabled on the `runner_site_cache` flag get a node.
+    # and only accounts on the `runner_site` or `runner_site_cache` flag get a
+    # node.
     #
     # A rack node runs a pod network of its own, which the cluster does not
     # route to and which routes to no Service, so the pods resolve names

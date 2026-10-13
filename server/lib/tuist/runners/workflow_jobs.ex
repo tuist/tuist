@@ -567,6 +567,27 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
+  Moves `from_fleet`'s rows that are still `queued` and were enqueued
+  before `enqueued_before` onto `to_fleet`, where that fleet's runners
+  claim them and its autoscaler counts them. A row a runner claims first
+  is no longer `queued` and stays put. No outbox event: the move is not a
+  status change, and the row's next transition carries its new fleet to
+  ClickHouse. Returns the number of rows moved.
+  """
+  def move_queued(from_fleet, to_fleet, %DateTime{} = enqueued_before)
+      when is_binary(from_fleet) and is_binary(to_fleet) do
+    {moved, _} =
+      Repo.update_all(
+        from(j in WorkflowJob,
+          where: j.fleet_name == ^from_fleet and j.status == "queued" and j.enqueued_at < ^enqueued_before
+        ),
+        set: [fleet_name: to_fleet, updated_at: DateTime.truncate(DateTime.utc_now(), :second)]
+      )
+
+    moved
+  end
+
+  @doc """
   Postgres twin of `Tuist.Runners.Jobs.queued_count_by_fleet/1`.
   """
   def queued_count_by_fleet(fleet_name, %DateTime{} = enqueued_floor) when is_binary(fleet_name) do

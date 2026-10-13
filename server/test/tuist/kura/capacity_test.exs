@@ -140,6 +140,30 @@ defmodule Tuist.Kura.CapacityTest do
     end
   end
 
+  describe "reserved_gib_by_instance/1" do
+    test "sums each instance's pods under the instance they belong to" do
+      stub_region_pods([
+        instance_pod("kura-a-us-east-1", 8),
+        instance_pod("kura-a-us-east-1", 8),
+        instance_pod("kura-b-us-east-1", 16),
+        Map.put(instance_pod("kura-b-us-east-1", 16), "status", %{"phase" => "Succeeded"})
+      ])
+
+      assert Capacity.reserved_gib_by_instance(@region) == %{"kura-a-us-east-1" => 16, "kura-b-us-east-1" => 16}
+    end
+
+    test "is unknown when the cluster cannot be read" do
+      stub(Client, :list_pods, fn _namespace, _selector -> {:error, :unavailable} end)
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+      assert Capacity.reserved_gib_by_instance(@region) == nil
+    end
+
+    defp instance_pod(instance, gib) do
+      Map.put(reserved_pod(gib), "metadata", %{"labels" => %{"app.kubernetes.io/instance" => instance}})
+    end
+  end
+
   describe "under_pressure?/1" do
     setup do
       stub(Environment, :kura_capacity_admission_required?, fn -> true end)

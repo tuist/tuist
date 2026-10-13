@@ -513,6 +513,35 @@ defmodule Tuist.Kura.Capacity do
     end
   end
 
+  @doc """
+  Gibibytes the region's pods have reserved, by the instance they belong to
+  (`app.kubernetes.io/instance`, which is a server's `provisioner_node_ref`),
+  or `nil` when the cluster cannot be read.
+
+  Keyed so a reading can be matched against the rows it describes: a pod with
+  no row still holds its disk, and a row whose pods do not exist yet will.
+  """
+  def reserved_gib_by_instance(region_id) do
+    KeyValueStore.get_or_update(
+      [__MODULE__, "reserved_gib_by_instance", region_id],
+      [ttl: to_timeout(minute: 1), locking: true],
+      fn -> measure_reserved_gib_by_instance(region_id) end
+    )
+  end
+
+  defp measure_reserved_gib_by_instance(region_id) do
+    case Client.list_pods(@namespace, region_selector(region_id)) do
+      {:ok, pods} ->
+        pods
+        |> Enum.reject(&terminal?/1)
+        |> Enum.group_by(&get_in(&1, ["metadata", "labels", "app.kubernetes.io/instance"]), &requested_bytes/1)
+        |> Map.new(fn {instance, bytes} -> {instance, div(Enum.sum(bytes), @gib)} end)
+
+      {:error, _reason} ->
+        nil
+    end
+  end
+
   # A pod that has run to completion or been evicted holds no directory, and
   # the scheduler counts neither against the node.
   defp terminal?(%{"status" => %{"phase" => phase}}), do: phase in ["Succeeded", "Failed"]

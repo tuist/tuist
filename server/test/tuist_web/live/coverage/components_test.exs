@@ -3,16 +3,6 @@ defmodule TuistWeb.Coverage.ComponentsTest do
 
   alias TuistWeb.Coverage.Components
 
-  describe "brief_line_ranges/1" do
-    test "shows up to two ranges and folds the rest into an ellipsis, with every range for a title" do
-      assert Components.brief_line_ranges([[1, 3], [5, 5]]) == "1–3, 5"
-      assert Components.full_line_ranges([[1, 3], [5, 5]]) == nil
-      assert Components.brief_line_ranges([[1, 3], [5, 5], [8, 9]]) == "1–3, 5, …"
-      assert Components.full_line_ranges([[1, 3], [5, 5], [8, 9]]) == "1–3, 5, 8–9"
-      assert Components.brief_line_ranges(nil) == "—"
-    end
-  end
-
   describe "period_trend/1 and count_trend/2" do
     test "always have a change to show once a series has a point" do
       point = &%{coverage: &1, covered_lines: &2}

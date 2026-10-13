@@ -35,11 +35,7 @@ defmodule TuistWeb.API.CacheController do
   plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoints, :token]
 
   plug TuistWeb.API.Authorization.AuthorizationPlug,
-       [
-         category: :cache,
-         caching: true,
-         cache_ttl: to_timeout(minute: 1)
-       ]
+       [category: :cache]
        when action not in [:access, :endpoints, :token]
 
   plug BillingPlug when action not in [:access, :endpoints, :token]

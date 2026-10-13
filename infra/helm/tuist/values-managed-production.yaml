@@ -1302,8 +1302,8 @@ ovhFleets:
       item: OVH_FLEET_SSH
 
 # BER1 rack fleet: leased M5 Pro Mac minis (Z1UD001N2: 18-core CPU, 64 GB,
-# 10GbE, 2 TB), one three-up tray on chain B (ber1-tor-b and ber1-pdu-b) in the
-# home prep bay, behind the rack's two edges. Declared here because the rack
+# 10GbE, 2 TB), three three-up trays on chain B (ber1-tor-b and ber1-pdu-b),
+# behind the rack's two edges. Declared here because the rack
 # is in production (kubernetes.namespace in
 # infra/rack-switch-fleet/sites/ber1.json); no other env may declare it too.
 #
@@ -1338,6 +1338,12 @@ rackFleet:
       power:
         pdu: ber1-pdu-b
         outlet: "1"
+      # Lent to staging: its Node registers in the staging cluster, where
+      # staging's rack pools run its guests (rackFleet.joiningNodes in
+      # values-managed-staging.yaml). Staging has no custom cache volumes.
+      nodeFleet: tuist-staging-rack-fleet
+      nodeCluster:
+        kubeconfigItem: BER1_RUNNER_B01_STAGING_KUBECONFIG
     - name: ber1-runner-b02
       serial: CRXK0M2VFY
       address: 10.10.0.102
@@ -1354,6 +1360,54 @@ rackFleet:
       power:
         pdu: ber1-pdu-b
         outlet: "3"
+    - name: ber1-runner-b04
+      serial: H1060N7XQP
+      address: 10.10.0.104
+      rack: prep
+      shelf: tray-b2
+      power:
+        pdu: ber1-pdu-b
+        outlet: "6"
+    - name: ber1-runner-b05
+      serial: G54DV7JHJ7
+      address: 10.10.0.105
+      rack: prep
+      shelf: tray-b2
+      power:
+        pdu: ber1-pdu-b
+        outlet: "7"
+    - name: ber1-runner-b06
+      serial: FWVPQGL2C3
+      address: 10.10.0.106
+      rack: prep
+      shelf: tray-b2
+      power:
+        pdu: ber1-pdu-b
+        outlet: "8"
+    - name: ber1-runner-b07
+      serial: H7YDR4L71F
+      address: 10.10.0.107
+      rack: prep
+      shelf: tray-b3
+      power:
+        pdu: ber1-pdu-b
+        outlet: "9"
+    - name: ber1-runner-b08
+      serial: J64HHMX93T
+      address: 10.10.0.108
+      rack: prep
+      shelf: tray-b3
+      power:
+        pdu: ber1-pdu-b
+        outlet: "10"
+    - name: ber1-runner-b09
+      serial: C0YKJG7JLH
+      address: 10.10.0.109
+      rack: prep
+      shelf: tray-b3
+      power:
+        pdu: ber1-pdu-b
+        outlet: "11"
   machine:
     # The production M4 Pro hosts' shape (macosFleet.machineGroups m4 in
     # values-managed-production.yaml), so a rack runner is the runner customers
@@ -1368,6 +1422,33 @@ rackFleet:
     # not collected yet.
     maxPods: 5
     runnerCacheVolumeGiB: 240
+  # The catalog on the rack: one pool per Xcode on the 6 vCPU shape, and the
+  # 12 vCPU shape, for accounts on the `runner_site` flag. Every catalog image
+  # is a macOS 26 guest, which fits the hosts' macOS 27.
+  #
+  # The budget is the rack's 18 guest slots (9 hosts x 2), which these pools
+  # and the `ber1` smoke pool share through the fleet allocator, apart from
+  # the rented fleet's 14. A 12 vCPU guest takes a whole host, so that shape's
+  # ceiling is the host count. 26.6 keeps one runner warm because `tuist-macos`
+  # resolves there; the rest start cold.
+  runners:
+    enabled: true
+    autoscaling:
+      enabled: true
+      minWarmPoolFloor: 0
+      maxReplicas: 18
+    xcodeOverrides:
+      "26.6":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxReplicas: 18
+    shapes:
+      12vcpu-28gb:
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 0
+          maxReplicas: 9
   sshExternalSecret:
     enabled: true
     item: BER1_FLEET_SSH
@@ -1414,7 +1495,9 @@ rackLinuxFleet:
   hosts:
     # The two edges, each netbooting from the other. ber1-edge-a is preferred.
     # It was netbooted rather than announced by its stick, so its boot MAC (its
-    # i226-LM, on ber1-mgmt port 1) and its AMT are declared.
+    # i226-LM, on ber1-mgmt port 1) is declared. Every host declares its AMT:
+    # the fleet's products only match a model a stick announced, and none of
+    # these hosts announced one.
     - uuid: 44312e80-1dc6-11f1-853e-8f903547d200
       hostname: ber1-edge-a
       role: edge
@@ -1425,6 +1508,7 @@ rackLinuxFleet:
       role: edge
       bootMAC: "38:05:25:3a:de:d3"
       reinstallGeneration: 5
+      amt: {activate: true}
     # Single-homed to ber1-tor-a port 27, i226-LM on ber1-mgmt port 3. Its
     # address is on the machines segment, beside the minis it serves; the
     # edges' DHCP reserves it against its sfp28-1 MAC.
@@ -1435,6 +1519,7 @@ rackLinuxFleet:
       address: 10.10.0.11
       # Reinstalled so it registers with its pool and machines-address labels.
       reinstallGeneration: 1
+      amt: {activate: true}
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   boot:
@@ -1916,33 +2001,36 @@ runnersFleet:
         maxReplicas: 14
   # Resolved at deploy time from the latest `runner-image@` git tag.
   runnerImageSemver: ""
-  # One explicit pool placed on the BER1 rack fleet rather than the rented
-  # Scaleway minis, so a real GitHub Actions job can run on hardware we own.
+  # One explicit pool on the BER1 rack fleet for the BER1 Smoke workflow:
   # `runs-on: tuist-ber1-smoke` reaches this server's webhook handler, which
   # matches the label to this pool and dispatches a runner onto a rack Node.
+  # Customer jobs reach the rack through the catalog's rack pools instead
+  # (`rackFleet.runners`).
   #
   # This key is the one that counts: an earlier `pools:` in this same mapping
   # would be silently discarded, because YAML resolves duplicate keys last-wins
   # and Helm never warns.
   #
-  # A fixed count rather than autoscaling: the fleet allocator apportions guest
-  # slots across the macOS pools of ONE fleet, and this pool deliberately sits
-  # in another, so an explicit count keeps it out of that arithmetic. Six is
-  # every guest slot in the rack, two per host, which nothing else competes
-  # for, so a load run reaches every slot at once.
+  # It autoscales from zero so it shares the rack's guest slots with the
+  # catalog's rack pools through the fleet allocator, which only counts
+  # autoscaling pools: a fixed count would hold slots the allocator believes
+  # free. Eighteen is every guest slot in the rack, so a load run still reaches
+  # all of them when nothing else is running.
   #
-  # A Tart guest cannot be newer than its host. The rack's hosts run macOS 27,
-  # so the 26.6 runner fits.
+  # The image is the catalog's 26.6 runner, so it follows runner releases.
   pools:
     - name: ber1
       # Racked in BER1, so its jobs take the ber1-runners cache on
       # ber1-store-a, beside the minis.
       site: ber1
       platform: macos
-      runnerImage: ghcr.io/tuist/tuist-runner:macos-26-6-0.17.0
+      xcodeVersion: "26.6"
       dispatchLabel: tuist-ber1-smoke
       fleetSelector: tuist-tuist-rack-fleet
-      replicas: 6
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 18
       pod:
         cpuMilli: 6000
         memoryMB: 14336

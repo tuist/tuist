@@ -81,7 +81,6 @@ defmodule Atlas.MixProject do
       {:xlsx_reader, "~> 0.8"},
       {:mimic, "~> 2.0", only: :test},
       {:tidewave, "~> 0.9", only: :dev},
-      {:hammer, "~> 7.0"},
       {:condukt, github: "tuist/condukt", tag: "1.13.0", override: true},
       {:mail, "~> 0.5"},
       {:multipart, "~> 0.4"},
