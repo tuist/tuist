@@ -59,6 +59,7 @@ import TuistHTTP
         }
     }
 
+    // swiftlint:disable:next type_body_length
     public struct CreateTestService: CreateTestServicing {
         private let fullHandleService: FullHandleServicing
 
