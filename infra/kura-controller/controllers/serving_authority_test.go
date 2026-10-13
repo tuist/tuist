@@ -116,6 +116,11 @@ func TestAuthorityRejectsMissingAndRecreatedEpochRecord(t *testing.T) {
 func TestHandoverRequiresMatchingReceiptAndExplicitRevokeAcknowledgment(t *testing.T) {
 	r, instance, statuses := authorityFixture(t)
 	grant := authorityStep(t, r)
+	sample := statuses["test-0"]
+	sample.ServingAuthority.Valid = true
+	sample.ServingAuthority.Epoch = grant.Epoch
+	sample.ServingAuthority.Observed = &grant
+	statuses["test-0"] = sample
 	target := statuses["test-1"].ServingAuthority.Identity
 	if err := r.Get(context.Background(), client.ObjectKeyFromObject(instance), instance); err != nil {
 		t.Fatal(err)
@@ -129,7 +134,7 @@ func TestHandoverRequiresMatchingReceiptAndExplicitRevokeAcknowledgment(t *testi
 		t.Fatal(grant)
 	}
 	receipt := &handoverReceipt{ID: "handover-1", Source: grant.Holder, Destination: target, Incarnation: 7, Head: 9, FrontierMS: 100, Records: 3, Digest: "corpus-digest"}
-	sample := statuses["test-0"]
+	sample = statuses["test-0"]
 	sample.ServingAuthority.Barrier = receipt
 	statuses["test-0"] = sample
 	if next := authorityStep(t, r); next.Phase != "Quiescing" {
@@ -144,6 +149,7 @@ func TestHandoverRequiresMatchingReceiptAndExplicitRevokeAcknowledgment(t *testi
 	}
 	sample = statuses["test-0"]
 	sample.ServingAuthority.Observed = &grant
+	sample.ServingAuthority.Valid = false
 	statuses["test-0"] = sample
 	if next := authorityStep(t, r); next.Epoch != 1 {
 		t.Fatal("missing revoke acknowledgment accepted")
@@ -342,6 +348,36 @@ func TestAuthorityPreservesResumeBindingWhenReplacementGrantExpires(t *testing.T
 	statuses[grant.PodName] = sample
 	next := authorityStep(t, r)
 	if next.Phase != "Serving" || next.Epoch != 3 || next.ResumeEpoch != 2 || next.Holder != grant.Holder {
+		t.Fatal(next)
+	}
+}
+
+func TestHandoverWaitsForTheResumedServingGrant(t *testing.T) {
+	r, instance, statuses := authorityFixture(t)
+	initial := authorityStep(t, r)
+	grant := initial
+	grant.Epoch, grant.ResumeEpoch = 2, 1
+	writeAuthorityGrant(t, r, grant)
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(instance), instance); err != nil {
+		t.Fatal(err)
+	}
+	target := statuses["test-1"].ServingAuthority.Identity
+	instance.Spec.PlannedHandover = &kurav1alpha1.PlannedHandoverRequest{ID: "pending", PodName: "test-1", PodUID: target.PodUID, Incarnation: target.Incarnation}
+	if err := r.Update(context.Background(), instance); err != nil {
+		t.Fatal(err)
+	}
+	sample := statuses["test-0"]
+	initial.Phase = "Fencing"
+	sample.ServingAuthority.Observed = &initial
+	sample.ServingAuthority.FencedEpoch = 1
+	statuses["test-0"] = sample
+	if next := authorityStep(t, r); next.Phase != "Serving" || next.Handover != nil {
+		t.Fatal("handover started before resume delivery", next)
+	}
+	sample.ServingAuthority.Observed = &grant
+	sample.ServingAuthority.Valid, sample.ServingAuthority.Epoch = true, 2
+	statuses["test-0"] = sample
+	if next := authorityStep(t, r); next.Phase != "Quiescing" || next.Handover == nil {
 		t.Fatal(next)
 	}
 }

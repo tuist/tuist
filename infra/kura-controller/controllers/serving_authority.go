@@ -209,7 +209,8 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			break
 		}
 		handover := instance.Spec.PlannedHandover
-		if handover != nil && handover.ID != "" && handover.ID != grant.LastHandover && now < grant.ExpiresMS-2000 {
+		sourceHasGrant := sourceReport.Valid && sourceReport.Epoch == grant.Epoch && sourceReport.Observed != nil && sourceReport.Observed.Epoch == grant.Epoch && sourceReport.Observed.Phase == "Serving"
+		if handover != nil && handover.ID != "" && handover.ID != grant.LastHandover && sourceHasGrant && now < grant.ExpiresMS-2000 {
 			target, present := holders[handover.PodName]
 			source, sourcePresent := holders[grant.PodName]
 			if present && sourcePresent && source == grant.Holder && target.PodUID == handover.PodUID && target.Incarnation == handover.Incarnation && target.Host != grant.Holder.Host && samples[handover.PodName].BackfillInitialCycle == backfillCycleComplete {
