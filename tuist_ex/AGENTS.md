@@ -104,6 +104,7 @@ dashboard presentation belong in `server/`.
   ExUnit's formatter callbacks. Submission failures are logged through the
   passed shell function and swallowed. A submission failure never changes the
   exit code of `mix test`.
+- `Analytics.Actor` adds an optional, unverified `x-tuist-actor-id` only to build/test report POSTs. Resolve `TUIST_ACTOR_ID`, runtime `:actor_id`, project `:actor_id`, then username variables. Empty/invalid overrides suppress automatic claims. Attribution never changes `Auth.token/1`, endpoints, JSON bodies or upload/read/shard requests; older servers ignore this header.
 - Options resolved by `TuistEx.Analytics.Config` mirror `TuistEx.Auth`: env
   overrides beat runtime options beat `Mix.Project.config()[:tuist]`.
 
