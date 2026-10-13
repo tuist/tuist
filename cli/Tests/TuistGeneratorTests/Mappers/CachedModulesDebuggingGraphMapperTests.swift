@@ -103,7 +103,7 @@ struct CachedModulesDebuggingGraphMapperTests {
         let testContents = try #require(String(data: testData, encoding: .utf8))
         #expect(testContents.contains(cachedFrameworkPath.parentDirectory.pathString))
         #expect(testContents.contains(cachedUIFrameworkPath.parentDirectory.pathString))
-        #expect(!testContents.contains("command source"))
+        #expect(testContents.contains("~/.lldbinit-Xcode"))
 
         let script = try #require(runAction.preActions.first?.scriptText)
         #expect(script.contains("symbols.cas-path"))
@@ -475,6 +475,95 @@ struct CachedModulesDebuggingGraphMapperTests {
         #expect(sideEffects.isEmpty)
     }
 
+    @Test(.inTemporaryDirectory, arguments: [false, true], ["none", "generic", "xcode", "both", "broken", "results"])
+    func generatedScript_sourcesUserInitializerOnlyWithoutCustomInit(
+        customLLDBInitFiles: Bool,
+        homeFiles: String
+    ) async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let home = projectPath.appending(component: #"home "quoted" café"#)
+        let xcodeInitExists = ["xcode", "both", "broken", "results"].contains(homeFiles)
+        if homeFiles != "none" {
+            try await FileSystem().makeDirectory(at: home)
+        }
+        if xcodeInitExists {
+            let diagnosticCommand: String
+            switch homeFiles {
+            case "broken": diagnosticCommand = "tuist-command-that-does-not-exist\n"
+            case "results": diagnosticCommand = "settings show target.max-children-count\n"
+            default: diagnosticCommand = ""
+            }
+            try await FileSystem().writeText(
+                diagnosticCommand + "settings set target.source-map /user \"\(projectPath.pathString)\"\n",
+                at: home.appending(component: ".lldbinit-Xcode")
+            )
+        }
+        if ["generic", "both"].contains(homeFiles) {
+            try await FileSystem().writeText(
+                "settings set target.source-map /generic \"\(projectPath.pathString)\"\n",
+                at: home.appending(component: ".lldbinit")
+            )
+        }
+        let graph = compilationCacheGraph(at: projectPath, customLLDBInitFiles: customLLDBInitFiles)
+        let (mapped, sideEffects, _) = try await CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+            .map(graph: graph, environment: MapperEnvironment())
+        let scheme = try #require(mapped.projects[projectPath]?.schemes.first)
+        let actions = [
+            (script: scheme.runAction?.preActions.first?.scriptText, initPath: scheme.runAction?.customLLDBInitFile),
+            (script: scheme.testAction?.preActions.first?.scriptText, initPath: scheme.testAction?.customLLDBInitFile),
+        ]
+        try writeCompilationPrefixMap(["/^root": projectPath.pathString], at: projectPath)
+
+        for (index, action) in actions.enumerated() {
+            let initial = try #require(fileDescriptor(at: action.initPath, in: sideEffects))
+            let initialData = try #require(initial.contents)
+            #expect(String(decoding: initialData, as: UTF8.self).contains("~/.lldbinit-Xcode") == !customLLDBInitFiles)
+            let initPath = try #require(action.initPath)
+            if !customLLDBInitFiles {
+                try await FileSystem().makeDirectory(at: initPath.parentDirectory)
+                try await FileSystem().writeText(String(decoding: initialData, as: UTF8.self), at: initPath)
+                let output = try runProcess("/usr/bin/xcrun", arguments: [
+                    "lldb", "--no-lldbinit", "--batch", "--source", initPath.pathString,
+                    "-o", "settings show target.source-map",
+                ], environment: ["PATH": "/usr/bin:/bin", "HOME": home.pathString], includeStandardError: true)
+                #expect(output.contains("\"/user\" -> \"\(projectPath.pathString)\"") == xcodeInitExists)
+                #expect(output.contains("\"/generic\" -> \"\(projectPath.pathString)\"") == (homeFiles == "generic"))
+                #expect(output.contains("error: 'tuist-command-that-does-not-exist'") == (homeFiles == "broken"))
+                #expect(!output.contains("(lldb) settings set target.source-map /user"))
+                #expect(output.contains("target.max-children-count (unsigned) = ") == (homeFiles == "results"))
+            }
+            let scriptPath = projectPath.appending(component: "debugger-\(index).sh")
+            try await FileSystem().writeText(#require(action.script), at: scriptPath)
+            _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: [
+                "PATH": "/usr/bin:/bin",
+                "HOME": home.pathString,
+                "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+                "SWIFT_ENABLE_PREFIX_MAPPING": "YES",
+                "TARGET_TEMP_DIR": projectPath.pathString,
+            ])
+            let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+            #expect(contents.contains(".lldbinit-Xcode") == (!customLLDBInitFiles && xcodeInitExists))
+            #expect(contents.contains("custom ") == customLLDBInitFiles)
+            #expect(contents.contains("settings append target.source-map"))
+            if !customLLDBInitFiles, homeFiles != "none" {
+                #expect(contents.hasPrefix("script import os; p = "))
+                #expect(contents.contains(#"home \"quoted\" café/.lldbinit"#))
+            }
+            if !customLLDBInitFiles {
+                let output = try runProcess("/usr/bin/xcrun", arguments: [
+                    "lldb", "--no-lldbinit", "--batch", "--source", initPath.pathString,
+                    "-o", "settings show target.source-map",
+                ], environment: ["PATH": "/usr/bin:/bin", "HOME": home.pathString], includeStandardError: true)
+                #expect(output.contains("\"/user\" -> \"\(projectPath.pathString)\"") == xcodeInitExists)
+                #expect(output.contains("\"/generic\" -> \"\(projectPath.pathString)\"") == (homeFiles == "generic"))
+                #expect(output.contains("\"/^root\" -> \"\(projectPath.pathString)\""))
+                #expect(output.contains("error: 'tuist-command-that-does-not-exist'") == (homeFiles == "broken"))
+                #expect(!output.contains("(lldb) settings set target.source-map /user"))
+                #expect(output.contains("target.max-children-count (unsigned) = ") == (homeFiles == "results"))
+            }
+        }
+    }
+
     @Test(.inTemporaryDirectory)
     func generatedScript_readsEvaluatedMappingsWithoutChangingTheModuleLoader() async throws {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
@@ -747,6 +836,7 @@ struct CachedModulesDebuggingGraphMapperTests {
         _ executable: String,
         arguments: [String],
         environment: [String: String],
+        includeStandardError: Bool = false,
         workingDirectory: AbsolutePath? = nil
     ) throws -> String {
         let process = Process()
@@ -763,8 +853,9 @@ struct CachedModulesDebuggingGraphMapperTests {
         let errorData = errors.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         let text = String(decoding: data, as: UTF8.self)
-        #expect(process.terminationStatus == 0, Comment(rawValue: text + String(decoding: errorData, as: UTF8.self)))
-        return text
+        let errorText = String(decoding: errorData, as: UTF8.self)
+        #expect(process.terminationStatus == 0, Comment(rawValue: text + errorText))
+        return includeStandardError ? text + errorText : text
     }
 
     private func fileDescriptor(
