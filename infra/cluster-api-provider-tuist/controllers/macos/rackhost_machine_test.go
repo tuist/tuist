@@ -253,3 +253,29 @@ func TestNoMachinesWithoutTheirCluster(t *testing.T) {
 		t.Fatalf("status.machine = %q with no Machines kept", got)
 	}
 }
+
+// A host lent to another fleet's pools keeps the operator's Machine, whose
+// fleet label the MachineHealthCheck selects on, and hands the other fleet to
+// its machine for the Node.
+func TestRackHostLendsItsNodeToAnotherFleet(t *testing.T) {
+	host := unmachinedHost()
+	host.Spec.NodeFleet = "tuist-staging-rack-fleet"
+	r := newRackMachinesReconciler(t, host)
+
+	reconcileHost(t, r, "mini-01")
+
+	infra, ok := getInfraMachine(t, r, testHostMachine)
+	if !ok {
+		t.Fatal("no RackAppleSiliconMachine")
+	}
+	if infra.Spec.FleetName != testFleet || infra.Spec.NodeFleet != "tuist-staging-rack-fleet" {
+		t.Fatalf("fleet %q, node fleet %q", infra.Spec.FleetName, infra.Spec.NodeFleet)
+	}
+	machine, ok := getMachine(t, r, testHostMachine)
+	if !ok {
+		t.Fatal("no Machine")
+	}
+	if machine.Labels["tuist.dev/fleet"] != testFleet {
+		t.Fatalf("Machine fleet label %q, want the operator's %q", machine.Labels["tuist.dev/fleet"], testFleet)
+	}
+}

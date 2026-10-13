@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-#MISE description="Run end-to-end resolver tests against real-world Package.swift fixtures"
+#MISE description="Run end-to-end resolver tests against real-world Package.swift fixtures. Extra arguments are forwarded to bazel build."
 set -euo pipefail
 
-bazel build //:swifterpm
+bazel build "$@" //:swifterpm
 shellspec_args=(--shell bash)
 shellspec_jobs="${SHELLSPEC_JOBS:-6}"
 if [[ "${shellspec_jobs}" != "0" ]]; then

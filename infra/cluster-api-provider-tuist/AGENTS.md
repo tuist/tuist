@@ -76,7 +76,7 @@ private-network guide above.
 | `RackPDU` | One switched PDU in a rack we operate, rendered from the site definition in `infra/rack-switch-fleet`: model, the MAC its address is reserved against, address, chain, `managedBy`, the outlets' startup state. Its controller adopts the card and owns its credentials, certificate pin and egress Service. See "RackPDU" below. |
 | `RackATS` | One automatic transfer switch (EATS16N) in a rack we operate, rendered from the site definition: model, MAC, address, `managedBy`, `preferredSource`. Its controller adopts the card like a RackPDU's, keeps the preferred source, and every minute records which source powers the load and each source's state in status, metrics and events. See "RackATS" below. |
 | `RackLinuxMachine` | One rack Linux node, created by the operator with its CAPI Machine under its host's name: the host it is, the name it joined under, its converge state. |
-| `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`) and its AMT. Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
+| `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`), its AMT and, for an edge, its way out on its first boot (`edge`). Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
 | `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, its TPM's endorsement key, the `bootMAC` to declare (its i226-LM), the edge that heard it, the host that declares it, if any, and the last announcement that conflicted with the first. The boot servers write it and the operator marks it. |
 | `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
 | `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Reinstall-on-release. |
@@ -350,6 +350,22 @@ deletion of Kubernetes Node associated with Machine as it is not allowed`,
 `cause="no control plane members"`). The RackAppleSiliconMachine's delete path
 deletes the Node, without a drain: cordon and drain a host's Node before
 parking or retiring the host.
+
+### A host lent to another cluster
+
+`RackHost.spec.nodeCluster` keeps a host in this operator's inventory while
+its Node registers in another cluster (runbook: "Lending a host to another
+env" in [infra/rack-nodes/AGENTS.md](../rack-nodes/AGENTS.md)). The machine
+controller reads tart-kubelet's kubeconfig from the Secret it names instead of
+minting an identity, and only once it can read it does it revoke the host's
+identity here and delete its Node here (`retireLocalNode`), so a missing Secret
+leaves the host serving this cluster. It skips the missing-Node re-bootstrap,
+points custom cache volumes at `cacheVolumesURL`, and the RackHost controller
+puts `cluster.x-k8s.io/skip-remediation` on the Machine (marked with
+`tuist.dev/lent-skip-remediation`, so returning the host removes only that
+one). `spec.nodeFleet` replaces the Node's `tuist.dev/fleet` label, which the
+other cluster's pools select. Both are per-host, which `HostConfigHash` strips,
+so `desiredHostConfigHash` folds them in, and only for a lent host.
 
 ### Where it deliberately diverges from the Scaleway kind
 
@@ -1168,8 +1184,9 @@ and an older one of the host is not, the host controller deletes the older one
 and renames the newest to the hostname. Two connected devices are left alone
 and reported as `DuplicateDevices`. The machine reconciler keys reinstalls off
 the device ID: a new one is held to the SSH host key the install gave it
-(below), or, for an install the operator did not publish (a per-host stick),
-pinned to the first key it presents.
+(below) once the boot server handed out that install's seed, and otherwise,
+as for a host installed from its own stick, pinned to the first key it
+presents.
 
 **The host controller publishes installs** (`racklinuxhost_install.go`,
 rendered by `internal/rackinstall`) when `--rack-linux-fleet-name` and
@@ -1187,7 +1204,19 @@ since a new one would not reach that installer. A key the Secret no longer
 carries, renewed or withdrawn, is revoked. When the install's device joins, the
 host controller pins its host key for that device before recording the device,
 so the machine reconciler's first dial is held to the key the operator
-generated rather than trusting the first one it sees. The boot MAC is `spec.bootMAC`, or the management port the
+generated rather than trusting the first one it sees. A device is the
+install's only if the boot server handed out its seed (`status.boot.servedAt`
+under the install's key), which it records before handing it out: one that
+joins while the seed was never handed out came from another installer, such
+as a per-host stick that carries its own join key and lets the host generate
+its host key, so the install is withdrawn (`InstalledElsewhere`), its
+generation recorded as installed, and the device pinned to the first key it
+presents. The Tailscale API does not say which key a device joined with, so
+the hand-out record is what tells the two apart. A host a stick installed
+after its seed was handed out is still held to the install's key and fails its
+converge with a host key mismatch; deleting `host-fingerprint` from its
+`rack-linux-<host UUID>-<device ID>-bootstrap` Secret pins it on first use.
+The boot MAC is `spec.bootMAC`, or the management port the
 machine announced (its `RackLinuxCandidate`, below), in `status.bootMAC`; a
 host with neither is `Registering` until its stick announces it. The host takes
 what the machine announced once, into `status.hardware` (product, serial, NICs,
@@ -1322,22 +1351,104 @@ reconciler renders a `RackNodeConfig`, the host's files (kubelet unit and
 configuration, CA, local CNI, containerd's registry mirror, sysctl, modules,
 the management port's networkd file, `/etc/tuist/kubernetes-api`, the
 translation of the kubernetes Service to the API server in
-`/etc/tuist/kubernetes-service.nft`), the exact kubelet release the control
-plane runs and the hostname, into the `RackLinuxMachine`'s `status.nodeConfig`,
-hashed. The translation needs the kubernetes Service's ClusterIP, which the
-operator reads like the cluster DNS (a Role on `default/kubernetes` alone), and
-an API server address that is an IP; without either it is removed. `rack-node`
-applies one: it writes only files whose content or mode differs, loads modules
-and sysctls, loads its nftables files on every apply (each recreates its own
-table, which undoes a flush),
-installs containerd with its default configuration on the systemd cgroup
-driver, installs exactly the named kubelet from pkgs.k8s.io and never
-downgrades it, sets the hostname, restarts containerd or the kubelet when
-their files changed, when they are not running, or when the host has not
-finished applying this configuration (`/var/lib/tuist/rack-converge.hash`),
-and leaves a host kubeadm joined alone. Its result is structured
-(`changed`, `restarted`, `applied`, `needsBootstrap`, `foreignJoin`), not an exit
-code.
+`/etc/tuist/kubernetes-service.nft`, an edge's host networking below), the
+directories it needs, the exact kubelet release the control plane runs and the
+hostname, into the `RackLinuxMachine`'s `status.nodeConfig`, hashed. The
+translation needs the kubernetes Service's ClusterIP, which the operator reads
+like the cluster DNS (a Role on `default/kubernetes` alone), and an API server
+address that is an IP; without either it is removed. `rack-node` applies one:
+it creates missing directories, writes only files whose content or mode
+differs, loads modules and sysctls, loads its nftables files on every apply
+(each recreates its own table, which undoes a flush), reloads networkd for a
+changed `.network` file, restarts systemd-networkd or systemd-resolved for
+their own configuration (each reads it only when it starts; networkd once every
+file is written, and a restart stands in for the reload), installs containerd
+with its default configuration on the systemd cgroup driver, installs exactly
+the named kubelet from pkgs.k8s.io and never downgrades it, sets the hostname,
+restarts containerd or the kubelet when their files changed, when they are not
+running, or when the host has not finished applying this configuration
+(`/var/lib/tuist/rack-converge.hash`; networkd and resolved too, when the
+configuration carries files of theirs), and leaves a host kubeadm joined alone.
+Its result is structured (`changed`, `restarted`, `applied`, `needsBootstrap`,
+`foreignJoin`), not an exit code.
+
+**Every rack node runs static pods** from `/etc/kubernetes/manifests`
+(`staticPodPath` in its kubelet configuration, the directory created by the
+converge), so what a node needs before it reaches the API server, such as an
+edge's rack-edge after a cold boot, runs from the node alone.
+
+**An edge's uplinks carry no address of its own.** The rack-edge pod
+(`infra/helm/rack-edge`, rendered by `infra/rack-switch-fleet/lib/edge.sh`)
+puts the WAN on a VLAN interface it creates (`wan0`), with the address
+keepalived floats, and routes over the X710 uplinks itself, with `ip route` and
+keepalived's `virtual_routes`. For a host whose `spec.role` is `edge` the
+converge writes:
+
+- `/etc/systemd/network/05-tuist-edge-uplinks.network`, matching
+  `Driver=i40e`: no DHCP, no IPv6 link-local, no router advertisements,
+  `ActivationPolicy=always-up`, `ConfigureWithoutCarrier=yes` and
+  `RequiredForOnline=no`, so the uplinks are up with no address and boot does
+  not wait for them. networkd applies the first `.network` file that matches a
+  link, in filename order across directories, so it shadows the install's
+  netplan (`/run/systemd/network/10-netplan-*.network`).
+- with `spec.edge`, `/etc/systemd/network/05-tuist-edge-uplink-<n>.network`
+  for each uplink it names, matching the interface by name, which sorts before
+  the driver's file: the same settings plus `VLAN=vrrp0-<n>`. The install's
+  netplan stacks the VRRP VLAN's members on the uplinks in its own uplink
+  files, which these shadow, so without them networkd would stop creating the
+  members on the next boot and an edge rebooted before its rack-edge pod was
+  installed would be cut off. networkd ignores the line on a host whose
+  install defined no `vrrp0-<n>`, where the pod creates them. An uplink the
+  spec no longer names, or a host with no `spec.edge`, gets its file removed.
+- `/etc/systemd/networkd.conf.d/10-tuist-edge.conf`:
+  `ManageForeignRoutes=no` and `ManageForeignRoutingPolicyRules=no`, so
+  networkd never removes the routes and rules keepalived and the rack-edge pod
+  add. The routes on the uplinks belong to them.
+- `/etc/systemd/resolved.conf.d/10-tuist-edge.conf`: global resolvers
+  (`DNS=1.1.1.1 8.8.8.8`, `rackinstall.EdgeResolvedConf`, which an edge's
+  install writes too). An uplink with no address gives systemd-resolved no
+  resolver of its own.
+- `/etc/sysctl.d/99-tuist-edge.conf`:
+  `net.ipv4.conf.all.ignore_routes_with_linkdown = 1`, since the pod's routes
+  to the ToRs' management addresses are multipath over both uplinks and a
+  nexthop on a dead link has to be skipped, which the pod cannot set itself;
+  and `accept_ra = 0` for `all` and `default`, so `wan0`, created at runtime,
+  never takes router advertisements from upstream. IPv6 forwarding stays off.
+
+Another role gets these files removed, so a role change cleans up; the
+sysctls' values stay in the kernel until the host reboots.
+
+**A freshly installed edge goes out through the other edge.** At the colo
+nothing serves DHCP on the management VLAN, and an edge is converged over the
+tailnet, so its first boot needs a way out that neither DHCP nor its own
+rack-edge pod gives it. An edge's `spec.edge` names its uplinks, the site's
+VRRP VLAN, its VRRP address and the other edge's (`peer`); the chart renders it
+from `infra/helm/tuist/rack-sites/<site>.yaml`, which `rack:fleet render`
+writes from the site definition (`fleet_edge_install`), and fails for an edge
+the site has no VRRP member for. With it the install's netplan
+(`rackinstall.EdgeNetwork`) builds the VRRP VLAN exactly as the pod's
+`edge_vlan_bond` does: an active-backup bond `vrrp0` (MII every 100 ms) over
+`vrrp0-<n>`, the VLAN on the n-th uplink, with the edge's VRRP address and
+`default via <peer> metric 200`, the route the pod adds (`proto static` from
+both, so a networkd restart adds no second copy); the uplinks themselves
+take no address, no DHCP and no link-local, and `network-online.target` waits
+for `vrrp0` alone. It also writes the converge's global resolvers. The master
+translates the VRRP prefix onto `wan0`, so the new edge reaches the tailnet,
+joins, and is converged; the pod later finds the bond, its members, the address
+and the route in place and changes nothing, and the converge's per-uplink
+files keep networkd building them. netplan's output is tested with netplan
+1.x on Ubuntu 24.04 (`TestNetplanGeneratesTheEdgesVRRPBond`, skipped where
+netplan is not installed). On 2026-10-09 the rendered netplan ran under
+systemd-networkd in a container with dummy uplinks: the pod's `edge_vlan_bond`
+found everything in place and changed nothing, and after the converge's files
+and a simulated reboot networkd rebuilt the bond, which it did not without the
+per-uplink files. Not yet run: an install of a real edge at the colo.
+
+This needs the other edge up as master: reinstall the edges one at a time.
+Without `spec.edge`, as at a site with no WAN, an edge's install takes DHCP on
+its uplinks. A per-host stick (`cmd/rack-seed`) renders no edge network; an
+edge at the colo is installed from the operator's install, netbooted or
+through the site's stick.
 
 The operator runs it over SSH (`rack-node apply`, the request on stdin and the
 result on stdout, the binary uploaded under `/usr/local/lib/tuist/` by its
@@ -2109,6 +2220,12 @@ go test ./...
 go build ./...
 docker build -f Dockerfile -t ghcr.io/tuist/capi-provider-scaleway-applesilicon:dev ../..
 ```
+
+Unit tests never reach the network. The rack Linux test harness
+(`newInstallHarness`) fakes every seam that dials a host (`RunScript`,
+`AMTPower`, `ReadHostEK`); a reconciler field left nil falls back to a
+real SSH dial, which hangs until its timeout on a runner that drops the
+packets.
 
 The Dockerfile is multi-stage: it cross-builds tart-cri + tart-cni
 for darwin/arm64 (so the manager can ship them to Mac minis at

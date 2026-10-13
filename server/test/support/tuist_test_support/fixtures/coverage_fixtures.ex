@@ -17,7 +17,6 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.CoverageFile
-  alias Tuist.Tests.EnumeratedTest
   alias Tuist.Tests.TestRunChangedFile
 
   @remote_url "https://github.com/tuist/app"
@@ -180,24 +179,6 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
 
   defp merged_files(project_id, test_run_id, opts),
     do: Coverage.merged_files_query_for_runs(project_id, [test_run_id], Coverage.excluded(project_id, opts))
-
-  @doc "The tests the run's client enumerated, as stored, in module, suite and name order."
-  def enumerated_tests(%{id: test_run_id, project_id: project_id}) do
-    ClickHouseRepo.all(
-      from(t in EnumeratedTest,
-        where: t.project_id == ^project_id and t.test_run_id == ^test_run_id,
-        order_by: [t.module_name, t.suite_name, t.name],
-        select: %{
-          test_case_id: t.test_case_id,
-          module_name: t.module_name,
-          suite_name: t.suite_name,
-          name: t.name,
-          function_name: t.function_name,
-          enabled: t.enabled
-        }
-      )
-    )
-  end
 
   @doc "The run's evidence rows (test, suite and target scopes), in scope and path order."
   def evidence_rows(%{id: test_run_id, project_id: project_id}) do

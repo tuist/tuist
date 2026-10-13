@@ -2,17 +2,21 @@ package linux
 
 import (
 	"encoding/json"
+	"fmt"
+	"path"
 	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackinstall"
 )
 
 func edgeConvergeOptions() rackConvergeOptions {
 	return rackConvergeOptions{
 		NodeName:       "ber1-edge",
+		Role:           "edge",
 		NodeIP:         "100.124.227.31",
 		ProviderID:     "rack-linux://ber1/ber1-edge",
 		KubeletVersion: "1.34.8",
@@ -55,7 +59,7 @@ func TestRackNodeConfigRegistersTheNodeAsDeclared(t *testing.T) {
 		}
 	}
 	config := configFile(t, cfg, "/var/lib/kubelet/config.yaml")
-	for _, want := range []string{"providerID: rack-linux://ber1/ber1-edge", "rotateCertificates: true", "clientCAFile: /var/lib/kubelet/ca.crt"} {
+	for _, want := range []string{"providerID: rack-linux://ber1/ber1-edge", "rotateCertificates: true", "clientCAFile: /var/lib/kubelet/ca.crt", "staticPodPath: /etc/kubernetes/manifests\n"} {
 		if !strings.Contains(config.Content, want) {
 			t.Errorf("the kubelet config lacks %q", want)
 		}
@@ -109,6 +113,7 @@ func TestRackNodeConfigHash(t *testing.T) {
 		"cluster DNS":      func(o *rackConvergeOptions) { o.ClusterDNS = "10.128.0.11" },
 		"node taints":      func(o *rackConvergeOptions) { o.NodeTaints = nil },
 		"provider ID":      func(o *rackConvergeOptions) { o.ProviderID = "rack-linux://ber1/other" },
+		"role":             func(o *rackConvergeOptions) { o.Role = "storage" },
 	} {
 		changed := base
 		mutate(&changed)
@@ -165,6 +170,109 @@ func TestRackNodeConfigDropsTheManagementPortWithoutABootMAC(t *testing.T) {
 	}
 	if !removed {
 		t.Fatalf("absent %+v; a host whose boot MAC was removed keeps its management port configuration", cfg.Absent)
+	}
+}
+
+// A node runs its static pods, such as an edge's rack-edge after a cold boot,
+// without the API server, from a directory that exists before the kubelet
+// starts.
+func TestRackNodeConfigGivesEveryRackNodeAStaticPodPath(t *testing.T) {
+	for _, role := range []string{"edge", "storage", "services"} {
+		o := edgeConvergeOptions()
+		o.Role = role
+		cfg := rackNodeConfig(o)
+		if len(cfg.Directories) != 1 || cfg.Directories[0] != "/etc/kubernetes/manifests" {
+			t.Errorf("%s: directories %v", role, cfg.Directories)
+		}
+		if !strings.Contains(configFile(t, cfg, "/var/lib/kubelet/config.yaml").Content, "staticPodPath: /etc/kubernetes/manifests\n") {
+			t.Errorf("%s: the kubelet runs no static pods", role)
+		}
+	}
+}
+
+// An edge's uplinks carry no address of its own: the rack-edge pod puts the
+// WAN on wan0 and routes over the uplinks itself, and nothing on them serves
+// DHCP at the colo.
+func TestRackNodeConfigRunsAnEdgesUplinksWithoutAnAddress(t *testing.T) {
+	cfg := rackNodeConfig(edgeConvergeOptions())
+
+	uplinks := configFile(t, cfg, "/etc/systemd/network/05-tuist-edge-uplinks.network")
+	want := "[Match]\nDriver=i40e\n\n" +
+		"[Link]\nActivationPolicy=always-up\nRequiredForOnline=no\n\n" +
+		"[Network]\nDHCP=no\nLinkLocalAddressing=no\nIPv6AcceptRA=no\nConfigureWithoutCarrier=yes\n"
+	if uplinks.Content != want || uplinks.Group != "network" || uplinks.Mode != "0644" {
+		t.Fatalf("uplinks %+v", uplinks)
+	}
+	// networkd applies the first file that matches a link, and netplan's
+	// takes DHCP on the uplinks.
+	if !(path.Base(uplinks.Path) < "10-netplan-uplinks.network") {
+		t.Fatalf("%s does not sort before netplan's file", uplinks.Path)
+	}
+
+	networkd := configFile(t, cfg, "/etc/systemd/networkd.conf.d/10-tuist-edge.conf")
+	if networkd.Content != "[Network]\nManageForeignRoutes=no\nManageForeignRoutingPolicyRules=no\n" || networkd.Group != "networkd" {
+		t.Fatalf("networkd %+v", networkd)
+	}
+	resolved := configFile(t, cfg, "/etc/systemd/resolved.conf.d/10-tuist-edge.conf")
+	if resolved.Content != "[Resolve]\nDNS=1.1.1.1 8.8.8.8\n" || resolved.Group != "resolved" {
+		t.Fatalf("resolved %+v", resolved)
+	}
+	sysctl := configFile(t, cfg, "/etc/sysctl.d/99-tuist-edge.conf")
+	if sysctl.Content != "net.ipv4.conf.all.ignore_routes_with_linkdown = 1\nnet.ipv6.conf.all.accept_ra = 0\nnet.ipv6.conf.default.accept_ra = 0\n" || sysctl.Group != "sysctl" {
+		t.Fatalf("sysctl %+v", sysctl)
+	}
+	if strings.Contains(sysctl.Content, "forwarding") {
+		t.Fatal("the edge's sysctl turns IPv6 forwarding on")
+	}
+	applied := false
+	for _, s := range cfg.Sysctl {
+		applied = applied || (s.Path == "/etc/sysctl.d/99-tuist-edge.conf" && !s.Optional)
+	}
+	if !applied {
+		t.Fatalf("sysctl %+v does not apply the edge's", cfg.Sysctl)
+	}
+	for _, f := range cfg.Absent {
+		if strings.Contains(f.Path, "tuist-edge") && !strings.Contains(f.Path, "tuist-edge-uplink-") {
+			t.Errorf("an edge removes %s", f.Path)
+		}
+	}
+}
+
+// A host that is not an edge keeps DHCP on its uplinks, and one that stops
+// being an edge drops the edge's files.
+func TestRackNodeConfigDropsTheEdgeNetworkingFromOtherRoles(t *testing.T) {
+	o := edgeConvergeOptions()
+	o.Role = "storage"
+	cfg := rackNodeConfig(o)
+
+	edgeFiles := map[string]string{
+		"/etc/systemd/network/05-tuist-edge-uplinks.network":  "network",
+		"/etc/systemd/networkd.conf.d/10-tuist-edge.conf":     "networkd",
+		"/etc/systemd/resolved.conf.d/10-tuist-edge.conf":     "resolved",
+		"/etc/sysctl.d/99-tuist-edge.conf":                    "sysctl",
+		"/etc/systemd/network/05-tuist-edge-uplink-1.network": "network",
+		"/etc/systemd/network/05-tuist-edge-uplink-2.network": "network",
+	}
+	for _, f := range cfg.Files {
+		if _, ok := edgeFiles[f.Path]; ok {
+			t.Errorf("a storage host writes %s", f.Path)
+		}
+	}
+	for _, f := range cfg.Absent {
+		if group, ok := edgeFiles[f.Path]; ok {
+			if f.Group != group {
+				t.Errorf("removing %s takes %q, want %q", f.Path, f.Group, group)
+			}
+			delete(edgeFiles, f.Path)
+		}
+	}
+	if len(edgeFiles) != 0 {
+		t.Errorf("a storage host keeps %v", edgeFiles)
+	}
+	for _, s := range cfg.Sysctl {
+		if s.Path == "/etc/sysctl.d/99-tuist-edge.conf" {
+			t.Error("a storage host applies the edge's sysctl")
+		}
 	}
 }
 
@@ -251,4 +359,92 @@ func TestRackNodeConfigLeavesTheKubernetesServiceAloneWithoutAnAddressToTranslat
 			t.Errorf("%s: leaves an earlier rules file in place", name)
 		}
 	}
+}
+
+func ber1EdgeBSpec() *infrav1.RackLinuxHostEdge {
+	return &infrav1.RackLinuxHostEdge{
+		Uplinks: []string{"enp2s0f1np1", "enp2s0f0np0"},
+		VRRP:    infrav1.RackLinuxHostEdgeVRRP{VLAN: 4000, Address: "10.255.255.2/29", Peer: "10.255.255.1"},
+	}
+}
+
+// The converge's uplink files shadow netplan's, which stack the VRRP VLAN's
+// members on the uplinks. An edge that names its uplinks keeps stacking them,
+// so networkd builds the VRRP bond on every boot, also before the rack-edge
+// pod is installed.
+func TestRackNodeConfigKeepsTheVRRPVLANOnAnEdgesUplinks(t *testing.T) {
+	o := edgeConvergeOptions()
+	o.Edge = ber1EdgeBSpec()
+	cfg := rackNodeConfig(o)
+
+	for n, uplink := range map[int]string{1: "enp2s0f1np1", 2: "enp2s0f0np0"} {
+		f := configFile(t, cfg, fmt.Sprintf("/etc/systemd/network/05-tuist-edge-uplink-%d.network", n))
+		want := fmt.Sprintf("[Match]\nName=%s\n\n", uplink) +
+			"[Link]\nActivationPolicy=always-up\nRequiredForOnline=no\n\n" +
+			fmt.Sprintf("[Network]\nDHCP=no\nLinkLocalAddressing=no\nIPv6AcceptRA=no\nConfigureWithoutCarrier=yes\nVLAN=vrrp0-%d\n", n)
+		if f.Content != want || f.Group != "network" {
+			t.Errorf("uplink %d: %+v", n, f)
+		}
+		for _, other := range []string{"05-tuist-edge-uplinks.network", fmt.Sprintf("10-netplan-uplink-%d.network", n)} {
+			if !(path.Base(f.Path) < other) {
+				t.Errorf("%s does not sort before %s", f.Path, other)
+			}
+		}
+	}
+	configFile(t, cfg, "/etc/systemd/network/05-tuist-edge-uplinks.network")
+	for _, f := range cfg.Absent {
+		if strings.Contains(f.Path, "tuist-edge") {
+			t.Errorf("an edge naming two uplinks removes %s", f.Path)
+		}
+	}
+}
+
+func TestRackNodeConfigRemovesTheFileOfAnUplinkTheEdgeNoLongerNames(t *testing.T) {
+	o := edgeConvergeOptions()
+	o.Edge = ber1EdgeBSpec()
+	o.Edge.Uplinks = o.Edge.Uplinks[:1]
+	cfg := rackNodeConfig(o)
+
+	configFile(t, cfg, "/etc/systemd/network/05-tuist-edge-uplink-1.network")
+	removed := false
+	for _, f := range cfg.Absent {
+		removed = removed || (f.Path == "/etc/systemd/network/05-tuist-edge-uplink-2.network" && f.Group == "network")
+	}
+	if !removed {
+		t.Fatalf("absent %+v keeps the second uplink's file", cfg.Absent)
+	}
+}
+
+// The members the converge stacks on the uplinks are the ones the install
+// defines, and the resolvers it keeps are the ones the install writes, so a
+// first converge changes neither.
+func TestRackNodeConfigAgreesWithTheEdgesInstall(t *testing.T) {
+	o := edgeConvergeOptions()
+	o.Edge = ber1EdgeBSpec()
+	cfg := rackNodeConfig(o)
+	userData, err := edgeInstallUserData(o.Edge)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := 1; n <= 2; n++ {
+		member := fmt.Sprintf("vrrp0-%d", n)
+		if !strings.Contains(configFile(t, cfg, fmt.Sprintf("/etc/systemd/network/05-tuist-edge-uplink-%d.network", n)).Content, "VLAN="+member+"\n") ||
+			!strings.Contains(userData, "      "+member+":\n        id: 4000\n") {
+			t.Errorf("the converge and the install disagree on %s:\n%s", member, userData)
+		}
+	}
+	resolved := configFile(t, cfg, "/etc/systemd/resolved.conf.d/10-tuist-edge.conf")
+	if !strings.Contains(userData, "cat > /target"+resolved.Path+" <<'TUIST_EOF'\n      [Resolve]\n      DNS=1.1.1.1 8.8.8.8\n") {
+		t.Errorf("the install does not write the converge's resolvers:\n%s", userData)
+	}
+}
+
+// edgeInstallUserData is the install an edge with edge gets.
+func edgeInstallUserData(edge *infrav1.RackLinuxHostEdge) (string, error) {
+	return rackinstall.UserData(rackinstall.Seed{
+		Host: "ber1-edge", Role: "edge", User: "tuist", ConsolePassword: "c0nsolePassw0rdForTests",
+		AuthorizedKeys: []string{"ssh-ed25519 AAAAFLEET fleet"}, TailnetTags: []string{"tag:tuist-rack-edge"},
+		TailnetKey: "tskey-auth-kTEST1CNTRL-abc", TailnetKeyID: "kTEST1CNTRL",
+		Edge: rackEdgeNetwork(edge),
+	})
 }

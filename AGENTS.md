@@ -15,6 +15,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `tuist_ex/` - Elixir build and test instrumentation Hex package - see `tuist_ex/AGENTS.md`
 - `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
 - `atlas/` - Atlas internal ops app (Elixir/Phoenix) covering CRM, contracts, GTM, finance, letters, and the MCP tools other services call into. Deployed to `atlas-production` on the CAPI cluster. MPL-2.0. See `atlas/AGENTS.md`.
+- `atlas-native/` - Native Atlas clients (shared Rust core, Rust CLI, Kotlin Android, SwiftUI iOS) built with Once - see `atlas-native/AGENTS.md`
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `gradle/` - Tuist Gradle plugin (Kotlin) - see `gradle/AGENTS.md`
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
@@ -62,6 +63,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `android` - Changes to the Tuist Android app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
 - `atlas` - Changes to the Atlas internal ops app (Elixir/Phoenix)
+- `atlas-native` - Changes to the Atlas native clients and shared Rust core
 - `codebase-search` - Changes to the bounded source-code search service
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
 - `registry` - Changes to the Swift package registry service

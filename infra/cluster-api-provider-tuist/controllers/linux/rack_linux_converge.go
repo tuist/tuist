@@ -32,12 +32,22 @@ const (
 	rackKubernetesAPIPath = "/etc/tuist/kubernetes-api"
 
 	rackKubernetesServicePath = "/etc/tuist/kubernetes-service.nft"
+
+	// rackStaticPodPath is where the kubelet runs static pods from: what a
+	// node runs before it reaches the API server, such as an edge's rack-edge
+	// after a cold boot.
+	rackStaticPodPath = "/etc/kubernetes/manifests"
 )
 
 // rackConvergeOptions is everything a rack node's configuration renders
 // from.
 type rackConvergeOptions struct {
-	NodeName   string
+	NodeName string
+	// Role is the host's spec.role. An edge routes the rack to the internet
+	// over uplinks that carry no address of the host's (rackEdgeFiles).
+	Role string
+	// Edge is an edge's spec.edge, the VRRP VLAN its install builds.
+	Edge       *infrav1.RackLinuxHostEdge
 	NodeIP     string
 	ProviderID string
 	// KubeletVersion is the exact kubelet release to run, without the `v`.
@@ -132,12 +142,13 @@ WantedBy=multi-user.target
 // rackKubeletConfig is the fleet's self-join kubelet configuration plus what a
 // kubelet with a certificate identity needs: rotation and its providerID.
 // resolvConf is systemd-resolved's stub, the resolver that answers tailnet
-// names for host-network pods.
+// names for host-network pods. Static pods run from rackStaticPodPath.
 func rackKubeletConfig(o rackConvergeOptions) string {
 	return kubeletConfigContent(o.ClusterDNS, kubeletClientCAPath) + fmt.Sprintf(`providerID: %s
 rotateCertificates: true
 resolvConf: /etc/resolv.conf
-`, o.ProviderID)
+staticPodPath: %s
+`, o.ProviderID, rackStaticPodPath)
 }
 
 // rackLocalCNIConfig is the node-local pod network. The bridge is the pods'
@@ -176,7 +187,8 @@ func rackNodeConfig(o rackConvergeOptions) infrav1.RackNodeConfig {
 		return infrav1.RackNodeFile{Path: path, Mode: "0644", Group: group, Content: ensureTrailingNewline(content)}
 	}
 	cfg := infrav1.RackNodeConfig{
-		Hostname: o.NodeName,
+		Hostname:    o.NodeName,
+		Directories: []string{rackStaticPodPath},
 		Files: []infrav1.RackNodeFile{
 			file("/etc/modules-load.d/tuist-k8s.conf", "modules", modulesLoadContent),
 			file(rackinstall.ModprobePath, "modules", rackinstall.ModprobeConf),
@@ -208,6 +220,14 @@ func rackNodeConfig(o rackConvergeOptions) infrav1.RackNodeConfig {
 		cfg.Files = append(cfg.Files, file(rackManagementNetworkPath, "network", rackManagementNetwork(o.ManagementMAC)))
 	} else {
 		cfg.Absent = append(cfg.Absent, infrav1.RackNodeFile{Path: rackManagementNetworkPath, Group: "network"})
+	}
+	edgeFiles, edgeAbsent := rackEdgeFiles(o)
+	for _, f := range edgeFiles {
+		cfg.Files = append(cfg.Files, file(f.Path, f.Group, f.Content))
+	}
+	cfg.Absent = append(cfg.Absent, edgeAbsent...)
+	if o.Role == "edge" {
+		cfg.Sysctl = append(cfg.Sysctl, infrav1.RackNodeSysctl{Path: rackEdgeSysctlPath})
 	}
 	body, _ := json.Marshal(cfg)
 	sum := sha256.Sum256(body)
@@ -267,4 +287,91 @@ RequiredForOnline=no
 LinkLocalAddressing=no
 IPv6AcceptRA=no
 `, mac)
+}
+
+const (
+	rackEdgeUplinksNetworkPath = "/etc/systemd/network/05-tuist-edge-uplinks.network"
+	rackEdgeNetworkdPath       = "/etc/systemd/networkd.conf.d/10-tuist-edge.conf"
+	rackEdgeSysctlPath         = "/etc/sysctl.d/99-tuist-edge.conf"
+	// rackEdgeMaxUplinks is how many uplinks an edge's spec.edge may name,
+	// and so how many per-uplink files a role change has to remove.
+	rackEdgeMaxUplinks = 2
+)
+
+// rackEdgeUplinkNetworkPath is the file for an edge's n-th uplink (from 1).
+// It sorts before rackEdgeUplinksNetworkPath.
+func rackEdgeUplinkNetworkPath(n int) string {
+	return fmt.Sprintf("/etc/systemd/network/05-tuist-edge-uplink-%d.network", n)
+}
+
+const rackEdgeUplinkNetwork = `[Link]
+ActivationPolicy=always-up
+RequiredForOnline=no
+
+[Network]
+DHCP=no
+LinkLocalAddressing=no
+IPv6AcceptRA=no
+ConfigureWithoutCarrier=yes
+`
+
+// rackEdgeFiles are an edge's host networking, and the files a host that is
+// not one, or names fewer uplinks, removes. The rack-edge pod puts the WAN on
+// a VLAN interface of its own (wan0) and routes over the X710 uplinks (driver
+// i40e) itself, with `ip route` and keepalived, so the uplinks carry no
+// address of the host's.
+//
+// The uplinks' files sort before netplan's 10-netplan-*.network, which the
+// install leaves on them, and networkd applies the first file that matches a
+// link. They keep them up with no address, no DHCP, no IPv6 link-local and no
+// router advertisements, configured without carrier, and boot does not wait
+// for them. An edge whose spec.edge names its uplinks gets one file per
+// uplink that also stacks vrrp0-<n> on the n-th, the VLAN interface its
+// install defines (rackinstall.EdgeNetwork), so networkd keeps building the
+// VRRP bond across reboots before the rack-edge pod runs. On a host installed
+// without it, networkd finds no such interface defined and ignores the line,
+// and the pod builds the bond as before. Any other X710 port, and every
+// uplink of an edge whose spec.edge is unset, takes the driver's file.
+//
+// networkd leaves routes and routing policy rules it did not configure alone,
+// as keepalived's and the pod's on the uplinks. With no address on the
+// uplinks, systemd-resolved learns no resolver from them, so the edge
+// resolves through global ones.
+//
+// A nexthop on an uplink whose link is down is skipped, since the pod's
+// routes to the ToRs are multipath over both uplinks. No interface takes
+// router advertisements by default, so wan0, which the pod creates, never
+// takes one from upstream.
+func rackEdgeFiles(o rackConvergeOptions) (files, absent []infrav1.RackNodeFile) {
+	var uplinks []string
+	if o.Edge != nil {
+		uplinks = o.Edge.Uplinks
+	}
+	all := []infrav1.RackNodeFile{
+		{Path: rackEdgeUplinksNetworkPath, Group: "network", Content: "[Match]\nDriver=i40e\n\n" + rackEdgeUplinkNetwork},
+		{Path: rackEdgeNetworkdPath, Group: "networkd", Content: `[Network]
+ManageForeignRoutes=no
+ManageForeignRoutingPolicyRules=no
+`},
+		{Path: rackinstall.EdgeResolvedPath, Group: "resolved", Content: rackinstall.EdgeResolvedConf},
+		{Path: rackEdgeSysctlPath, Group: "sysctl", Content: `net.ipv4.conf.all.ignore_routes_with_linkdown = 1
+net.ipv6.conf.all.accept_ra = 0
+net.ipv6.conf.default.accept_ra = 0
+`},
+	}
+	for n := 1; n <= rackEdgeMaxUplinks; n++ {
+		f := infrav1.RackNodeFile{Path: rackEdgeUplinkNetworkPath(n), Group: "network"}
+		if n <= len(uplinks) {
+			f.Content = fmt.Sprintf("[Match]\nName=%s\n\n%sVLAN=%s\n", uplinks[n-1], rackEdgeUplinkNetwork, rackinstall.EdgeUplinkMember(rackinstall.EdgeVRRPBond, n))
+		}
+		all = append(all, f)
+	}
+	for _, f := range all {
+		if o.Role == "edge" && f.Content != "" {
+			files = append(files, f)
+		} else {
+			absent = append(absent, infrav1.RackNodeFile{Path: f.Path, Group: f.Group})
+		}
+	}
+	return files, absent
 }

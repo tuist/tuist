@@ -1,0 +1,136 @@
+[workspace]
+include = ["once.toml"]
+exclude = ["**/Cargo.toml"]
+
+[infrastructure.cache]
+provider = "tuist"
+
+[infrastructures.tuist]
+kind = "tuist"
+account = "tuist"
+project = "atlas-mobile"
+
+[[target]]
+name = "AtlasCore"
+kind = "rust_mobile_library"
+srcs = ["core/src/**/*.rs"]
+
+[target.attrs]
+crate_name = "atlas_core"
+crate_root = "core/src/lib.rs"
+edition = "2024"
+apple_target = "aarch64-apple-ios-sim"
+android_target = "aarch64-linux-android"
+android_abi = "arm64-v8a"
+android_api = 26
+
+[[target]]
+name = "AtlasCoreHost"
+kind = "rust_library"
+srcs = ["core/src/**/*.rs"]
+
+[target.attrs]
+crate_name = "atlas_core"
+crate_root = "core/src/lib.rs"
+edition = "2024"
+
+[[target]]
+name = "AtlasCLI"
+kind = "rust_binary"
+srcs = ["cli/src/**/*.rs"]
+deps = ["./AtlasCoreHost"]
+
+[target.attrs]
+crate_name = "atlas"
+crate_root = "cli/src/main.rs"
+edition = "2024"
+rustc_flags = ["-Dwarnings"]
+
+[[target]]
+name = "AtlasCLITests"
+kind = "rust_test"
+srcs = ["cli/src/**/*.rs"]
+deps = ["./AtlasCoreHost"]
+
+[target.attrs]
+crate_name = "atlas_cli_tests"
+crate_root = "cli/src/main.rs"
+edition = "2024"
+rustc_flags = ["-Dwarnings"]
+
+[[target]]
+name = "AtlasCoreTests"
+kind = "rust_test"
+srcs = ["core/src/**/*.rs"]
+
+[target.attrs]
+crate_name = "atlas_core_tests"
+crate_root = "core/src/lib.rs"
+edition = "2024"
+rustc_flags = ["-Dwarnings"]
+
+[[target]]
+name = "AtlasSwiftLint"
+kind = "swiftlint_lint"
+srcs = ["ios/Sources/**/*.swift", "ios/Tests/**/*.swift"]
+
+[target.attrs]
+config = ["ios/.swiftlint.yml"]
+args = ["--strict"]
+
+[[target]]
+name = "AtlasCoreFFI"
+kind = "apple_system_module"
+
+[target.attrs]
+modulemap = "core/include/module.modulemap"
+headers = ["core/include/atlas_core.h"]
+header_dirs = ["core/include"]
+
+[[target]]
+name = "AtlasAndroid"
+kind = "android_binary"
+srcs = ["android/src/**/*.kt"]
+deps = ["./AtlasCore"]
+
+[target.attrs]
+application_id = "dev.tuist.atlas"
+manifest = "android/AndroidManifest.xml"
+resource_files = ["android/res/**"]
+resource_dirs = ["android/res"]
+compile_sdk = 35
+target_sdk_version = 35
+min_sdk_version = 26
+build_tools_version = "35.0.0"
+version_code = 1
+version_name = "0.1.0"
+launch_activity = ".MainActivity"
+signing = "debug"
+
+[[target]]
+name = "AtlasIOS"
+kind = "apple_application"
+srcs = ["ios/Sources/**/*.swift"]
+deps = ["./AtlasCore", "./AtlasCoreFFI"]
+
+[target.attrs]
+platform = "ios"
+bundle_id = "dev.tuist.atlas"
+product_name = "Atlas"
+minimum_os = "17.0"
+sdk_variant = "simulator"
+families = ["iphone", "ipad"]
+info_plist = "ios/Info.plist"
+
+[[target]]
+name = "AtlasIOSTests"
+kind = "apple_test_bundle"
+srcs = ["ios/Tests/**/*.swift", "ios/Sources/AtlasCore.swift"]
+deps = ["./AtlasCore", "./AtlasCoreFFI"]
+
+[target.attrs]
+platform = "ios"
+minimum_os = "17.0"
+sdk_variant = "simulator"
+bundle_id = "dev.tuist.atlas.tests"
+swift_testing = true

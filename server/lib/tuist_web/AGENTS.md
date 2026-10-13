@@ -17,7 +17,7 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
 - If a route should not contribute any `robots.txt` entry, opt it out explicitly with `metadata: %{robots_txt: false}`.
 
 ## Search Indexing
-- Informational public-project LiveViews opt in with `public_project: true, robots_txt: false` metadata. Visibility and authorization still decide whether a response can be indexed; do not opt settings, connection flows, or raw downloads into indexing.
+- Only public-project overview roots opt in with `public_project: true, robots_txt: false` metadata. Visibility and authorization still decide whether a response can be indexed. Deeper dashboards, analytics, previews, settings and downloads remain noindex and retain their challenge gates; the project sitemap lists overview roots only.
 
 ## Browser Telemetry
 - `BrowserTelemetry.Enrichment` adds reserved measurement context using route metadata and gateway-observed authentication. Browser URL/session/navigation fields remain untrusted; never equate authentication or metadata completeness with humanity.

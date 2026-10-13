@@ -70,7 +70,9 @@ public func parseXCResult(
     // `outcome` on that path, so a late write cannot race the value returned.
     let deadline = DispatchTime.now() + .seconds(timeoutSeconds + coverageTimeoutSeconds + 2 * cancellationGraceSeconds)
     guard semaphore.wait(timeout: deadline) == .success else {
-        task.cancel()
+        // Cancelling runs the parse's cancellation handlers on the calling thread. Off this dirty
+        // scheduler, so a handler that never returns cannot keep the scheduler and the job with it.
+        Thread.detachNewThread { task.cancel() }
         return write(
             timedOutMessage(path: path, seconds: timeoutSeconds),
             outputPtr: outputPtr,

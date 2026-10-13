@@ -12,8 +12,10 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - Avoid direct file system or graph logic that belongs in `TuistCore`, `TuistGenerator`, or `TuistSupport`.
 
 ## Invariants
+- `tuist xcodebuild` may reorder a supported action for Tuist's subcommand parser, but must restore its original position before forwarding arguments to xcodebuild. Preserve the caller's action sequence, including `clean` and repeated actions, and exclude consumed Tuist-only options from the forwarded arguments.
 - Swift flag deduplication must preserve top-level `-Werror` and `-Wwarning` pairs in their original order, including repetitions, in both ordinary and platform-conditioned build settings. Do not mistake a forwarded option such as `-Xcc -Werror` for a top-level warning-group flag.
 - `TuistCommand` groups commands into: Get started, Develop, Share, Account, Other.
+- Open-source generation honors `includeGenerateScheme` and configures compilation-cache debugging after automatic workspace schemes are created.
 - ProjectAutomation's package projection keeps its existing product-name and embedding shape. Explicit native package linkage hints remain in the generation graph; they do not add new package variants to this projection.
 - `TuistCommand.main` initializes cache directories, loads config, resolves server URL, and runs `TrackableCommand`.
 - Noora logging is reinitialized after command execution to ensure logs are captured in verbose logs.

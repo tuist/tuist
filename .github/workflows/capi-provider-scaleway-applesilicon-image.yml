@@ -11,6 +11,8 @@ on:
       - infra/tart-kubelet/**
       - infra/runner-cache/**
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
+      - infra/helm/tuist/templates/rack-linux-fleet.yaml
+      - infra/helm/tuist/rack-sites/**
       - mise/tasks/capi-scaleway-applesilicon/**
       - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
   pull_request:
@@ -22,6 +24,8 @@ on:
       - infra/tart-kubelet/**
       - infra/runner-cache/**
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
+      - infra/helm/tuist/templates/rack-linux-fleet.yaml
+      - infra/helm/tuist/rack-sites/**
       - mise/tasks/capi-scaleway-applesilicon/**
       - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
   workflow_dispatch: {}

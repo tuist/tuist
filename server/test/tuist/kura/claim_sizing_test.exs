@@ -820,6 +820,58 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert ClaimSizing.evaluate(context(expired, rollups: rollups)) == :none
     end
 
+    # A 64Gi claim capped at 128Gi runs a 102 GiB ring for two weeks: under
+    # the 3-day floor most days, past it for three, then one day under it
+    # again on the last day the fourteen-day rung could fast-track.
+    test "one day under the floor does not fast-track over resized days that shed past it" do
+      ring_bytes = 102 * @gibibyte
+
+      days = [
+        {107, 53.4, 23.1, 16.3},
+        {42, 21.0, 22.4, 22.5},
+        {4, 1.9, 62.9, 62.7},
+        {487, 242.5, 70.3, 12.3},
+        {462, 230.3, 21.4, 21.4},
+        {552, 275.6, 21.6, 21.7},
+        {355, 177.0, 23.0, 23.1},
+        {289, 143.6, 26.2, 26.3},
+        {16, 7.9, 35.2, 35.2},
+        {4, 2.0, 66.6, 66.7},
+        {68, 33.9, 91.8, 91.9},
+        {178, 88.3, 99.5, 99.6},
+        {257, 127.9, 111.8, 111.9},
+        {275, 136.6, 42.4, 42.7}
+      ]
+
+      rollups =
+        days
+        |> Enum.with_index()
+        |> Enum.map(fn {{evictions, evicted_gib, shed_hours, span_hours}, index} ->
+          rollup(Date.add(@today, index - 13),
+            snapshot_count: 192,
+            eviction_count: evictions,
+            evicted_bytes: round(evicted_gib * @gibibyte),
+            median_shed_age_seconds: round(shed_hours * 3_600),
+            median_ring_span_seconds: round(span_hours * 3_600),
+            max_occupancy_percent: 99,
+            max_live_segment_bytes: ring_bytes,
+            last_ring_budget_bytes: ring_bytes,
+            min_ring_budget_bytes: ring_bytes
+          )
+        end)
+
+      context =
+        context(
+          plan: :enterprise,
+          current_claim_size: "128Gi",
+          capped_resize_from: "64Gi",
+          last_resized_at: DateTime.new!(Date.add(@today, -14), ~T[18:10:00], "Etc/UTC"),
+          rollups: rollups
+        )
+
+      assert ClaimSizing.evaluate(context) == :none
+    end
+
     test "the fast-tracked step keeps the one-day bound and the plan ceiling" do
       # The projection is far past 4x, so only the bound decides where it lands.
       rollups =
@@ -931,6 +983,57 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert evidence["region"] == "us-east"
       assert evidence["window_days"] == 30
       assert evidence["max_occupancy_percent"] == 25
+    end
+
+    test "shrinks a ring that never evicts while filling past the occupancy line" do
+      # 24Gi peak at the 60% occupancy target asks for 40Gi, a fifth off 50Gi.
+      rollups =
+        fitting_days(30, @today,
+          max_occupancy_percent: 60,
+          max_live_segment_bytes: 24 * @gibibyte,
+          last_ring_budget_bytes: 40 * @gibibyte
+        )
+
+      context = context(plan: :enterprise, current_claim_size: "50Gi", rollups: rollups)
+
+      assert {:shrink, "40Gi", evidence} = ClaimSizing.evaluate(context)
+      assert evidence["max_occupancy_percent"] == 60
+      assert evidence["min_reduction_percent"] == 10
+    end
+
+    test "leaves a ring that never evicts alone when the target saves less than a tenth" do
+      # 28Gi peak at the 60% occupancy target asks for 46.7Gi, under a tenth off 50Gi.
+      rollups =
+        fitting_days(30, @today,
+          max_occupancy_percent: 70,
+          max_live_segment_bytes: 28 * @gibibyte,
+          last_ring_budget_bytes: 40 * @gibibyte
+        )
+
+      context = context(plan: :enterprise, current_claim_size: "50Gi", rollups: rollups)
+
+      assert ClaimSizing.evaluate(context) == :none
+    end
+
+    test "today's live row vetoes the shrink once its peak leaves no room" do
+      rollups =
+        fitting_days(30, Date.add(@today, -1),
+          max_occupancy_percent: 60,
+          max_live_segment_bytes: 24 * @gibibyte,
+          last_ring_budget_bytes: 40 * @gibibyte
+        ) ++
+          [
+            rollup(@today,
+              snapshot_count: 12,
+              max_occupancy_percent: 70,
+              max_live_segment_bytes: 28 * @gibibyte,
+              last_ring_budget_bytes: 40 * @gibibyte
+            )
+          ]
+
+      context = context(plan: :enterprise, current_claim_size: "50Gi", rollups: rollups)
+
+      assert ClaimSizing.evaluate(context) == :none
     end
 
     test "one step never less than halves the claim" do

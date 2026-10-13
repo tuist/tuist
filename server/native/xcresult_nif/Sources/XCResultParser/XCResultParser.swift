@@ -101,7 +101,6 @@ public struct XCResultParser: Sendable {
         let bundle = URL(fileURLWithPath: path.pathString)
         return summary
             .applying(executionModes: TestExecutionModes.read(fromResultBundle: bundle))
-            .applying(enumeration: TestEnumeration.read(fromResultBundle: bundle))
             .applying(coverageEvidence: Self.coverageEvidence(inResultBundle: bundle))
     }
 
@@ -570,8 +569,6 @@ public struct XCResultParser: Sendable {
             duration = node.durationInSeconds.map { secondsToMilliseconds($0) }
         }
 
-        let identifier = node.nodeIdentifier?.split(separator: "/").last.map(String.init)
-
         return TestCase(
             name: name,
             testSuite: suiteName,
@@ -580,8 +577,7 @@ public struct XCResultParser: Sendable {
             status: status,
             failures: failures,
             repetitions: repetitions,
-            arguments: arguments,
-            identifier: identifier == name ? nil : identifier
+            arguments: arguments
         )
     }
 

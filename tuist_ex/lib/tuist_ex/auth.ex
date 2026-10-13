@@ -4,6 +4,7 @@ defmodule TuistEx.Auth do
   alias TuistEx.{HTTP, Lock}
 
   @default_url "https://tuist.dev"
+  @github_identity_token_attempts 5
 
   def login(options \\ []) do
     environment = Keyword.get(options, :environment, &System.get_env/1)
@@ -14,7 +15,7 @@ defmodule TuistEx.Auth do
     credentials =
       cond do
         email || password -> password_login(server_url, email, password, options)
-        continuous_integration?(environment) -> provider_login(server_url, environment)
+        continuous_integration?(environment) -> provider_login(server_url, environment, options)
         true -> browser_login(server_url, options)
       end
 
@@ -37,7 +38,7 @@ defmodule TuistEx.Auth do
         server_url = server_url(options, environment)
 
         with {:error, reason} <- stored_token(server_url, environment),
-             do: provider_token(server_url, environment, reason)
+             do: provider_token(server_url, environment, reason, options)
     end
   end
 
@@ -112,11 +113,11 @@ defmodule TuistEx.Auth do
     end
   end
 
-  defp provider_login(server_url, environment) do
+  defp provider_login(server_url, environment, options) do
     Mix.shell().info("Detected continuous integration, authenticating with OpenID Connect.")
 
     result =
-      case identity_token(environment) do
+      case identity_token(environment, options) do
         {:ok, identity_token} ->
           exchange(server_url, identity_token)
 
@@ -133,14 +134,14 @@ defmodule TuistEx.Auth do
     end
   end
 
-  defp provider_token(server_url, environment, reason) do
+  defp provider_token(server_url, environment, reason, options) do
     key = {__MODULE__, :provider_token, server_url}
     cached = :persistent_term.get(key, nil)
 
     if is_binary(cached) and not expired?(cached) do
       {:ok, cached}
     else
-      case identity_token(environment) do
+      case identity_token(environment, options) do
         {:ok, identity_token} ->
           with {:ok, access} <- exchange(server_url, identity_token) do
             :persistent_term.put(key, access)
@@ -163,10 +164,10 @@ defmodule TuistEx.Auth do
     end
   end
 
-  defp identity_token(environment) do
+  defp identity_token(environment, options) do
     cond do
       truthy?(environment.("GITHUB_ACTIONS")) ->
-        github_identity_token(environment)
+        github_identity_token(environment, Keyword.get(options, :sleep, &Process.sleep/1))
 
       truthy?(environment.("CIRCLECI")) ->
         present(
@@ -185,7 +186,7 @@ defmodule TuistEx.Auth do
     end
   end
 
-  defp github_identity_token(environment) do
+  defp github_identity_token(environment, sleep) do
     with {:ok, request_url} <-
            present(
              environment.("ACTIONS_ID_TOKEN_REQUEST_URL"),
@@ -197,15 +198,28 @@ defmodule TuistEx.Auth do
              "GitHub Actions requires id-token: write permission"
            ) do
       separator = if String.contains?(request_url, "?"), do: "&", else: "?"
-
-      case HTTP.request(:get, request_url <> separator <> "audience=tuist", nil, [
-             {"authorization", "Bearer " <> request_token}
-           ]) do
-        {:ok, 200, %{"value" => value}} when is_binary(value) -> {:ok, value}
-        response -> {:error, request_error("GitHub Actions identity token request", response)}
-      end
+      url = request_url <> separator <> "audience=tuist"
+      request_github_identity_token(url, request_token, sleep, @github_identity_token_attempts)
     end
   end
+
+  defp request_github_identity_token(url, request_token, sleep, attempts_left) do
+    case HTTP.request(:get, url, nil, [{"authorization", "Bearer " <> request_token}]) do
+      {:ok, 200, %{"value" => value}} when is_binary(value) ->
+        {:ok, value}
+
+      response ->
+        if attempts_left > 1 and transient?(response) do
+          sleep.(1_000 * 2 ** (@github_identity_token_attempts - attempts_left))
+          request_github_identity_token(url, request_token, sleep, attempts_left - 1)
+        else
+          {:error, request_error("GitHub Actions identity token request", response)}
+        end
+    end
+  end
+
+  defp transient?({:ok, status, _}), do: status == 429 or status >= 500
+  defp transient?({:error, _}), do: true
 
   defp present(value, _message) when is_binary(value) and value != "", do: {:ok, value}
   defp present(_value, message), do: {:error, message}

@@ -3,9 +3,11 @@ defmodule Atlas.Engineering.Alerts.Workers.DeliverRule do
   Delivers one alert firing for a (rule, subject) pair.
 
   Runs off the error ingest hot path so a slow Slack or webhook call
-  cannot block event recording. Re-checks the cooldown inside the same
-  process that writes the notification row, so two events arriving for
-  the same issue at the same time cannot both send.
+  cannot block event recording. A transaction-scoped database lock serializes
+  the cooldown check, delivery, and notification record for each (rule, subject)
+  pair across replicas. Contending jobs snooze rather than block a pool
+  connection. Network-success/process-loss still has at-least-once semantics;
+  the lock prevents concurrent sends, not ambiguous delivery retries.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 3
@@ -16,11 +18,30 @@ defmodule Atlas.Engineering.Alerts.Workers.DeliverRule do
   alias Atlas.Engineering.Alerts.Rule
   alias Atlas.Engineering.Errors
   alias Atlas.Engineering.Errors.Issue
+  alias Atlas.Repo
 
   require Logger
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"rule_id" => rule_id, "subject_id" => subject_id} = args}) do
+    case Repo.transaction(
+           fn ->
+             case Repo.query!("SELECT pg_try_advisory_xact_lock(hashtext($1), hashtext($2))", [
+                    "atlas.alert.cooldown:#{rule_id}",
+                    subject_id
+                  ]) do
+               %{rows: [[true]]} -> perform_locked(args)
+               %{rows: [[false]]} -> {:snooze, 10}
+             end
+           end,
+           timeout: :timer.minutes(1)
+         ) do
+      {:ok, result} -> result
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp perform_locked(%{"rule_id" => rule_id, "subject_id" => subject_id} = args) do
     reason = parse_reason(args["reason"])
     environment = args["environment"]
 

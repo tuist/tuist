@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Atlas</string>
+    <string name="welcome">Your workspace, on the go</string>
+    <string name="sign_in_hint">Open a section in your browser. Sign in with your Atlas account to access your workspace.</string>
+    <string name="no_browser">Install a browser to open Atlas.</string>
+</resources>

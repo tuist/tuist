@@ -31,6 +31,12 @@
 # This does not exempt any deeper project dashboard path or rate limit.
 # Deploy the cached public overview before rolling out this root exemption.
 #
+# Public docs and the Markdown discovery/content routes also skip SBFM
+# for GET/HEAD. They serve published content, not uncached dashboard
+# queries. Match locale prefixes explicitly: a wildcard locale could
+# otherwise exempt a project named `docs` (e.g. /tuist/docs/builds).
+# Keep this locale list aligned with Tuist.Locale.
+#
 # Path list justification (see server/lib/tuist_web/router.ex):
 #   /api/*             CLI OpenAPI client (auth, cache, builds, tests,
 #                      previews, runners) — every managed-CI call.
@@ -54,6 +60,12 @@
 #   /mcp (exact)       Model Context Protocol
 #                      (https://modelcontextprotocol.io/) server
 #                      endpoint reached by AI-assistant clients.
+#   /docs[/...]        Legacy documentation redirects.
+#   /:locale/docs[/...] and /:locale/docs-markdown[/...]
+#                      Public documentation in HTML and Markdown.
+#   /marketing-markdown[/...]  Published agent guides and policy sources.
+#   /robots.txt, /llms.txt, /llms-full.txt, /sitemap.xml
+#                      Crawler discovery and full documentation export.
 #   /auth.md (exact)   Agent-auth protocol discovery document.
 #   /ready (exact)     Kubernetes readiness probe.
 #   POST /-/faro/collect  Browser telemetry XHR from real users; if a
@@ -73,7 +85,7 @@ metadata:
   name: skip-sbfm-api-paths
 spec:
   zoneId: 4421110085237b867a891bd0a40da106
-  description: "Skip SBFM on machine paths and cached project roots"
+  description: "Skip SBFM on machine paths, public content and cached project roots"
   # Super Bot Fight Mode applies to every hostname proxied through the
   # tuist.dev zone, not just the browser dashboard host. The path list
   # below is derived from `tuist.dev`'s Phoenix router and does not
@@ -103,6 +115,32 @@ spec:
       not starts_with(http.request.uri.path, "/users/") and
       not starts_with(http.request.uri.path, "/auth/") and
       not starts_with(http.request.uri.path, "/ops/")
+    ) or
+    (
+      http.request.method in {"GET" "HEAD"} and
+      (
+        http.request.uri.path in {"/docs" "/marketing-markdown" "/robots.txt" "/llms.txt" "/llms-full.txt" "/sitemap.xml"} or
+        starts_with(http.request.uri.path, "/docs/") or
+        starts_with(http.request.uri.path, "/marketing-markdown/") or
+        starts_with(http.request.uri.path, "/en/docs/") or
+        starts_with(http.request.uri.path, "/en/docs-markdown/") or
+        starts_with(http.request.uri.path, "/es/docs/") or
+        starts_with(http.request.uri.path, "/es/docs-markdown/") or
+        starts_with(http.request.uri.path, "/ja/docs/") or
+        starts_with(http.request.uri.path, "/ja/docs-markdown/") or
+        starts_with(http.request.uri.path, "/ka/docs/") or
+        starts_with(http.request.uri.path, "/ka/docs-markdown/") or
+        starts_with(http.request.uri.path, "/ko/docs/") or
+        starts_with(http.request.uri.path, "/ko/docs-markdown/") or
+        starts_with(http.request.uri.path, "/ru/docs/") or
+        starts_with(http.request.uri.path, "/ru/docs-markdown/") or
+        starts_with(http.request.uri.path, "/yue_Hant/docs/") or
+        starts_with(http.request.uri.path, "/yue_Hant/docs-markdown/") or
+        starts_with(http.request.uri.path, "/zh_Hans/docs/") or
+        starts_with(http.request.uri.path, "/zh_Hans/docs-markdown/") or
+        starts_with(http.request.uri.path, "/zh_Hant/docs/") or
+        starts_with(http.request.uri.path, "/zh_Hant/docs-markdown/")
+      )
     ) or
     starts_with(http.request.uri.path, "/webhooks/") or
     starts_with(http.request.uri.path, "/scim/v2/") or

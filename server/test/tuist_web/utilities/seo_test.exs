@@ -48,12 +48,19 @@ defmodule TuistWeb.Utilities.SEOTest do
     refute html =~ "Explore the project's"
   end
 
-  test "only informational project pages opt into indexing" do
-    for path <- ["/tuist/tuist", "/tuist/tuist/builds", "/tuist/tuist/tests/test-runs/123", "/tuist/tuist/previews/123"] do
+  test "only project overviews opt into indexing" do
+    for path <- ["/tuist/tuist", "/acme/cache-kit"] do
       assert SEO.public_project_route?(path)
     end
 
     for path <- [
+          "/tuist/tuist/analytics",
+          "/tuist/tuist/builds",
+          "/tuist/tuist/tests",
+          "/tuist/tuist/tests/test-runs/123",
+          "/tuist/tuist/module-cache",
+          "/tuist/tuist/previews/123",
+          "/tuist/tuist/once/builds",
           "/tuist/tuist/settings",
           "/tuist/tuist/settings/automations",
           "/tuist/tuist/connect",

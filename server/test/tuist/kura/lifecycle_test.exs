@@ -140,6 +140,7 @@ defmodule Tuist.Kura.LifecycleTest do
     stub(Environment, :kura_capacity_admission_required?, fn -> true end)
     stub(Capacity, :pressure_line_gib, fn @region -> @air_resident_gib - 1 end)
     stub(Capacity, :reserved_gib, fn @region -> 0 end)
+    stub(Capacity, :reserved_gib_by_instance, fn @region -> %{} end)
   end
 
   defp reload(%Server{id: id}), do: Repo.get!(Server, id)
@@ -444,7 +445,7 @@ defmodule Tuist.Kura.LifecycleTest do
       # 702Gi reserved against a 670Gi line: 64Gi short of room for a new
       # 32Gi enterprise instance, exactly what the grown Pro instance holds
       # across its two replicas.
-      stub_region_pods([reserved_pod(2) | List.duplicate(reserved_pod(10), 70)])
+      stub_region_reservation(702)
 
       assert :ok = Lifecycle.sweep()
 
@@ -1151,8 +1152,32 @@ defmodule Tuist.Kura.LifecycleTest do
   # Answers the pod list with exactly the reservation the fixtures imply, so
   # the region reads as just short of room for a new enterprise instance.
   defp under_pressure do
-    stub_region_pods(List.duplicate(reserved_pod(div(@air_resident_gib, @replicas)), @instances_to_pressure * @replicas))
+    stub_region_reservation(@instances_to_pressure * @air_resident_gib)
   end
+
+  # The region's pods request `total_gib` in all: every instance in the region
+  # through its own replicas at its claim, and the rest through pods no row
+  # describes.
+  defp stub_region_reservation(total_gib) do
+    {:ok, region} = Regions.fetch(@region)
+
+    instance_pods =
+      for server <-
+            Repo.all(from(s in Server, where: s.region == ^@region and s.status not in [:archived, :destroyed])),
+          _replica <- 1..@replicas do
+        region
+        |> Capacity.resident_gib(server)
+        |> div(@replicas)
+        |> reserved_pod()
+        |> Map.put("metadata", %{"labels" => %{"app.kubernetes.io/instance" => server.provisioner_node_ref}})
+      end
+
+    owned_gib = Enum.sum(Enum.map(instance_pods, &pod_gib/1))
+    stub_region_pods([reserved_pod(max(total_gib - owned_gib, 0)) | instance_pods])
+  end
+
+  defp pod_gib(%{"spec" => %{"containers" => [%{"resources" => %{"requests" => %{"ephemeral-storage" => gib}}}]}}),
+    do: gib |> String.trim_trailing("Gi") |> String.to_integer()
 
   defp stub_region_pods(pods) do
     stub(Client, :list_pods, fn _namespace, _selector -> {:ok, pods} end)
@@ -1250,8 +1275,8 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(eligible_server).status == :drain_pending
     end
 
-    test "both plans reclaim old instances whose first partial day had no snapshots" do
-      for plan <- [:air, :pro] do
+    test "every plan reclaims old instances whose first partial day had no snapshots" do
+      for plan <- [:air, :pro, :enterprise] do
         account = account(plan: plan)
         server = active_instance(account, age_days: 30)
         with_demand(account, 0)
@@ -1430,18 +1455,49 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload_lifecycle(account).drain_reason == :unused
     end
 
-    test "never drains a keep-warm or Enterprise instance for going unused" do
-      keep_warm = account()
-      keep_warm_server = unused_instance(keep_warm)
-      {:ok, _} = Demand.set_keep_warm(keep_warm.id, @region, true)
-
-      enterprise = account(plan: :enterprise, region: :usa)
-      enterprise_server = unused_instance(enterprise)
+    test "never drains a keep-warm instance for going unused" do
+      account = account()
+      server = unused_instance(account)
+      {:ok, _} = Demand.set_keep_warm(account.id, @region, true)
 
       assert :ok = Lifecycle.sweep()
 
-      assert reload(keep_warm_server).status == :active
-      assert reload(enterprise_server).status == :active
+      assert reload(server).status == :active
+    end
+
+    test "archives an Enterprise instance that has stored nothing since it was created" do
+      account = account(plan: :enterprise, region: :usa)
+      server = unused_instance(account)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :drain_pending
+      assert reload_lifecycle(account).drain_reason == :unused
+
+      elapse_drain(account)
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :archived
+    end
+
+    test "leaves a never-used Enterprise instance alone inside the seven-day window" do
+      account = account(plan: :enterprise, region: :usa)
+      server = active_instance(account, age_days: 6)
+      with_demand(account, 1)
+      storage_rollups(account, 0..6)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "returns an archived never-used Enterprise instance when the account asks for its cache" do
+      account = account(plan: :enterprise, region: :usa)
+      server = archive_unused(account)
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :provisioning
     end
 
     test "never considers an instance with no lifecycle row" do
