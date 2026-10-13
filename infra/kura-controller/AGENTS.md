@@ -8,7 +8,8 @@ This module contains the Kubernetes controller that reconciles Kura account endp
   detection never resets an activated StatefulSet. Legacy instances keep their
   existing automatic stale-storage recreation, including colocated host loss.
   Missing authority probes never renew or revoke a still-valid grant; expiry
-  or explicit refusal requires fencing. Same-process resumption needs the exact holder's fresh Fencing
+  or explicit refusal requires fencing. Same-process resumption needs the exact
+  holder's fresh Fencing
   observation, publication-fencing epoch and zero mutations; issue a new epoch
   only to that holder. Never infer acknowledgment from expiry, readiness or a
   restarted pod. Current operator promotion and interrupted handover retain the

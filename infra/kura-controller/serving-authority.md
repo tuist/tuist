@@ -153,6 +153,12 @@ controller flag stops renewal and eventually serving. Keep the capable controlle
 and runtime pair; an old controller is below the rollback floor. Qualifying a new
 runtime image and deliberately updating the pin is an operator procedure while
 automatic rolling replacement stays paused.
+For an already activated instance, replace the clean standby first, then perform
+a named handover before replacing the positively revoked old primary. Do not
+restart an active primary onto its marked volume. The first handover from an old
+source still uses individual-record verification; batching applies after the
+source supports negotiation too. Keep `OnDelete` and the explicit image pin
+through this procedure.
 
 `/status/rollout.serving_authority` exposes identity, observed grant, deadline,
 in-flight mutations, receipt and revocation acknowledgment. The ConfigMap keeps
@@ -189,9 +195,13 @@ if the fixture namespace is overridden, render the policy into that namespace
 too. The client removes the fault label when the case exits.
 
 The opt-in ShellSpec harness in `kura/spec/e2e/serving_authority_spec.sh`
-exercises existing HTTP/2 and gRPC sessions. Its partition mode leaves the old
-primary fenced: the operator must positively stop it, promote the exact survivor,
-and rebuild the quarantined ordinal. Cilium policy propagation is asynchronous;
+exercises existing HTTP/2 and gRPC sessions. Its partition mode verifies refusal
+while API access is denied. `KURA_E2E_AUTHORITY_MODE=api-recovery` also waits for
+the live-writer handshake after removing the fault, checks the unchanged
+incarnation and new epoch, and proves the rejected upload remains absent.
+Without a compatible runtime/controller pair, the old primary remains fenced:
+positively stop it, promote the exact survivor and rebuild the quarantined ordinal.
+Cilium policy propagation is asynchronous;
 the test waits for observed expiry and sustained rejection rather than treating
 the label write as proof of a partition. Keep physical host power-off tests on
 dedicated hosts; process termination on shared staging hosts does not qualify
