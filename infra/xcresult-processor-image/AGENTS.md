@@ -144,13 +144,15 @@ inject-env.sh && source /etc/tuist.env && tailscale-up.sh && exec tuist start
 ```
 
 Every step is load-bearing, and the last one is the only one Kubernetes
-can see. tart-kubelet is not a real kubelet: it implements no container
-probes at all, and
-`infra/tart-kubelet/internal/podagent/reconciler.go` sets
-`PodReady=True` (plus synthesized Ready container statuses) as soon as
-the VM has an IP. A VM that boots and then dies at `tailscale-up.sh`
-therefore reads `1/1 Running` forever, the Deployment reports
-`Available=True`, and `:process_xcresult` simply stops being consumed.
+can see. The Deployment declares a `readinessProbe` on `GET /ready` (port
+9092, `Tuist.Readiness.Plug`), which tart-kubelet evaluates against the
+guest IP: the Pod stays NotReady until the release answers and can reach
+Postgres, ClickHouse and its Oban queue. A VM that boots and then dies at
+`tailscale-up.sh` therefore reads `0/1 Running`, and the rolling update
+and `helm upgrade --wait` stop on it. Before that probe existed
+tart-kubelet set `PodReady=True` as soon as the VM had an IP, so such a VM
+read `1/1 Running` forever, the Deployment reported `Available=True`, and
+`:process_xcresult` simply stopped being consumed.
 
 This has happened twice, from unrelated causes with the same outward
 shape:
@@ -233,16 +235,16 @@ a server-side credential rejection and an unreachable control plane
 through the same "did not reach Running within timeout" path, which is
 what made the two incidents above look alike from the outside.
 
-**Detection.** Since neither the Pod, the Deployment, nor ExternalSecrets
-can see this class of failure, it is caught in the metrics pipeline
-instead. Four rules in
+**Detection.** Readiness only gates rollouts; it pages nobody, and
+ExternalSecrets cannot see this class of failure at all, so it is caught
+in the metrics pipeline too. Four rules in
 [`../helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md)
 cover it, and they are cause-independent by design:
 
 | Rule | Catches |
 |---|---|
 | `Remote processing queue has no consumer` | The queue not draining, whatever the reason. Read from Postgres by the Linux web pods, so it survives total loss of this fleet. |
-| `xcresult processor guest metrics unavailable fleet-wide` | No guest PromEx endpoint answering anywhere. This is the readiness probe tart-kubelet cannot provide. |
+| `xcresult processor guest metrics unavailable fleet-wide` | No guest PromEx endpoint answering anywhere, independent of the readiness probe. |
 | `xcresult processor guest metrics unavailable on one host` | Half capacity, including a mini that is powered on but never joined the cluster. |
 | `xcresult processor replicas unavailable` | The scheduling half: a replica stuck `Pending` while the Deployment still reports `Available=True`. |
 
