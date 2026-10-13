@@ -3897,6 +3897,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/gradle_build_id`.
             public var gradle_build_id: Swift.String?
+            /// Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/coverage_enabled`.
+            public var coverage_enabled: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/TestParams/stress_new_tests`.
             public var stress_new_tests: Components.Schemas.StressNewTestsResult?
             /// With `xcode_coverage_storage_key`: whether the run left tests out on purpose.
@@ -4612,6 +4616,7 @@ public enum Components {
             ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
             ///   - pull_request_number: The pull or merge request number, when known.
             ///   - gradle_build_id: The UUID of an associated Gradle build.
+            ///   - coverage_enabled: Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
             ///   - stress_new_tests:
             ///   - xcode_coverage_partial: With `xcode_coverage_storage_key`: whether the run left tests out on purpose.
             ///   - macos_version: The version of macOS used during the run.
@@ -4655,6 +4660,7 @@ public enum Components {
                 ci_project_handle: Swift.String? = nil,
                 pull_request_number: Swift.Int? = nil,
                 gradle_build_id: Swift.String? = nil,
+                coverage_enabled: Swift.Bool? = nil,
                 stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                 xcode_coverage_partial: Swift.Bool? = nil,
                 macos_version: Swift.String? = nil,
@@ -4698,6 +4704,7 @@ public enum Components {
                 self.ci_project_handle = ci_project_handle
                 self.pull_request_number = pull_request_number
                 self.gradle_build_id = gradle_build_id
+                self.coverage_enabled = coverage_enabled
                 self.stress_new_tests = stress_new_tests
                 self.xcode_coverage_partial = xcode_coverage_partial
                 self.macos_version = macos_version
@@ -4742,6 +4749,7 @@ public enum Components {
                 case ci_project_handle
                 case pull_request_number
                 case gradle_build_id
+                case coverage_enabled
                 case stress_new_tests
                 case xcode_coverage_partial
                 case macos_version
@@ -28085,6 +28093,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/gradle_build_id`.
                     public var gradle_build_id: Swift.String?
+                    /// Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_enabled`.
+                    public var coverage_enabled: Swift.Bool?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/stress_new_tests`.
                     public var stress_new_tests: Components.Schemas.StressNewTestsResult?
                     /// With `xcode_coverage_storage_key`: whether the run left tests out on purpose.
@@ -28800,6 +28812,7 @@ public enum Operations {
                     ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
                     ///   - pull_request_number: The pull or merge request number, when known.
                     ///   - gradle_build_id: The UUID of an associated Gradle build.
+                    ///   - coverage_enabled: Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
                     ///   - stress_new_tests:
                     ///   - xcode_coverage_partial: With `xcode_coverage_storage_key`: whether the run left tests out on purpose.
                     ///   - macos_version: The version of macOS used during the run.
@@ -28843,6 +28856,7 @@ public enum Operations {
                         ci_project_handle: Swift.String? = nil,
                         pull_request_number: Swift.Int? = nil,
                         gradle_build_id: Swift.String? = nil,
+                        coverage_enabled: Swift.Bool? = nil,
                         stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                         xcode_coverage_partial: Swift.Bool? = nil,
                         macos_version: Swift.String? = nil,
@@ -28886,6 +28900,7 @@ public enum Operations {
                         self.ci_project_handle = ci_project_handle
                         self.pull_request_number = pull_request_number
                         self.gradle_build_id = gradle_build_id
+                        self.coverage_enabled = coverage_enabled
                         self.stress_new_tests = stress_new_tests
                         self.xcode_coverage_partial = xcode_coverage_partial
                         self.macos_version = macos_version
@@ -28930,6 +28945,7 @@ public enum Operations {
                         case ci_project_handle
                         case pull_request_number
                         case gradle_build_id
+                        case coverage_enabled
                         case stress_new_tests
                         case xcode_coverage_partial
                         case macos_version

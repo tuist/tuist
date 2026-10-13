@@ -338,6 +338,11 @@ components:
           type: string
           x-struct:
           x-validate:
+        coverage_enabled:
+          description: Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
+          type: boolean
+          x-struct:
+          x-validate:
         stress_new_tests:
           $ref: '#/components/schemas/StressNewTestsResult'
         xcode_coverage_partial:
@@ -13781,6 +13786,11 @@ paths:
                 gradle_build_id:
                   description: The UUID of an associated Gradle build.
                   type: string
+                  x-struct:
+                  x-validate:
+                coverage_enabled:
+                  description: Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
+                  type: boolean
                   x-struct:
                   x-validate:
                 stress_new_tests:
