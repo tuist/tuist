@@ -314,3 +314,34 @@ func TestAuthorityResumesOnlyThePositivelyFencedLiveWriter(t *testing.T) {
 		})
 	}
 }
+
+func TestAuthorityPreservesResumeBindingWhenReplacementGrantExpires(t *testing.T) {
+	r, _, statuses := authorityFixture(t)
+	grant := authorityStep(t, r)
+	grant.Phase = "Fencing"
+	writeAuthorityGrant(t, r, grant)
+	sample := statuses[grant.PodName]
+	observed := grant
+	sample.ServingAuthority.Observed = &observed
+	sample.ServingAuthority.FencedEpoch = 1
+	statuses[grant.PodName] = sample
+	resumed := authorityStep(t, r)
+	if resumed.Epoch != 2 || resumed.ResumeEpoch != 1 {
+		t.Fatal(resumed)
+	}
+	// The runtime only received epoch 2 after its deadline, so it reports no
+	// valid grant and still owns its positive acknowledgment for epoch 1.
+	observed = resumed
+	statuses[grant.PodName] = sample
+	fenced := authorityStep(t, r)
+	if fenced.Phase != "Fencing" || fenced.Epoch != 2 || fenced.ResumeEpoch != 1 {
+		t.Fatal(fenced)
+	}
+	observed = fenced
+	sample.ServingAuthority.FencedEpoch = 2
+	statuses[grant.PodName] = sample
+	next := authorityStep(t, r)
+	if next.Phase != "Serving" || next.Epoch != 3 || next.ResumeEpoch != 2 || next.Holder != grant.Holder {
+		t.Fatal(next)
+	}
+}

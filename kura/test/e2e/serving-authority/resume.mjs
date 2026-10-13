@@ -88,9 +88,34 @@ try {
   );
   const fenced = (await f.report(0)).serving_authority;
   assert.equal(fenced.mutations, 0);
+  // A flapping API can deliver the new epoch only after its deadline. It must
+  // remain closed, then positively acknowledge that missed epoch as well.
   f.grant({
     epoch: 2,
     resume_epoch: 1,
+    holder: f.identities[0],
+    phase: "Serving",
+    expires_ms: Date.now() - 1000,
+  });
+  await waitFor(
+    async () => (await f.report(0)).serving_authority.observed.epoch === 2,
+    "missed replacement grant was not observed",
+  );
+  assert.equal((await f.report(0)).serving_authority.valid, false);
+  f.grant({
+    epoch: 2,
+    resume_epoch: 1,
+    holder: f.identities[0],
+    phase: "Fencing",
+    renew: true,
+  });
+  await waitFor(
+    async () => (await f.report(0)).serving_authority.fenced_epoch === 2,
+    "missed replacement grant could not be fenced",
+  );
+  f.grant({
+    epoch: 3,
+    resume_epoch: 2,
     holder: f.identities[0],
     phase: "Serving",
     renew: true,
@@ -128,6 +153,7 @@ try {
   assert(f.logs(f.names[0]).includes("unclean primary volume"));
   const result = {
     sameWriterResumed: true,
+    missedResumeRefenced: true,
     noTimeoutPromotion: true,
     drainedBeforeAcknowledgment: true,
     persistentChannelWrite: true,

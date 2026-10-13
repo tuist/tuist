@@ -138,12 +138,21 @@ impl ServingAuthority {
             // admitted work from publishing; wait for that work to drop before
             // attesting. Keep the marker: this is not a clean standby/restart.
             *active = None;
+            let owned = self.owned_epoch.load(Ordering::SeqCst);
+            // A replacement grant can itself expire before delivery. The
+            // persisted resume binding still names this already-fenced writer;
+            // join publication again and acknowledge the skipped epoch too.
+            let missed_resume = owned != 0
+                && grant.resume_epoch == Some(owned)
+                && owned.checked_add(1) == Some(grant.epoch)
+                && self.fenced_epoch.load(Ordering::SeqCst) == owned;
             if grant.epoch != 0
                 && grant.handover.is_none()
-                && self.owned_epoch.load(Ordering::SeqCst) == grant.epoch
+                && (owned == grant.epoch || missed_resume)
                 && self.revoked_epoch.load(Ordering::SeqCst) < grant.epoch
                 && self.mutations() == 0
             {
+                self.owned_epoch.store(grant.epoch, Ordering::SeqCst);
                 self.fenced_epoch.store(grant.epoch, Ordering::SeqCst);
             }
             return Ok(());
@@ -755,6 +764,36 @@ mod tests {
         a.install(fence).unwrap();
         assert_eq!(a.report()["fenced_epoch"], 1);
         assert!(a.admit().is_err());
+    }
+
+    #[test]
+    fn a_resume_grant_lost_until_expiry_can_be_fenced_without_reopening_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut a = authority();
+        let marker = dir.path().join(".kura.primary-unclean");
+        Arc::get_mut(&mut a).unwrap().marker = Some(marker.clone());
+        a.install(grant(&a, 1)).unwrap();
+        let old = a.admit_request(false).unwrap().unwrap();
+        let mut fence = grant(&a, 1);
+        fence.phase = "Fencing".into();
+        a.install(fence.clone()).unwrap();
+        for epoch in 2..=3 {
+            let mut missed = grant(&a, epoch);
+            missed.resume_epoch = Some(epoch - 1);
+            missed.expires_ms = now_ms();
+            assert!(a.install(missed.clone()).is_err());
+            assert!(a.admit().is_err());
+            missed.phase = "Fencing".into();
+            a.install(missed).unwrap();
+            assert_eq!(a.report()["fenced_epoch"], epoch);
+            assert!(marker.exists());
+        }
+        let mut resumed = grant(&a, 4);
+        resumed.resume_epoch = Some(3);
+        a.install(resumed).unwrap();
+        assert!(a.admit().is_ok());
+        assert!(old.check().is_err());
+        assert!(marker.exists());
     }
 
     #[test]

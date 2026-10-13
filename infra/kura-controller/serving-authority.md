@@ -42,6 +42,10 @@ to that same holder with `resume_epoch` bound to the fenced epoch. The runtime
 requires its own in-memory ownership and fencing acknowledgment to accept it.
 Old request permits stay invalid. The unclean-volume marker stays on disk; this
 does not authorize a restart, a different replica, or an unresponsive process.
+If a replacement grant itself expires before delivery, its persisted resume
+binding lets the already-fenced original process join publication again and
+acknowledge that missed epoch. The controller must still issue another new epoch;
+an expired grant is never reopened.
 A current operator promotion request takes precedence. Interrupted handovers
 continue to require the recovery procedure below.
 
