@@ -1360,10 +1360,14 @@ xcresultProcessor:
   # Evaluated by tart-kubelet against the guest's `GET /ready` on port
   # 9092 (Tuist.Readiness.Plug). The delay counts from VM launch, which
   # precedes the tailnet join and the BEAM boot; probes before the BEAM
-  # is up only fail into an already NotReady Pod. Turning this off falls
-  # back to Ready as soon as the VM has an IP.
+  # is up only fail into an already NotReady Pod. Off, the Pod is Ready as
+  # soon as the VM has an IP.
+  #
+  # Only enable it with an image that serves /ready. The deploy keeps the
+  # previous image tag when an image release fails, and that image would
+  # never pass, holding the rollout until `helm --atomic` rolls back.
   readinessProbe:
-    enabled: true
+    enabled: false
     initialDelaySeconds: 60
     periodSeconds: 10
     timeoutSeconds: 5
