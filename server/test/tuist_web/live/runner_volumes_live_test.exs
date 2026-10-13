@@ -41,7 +41,8 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
       activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]},
       analytics: %{
         storage: [%{at: ~U[2026-09-22 10:00:00Z], used_bytes: 1024, capacity_bytes: 4096}],
-        activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]}
+        activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]},
+        previous_activity: %{uses: 4, hit_rate: 75.0, points: []}
       },
       history: []
     }
@@ -418,6 +419,39 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert :binary.match(jobs, "Volume details") < :binary.match(jobs, "noora-tab-menu-horizontal")
     assert RunnerVolumesLive.selected_tab("size-history") == "overview"
     assert RunnerVolumesLive.selected_tab("invalid") == "overview"
+  end
+
+  test "detail widgets compare with the previous period" do
+    assigns = assigns(true)
+    data = assigns.data.result
+
+    analytics =
+      Map.merge(data.analytics, %{
+        storage: [
+          %{at: ~U[2026-09-15 10:00:00Z], used_bytes: 512, capacity_bytes: 4096},
+          %{at: ~U[2026-09-22 10:00:00Z], used_bytes: 1024, capacity_bytes: 4096}
+        ],
+        previous_activity: %{uses: 2, hit_rate: 50.0, points: []}
+      })
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | analytics: analytics})})
+
+    document = Floki.parse_document!(html)
+    widget = &(document |> Floki.find("##{&1}") |> Floki.text())
+
+    assert widget.("volume-used") =~ "+100.0%"
+    assert widget.("volume-used") =~ "since last period"
+    assert widget.("volume-hit-rate") =~ "+25.0 pp"
+    assert widget.("volume-uses") =~ "+100.0%"
+  end
+
+  test "job run trends show absolute growth from zero and fall back without a previous count" do
+    assert %{value: 100.0, value_label: nil, label: "since last period"} = RunnerVolumesLive.uses_trend(4, 2)
+    assert %{value: -50.0} = RunnerVolumesLive.uses_trend(1, 2)
+    assert %{value: 7, value_label: "+7"} = RunnerVolumesLive.uses_trend(7, 0)
+    assert %{value: 0, value_label: nil} = RunnerVolumesLive.uses_trend(0, 0)
+    assert %{value: 0, value_label: nil} = RunnerVolumesLive.uses_trend(3, nil)
   end
 
   test "detail warns when the saved snapshot is too full to reuse" do

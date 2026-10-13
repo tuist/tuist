@@ -187,7 +187,8 @@ defmodule TuistWeb.RunnerVolumesLive do
               if tab == "overview" do
                 %{
                   storage: CacheVolumes.storage_history(account.id, period, selected.id),
-                  activity: CacheVolumes.usage_analytics(account.id, selected.id, period)
+                  activity: CacheVolumes.usage_analytics(account.id, selected.id, period),
+                  previous_activity: CacheVolumes.usage_analytics(account.id, selected.id, previous_period(period))
                 }
               end
           }
@@ -312,6 +313,19 @@ defmodule TuistWeb.RunnerVolumesLive do
 
   def hit_rate_trend(_current, nil),
     do: %{value: 0, value_label: dgettext("dashboard_runners", "No previous data"), label: ""}
+
+  def uses_trend(current, previous) when is_integer(current) and is_integer(previous) do
+    label = dgettext("dashboard_runners", "since last period")
+
+    cond do
+      previous == 0 and current != 0 -> %{value: current, value_label: "+" <> count(current), label: label}
+      previous == 0 -> %{value: 0, value_label: nil, label: label}
+      true -> %{value: (current - previous) / previous * 100, value_label: nil, label: label}
+    end
+  end
+
+  def uses_trend(_current, _previous),
+    do: %{value: 0, value_label: nil, label: dgettext("dashboard_runners", "since last period")}
 
   def inventory_chart_data?(data, "hit_rate"), do: not is_nil(data.activity.hit_rate)
   def inventory_chart_data?(data, _metric), do: data.storage_history != []

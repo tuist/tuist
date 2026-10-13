@@ -195,7 +195,7 @@ Account **Runners → Volumes** shows volume count, retained logical used space
 and cache hit rate with date ranges and period comparisons. Its searchable,
 sortable, paginated table lists keys, repositories, platforms, used space,
 capacity and last use. Volume details sit above the Overview and Jobs tabs;
-the overview adds storage, hit-rate and job-run charts plus recent jobs.
+the overview adds storage, hit-rate and job-run widgets compared with the previous period, their charts, and recent jobs.
 Job history includes job and workflow names, cache lifecycle status ("Saved"
 for published changes), hit/miss, sizes and a single mount timestamp.
 Job details link back to their volumes. Unknown capacity is "Not reported".
