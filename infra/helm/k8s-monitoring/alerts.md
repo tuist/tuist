@@ -1495,8 +1495,8 @@ or
   less than one enterprise instance; free reservations or add a node`
 - Description: `Tuist.Kura.Admission refuses any instance whose reservation
   (claim x 2 replicas) does not fit under 85% of the region's allocatable disk,
-  less the larger of what its pods request and what its kura_servers rows
-  reserve. Below 32 GiB it refuses a new enterprise instance (16Gi x 2) and
+  less what its instances reserve, each at the larger of what its pods request
+  and what its kura_servers row reserves. Below 32 GiB it refuses a new enterprise instance (16Gi x 2) and
   every enterprise claim growth; below 16 GiB, every new or returning instance
   of any plan. A refused account stays on whatever lane it was on and raises
   nothing else. The value is negative when reservations already sit above the
@@ -1507,21 +1507,25 @@ or
 
 The admission check, as opposed to the scheduler check in **Kura region cannot
 place another instance**. `Tuist.Kura.Admission.admit?/2` places an instance
-only if `max(observed, desired) + candidate <= pressure_line`:
+only if `reserved + candidate <= pressure_line`:
 
 - `pressure_line` is `trunc(0.85 x allocatable)`, over the Ready nodes of the
   region's pool (`Tuist.Kura.Capacity.pressure_line_gib/1`),
-- `observed` is the `ephemeral-storage` request of every non-terminal cache
-  pod in the region (`Capacity.reserved_gib/1`),
-- `desired` is claim x replicas over every `kura_servers` row in the region
-  that still holds a volume, which covers rows the controller has not turned
-  into pods yet,
+- `reserved` sums every instance in the region once, at the larger of its
+  `observed` and `desired` reservation, matched by instance name
+  (`app.kubernetes.io/instance`, the row's `provisioner_node_ref`),
+- `observed` is the `ephemeral-storage` request of the instance's non-terminal
+  cache pods (`Capacity.reserved_gib_by_instance/1`), which covers pods whose
+  row is gone, such as an instance left behind by a deleted account,
+- `desired` is claim x replicas of the instance's `kura_servers` row while it
+  still holds a volume, which covers rows the controller has not turned into
+  pods yet,
 - `candidate` is the new instance's claim x 2: 16 GiB for Air and Pro, 32 GiB
   for Enterprise (`Tuist.Kura.Regions.storage_profile/1`), more for a claim
   sizing has grown.
 
 `tuist_kura_capacity_admission_headroom_gibibytes` is
-`pressure_line - max(observed, desired)`, polled every minute on every web pod
+`pressure_line - reserved`, polled every minute on every web pod
 by `Tuist.Kura.PromExPlugin` from `Capacity.admission_headroom_gib/1`: the
 function admission decides with (`Admission.headroom_gib/1`), cached for a
 minute per region and shared with placement's `Capacity.room_for?/2`, so the
