@@ -711,6 +711,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "us-west"] end)
       stub(Tuist.Environment, :kura_capacity_admission_required?, fn -> true end)
       stub(Capacity, :reserved_gib, fn _region_id -> 0 end)
+      stub(Capacity, :reserved_gib_by_instance, fn _region_id -> %{} end)
       stub(Capacity, :placeable?, fn _region, _server -> true end)
       # Two replicas of the plan's 16Gi fit under the line; two of 50Gi do not.
       stub(Capacity, :pressure_line_gib, fn _region_id -> 64 end)

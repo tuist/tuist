@@ -161,12 +161,16 @@ defmodule Tuist.Kura.PromExPluginTest do
       assert Map.fetch!(scraped, [:tuist, :kura, :capacity, :admission_headroom, :gibibytes]) == [:region]
     end
 
-    test "reports what admission can still place: the pressure line less the larger reservation" do
+    test "reports what admission can still place: the pressure line less what each instance reserves" do
+      server = instance(account())
+
+      replica =
+        Map.put(reserved_pod(8), "metadata", %{"labels" => %{"app.kubernetes.io/instance" => server.provisioner_node_ref}})
+
       stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, 2)}],
-        pods: [reserved_pod(50), reserved_pod(50)]
+        pods: [replica, replica, reserved_pod(84)]
       )
 
-      instance(account())
       pressure_line = trunc(trunc(2 * @node_allocatable_bytes / @gib) * 0.85)
 
       ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :capacity, :admission]])
