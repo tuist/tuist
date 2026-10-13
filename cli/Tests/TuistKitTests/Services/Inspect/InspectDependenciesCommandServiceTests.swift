@@ -8,6 +8,7 @@ import TuistConfigLoader
 import TuistCore
 import TuistGenerator
 import TuistLoader
+import TuistNooraExtension
 import TuistNooraTesting
 import TuistSupport
 import TuistTesting
@@ -48,11 +49,13 @@ struct InspectDependenciesCommandServiceTests {
         #expect((command.json ? DependencyInspectionOutputFormat.json : command.output) == expectedOutput)
     }
 
-    @Test(arguments: [["--json"], ["--output", "json"]])
-    func commandSendsJSONThroughNoora(arguments: [String]) throws {
-        let command = try InspectDependenciesCommand.parse(arguments)
+    @Test
+    func jsonOutputGoesThroughNoora() throws {
+        let command = try InspectCommand.parseAsRoot(["dependencies", "--json"])
 
-        #expect(command.jsonThroughNoora)
+        let nooraReadyCommand = try #require(command as? NooraReadyCommand)
+        #expect(nooraReadyCommand.jsonThroughNoora)
+        #expect((command as? InspectDependenciesCommand)?.json == true)
     }
 
     private func xcframeworkDependency(moduleName: String) throws -> GraphDependency {
