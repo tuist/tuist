@@ -9,7 +9,8 @@ defmodule Tuist.Authentication.SingleFlight do
   progress. Timeout cancellation still discards unfinished work; no late-fill
   retention policy is implied. A same-generation write can straddle the final
   deadline check; immutable proofs remain valid and subject snapshots still
-  enforce their original deadline on every hit.
+  enforce their original deadline on every hit. An optional validity predicate
+  treats stale values as misses on all reads, without deleting a newer refill.
   """
   use GenServer
 
@@ -34,7 +35,9 @@ defmodule Tuist.Authentication.SingleFlight do
   end
 
   def fetch(cache, key, fallback, opts \\ []) do
-    case Cachex.get(cache, key, nil, notify: false) do
+    valid? = Keyword.get(opts, :valid?, fn _value -> true end)
+
+    case lookup(cache, key, valid?) do
       nil ->
         table = cache |> table_name() |> :ets.whereis()
 
@@ -44,6 +47,7 @@ defmodule Tuist.Authentication.SingleFlight do
           key: key,
           table: table,
           fallback: fallback,
+          valid?: valid?,
           deadline: :erlang.monotonic_time(:millisecond) + Keyword.get(opts, :timeout, @timeout),
           retries: 2,
           initiator: false
@@ -59,6 +63,14 @@ defmodule Tuist.Authentication.SingleFlight do
     end
   rescue
     ArgumentError -> {:error, :unavailable}
+  end
+
+  defp lookup(cache, key, valid?) do
+    case Cachex.get(cache, key, nil, notify: false) do
+      nil -> nil
+      {:error, _} = error -> error
+      value -> if valid?.(value), do: value
+    end
   end
 
   defp table_name(cache), do: String.to_existing_atom("#{cache}_flights")
@@ -137,7 +149,7 @@ defmodule Tuist.Authentication.SingleFlight do
   end
 
   defp fill(context) do
-    case Cachex.get(context.data, context.key, nil, notify: false) do
+    case lookup(context.data, context.key, context.valid?) do
       nil -> persist(context, context.fallback.())
       {:error, _} -> {:error, :unavailable}
       value -> value
@@ -203,7 +215,7 @@ defmodule Tuist.Authentication.SingleFlight do
   defp retry(context) do
     context = %{context | retries: context.retries - 1}
 
-    case Cachex.get(context.data, context.key, nil, notify: false) do
+    case lookup(context.data, context.key, context.valid?) do
       nil -> elect(context)
       {:error, _} -> {:error, :unavailable}
       value -> value
