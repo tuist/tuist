@@ -100,60 +100,68 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRuns do
   def execute(_conn, args, project) do
     page = MCPTool.page(args)
     page_size = MCPTool.page_size(args)
-    filters = build_filters(project.id, args)
 
-    {runs, meta} =
-      Tests.list_test_case_runs(%{
-        filters: filters,
-        order_by: [:inserted_at],
-        order_directions: [:desc],
-        page: page,
-        page_size: page_size
-      })
+    with {:ok, filters} <- build_filters(project.id, args) do
+      {runs, meta} =
+        Tests.list_test_case_runs(%{
+          filters: filters,
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          page: page,
+          page_size: page_size
+        })
 
-    {:ok,
-     %{
-       test_case_runs:
-         Enum.map(runs, fn run ->
-           %{
-             id: run.id,
-             test_case_id: run.test_case_id,
-             test_run_id: run.test_run_id,
-             name: run.name,
-             module_name: run.module_name,
-             suite_name: run.suite_name,
-             status: to_string(run.status),
-             duration: run.duration,
-             is_ci: run.is_ci,
-             is_flaky: run.is_flaky,
-             git_branch: run.git_branch,
-             git_commit_sha: run.git_commit_sha,
-             ran_at: Formatter.iso8601(run.ran_at, naive: :utc)
-           }
-         end),
-       pagination_metadata: MCPTool.pagination_metadata(meta)
-     }}
+      {:ok,
+       %{
+         test_case_runs:
+           Enum.map(runs, fn run ->
+             %{
+               id: run.id,
+               test_case_id: run.test_case_id,
+               test_run_id: run.test_run_id,
+               name: run.name,
+               module_name: run.module_name,
+               suite_name: run.suite_name,
+               status: to_string(run.status),
+               duration: run.duration,
+               is_ci: run.is_ci,
+               is_flaky: run.is_flaky,
+               git_branch: run.git_branch,
+               git_commit_sha: run.git_commit_sha,
+               ran_at: Formatter.iso8601(run.ran_at, naive: :utc)
+             }
+           end),
+         pagination_metadata: MCPTool.pagination_metadata(meta)
+       }}
+    end
   end
 
   defp build_filters(project_id, args) do
     base = [%{field: :project_id, op: :==, value: project_id}]
 
-    base =
-      case Map.get(args, "test_case_id") do
-        nil -> base
-        value -> base ++ [%{field: :test_case_id, op: :==, value: value}]
-      end
+    with {:ok, base} <- maybe_add_uuid_filter(base, args, "test_case_id", :test_case_id),
+         {:ok, base} <- maybe_add_uuid_filter(base, args, "test_run_id", :test_run_id) do
+      filters =
+        if Map.get(args, "flaky") do
+          base ++ [%{field: :is_flaky, op: :==, value: true}]
+        else
+          base
+        end
 
-    base =
-      case Map.get(args, "test_run_id") do
-        nil -> base
-        value -> base ++ [%{field: :test_run_id, op: :==, value: value}]
-      end
+      {:ok, filters}
+    end
+  end
 
-    if Map.get(args, "flaky") do
-      base ++ [%{field: :is_flaky, op: :==, value: true}]
-    else
-      base
+  defp maybe_add_uuid_filter(filters, args, arg_key, field) do
+    case Map.get(args, arg_key) do
+      nil ->
+        {:ok, filters}
+
+      value ->
+        case Ecto.UUID.cast(value) do
+          {:ok, uuid} -> {:ok, filters ++ [%{field: field, op: :==, value: uuid}]}
+          :error -> {:error, "#{arg_key} must be a valid UUID."}
+        end
     end
   end
 end
