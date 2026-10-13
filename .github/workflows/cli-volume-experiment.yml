@@ -86,9 +86,16 @@ jobs:
           set -euo pipefail
           tuist version
           xcodebuild -version
+          /usr/bin/ruby .github/scripts/cli-volume-diagnostics.rb before
           /usr/bin/time -p tuist install --force-resolved-versions \
             --cache-path "$HOME/.cache/swifterpm" \
             --cached-directory-materialization=symlink 2>&1 | tee "$RUNNER_TEMP/install.log"
+          shasum -a 256 -c "$RUNNER_TEMP/lockfile.sha256"
+          /usr/bin/ruby .github/scripts/cli-volume-diagnostics.rb after-first
+          /usr/bin/time -p tuist install --force-resolved-versions \
+            --cache-path "$HOME/.cache/swifterpm" \
+            --cached-directory-materialization=symlink 2>&1 | tee "$RUNNER_TEMP/repeat-install.log"
+          /usr/bin/ruby .github/scripts/cli-volume-diagnostics.rb after-repeat
           shasum -a 256 -c "$RUNNER_TEMP/lockfile.sha256"
       - name: Record retained dependencies and timing
         env:
@@ -113,6 +120,7 @@ jobs:
             echo "Writer: $GITHUB_RUN_ID/$GITHUB_RUN_ATTEMPT"
             echo "Workspace hit: $WORKSPACE_HIT; source hit: $SOURCES_HIT"
             echo "Install seconds: $(awk '$1 == "real" {print $2}' "$RUNNER_TEMP/install.log")"
+            echo "Same-VM diagnostic repeat seconds: $(awk '$1 == "real" {print $2}' "$RUNNER_TEMP/repeat-install.log")"
             echo "Workspace manifests: $(wc -l < .build/.volume-experiment-manifests.sha256)"
             echo "Source manifests/checksums: $(wc -l < "$HOME/.cache/swifterpm/.volume-experiment-sources.sha256")"
             du -sh .build/ "$HOME/.cache/swifterpm/"
