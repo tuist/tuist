@@ -45,3 +45,7 @@ with the isolated pod's API-partition policy, requiring the same incarnation,
 one new epoch and absence of the rejected upload after API access returns.
 Run-specific manifests, keys, logs and results belong in a temporary output
 directory, never in the repository. Remove only resources created by the fixture.
+
+The pressure case restores free space and repeats handover on the same standby
+incarnation. Preserve this no-restart check: restarting could mask missing
+retained records behind a new bootstrap rather than testing named repair.

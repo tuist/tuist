@@ -6,8 +6,13 @@ Managed instances can opt into `PositiveFenceV1` serving authority. A dedicated
 thread observes Kubernetes CAS grants bound to immutable identities; public
 middleware and store commits carry epoch permits. Peer replication stays enabled
 on standbys. Expired primaries retain an unclean-volume marker, preventing a
-restarted stale store from rejoining peers. Named planned handover freezes both
-retained corpora, verifies every retained record in negotiated bounded batches,
+restarted stale store from rejoining peers. Named planned handover freezes the
+source, reconciles its complete retained index on the destination through the
+bounded backfill pipeline, then freezes the destination. The reconciliation
+ignores the normal bootstrap age horizon but preserves capacity, version and
+tombstone guards, makes no sibling feed echoes, and cancels when the named intent
+ends. It runs once per held intent; concurrent begin retries cannot duplicate it.
+Handover then verifies every retained record in negotiated bounded batches,
 persists matching receipts and
 positively revokes the old writer. Crash promotion requires external fence
 evidence and accepts an unreplicated tail. See the
