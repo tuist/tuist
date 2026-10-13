@@ -158,7 +158,6 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         git_object_format: Keyword.get(attrs, :git_object_format),
         history_source: Keyword.get(attrs, :history_source),
         history_fallback_reason: Keyword.get(attrs, :history_fallback_reason),
-        changed_files: Keyword.get(attrs, :changed_files, []),
         test_modules: test_modules,
         run_destinations: Keyword.get(attrs, :run_destinations, [])
       })
