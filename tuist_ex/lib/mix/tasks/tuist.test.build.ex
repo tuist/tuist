@@ -30,6 +30,9 @@ defmodule Mix.Tasks.Tuist.Test.Build do
       set it, or `TUIST_SHARD_REFERENCE`, anywhere else
     * `--no-upload` - plan the shards without uploading the build; each shard
       then compiles for itself
+    * `--cover` - instrument the build for native coverage, so shards running
+      `mix tuist.test --cover` count lines without compiling every module for
+      `cover` again; see "Coverage" below
     * `--url`, `--project` - as in `mix tuist.test`
 
   Every other argument is forwarded to `mix compile`.
@@ -39,6 +42,16 @@ defmodule Mix.Tasks.Tuist.Test.Build do
   The same checkout, the same Elixir and Erlang versions, and `mix deps.get`.
   The uploaded build is the `_build/test` directory; dependency sources stay
   in `deps/`.
+
+  ## Coverage
+
+  With `--cover`, the project's modules are recompiled once, here, with the
+  runtime's native line counters. A shard running `mix tuist.test --cover`
+  then counts with them, without Mix's coverage tool, which would compile
+  every module again; only the modules Mimic copies are cover compiled, so
+  its swaps keep their counts. Mix's own coverage report is not written for
+  such a shard. A shard on a runtime without the JIT, which cannot count
+  natively, uses Mix's coverage tool as usual.
 
   ## Output
 
@@ -50,6 +63,7 @@ defmodule Mix.Tasks.Tuist.Test.Build do
   use Mix.Task
 
   alias TuistEx.Analytics.Args
+  alias TuistEx.Analytics.Coverage
   alias TuistEx.Analytics.Shards
 
   @preferred_cli_env :test
@@ -81,6 +95,8 @@ defmodule Mix.Tasks.Tuist.Test.Build do
 
     {options, compile_args} = Args.split(args, @switches)
     {upload?, compile_args} = pop_flag(compile_args, "--no-upload")
+    cover? = "--cover" in compile_args
+    compile_args = List.delete(compile_args, "--cover")
     options = Keyword.put_new(options, :shard_max, 2)
     Application.put_env(:tuist_ex, :analytics_options, Keyword.take(options, [:url, :project]))
 
@@ -91,6 +107,18 @@ defmodule Mix.Tasks.Tuist.Test.Build do
     if units == %{}, do: Mix.raise("No test files found, so there is nothing to shard.")
 
     Mix.Task.run("compile", compile_args)
+
+    if cover? do
+      {count, skipped} = Coverage.instrument(Mix.Project.compile_path())
+
+      Mix.shell().info(
+        "Tuist: instrumented #{Shards.count(count, "module")} for native coverage" <>
+          if(skipped == [],
+            do: "",
+            else: " (#{length(skipped)} without debug info left as they were)"
+          )
+      )
+    end
 
     plan = unwrap(Shards.create_plan(reference, Map.keys(units), concurrent, options))
     shards = plan["shards"] || []
