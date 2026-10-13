@@ -393,6 +393,10 @@ xcresultProcessor:
     # Resolved at deploy time from the latest `xcresult-processor-image@`
     # git tag (server-deployment.yml passes it via --set). Not pinned here.
     tag: ""
+  # The fleet's host-to-guest path is healthy here (tuist-macos-pod-metrics
+  # scrapes through it), which is what the probe relies on.
+  readinessProbe:
+    enabled: true
 
 capi:
   # Managed clusters store the CAPI workload kubeconfig in their
