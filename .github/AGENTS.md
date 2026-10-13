@@ -121,8 +121,11 @@ copies sources even on a hit. Never archive these mounted paths. Set
 do not invalidate manifest fingerprints. Other manifest-visible CI variables can
 still invalidate them; a hit is not evidence that all manifest work was skipped.
 
-Pull requests consume private snapshots without publishing. First successful main
-jobs seed these new keys; measure subsequent jobs only after publication. The
+By default, pull requests consume private snapshots without publishing. A volume
+admin can grant a same-repository PR branch writer permission for a dedicated
+experiment, paired with explicit `commit: 'true'`; grants apply to new attachments.
+Ordinary CLI jobs keep the default policy. First successful permitted jobs seed
+these new keys; measure subsequent jobs only after publication. The
 full-host M4 profile has less concurrency than the ordinary macOS pool, so track
 queue time separately from dependency-install time. The two volumes publish
 independently; always run the installer even when both attachments are hits.
