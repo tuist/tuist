@@ -119,7 +119,7 @@ Keep `--force-resolved-versions`, pass `--cache-path` explicitly, and select
 copies sources even on a hit. Never archive these mounted paths. Set
 `TUIST_DEV_INSTANCE=1` before mise so random checkout-local development settings
 do not invalidate manifest fingerprints. `Tuist.swift` also hides the observed
-ephemeral job identities, OIDC tokens, GitHub token, cache-signing grant and SSH
+ephemeral job identities, commit SHAs, OIDC tokens, GitHub token, cache-signing grant and SSH
 agent socket from dependency manifests using `packageManifestEnvironment`.
 These values are neither visible to manifest evaluation nor part of its cache
 key; SwifterPM downloads retain their authentication environment. Keep meaningful
