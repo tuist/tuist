@@ -731,6 +731,31 @@ struct CachedModulesDebuggingGraphMapperTests {
         #expect(!contents.contains("target.source-map"))
     }
 
+    @Test(.inTemporaryDirectory)
+    func generatedScript_preservesCustomInitializerWhenPrefixMapCannotBeRead() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let (mapped, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let runAction = try #require(mapped.projects[projectPath]?.schemes.first?.runAction)
+        let scriptPath = projectPath.appending(component: "debugger.sh")
+        try await FileSystem().writeText(#require(runAction.preActions.first?.scriptText), at: scriptPath)
+        try await FileSystem().writeText("{", at: projectPath.appending(component: "compilation-prefix-map.json"))
+        let environment = [
+            "PATH": "/usr/bin:/bin",
+            "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+            "SWIFT_ENABLE_PREFIX_MAPPING": "YES",
+            "TARGET_TEMP_DIR": projectPath.pathString,
+        ]
+
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment, expectedStatus: 1)
+
+        let initPath = try #require(runAction.customLLDBInitFile)
+        let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        #expect(contents.hasPrefix("command source -s 0 "))
+        #expect(!contents.contains("target.source-map"))
+    }
+
     private func compilationCacheGraph(
         at projectPath: AbsolutePath,
         attachDebugger: Bool = true,
@@ -796,7 +821,8 @@ struct CachedModulesDebuggingGraphMapperTests {
         _ executable: String,
         arguments: [String],
         environment: [String: String],
-        workingDirectory: AbsolutePath? = nil
+        workingDirectory: AbsolutePath? = nil,
+        expectedStatus: Int32 = 0
     ) throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -812,7 +838,7 @@ struct CachedModulesDebuggingGraphMapperTests {
         let errorData = errors.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         let text = String(decoding: data, as: UTF8.self)
-        #expect(process.terminationStatus == 0, Comment(rawValue: text + String(decoding: errorData, as: UTF8.self)))
+        #expect(process.terminationStatus == expectedStatus, Comment(rawValue: text + String(decoding: errorData, as: UTF8.self)))
         return text
     }
 

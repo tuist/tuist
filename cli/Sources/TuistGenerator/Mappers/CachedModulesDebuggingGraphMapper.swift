@@ -327,7 +327,8 @@ private struct CacheDebuggerSettingsRenderer {
         } ?? ""
 
         // The source map is written first because it replaces the setting, so the original initializer can still
-        // extend or override it.
+        // extend or override it. It is resolved into a separate file so that, when the prefix map cannot be read,
+        // the initializer still sources the original one.
         return """
         set -eu
 
@@ -357,14 +358,17 @@ private struct CacheDebuggerSettingsRenderer {
           printf '%s' "$1" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g'
         }
 
-        : > "$lldb_init_file"
+        source_map_file="$(mktemp "$lldb_init_file.XXXXXX")"
+        trap 'rm -f "$source_map_file"' EXIT
+        source_map_status=0
         \(sourceMappingScript)
 
         {
-          :
+          cat "$source_map_file"
           \(sourceOriginal)
           \(moduleSettings)
-        } >> "$lldb_init_file"
+        } > "$lldb_init_file"
+        exit "$source_map_status"
         """
     }
 
@@ -424,7 +428,7 @@ private struct CacheDebuggerSettingsRenderer {
     /// Reads the build system's evaluated mappings without reparsing characters introduced by macro expansion.
     private var sourceMappingScript: String {
         #"""
-        /usr/bin/python3 - "$lldb_init_file" <<'TUIST_SOURCE_MAP'
+        /usr/bin/python3 - "$source_map_file" <<'TUIST_SOURCE_MAP' || source_map_status=$?
         import json
         import os
         import sys
@@ -474,7 +478,7 @@ private struct CacheDebuggerSettingsRenderer {
             arguments = " ".join(lldb_quoted(value) for mapping in sorted(mappings.items(), key=compiler_precedence) for value in mapping)
             # Xcode keeps one LLDB process across runs and sources this file into its global settings, so
             # appending would leave earlier runs' entries, including other checkouts', ahead of these.
-            with open(sys.argv[1], "a", encoding="utf-8") as output:
+            with open(sys.argv[1], "w", encoding="utf-8") as output:
                 output.write("settings set target.source-map " + arguments + "\n")
         TUIST_SOURCE_MAP
         """#
