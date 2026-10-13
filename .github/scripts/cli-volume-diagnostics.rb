@@ -5,7 +5,9 @@ phase = ARGV.fetch(0)
 state_path = File.join(ENV.fetch('RUNNER_TEMP'), 'volume-manifest-state.json')
 environment_path = '.build/.volume-experiment-environment.json'
 automatic_exclusions = %w[GITHUB_ACTION GITHUB_ARTIFACTS GITHUB_ARTIFACTS_LIST GITHUB_ENV GITHUB_OUTPUT GITHUB_PATH GITHUB_RUN_ATTEMPT GITHUB_RUN_ID GITHUB_RUN_NUMBER GITHUB_STEP_SUMMARY]
-environment = ENV.reject { |key, _| automatic_exclusions.include?(key) || key == '_' }
+config = File.read('Tuist.swift')
+project_exclusions = config[/packageManifestEnvironment: \.automatic\(excluding: \[(.*?)\]\)/m, 1].to_s.scan(/"([A-Z_]+)"/).flatten
+environment = ENV.reject { |key, _| (automatic_exclusions + project_exclusions).include?(key) || key == '_' }
 fingerprints = environment.transform_values { |value| Digest::SHA256.hexdigest(value) }
 
 if phase == 'before'

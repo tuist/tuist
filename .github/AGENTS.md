@@ -118,8 +118,13 @@ Keep `--force-resolved-versions`, pass `--cache-path` explicitly, and select
 `--cached-directory-materialization=symlink` for mounted caches. Automatic CI mode
 copies sources even on a hit. Never archive these mounted paths. Set
 `TUIST_DEV_INSTANCE=1` before mise so random checkout-local development settings
-do not invalidate manifest fingerprints. Other manifest-visible CI variables can
-still invalidate them; a hit is not evidence that all manifest work was skipped.
+do not invalidate manifest fingerprints. `Tuist.swift` also hides the observed
+ephemeral job identities, OIDC tokens, GitHub token, cache-signing grant and SSH
+agent socket from dependency manifests using `packageManifestEnvironment`.
+These values are neither visible to manifest evaluation nor part of its cache
+key; SwifterPM downloads retain their authentication environment. Keep meaningful
+package inputs visible, and always measure fresh-runner reuse: a volume hit
+alone is not evidence that manifest evaluation was skipped.
 
 By default, pull requests consume private snapshots without publishing. A volume
 admin can grant a same-repository PR branch writer permission for a dedicated
