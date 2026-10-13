@@ -449,22 +449,27 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert widget.("volume-uses") =~ "+100.0%"
   end
 
-  test "widgets show the legend of the chart series they select" do
+  test "each widget has its own legend color, matching its chart series" do
     legend = fn html, id ->
       html |> Floki.parse_document!() |> Floki.find(~s(##{id} [data-part="legend"])) |> Floki.attribute("data-color")
     end
 
     detail = render_component(&RunnerVolumesLive.render/1, assigns(true))
-
-    for id <- ~w(volume-used volume-hit-rate volume-uses) do
-      assert legend.(detail, id) == ["primary"]
-    end
+    assert legend.(detail, "volume-used") == ["secondary"]
+    assert legend.(detail, "volume-hit-rate") == ["tertiary"]
+    assert legend.(detail, "volume-uses") == ["p50"]
 
     inventory = render_component(&RunnerVolumesLive.render/1, %{assigns(true) | selected: nil})
+    assert legend.(inventory, "storage-volumes") == ["primary"]
+    assert legend.(inventory, "storage-used") == ["secondary"]
+    assert legend.(inventory, "storage-hit-rate") == ["tertiary"]
 
-    for id <- ~w(storage-volumes storage-used storage-hit-rate) do
-      assert legend.(inventory, id) == ["primary"]
-    end
+    analytics = assigns(true).data.result.analytics
+    assert [%{color: "var:noora-chart-secondary"}] = RunnerVolumesLive.detail_chart_series(analytics, "used_bytes")
+    assert [%{color: "var:noora-chart-tertiary"}] = RunnerVolumesLive.detail_chart_series(analytics, "hit_rate")
+    assert [%{color: "var:noora-chart-p50"}] = RunnerVolumesLive.detail_chart_series(analytics, "uses")
+    point = %{at: ~U[2026-09-22 10:00:00Z], volumes: 1, used_bytes: 1024, capacity_bytes: 4096}
+    assert [%{color: "var:noora-chart-primary"}] = RunnerVolumesLive.storage_chart_series([point], "volumes")
   end
 
   test "job run trends show absolute growth from zero and fall back without a previous count" do

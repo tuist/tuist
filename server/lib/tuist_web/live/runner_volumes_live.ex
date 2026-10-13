@@ -345,7 +345,7 @@ defmodule TuistWeb.RunnerVolumesLive do
       %{
         name: label,
         type: if(metric == "uses", do: "bar", else: "line"),
-        color: "var:noora-chart-primary",
+        color: "var:noora-chart-" <> metric_color(metric),
         showSymbol: true,
         connectNulls: false,
         data: Enum.map(analytics.activity.points, &[DateTime.to_iso8601(&1.at), Map.fetch!(&1, field)])
@@ -419,11 +419,16 @@ defmodule TuistWeb.RunnerVolumesLive do
     dngettext("dashboard_runners", "%{count} copy unmeasured", "%{count} copies unmeasured", count)
   end
 
+  def metric_color("volumes"), do: "primary"
+  def metric_color("used_bytes"), do: "secondary"
+  def metric_color("hit_rate"), do: "tertiary"
+  def metric_color("uses"), do: "p50"
+
   def storage_chart_series(points, metric \\ nil) do
     for {field, label, color} <- [
-          {:volumes, dgettext("dashboard_runners", "Volumes"), "var:noora-chart-primary"},
-          {:used_bytes, dgettext("dashboard_runners", "Used space"), "var:noora-chart-primary"},
-          {:capacity_bytes, dgettext("dashboard_runners", "Capacity"), "var:noora-chart-secondary"}
+          {:volumes, dgettext("dashboard_runners", "Volumes"), "var:noora-chart-" <> metric_color("volumes")},
+          {:used_bytes, dgettext("dashboard_runners", "Used space"), "var:noora-chart-" <> metric_color("used_bytes")},
+          {:capacity_bytes, dgettext("dashboard_runners", "Capacity"), "var:noora-chart-quaternary"}
         ],
         is_nil(metric) or Atom.to_string(field) == metric do
       %{
