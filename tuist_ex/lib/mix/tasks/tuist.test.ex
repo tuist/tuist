@@ -37,6 +37,12 @@ defmodule Mix.Tasks.Tuist.Test do
   process. Then use `--no-download` to run the shard against that prepared
   build. Both options require a shard index.
 
+  With `--cover`, a shard of a build `mix tuist.test.build --cover`
+  instrumented counts lines natively when its runtime was started with
+  `ELIXIR_ERL_OPTIONS="+JPcover line_counters"`: Mix's coverage tool, and
+  with it its report, is left out, and only the modules Mimic copies are
+  cover compiled.
+
   `--scheme LABEL` names an execution variant in analytics, such as a database
   version. Variants with different labels are not compared as flaky reruns.
 
@@ -98,6 +104,8 @@ defmodule Mix.Tasks.Tuist.Test do
 
         case shard(options, test_args) do
           {options, test_args} ->
+            {options, test_args} = native_coverage(options, test_args)
+
             if options[:prepare_only] do
               :ok
             else
@@ -197,6 +205,32 @@ defmodule Mix.Tasks.Tuist.Test do
 
           {options, Enum.reject(prebuilt, &(&1 in test_args)) ++ test_args ++ files}
         end
+    end
+  end
+
+  # A build `mix tuist.test.build --cover` instrumented counts in a runtime
+  # started with native line counters, without Mix's coverage tool, which
+  # would compile every module for `cover` again.
+  defp native_coverage(options, test_args) do
+    cond do
+      options[:coverage] != true or options[:prepare_only] == true ->
+        {options, test_args}
+
+      not Coverage.native_build?(Mix.Project.compile_path()) ->
+        {options, test_args}
+
+      :code.get_coverage_mode() != :line_counters ->
+        Mix.shell().info(
+          "warning: the build was instrumented for native coverage, but this runtime does not count " <>
+            "natively. Set ELIXIR_ERL_OPTIONS=\"+JPcover line_counters\" to use it; Mix's coverage " <>
+            "tool runs instead."
+        )
+
+        {options, test_args}
+
+      true ->
+        Mix.shell().info("Tuist: counting coverage natively in the instrumented build")
+        {Keyword.put(options, :coverage_native, true), Coverage.without_cover(test_args)}
     end
   end
 

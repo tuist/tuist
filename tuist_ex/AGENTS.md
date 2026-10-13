@@ -77,7 +77,16 @@ written its report nor, in an umbrella, restarted `cover` for the next
 application. It never wraps or replaces the project's `test_coverage` tool,
 so `mix test`'s report, threshold and excoveralls keep working. A run is
 partial only when its own arguments pick tests; the files a shard appends are
-not counted. Paths are relative to the Git root, a build compiled elsewhere is
+not counted. `mix tuist.test.build --cover` recompiles the build's modules
+from their debug info with `line_coverage` (`Coverage.instrument/1`; the
+Elixir compiler skips the pass that adds the counters), keeping chunks only
+Elixir writes, and marks the build. A shard of it whose runtime counts natively
+(`+JPcover line_counters`) drops Mix's `--cover` and `--export-coverage`; the
+formatter's `init`, which runs after the test helper and before any test,
+cover compiles only the modules Mimic marked to copy (Mimic carries a cover
+compiled module's counts across its swaps, while a reload resets native
+counters), and the snapshot merges `cover`'s counts with the native ones of
+every other module of the build, loading those the run never did. Paths are relative to the Git root, a build compiled elsewhere is
 matched by path suffix, the OTP application is the target, and files under the
 test paths are test code. A line belongs to the function whose clause head
 starts closest above it. Generated functions (`__*`, `module_info`), such as

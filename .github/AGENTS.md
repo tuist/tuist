@@ -147,7 +147,11 @@ Gradle fork fallbacks. The explicitly named unsharded fallback also runs both va
 
 On push to main, the current ClickHouse shards also run with `--cover
 --export-coverage shard`, reporting the server's coverage to `tuist/server`,
-and `coverage-complete` then runs `mix tuist.coverage.complete`. Keep coverage
+and `coverage-complete` then runs `mix tuist.coverage.complete`. The build
+job plans them with `mix tuist.test.build --cover`, which instruments the
+build for native coverage, and the shards run with
+`ELIXIR_ERL_OPTIONS=+JPcover line_counters`, so they count without
+compiling every module for `cover`. Keep coverage
 off pull requests, the merge queue, the floor shards and the unsharded
 fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`.
 

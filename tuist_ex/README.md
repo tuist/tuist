@@ -192,6 +192,23 @@ to no function. A run that picks its tests
 line) is reported as partial and stays out of the branch's coverage trend.
 Shards each report their share and Tuist merges them.
 
+Erlang's `cover` compiles every module of the project again at the start of
+each run, which on a large project costs every shard a minute or more. Build
+the shards with `--cover` to do it once instead:
+
+```sh
+mix tuist.test.build --shard-total 4 --cover
+```
+
+The build's modules then carry the runtime's native line counters. A shard
+running `mix tuist.test --cover` counts with them when its runtime starts with
+them, `ELIXIR_ERL_OPTIONS="+JPcover line_counters"`, on a runtime with the JIT,
+and leaves Mix's coverage tool out, so no Mix coverage report is written. Only
+the modules Mimic copies are compiled for `cover`, because Mimic keeps a
+`cover` compiled module's counts across the swaps it makes and a reload resets
+native counters. A shard whose runtime does not count natively uses Mix's
+coverage tool as usual.
+
 With coverage, the run also reports its Git history: the merge base with the
 branch a pull request merges into and the commits Tuist does not have yet. A shallow clone is deepened, within a time budget, until
 the merge base is found. Once every job of the pipeline that measures coverage
