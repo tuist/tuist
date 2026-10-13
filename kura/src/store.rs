@@ -176,6 +176,9 @@ pub struct StorageSnapshotData {
 pub struct Store {
     pub(crate) handover_hold: Arc<StdMutex<Option<String>>>,
     handover_enabled: bool,
+    /// Highest seal-time stat of any segment that left the ring. Every record
+    /// this node dropped for capacity has a version at or below it.
+    capacity_dropped_through_ms: AtomicU64,
     startup_recovery: Option<Arc<crate::startup::Recovery>>,
     db: Arc<DB>,
     io: IoController,
@@ -1427,6 +1430,7 @@ impl Store {
         );
 
         let sync_feed = load_sync_feed_state(&db, config.sync_feed_max_rows)?;
+        let capacity_dropped_through_ms = load_capacity_dropped_through_ms(&db)?;
         let segment_ring_limits = resolve_segment_ring_limits(
             config.cas_capacity_bytes,
             total_disk_bytes(&config.data_dir),
@@ -1517,6 +1521,7 @@ impl Store {
             sync_feed: Arc::new(sync_feed),
             handover_hold: Arc::new(StdMutex::new(None)),
             handover_enabled: config.serving_authority.is_some(),
+            capacity_dropped_through_ms: AtomicU64::new(capacity_dropped_through_ms),
             sync_feed_stale_consumer: Duration::from_secs(config.sync_feed_stale_peer_secs),
             wal_writers_ahead_of_durability: Arc::new(DurabilityWriters::default()),
             wal_pending_seq: Arc::new(AtomicU64::new(0)),
@@ -4419,14 +4424,40 @@ impl Store {
     /// snapshot. Every segment-ring mutation must funnel through here; a direct
     /// `put_cf` to `ROCKSDB_CF_SEGMENT_STATE` that bypasses this function would
     /// leave [`Self::segment_state_snapshot`] stale until the next restart.
+    ///
+    /// Segments only leave the ring through eviction, so any reference missing
+    /// from `state` raises the capacity drop mark in the same batch.
     fn save_segment_state(&self, state: &SegmentState) -> Result<(), String> {
         let bytes = serde_json::to_vec(state)
             .map_err(|error| format!("failed to encode segment state: {error}"))?;
+        let mut batch = WriteBatch::default();
+        batch.put_cf(self.cf(ROCKSDB_CF_SEGMENT_STATE), b"shared", bytes);
+        let dropped_through = self
+            .segment_state_snapshot()
+            .state
+            .dropped_through_ms(state)
+            .filter(|&dropped| dropped > self.capacity_dropped_through_ms.load(Ordering::Acquire));
+        if let Some(dropped) = dropped_through {
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                CAPACITY_DROPPED_THROUGH_KEY,
+                dropped.to_be_bytes(),
+            );
+        }
         self.db
-            .put_cf(self.cf(ROCKSDB_CF_SEGMENT_STATE), b"shared", bytes)
+            .write(batch)
             .map_err(|error| format!("failed to persist segment state: {error}"))?;
+        if let Some(dropped) = dropped_through {
+            self.capacity_dropped_through_ms
+                .fetch_max(dropped, Ordering::AcqRel);
+        }
         self.replace_segment_state_snapshot(state.clone());
         Ok(())
+    }
+
+    /// Records at or below this version may have been dropped here for capacity.
+    pub(crate) fn capacity_dropped_through_ms(&self) -> u64 {
+        self.capacity_dropped_through_ms.load(Ordering::Acquire)
     }
 
     /// Moves every segment into the Old generation behind a fresh New one, so
@@ -8525,6 +8556,21 @@ impl Store {
         self.namespace_tombstone_blocks(&manifest.namespace_id, version_ms)
     }
 
+    /// Test hook: adds `reference` to the ring and then evicts it through the
+    /// ordinary ring persist, as a capacity rotation would.
+    #[cfg(test)]
+    pub(crate) async fn retire_segment_for_testing(
+        &self,
+        reference: SegmentReference,
+    ) -> Result<(), String> {
+        let segment_id = reference.segment_id.clone();
+        self.mutate_segment_state(|state| state.old.insert(0, reference))
+            .await?;
+        self.mutate_segment_state(|state| state.remove_segment(&segment_id))
+            .await
+            .map(|_| ())
+    }
+
     /// Test hook: replaces the segment ring state wholesale so tests can
     /// fabricate ring-full shapes without writing gigabytes of segments.
     #[cfg(test)]
@@ -11453,6 +11499,21 @@ fn read_at(file: &std::fs::File, bytes: &mut [u8], offset: u64) -> std::io::Resu
 /// Reads the feed's persistent markers at open: the incarnation (minted and
 /// written on the first open of an empty store), the trim floor, whether the
 /// feed is on, and the last row on disk so seq allocation resumes above it.
+const CAPACITY_DROPPED_THROUGH_KEY: &[u8] = b"handover/capacity-dropped-through";
+
+fn load_capacity_dropped_through_ms(db: &DB) -> Result<u64, String> {
+    let cf = db
+        .cf_handle(ROCKSDB_CF_KEY_VALUE)
+        .ok_or_else(|| "missing key_value column family".to_string())?;
+    let value = db
+        .get_cf(cf, CAPACITY_DROPPED_THROUGH_KEY)
+        .map_err(|error| format!("failed to read the capacity drop mark: {error}"))?;
+    Ok(value
+        .and_then(|value| <[u8; 8]>::try_from(value.as_slice()).ok())
+        .map(u64::from_be_bytes)
+        .unwrap_or(0))
+}
+
 fn load_sync_feed_state(db: &DB, cap: u64) -> Result<SyncFeedState, String> {
     let cf = db
         .cf_handle(ROCKSDB_CF_KEY_VALUE)
@@ -23465,6 +23526,38 @@ mod tests {
             reopened.segment_generation(&segment_id).expect("lookup"),
             Some(SegmentGeneration::New)
         );
+    }
+
+    #[tokio::test]
+    async fn capacity_dropped_through_rises_with_evictions_and_survives_reopen() {
+        let (_temp_dir, config, store) = temp_store();
+        assert_eq!(store.capacity_dropped_through_ms(), 0);
+
+        let mut evicted = SegmentReference::new("evicted".into(), 10);
+        evicted.max_version_ms = Some(5_000);
+        store.retire_segment_for_testing(evicted).await.unwrap();
+        assert_eq!(store.capacity_dropped_through_ms(), 5_000);
+
+        let mut older = SegmentReference::new("older".into(), 5);
+        older.max_version_ms = Some(1_000);
+        store.retire_segment_for_testing(older).await.unwrap();
+        assert_eq!(store.capacity_dropped_through_ms(), 5_000);
+        drop(store);
+
+        let io = IoController::new(
+            Metrics::new(config.region.clone(), config.tenant_id.clone()),
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("io controller should build");
+        let memory = MemoryController::new(
+            io.metrics().clone(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+        );
+        let reopened = Store::open(&config, io, memory).expect("store should reopen");
+        assert_eq!(reopened.capacity_dropped_through_ms(), 5_000);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
