@@ -203,11 +203,11 @@ Until then the commit is shown as in progress and stays out of the trend.
 
 ## Optional reported actor
 
-Build and test reports include an optional `x-tuist-actor-id` header, detected from `USER`, `USERNAME`, or `LOGNAME`. This is an unverified label, not a credential or a verified user identity. Existing authentication and report payloads are unchanged. Older servers ignore the header; displaying the claim requires server support.
+Build and test reports include an optional `x-tuist-actor-id` header only when explicitly configured. No claim is sent by default, and operating-system usernames are not detected. This is an unverified label, not a credential or a verified user identity. Existing authentication and report payloads are unchanged. Older servers ignore the header; displaying the claim requires server support.
 
-Use `TUIST_ACTOR_ID=employee-123`, a runtime `actor_id: "employee-123"` option, or `tuist: [actor_id: "employee-123"]` in your Mix project to override automatic detection, in that order. Values must be 1–128 bytes of printable, non-space ASCII. An explicitly empty or invalid override suppresses the automatic claim.
+Use `TUIST_ACTOR_ID=employee-123`, a runtime `actor_id: "employee-123"` option, or `tuist: [actor_id: "employee-123"]` in your Mix project to opt in, in that order. Values must be 1–128 bytes of printable, non-space ASCII. An explicitly empty or invalid override omits the claim instead of falling back to a lower-precedence setting.
 
-Set `TUIST_ACTOR_ID=""` to opt out, including when a custom proxy rejects unfamiliar headers. Claims may be visible to report viewers on supporting servers; avoid sensitive personal identifiers. Continuous integration usernames describe the runner account, not the person who triggered the job.
+Set `TUIST_ACTOR_ID=""` to suppress a configured claim, including when a custom proxy rejects unfamiliar headers. Claims may be visible to report viewers on supporting servers; avoid sensitive personal identifiers.
 
 ## Tag runs with custom metadata
 

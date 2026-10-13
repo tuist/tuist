@@ -9,13 +9,7 @@ struct ServerClientActorHeadersMiddleware: ClientMiddleware {
     ]
 
     static func actorID(variables: [String: String]) -> String? {
-        let value: String?
-        if let override = variables["TUIST_ACTOR_ID"] {
-            value = override
-        } else {
-            value = ["USER", "USERNAME", "LOGNAME"].compactMap { variables[$0] }.first { !$0.isEmpty }
-        }
-        guard let value, !value.isEmpty, value.utf8.count <= 128,
+        guard let value = variables["TUIST_ACTOR_ID"], !value.isEmpty, value.utf8.count <= 128,
               value.utf8.allSatisfy({ (0x21 ... 0x7E).contains($0) })
         else { return nil }
         return value

@@ -52,6 +52,22 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 tuist inspect build
 ```
 
+Actor claims are disabled by default. To configure one for a scheme post-action, set `TUIST_ACTOR_ID` in that script rather than relying on shell exports. Xcode launched from the Dock does not inherit variables from `~/.zshrc`. To explicitly suppress a configured claim with Homebrew, use:
+
+```sh
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+export TUIST_ACTOR_ID=""
+tuist inspect build
+```
+
+With Mise, override the value after Mise loads its environment:
+
+```sh
+$HOME/.local/bin/mise x -C "$SRCROOT" -- env TUIST_ACTOR_ID="" tuist inspect build
+```
+
+Use an explicit label instead of the empty value to opt in.
+
 Once logged in, local builds are tracked and available from the Tuist dashboard:
 
 > [!TIP]
@@ -96,9 +112,9 @@ This unloads the daemon's LaunchAgent, removes its plist, and deletes the sample
 
 ## Report actor claim {#report-actor-claim}
 
-Report-creation requests can include an optional `x-tuist-actor-id` header. Set `TUIST_ACTOR_ID` to an organization-scoped label. Otherwise, Tuist uses the first nonempty `USER`, `USERNAME`, or `LOGNAME` value.
+Report-creation requests include the optional `x-tuist-actor-id` header only when you explicitly set `TUIST_ACTOR_ID` to an organization-scoped label. No label is sent by default, and Tuist does not detect operating-system usernames.
 
-Labels must be 1–128 bytes of printable ASCII without spaces. An empty or invalid override suppresses the automatic claim; set `TUIST_ACTOR_ID=""` to opt out. An operating-system username may contain personal information. In CI, it usually identifies the runner account, not the person who triggered the job. Do not use credentials or other sensitive values.
+Labels must be 1–128 bytes of printable ASCII without spaces. An empty or invalid override omits the claim; set `TUIST_ACTOR_ID=""` to suppress a configured value. The label may contain personal information. Do not use credentials or other sensitive values.
 
 The claim is unverified metadata, not authentication. Existing credentials, permissions, endpoints, and report bodies are unchanged. Servers without actor support ignore the header and keep their existing attribution; this client change alone does not add dashboard actor labels. If a custom proxy rejects unfamiliar headers, opt out using the empty environment override.
 

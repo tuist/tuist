@@ -8,14 +8,36 @@ import TuistEnvironment
 
 struct ServerClientActorHeadersMiddlewareTests {
     @Test func environment_resolution_and_override() {
-        #expect(ServerClientActorHeadersMiddleware.actorID(variables: ["USER": "developer"]) == "developer")
-        #expect(ServerClientActorHeadersMiddleware.actorID(variables: ["USERNAME": "windows-user"]) == "windows-user")
+        #expect(ServerClientActorHeadersMiddleware.actorID(variables: ["USER": "developer"]) == nil)
+        #expect(ServerClientActorHeadersMiddleware.actorID(variables: ["USERNAME": "windows-user"]) == nil)
         #expect(ServerClientActorHeadersMiddleware
             .actorID(variables: ["TUIST_ACTOR_ID": "employee-123", "USER": "developer"]) == "employee-123")
         #expect(ServerClientActorHeadersMiddleware.actorID(variables: ["TUIST_ACTOR_ID": "", "USER": "developer"]) == nil)
-        #expect(ServerClientActorHeadersMiddleware.actorID(variables: ["USER": "", "LOGNAME": "fallback"]) == "fallback")
+        #expect(ServerClientActorHeadersMiddleware.actorID(variables: ["USER": "", "LOGNAME": "fallback"]) == nil)
         let maximum = String(repeating: "~", count: 128)
         #expect(ServerClientActorHeadersMiddleware.actorID(variables: ["TUIST_ACTOR_ID": maximum]) == maximum)
+    }
+
+    @Test func omits_header_without_explicit_opt_in() async throws {
+        let environment = Environment(
+            variables: ["USER": "developer", "USERNAME": "windows-user", "LOGNAME": "legacy-user"],
+            arguments: []
+        )
+        try await confirmation("Middleware forwards the request") { forwarded in
+            try await Environment.$current.withValue(environment) {
+                _ = try await ServerClientActorHeadersMiddleware().intercept(
+                    HTTPRequest(method: .post, scheme: "https", authority: "tuist.example", path: "/api"),
+                    body: nil,
+                    baseURL: try #require(URL(string: "https://tuist.example")),
+                    operationID: "createBuild"
+                ) { request, _, _ in
+                    forwarded()
+                    let header = try #require(HTTPField.Name("x-tuist-actor-id"))
+                    #expect(request.headerFields[header] == nil)
+                    return (HTTPResponse(status: .ok), nil)
+                }
+            }
+        }
     }
 
     @Test func preserves_explicit_request_override() async throws {

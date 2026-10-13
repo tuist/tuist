@@ -64,15 +64,22 @@ class ActorReportingIntegrationTest {
                 "TUIST_TOKEN" to "existing-token",
                 "TUIST_XDG_CONFIG_HOME" to File(directory, "config").path,
                 "XDG_STATE_HOME" to File(directory, "state").path,
-                "CI" to "true"
+                "CI" to "true",
+                "USER" to "developer",
+                "USERNAME" to "windows-user",
+                "LOGNAME" to "legacy-user"
             )
-            listOf(null, "environment-actor", "", "invalid actor").forEachIndexed { iteration, override ->
+            listOf(null, "environment-actor", "", "invalid actor", null, null).forEachIndexed { iteration, override ->
+                if (iteration == 4) {
+                    val settings = File(directory, "settings.gradle")
+                    settings.writeText(settings.readText().replace("buildInsights { actorId = 'configured-actor' }", ""))
+                }
                 val runEnvironment = environment.toMutableMap().apply {
                     if (override != null) put("TUIST_ACTOR_ID", override)
                 }
                 val result = GradleRunner.create().withProjectDir(directory).withPluginClasspath().withGradleVersion("9.2.1")
                     .withEnvironment(runEnvironment).withArguments("test", "--rerun-tasks", "--configuration-cache", "--no-watch-fs", "--stacktrace").build()
-                if (iteration > 0) assertTrue(result.output.contains("Reusing configuration cache"), result.output)
+                if (iteration in 1..3 || iteration == 5) assertTrue(result.output.contains("Reusing configuration cache"), result.output)
                 val reports = List(2) { assertNotNull(requests.poll(20, TimeUnit.SECONDS), result.output) }
                 assertEquals(setOf("/api/projects/test/actor-compatibility/gradle/builds", "/api/projects/test/actor-compatibility/tests"), reports.map { it.path }.toSet())
                 assertTrue(nonReports.isNotEmpty(), "The fixture must exercise non-report requests")
