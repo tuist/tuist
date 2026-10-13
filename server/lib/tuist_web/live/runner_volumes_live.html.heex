@@ -64,6 +64,7 @@
       <div data-part="widgets">
         <.widget
           id="storage-volumes"
+          legend_color="primary"
           trend_value={storage_trend(data.storage_history, :volumes, @analytics_period).value}
           trend_value_label={
             storage_trend(data.storage_history, :volumes, @analytics_period).value_label
@@ -84,6 +85,7 @@
         />
         <.widget
           id="storage-used"
+          legend_color="primary"
           trend_value={storage_trend(data.storage_history, :used_bytes, @analytics_period).value}
           trend_value_label={
             storage_trend(data.storage_history, :used_bytes, @analytics_period).value_label
@@ -101,6 +103,7 @@
         />
         <.widget
           id="storage-hit-rate"
+          legend_color="primary"
           trend_value={
             hit_rate_trend(data.activity.hit_rate, data.previous_activity.hit_rate).value
           }
@@ -375,6 +378,7 @@
             uses_trend(data.analytics.activity.uses, data.analytics.previous_activity.uses) %>
           <.widget
             id="volume-used"
+            legend_color="primary"
             title={dgettext("dashboard_runners", "Used space")}
             value={storage_value(data.analytics.storage, :used_bytes)}
             trend_value={used_change.value}
@@ -390,6 +394,7 @@
           />
           <.widget
             id="volume-hit-rate"
+            legend_color="primary"
             title={dgettext("dashboard_runners", "Hit rate")}
             value={percentage(data.analytics.activity.hit_rate)}
             trend_value={hit_rate_change.value}
@@ -408,6 +413,7 @@
           />
           <.widget
             id="volume-uses"
+            legend_color="primary"
             title={dgettext("dashboard_runners", "Job runs")}
             value={count(data.analytics.activity.uses)}
             trend_value={uses_change.value}

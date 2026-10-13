@@ -449,6 +449,24 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert widget.("volume-uses") =~ "+100.0%"
   end
 
+  test "widgets show the legend of the chart series they select" do
+    legend = fn html, id ->
+      html |> Floki.parse_document!() |> Floki.find(~s(##{id} [data-part="legend"])) |> Floki.attribute("data-color")
+    end
+
+    detail = render_component(&RunnerVolumesLive.render/1, assigns(true))
+
+    for id <- ~w(volume-used volume-hit-rate volume-uses) do
+      assert legend.(detail, id) == ["primary"]
+    end
+
+    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns(true) | selected: nil})
+
+    for id <- ~w(storage-volumes storage-used storage-hit-rate) do
+      assert legend.(inventory, id) == ["primary"]
+    end
+  end
+
   test "job run trends show absolute growth from zero and fall back without a previous count" do
     assert %{value: 100.0, value_label: nil, label: "since last period"} = RunnerVolumesLive.uses_trend(4, 2)
     assert %{value: -50.0} = RunnerVolumesLive.uses_trend(1, 2)
