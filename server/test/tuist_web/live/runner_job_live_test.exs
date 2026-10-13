@@ -2017,6 +2017,31 @@ defmodule TuistWeb.RunnerJobLiveTest do
     end
   end
 
+  test "flags a volume that a failed job filled as the likely cause" do
+    volume = %Tuist.Runners.CacheVolumes.Volume{id: Ecto.UUID.generate(), key: "gradle-deps"}
+
+    usage = %Tuist.Runners.CacheVolumes.Usage{
+      volume_id: volume.id,
+      volume: volume,
+      warm: true,
+      size_bytes: 19_427_938_304,
+      capacity_bytes: 19_503_599_616
+    }
+
+    html = render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: [usage], account_name: "org", failed: true)
+    assert html =~ ~s(id="runner-job-volume-full-alert-#{volume.id}")
+    assert html =~ "gradle-deps ran out of space"
+
+    succeeded =
+      render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: [usage], account_name: "org", failed: false)
+
+    refute succeeded =~ ~s(id="runner-job-volume-full-alert-#{volume.id}")
+
+    roomy = %{usage | size_bytes: 10_000_000_000}
+    html = render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: [roomy], account_name: "org", failed: true)
+    refute html =~ ~s(id="runner-job-volume-full-alert-#{volume.id}")
+  end
+
   defp flush_outbox! do
     :ok = FlushJobTransitionEventsWorker.perform(%Oban.Job{})
   end

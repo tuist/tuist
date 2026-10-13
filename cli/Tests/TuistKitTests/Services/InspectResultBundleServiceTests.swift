@@ -118,7 +118,8 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any
+                coverageUpload: .any,
+                coverageEnabled: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -202,7 +203,8 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any
+                coverageUpload: .any,
+                coverageEnabled: .any
             )
             .called(1)
     }
@@ -340,7 +342,8 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any
+                coverageUpload: .any,
+                coverageEnabled: .any
             )
             .called(1)
     }
@@ -417,7 +420,8 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any
+                coverageUpload: .any,
+                coverageEnabled: .any
             )
             .called(1)
     }
@@ -497,7 +501,8 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any
+                coverageUpload: .any,
+                coverageEnabled: .any
             )
             .called(1)
     }
@@ -563,7 +568,8 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any
+                coverageUpload: .any,
+                coverageEnabled: .any
             )
             .called(1)
     }
@@ -653,7 +659,8 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any
+                coverageUpload: .any,
+                coverageEnabled: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -797,7 +804,8 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any
+                coverageUpload: .any,
+                coverageEnabled: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -897,7 +905,8 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any
+                coverageUpload: .any,
+                coverageEnabled: .any
             )
             .called(1)
     }
@@ -960,7 +969,8 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any
+                coverageUpload: .any,
+                coverageEnabled: .value(true)
             )
             .called(1)
     }
@@ -1067,6 +1077,18 @@ struct UploadResultBundleServiceTests {
 
         verify(xcResultService).coveredFilePaths(path: .any).called(0)
         #expect(try await !fileSystem.exists(xcresultPath.appending(component: XcodeCoverageManifest.fileName)))
+        verify(createTestService)
+            .createTest(
+                fullHandle: .any, serverURL: .any, id: .any, testSummary: .any,
+                buildRunId: .any, gitBranch: .any, gitCommitSHA: .any, gitRef: .any,
+                gitRemoteURLOrigin: .any, isCI: .any, modelIdentifier: .any,
+                macOSVersion: .any, xcodeVersion: .any, ciRunId: .any,
+                ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
+                shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
+                stressNewTests: .any, gitHistory: .any, coverageUpload: .any,
+                coverageEnabled: .value(false)
+            )
+            .called(1)
     }
 
     @Test(.inTemporaryDirectory)
@@ -1271,7 +1293,8 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any
+                coverageUpload: .any,
+                coverageEnabled: .any
             )
             .called(1)
     }

@@ -383,6 +383,8 @@ func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, host *
 	}
 	return rackConvergeOptions{
 		NodeName:       host.Spec.Hostname,
+		Role:           host.Spec.Role,
+		Edge:           host.Spec.Edge,
 		NodeIP:         host.Status.Tailnet.Address,
 		ProviderID:     rackLinuxProviderID(host),
 		KubeletVersion: kubeletVersion,

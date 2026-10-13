@@ -110,6 +110,14 @@ defmodule Atlas.MCP.ServerTest do
       assert response["result"]["protocolVersion"] == "2025-03-26"
     end
 
+    test "does not advertise server-initiated change notifications" do
+      response = Server.handle_message(nil, %{"jsonrpc" => "2.0", "id" => 1, "method" => "initialize", "params" => %{}})
+
+      for capability <- ~w(tools prompts resources) do
+        assert response["result"]["capabilities"][capability]["listChanged"] == false
+      end
+    end
+
     test "advertises the revision that introduced structured content by default" do
       response = Server.handle_message(nil, %{"jsonrpc" => "2.0", "id" => 1, "method" => "initialize", "params" => %{}})
 

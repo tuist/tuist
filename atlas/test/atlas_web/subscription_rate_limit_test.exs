@@ -1,7 +1,7 @@
 defmodule AtlasWeb.SubscriptionRateLimitTest do
   # The limiter's table is shared, so every test uses addresses and IPs unique
   # to itself rather than resetting global state.
-  use ExUnit.Case, async: true
+  use Atlas.DataCase, async: true
 
   alias AtlasWeb.SubscriptionRateLimit
 

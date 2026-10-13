@@ -4882,9 +4882,10 @@ final class TestServiceTests: TuistUnitTestCase {
                     shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
                     stressNewTests: .any,
                     gitHistory: .any,
-                    coverageUpload: .any
+                    coverageUpload: .any,
+                    coverageEnabled: .any
                 )
-                .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _, _, _, _ in
+                .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _, _, _, _, _ in
                     uploadedReports += 1
                     XCTAssertEqual(summary.testPlanName, "ProjectSchemeOne")
                     XCTAssertEqual(summary.status, .passed)
@@ -5717,7 +5718,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any
+                coverageUpload: .any,
+                coverageEnabled: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -5767,7 +5769,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any
+                coverageUpload: .any,
+                coverageEnabled: .any
             )
             .called(1)
     }
@@ -5811,7 +5814,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any
+                coverageUpload: .any,
+                coverageEnabled: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -8503,5 +8507,61 @@ extension StressNewTestsResult {
                 ),
             ]
         )
+    }
+}
+
+struct TestServiceCoverageEnabledTests {
+    @Test(.withMockedEnvironment())
+    func isFalseWhenTuistDoesNotUploadCoverage() {
+        #expect(
+            TestService.coverageEnabled(
+                testAction: .test(coverage: true),
+                xcodebuildArguments: ["-enableCodeCoverage", "YES"],
+                config: .test(fullHandle: "tuist/tuist")
+            ) == false
+        )
+    }
+
+    @Test(.withMockedEnvironment())
+    func prefersThePassthroughFlagOverTheScheme() {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let config = TuistConfig.Tuist.test(fullHandle: "tuist/tuist")
+
+        #expect(
+            TestService.coverageEnabled(
+                testAction: .test(coverage: false),
+                xcodebuildArguments: ["-enableCodeCoverage", "YES"],
+                config: config
+            ) == true
+        )
+        #expect(
+            TestService.coverageEnabled(
+                testAction: .test(coverage: true),
+                xcodebuildArguments: ["-enableCodeCoverage", "NO"],
+                config: config
+            ) == false
+        )
+    }
+
+    @Test(.withMockedEnvironment())
+    func readsTheSchemeAndLeavesTestPlansUnknown() throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let config = TuistConfig.Tuist.test(fullHandle: "tuist/tuist")
+        let plan = TestPlan(
+            path: try AbsolutePath(validating: "/Project/App.xctestplan"),
+            testTargets: [],
+            isDefault: true
+        )
+
+        #expect(TestService.coverageEnabled(testAction: .test(coverage: true), xcodebuildArguments: [], config: config) == true)
+        #expect(TestService.coverageEnabled(testAction: .test(coverage: false), xcodebuildArguments: [], config: config) == false)
+        #expect(
+            TestService.coverageEnabled(
+                testAction: .test(coverage: true, testPlans: [plan]),
+                xcodebuildArguments: [],
+                config: config
+            ) == nil
+        )
+        #expect(TestService.coverageEnabled(testAction: nil, xcodebuildArguments: [], config: config) == nil)
     }
 }

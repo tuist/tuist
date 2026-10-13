@@ -168,7 +168,7 @@ defmodule TuistEx.Analytics.Coverage do
 
   defp clause_starts(_abstract_code), do: []
 
-  # Each executable line belongs to the function whose clause body starts
+  # Each executable line belongs to the function whose clause head starts
   # closest above it, including the anonymous functions inside it, whichever
   # of the file's modules it is in. Functions the compiler generates
   # (`__info__/1`, `__struct__/0`, `module_info/0`) are not listed, but still
@@ -180,7 +180,7 @@ defmodule TuistEx.Analytics.Coverage do
     clauses = Enum.uniq(clauses)
 
     starts =
-      clauses |> Enum.map(fn {_head, body, function} -> {body, function} end) |> Enum.sort()
+      clauses |> Enum.map(fn {head, _body, function} -> {head, function} end) |> Enum.sort()
 
     head_lines =
       clauses

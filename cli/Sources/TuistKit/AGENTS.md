@@ -12,8 +12,10 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - Avoid direct file system or graph logic that belongs in `TuistCore`, `TuistGenerator`, or `TuistSupport`.
 
 ## Invariants
+- `tuist xcodebuild` may reorder a supported action for Tuist's subcommand parser, but must restore its original position before forwarding arguments to xcodebuild. Preserve the caller's action sequence, including `clean` and repeated actions, and exclude consumed Tuist-only options from the forwarded arguments.
 - Swift flag deduplication must preserve top-level `-Werror` and `-Wwarning` pairs in their original order, including repetitions, in both ordinary and platform-conditioned build settings. Do not mistake a forwarded option such as `-Xcc -Werror` for a top-level warning-group flag.
 - `TuistCommand` groups commands into: Get started, Develop, Share, Account, Other.
+- Open-source generation honors `includeGenerateScheme` and configures compilation-cache debugging after automatic workspace schemes are created.
 - ProjectAutomation's package projection keeps its existing product-name and embedding shape. Explicit native package linkage hints remain in the generation graph; they do not add new package variants to this projection.
 - `TuistCommand.main` initializes cache directories, loads config, resolves server URL, and runs `TrackableCommand`.
 - Noora logging is reinitialized after command execution to ensure logs are captured in verbose logs.
@@ -29,3 +31,5 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - Server integration: `cli/Sources/TuistServer/AGENTS.md`
 - Cache warming carries the preload graph's SDK fingerprints through archiving and publication; do not recompute them from the graph after binary replacement. Preserve these publication fingerprints even when profile exclusions prevent handing precomputed target hashes to the warm-project generator.
 - When the default generator runs focus without filters (for example, during build), it preserves eligible local package tests and their dependencies for their effective platforms. Ordinary unfocused generation relies on the narrowing and pruning mappers. Test automation saves the graph before focus for platform inference and passes includedProducts for unit/UI tests; a selected scheme keeps its own test roots and does not add package tests outside the scheme.
+
+- Cache setup derives known hosted URLs locally and discovers one main URL for self-hosted servers, without registering demand. Hosted cache requests activate capacity through their derived URL. Empty discovered configurations allow ordinary builds and the Xcode proxy to use local storage with a warning; malformed endpoints and authentication errors remain failures.

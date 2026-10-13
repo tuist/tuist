@@ -91,6 +91,43 @@ type RackHostSpec struct {
 	// which bootstraps the host again.
 	// +optional
 	Parked bool `json:"parked,omitempty"`
+
+	// NodeFleet is the `tuist.dev/fleet` label on the host's Node when it is not
+	// the operator's fleet: a host lent to the runner pools of another fleet,
+	// such as one another environment's server drives. Runner pools select Nodes
+	// by that label, so the operator's own pools stop placing runners on the
+	// host and pools selecting this value start. The Machine keeps the
+	// operator's fleet, its name and its credentials. A change reaches the host
+	// through the host-config drift loop.
+	// +optional
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	NodeFleet string `json:"nodeFleet,omitempty"`
+
+	// NodeCluster registers the host's Node in another cluster: the host stays
+	// in this operator's inventory (its Machine, power, OS updates and
+	// bootstrap are this cluster's), but its tart-kubelet joins the cluster
+	// whose kubeconfig the Secret holds, and that cluster's runner pools and
+	// server drive its guests. This cluster then has no Node for the host, so
+	// the Machine is kept off remediation and the host is not re-bootstrapped
+	// for a missing Node. Drain the host's Node before setting it.
+	// +optional
+	NodeCluster *RackHostNodeCluster `json:"nodeCluster,omitempty"`
+}
+
+// RackHostNodeCluster is the cluster a lent host's Node registers in.
+type RackHostNodeCluster struct {
+	// KubeconfigSecret names a Secret in the host's namespace whose
+	// `kubeconfig` key is the kubeconfig tart-kubelet authenticates with: a
+	// node identity the other cluster issued for this host's Machine name.
+	// +kubebuilder:validation:MinLength=1
+	KubeconfigSecret string `json:"kubeconfigSecret"`
+
+	// CacheVolumesURL is the other cluster's server endpoint for macOS custom
+	// cache volumes (`<server>/api/internal/runners/cache-volumes`). Empty
+	// turns custom cache volumes off on the host.
+	// +optional
+	CacheVolumesURL string `json:"cacheVolumesURL,omitempty"`
 }
 
 // RackHostMachine is the sizing the host's RackAppleSiliconMachine carries.

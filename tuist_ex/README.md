@@ -184,14 +184,16 @@ Tuist reads the counters Erlang's `cover` collected once the suite finishes,
 so your coverage tool keeps working as before: `mix test`'s HTML report and
 threshold, or excoveralls. Each covered file is reported with the OTP
 application it belongs to and the Git blob it had, and files under your test
-paths count as test code, which no figure includes. A run that picks its tests
+paths count as test code, which no figure includes. Each file also lists its
+functions; lines that hold only code the compiler or a macro generates, such as
+the line `defmodule`, `schema` or `use` sits on, count for the file but belong
+to no function. A run that picks its tests
 (`--only`, `--exclude`, `--failed`, `--stale`, or test files on the command
 line) is reported as partial and stays out of the branch's coverage trend.
 Shards each report their share and Tuist merges them.
 
 With coverage, the run also reports its Git history: the merge base with the
-branch a pull request merges into, the files it changed, and the commits Tuist
-does not have yet. A shallow clone is deepened, within a time budget, until
+branch a pull request merges into and the commits Tuist does not have yet. A shallow clone is deepened, within a time budget, until
 the merge base is found. Once every job of the pipeline that measures coverage
 has finished, tell Tuist the commit's coverage is complete:
 

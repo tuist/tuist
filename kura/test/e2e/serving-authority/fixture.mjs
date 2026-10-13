@@ -8,7 +8,7 @@ export async function fixture(
   image,
   mode,
   output,
-  { limitedTarget = false, backfillBatchBytes } = {},
+  { limitedTarget = false, backfillBatchBytes, standbyImage = image } = {},
 ) {
   fs.mkdirSync(output, { recursive: true });
   const prefix = `spec98-mesh-${process.pid}`,
@@ -217,7 +217,7 @@ export async function fixture(
           `${output}:/var/run/secrets/kubernetes.io/serviceaccount:ro`,
         );
       created.push(names[i]);
-      docker(...args, image);
+      docker(...args, i === 0 ? image : standbyImage);
     }
     for (let i = 0; i < 2; i++) {
       let ready = false;

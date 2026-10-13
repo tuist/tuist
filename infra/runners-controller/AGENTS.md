@@ -1308,3 +1308,7 @@ drills. See `cache-volumes.md` for queries and rollout evidence.
 The September 28 repeat-CI and recovery drill results are recorded in
 `cache-volume-validation.md`; distinguish measured workload gains from prefetch
 behavior that still needs production observation.
+
+- Cache-volume acquisition forwards commit intent to the server and requires acknowledgement before exposing explicit true/false requests. The server owns per-volume writer grants; workflow intent cannot override them.
+
+- Explicit commit modes use versioned acquisition/authorization paths (macOS .commit-request mailboxes) so older components cannot allocate before rejecting them. Auto retains legacy paths. Echo can_publish and warn on an unauthorized explicit save; publication still rechecks policy.

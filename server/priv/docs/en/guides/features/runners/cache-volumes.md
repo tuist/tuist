@@ -99,7 +99,7 @@ same key are separate.
 
 ## Saving changes {#saving-changes}
 
-Successful jobs on the default branch save their changes for future runs when
+By default, successful jobs on the default branch save their changes for future runs when
 triggered by these events:
 
 | Provider | Events that save changes |
@@ -108,9 +108,28 @@ triggered by these events:
 | Buildkite | Webhook, schedule |
 | GitLab CI | Push, schedule, web |
 
-Other jobs, including pull requests, merge requests and tags, can use the cache,
+Without an additional writer-branch grant, other jobs, including pull requests, merge requests and tags, can use the cache,
 but their changes are discarded. Concurrent jobs work independently; changes
 from different jobs are not merged. Never cache credentials or irreplaceable data.
+
+### Commit controls and writer branches
+
+The GitHub action accepts `commit: auto` (the default), `commit: 'false'` (discard
+this job's changes), and `commit: 'true'` (request a save). Both `auto` and `true`
+remain subject to the server's writer policy and successful job completion;
+`true` cannot grant a branch permission or save a failed job. If the job lacks permission at attachment, the action emits a warning and its changes are discarded.
+
+Account administrators can open a GitHub custom volume under **Runners → Volumes**
+and edit **Writer branches**. Default-branch publishing remains enabled. Up to
+20 additional exact branch names can publish from verified same-repository
+pull-request runs. These additional grants do not authorize push, schedule or
+manual-dispatch runs: GitHub's workflow-run branch name cannot distinguish a
+branch from a same-named tag. Fork PRs and `pull_request_target` cannot publish.
+Wildcards are not supported. Buildkite, GitLab and built-in macOS volume policies
+are unchanged. Removing a branch revokes only pending saves authorized by that
+grant. Default-branch saves and retained grants continue. Adding or reordering
+branches does not revoke saves; additions apply only to new volume attachments.
+
 
 ## Capacity and retention {#capacity-and-retention}
 
@@ -118,8 +137,10 @@ Each volume holds up to **20 GB** and expires after **7 days without a job mount
 The next job starts with an empty volume after expiry.
 
 Saved contents can accumulate across runs. Volumes do not prune old dependencies:
-use your tool's cleanup settings or clear the volume before it fills up. Writes
-to a full volume can fail the job.
+use your tool's cleanup settings to keep them small. Writes to a full volume can
+fail the job. When saved contents reach **80%** of the volume's capacity and a job
+runs out of space on them, the next job starts with an empty volume and its
+changes begin a new saved state.
 
 ## Inspecting and clearing volumes {#inspecting-and-clearing-volumes}
 

@@ -103,8 +103,7 @@ public struct GitHistoryService: GitHistoryServicing {
                     pullRequestNumber: gitInfo.pullRequestNumber,
                     objectFormat: nil,
                     source: "none",
-                    fallbackReason: reason,
-                    changedFiles: []
+                    fallbackReason: reason
                 ),
                 history: GitHistory(
                     objectFormat: "sha1",
@@ -112,7 +111,6 @@ public struct GitHistoryService: GitHistoryServicing {
                     baseBranch: gitInfo.baseBranch,
                     mergeBaseSHA: nil,
                     commits: [],
-                    changedFiles: [],
                     fallbackReason: reason
                 ),
                 branch: gitInfo.branch,
@@ -157,7 +155,6 @@ public struct GitHistoryService: GitHistoryServicing {
                     objectFormat: nil,
                     source: "none",
                     fallbackReason: error.localizedDescription,
-                    changedFiles: [],
                     dirty: dirty
                 ),
                 history: GitHistory(
@@ -166,7 +163,6 @@ public struct GitHistoryService: GitHistoryServicing {
                     baseBranch: gitInfo.baseBranch,
                     mergeBaseSHA: nil,
                     commits: [],
-                    changedFiles: [],
                     fallbackReason: error.localizedDescription
                 ),
                 branch: gitInfo.branch,
@@ -184,16 +180,6 @@ public struct GitHistoryService: GitHistoryServicing {
             objectFormat: history.objectFormat,
             source: "client",
             fallbackReason: history.fallbackReason,
-            changedFiles: history.changedFiles.map { file in
-                TestRunGitHistory.ChangedFile(
-                    path: file.path,
-                    previousPath: file.previousPath,
-                    status: file.status.rawValue,
-                    blobId: file.blobId,
-                    hunks: file.hunks.map { (start: $0.start, end: $0.end) },
-                    truncated: file.truncated
-                )
-            },
             dirty: dirty
         )
 
