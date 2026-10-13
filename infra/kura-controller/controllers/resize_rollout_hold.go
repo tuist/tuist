@@ -19,11 +19,11 @@ import (
 // a marked hold is lifted by the controller.
 const resizeRolloutHoldAnnotation = "kura.tuist.dev/resize-rollout-hold"
 
-// A grown claim is replaced one ordinal at a time, and while a rebuilt replica
-// is not serving yet, its sibling is the only one that is. With parallel pod
-// management a RollingUpdate deletes the highest stale ordinal whether or not
-// the others are ready, so any template change in that window restarts the
-// serving replica. The resize holds the StatefulSet on OnDelete instead of
+// A grown claim or a changed storage class is replaced one ordinal at a time,
+// and while a rebuilt replica is not serving yet, its sibling is the only one
+// that is. With parallel pod management a RollingUpdate deletes the highest
+// stale ordinal whether or not the others are ready, so any template change in
+// that window restarts the serving replica. The resize holds the StatefulSet on OnDelete instead of
 // leaving the template untouched, so the template keeps following the
 // instance (the CPU schedule cap in particular) without rolling a running pod.
 func (r *KuraInstanceReconciler) reconcileStatefulSetDuringResize(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {

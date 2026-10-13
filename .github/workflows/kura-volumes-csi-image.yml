@@ -1,0 +1,81 @@
+name: Kura Volumes CSI Image
+
+# PR validation + image build for kura-volumes-csi, the node plugin behind
+# the kura-volumes.tuist.dev StorageClass that gives every Kura data PVC its
+# own LUKS2 container on the node's /data partition (infra/kura-volumes-csi/).
+#
+# Deployed images are built by server-deployment.yml and
+# server-production-deployment.yml next to the Kura controller, at the same
+# `sha-` tag. This workflow validates PRs; a manual dispatch pushes `:sha-<git-sha>`.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - infra/kura-volumes-csi/**
+      - .github/workflows/kura-volumes-csi-image.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/kura-volumes-csi
+
+jobs:
+  test:
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/kura-volumes-csi/go.mod
+          cache-dependency-path: infra/kura-volumes-csi/go.sum
+      - name: Test
+        working-directory: infra/kura-volumes-csi
+        run: go test ./...
+      - name: Vet
+        working-directory: infra/kura-volumes-csi
+        run: go vet ./...
+
+  # Builds on every run (a Dockerfile broken on a PR must not surface only
+  # after merge on main); pushes to ghcr only outside pull_request events,
+  # which also keeps fork PRs away from the registry.
+  build:
+    needs: test
+    if: github.repository == 'tuist/tuist'
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute tags
+        id: tags
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          GIT_SHA="${GITHUB_SHA::12}"
+          echo "version=sha-${GIT_SHA}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<EOF"
+            echo "${IMAGE}:sha-${GIT_SHA}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/kura-volumes-csi/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: VERSION=${{ steps.tags.outputs.version }}
+          cache-from: type=gha,scope=kura-volumes-csi
+          cache-to: type=gha,mode=max,scope=kura-volumes-csi

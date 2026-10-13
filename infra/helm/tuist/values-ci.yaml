@@ -20,6 +20,10 @@ egressTreeAgent:
   image:
     tag: validation
 
+kuraVolumesCSI:
+  image:
+    tag: validation
+
 codebaseSearch:
   image:
     tag: validation

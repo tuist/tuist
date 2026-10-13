@@ -436,6 +436,13 @@ egressTreeAgent:
   enabled: true
   nodePools: [kura-ca-east]
 
+# The kura-volumes.tuist.dev CSI driver and kura-encrypted-nvme StorageClass
+# on the Kura cache pools. Inert until server.kuraEncryptedVolumes places
+# instances on the class. The deploy workflows pin kuraVolumesCSI.image.tag to
+# the Kura controller's `sha-` build.
+kuraVolumesCSI:
+  enabled: true
+
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Hard pod anti-affinity keeps the instances
 # on separate hosts. The general-purpose pool has three workers so hooks

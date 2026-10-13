@@ -201,6 +201,7 @@ env:
   REGISTRY_IMAGE_NAME: tuist/registry
   CODEBASE_SEARCH_IMAGE_NAME: tuist/codebase-search
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
+  KURA_VOLUMES_CSI_IMAGE_NAME: tuist/kura-volumes-csi
   EGRESS_TREE_AGENT_IMAGE_NAME: tuist/egress-tree-agent
   KURA_RUNTIME_IMAGE_NAME: tuist/kura
   HELM_CHART_PATH: infra/helm/tuist
@@ -346,6 +347,15 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+      - uses: docker/build-push-action@v6
+        name: Build and push Kura volumes CSI image
+        with:
+          context: .
+          file: ./infra/kura-volumes-csi/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.KURA_VOLUMES_CSI_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          build-args: VERSION=${{ steps.tag.outputs.image_tag }}
       - uses: docker/build-push-action@v6
         name: Build and push Swift registry image
         with:
@@ -876,6 +886,27 @@ jobs:
 
           echo "KURA_CONTROLLER_IMAGE_TAG=$controller_tag" >> "$GITHUB_ENV"
           echo "Kura controller: ${controller_source} image tag ${controller_tag}"
+
+          # The kura-volumes CSI image is built next to the controller, so an
+          # explicit or freshly built controller tag names it too. A preserved
+          # controller keeps the running DaemonSet's image; with no DaemonSet
+          # yet, nothing stages encrypted volumes and the chart leaves it out.
+          if [ "$controller_source" != "preserved" ]; then
+            csi_tag="$controller_tag"
+          else
+            current_csi_image="$(
+              kubectl -n kura-volumes get daemonsets kura-volumes-csi-node \
+                -o jsonpath='{.spec.template.spec.containers[?(@.name=="driver")].image}' \
+                2>/dev/null || true
+            )"
+            csi_prefix="${REGISTRY}/${KURA_VOLUMES_CSI_IMAGE_NAME}:"
+            csi_tag=""
+            if [[ "$current_csi_image" == "$csi_prefix"* ]]; then
+              csi_tag="${current_csi_image#"$csi_prefix"}"
+            fi
+          fi
+          echo "KURA_VOLUMES_CSI_IMAGE_TAG=$csi_tag" >> "$GITHUB_ENV"
+          echo "kura-volumes CSI: image tag ${csi_tag:-<none, disabled>}"
       - name: Resolve egress-tree-agent image tag
         # The git-tag resolution above returns nothing for a commit that
         # predates the first `egress-tree-agent@` release — a re-promote or
@@ -1157,6 +1188,11 @@ jobs:
             egress_tree_agent_image_tag="${EGRESS_TREE_AGENT_TAG:-}"
           fi
           add_set "egressTreeAgent.image.tag" "$egress_tree_agent_image_tag"
+          if [ -n "${KURA_VOLUMES_CSI_IMAGE_TAG:-}" ]; then
+            add_set "kuraVolumesCSI.image.tag" "$KURA_VOLUMES_CSI_IMAGE_TAG"
+          else
+            image_sets+=(--set "kuraVolumesCSI.enabled=false")
+          fi
 
           registry_probe_tag="${REGISTRY_IMAGE_TAG:-registry-render-probe}"
           registry_render="$(mktemp)"

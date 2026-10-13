@@ -2072,6 +2072,53 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     }
   end
 
+  describe "manifest/6 storage class" do
+    setup do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "00000000-0000-0000-0000-000000000001" end)
+      :ok
+    end
+
+    test "keeps the node-local NVMe class while encrypted volumes are off" do
+      stub(Tuist.Environment, :kura_encrypted_volumes_enabled?, fn -> false end)
+
+      assert storage_class_name(region_with_storage_class("scw-local-nvme")) == "scw-local-nvme"
+    end
+
+    test "builds node-local NVMe instances on encrypted volumes once enabled" do
+      stub(Tuist.Environment, :kura_encrypted_volumes_enabled?, fn -> true end)
+
+      assert storage_class_name(region_with_storage_class("scw-local-nvme")) == "kura-encrypted-nvme"
+      assert storage_class_name(region_with_storage_class("scw-bssd")) == "scw-bssd"
+      assert storage_class_name(region_with_storage_class("hcloud-volumes")) == "hcloud-volumes"
+    end
+
+    test "keeps the node-local NVMe class on regions that opt out of encrypted volumes" do
+      stub(Tuist.Environment, :kura_encrypted_volumes_enabled?, fn -> true end)
+      region = region_with_storage_class("scw-local-nvme")
+      region = %{region | provisioner_config: Map.put(region.provisioner_config, :encrypted_volumes, false)}
+
+      assert storage_class_name(region) == "scw-local-nvme"
+    end
+
+    test "keeps the BER1 rack on the node-local NVMe class" do
+      stub(Tuist.Environment, :kura_encrypted_volumes_enabled?, fn -> true end)
+
+      assert %Regions{provisioner_config: %{encrypted_volumes: false}} = Regions.get("ber1-runners")
+    end
+
+    defp region_with_storage_class(storage_class) do
+      region = scaleway_region()
+      %{region | provisioner_config: Map.put(region.provisioner_config, :storage_class, storage_class)}
+    end
+
+    defp storage_class_name(region) do
+      KubernetesController.manifest("kura-tuist-scw-fr-par", "0.5.2", %{name: "tuist"}, region, %Server{})["spec"][
+        "storageClassName"
+      ]
+    end
+  end
+
   describe "manifest/6 for a private runner-cache region" do
     test "marks the instance private and omits public/ingress fields" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)

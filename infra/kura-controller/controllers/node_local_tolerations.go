@@ -16,7 +16,7 @@ import (
 // not itself roll the fleet. Explicit instance tolerations remain authoritative.
 func nodeLocalTolerations(instance *kurav1alpha1.KuraInstance, sts *appsv1.StatefulSet) []corev1.Toleration {
 	tolerations := slices.Clone(instance.Spec.Tolerations)
-	if instance.Spec.StorageClassName != "scw-local-nvme" {
+	if !nodeLocalStorageClass(instance.Spec.StorageClassName) {
 		return tolerations
 	}
 	adopt := sts.ResourceVersion == ""
@@ -40,4 +40,18 @@ func nodeLocalTolerations(instance *kurav1alpha1.KuraInstance, sts *appsv1.State
 		}
 	}
 	return tolerations
+}
+
+const (
+	localPathStorageClass      = "scw-local-nvme"
+	encryptedLocalStorageClass = "kura-encrypted-nvme"
+	// encryptedLocalTopologyKey is the topology key the kura-volumes.tuist.dev
+	// CSI driver pins its PVs with; its value is the node name.
+	encryptedLocalTopologyKey = "topology.kura-volumes.tuist.dev/node"
+)
+
+// nodeLocalStorageClass reports whether a storage class carves volumes on one
+// node's disk, so a bound volume can never follow its pod to another host.
+func nodeLocalStorageClass(name string) bool {
+	return name == localPathStorageClass || name == encryptedLocalStorageClass
 }

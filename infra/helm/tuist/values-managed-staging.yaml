@@ -67,6 +67,13 @@ egressTreeAgent:
   enabled: true
   nodePools: [kura-ca-east]
 
+# The kura-volumes.tuist.dev CSI driver and kura-encrypted-nvme StorageClass
+# on the Kura cache pools. Inert until server.kuraEncryptedVolumes places
+# instances on the class. The deploy workflows pin kuraVolumesCSI.image.tag to
+# the Kura controller's `sha-` build.
+kuraVolumesCSI:
+  enabled: true
+
 registry:
   publicHost: registry-staging.tuist.dev
   serverUrl: https://staging.tuist.dev

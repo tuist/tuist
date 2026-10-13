@@ -102,6 +102,7 @@ env:
   REGISTRY_IMAGE_NAME: tuist/registry
   CODEBASE_SEARCH_IMAGE_NAME: tuist/codebase-search
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
+  KURA_VOLUMES_CSI_IMAGE_NAME: tuist/kura-volumes-csi
 
 jobs:
   check-releases:
@@ -1432,6 +1433,15 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+      - uses: docker/build-push-action@v6
+        name: Build and push Kura volumes CSI image
+        with:
+          context: .
+          file: ./infra/kura-volumes-csi/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.KURA_VOLUMES_CSI_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          build-args: VERSION=${{ steps.tag.outputs.image_tag }}
       - uses: docker/build-push-action@v6
         name: Build and push Swift registry image
         with:

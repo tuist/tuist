@@ -1265,3 +1265,42 @@ Secret, and the new name drifts the host onto it.
 {{- end -}}
 {{- $item | lower | replace "_" "-" | trunc 63 -}}
 {{- end -}}
+
+{{/*
+The node pools that host node-local Kura cache volumes, as a JSON list of pool
+names: the kura runner-cache pool, the single OVH pool, and every OVH or Vultr
+fleet whose nodes carry the kura-cache taint. Fleets in those maps that are not
+cache pools (the OVH Linux runner boxes) set their own taints and stay out, so
+nothing privileged that targets this list lands on a box with no cache volumes.
+Taints unset means the kura-cache taint, as in ovh-fleets.yaml and
+vultr-fleets.yaml. Rack storage pools are not listed: nothing a deploy waits on
+may run a pod on a rack node (see infra/rack-nodes/AGENTS.md).
+*/}}
+{{- define "tuist.kuraCachePools" -}}
+{{- $pools := list -}}
+{{- if .Values.kuraFleet.enabled -}}
+{{- $pools = append $pools (.Values.kuraFleet.nodePool | default "kura-scw-fr-par") -}}
+{{- end -}}
+{{- if .Values.ovhFleet.enabled -}}
+{{- $pools = append $pools (.Values.ovhFleet.nodePool | default "kura-ovh") -}}
+{{- end -}}
+{{- range $key, $fleet := .Values.ovhFleets -}}
+{{- if $fleet.enabled -}}
+{{- range $taint := dig "machine" "nodeTaints" (list (dict "key" "tuist.dev/kura-cache")) $fleet -}}
+{{- if eq $taint.key "tuist.dev/kura-cache" -}}
+{{- $pools = append $pools ($fleet.nodePool | default (printf "kura-%s" $key)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- range $key, $fleet := .Values.vultrFleets -}}
+{{- if $fleet.enabled -}}
+{{- range $taint := dig "machine" "nodeTaints" (list (dict "key" "tuist.dev/kura-cache")) $fleet -}}
+{{- if eq $taint.key "tuist.dev/kura-cache" -}}
+{{- $pools = append $pools ($fleet.nodePool | default (printf "kura-%s" $key)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $pools | toJson -}}
+{{- end -}}

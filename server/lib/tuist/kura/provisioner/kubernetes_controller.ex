@@ -27,6 +27,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # Ceiling on the peer-roles read, retries included. See `peer_roles/2`.
   @peer_roles_timeout_ms 3_000
   @egress_bandwidth_annotation "kubernetes.io/egress-bandwidth"
+  @node_local_nvme_storage_class "scw-local-nvme"
+  @encrypted_nvme_storage_class "kura-encrypted-nvme"
   # The public host, ingress class and region label are not in the suffixes
   # below, so a change to any of them moves the base.
   @manifest_revision "2026-09-09-eu-west-region-rename-v1"
@@ -1098,6 +1100,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp rewrite_loopback(uri, _), do: uri
+
+  # The class is not part of the manifest revision: flipping the gate builds new
+  # instances on encrypted volumes and reaches existing ones at their next apply.
+  defp storage_class(%Regions{provisioner_config: %{storage_class: @node_local_nvme_storage_class} = config}) do
+    if Map.get(config, :encrypted_volumes, true) and Environment.kura_encrypted_volumes_enabled?(),
+      do: @encrypted_nvme_storage_class,
+      else: @node_local_nvme_storage_class
+  end
 
   defp storage_class(%Regions{provisioner_config: %{storage_class: storage_class}}), do: storage_class
 

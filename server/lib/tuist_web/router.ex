@@ -1066,6 +1066,7 @@ defmodule TuistWeb.Router do
     post "/kura/mesh/heartbeat", KuraMeshController, :heartbeat
     get "/kura/mesh/peers", KuraMeshController, :peers
     post "/kura/mesh/registrations", KuraMeshController, :register
+    post "/kura/volume-keys", KuraVolumeKeysController, :create
   end
 
   scope "/oauth2", TuistWeb.Oauth do
