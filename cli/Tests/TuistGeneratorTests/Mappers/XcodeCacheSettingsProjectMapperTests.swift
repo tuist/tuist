@@ -95,6 +95,32 @@ struct XcodeCacheSettingsProjectMapperTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedXcodeController)
+    func map_defaultOptions_preservesExistingCompilationCacheSettings() async throws {
+        try stubXcodeVersion(Version(27, 0, 0))
+        let tuist = Tuist(
+            project: .generated(.test(generationOptions: .test(enableCaching: true))),
+            fullHandle: nil,
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let project = Project.test(settings: .test(base: ["USER_SETTING": "value"]))
+
+        let (mapped, _) = try await XcodeCacheSettingsProjectMapper(tuist: tuist).map(project: project)
+
+        #expect(mapped.settings.base == [
+            "USER_SETTING": "value",
+            "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+            "SWIFT_ENABLE_PREFIX_MAPPING": "$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))",
+            "CLANG_ENABLE_PREFIX_MAPPING": "$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))",
+            "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
+            "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
+            "TUIST_PREFIX_MAPPING_FOR_COVERAGE_": "YES",
+            "TUIST_PREFIX_MAPPING_FOR_COVERAGE_NO": "YES",
+            "TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES": "NO",
+        ])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
     func map_whenProjectOptsOut_preservesItsSharedSourceNamespace() async throws {
         try stubXcodeVersion(Version(27, 0, 0))
         let tuist = Tuist(
@@ -112,6 +138,55 @@ struct XcodeCacheSettingsProjectMapperTests {
 
         #expect(mappedProject.settings.base["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
         #expect(mappedProject.settings.base["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedXcodeController, arguments: [false, true])
+    func map_whenCoveragePrefixMappingOptedIn_keepsCoverageBuildsShareable(enableCaching: Bool) async throws {
+        try stubXcodeVersion(Version(27, 0, 0))
+        let tuist = Tuist(
+            project: .generated(.test(generationOptions: .test(
+                enableCaching: enableCaching,
+                enableCoveragePrefixMapping: true
+            ))),
+            fullHandle: nil,
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let project = Project.test()
+
+        let (mapped, _) = try await XcodeCacheSettingsProjectMapper(tuist: tuist).map(project: project)
+
+        if enableCaching {
+            #expect(mapped.settings.base["TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES"] == .string("YES"))
+            #expect(mapped.settings.base["TUIST_PREFIX_MAPPING_FOR_COVERAGE_NO"] == .string("YES"))
+            #expect(mapped.settings.base["TUIST_PREFIX_MAPPING_FOR_COVERAGE_"] == .string("YES"))
+            for language in ["SWIFT", "CLANG"] {
+                #expect(mapped.settings.base["\(language)_ENABLE_PREFIX_MAPPING"] ==
+                    .string("$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))"))
+            }
+        } else {
+            #expect(mapped == project)
+        }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
+    func map_whenProjectOptsIntoProjectMapping_preservesExplicitSettings() async throws {
+        try stubXcodeVersion(Version(27, 0, 0))
+        let tuist = Tuist(
+            project: .generated(.test(generationOptions: .test(enableCaching: true))),
+            fullHandle: nil,
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let project = Project.test(settings: .test(base: [
+            "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
+            "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
+        ]))
+
+        let (mapped, _) = try await XcodeCacheSettingsProjectMapper(tuist: tuist).map(project: project)
+
+        #expect(mapped.settings.base["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
+        #expect(mapped.settings.base["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
     }
 
     /// The compiler writes mapped paths into the coverage mapping and xccov can't
@@ -145,14 +220,17 @@ struct XcodeCacheSettingsProjectMapperTests {
 
     /// Earlier Xcodes don't define these settings and their build systems lack the
     /// mappings, so setting them would be inert noise in the generated project.
-    @Test(.inTemporaryDirectory, .withMockedXcodeController)
-    func map_whenXcodeOlderThan27_doesNotEnablePrefixMapping() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController, arguments: [false, true])
+    func map_whenXcodeOlderThan27_doesNotEnablePrefixMapping(enableCoveragePrefixMapping: Bool) async throws {
         // Given
         try stubXcodeVersion(Version(26, 5, 0))
         let tuist = Tuist(
             project: .generated(
                 .test(
-                    generationOptions: .test(enableCaching: true)
+                    generationOptions: .test(
+                        enableCaching: true,
+                        enableCoveragePrefixMapping: enableCoveragePrefixMapping
+                    )
                 )
             ),
             fullHandle: nil,
