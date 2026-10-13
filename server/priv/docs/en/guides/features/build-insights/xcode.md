@@ -94,6 +94,14 @@ tuist teardown insights
 This unloads the daemon's LaunchAgent, removes its plist, and deletes the sampled metrics and daemon logs from `~/.local/state`, so nothing is left running in the background.
 
 
+## Report actor claim {#report-actor-claim}
+
+Report-creation requests can include an optional `x-tuist-actor-id` header. Set `TUIST_ACTOR_ID` to an organization-scoped label. Otherwise, Tuist uses the first nonempty `USER`, `USERNAME`, or `LOGNAME` value.
+
+Labels must be 1–128 bytes of printable ASCII without spaces. An empty or invalid override suppresses the automatic claim; set `TUIST_ACTOR_ID=""` to opt out. An operating-system username may contain personal information. In CI, it usually identifies the runner account, not the person who triggered the job. Do not use credentials or other sensitive values.
+
+The claim is unverified metadata, not authentication. Existing credentials, permissions, endpoints, and report bodies are unchanged. Servers without actor support ignore the header and keep their existing attribution; this client change alone does not add dashboard actor labels. If a custom proxy rejects unfamiliar headers, opt out using the empty environment override.
+
 ## Custom metadata {#custom-metadata}
 
 You can attach metadata to builds with environment variables to improve filtering.
