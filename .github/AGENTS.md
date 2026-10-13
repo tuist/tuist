@@ -21,6 +21,20 @@ agent under the same version. Its release tag requires both images to exist;
 managed production selects that agent version and provisions host cache storage
 through Helm, without a separate human kubectl elevation.
 
+## Atlas native
+
+`workflows/atlas-mobile.yml` builds Android, iOS and the Rust CLI through Once
+using `actions/atlas-native/` (see its `AGENTS.md`). Fork jobs have no OIDC permission
+and use only the local cache. Trusted builds use the `tuist/atlas-mobile` cache
+when authentication succeeds. Main builds publish the tested artifacts to the
+private Tuist project's `nightly` preview track after distinct build, test and
+language-specific lint jobs pass; pull requests never publish. The single
+`atlas-mobile.yml` pipeline's automatic path filters include only `atlas-native/**`
+and all jobs skip draft pull requests. Mobile artifacts are debug Android APKs and
+arm64 iOS simulator bundles, not store releases. The CLI is uploaded as a
+host-labeled archive that preserves its executable permission, not a Tuist preview.
+The Tuist project must be connected to `tuist/tuist` for GitHub OIDC access.
+
 ## Community notifications
 
 `workflows/community-notifications.yml` sends new community issues and PRs to
@@ -130,6 +144,12 @@ labels for ClickHouse variants so their outcomes are not treated as flaky reruns
 Keep `TUIST_DEV_ALL_LOCALES=1` in both phases. Fork pull requests run both unsharded
 variants without Tuist authentication or `id-token: write`, like the CLI and
 Gradle fork fallbacks. The explicitly named unsharded fallback also runs both variants when the build-plan job fails, without changing that job's failure status. Never silently fall back to the whole suite inside an authenticated shard.
+
+On push to main, the current ClickHouse shards also run with `--cover
+--export-coverage shard`, reporting the server's coverage to `tuist/server`,
+and `coverage-complete` then runs `mix tuist.coverage.complete`. Keep coverage
+off pull requests, the merge queue, the floor shards and the unsharded
+fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`.
 
 ## Restore drills
 

@@ -20,6 +20,19 @@ defmodule Tuist.Authentication.PromExPlugin do
           event_name: [:tuist, :oidc, :scope_withheld],
           description: "The number of scopes withheld from OIDC-exchanged tokens because a scope rule didn't match.",
           tags: [:scope, :level, :field]
+        ),
+        counter([:tuist, :authentication, :bcrypt_verification, :total],
+          event_name: [:tuist, :authentication, :bcrypt_verification],
+          description: "The number of uncached token bcrypt verifications on this replica.",
+          tags: [:outcome]
+        ),
+        distribution([:tuist, :authentication, :bcrypt_verification, :duration, :milliseconds],
+          event_name: [:tuist, :authentication, :bcrypt_verification],
+          measurement: :duration,
+          unit: {:native, :millisecond},
+          description: "Time spent verifying uncached token bcrypt proofs.",
+          tags: [:outcome],
+          reporter_options: [buckets: [10, 50, 100, 250, 500, 1000, 5000]]
         )
       ]
     )

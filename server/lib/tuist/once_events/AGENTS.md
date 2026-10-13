@@ -22,3 +22,5 @@ This subsystem projects Once lifecycle events into run summaries and declared ac
 - Record the authenticated credential account on the first RunStarted in nullable `once_runs.account_id`; project credentials and historical runs remain unattributed. Replays must never replace the original actor, including with a different credential. This is server attribution and does not change the client event protocol.
 
 - Native build listings opt into the virtual failure-category column from `BuildMetrics`. Use the shared classifier before database filtering, sorting and pagination, scope evidence to the selected project, and leave stored records and legacy listing defaults unchanged.
+
+- Proof-cache failures are availability failures too, including admission before a snapshot exists. Preserve `UnavailableError` as gRPC `:unavailable` through `refuse!/3`, never `:unauthenticated` or a direct bcrypt fallback.
