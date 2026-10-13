@@ -825,6 +825,11 @@ and shape, and to the rented fleet when the rack has none. The rented fleet is
 the rack's backup: a job no rack runner has claimed after two minutes moves to
 the rented pool for the same Xcode and shape (`SiteSpilloverWorker`), so a
 rack that is dark, full or slow to boot delays jobs rather than holding them.
+A job that spills while its rack runner is still pulling an Xcode the host has
+not run leaves that runner up until its VM boots, so the host still caches the
+image and the next job for that Xcode stays on the rack (see "Scale-down keeps
+a macOS Pod while its host caches the image" in
+[`runners-controller`](../runners-controller/AGENTS.md)).
 The flag also gives the account a node in `ber1-runners`, as
 `runner_site_cache` does. With the
 flag off for everyone, the rack's pools idle at their floors and nothing a

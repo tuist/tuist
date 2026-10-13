@@ -588,9 +588,22 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// safe. Owned Pods (currently running a job) are never deleted
 	// by the reconciler; the autoscaler's targets must be reached
 	// over time, as owned Pods finish their jobs and exit.
+	//
+	// A macOS Pod whose host is still pulling its image is kept until the
+	// VM is up; see cachingImage.
 	scaledDown := 0
-	for i := 0; i < overflow && i < len(idleAlive); i++ {
-		p := idleAlive[i]
+	for _, p := range idleAlive {
+		if scaledDown >= overflow {
+			break
+		}
+		if r.cachingImage(ctx, p, pool) {
+			logger.Info("keeping runner pod through scale-down while its host caches the image",
+				"pod", p.Name,
+				"node", p.Spec.NodeName,
+				"image", p.Spec.Containers[0].Image,
+			)
+			continue
+		}
 		if err := r.reapAlivePod(ctx, p); err != nil {
 			logger.Error(err, "scale-down delete; will retry", "pod", p.Name)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil

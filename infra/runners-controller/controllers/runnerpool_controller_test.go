@@ -1970,3 +1970,173 @@ func TestReconcile_CacheMountRollPreservesClaimedPods(t *testing.T) {
 		}
 	}
 }
+
+func darwinRunnerNode(name string, goldenImages ...string) *corev1.Node {
+	labels := map[string]string{
+		macosFleetLabel: "tuist-runners-fleet",
+		nodeOSLabel:     macosNodeOSDarwin,
+	}
+	for _, image := range goldenImages {
+		labels[podtemplate.GoldenNodeLabelKey(image)] = "true"
+	}
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels},
+		Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{
+			Type:   corev1.NodeReady,
+			Status: corev1.ConditionTrue,
+		}}},
+	}
+}
+
+func boundDarwinRunnerPod(name, image, poolName, nodeName string, phase corev1.PodPhase, boundAt time.Time) *corev1.Pod {
+	pod := newRunnerPod(name, image, phase, poolName)
+	pod.Spec.NodeName = nodeName
+	pod.CreationTimestamp = metav1.NewTime(boundAt)
+	return pod
+}
+
+func reconcileDarwinScaleDown(t *testing.T, now time.Time, replicas int32, objs ...client.Object) client.Client {
+	t.Helper()
+	scheme := mustScheme(t)
+	pool := newPool("macos", "ghcr.io/tuist/tuist-runner:macos-26-5", replicas)
+	pool.Spec.OS = "darwin"
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(append([]client.Object{pool}, objs...)...).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+		Now:         func() time.Time { return now },
+	}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	return c
+}
+
+func podExists(t *testing.T, c client.Client, name string) bool {
+	t.Helper()
+	err := c.Get(context.Background(), nn("tuist-runners", name), &corev1.Pod{})
+	if apierrors.IsNotFound(err) {
+		return false
+	}
+	if err != nil {
+		t.Fatalf("get pod %s: %v", name, err)
+	}
+	return true
+}
+
+// A site pool's job spills to the rented fleet while the host is still
+// pulling an Xcode image it has never run, and the pool's target drops to 0.
+// The Pod stays until its VM is up, so the host finishes caching the image.
+func TestReconcileScaleDownKeepsDarwinPodWhileItsHostCachesTheImage(t *testing.T) {
+	now := time.Date(2026, 10, 11, 21, 30, 0, 0, time.UTC)
+	const image = "ghcr.io/tuist/tuist-runner:macos-26-5"
+
+	for _, tc := range []struct {
+		name     string
+		node     *corev1.Node
+		phase    corev1.PodPhase
+		bound    bool
+		boundAgo time.Duration
+		wantKept bool
+	}{
+		{name: "pulling an image the host lacks", node: darwinRunnerNode("b01"), phase: corev1.PodPending, bound: true, boundAgo: 5 * time.Minute, wantKept: true},
+		{name: "host already holds the image", node: darwinRunnerNode("b01", image), phase: corev1.PodPending, bound: true, boundAgo: 5 * time.Minute},
+		{name: "host holds a different image only", node: darwinRunnerNode("b01", "ghcr.io/tuist/tuist-runner:macos-26-6"), phase: corev1.PodPending, bound: true, boundAgo: 5 * time.Minute, wantKept: true},
+		{name: "past the caching grace", node: darwinRunnerNode("b01"), phase: corev1.PodPending, bound: true, boundAgo: darwinImageCacheGrace},
+		{name: "VM already running", node: darwinRunnerNode("b01"), phase: corev1.PodRunning, bound: true, boundAgo: 5 * time.Minute},
+		{name: "not bound to a host", node: darwinRunnerNode("b01"), phase: corev1.PodPending, boundAgo: 5 * time.Minute},
+		{name: "node gone", phase: corev1.PodPending, bound: true, boundAgo: 5 * time.Minute},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			nodeName := ""
+			if tc.bound {
+				nodeName = "b01"
+			}
+			pod := boundDarwinRunnerPod("macos-runner-a", image, "macos", nodeName, tc.phase, now.Add(-tc.boundAgo))
+			objs := []client.Object{pod}
+			if tc.node != nil {
+				objs = append(objs, tc.node)
+			}
+
+			c := reconcileDarwinScaleDown(t, now, 0, objs...)
+
+			if got := podExists(t, c, pod.Name); got != tc.wantKept {
+				t.Fatalf("pod kept = %v, want %v", got, tc.wantKept)
+			}
+		})
+	}
+}
+
+// The scheduler's PodScheduled timestamp, when tart-kubelet has not yet
+// overwritten the status, is what starts the grace: a Pod that waited
+// unscheduled for a while still gets the full window after it binds.
+func TestReconcileScaleDownTimesCachingGraceFromBind(t *testing.T) {
+	now := time.Date(2026, 10, 11, 21, 30, 0, 0, time.UTC)
+	const image = "ghcr.io/tuist/tuist-runner:macos-26-5"
+	pod := boundDarwinRunnerPod("macos-runner-a", image, "macos", "b01", corev1.PodPending, now.Add(-time.Hour))
+	pod.Status.Conditions = []corev1.PodCondition{{
+		Type:               corev1.PodScheduled,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: metav1.NewTime(now.Add(-5 * time.Minute)),
+	}}
+
+	c := reconcileDarwinScaleDown(t, now, 0, pod, darwinRunnerNode("b01"))
+
+	if !podExists(t, c, pod.Name) {
+		t.Fatal("pod bound 5 minutes ago was scaled down, want it kept while its host caches the image")
+	}
+}
+
+// Keeping a caching Pod must not stall the rest of the scale-down: the
+// overflow is taken from Pods that can go.
+func TestReconcileScaleDownTakesOverflowFromPodsNotCaching(t *testing.T) {
+	now := time.Date(2026, 10, 11, 21, 30, 0, 0, time.UTC)
+	const image = "ghcr.io/tuist/tuist-runner:macos-26-5"
+	caching := boundDarwinRunnerPod("macos-runner-a", image, "macos", "b01", corev1.PodPending, now.Add(-5*time.Minute))
+	warm := boundDarwinRunnerPod("macos-runner-b", image, "macos", "b02", corev1.PodRunning, now.Add(-time.Hour))
+
+	c := reconcileDarwinScaleDown(t, now, 1, caching, warm, darwinRunnerNode("b01"), darwinRunnerNode("b02", image))
+
+	if !podExists(t, c, caching.Name) {
+		t.Fatal("caching pod was scaled down, want it kept")
+	}
+	if podExists(t, c, warm.Name) {
+		t.Fatal("warm pod survived, want it scaled down to meet the target")
+	}
+}
+
+// Linux images are pulled by kubelet and bounded by the start timeout; the
+// guard is macOS only.
+func TestReconcileScaleDownIgnoresCachingGuardOnLinux(t *testing.T) {
+	now := time.Date(2026, 10, 11, 21, 30, 0, 0, time.UTC)
+	scheme := mustScheme(t)
+	pool := newPool("linux", "ghcr.io/tuist/tuist-linux-runner:test", 0)
+	pool.Spec.OS = "linux"
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	pod := linuxPod("linux-runner-a", pool.Name, nil)
+	pod.Spec.NodeName = node.Name
+	pod.CreationTimestamp = metav1.NewTime(now.Add(-time.Minute))
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node, pod).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+		Now:         func() time.Time { return now },
+	}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if podExists(t, c, pod.Name) {
+		t.Fatal("linux pod survived scale-down, want it reaped")
+	}
+}
