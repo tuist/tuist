@@ -287,6 +287,18 @@ public struct SwifterPM: Sendable {
             if !request.quiet {
                 ResolvedFile.print(resolved)
             }
+            if request.restorePackage {
+                try await maybeWritePackageInfoCache(
+                    packageDir: package,
+                    scratchDir: scratch,
+                    resolved: resolved,
+                    mirrors: mirrors,
+                    cacheDir: request.packageInfoCacheDirectory,
+                    disablePackageInfoCache: request.disablePackageInfoCache,
+                    disableSandbox: request.disableSandbox,
+                    quiet: request.quiet
+                )
+            }
             return SwifterPMResolutionResult(resolved)
         }
 

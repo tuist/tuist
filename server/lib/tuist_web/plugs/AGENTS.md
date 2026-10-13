@@ -21,3 +21,11 @@ This area owns Plug middleware for request processing.
 ## Related Context
 - Web layer overview: `server/lib/tuist_web/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
+
+## Authentication freshness
+
+- Never cache authorization booleans across credentials: same-account credentials may have different scopes/project grants. Re-evaluate with the actual subject.
+- Ordinary allowlisted API reads/uploads use dedicated `SubjectCache` snapshots with at most 60 seconds of non-sliding staleness and verified expiry checks. Resolve route policy before controller dispatch; other writes and runner-shell upgrades authenticate fresh by default. Credential creation/privilege changes also bypass resource-loader caches. Private loaders remain bounded; public project/account snapshots are reloaded before access, so privacy flips cannot inherit a cached public grant.
+- Subject caching protects warm database reads, while immutable proof caching protects bcrypt. Observe real CI database/pool load; neither local tests nor mailbox independence establish production capacity.
+
+- Proof-cache `UnavailableError` must render HTTP 503 in strict and cached authentication. Cachex-backed legacy subject fills return unavailable without retaining errors, and never bypass proof-cache failure guards with bcrypt.

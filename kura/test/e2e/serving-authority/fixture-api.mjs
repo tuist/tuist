@@ -17,6 +17,10 @@ https
         return;
       }
       try {
+        if (fs.existsSync("/fixture/api-unavailable")) {
+          res.writeHead(503).end();
+          return;
+        }
         const grant = JSON.parse(
           fs.readFileSync("/fixture/grant.json", "utf8"),
           (_key, value, context) =>

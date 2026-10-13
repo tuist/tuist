@@ -7,9 +7,11 @@ ARG TARGETOS
 ARG TARGETARCH
 RUN test -n "${TARGETOS}" && \
     test -n "${TARGETARCH}" && \
-    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/manager ./cmd/manager
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/manager ./cmd/manager && \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/cache-activation ./cmd/cache-activation
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=builder /out/manager /manager
+COPY --from=builder /out/cache-activation /cache-activation
 USER 65532:65532
 ENTRYPOINT ["/manager"]

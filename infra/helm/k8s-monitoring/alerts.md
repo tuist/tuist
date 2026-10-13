@@ -1495,8 +1495,8 @@ or
   less than one enterprise instance; free reservations or add a node`
 - Description: `Tuist.Kura.Admission refuses any instance whose reservation
   (claim x 2 replicas) does not fit under 85% of the region's allocatable disk,
-  less the larger of what its pods request and what its kura_servers rows
-  reserve. Below 32 GiB it refuses a new enterprise instance (16Gi x 2) and
+  less what its instances reserve, each at the larger of what its pods request
+  and what its kura_servers row reserves. Below 32 GiB it refuses a new enterprise instance (16Gi x 2) and
   every enterprise claim growth; below 16 GiB, every new or returning instance
   of any plan. A refused account stays on whatever lane it was on and raises
   nothing else. The value is negative when reservations already sit above the
@@ -1507,21 +1507,25 @@ or
 
 The admission check, as opposed to the scheduler check in **Kura region cannot
 place another instance**. `Tuist.Kura.Admission.admit?/2` places an instance
-only if `max(observed, desired) + candidate <= pressure_line`:
+only if `reserved + candidate <= pressure_line`:
 
 - `pressure_line` is `trunc(0.85 x allocatable)`, over the Ready nodes of the
   region's pool (`Tuist.Kura.Capacity.pressure_line_gib/1`),
-- `observed` is the `ephemeral-storage` request of every non-terminal cache
-  pod in the region (`Capacity.reserved_gib/1`),
-- `desired` is claim x replicas over every `kura_servers` row in the region
-  that still holds a volume, which covers rows the controller has not turned
-  into pods yet,
+- `reserved` sums every instance in the region once, at the larger of its
+  `observed` and `desired` reservation, matched by instance name
+  (`app.kubernetes.io/instance`, the row's `provisioner_node_ref`),
+- `observed` is the `ephemeral-storage` request of the instance's non-terminal
+  cache pods (`Capacity.reserved_gib_by_instance/1`), which covers pods whose
+  row is gone, such as an instance left behind by a deleted account,
+- `desired` is claim x replicas of the instance's `kura_servers` row while it
+  still holds a volume, which covers rows the controller has not turned into
+  pods yet,
 - `candidate` is the new instance's claim x 2: 16 GiB for Air and Pro, 32 GiB
   for Enterprise (`Tuist.Kura.Regions.storage_profile/1`), more for a claim
   sizing has grown.
 
 `tuist_kura_capacity_admission_headroom_gibibytes` is
-`pressure_line - max(observed, desired)`, polled every minute on every web pod
+`pressure_line - reserved`, polled every minute on every web pod
 by `Tuist.Kura.PromExPlugin` from `Capacity.admission_headroom_gib/1`: the
 function admission decides with (`Admission.headroom_gib/1`), cached for a
 minute per region and shared with placement's `Capacity.room_for?/2`, so the
@@ -2712,21 +2716,53 @@ found by hand, from `oban_jobs.attempted_by`.
 ```promql
 count by (cluster, env, queue, node) (
   (
-    time() - max by (cluster, env, queue, node) (
-      tuist_oban_node_last_attempt_timestamp_seconds{
-        cluster="tuist-production",
-        queue=~"process_xcresult|process_build"
-      }
-    ) < 900
+    (
+      time() - max by (cluster, env, queue, node) (
+        tuist_oban_node_last_attempt_timestamp_seconds{
+          cluster="tuist-production",
+          queue=~"process_xcresult|process_build"
+        }
+      ) < 900
+    )
+    unless
+    (
+      time() - max by (cluster, env, queue, node) (
+        tuist_oban_node_last_completion_timestamp_seconds{
+          cluster="tuist-production",
+          queue=~"process_xcresult|process_build"
+        }
+      ) < 900
+    )
   )
-  unless
+  or
   (
-    time() - max by (cluster, env, queue, node) (
-      tuist_oban_node_last_completion_timestamp_seconds{
+    max by (cluster, env, queue, node) (
+      tuist_oban_node_queue_limit{
         cluster="tuist-production",
         queue=~"process_xcresult|process_build"
       }
-    ) < 900
+    )
+    unless on (cluster, env, queue, node)
+    (
+      time() - max by (cluster, env, queue, node) (
+        tuist_oban_node_last_attempt_timestamp_seconds{
+          cluster="tuist-production",
+          queue=~"process_xcresult|process_build"
+        }
+      ) < 900
+    )
+    and on (cluster, env, queue)
+    (
+      min_over_time(
+        max by (cluster, env, queue) (
+          tuist_oban_queue_length_count{
+            cluster="tuist-production",
+            queue=~"process_xcresult|process_build",
+            state="available"
+          }
+        )[15m:1m]
+      ) > 0
+    )
   )
 ) > 0
 ```
@@ -2734,8 +2770,38 @@ count by (cluster, env, queue, node) (
 - Pending period: 20 minutes
 - Keep firing for: 5 minutes
 - Severity: critical
-- Summary: `{{ $labels.node }} has been taking {{ $labels.queue }} jobs
-  without completing any for over 15 minutes`
+- Summary: `{{ $labels.node }} is not completing {{ $labels.queue }} jobs:
+  it either takes work and finishes none, or has stopped taking work
+  while jobs wait`
+
+The expression has two clauses. The first, below, is the original one:
+a node that starts jobs and finishes none. The second covers a node that
+has stopped starting them.
+
+On 2026-10-13 a NIF deadlock (fixed in
+[#14110](https://github.com/tuist/tuist/pull/14110)) retired one
+xcresult processor's slots one at a time until it held all 6 and stopped
+attempting work at all. The first clause requires a recent attempt, so
+it went quiet exactly when the node was fully dead: the node sat at zero
+throughput for over three hours with only the warning-level "losing its
+slots" rule firing. The second clause matches a node that still reports
+its queue limit, so its BEAM is up, has not started a job in 15 minutes,
+and had work `available` to it for the whole of those 15 minutes.
+Replayed against that day it holds continuously from 08:52 UTC, so with
+the pending period it would have paged at about 09:12, twenty minutes
+after the last slot was lost.
+
+"For the whole of those 15 minutes" is what makes the second clause
+safe. With several consumers on a quiet queue, a healthy node can go 15
+minutes without winning a single job, so "work appeared at some point"
+would page on idle peers. Under a sustained backlog every healthy node
+with a free slot takes work within seconds; one that takes nothing for 15
+minutes has no free slot, and no legitimate job holds all of them that
+long. Replayed over the preceding 14 days, including several deploys,
+the only node it ever matched for 20 minutes was the stuck one. The
+subquery is needed because Adaptive Metrics has aggregated `instance`
+and `pod` away on `tuist_oban_*`, so `min_over_time` cannot run on the
+raw selector.
 
 The pending period is 20 minutes rather than 5 because a Pod that is
 being drained satisfies this condition on its way out. It keeps a recent
@@ -2801,9 +2867,10 @@ rather than a firing alert. That gap is deliberately left to the
 `xcresult processor guest metrics unavailable` rules below, which key on
 `up` and already cover it.
 
-15 minutes for the same reason as the queue rule: the NIF's own parse
-deadline is 600s plus a 30s cancellation grace, so a single legitimately
-slow job cannot reach it.
+A single legitimately slow job cannot page: the NIF gives up on a parse
+after at most 960s (600s for the tests, 300s for the coverage and 60s of
+cancellation grace), well inside 15 minutes plus the 20 minute pending
+period.
 
 ### Remote processing consumer is losing its slots
 
