@@ -82,6 +82,26 @@ impl SegmentState {
             .or_else(|| self.new.first())
     }
 
+    /// The newest effective stat among the segments `self` holds and `next`
+    /// no longer does, or `None` when `next` removed nothing.
+    pub fn dropped_through_ms(&self, next: &SegmentState) -> Option<u64> {
+        let retained = next
+            .references()
+            .map(|reference| reference.segment_id.as_str());
+        let retained: std::collections::HashSet<&str> = retained.collect();
+        self.references()
+            .filter(|reference| !retained.contains(reference.segment_id.as_str()))
+            .map(SegmentReference::effective_max_version_ms)
+            .max()
+    }
+
+    fn references(&self) -> impl Iterator<Item = &SegmentReference> {
+        self.old
+            .iter()
+            .chain(self.current.iter())
+            .chain(self.new.iter())
+    }
+
     pub fn remove_segment(&mut self, segment_id: &str) -> bool {
         remove_from_segments(&mut self.old, segment_id)
             || remove_from_segments(&mut self.current, segment_id)
@@ -146,6 +166,30 @@ mod tests {
             .map(|reference| reference.segment_id.as_str())
             .collect();
         assert_eq!(ordered, vec!["s2", "s4", "s5", "s3", "s1"]);
+    }
+
+    #[test]
+    fn dropped_through_ms_is_the_newest_stat_that_left_the_ring() {
+        let mut state = SegmentState::default();
+        for (id, created_at_ms, max_version_ms) in
+            [("s1", 1, Some(500)), ("s2", 2, None), ("s3", 3, Some(100))]
+        {
+            let mut reference = SegmentReference::new(id.into(), created_at_ms);
+            reference.max_version_ms = max_version_ms;
+            state.push_new(reference, 1, 2, 2);
+        }
+        assert_eq!(state.dropped_through_ms(&state.clone()), None);
+
+        let mut next = state.clone();
+        next.remove_segment("s2");
+        assert_eq!(state.dropped_through_ms(&next), Some(2));
+
+        next.remove_segment("s1");
+        assert_eq!(state.dropped_through_ms(&next), Some(500));
+
+        let mut grown = state.clone();
+        grown.push_new(SegmentReference::new("s4".into(), 4), 1, 2, 2);
+        assert_eq!(state.dropped_through_ms(&grown), None);
     }
 
     #[test]

@@ -60,7 +60,20 @@ final feed incarnation/head before freezing its retained corpus. Verification
 walks the complete retained index in bounded pages, hashes metadata and bodies
 with a 64 KiB buffer, and verifies namespace tombstones against that destination.
 A bootstrapped state, cursor or consumer count alone cannot satisfy the barrier.
-Missing, capacity-skipped, changed or unreadable data fails preparation.
+Changed or unreadable data fails preparation, as does any record the destination
+lacks, except one it dropped for a node-local reason replication does not carry:
+
+- a segment record at or below the destination's capacity drop mark (the newest
+  seal-time stat of any segment it evicted), or one its backfill would decline
+  for capacity;
+- an action-cache entry past the action-cache TTL;
+- an action-cache entry or chunk recipe that references a blob the destination
+  no longer holds.
+
+Each replica evicts on its own schedule, so two long-running replicas never
+retain identical corpora. The source logs `kura.handover.prepared` with the
+number of records accepted under each reason. A record the destination holds at
+another version still fails preparation.
 
 Both nodes fsync the same named receipt. The source then positively acknowledges
 revocation while holding the same publication mutex used by public writes.

@@ -1,8 +1,19 @@
 //! Named, retained-corpus handover verification. A feed cursor alone can skip
 //! capacity-rejected data, so every retained body and metadata record is checked.
+//! A record the destination lacks passes only when the destination dropped it
+//! for a node-local reason replication does not carry: capacity eviction, a
+//! capacity-declined fetch, action-cache expiry, or the cascade that removes
+//! entries and recipes whose referenced blobs it evicted.
 use crate::{
-    http::BackfillBodyManifestMeta, serving_authority::Holder, state::SharedState,
-    store::manifest_version_ms, utils::BackfillRecordKind,
+    artifact::producer::ArtifactProducer,
+    backfill::window::capacity_complete,
+    constants::REAPI_ACTION_CACHE_TTL_MS,
+    http::BackfillBodyManifestMeta,
+    reapi::chunking::is_recipe_key,
+    serving_authority::Holder,
+    state::SharedState,
+    store::manifest_version_ms,
+    utils::{BackfillRecordKind, action_cache_manifest_hash},
 };
 use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
@@ -37,6 +48,23 @@ pub struct Record {
     version: u64,
     size: u64,
     digest: String,
+    /// Set by the source for records a replica removes once a blob they
+    /// reference is gone. Absent from older sources, which keeps the strict check.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    derived: Option<Derived>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum DerivedKind {
+    ActionCacheEntry,
+    ChunkRecipe,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct Derived {
+    kind: DerivedKind,
+    blobs: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -83,6 +111,7 @@ async fn record(
                 version,
                 size: 0,
                 digest: format!("{current:016x}"),
+                derived: None,
             })),
             _ => Ok(None),
         };
@@ -109,6 +138,8 @@ async fn record(
     if manifest_version_ms(&opened) != version {
         return Err("retained record changed during verification".into());
     }
+    let derived_kind = derived_kind(&manifest);
+    let mut body = Vec::new();
     let mut bytes = 0u64;
     loop {
         let chunk = reader
@@ -120,17 +151,81 @@ async fn record(
         }
         bytes += chunk.len() as u64;
         digest.update(&chunk);
+        if derived_kind.is_some() {
+            body.extend_from_slice(&chunk);
+        }
     }
     if bytes != manifest.size {
         return Err("retained body length mismatch".into());
     }
+    let derived = derived_kind.map(|kind| Derived {
+        kind,
+        blobs: match kind {
+            DerivedKind::ActionCacheEntry => state
+                .store
+                .action_cache_entry_blob_ids(&manifest.namespace_id, &body),
+            DerivedKind::ChunkRecipe => {
+                state
+                    .store
+                    .chunk_recipe_blob_ids(&manifest.namespace_id, &manifest.key, &body)
+            }
+        },
+    });
     Ok(Some(Record {
         kind: kind.as_str().into(),
         id: id.into(),
         version,
         size: bytes,
         digest: format!("{:x}", digest.finalize()),
+        derived,
     }))
+}
+
+fn derived_kind(manifest: &crate::artifact::manifest::ArtifactManifest) -> Option<DerivedKind> {
+    if manifest.producer != ArtifactProducer::Reapi || !manifest.inline {
+        None
+    } else if action_cache_manifest_hash(&manifest.key).is_some() {
+        Some(DerivedKind::ActionCacheEntry)
+    } else if is_recipe_key(&manifest.key) {
+        Some(DerivedKind::ChunkRecipe)
+    } else {
+        None
+    }
+}
+
+/// Why the destination may lack `expected` although the source retains it,
+/// or `None` when the absence is a replication gap. Only called once no local
+/// manifest exists at any version.
+fn dropped_locally(state: &SharedState, expected: &Record) -> Result<Option<&'static str>, String> {
+    let store = &state.store;
+    if expected.kind == BackfillRecordKind::SegmentArtifact.as_str() {
+        if expected.version <= store.capacity_dropped_through_ms() {
+            return Ok(Some("evicted"));
+        }
+        let inputs = store.backfill_capacity_inputs();
+        if capacity_complete(
+            inputs.segment_count,
+            inputs.ring_total_segments,
+            inputs.next_evictee_stat_ms,
+            expected.version,
+        ) {
+            return Ok(Some("capacity_declined"));
+        }
+    }
+    let Some(derived) = &expected.derived else {
+        return Ok(None);
+    };
+    if derived.kind == DerivedKind::ActionCacheEntry
+        && expected.version < crate::utils::now_ms().saturating_sub(REAPI_ACTION_CACHE_TTL_MS)
+    {
+        return Ok(Some("expired"));
+    }
+    for blob in &derived.blobs {
+        if store.manifest_from_db(blob)?.is_none() {
+            return Ok(Some("dead_reference"));
+        }
+    }
+    Ok(None)
 }
 
 pub async fn verify(
@@ -214,6 +309,15 @@ async fn verify_inner(
                         .as_ref()
                         .map(manifest_version_ms)
                 };
+                if version.is_none()
+                    && kind != BackfillRecordKind::NamespaceTombstone
+                    && let Some(reason) = dropped_locally(state, &expected)?
+                {
+                    return Ok(serde_json::json!({
+                        "destination": authority.identity(),
+                        "dropped": reason,
+                    }));
+                }
                 return Err(format!(
                     "retained record missing or version differs: expected_version={} actual_version={version:?}",
                     expected.version
@@ -318,6 +422,7 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
     };
     let mut after = None;
     let mut digest = Sha256::new();
+    let mut dropped = std::collections::BTreeMap::<String, u64>::new();
     send(
         state,
         intent,
@@ -358,6 +463,9 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
             {
                 return Err("destination incarnation changed".into());
             }
+            if let Some(reason) = answer["dropped"].as_str() {
+                *dropped.entry(bounded_detail(reason)).or_default() += 1;
+            }
             receipt.records += 1;
         }
         after = page.next_after;
@@ -388,6 +496,13 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
         .store
         .persist_handover_receipt(&serde_json::to_vec(&receipt).map_err(|e| e.to_string())?)
         .await?;
+    tracing::info!(
+        event.name = "kura.handover.prepared",
+        id = %intent.id,
+        records = receipt.records,
+        ?dropped,
+        "Retained-corpus barrier prepared"
+    );
     Ok(receipt)
 }
 
@@ -480,6 +595,7 @@ mod tests {
                 version: 17,
                 size: 42,
                 digest: "expected-digest".into(),
+                derived: None,
             }),
             receipt: None,
         };
@@ -664,5 +780,225 @@ mod tests {
         let mut wrong_destination = request(false, None, None);
         wrong_destination.intent.destination.incarnation.push('x');
         assert!(verify_inner(state, wrong_destination).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn destination_accepts_only_records_it_dropped_locally() {
+        use bazel_remote_apis::build::bazel::remote::execution::v2 as reapi;
+        use prost::Message;
+
+        let ctx = test_context(|config| {
+            config.serving_authority = Some(crate::serving_authority::AuthorityConfig {
+                instance: "test".into(),
+                namespace: "test".into(),
+                instance_uid: "test".into(),
+                pod_uid: "test".into(),
+                host: "test".into(),
+            });
+        })
+        .await;
+        let state = &ctx.state;
+        let present_hash = "ab".repeat(32);
+        let absent_hash = "cd".repeat(32);
+        let blob = state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "test/project",
+                &format!("blob/{present_hash}/5"),
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .unwrap();
+        let digest = |hash: &str, size_bytes| reapi::Digest {
+            hash: hash.into(),
+            size_bytes,
+        };
+        let action_result = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: "out".into(),
+                digest: Some(digest(&present_hash, 5)),
+                ..Default::default()
+            }],
+            stdout_digest: Some(digest(&absent_hash, 7)),
+            ..Default::default()
+        };
+        let entry = state
+            .store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "test/project",
+                &format!("action_cache/{}/10", "ef".repeat(32)),
+                "application/octet-stream",
+                &action_result.encode_to_vec(),
+            )
+            .await
+            .unwrap();
+        let sourced = record(
+            state,
+            BackfillRecordKind::InlineArtifact,
+            &entry.artifact_id,
+            entry.version_ms,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let derived = sourced.derived.clone().unwrap();
+        assert_eq!(derived.kind, DerivedKind::ActionCacheEntry);
+        assert_eq!(derived.blobs.len(), 2);
+        assert!(derived.blobs.contains(&blob.artifact_id));
+        let absent_blob = derived
+            .blobs
+            .iter()
+            .find(|id| **id != blob.artifact_id)
+            .unwrap()
+            .clone();
+
+        let mut evicted = crate::segment::reference::SegmentReference::new("evicted".into(), 1);
+        evicted.max_version_ms = Some(5_000);
+        state
+            .store
+            .retire_segment_for_testing(evicted)
+            .await
+            .unwrap();
+
+        let mut source = state.runtime.authority.identity().clone();
+        source.pod_uid = "source".into();
+        let intent = Intent {
+            id: "drops".into(),
+            destination: state.runtime.authority.identity().clone(),
+            source_url: "http://source".into(),
+            destination_url: "http://destination".into(),
+            deadline_ms: crate::utils::now_ms() + 300_000,
+        };
+        let _ = state.runtime.authority.install(Grant {
+            epoch: 1,
+            holder: source.clone(),
+            phase: "Quiescing".into(),
+            expires_ms: crate::utils::now_ms() + 15_000,
+            handover: Some(intent.clone()),
+            barrier: None,
+        });
+        state
+            .store
+            .write_sync_cursor(
+                &intent.source_url,
+                SyncPosition {
+                    incarnation: 7,
+                    seq: 9,
+                },
+            )
+            .unwrap();
+        let request = |begin, record, receipt| VerifyRequest {
+            begin,
+            intent: intent.clone(),
+            source: source.clone(),
+            record,
+            receipt,
+        };
+        verify_inner(
+            state,
+            request(
+                true,
+                None,
+                Some(Receipt {
+                    id: intent.id.clone(),
+                    source: source.clone(),
+                    destination: intent.destination.clone(),
+                    incarnation: 7,
+                    head: 9,
+                    frontier_ms: 100,
+                    records: 0,
+                    digest: String::new(),
+                }),
+            ),
+        )
+        .await
+        .unwrap();
+
+        let now = crate::utils::now_ms();
+        let missing = |kind: BackfillRecordKind, id: &str, version, derived| Record {
+            kind: kind.as_str().into(),
+            id: id.into(),
+            version,
+            size: 10,
+            digest: "source-digest".into(),
+            derived,
+        };
+        let action_cache = |blobs: Vec<String>| {
+            Some(Derived {
+                kind: DerivedKind::ActionCacheEntry,
+                blobs,
+            })
+        };
+        let dropped = |record| {
+            let state = state.clone();
+            let request = request(false, Some(record), None);
+            async move {
+                verify_inner(&state, request)
+                    .await
+                    .map(|answer| answer["dropped"].as_str().map(str::to_owned))
+            }
+        };
+
+        for (record, reason) in [
+            (
+                missing(BackfillRecordKind::SegmentArtifact, "evicted", 4_000, None),
+                "evicted",
+            ),
+            (
+                missing(
+                    BackfillRecordKind::InlineArtifact,
+                    "cascaded",
+                    now,
+                    action_cache(vec![blob.artifact_id.clone(), absent_blob.clone()]),
+                ),
+                "dead_reference",
+            ),
+            (
+                missing(
+                    BackfillRecordKind::InlineArtifact,
+                    "expired",
+                    1,
+                    action_cache(vec![blob.artifact_id.clone()]),
+                ),
+                "expired",
+            ),
+        ] {
+            assert_eq!(dropped(record).await.unwrap().as_deref(), Some(reason));
+        }
+
+        for record in [
+            missing(BackfillRecordKind::InlineArtifact, "gap", now, None),
+            missing(BackfillRecordKind::SegmentArtifact, "recent", now, None),
+            missing(
+                BackfillRecordKind::InlineArtifact,
+                "live-entry",
+                now,
+                action_cache(vec![blob.artifact_id.clone()]),
+            ),
+            missing(
+                BackfillRecordKind::InlineArtifact,
+                "inline-old",
+                4_000,
+                None,
+            ),
+            missing(
+                BackfillRecordKind::NamespaceTombstone,
+                "test/never-deleted",
+                4_000,
+                None,
+            ),
+            missing(
+                BackfillRecordKind::SegmentArtifact,
+                &blob.artifact_id,
+                4_000,
+                None,
+            ),
+        ] {
+            let error = dropped(record).await.unwrap_err();
+            assert!(error.contains("retained record missing"), "{error}");
+        }
     }
 }

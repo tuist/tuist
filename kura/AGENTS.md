@@ -12,6 +12,11 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   Handover rejections must identify the verification stage and record on both
   peers, with bounded reasons and no artifact bodies in logs. Preserve rejection
   details across mixed runtime versions without weakening the retained-data barrier.
+  A destination may lack a source record only when it dropped that record
+  node-locally (capacity eviction or decline, action-cache expiry, or a
+  dead-reference cascade); every new node-local delete path must raise the
+  capacity drop mark or be recognised by `handover::dropped_locally`, or
+  handovers between long-running replicas fail.
   Qualification fixtures and their simulator limits are documented in
   [`test/e2e/serving-authority/AGENTS.md`](test/e2e/serving-authority/AGENTS.md).
 - High-level architecture overview: `docs/architecture.md` — start here when onboarding or reasoning about how subsystems interact
