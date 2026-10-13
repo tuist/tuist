@@ -37,6 +37,14 @@ defmodule Mix.Tasks.Tuist.Test do
   process. Then use `--no-download` to run the shard against that prepared
   build. Both options require a shard index.
 
+  With `--cover`, a shard of a build `mix tuist.test.build --cover`
+  instrumented counts lines with the runtime's native counters, which the
+  task switches on: Mix's coverage tool, and with it its report, is left out,
+  and only the modules Mimic copies are cover compiled. A runtime without the
+  JIT cannot count natively and uses Mix's coverage tool; on a shard, that
+  tool exports the coverage (`--export-coverage shard-<index>`, unless one is
+  given) instead of holding the shard to the project's threshold.
+
   `--scheme LABEL` names an execution variant in analytics, such as a database
   version. Variants with different labels are not compared as flaky reruns.
 
@@ -98,6 +106,8 @@ defmodule Mix.Tasks.Tuist.Test do
 
         case shard(options, test_args) do
           {options, test_args} ->
+            {options, test_args} = native_coverage(options, test_args)
+
             if options[:prepare_only] do
               :ok
             else
@@ -164,6 +174,7 @@ defmodule Mix.Tasks.Tuist.Test do
         # Forwarded arguments are kept as given, in order: repeated options
         # such as `--include a --include b` mean something.
         {test_args, files} = Shards.restrict(test_args, files)
+        test_args = Coverage.with_shard_export(test_args, index)
 
         if files == [] and options[:prepare_only] != true do
           Mix.shell().info("Tuist: shard #{index} of #{reference} has no tests to run.")
@@ -197,6 +208,33 @@ defmodule Mix.Tasks.Tuist.Test do
 
           {options, Enum.reject(prebuilt, &(&1 in test_args)) ++ test_args ++ files}
         end
+    end
+  end
+
+  # A shard of a build `mix tuist.test.build --cover` instrumented counts with
+  # the runtime's native line counters, without Mix's coverage tool, which
+  # would compile every module for `cover` again. A run that is no shard keeps
+  # Mix's tool, its report and threshold, even on a build instrumented in place.
+  defp native_coverage(options, test_args) do
+    cond do
+      options[:coverage] != true or options[:prepare_only] == true or
+          is_nil(options[:shard_index]) ->
+        {options, test_args}
+
+      not Coverage.native_build?(Mix.Project.compile_path()) ->
+        {options, test_args}
+
+      not Coverage.enable_native(Mix.Project.compile_path()) ->
+        Mix.shell().info(
+          "warning: the build was instrumented for native coverage, but this runtime cannot count " <>
+            "natively (it needs the JIT). Mix's coverage tool runs instead."
+        )
+
+        {options, test_args}
+
+      true ->
+        Mix.shell().info("Tuist: counting coverage natively in the instrumented build")
+        {Keyword.put(options, :coverage_native, true), Coverage.without_cover(test_args)}
     end
   end
 

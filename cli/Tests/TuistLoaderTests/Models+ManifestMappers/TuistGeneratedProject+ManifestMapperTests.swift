@@ -1,4 +1,5 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import ProjectDescription
 import Testing
@@ -9,6 +10,28 @@ import TuistCore
 
 struct TuistGeneratedProjectManifestMapperTests {
     private let fileSystem = FileSystem()
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func generationOptions_mapsCoveragePrefixMapping(enabled: Bool) throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let options = ProjectDescription.Config.GenerationOptions.options(
+            enableCaching: true,
+            enableCoveragePrefixMapping: enabled
+        )
+        let manifest = try JSONDecoder().decode(
+            ProjectDescription.Config.GenerationOptions.self,
+            from: JSONEncoder().encode(options)
+        )
+        #expect(manifest == options)
+        let got = try TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.from(
+            manifest: manifest,
+            generatorPaths: GeneratorPaths(manifestDirectory: directory, rootDirectory: directory),
+            fullHandle: nil
+        )
+
+        #expect(got.enableCoveragePrefixMapping == enabled)
+        #expect(ProjectDescription.Config.GenerationOptions.options().enableCoveragePrefixMapping == false)
+    }
 
     @Test func installOptions_mapsManifestEnvironment() {
         let got = TuistConfig.TuistGeneratedProjectOptions.InstallOptions.from(
