@@ -7927,7 +7927,7 @@ impl Store {
     /// inline `ActionResult` bytes. Each referenced blob key resolves to the
     /// same `artifact_storage_id` the CAS write path assigns it, so the reverse
     /// index keys line up with the blob ids `evict_segment` iterates.
-    pub(crate) fn action_cache_entry_blob_ids(
+    fn action_cache_entry_blob_ids(
         &self,
         namespace_id: &str,
         action_result_bytes: &[u8],
@@ -7983,7 +7983,7 @@ impl Store {
         }
     }
 
-    pub(crate) fn chunk_recipe_blob_ids(
+    fn chunk_recipe_blob_ids(
         &self,
         namespace_id: &str,
         recipe_key: &str,

@@ -89,7 +89,11 @@ lacks, except one it dropped for a node-local reason replication does not carry:
   for capacity;
 - an action-cache entry past the action-cache TTL;
 - an action-cache entry or chunk recipe that references a blob the destination
-  no longer holds.
+  no longer holds. The destination reports such a record as `references_needed`;
+  the source then sends its referenced digests in pages of at most 256, and the
+  destination checks each with the chunk-aware, metadata-only presence the
+  action-result deletion gates use, so a blob readable through its recipe and
+  chunks counts as present. A final page with every blob present fails.
 
 Each replica evicts on its own schedule, so two long-running replicas never
 retain identical corpora. The source logs `kura.handover.prepared` with the
