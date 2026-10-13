@@ -25405,7 +25405,7 @@ public struct Client: APIProtocol {
     }
     /// Create a Gradle build with task data.
     ///
-    /// Credentials are required unless both the self-hosted deployment and the project explicitly permit network-trusted publishing. Without credentials the server assigns the report ID and suppresses privileged automation. x-tuist-actor-id supplies optional, unverified attribution.
+    /// Credentials are required unless the self-hosted instance enables network-trusted report publishing. Without credentials the server assigns the report ID and suppresses privileged automation. x-tuist-actor-id supplies optional, unverified attribution.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/gradle/builds`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/post(createGradleBuild)`.

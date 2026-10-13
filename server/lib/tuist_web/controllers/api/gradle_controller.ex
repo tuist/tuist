@@ -29,7 +29,7 @@ defmodule TuistWeb.API.GradleController do
   operation(:create_build,
     summary: "Create a Gradle build with task data.",
     description:
-      "Credentials are required unless both the self-hosted deployment and the project explicitly permit network-trusted publishing. Without credentials the server assigns the report ID and suppresses privileged automation. x-tuist-actor-id supplies optional, unverified attribution.",
+      "Credentials are required unless the self-hosted instance enables network-trusted report publishing. Without credentials the server assigns the report ID and suppresses privileged automation. x-tuist-actor-id supplies optional, unverified attribution.",
     security: [%{"authorization" => []}, %{}],
     operation_id: "createGradleBuild",
     parameters: [

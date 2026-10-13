@@ -35056,7 +35056,7 @@ paths:
         - Gradle
     post:
       callbacks: {}
-      description: Credentials are required unless both the self-hosted deployment and the project explicitly permit network-trusted publishing. Without credentials the server assigns the report ID and suppresses privileged automation. x-tuist-actor-id supplies optional, unverified attribution.
+      description: Credentials are required unless the self-hosted instance enables network-trusted report publishing. Without credentials the server assigns the report ID and suppresses privileged automation. x-tuist-actor-id supplies optional, unverified attribution.
       operationId: createGradleBuild
       parameters:
         - description: 'Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.'
