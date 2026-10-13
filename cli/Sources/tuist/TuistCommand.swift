@@ -342,6 +342,7 @@ public struct TuistCommand: AsyncParsableCommand {
             await HARRecorder.finishCurrent()
         #endif
         ProgramStatusReporter.current.finish(exitCode: exitCode, cancelled: error is CancellationError)
+        fflush(stdout)
     }
 
     private static func outputCompletion(
