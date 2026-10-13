@@ -49,6 +49,9 @@ const BURST_STAGGER_MS = 120;
 const TRAIL = [0.05, 0.1, 0.16];
 const TRAIL_ALPHA = [0.5, 0.3, 0.14];
 const FLICKER_MS = 6000;
+// At rest only the slow breathing changes, so the field repaints at a third
+// of the display rate; a morph repaints every frame.
+const REST_FRAME_SKIP = 3;
 const TAU = Math.PI * 2;
 
 const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
@@ -268,9 +271,10 @@ export const CustomersDotsMorph = {
     this.observer.observe(this.canvas);
     this.resize();
 
+    let tick = 0;
     const loop = (now) => {
       this.raf = requestAnimationFrame(loop);
-      this.render(now);
+      if (this.morph || tick++ % REST_FRAME_SKIP === 0) this.render(now);
     };
     this.stopView = whenInView(this.el, {
       enter: () => {
@@ -379,6 +383,14 @@ export const CustomersDotsMorph = {
   cloudPoint(p, now) {
     const t = now / 1000;
     const { x: dx, y: dy, z: dz } = p.dir;
+    // The spin and tilt are the same for every particle in a frame.
+    if (this.trigAt !== now) {
+      const spin = t * 0.45;
+      const tilt = 0.38;
+      this.trig = { cs: Math.cos(spin), ss: Math.sin(spin), ct: Math.cos(tilt), st: Math.sin(tilt) };
+      this.trigAt = now;
+    }
+    const { cs, ss, ct, st } = this.trig;
     const k = p.shell * 2.1;
     const fold =
       Math.sin(dx * 2.6 + t * 0.9 + k) * Math.sin(dy * 3.1 - t * 0.7 + k * 0.5) +
@@ -387,12 +399,10 @@ export const CustomersDotsMorph = {
     const radius = p.spray ? p.sprayRadius : (1 - p.shell * 0.06) * (1 + 0.12 * fold);
 
     // Spin around the vertical axis, then tilt toward the viewer.
-    const spin = t * 0.45;
-    const tilt = 0.38;
     const rot = (x, y, z) => {
-      const x1 = x * Math.cos(spin) + z * Math.sin(spin);
-      const z1 = -x * Math.sin(spin) + z * Math.cos(spin);
-      return [x1, y * Math.cos(tilt) - z1 * Math.sin(tilt), y * Math.sin(tilt) + z1 * Math.cos(tilt)];
+      const x1 = x * cs + z * ss;
+      const z1 = -x * ss + z * cs;
+      return [x1, y * ct - z1 * st, y * st + z1 * ct];
     };
     const [x, y, z] = rot(dx * radius, dy * radius, dz * radius);
     // How edge-on the surface is to the viewer here: 1 at the rim.

@@ -39,8 +39,6 @@ import { TuistDitherParticles } from "./hooks/tuist-dither-particles.js";
 import { ThemeSwitcher } from "./hooks/theme-switcher.js";
 import { DitherPing } from "./hooks/dither-ping.js";
 import { DitherGlobe } from "./hooks/dither-globe.js";
-import { CustomersDitherDots } from "./hooks/customers-dither-dots.js";
-import { CustomersDitherLine } from "./hooks/customers-dither-line.js";
 import { DitherBlocks } from "./hooks/dither-blocks.js";
 import { LogoContextMenu } from "./hooks/logo-context-menu.js";
 import { BlogViewPreference } from "./hooks/blog-view-preference.js";
@@ -59,8 +57,6 @@ const Hooks = {
   CustomersDotsMorph,
   DitherTexture,
   DitherBlocks,
-  CustomersDitherDots,
-  CustomersDitherLine,
   ComputeSpark,
   ComputeHeroDiff,
   ComputeHeroGrid,

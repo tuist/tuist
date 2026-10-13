@@ -132,8 +132,10 @@ void main(){
 // Pass 2, every device pixel: a stippled point cloud plus the guides. Each
 // cell holds one candidate dot at a jittered position; it appears when the
 // cell's signal beats the dot's random threshold, so dot density follows the
-// signal. Size and brightness vary per dot. A pixel checks its 3x3 cells, so
-// dots can overlap cell edges.
+// signal. Size and brightness vary per dot. A dot starts at or after its
+// cell's origin and extends right and up only, so a pixel can be covered by
+// a dot from its own cell or from the cells to its left and below: those
+// four are checked, never the other five.
 const FS_DRAW = `#version 300 es
 precision highp float;
 uniform sampler2D uL; uniform ivec2 uGrid; uniform vec2 uCellPx; uniform float uS; uniform vec2 uFrame; uniform float uPadPx;
@@ -161,10 +163,10 @@ void main(){
 
   float best = 0.0;
   vec3 ink = cBg;
-  for(int j = -1; j <= 1; j++){
-    for(int i = -1; i <= 1; i++){
+  for(int j = -1; j <= 0; j++){
+    for(int i = -1; i <= 0; i++){
       ivec2 n = c + ivec2(i, j);
-      if(n.x < 0 || n.y < 0 || n.x >= uGrid.x || n.y >= uGrid.y) continue;
+      if(n.x < 0 || n.y < 0) continue;
       vec4 sv = texelFetch(uL, n, 0);
       float l = sv.r;
       vec2 fn = vec2(n);
@@ -516,13 +518,16 @@ export const HomeHeroWave = {
       g.lineData[i * 4 + 2] = (0.13 / 0.15) * sv((x - (g.clock * 1.7) / win) * win, 5.3);
       g.lineData[i * 4 + 3] = on ? 1 : 0;
     }
-    if (!g.lineTex) {
-      g.lineTex = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, g.lineTex);
+    // Allocate the line texture once per column count and update it in
+    // place each frame, instead of reallocating storage every frame.
+    gl.bindTexture(gl.TEXTURE_2D, g.lineTex || (g.lineTex = gl.createTexture()));
+    if (g.lineCols !== cols) {
       this.nearest();
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, cols, 1, 0, gl.RGBA, gl.FLOAT, g.lineData);
+      g.lineCols = cols;
+    } else {
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, cols, 1, gl.RGBA, gl.FLOAT, g.lineData);
     }
-    gl.bindTexture(gl.TEXTURE_2D, g.lineTex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, cols, 1, 0, gl.RGBA, gl.FLOAT, g.lineData);
     return -g.clock / win;
   },
 
