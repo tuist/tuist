@@ -11,3 +11,5 @@
   repository's event prefix, not the logical read repository's prefix.
 
 Use the standard [application shutdown callback](https://hexdocs.pm/elixir/Application.html#c:prep_stop/1) and [socket drainer specifications](https://hexdocs.pm/phoenix/Phoenix.Socket.Transport.html#c:drainer_spec/1). The server child identifiers follow Bandit's Phoenix adapter.
+
+- `RuntimeChildren.readiness_server/1` starts `Tuist.Readiness.Plug` on port 9092 for `:xcresult_processor` only, after Oban so it stops first. tart-kubelet probes `GET /ready`, which checks Postgres, ClickHouse (and the shadow ClickHouse when configured) and the `:process_xcresult` queue. Keep the port in sync with `infra/helm/tuist/templates/xcresult-processor-deployment.yaml`.
