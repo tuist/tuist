@@ -81,6 +81,15 @@ right after login. Without a busy timeout, `sqlite3` failed with
 whose log tail reaches Loki, search the `tuist-macos-tart-kubelet`
 `runner log` lines for it.
 
+Some jobs still fail with an immediate `-1743` although every boot
+logs the approval. To explain those, `dispatch-poll.sh` streams TCC's
+unified log from boot to `/var/log/tuist-runner/tcc.log` and, on
+exit, appends `dispatch-poll: tcc:` lines after the job's output, so
+they land in the published tail: the AppleEvents rows, the database's
+inode and birth time, each tccd's start time, and tccd's lines for
+Apple Events requests (`AUTHREQ_ATTRIBUTION` names the responsible
+process, `AUTHREQ_RESULT` the decision and its `authReason`).
+
 The sanity checks at the end of the Packer template run as `sudo
 -u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
 leaves them pointed at `/Users/admin` and they assert against the

@@ -130,6 +130,57 @@ report_heartbeat() {
   printf '%s' "${1}" >"${STATUS_SHARE}/runner-heartbeat" 2>/dev/null || true
 }
 
+RUNNER_TCC_DB="/Users/runner/Library/Application Support/com.apple.TCC/TCC.db"
+TCC_LOG=/var/log/tuist-runner/tcc.log
+TCC_LOG_PID=""
+
+# stream_tcc_log records TCC's unified-log output from boot on, for
+# report_finder_automation to read on the way out. Streamed rather than
+# read back with `log show` at exit: scanning the log store after a long
+# job takes tens of seconds, and a cut-off scan loses the newest lines,
+# which are the ones that explain a failure near the end of the job.
+stream_tcc_log() {
+  /usr/bin/log stream --style compact --predicate 'subsystem == "com.apple.TCC"' >"${TCC_LOG}" 2>/dev/null &
+  TCC_LOG_PID=$!
+}
+
+# report_finder_automation appends the state behind scripted Finder
+# access to `${LOG}` on the way out. The Finder approval written at boot
+# (approve_finder_automation) still fails on some jobs with an immediate
+# `Not authorized to send Apple events to Finder (-1743)`, and nothing
+# from those VMs survives them. Written last, after the job's own
+# output, it lands in the bounded tail that publish_runner_log hands to
+# tart-kubelet and that reaches Loki.
+#
+# It records the AppleEvents rows in the session user's TCC database,
+# when that database and each tccd were created (a recreated database or
+# a restarted tccd shows as a later birth or start), and tccd's log lines
+# for Apple Events requests. Those name the responsible process TCC
+# charged and the reason for the decision. Every line of a request that
+# mentions Apple Events, Finder, `osascript` or `Runner.Listener` is
+# kept, by `msgID`, and requests for other services are dropped.
+#
+# Capped so the block fits in the published tail.
+report_finder_automation() {
+  local prefix
+  prefix="$(date -u +%FT%TZ) dispatch-poll: tcc:"
+  if [ -n "${TCC_LOG_PID}" ]; then
+    kill "${TCC_LOG_PID}" 2>/dev/null
+    wait "${TCC_LOG_PID}" 2>/dev/null
+  fi
+  stat -f "${prefix} db inode=%i birth=%SB mtime=%Sm" -t '%FT%T' "${RUNNER_TCC_DB}" 2>&1 | head -n 1
+  /usr/bin/sqlite3 -readonly "${RUNNER_TCC_DB}" "SELECT client, auth_value, auth_reason, last_modified FROM access WHERE service = 'kTCCServiceAppleEvents';" 2>&1 |
+    head -n 10 | sed "s|^|${prefix} row |"
+  ps -axo pid=,user=,lstart=,comm= | awk '$NF ~ /\/tccd$/' | sed "s|^ *|${prefix} tccd |"
+  [ -f "${TCC_LOG}" ] || return 0
+  awk '
+    { line[NR] = $0; id[NR] = ""; if (match($0, /msgID=[0-9.]+/)) id[NR] = substr($0, RSTART, RLENGTH) }
+    /AUTHREQ_CTX/ && !/service=kTCCServiceAppleEvents/ && id[NR] != "" { other[id[NR]] = 1 }
+    /kTCCServiceAppleEvents|com\.apple\.finder|Runner\.Listener|osascript/ { hit[NR] = 1; if (id[NR] != "") ids[id[NR]] = 1 }
+    END { for (i = 1; i <= NR; i++) if ((hit[i] || (id[i] != "" && (id[i] in ids))) && !(id[i] in other)) print line[i] }
+  ' "${TCC_LOG}" | tail -n 60 | cut -c1-400 | sed "s|^|${prefix} log |"
+}
+
 # Always halt the VM on script exit. tart-kubelet observes `tart run`
 # exiting and transitions the Pod to a terminal phase; without this
 # trap a non-zero `./run.sh` (errexit), an early `exit 1`
@@ -138,7 +189,7 @@ report_heartbeat() {
 # refilling. The trap fires once on EXIT so the happy path
 # (clean ./run.sh exit) and every error path halt the VM the
 # same way.
-trap '_rc=$?; report_runner_exit "${_rc}"; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; publish_runner_log; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
+trap '_rc=$?; report_runner_exit "${_rc}"; report_finder_automation; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; publish_runner_log; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
 
 if [ ! -f /etc/tuist.env ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: /etc/tuist.env missing; aborting"
@@ -202,7 +253,7 @@ keep_desktop_interactive
 #
 # Best-effort: a job that never scripts Finder must not wait on this.
 approve_finder_automation() {
-  local db="/Users/runner/Library/Application Support/com.apple.TCC/TCC.db"
+  local db="${RUNNER_TCC_DB}"
   local finder_requirement="X'fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003'"
   local waited=0 failed=0 client
   while [ ! -f "${db}" ] && [ "${waited}" -lt 30 ]; do
@@ -223,6 +274,7 @@ approve_finder_automation() {
   return 0
 }
 
+stream_tcc_log
 approve_finder_automation
 
 # In-VM cluster DNS for the runner-cache path. When the
