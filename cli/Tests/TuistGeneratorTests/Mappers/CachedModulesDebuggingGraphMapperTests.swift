@@ -818,6 +818,9 @@ struct CachedModulesDebuggingGraphMapperTests {
         try await FileSystem().writeText(#require(runAction.preActions.first?.scriptText), at: scriptPath)
         let initPath = try #require(runAction.customLLDBInitFile)
         let derivedData = projectPath.appending(components: "DerivedData", "App")
+        // The script runs `/usr/bin/python3`, an `xcrun` shim that fails when `DEVELOPER_DIR` does not exist.
+        let developer = try runProcess("/usr/bin/xcode-select", arguments: ["-p"], environment: ["PATH": "/usr/bin:/bin"])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         var environment = [
             "PATH": "/usr/bin:/bin",
             "COMPILATION_CACHE_ENABLE_CACHING": "YES",
@@ -826,14 +829,14 @@ struct CachedModulesDebuggingGraphMapperTests {
             "COMPILATION_CACHE_REMOTE_SERVICE_PATH": "/tmp/cas.sock",
             "OTHER_SWIFT_FLAGS": "-cas-plugin-option upload=NO",
             "BUILD_DIR": derivedData.appending(components: "Build", "Products").pathString,
-            "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer",
+            "DEVELOPER_DIR": developer,
         ]
 
         _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment)
         let withCASPath = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
         #expect(withCASPath.split(separator: "\n").map(String.init) == [
             "settings set symbols.cas-path \"\(projectPath.pathString)/Shared cache/plugin\"",
-            "settings set symbols.cas-plugin-path \"/Applications/Xcode.app/Contents/Developer/usr/lib/libToolchainCASPlugin.dylib\"",
+            "settings set symbols.cas-plugin-path \"\(developer)/usr/lib/libToolchainCASPlugin.dylib\"",
             "settings set symbols.cas-plugin-options \"remote-service-path=/tmp/cas.sock\" \"upload=NO\"",
         ])
 
