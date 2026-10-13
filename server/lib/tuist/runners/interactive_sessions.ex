@@ -878,7 +878,9 @@ defmodule Tuist.Runners.InteractiveSessions do
   end
 
   defp binding_matches_session?(binding, %InteractiveSession{} = session) do
-    session.workflow_job_id == binding.workflow_job_id and session.account_id == binding.account_id
+    not is_nil(binding.workflow_job_id) and
+      session.workflow_job_id == binding.workflow_job_id and
+      session.account_id == binding.account_id
   end
 
   defp where_session_belongs_to_pod_or_binding(query, pod_name, nil) do
