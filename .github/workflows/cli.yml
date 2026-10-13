@@ -120,6 +120,9 @@ jobs:
         with:
           key: cli-macos-swifterpm-${{ hashFiles('.xcode-version') }}-v1
           path: ~/.cache/swifterpm
+      - name: Retain SwiftPM manifest cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash .github/scripts/retain-swiftpm-manifest-cache.sh
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist swiftlint swiftformat"
@@ -173,6 +176,9 @@ jobs:
         with:
           key: cli-macos-swifterpm-${{ hashFiles('.xcode-version') }}-v1
           path: ~/.cache/swifterpm
+      - name: Retain SwiftPM manifest cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash .github/scripts/retain-swiftpm-manifest-cache.sh
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -219,6 +225,9 @@ jobs:
         with:
           key: cli-macos-swifterpm-${{ hashFiles('.xcode-version') }}-v1
           path: ~/.cache/swifterpm
+      - name: Retain SwiftPM manifest cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash .github/scripts/retain-swiftpm-manifest-cache.sh
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -272,6 +281,9 @@ jobs:
         with:
           key: cli-macos-swifterpm-${{ hashFiles('.xcode-version') }}-v1
           path: ~/.cache/swifterpm
+      - name: Retain SwiftPM manifest cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash .github/scripts/retain-swiftpm-manifest-cache.sh
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -325,6 +337,9 @@ jobs:
         with:
           key: cli-macos-swifterpm-${{ hashFiles('.xcode-version') }}-v1
           path: ~/.cache/swifterpm
+      - name: Retain SwiftPM manifest cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash .github/scripts/retain-swiftpm-manifest-cache.sh
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -380,6 +395,9 @@ jobs:
         with:
           key: cli-macos-swifterpm-${{ hashFiles('.xcode-version') }}-v1
           path: ~/.cache/swifterpm
+      - name: Retain SwiftPM manifest cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash .github/scripts/retain-swiftpm-manifest-cache.sh
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"

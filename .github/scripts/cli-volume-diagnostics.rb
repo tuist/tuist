@@ -37,5 +37,5 @@ end
 File.write(state_path, JSON.generate(state))
 File.write(environment_path, JSON.generate(fingerprints)) if phase == 'after-first'
 if phase == 'after-first'
-  system('du', '-sh', '.build/native-manifest-cache/swiftpm', '.build/native-manifest-cache/modules')
+  system('du', '-sh', '.build/native-manifest-cache/swiftpm')
 end

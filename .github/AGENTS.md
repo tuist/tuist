@@ -126,6 +126,14 @@ key; SwifterPM downloads retain their authentication environment. Keep meaningfu
 package inputs visible, and always measure fresh-runner reuse: a volume hit
 alone is not evidence that manifest evaluation was skipped.
 
+After mounting `.build`, run `scripts/retain-swiftpm-manifest-cache.sh` to keep
+native SwiftPM's per-user `manifests` cache inside the workspace volume. Fresh
+checkout mtimes still make SwifterPM evaluate the root and local packages;
+retaining SwiftPM's compiled manifest cache avoids rebuilding those inputs.
+Keep SwiftPM configuration, security and authentication directories outside
+the volume. The helper preserves any pre-existing runner cache in `RUNNER_TEMP`
+and is idempotent. Forks keep their existing unmounted cache layout.
+
 By default, pull requests consume private snapshots without publishing. A volume
 admin can grant a same-repository PR branch writer permission for a dedicated
 experiment, paired with explicit `commit: 'true'`; grants apply to new attachments.
