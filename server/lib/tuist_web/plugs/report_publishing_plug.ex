@@ -49,7 +49,7 @@ defmodule TuistWeb.Plugs.ReportPublishingPlug do
   end
 
   def call(%{private: %{network_publication_authorized: true}} = conn, kind) do
-    if allowed_report?(conn, kind),
+    if allowed_report?(conn, kind) and not protected_report?(conn.body_params),
       do: conn,
       else: reject(conn, :bad_request, "Unsupported network-trusted report fields.")
   end

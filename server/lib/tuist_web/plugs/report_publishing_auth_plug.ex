@@ -1,6 +1,6 @@
 defmodule TuistWeb.Plugs.ReportPublishingAuthPlug do
   @moduledoc """
-  Optional authentication for the single Gradle report-creation route. An
+  Optional authentication for the dedicated structured report-creation routes. An
   invalid supplied credential must never become a network-trusted publisher.
   """
   use TuistWeb, :controller
@@ -20,15 +20,26 @@ defmodule TuistWeb.Plugs.ReportPublishingAuthPlug do
           reject(conn)
         end
 
-      [_header] ->
+      [header] ->
         conn = %{conn | assigns: Map.drop(conn.assigns, [:current_user, :current_project, :current_subject])}
-        conn = AuthenticationPlug.call(conn, :load_authenticated_subject)
-        if Authentication.authenticated?(conn), do: conn, else: reject(conn)
+
+        authenticate(conn, header)
 
       _ ->
         reject(conn)
     end
   end
+
+  defp authenticate(conn, "Bearer " <> token) when token != "" do
+    if token == String.trim(token) do
+      conn = AuthenticationPlug.call(conn, :load_authenticated_subject)
+      if Authentication.authenticated?(conn), do: conn, else: reject(conn)
+    else
+      reject(conn)
+    end
+  end
+
+  defp authenticate(conn, _header), do: reject(conn)
 
   defp reject(conn) do
     conn

@@ -14,6 +14,7 @@ This context owns VCS models and GitHub App integrations.
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
+- PR comments use only authenticated or historical reports, never network-trusted submissions, including cross-run flaky details. Unsigned telemetry must not replace a scheme's result or select the latest commit for a build-system roll-up.
 - If changes add or modify stored customer data, update `server/data-export.md`.
 
 ## Related Context

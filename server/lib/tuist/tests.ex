@@ -642,6 +642,13 @@ defmodule Tuist.Tests do
     end
   end
 
+  # Shard evidence queries exclude unsigned child rows by their parent's provenance.
+  # Persist that parent before children can be flushed by independent buffers.
+  defp insert_test_run(%{submission_auth: "network_trusted"} = test, _shard_plan) do
+    IngestRepo.insert_all(Test, [test_row(test)])
+    test
+  end
+
   defp insert_test_run(test, nil) do
     {:ok, _} = Test.Buffer.insert(test)
     test
@@ -4680,7 +4687,8 @@ defmodule Tuist.Tests do
             from(tcr in TestCaseRun,
               where: fragment("? IN (?)", tcr.project_id, type(^project_ids, {:array, :integer})),
               where: fragment("? IN (?)", tcr.test_case_id, type(^ids_chunk, {:array, Ecto.UUID})),
-              where: fragment("? IN (?)", tcr.git_commit_sha, type(^commit_shas, {:array, :string}))
+              where: fragment("? IN (?)", tcr.git_commit_sha, type(^commit_shas, {:array, :string})),
+              where: tcr.submission_auth != "network_trusted"
             )
           end)
           |> Enum.sort_by(& &1.ran_at, {:desc, NaiveDateTime})

@@ -123,6 +123,28 @@ defmodule TuistWeb.API.NetworkTrustedReportsTest do
     end
   end
 
+  test "unsigned parent provenance is synchronous before independent child buffers flush", %{conn: conn, user: user} do
+    project = project(user, :xcode)
+    reject(Tuist.Tests.Test.Buffer, :insert, 1)
+
+    response =
+      conn
+      |> publish(project, "/tests", %{
+        id: UUIDv7.generate(),
+        duration: 1,
+        is_ci: false,
+        status: "success",
+        test_modules: [%{name: "Module", status: "success", duration: 1, test_cases: []}]
+      })
+      |> json_response(200)
+
+    Tuist.Tests.TestModuleRun.Buffer.flush()
+
+    assert ClickHouseRepo.exists?(
+             from(t in Tuist.Tests.Test, where: t.id == ^response["id"] and t.submission_auth == "network_trusted")
+           )
+  end
+
   test "Bazel authorization grants publishing only and checks every fresh session", %{conn: conn, user: user} do
     project = project(user, :bazel)
     assert conn |> publish(project, "/bazel/publishing", %{}) |> json_response(200) == %{"network_trusted" => true}
