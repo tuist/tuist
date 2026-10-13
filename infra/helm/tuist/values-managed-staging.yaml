@@ -586,6 +586,8 @@ xcresultProcessor:
   strategy:
     type: Recreate
     rollingUpdate: null
+  readinessProbe:
+    enabled: true
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: stag
