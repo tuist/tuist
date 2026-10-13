@@ -23,6 +23,7 @@ defmodule TuistWeb.TestCaseLive do
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
+  @valid_sort_by_fields ["ran_at", "duration"]
 
   # The overview's history sits in its own column beside the widgets and the
   # chart, and runs as deep as they do. Anything past that is a tab away.
@@ -720,7 +721,9 @@ defmodule TuistWeb.TestCaseLive do
        ) do
     page = parse_page(params["page"])
     search = params["search"] || ""
-    sort_by = params["sort_by"] || "ran_at"
+    sort_by =
+      if params["sort_by"] in @valid_sort_by_fields, do: params["sort_by"], else: "ran_at"
+
     sort_order = params["sort_order"] || "desc"
 
     filters = Filter.Operations.decode_filters_from_query(params, available_filters)
