@@ -1097,4 +1097,31 @@ defmodule Tuist.Runners.CacheVolumesTest do
     Repo.update!(Ecto.Changeset.change(Repo.get!(Volume, volume.id), builtin_name: nil, provider: "gitlab"))
     assert {:error, :not_found} = CacheVolumes.update_writer_branches(account.id, volume.id, ["feature"])
   end
+
+  test "policy additions, reordering and removals preserve unrelated in-flight writers", %{job: job, account: account} do
+    {:ok, main} = CacheVolumes.allocate_for_job(job, identity(), attrs("main-running"))
+    volume = volume(account)
+    {:ok, _} = CacheVolumes.update_writer_branches(account.id, volume.id, ["feature", "retained"])
+    branch_identity = Map.merge(identity(), %{trusted: false, writer_branch: "feature"})
+    {:ok, removed} = CacheVolumes.allocate_for_job(job, branch_identity, attrs("removed"))
+
+    {:ok, retained} =
+      CacheVolumes.allocate_for_job(job, %{branch_identity | writer_branch: "retained"}, attrs("retained"))
+
+    assert is_nil(Repo.get!(Usage, main.id).writer_branch)
+    assert Repo.get!(Usage, removed.id).writer_branch == "feature"
+
+    for branches <- [["retained", "feature"], ["new", "feature", "retained"]] do
+      assert {:ok, _} = CacheVolumes.update_writer_branches(account.id, volume.id, branches)
+      for use <- [main, removed, retained], do: assert(Repo.get!(Usage, use.id).can_publish)
+    end
+
+    assert {:ok, _} = CacheVolumes.update_writer_branches(account.id, volume.id, ["retained"])
+    assert Repo.get!(Usage, main.id).can_publish
+    assert Repo.get!(Usage, retained.id).can_publish
+    refute Repo.get!(Usage, removed.id).can_publish
+    complete(job)
+    assert {:ok, %{action: "keep"}} = publish_report("node", main.id)
+    assert {:ok, %{action: "delete"}} = publish_report("node", removed.id)
+  end
 end

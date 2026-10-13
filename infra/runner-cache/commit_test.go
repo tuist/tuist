@@ -21,3 +21,11 @@ func TestCommitAcknowledgementCannotGrantOrIgnorePermissions(t *testing.T) {
 		t.Fatal("read-only request could publish")
 	}
 }
+
+func TestCommitModeDefaultsOnlyAbsentMode(t *testing.T) {
+	for input, want := range map[string]string{"": "auto", "auto": "auto", "true": "true", "false": "false", "invalid": "invalid"} {
+		if got := CommitMode(input); got != want {
+			t.Fatalf("%q: got %q want %q", input, got, want)
+		}
+	}
+}

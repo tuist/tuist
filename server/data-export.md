@@ -469,7 +469,7 @@ The archive contains everything needed to understand the account's complete data
 - **Usage history** (`runner_cache_volume_uses`, PostgreSQL): use UUID and volume
   foreign key, invalidation generation, parent use UUID, shared HEAD base/published
   generations, image SHA-1 and content SHA-256 digests, workflow run/job IDs, pod name/UID,
-  node name, commit intent (`auto`, `true`, `false`), publication permission, lifecycle status, warm/cold result, logical
+  node name, commit intent (`auto`, `true`, `false`), additional branch grant used for publication (nullable), publication permission, lifecycle status, warm/cold result, logical
   filesystem used/capacity bytes, attachment milliseconds, last report, attachment/finish/
   physical-deletion and creation/update timestamps. Export via the volume's
   account ID. Daily cleanup removes history 90 days after acknowledged physical

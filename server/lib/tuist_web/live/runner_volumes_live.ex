@@ -131,13 +131,17 @@ defmodule TuistWeb.RunnerVolumesLive do
          dgettext("dashboard_runners", "Writer branches updated. Changes apply to new volume attachments.")
        )}
     else
-      _ ->
+      failure when failure in [false, {:error, :invalid_parameters}] ->
         {:noreply,
          put_flash(
            socket,
            :error,
            dgettext("dashboard_runners", "Could not update writer branches. Use up to 20 exact branch names.")
          )}
+
+      _ ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("dashboard_runners", "You do not have access to update this volume."))}
     end
   end
 

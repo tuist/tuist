@@ -39,12 +39,19 @@ func TestAcquireBindsSourceIPNodeUIDAndAuthorization(t *testing.T) {
 	acknowledge := false
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authorized = true
+		wantPath := "/authorize"
+		if cachevolumes.CommitMode(commit) != "auto" {
+			wantPath = "/authorize-commit"
+		}
+		if r.URL.Path != wantPath {
+			t.Errorf("authorization path %q, want %q", r.URL.Path, wantPath)
+		}
 		if r.Header.Get("Authorization") != "Bearer agent-token" {
 			t.Error("lost authorization")
 		}
 		var body map[string]any
 		json.NewDecoder(r.Body).Decode(&body)
-		if body["pod_name"] != "runner" || body["key"] != "gradle" || body["commit"] != commitMode(commit) {
+		if body["pod_name"] != "runner" || body["key"] != "gradle" || body["commit"] != cachevolumes.CommitMode(commit) {
 			t.Error("lost execution identity")
 		}
 		if !allow {
@@ -60,7 +67,7 @@ func TestAcquireBindsSourceIPNodeUIDAndAuthorization(t *testing.T) {
 	defer upstream.Close()
 	tokenPath := filepath.Join(root, "token")
 	os.WriteFile(tokenPath, []byte("agent-token"), 0600)
-	a := &agent{tokenPath: tokenPath, store: s, kube: fake.NewSimpleClientset(pod), namespace: "runners", node: "node", authorizeURL: upstream.URL, http: upstream.Client()}
+	a := &agent{tokenPath: tokenPath, store: s, kube: fake.NewSimpleClientset(pod), namespace: "runners", node: "node", authorizeURL: upstream.URL + "/authorize", http: upstream.Client()}
 	call := func(uid, ip string) int {
 		body, _ := json.Marshal(request{PodName: "runner", PodUID: uid, Key: "gradle", Commit: commit})
 		req := httptest.NewRequest("POST", "/acquire", bytes.NewReader(body))

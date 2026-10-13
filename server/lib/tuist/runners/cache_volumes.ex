@@ -23,6 +23,7 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Runners.WorkflowJob
 
   @retention_seconds 7 * 24 * 60 * 60
+  @commit_modes ~w(auto true false)
 
   def allocate(
         %{
@@ -34,7 +35,9 @@ defmodule Tuist.Runners.CacheVolumes do
           "uid" => user_id
         } = params
       ) do
-    with true <- Map.get(params, "commit", "auto") in ["auto", "true", "false"],
+    commit_mode = Map.get(params, "commit", "auto")
+
+    with true <- commit_mode in @commit_modes,
          true <- valid_key?(key),
          true <- arch in ["amd64", "arm64"],
          true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
@@ -46,7 +49,7 @@ defmodule Tuist.Runners.CacheVolumes do
         pod_uid: uid,
         node_name: node,
         key: key,
-        commit_mode: Map.get(params, "commit", "auto"),
+        commit_mode: commit_mode,
         architecture: arch,
         platform: to_string(platform),
         uid: user_id
@@ -109,7 +112,7 @@ defmodule Tuist.Runners.CacheVolumes do
     attrs = attrs |> Map.put_new(:platform, "linux") |> Map.put_new(:commit_mode, "auto")
 
     Repo.transaction(fn ->
-      if attrs.commit_mode not in ["auto", "true", "false"], do: Repo.rollback(:unavailable)
+      if attrs.commit_mode not in @commit_modes, do: Repo.rollback(:unavailable)
       # One admission lock per pod also bounds concurrent requests for new keys.
       Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
         "cache-volume:#{job.account_id}:#{attrs.pod_uid}"
@@ -157,6 +160,7 @@ defmodule Tuist.Runners.CacheVolumes do
           workflow_job_id: job.workflow_job_id,
           workflow_run_id: job.workflow_run_id,
           commit_mode: attrs.commit_mode,
+          writer_branch: if(identity.trusted, do: nil, else: Map.get(identity, :writer_branch)),
           can_publish: attrs.commit_mode != "false" and writer_allowed?(volume, identity),
           inserted_at: timestamp,
           updated_at: timestamp
@@ -216,15 +220,21 @@ defmodule Tuist.Runners.CacheVolumes do
 
       if not valid_writer_branches?(branches), do: Repo.rollback(:invalid_parameters)
 
-      branches = Enum.uniq(branches)
+      branches = branches |> Enum.uniq() |> Enum.sort()
 
-      if volume.writer_branches == branches do
+      if Enum.sort(volume.writer_branches) == branches do
         volume
       else
-        # Revoke pending permissions under the publication lock. New grants only
-        # apply to new jobs; retries cannot upgrade an existing private clone.
+        # Only removed additional grants are revoked. Default-branch writers
+        # have no writer_branch; additions never upgrade existing private clones.
+        removed_branches = volume.writer_branches -- branches
+
         Repo.update_all(
-          from(u in Usage, where: u.volume_id == ^id and u.status not in ["published", "discarded"]),
+          from(u in Usage,
+            where:
+              u.volume_id == ^id and u.status not in ["published", "discarded"] and
+                u.writer_branch in ^removed_branches
+          ),
           set: [can_publish: false]
         )
 

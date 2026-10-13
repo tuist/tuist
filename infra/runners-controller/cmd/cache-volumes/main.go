@@ -53,7 +53,7 @@ type request struct {
 }
 
 func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" || r.URL.Path != "/acquire" {
+	if r.Method != "POST" || (r.URL.Path != "/acquire" && r.URL.Path != "/acquire-commit") {
 		http.NotFound(w, r)
 		return
 	}
@@ -86,12 +86,20 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	// The agent authenticates to the server. Repository and publication rights
 	// come from the job GitHub actually assigned to this live runner.
-	body, _ := json.Marshal(map[string]any{"pod_name": input.PodName, "pod_uid": input.PodUID, "node_name": a.node, "key": input.Key, "architecture": input.Architecture, "uid": input.UID, "commit": commitMode(input.Commit)})
+	body, _ := json.Marshal(map[string]any{"pod_name": input.PodName, "pod_uid": input.PodUID, "node_name": a.node, "key": input.Key, "architecture": input.Architecture, "uid": input.UID, "commit": cachevolumes.CommitMode(input.Commit)})
 	authorized := a.observe.Start("authorize", "none")
-	identity, err := a.authorize(ctx, body)
+	authorizeURL := a.authorizeURL
+	if cachevolumes.CommitMode(input.Commit) != "auto" {
+		authorizeURL += "-commit"
+	}
+	identity, err := a.authorizeAt(ctx, authorizeURL, body)
 	authorized(err)
 	outcome = err
 	if err != nil {
+		if errors.Is(err, cachevolumes.ErrCommitUnsupported) {
+			http.Error(w, "commit mode unsupported", http.StatusNotImplemented)
+			return
+		}
 		http.Error(w, "unavailable", 403)
 		return
 	}
@@ -110,7 +118,7 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"directory": identity.Scope, "warm": warm, "id": identity.ID, "commit": identity.Commit})
+	json.NewEncoder(w).Encode(map[string]any{"directory": identity.Scope, "warm": warm, "id": identity.ID, "commit": identity.Commit, "can_publish": identity.CanPublish})
 }
 func (a *agent) gone(name, uid string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -287,11 +295,4 @@ func (a *agent) report(slot cachevolumes.Slot, gone bool) (string, error) {
 	}
 	err = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&result)
 	return result.Action, err
-}
-
-func commitMode(mode string) string {
-	if mode == "" {
-		return "auto"
-	}
-	return mode
 }

@@ -467,6 +467,35 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     end
   end
 
+  test "writer policy errors distinguish invalid names from missing access" do
+    values = assigns(true)
+    socket = %Socket{assigns: Map.merge(values, %{__changed__: %{}, current_user: :user, flash: %{}})}
+    stub(Authorization, :authorize, fn :account_update, :user, %{id: 1} -> :ok end)
+
+    for {reason, message} <- [
+          {:invalid_parameters, "Use up to 20 exact branch names."},
+          {:not_found, "You do not have access to update this volume."}
+        ] do
+      expect(CacheVolumes, :update_writer_branches, fn 1, _, _ -> {:error, reason} end)
+
+      assert {:noreply, result} =
+               RunnerVolumesLive.handle_event("save_writer_branches", %{"writer_branches" => "feature"}, socket)
+
+      assert result.assigns.flash["error"] =~ message
+    end
+
+    reject(CacheVolumes, :update_writer_branches, 3)
+
+    assert {:noreply, result} =
+             RunnerVolumesLive.handle_event(
+               "save_writer_branches",
+               %{"writer_branches" => "feature"},
+               put_in(socket.assigns.selected, nil)
+             )
+
+    assert result.assigns.flash["error"] == "You do not have access to update this volume."
+  end
+
   test "writer policy save reauthorizes and scopes the selected volume" do
     values = assigns(true)
     id = values.selected.id
@@ -488,5 +517,6 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
              RunnerVolumesLive.handle_event("save_writer_branches", %{"writer_branches" => "other"}, updated)
 
     assert rejected.assigns.selected.writer_branches == ["codex/test"]
+    assert rejected.assigns.flash["error"] == "You do not have access to update this volume."
   end
 end

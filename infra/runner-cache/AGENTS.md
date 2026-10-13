@@ -56,3 +56,5 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   then rechecks the durable lease under that lock before removing a mailbox.
 
 - Identity commit acknowledgement gates explicit save modes before exposure; false additionally requires CanPublish=false. Legacy auto requests retain their wire compatibility. Policy revocation is enforced by the server at publication.
+
+- Explicit commit modes use versioned acquisition/authorization paths (macOS .commit-request mailboxes) so older components cannot allocate before rejecting them. Auto retains legacy paths. Echo can_publish and warn on an unauthorized explicit save; publication still rechecks policy.

@@ -242,7 +242,8 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
     }
 
     for event <- ["push", "workflow_dispatch", "schedule"] do
-      assert {:ok, %{trusted: false, writer_branch: "feature"}} = Identity.github_identity(job, %{run | "event" => event})
+      # GitHub uses head_branch for both branch and tag names on these events.
+      assert {:ok, %{trusted: false, writer_branch: nil}} = Identity.github_identity(job, %{run | "event" => event})
     end
 
     for event <- ["pull_request_target", "merge_group", "unknown"] do
@@ -256,6 +257,10 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
       })
 
     assert {:ok, %{trusted: false, writer_branch: "feature"}} = Identity.github_identity(job, pr)
+
+    for event <- ["push", "workflow_dispatch"] do
+      assert {:ok, %{writer_branch: nil}} = Identity.github_identity(job, %{pr | "event" => event})
+    end
 
     for prs <- [
           [],

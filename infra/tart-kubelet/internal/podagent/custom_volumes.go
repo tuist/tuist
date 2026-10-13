@@ -359,7 +359,7 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		return err
 	}
 	for _, name := range names {
-		if !strings.HasSuffix(name, ".request") {
+		if !strings.HasSuffix(name, ".request") && !strings.HasSuffix(name, ".commit-request") {
 			continue
 		}
 		if _, err := root.Stat(name + ".response"); err == nil {
@@ -390,19 +390,23 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		}
 		acquireCtx, cancel := context.WithDeadline(ctx, deadline)
 		var identity cachevolumes.Identity
-		status, err := c.request(acquireCtx, "authorize", map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID, "commit": customVolumeCommit(input.Commit)}, &identity)
+		operation := "authorize"
+		if cachevolumes.CommitMode(input.Commit) != "auto" {
+			operation = "authorize-commit"
+		}
+		status, err := c.request(acquireCtx, operation, map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID, "commit": cachevolumes.CommitMode(input.Commit)}, &identity)
 		if status == http.StatusTooEarly && acquireCtx.Err() == nil {
 			cancel()
 			continue
 		}
 		response := map[string]any{"error": "unavailable"}
-		if err == nil && !identity.AcceptsCommit(input.Commit) {
+		if (status == http.StatusNotFound && operation == "authorize-commit") || (err == nil && !identity.AcceptsCommit(input.Commit)) {
 			response["error"] = "unsupported_commit"
 		}
 		if err == nil && identity.AcceptsCommit(input.Commit) {
 			warm, err := c.Store.Acquire(acquireCtx, identity, pod.Name, string(pod.UID))
 			if err == nil {
-				response = map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": warm, "commit": identity.Commit}
+				response = map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": warm, "commit": identity.Commit, "can_publish": identity.CanPublish}
 			} else if errors.Is(err, context.DeadlineExceeded) {
 				c.prefetch.start(identity)
 			}
@@ -440,11 +444,4 @@ func (c *CustomVolumes) guard(ctx context.Context) (func(), error) {
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
-}
-
-func customVolumeCommit(mode string) string {
-	if mode == "" {
-		return "auto"
-	}
-	return mode
 }

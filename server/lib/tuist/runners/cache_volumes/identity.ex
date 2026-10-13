@@ -97,9 +97,6 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
     branch = run["head_branch"]
 
     case run["event"] do
-      event when event in ["push", "schedule", "workflow_dispatch"] ->
-        branch
-
       "pull_request" ->
         case run["pull_requests"] do
           [%{"head" => %{"repo" => %{"id" => ^repository_id}, "ref" => ^branch}} | _] -> branch
@@ -107,6 +104,8 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
         end
 
       _ ->
+        # head_branch also contains tag names on push/dispatch runs. Only PR
+        # head metadata proves a branch for these additional writer grants.
         nil
     end
   end
