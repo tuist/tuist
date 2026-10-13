@@ -6,7 +6,7 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 - The transport routes `2026-07-28` requests to `Transport.Stateless` and preserves the EMCP session transport for older clients. The modern route has no session identifier and adds result discriminators, cache hints, and server identity to existing tool and prompt responses. Keep both paths tested when changing protocol handling.
 - Event subscriptions, callback verification, and delivery live under `events/`; see `events/AGENTS.md`.
 - MCP tools and prompts
-- MCP authorization/serialization helpers
+- MCP authorization/serialization helpers. ID-only Gradle/Xcode lookups must resolve a UUID to exactly one project before authorizing the parent. Reject cross-project collisions, including historical duplicates, instead of selecting an attacker-controlled public parent; project-scoped API/dashboard reads keep their existing behavior.
 - Operator reads: for calls proxied by Atlas (`x-tuist-atlas-identity`, verified by `TuistWeb.OperatorGrant.accept_atlas_identity_header/2`), `Tuist.MCP.Authorization.authorize_request/4` falls back to a grant-free read for the resource's account. It goes through the `:ops_access` policies and never applies to writes. There is no MCP operator-grant header; grants from ops.tuist.dev only apply to the browser session.
 - Xcode build-step list/detail tools share `Tuist.Builds.Steps` with the HTTP API. Lists omit logs, IDs are decimal strings scoped to a build, and details expose bounded logs separately after build-read authorization. The `compare_builds` prompt includes these tools; the flaky-test and integration skills intentionally do not use build-step data.
 

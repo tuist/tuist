@@ -267,21 +267,29 @@ defmodule Tuist.Gradle do
   def get_build(id, opts \\ []) do
     case Ecto.UUID.cast(id) do
       {:ok, id} ->
-        query = from(b in Build, where: b.id == ^id, limit: 1)
+        project_id = Keyword.get(opts, :project_id) || unique_build_project(id)
 
-        query =
-          case Keyword.get(opts, :project_id) do
-            nil -> query
-            project_id -> from(b in query, where: b.project_id == ^project_id)
+        if is_nil(project_id) do
+          {:error, :not_found}
+        else
+          query = from(b in Build, where: b.id == ^id and b.project_id == ^project_id, limit: 1)
+
+          case ClickHouseRepo.one(query) do
+            nil -> {:error, :not_found}
+            build -> {:ok, Repo.preload(build, [:actor_account, :built_by_account])}
           end
-
-        case ClickHouseRepo.one(query) do
-          nil -> {:error, :not_found}
-          build -> {:ok, Repo.preload(build, [:actor_account, :built_by_account])}
         end
 
       :error ->
         {:error, :not_found}
+    end
+  end
+
+  # ID-only callers must not authorize an attacker-controlled duplicate parent.
+  defp unique_build_project(id) do
+    case ClickHouseRepo.all(from(b in Build, where: b.id == ^id, select: b.project_id, distinct: true, limit: 2)) do
+      [project_id] -> project_id
+      _ -> nil
     end
   end
 
