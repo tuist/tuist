@@ -2633,17 +2633,28 @@
     }
   }
 
-  & > [data-part="testimonials"] > [data-part="customers"] {
+  /* Customer stories, directly below the company logos strip. */
+  & > [data-part="customers"] {
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
+    /* Same shell as the testimonials and transparency boxes. */
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
 
     /* Same padded header cell and text ramp as the testimonials header —
-       48px bottom inset to the flush stories row below. */
+       32px bottom inset to the carousel buttons below. */
     & > [data-part="text"] {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      padding: var(--noora-spacing-14) var(--noora-spacing-4) var(--noora-spacing-11);
+      padding: var(--noora-spacing-14) var(--noora-spacing-4) var(--noora-spacing-9);
 
       & > [data-part="eyebrow"] {
         color: var(--noora-surface-label-secondary);
@@ -2668,131 +2679,114 @@
       }
     }
 
-    /* Two customer-story cells: stacked on mobile, side by side on desktop
-       with a shared hairline divider. The bottom border closes the cards
-       row off from the testimonials header that follows in the same box. */
-    & > [data-part="stories"] {
-      display: flex;
-      flex-direction: column;
-      border-top: 1px solid var(--marketing-stroke-default);
-      border-bottom: 1px solid var(--marketing-stroke-default);
+    /* Customer stories carousel (CustomersCarousel hook): a row of two
+       neutral icon buttons, 8px apart, above one full-width card in the
+       current slide's brand colour (--slide-color, eased between slides).
+       Slides share one grid cell, so the card keeps the tallest slide's
+       height and never jumps; only the active slide is visible. */
+    & > [data-part="carousel"] {
+      & > [data-part="controls"] {
+        display: flex;
+        gap: var(--noora-spacing-4);
+        padding: var(--noora-spacing-4);
 
-      @media (min-width: 1024px) {
-        flex-direction: row;
+        & svg {
+          width: 20px;
+          height: 20px;
+        }
       }
 
-      & > [data-part="story"] {
-        display: flex;
+      & > [data-part="card"] {
+        display: grid;
         position: relative;
-        flex: 1;
-        flex-direction: column;
-        justify-content: flex-start;
-        align-items: center;
-        box-sizing: border-box;
-        /* Figma: 300-tall cell with the logo + caption stack anchored
-           23px from the top (centered horizontally), above the dot field
-           along the bottom. */
-        padding-top: 23px;
-        min-height: 300px;
+        transition: background-color 400ms var(--ease-out-cubic);
+        background: var(--slide-color);
+        /* Room for the dot field along the bottom edge. */
+        padding: var(--noora-spacing-9) var(--noora-spacing-4) 180px;
         overflow: hidden;
-        /* Neutral ramp for the dither-dot field behind the logo, shared by
-           both cards: the 500/700 neutrals, with the tiers flipped in dark
-           mode so shallow stays the dimmer one. */
-        --marketing-customers-dither-shallow: light-dark(var(--noora-neutral-light-500), var(--noora-neutral-dark-700));
-        --marketing-customers-dither-mid: light-dark(var(--noora-neutral-light-700), var(--noora-neutral-dark-500));
-        /* Hover ramp for the graph, per company brand: three solid shades
-           (strong / mid / soft) that the hooks hash across per dot.
-           Translucent brand dots washed out to pink on the light
-           background, so the depth comes from solid darker-to-lighter
-           brand mixes instead of alpha; dark mode ramps the brand toward
-           the black background. */
-        &[data-company="monzo"] {
-          --marketing-customers-dither-hover-strong: light-dark(color-mix(in oklch, #ff4f40 70%, black), #ff4f40);
-          --marketing-customers-dither-hover-mid: light-dark(#ff4f40, color-mix(in oklch, #ff4f40 65%, black));
-          --marketing-customers-dither-hover-soft: light-dark(
-            color-mix(in oklch, #ff4f40 55%, white),
-            color-mix(in oklch, #ff4f40 40%, black)
-          );
+        color: #fff;
+        /* The dot field's neutral ramp, lifted to white tints so it reads
+           on every brand colour. */
+        --marketing-customers-dither-shallow: color-mix(in srgb, #fff 45%, transparent);
+        --marketing-customers-dither-mid: color-mix(in srgb, #fff 80%, transparent);
+        --marketing-customers-dither-hover-strong: #fff;
+        --marketing-customers-dither-hover-mid: color-mix(in srgb, #fff 80%, transparent);
+        --marketing-customers-dither-hover-soft: color-mix(in srgb, #fff 55%, transparent);
+
+        @media (prefers-reduced-motion: reduce) {
+          transition: none;
         }
 
-        &[data-company="trendyol"] {
-          --marketing-customers-dither-hover-strong: light-dark(color-mix(in oklch, #ff6720 70%, black), #ff6720);
-          --marketing-customers-dither-hover-mid: light-dark(#ff6720, color-mix(in oklch, #ff6720 65%, black));
-          --marketing-customers-dither-hover-soft: light-dark(
-            color-mix(in oklch, #ff6720 55%, white),
-            color-mix(in oklch, #ff6720 40%, black)
-          );
-        }
-
-        /* Whole cell links to the case study, like the feature cards. */
-        & > [data-part="overlay-link"] {
-          display: block;
-          position: absolute;
+        & > [data-part="slide"] {
+          display: flex;
+          position: relative;
+          grid-area: 1 / 1;
+          flex-direction: column;
+          align-items: flex-start;
+          transform: translateY(6px);
+          visibility: hidden;
+          opacity: 0;
           z-index: var(--noora-z-index-2);
-          inset: 0;
-          text-decoration: none;
-        }
+          transition:
+            opacity 300ms var(--ease-out-cubic),
+            transform 300ms var(--ease-out-cubic);
 
-        & > [data-part="overlay-link"]:focus-visible {
-          outline: 3px solid var(--noora-purple-500);
-          /* Inward: the cell's overflow: hidden would clip an outset ring. */
-          outline-offset: -3px;
+          &[data-active="true"] {
+            transform: none;
+            visibility: visible;
+            opacity: 1;
+            transition-delay: 120ms;
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            transform: none;
+            transition: none;
+          }
+
+          & > [data-part="logo"] {
+            display: flex;
+            height: 24px;
+
+            & > svg {
+              width: auto;
+              height: 100%;
+            }
+
+            /* Vector parts are recoloured to currentColor on the server;
+               an embedded bitmap (Toss's gradient mark) can't be, so it is
+               flattened to a white silhouette here, keeping its shape. */
+            & image {
+              filter: brightness(0) invert(1);
+            }
+          }
+
+          /* Runs the full card width, inside its 8px side padding. */
+          & > p {
+            margin-top: var(--noora-spacing-9);
+            font: var(--noora-font-weight-regular) var(--noora-font-heading-xlarge);
+          }
+
+          /* Always the light secondary button: on a brand colour the dark
+             one reads as a hole. Noora's button colours and shadows resolve
+             through light-dark(), so the light scheme here is enough. */
+          & > .noora-button {
+            margin-top: var(--noora-spacing-9);
+            color-scheme: light;
+          }
         }
 
         /* Dither-dot field (the Figma export's dots, canvas-animated)
-           anchored to the card's bottom edge and spanning its full width:
-           the hook keeps the 600×180 artwork centered at its natural size
-           (the 2px grain never scales) and fills wider cards by tiling
-           mirrored copies outward, so stacked tablet cards have no empty
-           flanks. */
+           anchored to the card's bottom edge across its full width; the
+           hook keeps the artwork at its natural size and tiles mirrored
+           copies outward. */
         & > [data-part="dots"] {
           position: absolute;
+          right: 0;
           bottom: 0;
           left: 0;
-          /* Explicit width: a canvas is a replaced element, so absolute
-             left/right insets alone won't stretch it — width: auto would
-             resolve to the backing store's intrinsic size instead. */
           width: 100%;
           height: 180px;
           pointer-events: none;
-        }
-
-        & > [data-part="logo"],
-        & > p {
-          position: relative;
-          z-index: var(--noora-z-index-1);
-        }
-
-        &:first-child {
-          border-bottom: 1px solid var(--marketing-stroke-default);
-
-          @media (min-width: 1024px) {
-            border-right: 1px solid var(--marketing-stroke-default);
-            border-bottom: none;
-          }
-        }
-
-        & > [data-part="logo"] {
-          display: flex;
-
-          & svg {
-            display: block;
-            width: auto;
-            height: 95px;
-          }
-        }
-
-        /* The Trendyol mark is a currentColor SVG: painting it with the
-           primary label color keeps it legible in both themes. */
-        &[data-company="trendyol"] > [data-part="logo"] {
-          color: var(--noora-surface-label-primary);
-        }
-
-        & > p {
-          margin: 0;
-          color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
-          text-align: center;
         }
       }
     }
@@ -2813,8 +2807,7 @@
     }
 
     /* Same padded header cell as the transparency box (48px bottom inset
-       to the flush marquee row below); 96px top inset from the customer
-       stories row above. */
+       to the flush marquee row below); 96px top inset. */
     & > [data-part="text"] {
       display: flex;
       flex-direction: column;

@@ -4,6 +4,38 @@ defmodule TuistWeb.Marketing.MarketingHomeComponents do
   """
   use TuistWeb, :live_component
 
+  # Customer logos for the home customers carousel, read at compile time from
+  # the case-study logo files and recoloured to currentColor so they render
+  # in the slide's ink (white on the brand colour). The files pad the mark
+  # inside a shared 40-unit-tall frame; the side padding is cropped (each
+  # viewBox narrowed to the mark's measured horizontal extent) so a logo
+  # lines up with the text below it, while the shared height keeps their
+  # optical sizes consistent.
+  @customer_logo_dir Path.expand("../../../../priv/marketing/customers/logos", __DIR__)
+  @customer_logo_extents %{
+    "monzo" => {10, 127.67},
+    "toss" => {0, 114.85},
+    "trendyol" => {10, 137.32},
+    "monday" => {10, 192.3},
+    "delivery-hero" => {6.84, 236.16}
+  }
+  @customer_logos (for {name, {x, width}} <- @customer_logo_extents, into: %{} do
+                     path = Path.join(@customer_logo_dir, "#{name}.svg")
+                     @external_resource path
+
+                     svg =
+                       path
+                       |> File.read!()
+                       |> String.replace(~r/fill="(?!none")[^"]*"/, ~s(fill="currentColor"))
+                       |> String.replace(~r/viewBox="0 0 [\d.]+ ([\d.]+)"/, ~s(viewBox="#{x} 0 #{width} \\1"),
+                         global: false
+                       )
+                       |> String.replace(~r/<svg([^>]*?) width="[^"]*"/, "<svg\\1", global: false)
+                       |> String.replace(~r/<svg([^>]*?) height="[^"]*"/, "<svg\\1", global: false)
+
+                     {name, svg}
+                   end)
+
   attr :testimonials, :list, required: true
   attr :rest, :global
 
@@ -32,6 +64,16 @@ defmodule TuistWeb.Marketing.MarketingHomeComponents do
         </div>
       </div>
     </div>
+    """
+  end
+
+  attr :name, :string, required: true, doc: "A case-study logo basename, e.g. monzo"
+
+  def customer_logo(assigns) do
+    assigns = assign(assigns, :svg, Map.fetch!(@customer_logos, assigns.name))
+
+    ~H"""
+    {Phoenix.HTML.raw(@svg)}
     """
   end
 

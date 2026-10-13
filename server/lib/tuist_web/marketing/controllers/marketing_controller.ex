@@ -49,7 +49,69 @@ defmodule TuistWeb.Marketing.MarketingController do
     # The hero eyebrow's live count: the cache globe's cached snapshot (a
     # GenServer read, no ClickHouse query on the request path).
     |> assign(:cache_globe, home_cache_globe())
+    |> assign(:customer_slides, customer_slides())
     |> render(:home, layout: false)
+  end
+
+  # The home customers carousel: one slide per case study with a headline
+  # result, in its brand colour (taken from each company's logo or brand
+  # palette), linking to the case study. The logos come from
+  # priv/marketing/customers/logos, recoloured white by the template.
+  defp customer_slides do
+    locale = Gettext.get_locale()
+
+    Enum.flat_map(
+      [
+        {"monzo", "#FF4F40",
+         dgettext(
+           "marketing",
+           "Monzo reduced its pull request CI times by 71%, from 52 minutes to just 15 minutes, using Tuist's binary caching and selective testing. By eliminating redundant builds and running only relevant tests, Monzo improved development efficiency for its 45+ iOS engineers working across nearly 200 modules."
+         )},
+        {"toss", "#0064FF",
+         dgettext(
+           "marketing",
+           "Toss, Korea's leading financial super-app, more than tripled the share of local builds that finish within a minute using Tuist's binary cache. Across close to 1,000 modules, product developers now build only the modules they own, with most of the graph served from cache."
+         )},
+        {"trendyol", "#FF6720",
+         dgettext(
+           "marketing",
+           "Trendyol reduced build times by 65% with Tuist's caching, cutting CI builds to 10 minutes and local UI test setup to 30 seconds. Running a self-hosted Tuist instance, it keeps feedback loops fast for 170+ developers across more than 10 domain teams."
+         )},
+        {"monday", "#6161FF",
+         dgettext(
+           "marketing",
+           "monday.com's CI merge workflow dropped from more than 20 minutes to about 9, with Tuist's module cache playing a significant role. Its team of almost 20 iOS engineers now maintains around 200 modules, and creating a new one is simple enough for anyone on the team."
+         )},
+        {"delivery-hero", "#D61F26",
+         dgettext(
+           "marketing",
+           "Delivery Hero scaled its iOS rider app to around 115 modules with Tuist, cutting clean builds from 2.5 to 0.5 minutes and CI build and test time by 2.5x. Its Logistics team uses Tuist to keep modularization manageable and local builds fast."
+         )}
+      ],
+      fn {slug, color, statement} ->
+        case Customers.get_case_study("/customers/#{slug}", locale) do
+          nil ->
+            []
+
+          case_study ->
+            [
+              %{
+                slug: slug,
+                company: case_study.company,
+                color: color,
+                statement: statement,
+                href: case_study_link(case_study)
+              }
+            ]
+        end
+      end
+    )
+  end
+
+  defp case_study_link(case_study) do
+    if Customers.external_case_study?(case_study),
+      do: Customers.case_study_href(case_study),
+      else: Localization.localized_href(Customers.case_study_href(case_study))
   end
 
   # Local development has no Kura usage data, so the eyebrow would never

@@ -17,6 +17,7 @@ import { CacheBuildDecks } from "./hooks/cache-build-decks.js";
 import { KaTeX } from "./hooks/katex.js";
 import { HomeHeroWave } from "./hooks/home-hero-wave.js";
 import { HomeCacheCount } from "./hooks/home-cache-count.js";
+import { CustomersCarousel } from "./hooks/customers-carousel.js";
 import { DitherTexture } from "./hooks/dither-texture.js";
 import { ComputeSpark } from "./hooks/compute-spark.js";
 import { ComputeHeroDiff } from "./hooks/compute-hero-diff.js";
@@ -53,6 +54,7 @@ const Hooks = {
   GoogleOneTap,
   HomeHeroWave,
   HomeCacheCount,
+  CustomersCarousel,
   DitherTexture,
   DitherBlocks,
   CustomersDitherDots,
