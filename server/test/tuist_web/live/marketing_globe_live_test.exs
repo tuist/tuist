@@ -62,6 +62,13 @@ defmodule TuistWeb.Marketing.MarketingGlobeLiveTest do
     end
   end
 
+  test "live activity offers no demo toggle outside local development", %{conn: conn} do
+    stub(Stats, :get_globe, fn -> CacheGlobe.empty() end)
+    {:ok, view, _html} = live(conn, ~p"/globe")
+
+    refute has_element?(view, "#marketing-globe [data-part=mode]")
+  end
+
   test "demo mode is explicit and offers a return to live activity", %{conn: conn} do
     stub(Stats, :get_globe, fn -> CacheGlobe.empty() end)
     {:ok, view, html} = live(conn, ~p"/globe?demo=true")
