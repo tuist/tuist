@@ -99,7 +99,7 @@ struct CoverageCompleteCommandServiceTests {
         }
 
         let success = try #require(alertController.success().last)
-        #expect(success.message.plain() == "Coverage of commit abcdef1 is complete: 82.5% over App, Core (partial: Core).")
+        #expect(success.message.plain() == "Coverage of commit abcdef1 is complete: 82.5% over App, Core.")
     }
 
     @Test(.withMockedEnvironment())
@@ -129,6 +129,36 @@ struct CoverageCompleteCommandServiceTests {
         #expect(
             success.message.plain() ==
                 "Coverage of commit abcdef1 is complete: 42.0% over App (partial: App). The figure is incomplete, so the actual coverage may be higher."
+        )
+    }
+
+    @Test(.withMockedEnvironment())
+    func leavesOutTheSchemesOfABuildSystemWithoutThem() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        try await givenProject()
+        let schemeless = CommitCoverage(
+            gitCommitSHA: "abcdef1234567",
+            coverage: 80.3,
+            coveredLines: 50913,
+            executableLines: 63385,
+            schemes: [""],
+            partialSchemes: [""],
+            complete: true,
+            incomplete: true
+        )
+        given(completeCommitCoverageService)
+            .completeCommitCoverage(fullHandle: .any, serverURL: .any, gitCommitSHA: .any)
+            .willReturn(.complete(schemeless))
+        let alertController = AlertController()
+
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: nil, fullHandle: nil, commit: "abcdef1234567", json: false)
+        }
+
+        let success = try #require(alertController.success().last)
+        #expect(
+            success.message.plain() ==
+                "Coverage of commit abcdef1 is complete: 80.3%. The figure is incomplete, so the actual coverage may be higher."
         )
     }
 
