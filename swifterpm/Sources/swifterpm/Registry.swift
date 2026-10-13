@@ -26,6 +26,32 @@ struct RegistryConfig: Sendable {
         return config
     }
 
+    /// Native SwiftPM replaces shared configuration with --config-path, then applies local overrides.
+    static func loadForNativeResolution(packageDir: URL, configPath: URL?, defaultRegistryURL: String?) async throws
+        -> RegistryConfig
+    {
+        var config = RegistryConfig()
+        if let configPath {
+            guard !(try await fileSystem.exists(configPath.absolutePath, isDirectory: false)) else {
+                throw ToolError.message("native SwiftPM --config-path must name a directory, not a registries.json file")
+            }
+            try await config.mergeFile(configPath.appendingPathComponent("registries.json"), normalizesAuthenticationKeys: false)
+        } else if let global = Self.globalRegistriesPath() {
+            try await config.mergeFile(global, normalizesAuthenticationKeys: false)
+        }
+        try await config.mergeFile(
+            packageDir.appendingPathComponent(".swiftpm/configuration/registries.json"), normalizesAuthenticationKeys: false
+        )
+        if let defaultRegistryURL {
+            config.defaultRegistryURL = try Self.parseRegistryURL(defaultRegistryURL)
+        }
+        return config
+    }
+
+    var registryURLs: [URL] {
+        Array(scopedRegistryURLs.values) + [defaultRegistryURL].compactMap { $0 }
+    }
+
     func registryURL(for identity: String) throws -> URL {
         let (scope, _) = try PinKind.registryIdentityParts(identity)
         if let scoped = scopedRegistryURLs[scope] ?? scopedRegistryURLs[scope.lowercased()] {
@@ -37,18 +63,17 @@ struct RegistryConfig: Sendable {
         throw ToolError.message("no registry configured for '\(scope)' scope")
     }
 
-    private mutating func mergeFile(_ path: URL) async throws {
+    private mutating func mergeFile(_ path: URL, normalizesAuthenticationKeys: Bool = true) async throws {
         guard try await fileSystem.exists(path.absolutePath) else { return }
-        guard
-            let root = try JSONSerialization.jsonObject(
-                with: try await fileSystem.readFile(at: path.absolutePath)) as? [String: Any],
+        guard let root = try JSONSerialization.jsonObject(
+            with: try await fileSystem.readFile(at: path.absolutePath)) as? [String: Any],
             let registries = root["registries"] as? [String: Any]
         else {
             return
         }
         for (scope, value) in registries {
             guard let entry = value as? [String: Any],
-                let urlString = entry["url"] as? String
+                  let urlString = entry["url"] as? String
             else {
                 continue
             }
@@ -67,7 +92,7 @@ struct RegistryConfig: Sendable {
                 else {
                     continue
                 }
-                registryAuthentication[registry.lowercased()] = type
+                registryAuthentication[normalizesAuthenticationKeys ? registry.lowercased() : registry] = type
             }
         }
     }
@@ -105,14 +130,14 @@ struct RegistryConfig: Sendable {
         }
     }
 
-    fileprivate func authenticationType(for registryURL: URL) -> RegistryAuthenticationType? {
+    func authenticationType(for registryURL: URL) -> RegistryAuthenticationType? {
         guard let host = registryURL.host?.lowercased() else { return nil }
         let key = [host, registryURL.port.map(String.init)].compactMap { $0 }.joined(separator: ":")
         return registryAuthentication[key]
     }
 }
 
-private enum RegistryAuthenticationType: String, Sendable {
+enum RegistryAuthenticationType: String, Sendable {
     case basic
     case token
 }
@@ -126,8 +151,8 @@ enum RegistryAuthorization {
     static func header(
         for url: URL,
         registryConfig: RegistryConfig,
-        keychain: (URL) async -> RegistryCredential? = { await KeychainAuthorization.credential(for: $0) }
-    ) async -> String? {
+        keychain: (URL) async throws -> RegistryCredential? = { try await KeychainAuthorization.credential(for: $0) }
+    ) async throws -> String? {
         let environment = Environment.current
         let token = nonEmpty(environment["SWIFTPM_REGISTRY_TOKEN"])
         let login = nonEmpty(environment["SWIFTPM_REGISTRY_LOGIN"])
@@ -153,12 +178,12 @@ enum RegistryAuthorization {
         // flag disables the keychain for binary artifact downloads (`HTTPAuthorization`)
         // and nothing else. Gating this call site as well would silently diverge from
         // `swift package resolve` on the same inputs.
-        if let credential = await prioritizedCredential(
+        if let credential = try await prioritizedCredential(
             environmentNetrcIsConfigured: netrc.hasEnvironmentSource,
             environmentNetrc: netrc.credential(for: url, from: .environment),
             fileNetrc: netrc.credential(for: url, from: .file),
             usesKeychain: KeychainAuthorization.isSupported && !netrc.forcesNetrc,
-            keychain: { await keychain(url) }
+            keychain: { try await keychain(url) }
         ) {
             return header(for: credential, url: url, registryConfig: registryConfig)
         }
@@ -173,10 +198,10 @@ enum RegistryAuthorization {
         environmentNetrc: RegistryCredential?,
         fileNetrc: RegistryCredential?,
         usesKeychain: Bool,
-        keychain: () async -> RegistryCredential?
-    ) async -> RegistryCredential? {
+        keychain: () async throws -> RegistryCredential?
+    ) async throws -> RegistryCredential? {
         if environmentNetrcIsConfigured { return environmentNetrc }
-        if usesKeychain { return await keychain() }
+        if usesKeychain { return try await keychain() }
         return fileNetrc
     }
 
@@ -213,6 +238,21 @@ enum RegistryAuthorization {
     }
 }
 
+actor KeychainCredentialCache {
+    private var reads: [String: Task<RegistryCredential?, any Error>] = [:]
+
+    func credential(
+        for url: URL,
+        read: @escaping @Sendable (URL) async throws -> RegistryCredential?
+    ) async throws -> RegistryCredential? {
+        let key = [url.scheme ?? "https", url.host?.lowercased() ?? "", url.port.map(String.init) ?? ""].joined(separator: ":")
+        if let existing = reads[key] { return try await existing.value }
+        let task = Task { try await read(url) }
+        reads[key] = task
+        return try await task.value
+    }
+}
+
 enum KeychainAuthorization {
     static var isSupported: Bool {
         #if canImport(Security)
@@ -222,12 +262,22 @@ enum KeychainAuthorization {
         #endif
     }
 
-    static func credential(for url: URL) async -> RegistryCredential? {
+    static func credential(for url: URL) async throws -> RegistryCredential? {
+        if let cache = Environment.keychainCredentials {
+            return try await cache.credential(for: url) { try await uncachedCredential(for: $0) }
+        }
+        return try await uncachedCredential(for: url)
+    }
+
+    private static func uncachedCredential(for url: URL) async throws -> RegistryCredential? {
         #if canImport(Security)
+            if Environment.isCI || isatty(STDIN_FILENO) == 0 {
+                return try await KeychainCredentialReader.credential(for: url)
+            }
             guard let searchQuery = query(for: url, includeData: false) else { return nil }
             var items: CFTypeRef?
             let status = SecItemCopyMatching(searchQuery as CFDictionary, &items)
-            guard status == errSecSuccess, let existingItems = items as? [[String: Any]] else {
+            guard try lookupSucceeded(status, host: url.host), let existingItems = items as? [[String: Any]] else {
                 return nil
             }
             let sortedItems = existingItems.sorted {
@@ -241,7 +291,7 @@ enum KeychainAuthorization {
                     return true
                 case (nil, _):
                     return false
-                case (.some(let left), .some(let right)):
+                case let (.some(left), .some(right)):
                     return left < right
                 }
             }
@@ -257,7 +307,7 @@ enum KeychainAuthorization {
             }
 
             var detail: CFTypeRef?
-            guard SecItemCopyMatching(detailQuery as CFDictionary, &detail) == errSecSuccess,
+            guard try lookupSucceeded(SecItemCopyMatching(detailQuery as CFDictionary, &detail), host: url.host),
                   let credential = detail as? [String: Any],
                   let account = credential[kSecAttrAccount as String] as? String,
                   let passwordData = credential[kSecValueData as String] as? Data
@@ -270,8 +320,49 @@ enum KeychainAuthorization {
         #endif
     }
 
+    static func httpCredential(
+        for url: URL,
+        read: (URL) async throws -> RegistryCredential? = { try await credential(for: $0) },
+        warning: (String) -> Void = { FileHandle.standardError.write(Data("Warning: \($0)\n".utf8)) }
+    ) async throws -> RegistryCredential? {
+        do {
+            return try await read(url)
+        } catch {
+            #if canImport(Security)
+                if let failure = error as? AccessFailure {
+                    warning("\(failure) Trying the HTTP download without keychain credentials.")
+                    return nil
+                }
+            #endif
+            // Reader startup and decoding errors must not block public downloads or
+            // expose captured credential output through an arbitrary error message.
+            warning(
+                "keychain lookup failed for \(url.host ?? "the download host"). Trying the HTTP download without keychain credentials."
+            )
+            return nil
+        }
+    }
+
     #if canImport(Security)
-        private static func query(for url: URL, includeData: Bool) -> [String: Any]? {
+        static func lookupSucceeded(_ status: OSStatus, host: String?) throws -> Bool {
+            if status == errSecSuccess { return true }
+            if status == errSecItemNotFound { return false }
+            throw AccessFailure(status: status, host: host)
+        }
+
+        struct AccessFailure: Error, CustomStringConvertible {
+            let status: OSStatus
+            let host: String?
+
+            var description: String {
+                "cannot read keychain credentials for \(host ?? "the download host") (OSStatus \(status)). "
+                    + "Unlock the keychain or use host-scoped netrc credentials. "
+                    + "For headless use, prefer netrc; do not authorize the generic Swift interpreter just to grant Tuist access. For registries, pass --netrc --netrc-file <path> "
+                    + "and configure the authentication type in registries.json."
+            }
+        }
+
+        static func query(for url: URL, includeData: Bool) -> [String: Any]? {
             guard let host = url.host?.lowercased(), !host.isEmpty else { return nil }
             var query: [String: Any] = [
                 kSecClass as String: kSecClassInternetPassword,
@@ -351,7 +442,8 @@ enum RegistryClient {
         }
 
         try await SystemProcess.run(
-            "/usr/bin/unzip", ["-q", archivePath.path, "-d", destination.path])
+            "/usr/bin/unzip", ["-q", archivePath.path, "-d", destination.path]
+        )
         try await fileSystem.flattenSingleDirectory(destination)
     }
 
@@ -381,20 +473,21 @@ enum RegistryClient {
                 let type: String
                 let checksum: String
             }
+
             let resources: [Resource]
         }
         let data = try await HTTPClient.data(
             url: try packageURL(registryURL: registryURL, identity: identity, version: version),
-            headers: await headers(
+            headers: try await headers(
                 accept: "application/vnd.swift.registry.v1+json",
                 registryURL: registryURL,
                 registryConfig: registryConfig
-            ))
+            )
+        )
         let info = try JSONDecoder().decode(ReleaseInfo.self, from: data)
-        guard
-            let resource = info.resources.first(where: {
-                $0.name == "source-archive" && $0.type == "application/zip"
-            })
+        guard let resource = info.resources.first(where: {
+            $0.name == "source-archive" && $0.type == "application/zip"
+        })
         else {
             throw ToolError.message(
                 "\(identity) \(version) does not declare a source archive checksum")
@@ -414,22 +507,23 @@ enum RegistryClient {
         let url = registryURL.appendingPathComponents([scope, name, "\(version).zip"])
         return try await HTTPClient.data(
             url: url,
-            headers: await headers(
+            headers: try await headers(
                 accept: "application/vnd.swift.registry.v1+zip",
                 registryURL: registryURL,
                 registryConfig: registryConfig
-            ))
+            )
+        )
     }
 
     private static func headers(
         accept: String,
         registryURL: URL,
         registryConfig: RegistryConfig
-    ) async -> [String: String] {
+    ) async throws -> [String: String] {
         var headers = ["Accept": accept]
-        if let authorization = await RegistryAuthorization.header(
-            for: registryURL, registryConfig: registryConfig)
-        {
+        if let authorization = try await RegistryAuthorization.header(
+            for: registryURL, registryConfig: registryConfig
+        ) {
             headers["Authorization"] = authorization
         }
         return headers
@@ -446,7 +540,6 @@ enum RegistryClient {
         }
         return registryURL.appendingPathComponents(components)
     }
-
 }
 
 extension URL {

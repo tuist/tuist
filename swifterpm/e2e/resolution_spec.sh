@@ -1512,6 +1512,96 @@ scenario_keeps_swiftpm_registry_original_location_spelling() {
   echo "original-location=$(jq -r '.pins[0].originalLocation' "${package_dir}/Package.resolved")"
 }
 
+scenario_authenticated_registry_on_legacy_toolchain() {
+  local authentication_type="$1"
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'stop_registry_server; rm -rf "${tmp}"' RETURN
+  prepare_isolated_state "${tmp}"
+  local registry_dir="${tmp}/registry"
+  write_registry_package_archive "${tmp}" "${registry_dir}" || return 1
+  if [[ "${authentication_type}" = token ]]; then
+    printf 'Bearer e2e-registry-secret\n' > "${registry_dir}/authorization.txt"
+  else
+    printf 'Basic dG9rZW46ZTJlLXJlZ2lzdHJ5LXNlY3JldA==\n' > "${registry_dir}/authorization.txt"
+  fi
+  start_registry_server "${tmp}" "${registry_dir}" || return 1
+  local registry_url="http://127.0.0.1:${REGISTRY_SERVER_PORT}"
+  local package_dir="${tmp}/package"
+  mkdir -p "${package_dir}/.swiftpm/configuration" "${tmp}/bin"
+  cat > "${package_dir}/Package.swift" <<'SWIFT'
+// swift-tools-version: 6.0
+import PackageDescription
+let package = Package(name: "AuthenticatedRegistry", dependencies: [
+  .package(id: "example.registryfoo", exact: "1.0.0"),
+])
+SWIFT
+  cat > "${package_dir}/.swiftpm/configuration/registries.json" <<JSON
+{"version": 1, "registries": {"[default]": {"url": "${registry_url}"}},
+ "authentication": {"127.0.0.1:${REGISTRY_SERVER_PORT}": {"type": "${authentication_type}"}}}
+JSON
+  local native_swift
+  native_swift="$(command -v swift)"
+  # Exercise the legacy bridge even on new CI toolchains: remove the environment
+  # providers before entering native SwiftPM, while leaving file netrc available.
+  cat > "${tmp}/bin/swift" <<SH
+#!/bin/sh
+if [ "\$1" = --version ]; then
+  echo 'Swift version 6.2.3'
+  exit 0
+fi
+unset SWIFTPM_REGISTRY_TOKEN SWIFTPM_REGISTRY_LOGIN SWIFTPM_REGISTRY_PASSWORD
+unset SWIFTPM_NETRC_DATA SWIFTPM_SOURCE_CONTROL_TOKEN
+if [ "\$1" = package ]; then
+  shift
+  exec '${native_swift}' package --security-path '${tmp}/security' "\$@"
+fi
+exec '${native_swift}' "\$@"
+SH
+  chmod +x "${tmp}/bin/swift"
+  local command phase
+  local force_arguments=()
+  for phase in cold warm validation missing-pin update; do
+    command=resolve
+    force_arguments=()
+    if [[ "${phase}" = validation ]]; then
+      force_arguments=(--force-resolved-versions)
+    elif [[ "${phase}" = missing-pin ]]; then
+      rm -rf "${tmp}/cache/sources/example.registryfoo" "${package_dir}/.build"
+    elif [[ "${phase}" = update ]]; then
+      command=update
+    fi
+    scoped_env "${tmp}" env \
+      -u SWIFTPM_REGISTRY_TOKEN -u SWIFTPM_REGISTRY_LOGIN -u SWIFTPM_REGISTRY_PASSWORD \
+      -u SWIFTPM_SOURCE_CONTROL_TOKEN \
+      PATH="${tmp}/bin:${PATH}" \
+      SWIFTPM_NETRC_DATA='machine 127.0.0.1 login token password e2e-registry-secret' \
+      "${SWIFTERPM_BIN}" --package-path "${package_dir}" --cache-path "${tmp}/cache" \
+      --disable-sandbox --disable-package-info-cache --disable-netrc --disable-keychain --quiet \
+      "${force_arguments[@]}" "${command}" > "${tmp}/${phase}.stdout" 2> "${tmp}/${phase}.stderr" || {
+        cat "${tmp}/${phase}.stderr" >&2
+        return 1
+      }
+    test -f "${package_dir}/Package.resolved" || return 1
+    if [[ "${phase}" = cold ]]; then
+      cp "${package_dir}/Package.resolved" "${tmp}/expected.resolved"
+    else
+      cmp "${tmp}/expected.resolved" "${package_dir}/Package.resolved" || return 1
+    fi
+    test -z "$(find "${tmp}/tmp" -name 'swifterpm-netrc.*' -print)" || return 1
+    ! grep -q 'e2e-registry-secret' "${tmp}/${phase}.stdout" "${tmp}/${phase}.stderr" || return 1
+  done
+  python3 - "${registry_dir}/requests.jsonl" <<'PY'
+import json
+import sys
+requests = [json.loads(line) for line in open(sys.argv[1])]
+assert requests and all(request["authorized"] for request in requests), requests
+assert any(request["path"].endswith(".zip") for request in requests), requests
+PY
+  test "$?" = 0 || return 1
+  echo "authenticated-${authentication_type}=cold,warm,validation,missing-pin,update"
+}
+
 Describe "swifterpm resolve against real-world manifests"
   It "resolves Firefox iOS root Package.swift and emits a SwiftPM-acceptable lockfile"
     When call scenario_resolves_firefox_ios
@@ -1655,6 +1745,20 @@ Describe "swifterpm resolve against SwiftPM dependency graph fixtures"
 End
 
 Describe "swifterpm registry integration"
+  It "authenticates token registry requests on a legacy toolchain across cache states and updates"
+    When call scenario_authenticated_registry_on_legacy_toolchain token
+    The status should be success
+    The output should include "authenticated-token=cold,warm,validation,missing-pin,update"
+    The stderr should equal ""
+  End
+
+  It "authenticates basic registry requests on a legacy toolchain across cache states and updates"
+    When call scenario_authenticated_registry_on_legacy_toolchain basic
+    The status should be success
+    The output should include "authenticated-basic=cold,warm,validation,missing-pin,update"
+    The stderr should equal ""
+  End
+
   It "replaces source-control dependencies with registry downloads when requested"
     When call scenario_replace_scm_with_registry_uses_registry
     The status should be success

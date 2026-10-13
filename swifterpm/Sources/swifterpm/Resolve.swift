@@ -97,6 +97,11 @@ enum PackageResolver {
         forceResolvedVersions: Bool = false,
         forwardOutput: Bool
     ) async throws -> ResolvedPins {
+        let authentication = try await NativeRegistryAuthentication.prepare(
+            packageDir: packageDir,
+            registryConfigurationPath: registryConfigurationPath,
+            defaultRegistryURL: defaultRegistryURL
+        )
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
         let effectiveScratchDir = scratchDir ?? packageDir.appendingPathComponent(".build")
         // `swift package resolve` also reads pins from
@@ -122,20 +127,16 @@ enum PackageResolver {
         }
 
         do {
-            try await SystemProcess.run(
-                "swift",
-                swiftPackageResolveArguments(
-                    packageDir: packageDir,
-                    scratchDir: scratchDir,
-                    cacheDir: cacheDir,
-                    registryConfigurationPath: registryConfigurationPath,
-                    defaultRegistryURL: defaultRegistryURL,
-                    disableSandbox: disableSandbox,
-                    scmToRegistryTransformation: scmToRegistryTransformation,
-                    forceResolvedVersions: forceResolvedVersions
-                ),
-                workingDirectory: packageDir,
-                customEnvironment: Environment.manifestValues,
+            try await runNativeResolution(
+                packageDir: packageDir,
+                scratchDir: scratchDir,
+                cacheDir: cacheDir,
+                registryConfigurationPath: registryConfigurationPath,
+                defaultRegistryURL: defaultRegistryURL,
+                disableSandbox: disableSandbox,
+                scmToRegistryTransformation: scmToRegistryTransformation,
+                authentication: authentication,
+                forceResolvedVersions: forceResolvedVersions,
                 forwardOutput: forwardOutput
             )
             let resolvedPathExists = try await fileSystem.exists(resolvedPath.absolutePath)
@@ -158,6 +159,51 @@ enum PackageResolver {
             }
             throw error
         }
+    }
+
+    private static func runNativeResolution(
+        packageDir: URL,
+        scratchDir: URL?,
+        cacheDir: URL,
+        registryConfigurationPath: URL?,
+        defaultRegistryURL: String?,
+        disableSandbox: Bool,
+        scmToRegistryTransformation: SCMToRegistryTransformation,
+        authentication: NativeRegistryAuthentication.Plan,
+        forceResolvedVersions: Bool,
+        forwardOutput: Bool
+    ) async throws {
+        let bridged: Bool
+        let input: String
+        switch authentication {
+        case .native:
+            bridged = false
+            input = ""
+        case let .inlineNetrc(contents):
+            bridged = true
+            input = contents
+        }
+        let arguments = swiftPackageResolveArguments(
+            packageDir: packageDir,
+            scratchDir: scratchDir,
+            cacheDir: cacheDir,
+            registryConfigurationPath: registryConfigurationPath,
+            defaultRegistryURL: defaultRegistryURL,
+            disableSandbox: disableSandbox,
+            scmToRegistryTransformation: scmToRegistryTransformation,
+            forceResolvedVersions: forceResolvedVersions,
+            netrcArguments: bridged ? (Environment.netrc.keychainDisabled ? ["--disable-keychain"] : []) : nil
+        )
+        try await SystemProcess.run(
+            bridged ? "/bin/sh" : "swift",
+            bridged ? ["-c", NativeRegistryAuthentication.credentialOwnerScript, "swifterpm-netrc", "swift"] + arguments :
+                arguments,
+            workingDirectory: packageDir,
+            customEnvironment: Environment.manifestValues,
+            input: input,
+            gracefulShutdown: bridged,
+            forwardOutput: forwardOutput
+        )
     }
 
     /// Only links whose target still has a `.git` can be checked out in place.
@@ -251,7 +297,8 @@ enum PackageResolver {
         defaultRegistryURL: String?,
         disableSandbox: Bool,
         scmToRegistryTransformation: SCMToRegistryTransformation,
-        forceResolvedVersions: Bool = false
+        forceResolvedVersions: Bool = false,
+        netrcArguments: [String]? = nil
     ) -> [String] {
         var arguments = [
             "package",
@@ -272,11 +319,9 @@ enum PackageResolver {
         if disableSandbox {
             arguments.append("--disable-sandbox")
         }
-        // The child solves the graph, which means it fetches availability and
-        // manifests from the same registries this process authenticates against. Its
-        // environment is inherited, so `SWIFTPM_NETRC_DATA` already reaches it, but
-        // the flags are ours alone until they are forwarded.
-        arguments.append(contentsOf: Environment.netrc.swiftPackageArguments)
+        // The compatibility owner supplies its own netrc flags; normal invocations
+        // preserve the configured provider selection and any filtered environment.
+        arguments.append(contentsOf: netrcArguments ?? Environment.netrc.swiftPackageArguments)
         switch scmToRegistryTransformation {
         case .disabled:
             arguments.append("--disable-scm-to-registry-transformation")
@@ -405,7 +450,9 @@ enum PackageResolver {
             }
             for dependency in dependencies {
                 if dependency.kind == .sourceControl {
-                    for transformedIdentity in transformedIdentities where expectedIdentities.insert(transformedIdentity).inserted {
+                    for transformedIdentity in transformedIdentities
+                        where expectedIdentities.insert(transformedIdentity).inserted
+                    {
                         identitiesToInspect.append(transformedIdentity)
                     }
                 }
@@ -677,20 +724,22 @@ enum PackageResolver {
         disableSandbox: Bool,
         scmToRegistryTransformation: SCMToRegistryTransformation
     ) async throws {
-        let arguments = swiftPackageResolveArguments(
+        let authentication = try await NativeRegistryAuthentication.prepare(
+            packageDir: packageDir,
+            registryConfigurationPath: registryConfigurationPath,
+            defaultRegistryURL: defaultRegistryURL
+        )
+        try await runNativeResolution(
             packageDir: packageDir,
             scratchDir: scratchDir,
             cacheDir: cacheDir,
             registryConfigurationPath: registryConfigurationPath,
             defaultRegistryURL: defaultRegistryURL,
             disableSandbox: disableSandbox,
-            scmToRegistryTransformation: scmToRegistryTransformation
-        ) + ["--force-resolved-versions"]
-        try await SystemProcess.run(
-            "swift",
-            arguments,
-            workingDirectory: packageDir,
-            customEnvironment: Environment.manifestValues
+            scmToRegistryTransformation: scmToRegistryTransformation,
+            authentication: authentication,
+            forceResolvedVersions: true,
+            forwardOutput: false
         )
     }
 

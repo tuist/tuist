@@ -15,6 +15,9 @@ enum Environment {
     @TaskLocal
     static var netrc: Netrc = .empty
 
+    @TaskLocal
+    static var keychainCredentials: KeychainCredentialCache?
+
     static var isCI: Bool {
         ["GITHUB_RUN_ID", "CI", "BUILD_NUMBER"].contains { current[$0] != nil }
     }
@@ -24,7 +27,9 @@ enum Environment {
         operation: () async throws -> T
     ) async throws -> T {
         try await Environment.$netrc.withValue(netrc) {
-            try await operation()
+            try await Environment.$keychainCredentials.withValue(KeychainCredentialCache()) {
+                try await operation()
+            }
         }
     }
 

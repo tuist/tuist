@@ -64,6 +64,43 @@ Authentication follows SwiftPM's separate registry, HTTP-download, and Git paths
 
 The netrc file is `~/.netrc`, or the file given by `--netrc-file`. A missing or invalid explicit file is an error. Duplicate hosts use the last entry in files and the first entry in inline data, matching SwiftPM's respective providers. `--disable-netrc` disables file credentials for HTTP downloads only; inline data and registry netrc remain available, as they do in SwiftPM.
 
+### Private registries on older toolchains
+
+A cold cache, an update, or a changed dependency graph may invoke native SwiftPM. Upstream SwiftPM added environment credential providers in Swift 6.3.2, not the initial Swift 6.3 release. SwifterPM checks the selected `swift --version` before delegating; unknown versions use the conservative compatibility path.
+
+For older toolchains, SwifterPM can bridge **inline `SWIFTPM_NETRC_DATA`** to a temporary netrc file. Inline credentials are already host-scoped, and first-match duplicate semantics are preserved. The bridge requires an explicit authentication type in the registry configuration, and either no file netrc credentials or `--disable-netrc`. It refuses to merge file credentials because registry provider selection and HTTP credential fallback cannot both be preserved in one merged file.
+
+For example, configure the registry in the package's `.swiftpm/configuration/registries.json`:
+
+```json
+{
+  "version": 1,
+  "registries": {
+    "[default]": { "url": "https://registry.example.com" }
+  },
+  "authentication": {
+    "registry.example.com": { "type": "token" }
+  }
+}
+```
+
+Then supply a CI secret through inline netrc:
+
+```sh
+export SWIFTPM_NETRC_DATA="machine registry.example.com login token password ${REGISTRY_TOKEN}"
+tuist install --disable-netrc
+```
+
+Use `"basic"` instead of `"token"` for a Basic-authenticated registry. Authentication keys include the port when the registry URL declares one, for example `registry.example.com:8443`. Netrc credentials match the hostname, not the scheme or port, and also authenticate HTTP artifact downloads on that host; choose their scope deliberately.
+
+SwifterPM does **not** translate `SWIFTPM_REGISTRY_TOKEN`, registry login/password variables, or `SWIFTPM_SOURCE_CONTROL_TOKEN` into netrc on older toolchains. That would broaden origin-scoped registry credentials or change global HTTP authentication. Use inline netrc explicitly, a credential file with `tuist install --netrc --netrc-file /secure/path/registry.netrc`, or a toolchain with native environment-provider support. When choosing file or keychain credentials on an older toolchain, unset the environment credential variables first. These registry compatibility checks do not block native resolution when no registry is configured or inline credentials match no configured registry. Do not exclude credentials needed by native resolution from its environment; excluded secrets are not silently reinserted into manifest evaluation.
+
+The bridge does not rewrite registry configuration, mirrors, or the user's netrc. A separate subprocess owns a mode-0700 directory and mode-0600 credential file, receives the contents only over stdin, and removes them on completion, failure, cancellation, or launcher exit. As with any disk-backed secret, killing the entire process group with SIGKILL or losing power may leave a private temporary file until the OS cleans it up.
+
+### Keychain access in CI
+
+Credentials stored by `swift package-registry login` may authorize Swift but not the Tuist executable. Unlocking a keychain alone does not grant another executable access to an item. In CI or without a terminal, SwifterPM performs the lookup in an isolated Swift interpreter with legacy keychain UI disabled. This avoids both GUI approval and changing the embedding process's global keychain interaction policy. Credentials travel only through a captured response, and failed or malformed responses are redacted. Concurrent lookups share a resolution-scoped cache keyed by protocol, host, and explicit port; credentials are not retained across installations. A denied registry read produces actionable diagnostics instead of hanging or treating access denial as a missing password. Interactive Tuist reads and the headless reader have different executable identities: the reader is `swift-frontend`, so local authorization for Tuist is not transferred to it. Do not grant a generic interpreter access merely to make CI work, since other Swift scripts could then read that item. Prefer the host-scoped credentials above on CI. An actual missing item remains a normal provider miss; denied access does not fall through to a different registry credential provider. HTTP artifact downloads warn and can continue unauthenticated after either access denial or reader startup/decoding failures, so that a locked keychain or unavailable interpreter does not prevent public downloads.
+
 SwiftPM mirrors configured with `swift package config set-mirror` apply to source-control, registry, and remote binary target dependencies, so every download can go through an internal proxy. Mirrors load the way SwiftPM loads them: `SWIFTPM_MIRROR_CONFIG` or the package's `.swiftpm/configuration/mirrors.json` when it has entries, otherwise `mirrors.json` in `--config-path` or `~/.swiftpm/configuration`. Only exact locations are mapped, and a mirror may point at a git URL, a local path, or a registry identity (`scope.name`). As in SwiftPM, `Package.resolved` keeps the original location while checkouts and `workspace-state.json` use the mirror, a failing mirror is not retried against the original, and a pin whose identity no longer matches its mirror is resolved again. Git fetches from a mirror authenticate the way `git` does on its own (`~/.netrc` or a credential helper); binary artifact downloads use the netrc credentials above for the mirror's host, and registry downloads authenticate against the registry that serves the mirrored identity. The checksum declared for a binary target still applies.
 
 Provider API optimizations (tag listing and source archive downloads) require an explicit `SWIFTERPM_GITHUB_TOKEN` or `SWIFTERPM_GITLAB_TOKEN`. These tokens are used only for the corresponding provider API, never Git fetches, submodules, or binary artifacts. GitLab API authentication requires HTTPS and a host matching `gitlab.com` or an explicit `SWIFTERPM_GITLAB_HOST`, `GITLAB_HOST`, `GITLAB_URI`, `GITLAB_API_HOST`, `CI_SERVER_HOST`, or `CI_SERVER_FQDN` configuration. Failed API requests fall back to Git with its configured credentials. This explicit optimization can read a private archive even when native Git cannot, so configure Git access as well to keep warm and cold resolution consistent. Ambient `GITHUB_TOKEN`, `GH_TOKEN`, `GITLAB_TOKEN`, `GITLAB_ACCESS_TOKEN`, `OAUTH_TOKEN`, and `CI_JOB_TOKEN` are not automatically discovered, and `gh`/`glab` credential stores are not consulted.
