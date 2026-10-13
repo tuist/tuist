@@ -368,6 +368,20 @@ defmodule TuistWeb.RunnerVolumesLive do
 
   def stats(data, volume), do: Map.get(data.stats, volume.id, %{})
 
+  def full_snapshot?(%{builtin_name: nil}, stats),
+    do: CacheVolumes.full?(stats[:saved_bytes], stats[:saved_capacity_bytes])
+
+  def full_snapshot?(_volume, _stats), do: false
+
+  def full_snapshot_description(stats) do
+    dgettext(
+      "dashboard_runners",
+      "The saved snapshot uses %{used} of %{capacity}. To leave room for jobs to write, the next job starts from an empty volume and saves a new snapshot.",
+      used: bytes(stats[:saved_bytes]),
+      capacity: bytes(stats[:saved_capacity_bytes])
+    )
+  end
+
   def volume_name(key) do
     if String.length(key) > @volume_name_max_length,
       do: String.slice(key, 0, @volume_name_max_length - 1) <> "…",

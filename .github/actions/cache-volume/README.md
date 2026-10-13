@@ -54,6 +54,7 @@ additional workflow permissions are required.
 A missing client fails with a Tuist Linux or macOS runner requirement. Unavailable
 storage warns and falls back to a job-local directory. Invalid or nonempty paths
 fail without replacing their contents. The default volume capacity is 20 GB.
+When saved contents reach 80% of capacity, the next job starts empty.
 Linux and macOS fleets must have cache volumes enabled.
 
 ## Releases

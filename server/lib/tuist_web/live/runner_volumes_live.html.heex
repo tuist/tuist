@@ -292,6 +292,15 @@
     </.card>
     <div :for={volume <- if(@selected, do: data.volumes, else: [])} data-part="tab-panel">
       <% metrics = stats(data, volume) %>
+      <.alert
+        :if={full_snapshot?(volume, metrics)}
+        id="volume-full-alert"
+        status="warning"
+        type="secondary"
+        size="large"
+        title={dgettext("dashboard_runners", "This volume is almost full")}
+        description={full_snapshot_description(metrics)}
+      />
       <.card
         title={dgettext("dashboard_runners", "Volume details")}
         icon="database"

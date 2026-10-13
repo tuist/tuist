@@ -420,6 +420,20 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert RunnerVolumesLive.selected_tab("invalid") == "overview"
   end
 
+  test "detail warns when the saved snapshot is too full to reuse" do
+    assigns = assigns(true)
+    data = assigns.data.result
+    full = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1700, saved_capacity_bytes: 2048}))
+    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: full})})
+
+    assert html =~ ~s(id="volume-full-alert")
+    assert html =~ "This volume is almost full"
+
+    roomy = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1024, saved_capacity_bytes: 2048}))
+    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: roomy})})
+    refute html =~ ~s(id="volume-full-alert")
+  end
+
   test "reader sees metrics but no mutation controls" do
     html = render_component(&RunnerVolumesLive.render/1, assigns(false))
     assert html =~ "Hit rate"

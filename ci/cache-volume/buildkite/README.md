@@ -34,7 +34,8 @@ Each volume starts at 20 GB. It is scoped to your Tuist account, immutable
 Buildkite organization and pipeline, repository URL, architecture and execution
 UID. Renaming a pipeline preserves its data; changing its repository URL starts
 a separate cache. Concurrent jobs receive private copies. Idle data expires
-after seven days without a mount.
+after seven days without a mount. When saved contents reach 80% of capacity,
+the next job starts empty.
 
 Only successful default-branch webhook or scheduled builds without a pull
 request or tag save their changes. API, manually triggered, PR and other branch
