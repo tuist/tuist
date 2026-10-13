@@ -326,6 +326,8 @@ private struct CacheDebuggerSettingsRenderer {
             "lldb_setting command-source \(shellQuoted($0.pathString))"
         } ?? ""
 
+        // The source map is written first because it replaces the setting, so the original initializer can still
+        // extend or override it.
         return """
         set -eu
 
@@ -355,13 +357,14 @@ private struct CacheDebuggerSettingsRenderer {
           printf '%s' "$1" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g'
         }
 
+        : > "$lldb_init_file"
+        \(sourceMappingScript)
+
         {
           :
           \(sourceOriginal)
           \(moduleSettings)
-        } > "$lldb_init_file"
-
-        \(sourceMappingScript)
+        } >> "$lldb_init_file"
         """
     }
 
@@ -457,10 +460,22 @@ private struct CacheDebuggerSettingsRenderer {
         def lldb_quoted(value):
             return '"' + value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r") + '"'
 
+        # LLDB maps a breakpoint's path back through the first entry whose directory contains it, but the
+        # compilers record the most specific directory and, for the same directory, the mapping Xcode passes
+        # last: the SDK mappings, then the project ones, then `*_OTHER_PREFIX_MAPPINGS` such as `/^root`.
+        xcode_aliases = ["/^sdk", "/^toolchain", "/^xcode", "/^src", "/^derived", "/^built", "/^workspace"]
+
+        def compiler_precedence(mapping):
+            alias, path = mapping
+            passed_later = xcode_aliases.index(alias) if alias in xcode_aliases else len(xcode_aliases)
+            return (-len(path.rstrip("/")), -passed_later, alias)
+
         if mappings:
-            arguments = " ".join(lldb_quoted(value) for mapping in sorted(mappings.items(), reverse=True) for value in mapping)
+            arguments = " ".join(lldb_quoted(value) for mapping in sorted(mappings.items(), key=compiler_precedence) for value in mapping)
+            # Xcode keeps one LLDB process across runs and sources this file into its global settings, so
+            # appending would leave earlier runs' entries, including other checkouts', ahead of these.
             with open(sys.argv[1], "a", encoding="utf-8") as output:
-                output.write("settings append target.source-map " + arguments + "\n")
+                output.write("settings set target.source-map " + arguments + "\n")
         TUIST_SOURCE_MAP
         """#
     }
