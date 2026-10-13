@@ -46,3 +46,7 @@ workflow code runs in the guest. Never expose host credentials or masters.
   Join workers before closing the store, preserve in-flight admission reservations
   during recovery scans, and never hold the global store lock across writer-fence
   API calls. Slow publication or restoration must not starve another guest.
+
+- Custom-volume mailbox requests forward commit intent to the server. Validate explicit-mode acknowledgement before Store.Acquire and return it to the guest; the host never grants branch publication rights.
+
+- Explicit commit modes use versioned acquisition/authorization paths (macOS .commit-request mailboxes) so older components cannot allocate before rejecting them. Auto retains legacy paths. Echo can_publish and warn on an unauthorized explicit save; publication still rechecks policy.
