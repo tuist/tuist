@@ -29,8 +29,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
@@ -193,6 +196,11 @@ type Reconciler struct {
 	// that's ever raised, and costs nothing on the warm fast path.
 	goldenMu    sync.Mutex
 	goldenLocks map[string]*sync.Mutex
+
+	// readinessEvents re-enqueues a Pod whose readiness probe result
+	// changed, so the transition is published without waiting for the
+	// periodic requeue. Nil outside a manager (tests); sends never block.
+	readinessEvents chan event.GenericEvent
 }
 
 // MetricsScrapeAnnotation is the pod annotation that tells
@@ -218,6 +226,7 @@ const MetricsPortAnnotation = "prometheus.io/port"
 //     tolerate every taint); we don't want them in our reconcile
 //     queue spamming TartCreateFailed events.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.readinessEvents = make(chan event.GenericEvent, 64)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Pod{}, builder.WithPredicates(predicate.NewPredicateFuncs(func(o client.Object) bool {
 			pod, ok := o.(*corev1.Pod)
@@ -226,6 +235,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 			return podIsHandled(pod)
 		}))).
+		WatchesRawSource(source.Channel(r.readinessEvents, &handler.EnqueueRequestForObject{})).
 		Complete(r)
 }
 
@@ -1287,6 +1297,10 @@ func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) er
 		return nil
 	}
 
+	if entry.Readiness != nil {
+		entry.Readiness.Stop()
+		entry.Readiness = nil
+	}
 	if entry.MetricsForwarder != nil {
 		entry.MetricsForwarder.Stop()
 		entry.MetricsForwarder = nil
@@ -1432,29 +1446,33 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 			log.FromContext(ctx).Error(err, "sync VNC forwarder",
 				"pod", pod.Namespace+"/"+pod.Name)
 		}
-		// Ready means "the VM process is alive and has an IP", nothing
-		// more. tart-kubelet implements no container probes, so a
-		// readinessProbe in a PodSpec is silently ignored and a guest
-		// whose workload died after boot still reads 1/1 Running. Two
-		// xcresult-processor outages have taken that shape (2026-06-26
-		// host NAT, 2026-08-12 expired Tailscale pre-auth key), both
-		// with every Kubernetes-level signal green throughout. Until
-		// probes exist, that gap is covered outside the cluster by the
+		// Without a readinessProbe, Ready means "the VM process is alive
+		// and has an IP", nothing more: a guest whose workload died after
+		// boot still reads 1/1 Running. Customer runner Pods declare no
+		// probe and stay on that path. With an httpGet or tcpSocket
+		// readinessProbe, Ready is the latest result of a prober that runs
+		// against the guest IP off this path (see readiness.go). Two
+		// xcresult-processor outages had every Kubernetes-level signal
+		// green throughout (2026-06-26 host NAT, 2026-08-12 expired
+		// Tailscale pre-auth key), which is what the probe closes; the
 		// scrape-target and queue-age rules in
-		// infra/helm/k8s-monitoring/alerts.md. Anything relying on
-		// readiness to mean "serving" needs to add probe support here
-		// first; note that doing so also makes a false negative able to
-		// stall rollouts and block drains fleet-wide, since customer
-		// runner Pods take this same path.
-		status.Conditions = []corev1.PodCondition{
-			{Type: corev1.PodReady, Status: corev1.ConditionTrue},
+		// infra/helm/k8s-monitoring/alerts.md still cover it from outside.
+		// A wrong probe holds rollouts and PodDisruptionBudgets, so probes
+		// stay opt-in per PodSpec and never gate deletion.
+		ready := r.syncReadinessProbe(pod, entry, ip)
+		readyCondition := corev1.PodCondition{Type: corev1.PodReady, Status: corev1.ConditionTrue}
+		if !ready {
+			readyCondition.Status = corev1.ConditionFalse
+			readyCondition.Reason = "ReadinessProbeFailed"
+			readyCondition.Message = "the guest has not passed its readinessProbe"
 		}
+		status.Conditions = []corev1.PodCondition{readyCondition}
 		// tart-kubelet runs the Pod as a single VM with no per-container
 		// CRI, so the API server receives no containerStatuses on its own
 		// and `kubectl get pods` reads 0/N READY for a healthy VM. Mirror
 		// the Ready condition above into synthesized statuses so the READY
 		// column reflects the running workload.
-		status.ContainerStatuses = runningContainerStatuses(pod, entry.VMName, entry.StartTS)
+		status.ContainerStatuses = runningContainerStatuses(pod, entry.VMName, entry.StartTS, ready)
 	} else {
 		// VM process is alive but IP isn't yet available — the
 		// guest is still booting. Pending is the right read.
@@ -1464,14 +1482,14 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 }
 
 // runningContainerStatuses synthesizes the per-container statuses for a
-// Pod whose Tart VM is up and serving. tart-kubelet has no per-container
-// runtime to source them from, so without this a healthy VM reports 0/N
-// READY in `kubectl get pods` even though its Pod Ready condition is
-// true. The statuses mirror that condition: VM running with an IP means
-// the workload is serving, so each container reads Ready + Running. Pod
-// ↔ VM is 1:1 (multi-container Pods are rejected at admission), so this
-// is effectively a single status.
-func runningContainerStatuses(pod *corev1.Pod, vmName string, startedAt metav1.Time) []corev1.ContainerStatus {
+// Pod whose Tart VM is up. tart-kubelet has no per-container runtime to
+// source them from, so without this a healthy VM reports 0/N READY in
+// `kubectl get pods` even though its Pod Ready condition is true. The
+// statuses mirror that condition: each container reads Running, and
+// Ready matches the Pod's readiness. Pod ↔ VM is 1:1 (multi-container
+// Pods are rejected at admission), so this is effectively a single
+// status.
+func runningContainerStatuses(pod *corev1.Pod, vmName string, startedAt metav1.Time, ready bool) []corev1.ContainerStatus {
 	started := true
 	statuses := make([]corev1.ContainerStatus, 0, len(pod.Spec.Containers))
 	for _, c := range pod.Spec.Containers {
@@ -1479,7 +1497,7 @@ func runningContainerStatuses(pod *corev1.Pod, vmName string, startedAt metav1.T
 			Name:         c.Name,
 			Image:        c.Image,
 			ContainerID:  "tart://" + vmName,
-			Ready:        true,
+			Ready:        ready,
 			Started:      &started,
 			RestartCount: 0,
 			State: corev1.ContainerState{
@@ -1821,6 +1839,13 @@ type Entry struct {
 	MetricsForwarder  *Forwarder
 	VNCForwarder      *TCPForwarder
 	VNCRelayTokenHash string
+
+	// Readiness runs the Pod's readinessProbe against the guest. Nil for
+	// Pods without one and until the guest first has an IP.
+	Readiness *readinessProber
+	// readinessUnsupportedReported keeps the Warning for a probe this
+	// runtime cannot evaluate to one event per VM.
+	readinessUnsupportedReported bool
 
 	// Volume is the per-account cache-volume branch attached to this VM at
 	// boot. Zero value (Attached false) means the VM booted on

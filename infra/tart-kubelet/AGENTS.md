@@ -46,3 +46,14 @@ workflow code runs in the guest. Never expose host credentials or masters.
   Join workers before closing the store, preserve in-flight admission reservations
   during recovery scans, and never hold the global store lock across writer-fence
   API calls. Slow publication or restoration must not starve another guest.
+
+- Readiness: without a `readinessProbe`, a Pod is Ready once its VM has an IP
+  (customer runner Pods stay here). An `httpGet`/`tcpSocket` probe runs in
+  `internal/podagent/readiness.go` on its own goroutine against the guest IP
+  (`httpGet.host` ignored, timeout capped at 10s, kubelet threshold
+  semantics). `podStatus` only reads the cached result; transitions
+  re-enqueue the Pod. `exec`/`grpc` probes fall back to VM-IP readiness with
+  a Warning event. Deletion cancels the prober without waiting. A new prober
+  seeds from the Pod's published readiness for the same VM so a tart-kubelet
+  restart does not flap Ready. A wrong probe stalls rollouts and PDBs, so
+  probes stay opt-in per PodSpec.
