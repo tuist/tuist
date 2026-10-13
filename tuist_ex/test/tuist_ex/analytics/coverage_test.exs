@@ -343,7 +343,8 @@ defmodule TuistEx.Analytics.CoverageTest do
       refute Coverage.native_build?(ebin)
     end
 
-    test "counts lines natively, without cover", %{
+    # In a runtime started without `+JPcover`, as a user's is.
+    test "switches the runtime to native counters and counts lines, without cover", %{
       directory: directory,
       config: config,
       ebin: ebin,
@@ -358,6 +359,7 @@ defmodule TuistEx.Analytics.CoverageTest do
       Mix.start()
       Code.prepend_path(#{inspect(ebin)})
       Code.prepend_path(#{inspect(tuist_ex)})
+      true = TuistEx.Analytics.Coverage.enable_native(#{inspect(ebin)})
       3 = TuistExNativeFixture.Calc.add(1, 2)
       snapshot = TuistEx.Analytics.Coverage.snapshot(#{inspect(directory)}, #{inspect(config)})
       IO.write(snapshot |> :erlang.term_to_binary() |> Base.encode64())
@@ -366,7 +368,7 @@ defmodule TuistEx.Analytics.CoverageTest do
       {output, 0} =
         System.cmd(
           System.find_executable("elixir"),
-          ["--erl", "+JPcover line_counters", "-e", script],
+          ["-e", script],
           env: [{"MIX_ENV", "test"}]
         )
 

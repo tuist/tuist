@@ -80,8 +80,11 @@ partial only when its own arguments pick tests; the files a shard appends are
 not counted. `mix tuist.test.build --cover` recompiles the build's modules
 from their debug info with `line_coverage` (`Coverage.instrument/1`; the
 Elixir compiler skips the pass that adds the counters), keeping chunks only
-Elixir writes, and marks the build. A shard of it whose runtime counts natively
-(`+JPcover line_counters`) drops Mix's `--cover` and `--export-coverage`; the
+Elixir writes, and marks the build. A shard of it switches the runtime to line
+counters (`Coverage.enable_native/1`: `code:set_coverage_mode/1` applies after
+boot only to explicitly loaded code, so every module of the build is loaded
+then, before the application starts) and drops Mix's `--cover` and
+`--export-coverage`; the
 formatter's `init`, which runs after the test helper and before any test,
 cover compiles only the modules Mimic marked to copy (Mimic carries a cover
 compiled module's counts across its swaps, while a reload resets native

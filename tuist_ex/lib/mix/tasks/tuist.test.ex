@@ -38,10 +38,10 @@ defmodule Mix.Tasks.Tuist.Test do
   build. Both options require a shard index.
 
   With `--cover`, a shard of a build `mix tuist.test.build --cover`
-  instrumented counts lines natively when its runtime was started with
-  `ELIXIR_ERL_OPTIONS="+JPcover line_counters"`: Mix's coverage tool, and
-  with it its report, is left out, and only the modules Mimic copies are
-  cover compiled.
+  instrumented counts lines with the runtime's native counters, which the
+  task switches on: Mix's coverage tool, and with it its report, is left out,
+  and only the modules Mimic copies are cover compiled. A runtime without the
+  JIT cannot count natively and uses Mix's coverage tool.
 
   `--scheme LABEL` names an execution variant in analytics, such as a database
   version. Variants with different labels are not compared as flaky reruns.
@@ -208,9 +208,9 @@ defmodule Mix.Tasks.Tuist.Test do
     end
   end
 
-  # A build `mix tuist.test.build --cover` instrumented counts in a runtime
-  # started with native line counters, without Mix's coverage tool, which
-  # would compile every module for `cover` again.
+  # A build `mix tuist.test.build --cover` instrumented counts with the
+  # runtime's native line counters, without Mix's coverage tool, which would
+  # compile every module for `cover` again.
   defp native_coverage(options, test_args) do
     cond do
       options[:coverage] != true or options[:prepare_only] == true ->
@@ -219,11 +219,10 @@ defmodule Mix.Tasks.Tuist.Test do
       not Coverage.native_build?(Mix.Project.compile_path()) ->
         {options, test_args}
 
-      :code.get_coverage_mode() != :line_counters ->
+      not Coverage.enable_native(Mix.Project.compile_path()) ->
         Mix.shell().info(
-          "warning: the build was instrumented for native coverage, but this runtime does not count " <>
-            "natively. Set ELIXIR_ERL_OPTIONS=\"+JPcover line_counters\" to use it; Mix's coverage " <>
-            "tool runs instead."
+          "warning: the build was instrumented for native coverage, but this runtime cannot count " <>
+            "natively (it needs the JIT). Mix's coverage tool runs instead."
         )
 
         {options, test_args}

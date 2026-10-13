@@ -298,9 +298,6 @@ jobs:
       TUIST_DEV_ALL_LOCALES: "1"
       TUIST_SHARD_REFERENCE: ${{ needs.test-build.outputs.current-reference }}
       TUIST_SHARD_INDEX: ${{ matrix.shard }}
-      # The runtime counts lines in the build `--cover` instrumented. Without
-      # it, `mix tuist.test --cover` falls back to Mix's coverage tool.
-      ELIXIR_ERL_OPTIONS: ${{ github.event_name == 'push' && '+JPcover line_counters' || '' }}
     services:
       postgres:
         image: postgres:16

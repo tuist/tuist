@@ -46,12 +46,12 @@ defmodule Mix.Tasks.Tuist.Test.Build do
   ## Coverage
 
   With `--cover`, the project's modules are recompiled once, here, with the
-  runtime's native line counters. A shard then reports coverage from a
-  runtime started with them, `ELIXIR_ERL_OPTIONS="+JPcover line_counters"`,
-  without Mix's coverage tool, which would compile every module again; only
-  the modules Mimic copies are cover compiled, so its swaps keep their counts.
-  Mix's own coverage report is not written for such a shard. A shard whose
-  runtime does not count natively uses Mix's coverage tool as usual.
+  runtime's native line counters. A shard running `mix tuist.test --cover`
+  then counts with them, without Mix's coverage tool, which would compile
+  every module again; only the modules Mimic copies are cover compiled, so
+  its swaps keep their counts. Mix's own coverage report is not written for
+  such a shard. A shard on a runtime without the JIT, which cannot count
+  natively, uses Mix's coverage tool as usual.
 
   ## Output
 

@@ -146,8 +146,8 @@ defmodule TuistEx.Analytics.Coverage do
   @doc """
   Recompiles the modules of a build in `ebin` from their debug info with the
   runtime's native line counters, as `cover` does at the start of every run,
-  so that a run in a runtime started with `+JPcover line_counters` counts
-  without compiling anything. The Elixir compiler leaves the counters out
+  so that a run counting natively (`enable_native/1`) needs to compile
+  nothing. The Elixir compiler leaves the counters out
   even when asked for them, which is why this starts from the debug info.
   Chunks only Elixir writes, such as the docs doctests read, are kept. A
   module without debug info stays as it was and is listed in the marker the
@@ -216,6 +216,35 @@ defmodule TuistEx.Analytics.Coverage do
     case :beam_lib.chunks(String.to_charlist(path), [:compile_info]) do
       {:ok, {_module, [compile_info: info]}} -> :line_coverage in (info[:options] || [])
       _ -> false
+    end
+  end
+
+  @doc """
+  Switches the runtime to native line counters and loads the modules of the
+  build in `ebin` with them, so a run needs no `+JPcover` flag. The mode set
+  after boot applies only to code loaded explicitly, not to modules loaded on
+  demand, so every module is loaded here, before the application starts; one
+  loaded earlier is loaded again, unless a process still runs its previous
+  version. False where the runtime cannot count natively, which needs the JIT.
+  """
+  def enable_native(ebin) do
+    if :code.coverage_support() and :code.get_coverage_mode() == :none,
+      do: :code.set_coverage_mode(:line_counters)
+
+    if :code.coverage_support() and :code.get_coverage_mode() == :line_counters do
+      ebin |> build_modules() |> Enum.each(&load_native/1)
+      true
+    else
+      false
+    end
+  end
+
+  defp load_native(module) do
+    cond do
+      :code.is_loaded(module) == false -> :code.load_file(module)
+      :code.get_coverage_mode(module) != :none -> :ok
+      :code.soft_purge(module) -> :code.load_file(module)
+      true -> :ok
     end
   end
 

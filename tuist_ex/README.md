@@ -201,9 +201,9 @@ mix tuist.test.build --shard-total 4 --cover
 ```
 
 The build's modules then carry the runtime's native line counters. A shard
-running `mix tuist.test --cover` counts with them when its runtime starts with
-them, `ELIXIR_ERL_OPTIONS="+JPcover line_counters"`, on a runtime with the JIT,
-and leaves Mix's coverage tool out, so no Mix coverage report is written. Only
+running `mix tuist.test --cover` switches them on and counts with them, on a
+runtime with the JIT, and leaves Mix's coverage tool out, so no Mix coverage
+report is written. Only
 the modules Mimic copies are compiled for `cover`, because Mimic keeps a
 `cover` compiled module's counts across the swaps it makes and a reload resets
 native counters. A shard whose runtime does not count natively uses Mix's
