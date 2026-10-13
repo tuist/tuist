@@ -138,8 +138,9 @@ The next job starts with an empty volume after expiry.
 
 Saved contents can accumulate across runs. Volumes do not prune old dependencies:
 use your tool's cleanup settings to keep them small. Writes to a full volume can
-fail the job. When saved contents reach **80%** of the volume's capacity, the
-next job starts with an empty volume and its changes begin a new saved state.
+fail the job. When saved contents reach **80%** of the volume's capacity and a job
+runs out of space on them, the next job starts with an empty volume and its
+changes begin a new saved state.
 
 ## Inspecting and clearing volumes {#inspecting-and-clearing-volumes}
 

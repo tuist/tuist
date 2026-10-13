@@ -25,9 +25,10 @@ defmodule Tuist.Runners.CacheVolumes do
   @retention_seconds 7 * 24 * 60 * 60
   @commit_modes ~w(auto true false)
 
-  # A saved snapshot at or above this share of its capacity is not cloned again:
-  # the next use starts a fresh lineage so jobs keep room to write.
+  # A saved snapshot at or above @full_percent of its capacity, which a clone filled
+  # to @out_of_space_percent, is not cloned again: the next use starts a fresh lineage.
   @full_percent 80
+  @out_of_space_percent 99
 
   def allocate(
         %{
@@ -337,7 +338,7 @@ defmodule Tuist.Runners.CacheVolumes do
   def full?(_size, _capacity), do: false
 
   def out_of_space?(size, capacity) when is_integer(size) and is_integer(capacity) and capacity > 0,
-    do: size * 100 >= capacity * 99
+    do: size * 100 >= capacity * @out_of_space_percent
 
   def out_of_space?(_size, _capacity), do: false
 
@@ -346,12 +347,22 @@ defmodule Tuist.Runners.CacheVolumes do
   defp reset_full_locked(volume) do
     head = Repo.get(Usage, volume.head_id)
 
-    if head && full?(head.size_bytes, head.capacity_bytes) do
+    if head && full?(head.size_bytes, head.capacity_bytes) && clone_ran_out_of_space?(head.id) do
       Runners.clear_volume_master(volume.account_id, storage_name(volume))
       Repo.update!(Ecto.Changeset.change(volume, generation: volume.generation + 1, head_id: nil))
     else
       volume
     end
+  end
+
+  defp clone_ran_out_of_space?(head_id) do
+    Repo.exists?(
+      from(u in Usage,
+        where:
+          u.parent_id == ^head_id and u.capacity_bytes > 0 and
+            u.size_bytes * 100 >= u.capacity_bytes * @out_of_space_percent
+      )
+    )
   end
 
   def scope(volume) do

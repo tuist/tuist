@@ -52,7 +52,7 @@ Volumes are scoped by Tuist account, GitLab instance, immutable project ID, key,
 architecture and UID. Project renames retain data; another instance with the
 same project ID cannot reuse it. Each job receives a private copy, with 20 GB
 capacity and seven-day idle expiration; when saved contents reach 80% of
-capacity, the next job starts empty. The client logs warm/cold reuse and the
+capacity and a job runs out of space on them, the next job starts empty. The client logs warm/cold reuse and the
 Tuist dashboard records it. Unavailable storage falls back to an empty directory;
 invalid inputs and nonempty targets fail the step.
 

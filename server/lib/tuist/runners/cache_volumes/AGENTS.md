@@ -37,7 +37,8 @@ these schemas persist volume identities and per-job uses.
 - Storage history is an account-scoped hourly rollup of per-copy measurement deltas for the selected date range (seven days by default). Seed it with earlier reports, carry unchanged sizes forward, preserve unknown fields, and subtract confirmed deletions. Do not sum repeated reports as new storage or present this series as billable usage.
 
 - Allocation clears a custom volume whose saved head measured at 80% or more of
-  its capacity (`full?/2`), under the same row lock and with the same generation
+  its capacity (`full?/2`) once a use cloned from that head reached 99% of its own
+  (`out_of_space?/2`), under the same row lock and with the same generation
   bump as deletion, so the use starts a fresh lineage. Unknown sizes never clear.
   The dashboard warns on such heads and on failed jobs whose copy reached 99%.
 

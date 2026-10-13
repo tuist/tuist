@@ -415,7 +415,7 @@ defmodule TuistWeb.RunnerVolumesLive do
   def full_snapshot_description(stats) do
     dgettext(
       "dashboard_runners",
-      "The saved snapshot uses %{used} of %{capacity}. To leave room for jobs to write, the next job starts from an empty volume and saves a new snapshot.",
+      "The saved snapshot uses %{used} of %{capacity}. If a job runs out of space on it, the next job starts from an empty volume and saves a new snapshot.",
       used: bytes(stats[:saved_bytes]),
       capacity: bytes(stats[:saved_capacity_bytes])
     )

@@ -1728,11 +1728,6 @@ msgstr ""
 msgid "%{volume} ran out of space"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:416
-#, elixir-autogen, elixir-format
-msgid "The saved snapshot uses %{used} of %{capacity}. To leave room for jobs to write, the next job starts from an empty volume and saves a new snapshot."
-msgstr ""
-
 #: lib/tuist_web/live/runner_job_live.ex:178
 #, elixir-autogen, elixir-format
 msgid "This job used %{used} of the volume's %{capacity}. Writes to a full volume fail with errors such as \"No space left on device\", which can fail the job."
@@ -1741,4 +1736,9 @@ msgstr ""
 #: lib/tuist_web/live/runner_volumes_live.html.heex:304
 #, elixir-autogen, elixir-format
 msgid "This volume is almost full"
+msgstr ""
+
+#: lib/tuist_web/live/runner_volumes_live.ex:416
+#, elixir-autogen, elixir-format
+msgid "The saved snapshot uses %{used} of %{capacity}. If a job runs out of space on it, the next job starts from an empty volume and saves a new snapshot."
 msgstr ""
