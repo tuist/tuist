@@ -86,16 +86,16 @@ struct XcodeCacheSettingsProjectMapperTests {
             baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] ==
                 .string("$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))")
         )
-        #expect(baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
+        #expect(baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
         #expect(
             baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] ==
                 .string("$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))")
         )
-        #expect(baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
+        #expect(baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
     }
 
     @Test(.inTemporaryDirectory, .withMockedXcodeController)
-    func map_whenProjectOptsOut_preservesItsSharedSourceNamespace() async throws {
+    func map_whenProjectOptsIn_keepsItsProjectPrefixMapping() async throws {
         try stubXcodeVersion(Version(27, 0, 0))
         let tuist = Tuist(
             project: .generated(.test(generationOptions: .test(enableCaching: true))),
@@ -104,14 +104,14 @@ struct XcodeCacheSettingsProjectMapperTests {
             url: Constants.URLs.production
         )
         let project = Project.test(settings: .test(base: [
-            "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING": "NO",
-            "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "NO",
+            "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
+            "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
         ]))
 
         let (mappedProject, _) = try await XcodeCacheSettingsProjectMapper(tuist: tuist).map(project: project)
 
-        #expect(mappedProject.settings.base["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
-        #expect(mappedProject.settings.base["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
+        #expect(mappedProject.settings.base["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
+        #expect(mappedProject.settings.base["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
     }
 
     /// The compiler writes mapped paths into the coverage mapping and xccov can't
