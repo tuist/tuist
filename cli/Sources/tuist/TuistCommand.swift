@@ -350,7 +350,8 @@ public struct TuistCommand: AsyncParsableCommand {
         errorAlertMessage: TerminalText? = nil,
         errorAlertNextSteps: [TerminalText]? = nil
     ) {
-        if Environment.current.isJSONOutput { return }
+        let isJSONOutput = Environment.current.isJSONOutput
+        if isJSONOutput, errorAlertMessage == nil { return }
 
         let errorAlert: ErrorAlert? =
             if let errorAlertMessage {
@@ -362,7 +363,7 @@ public struct TuistCommand: AsyncParsableCommand {
         let warningAlerts = AlertController.current.warnings()
         let takeaways = AlertController.current.takeaways()
 
-        if !warningAlerts.isEmpty {
+        if !warningAlerts.isEmpty, !isJSONOutput {
             Noora.current.warning(warningAlerts)
         }
         let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
