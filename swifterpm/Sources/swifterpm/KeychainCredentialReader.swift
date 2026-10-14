@@ -15,7 +15,7 @@ enum KeychainCredentialReader {
     #if canImport(Security)
         private static let interactionLock = Mutex<Void>(())
 
-        static func withInteractionPolicy<T>(
+        static func withInteractionPolicy<T: Sendable>(
             headless: Bool,
             host: String?,
             getInteraction: () -> (OSStatus, Bool) = {
