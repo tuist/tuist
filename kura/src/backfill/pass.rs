@@ -144,6 +144,9 @@ pub enum PassSource {
     /// Walk the peer's index newest-first within the window (a backward
     /// pass).
     PeerIndex,
+    /// Walk the retained index while evaluating capacity for each record.
+    /// An older listing must not discard newer queued repair work.
+    RetainedIndex,
     /// Apply exactly these entries — one forward page of the arrival feed
     /// or of the ascending region read (design §3.1, §4.1; implementation
     /// decision D-9).
@@ -306,8 +309,11 @@ struct PassContext<'a> {
 }
 
 impl PassContext<'_> {
-    fn arrival_ordered(&self) -> bool {
-        matches!(&self.tuning.source, PassSource::Entries(_))
+    fn capacity_is_per_entry(&self) -> bool {
+        matches!(
+            &self.tuning.source,
+            PassSource::Entries(_) | PassSource::RetainedIndex
+        )
     }
 
     fn capacity_declines(&self, version_ms: u64) -> bool {
@@ -450,11 +456,14 @@ async fn list_entry(
     // Evaluate the marginal trade as the cursor descends. Inputs are re-read
     // per segmented tuple: applies rotate segments underneath the pass.
     if kind == BackfillRecordKind::SegmentArtifact {
-        if context.arrival_ordered() && context.capacity_declines(entry.version_ms) {
+        if context.capacity_is_per_entry() && context.capacity_declines(entry.version_ms) {
             context.note_capacity_skipped();
             return Ok(());
         }
-        if !context.capacity_fired() && context.capacity_declines(entry.version_ms) {
+        if !context.capacity_is_per_entry()
+            && !context.capacity_fired()
+            && context.capacity_declines(entry.version_ms)
+        {
             // Synchronously strips held segmented claims that are not in an
             // in-flight batch; the fetcher drops the same tuples from its
             // composed batch before dispatching.
@@ -721,12 +730,15 @@ async fn admit(
         // #12047 eviction churn the trade exists to stop, with overshoot
         // bounded only by dataset size. With it, overshoot is bounded by the
         // one in-flight batch per pass, as designed.
-        if context.arrival_ordered() && context.capacity_declines(item.key.version_ms) {
+        if context.capacity_is_per_entry() && context.capacity_declines(item.key.version_ms) {
             context.guard.resolve_capacity_declined(&item.key);
             context.note_capacity_skipped();
             return Ok(());
         }
-        if !context.capacity_fired() && context.capacity_declines(item.key.version_ms) {
+        if !context.capacity_is_per_entry()
+            && !context.capacity_fired()
+            && context.capacity_declines(item.key.version_ms)
+        {
             context.guard.mark_capacity_complete();
             context.capacity_fired.store(true, Ordering::Relaxed);
             tracing::info!(
@@ -2424,6 +2436,91 @@ mod tests {
         assert!(claim_set.is_empty());
 
         // The newer segmented entry (fetched before the trade turned) landed;
+        // The older one remains capacity-skipped.
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Gradle, "newer")
+                .await
+                .is_some()
+        );
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Gradle, "older")
+                .await
+                .is_none()
+        );
+        // Non-ring kinds continued past capacity completion to the bound.
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Xcode, "inl")
+                .await
+                .is_some()
+        );
+        assert!(
+            local
+                .state
+                .store
+                .backfill_locally_covered(BackfillRecordKind::NamespaceTombstone, "dead-ns", 250)
+                .expect("tombstone check should succeed")
+        );
+    }
+
+    #[tokio::test]
+    async fn retained_index_keeps_newer_queued_records_when_listing_reaches_capacity() {
+        let peer = test_context(|_| {}).await;
+        seed_segmented(&peer, "newer", b"newer-body", 1_000).await;
+        seed_segmented(&peer, "older", b"older-body", 400).await;
+        seed_inline(&peer, "inl", b"inline-body", 300).await;
+        seed_tombstone(&peer, "dead-ns", 250).await;
+        build_index(&peer);
+        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+
+        // A tiny configured capacity resolves to the legacy 1:2:2 floor of 5
+        // segments; fabricate a full ring whose next evictee holds data newer
+        // than the older peer entry, so the marginal trade fires mid-pass.
+        let local = test_context(|config| {
+            config.cas_capacity_bytes = Some(1);
+        })
+        .await;
+        let mut ring = SegmentState::default();
+        for (band, id, created_at_ms, stat) in [
+            ("old", "evictee", 1, 500_u64),
+            ("current", "c1", 2, 600),
+            ("current", "c2", 3, 650),
+            ("new", "n1", 4, 700),
+            ("new", "n2", 5, 750),
+        ] {
+            let mut reference = SegmentReference::new(id.into(), created_at_ms);
+            reference.max_version_ms = Some(stat);
+            match band {
+                "old" => ring.old.push(reference),
+                "current" => ring.current.push(reference),
+                _ => ring.new.push(reference),
+            }
+        }
+        local
+            .state
+            .store
+            .install_segment_state_for_testing(ring)
+            .await
+            .expect("ring state should install");
+
+        let mut paced = tuning();
+        paced.source = PassSource::RetainedIndex;
+        paced.flush_interval = Duration::from_secs(10);
+        let (outcome, claim_set) = run_pass(&local, &peer_url, paced).await;
+
+        let BackfillPassOutcome::Completed {
+            end,
+            capacity_completed,
+            stats,
+        } = outcome
+        else {
+            panic!("expected completion, got {outcome:?}");
+        };
+        assert_eq!(end, BackfillPassEnd::PeerExhausted);
+        assert!(!capacity_completed);
+        assert_eq!(stats.tuples_capacity_skipped, 1);
+        assert!(claim_set.is_empty());
+
+        // Listing the older tuple must not strip the newer queued claim.
         // the older one was capacity-skipped.
         assert!(
             fetch_manifest(&local, ArtifactProducer::Gradle, "newer")

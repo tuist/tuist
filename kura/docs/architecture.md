@@ -11,7 +11,10 @@ source, reconciles its complete retained index on the destination through the
 bounded backfill pipeline, then freezes the destination. The reconciliation
 ignores the normal bootstrap age horizon but preserves capacity, version and
 tombstone guards, makes no sibling feed echoes, and cancels when the named intent
-ends. It runs once per held intent; concurrent begin retries cannot duplicate it.
+ends. Capacity is checked per record at listing and dispatch so an older
+capacity rejection cannot discard newer queued repair work. Ordinary backward
+catch-up retains its pass-wide cutoff. Repair runs once per held intent;
+concurrent begin retries cannot duplicate it.
 Handover then verifies every retained record in negotiated bounded batches,
 persists matching receipts and
 positively revokes the old writer. Crash promotion requires external fence
