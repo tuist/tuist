@@ -11,7 +11,7 @@ defmodule TuistWeb.TestsLiveTest do
 
   @render_async_timeout 1_000
 
-  for build_system <- [:mix, :xcode, :gradle, :bazel] do
+  for build_system <- [:mix, :xcode, :gradle, :bazel, :cargo] do
     test "shows #{build_system} test cases before they have enough duration samples", %{
       conn: conn,
       project: project
@@ -54,6 +54,57 @@ defmodule TuistWeb.TestsLiveTest do
       refute has_element?(lv, "[data-part='test-cases']", "Slowest test cases")
       refute has_element?(lv, ".test-case-card [data-part='duration']")
     end
+  end
+
+  test "Cargo omits the redundant command selector and ignores legacy scheme filters", %{conn: conn, project: project} do
+    project = project |> Ecto.Changeset.change(build_system: :cargo) |> Tuist.Repo.update!()
+
+    ids =
+      for label <- ["nextest", "ci"] do
+        id = UUIDv7.generate()
+
+        {:ok, _} =
+          Tuist.Tests.create_test(%{
+            id: id,
+            project_id: project.id,
+            account_id: project.account_id,
+            duration: 1000,
+            status: "success",
+            scheme: label,
+            ran_at: DateTime.add(DateTime.utc_now(), -1, :minute),
+            is_ci: false,
+            build_system: "cargo",
+            test_modules: []
+          })
+
+        id
+      end
+
+    Buffer.flush()
+    base = ~p"/#{project.account.name}/#{project.name}/tests"
+    {:ok, view, _} = live(conn, base <> "?analytics-test-scheme=nextest&duration-scatter-group-by=scheme")
+    html = render_async(view, 5000)
+    refute has_element?(view, "#tests-analytics-scheme-dropdown")
+    assert html =~ "cargo nextest run"
+    assert html =~ "cargo nextest run · ci"
+    for id <- ids, do: assert(html =~ id)
+
+    expect(Tuist.Tests.Analytics, :test_run_duration_scatter_data, fn project_id, opts ->
+      assert project_id == project.id
+      assert opts[:group_by] == :environment
+      refute Keyword.has_key?(opts, :scheme)
+      %{series: [], truncated: false, oldest_entry: nil}
+    end)
+
+    render_patch(
+      view,
+      base <>
+        "?analytics-test-scheme=missing&analytics-selected-widget=test_run_duration&duration-chart-type=scatter&duration-scatter-group-by=scheme"
+    )
+
+    html = render_async(view, 5000)
+    for id <- ids, do: assert(html =~ id)
+    refute has_element?(view, "#tests-analytics-scheme-dropdown")
   end
 
   test "a Once project's runs column is headed Run, not Scheme", %{conn: conn, project: project} do

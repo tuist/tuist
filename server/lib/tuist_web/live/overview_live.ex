@@ -91,6 +91,9 @@ defmodule TuistWeb.OverviewLive do
 
     socket =
       cond do
+        Project.cargo_project?(project) ->
+          TuistWeb.CargoOverviewLive.assign_handle_params(socket, params, full_uri.path)
+
         Project.once_project?(project) ->
           TuistWeb.OnceOverviewLive.assign_handle_params(socket, params, full_uri.path)
 

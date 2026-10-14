@@ -1,0 +1,421 @@
+<div id="build-run" data-build-system="cargo">
+  <.button
+    label={dgettext("dashboard_builds", "Builds")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs"}
+  >
+    <:icon_left><.arrow_left /></:icon_left>
+  </.button>
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <div data-part={if @build.status == "success", do: "badge-success", else: "badge-failure"}>
+          <div data-part="icon">
+            <.circle_check :if={@build.status == "success"} />
+            <.alert_circle :if={@build.status == "failure"} />
+          </div>
+        </div>
+        <h1 data-part="label">{"cargo #{@build.command}"}</h1>
+      </div>
+    </div>
+  </div>
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      :for={
+        {value, label} <- [
+          {"overview", dgettext("dashboard_builds", "Overview")},
+          {"cache", dgettext("dashboard_builds", "Cache")},
+          {"warnings", dgettext("dashboard_builds", "Warnings")},
+          {"errors", dgettext("dashboard_builds", "Errors")}
+        ]
+      }
+      :if={value != "cache" || @cache_metrics}
+      label={label}
+      selected={@selected_tab == value}
+      patch={"?#{Query.put(@uri.query, "tab", value)}"}
+    />
+  </.tab_menu_horizontal>
+  <.card
+    :if={@selected_tab == "overview"}
+    title={dgettext("dashboard_builds", "Build Details")}
+    icon="chart_arcs"
+    data-part="build-details"
+  >
+    <.card_section data-part="build-details-section">
+      <div data-part="metadata-grid">
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Command")}</div>
+            <span data-part="command-label">{"cargo #{@build.command}"}</span>
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
+            <.badge
+              label={
+                if @build.status == "success",
+                  do: dgettext("dashboard_builds", "Passed"),
+                  else: dgettext("dashboard_builds", "Failed")
+              }
+              color={if @build.status == "success", do: "success", else: "destructive"}
+              style="fill"
+              size="large"
+            />
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Built by")}</div>
+            <.run_ran_by_badge_cell
+              run={@build}
+              ran_by_name={@build.ran_by_account && @build.ran_by_account.name}
+            />
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Build duration")}</div>
+            <span data-part="label"><.history />{DateFormatter.format_duration_from_milliseconds(
+              @build.duration_ms
+            )}</span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Built at")}</div>
+            <span data-part="label">{DateFormatter.format_with_timezone(
+              @build.started_at || @build.inserted_at,
+              @user_timezone
+            )}</span>
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Source")}</div>
+            <span data-part="label"><.git_branch />{available(@build.git_branch)}</span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Commit")}</div>
+            <span data-part="label" title={@build.git_commit_sha}><.git_commit />{available(
+              @build.git_commit_sha
+            )
+            |> String.slice(0, 8)}</span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Rust version")}</div>
+            <span data-part="label">{available(@build.rust_version)}</span>
+          </div>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+  <div :if={@selected_tab == "cache" && @cache_metrics} data-part="cache">
+    <.card
+      title={dgettext("dashboard_builds", "Cache Summary")}
+      icon="chart_arcs"
+      data-part="cache-summary-card"
+    >
+      <.card_section data-part="widgets-card-section">
+        <.widget
+          id="widget-cargo-cache-hits"
+          title={dgettext("dashboard_builds", "Task hits")}
+          value={@cache_metrics.hits}
+          description={
+            dgettext(
+              "dashboard_builds",
+              "Compilation actions restored from the local or remote cache."
+            )
+          }
+        />
+        <.widget
+          id="widget-cargo-cache-misses"
+          title={dgettext("dashboard_builds", "Task misses")}
+          value={CacheMetrics.task_misses(@cache_metrics)}
+          description={
+            dgettext(
+              "dashboard_builds",
+              "Cacheable tasks that compiled instead of reusing cached outputs, including cold builds and verification rebuilds."
+            )
+          }
+        />
+        <.widget
+          id="widget-cargo-cache-hit-rate"
+          title={dgettext("dashboard_builds", "Hit rate")}
+          value={"#{CacheMetrics.hit_rate(@cache_metrics)}%"}
+          empty={is_nil(CacheMetrics.hit_rate(@cache_metrics))}
+          description={
+            dgettext(
+              "dashboard_builds",
+              "Percentage of cacheable tasks that reused cached outputs instead of compiling."
+            )
+          }
+        />
+        <.widget
+          id="widget-cargo-cache-downloads"
+          title={dgettext("dashboard_builds", "Cache downloads")}
+          value={ByteFormatter.format_bytes(@cache_metrics.downloaded_bytes)}
+          description={
+            dgettext(
+              "dashboard_builds",
+              "Bytes downloaded from the remote cache, including speculative prefetches."
+            )
+          }
+        />
+        <.widget
+          id="widget-cargo-cache-uploads"
+          title={dgettext("dashboard_builds", "Cache uploads")}
+          value={ByteFormatter.format_bytes(@cache_metrics.uploaded_bytes)}
+          description={dgettext("dashboard_builds", "Bytes uploaded to the remote cache.")}
+        />
+      </.card_section>
+    </.card>
+    <.tab_menu_horizontal>
+      <.tab_menu_horizontal_item
+        label={dgettext("dashboard_builds", "Cacheable Tasks")}
+        selected={@selected_cache_tab == "cacheable-tasks"}
+        patch={"?#{Query.put(@uri.query, "cache-tab", "cacheable-tasks")}"}
+      />
+      <.tab_menu_horizontal_item
+        label={dgettext("dashboard_builds", "CAS Outputs")}
+        selected={@selected_cache_tab == "cas-outputs"}
+        patch={"?#{Query.put(@uri.query, "cache-tab", "cas-outputs")}"}
+      />
+    </.tab_menu_horizontal>
+    <.cargo_cache_inspection
+      metrics={@cache_metrics}
+      section={@selected_cache_tab}
+      uri={@uri}
+      search={@cache_search}
+      sort={@cache_sort}
+      status={@cache_status}
+      page={@cache_page}
+      read_type={@cache_read_type}
+      write_type={@cache_write_type}
+    />
+  </div>
+  <.async_result :let={result} :if={@selected_tab != "cache"} assign={@compilations}>
+    <:loading>
+      <.card title={dgettext("dashboard_builds", "Compilations")} icon="versions">
+        <.card_section><.skeleton_chart /></.card_section>
+      </.card>
+    </:loading>
+    <:failed>
+      <.card title={dgettext("dashboard_builds", "Compilations")} icon="versions">
+        <.card_section>
+          <.alert
+            status="error"
+            title={dgettext("dashboard_builds", "Compilations could not be loaded.")}
+          />
+        </.card_section>
+      </.card>
+    </:failed>
+    <.alert
+      :if={result.truncated}
+      status="information"
+      type="secondary"
+      title={dgettext("dashboard_builds", "Showing the first 500 compilations")}
+      description={
+        dgettext(
+          "dashboard_builds",
+          "Compilation and diagnostic results below cover only these displayed invocations."
+        )
+      }
+    />
+    <%= if @selected_tab == "overview" do %>
+      <% page =
+        compilation_page(result.rows, @compilation_search, @compilation_sort, @compilation_page) %>
+      <.card
+        title={dgettext("dashboard_builds", "Compilations")}
+        icon="versions"
+        data-part="file-breakdown-card"
+      >
+        <:actions>
+          <.tooltip
+            id="cargo-compilation-timings"
+            size="large"
+            title={dgettext("dashboard_builds", "Compiler-invocation timings")}
+            description={
+              dgettext(
+                "dashboard_builds",
+                "Each row is one rustc invocation. Durations can overlap and are not per-file timings."
+              )
+            }
+          >
+            <:trigger :let={attrs}>
+              <.neutral_button
+                variant="secondary"
+                size="medium"
+                aria-label={dgettext("dashboard_builds", "About compilation timings")}
+                {attrs}
+              >
+                <.info_circle />
+              </.neutral_button>
+            </:trigger>
+          </.tooltip>
+        </:actions>
+        <.card_section data-part="file-breakdown-card-section">
+          <div data-part="filters">
+            <.form
+              for={%{}}
+              id="cargo-compilations-search-form"
+              phx-change="search-compilations"
+              phx-debounce="200"
+            >
+              <.text_input
+                type="search"
+                id="cargo-compilations-search"
+                name="search"
+                value={@compilation_search}
+                placeholder={dgettext("dashboard_builds", "Search...")}
+                show_suffix={false}
+              />
+            </.form>
+            <.dropdown
+              id="cargo-compilations-sort"
+              label={sort_label(@compilation_sort)}
+              secondary_text={dgettext("dashboard_builds", "Sort by:")}
+            >
+              <.dropdown_item
+                :for={value <- ["start", "duration", "name"]}
+                value={value}
+                label={sort_label(value)}
+                patch={"?#{@uri.query |> Query.put("compilations-sort-by", value) |> Query.put("compilations-page", "1")}"}
+                data-selected={@compilation_sort == value}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+            </.dropdown>
+          </div>
+          <.table id="cargo-compilations" rows={page.rows}>
+            <:col :let={row} label={dgettext("dashboard_builds", "Crate")}>
+              <.text_and_description_cell label={row.name} description={row.source} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_builds", "Status")}>
+              <.badge_cell
+                label={
+                  if row.status == "success",
+                    do: dgettext("dashboard_builds", "Passed"),
+                    else: dgettext("dashboard_builds", "Failed")
+                }
+                color={if row.status == "success", do: "success", else: "destructive"}
+                style="light-fill"
+              />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_builds", "Kind")}>
+              <.text_cell label={row.kind} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_builds", "Start")}>
+              <.text_cell label={
+                DateFormatter.format_duration_from_milliseconds(row.start_offset_ms)
+              } />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_builds", "Duration")}>
+              <.text_cell
+                label={DateFormatter.format_duration_from_milliseconds(row.duration_ms)}
+                icon="history"
+              />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_builds", "Dependencies")}>
+              <.text_cell label={
+                if row.dependencies == [], do: "–", else: Enum.join(row.dependencies, ", ")
+              } />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_builds", "Diagnostics")}>
+              <.text_cell label={
+                if row.diagnostics == [],
+                  do: "–",
+                  else: Enum.map_join(row.diagnostics, " • ", & &1["message"])
+              } />
+            </:col>
+          </.table>
+          <.alert
+            :if={page.rows == []}
+            status="information"
+            type="secondary"
+            title={dgettext("dashboard_builds", "No compilations found")}
+            description={
+              dgettext(
+                "dashboard_builds",
+                "Fresh Cargo artifacts do not invoke rustc. No compiler work is inferred for them."
+              )
+            }
+          />
+          <.pagination_group
+            :if={page.pages > 1}
+            current_page={page.page}
+            number_of_pages={page.pages}
+            page_patch={
+              fn page -> "?#{Query.put(@uri.query, "compilations-page", to_string(page))}" end
+            }
+          />
+        </.card_section>
+      </.card>
+    <% else %>
+      <% severity = if @selected_tab == "errors", do: "error", else: "warning" %>
+      <% groups = diagnostics(result.rows, severity) %>
+      <.card
+        title={
+          if severity == "error",
+            do: dgettext("dashboard_builds", "Errors"),
+            else: dgettext("dashboard_builds", "Warnings")
+        }
+        icon={if severity == "error", do: "alert_circle", else: "alert_hexagon"}
+        data-part={if severity == "error", do: "errors-card", else: "warnings-card"}
+      >
+        <.card_section data-part={
+          if severity == "error", do: "errors-card-section", else: "warnings-card-section"
+        }>
+          <div data-part="header">
+            <span data-part="title">
+              {if severity == "error",
+                do: dgettext("dashboard_builds", "Errors"),
+                else: dgettext("dashboard_builds", "Warnings")}
+            </span>
+            <span data-part="dot">{dgettext("dashboard_builds", "•")}</span>
+            <span data-part="count">{format_number(
+              Enum.reduce(groups, 0, fn {_path, issues}, count -> count + length(issues) end)
+            )}</span>
+          </div>
+          <div :if={groups != []} data-part="issues-list">
+            <.diagnostic_card
+              :for={{path, issues} <- groups}
+              path={path}
+              issues={issues}
+              severity={severity}
+            />
+          </div>
+          <div :if={groups == []} data-part="empty-state">
+            <div data-part="empty-state-background">
+              <.empty_tab_state_background />
+            </div>
+            <div data-part="image">
+              <img
+                src={
+                  if severity == "error",
+                    do: ~p"/images/empty_errors_light.png",
+                    else: ~p"/images/empty_warnings_light.png"
+                }
+                data-theme="light"
+                loading="lazy"
+                decoding="async"
+              />
+              <img
+                src={
+                  if severity == "error",
+                    do: ~p"/images/empty_errors_dark.png",
+                    else: ~p"/images/empty_warnings_dark.png"
+                }
+                data-theme="dark"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <span data-part="title">{if severity == "error",
+              do: dgettext("dashboard_builds", "No errors detected"),
+              else: dgettext("dashboard_builds", "No warnings detected")}</span>
+            <span data-part="subtitle">
+              {dgettext("dashboard_builds", "Looks like you're having a great day!")}
+            </span>
+          </div>
+        </.card_section>
+      </.card>
+    <% end %>
+  </.async_result>
+</div>
