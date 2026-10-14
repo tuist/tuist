@@ -2,8 +2,8 @@
 
 This directory contains the Tuist [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) implementation:
 
-- JSON-RPC request handling
-- The transport routes `2026-07-28` requests to `Transport.Stateless` and preserves the EMCP session transport for older clients. The modern route has no session identifier and adds result discriminators, cache hints, and server identity to existing tool and prompt responses. Keep both paths tested when changing protocol handling.
+- JSON-RPC request handling. Reuse EMCP's dispatcher and schema validation; its pinned HTTP transport and current upstream still require sessions, so automatic recreation is not a session-free mode. Both paths default origin checks to `app_url(route_type: :app)`, including self-hosted installs. Legacy absent/null arguments retain EMCP's empty-map behavior; other non-object arguments are rejected.
+- The transport routes `2026-07-28` requests to `Transport.Stateless` and handles older clients without allocating sessions. The modern route has no session identifier and adds result discriminators, cache hints, and server identity to existing tool and prompt responses. Keep both paths tested when changing protocol handling.
 - Event subscriptions, callback verification, and delivery live under `events/`; see `events/AGENTS.md`.
 - MCP tools and prompts
 - MCP authorization/serialization helpers. ID-only Gradle/Xcode lookups must resolve a UUID to exactly one project before authorizing the parent. Reject cross-project collisions, including historical duplicates, instead of selecting an attacker-controlled public parent; project-scoped API/dashboard reads keep their existing behavior.
@@ -51,3 +51,5 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
   and the `:invitation` policies, matching the dashboard and REST API. They
   never return invitation tokens or links; `email_sent` tells the agent when
   the link has to be copied from the dashboard instead.
+
+- The endpoint implements the stateless 2026-07-28 transport and `server/discover`. Every modern request validates protocol metadata and mirrored headers. Legacy 2025-06-18 and 2025-03-26 clients remain supported without allocating sessions. Catalogs do not advertise change subscriptions.

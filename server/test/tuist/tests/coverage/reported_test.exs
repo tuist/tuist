@@ -514,6 +514,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     case Keyword.get(opts, :head, :measured) do
       :measured -> target_only_head(project, account, opts)
       :skipped -> skipped_head(project, account, [{"AppTests", :local, "app"}, {"TextKitTests", :local, "text"}])
+      :none -> :ok
     end
   end
 
@@ -549,24 +550,29 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
   # The scheme skipped whole at the head: its run measured nothing and listed
   # no candidates, and only its targets' hits say what it skipped.
-  defp skipped_head(project, account, hits) do
+  defp skipped_head(project, account, hits, attrs \\ %{}) do
     CoverageFixtures.seed_listing(account, "head", ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"])
 
     {:ok, head} =
-      Tests.create_test(%{
-        id: UUIDv7.generate(),
-        project_id: project.id,
-        account_id: account.id,
-        duration: 1,
-        status: "success",
-        scheme: "App",
-        git_branch: "feature/skipped",
-        git_remote_url_origin: CoverageFixtures.remote_url(),
-        git_commit_sha: "head",
-        ran_at: NaiveDateTime.utc_now(),
-        is_ci: true,
-        test_modules: []
-      })
+      Tests.create_test(
+        Map.merge(
+          %{
+            id: UUIDv7.generate(),
+            project_id: project.id,
+            account_id: account.id,
+            duration: 1,
+            status: "success",
+            scheme: "App",
+            git_branch: "feature/skipped",
+            git_remote_url_origin: CoverageFixtures.remote_url(),
+            git_commit_sha: "head",
+            ran_at: NaiveDateTime.utc_now(),
+            is_ci: true,
+            test_modules: []
+          },
+          attrs
+        )
+      )
 
     selective_testing(project, head, hits)
   end
@@ -1634,6 +1640,63 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "partial", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:target_without_history]
+  end
+
+  test "ignores what selective testing skipped in a run not set up to collect coverage", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests"), test_case("testTrim()", "TextTests")])
+    })
+
+    # Another pipeline's test job on the same commit, without coverage.
+    skipped_head(project, account, [{"AcceptanceTests", :remote}], %{scheme: "Acceptance", coverage_enabled: false})
+
+    assert %{kind: "measured", gap_reasons: 0, skipped_tests_count: 0} = Reported.compute(project, "head")
+  end
+
+  test "still reads what selective testing skipped in a run that didn't say whether it collected coverage", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests"), test_case("testTrim()", "TextTests")])
+    })
+
+    skipped_head(project, account, [{"AcceptanceTests", :remote}], %{scheme: "Acceptance"})
+
+    assert %{kind: "partial"} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:target_without_history]
+  end
+
+  test "carries a scheme skipped whole in a run set up to collect coverage", %{project: project, account: account} do
+    target_only_runs(project, account, head: :none)
+
+    skipped_head(project, account, [{"AppTests", :local, "app"}, {"TextKitTests", :local, "text"}], %{
+      coverage_enabled: true
+    })
+
+    assert %{kind: "reported", skipped_tests_count: 2, carried_tests_count: 2} = Reported.compute(project, "head")
+  end
+
+  test "has no coverage for a commit whose only runs weren't set up to collect it", %{
+    project: project,
+    account: account
+  } do
+    target_only_runs(project, account, head: :none)
+
+    skipped_head(project, account, [{"AppTests", :local, "app"}, {"TextKitTests", :local, "text"}], %{
+      coverage_enabled: false
+    })
+
+    assert Reported.compute(project, "head") == nil
   end
 
   test "takes a skipped target's tests from the run recorded under the hash it was skipped with", %{

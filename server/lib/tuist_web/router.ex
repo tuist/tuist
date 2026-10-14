@@ -722,7 +722,7 @@ defmodule TuistWeb.Router do
 
   scope path: "/api",
         alias: TuistWeb.API,
-        assigns: %{caching: not Tuist.Environment.test?(), cache_ttl: to_timeout(minute: 1)} do
+        assigns: %{auth_cache_default: true, cache_ttl: to_timeout(minute: 1)} do
     pipe_through [:open_api, :authenticated_api, :on_premise_api]
 
     scope "/accounts/:account_handle" do
@@ -970,6 +970,7 @@ defmodule TuistWeb.Router do
 
     scope "/cache" do
       get "/access", CacheController, :access
+      get "/endpoint", CacheController, :endpoint
       get "/endpoints", CacheController, :endpoints
       post "/token", CacheController, :token
       get "/", CacheController, :download
@@ -1032,6 +1033,7 @@ defmodule TuistWeb.Router do
 
     post "/runners/dispatch", RunnersController, :dispatch
     post "/runners/cache-volumes/authorize", RunnerCacheVolumesController, :authorize
+    post "/runners/cache-volumes/authorize-commit", RunnerCacheVolumesController, :authorize
     post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
     post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
     post "/runners/volume-head", RunnersController, :report_volume_head
@@ -1069,6 +1071,7 @@ defmodule TuistWeb.Router do
   scope "/_internal", TuistWeb.Internal do
     pipe_through [:non_authenticated_api]
 
+    post "/kura/activate", KuraActivationController, :create
     post "/kura/usage", KuraUsageController, :create
     post "/kura/mesh/enroll", KuraMeshController, :enroll
     post "/kura/mesh/heartbeat", KuraMeshController, :heartbeat

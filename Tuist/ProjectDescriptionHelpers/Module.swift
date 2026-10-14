@@ -403,7 +403,7 @@ public enum Module: String, CaseIterable {
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .generateCommand,
-             .runCommand, .shareCommand, .inspectCommand, .android, .reapi:
+             .runCommand, .shareCommand, .inspectCommand, .android:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -1656,8 +1656,14 @@ public enum Module: String, CaseIterable {
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
                  .registryCommand, .generateCommand,
-                 .runCommand, .shareCommand, .inspectCommand, .android, .reapi:
+                 .runCommand, .shareCommand, .inspectCommand, .android:
                 []
+            case .reapi:
+                [
+                    .target(name: Module.environmentTesting.targetName),
+                    .external(name: "GRPCCore"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
+                ]
             case .runnerCommand:
                 [
                     .target(name: Module.config.targetName),

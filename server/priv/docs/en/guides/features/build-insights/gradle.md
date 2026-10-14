@@ -33,11 +33,9 @@ The `uploadInBackground` option is available in the `tuist` extension block in `
 
 This setting does not affect remote cache settings in the `buildCache` block.
 
-## Actor attribution {#actor-attribution}
+## Report actor claim {#report-actor-claim}
 
-On CI, automatic detection identifies the runner's OS account (such as `runner` or `root`), not the person who triggered the build. Use an explicit identifier when needed.
-
-The plugin reports the local username from `USER`, `USERNAME`, or `LOGNAME` when available. Set `TUIST_ACTOR_ID` to an opaque organization-wide identifier to override it, or configure `buildInsights.actorId` in your settings. The environment override takes precedence. Set either override to an empty string to omit the reported identifier; this does not remove identity established by individual credentials.
+Build and test report requests include the optional `x-tuist-actor-id` header only when you explicitly set `TUIST_ACTOR_ID` to an organization-scoped label or configure `buildInsights.actorId` in your settings. No label is sent by default, and the plugin does not detect operating-system usernames. The environment override takes precedence. Set either override to an empty string to omit the reported identifier; this does not remove identity established by individual credentials. Invalid overrides omit the claim instead of falling back. If a custom proxy rejects unfamiliar headers, opt out with `TUIST_ACTOR_ID=""`.
 
 ```kotlin
 tuist {

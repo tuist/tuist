@@ -4,7 +4,6 @@ defmodule Tuist.Application do
   use Application
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
-  alias EMCP.SessionStore.ETS, as: SessionStore
   alias Tuist.Application.EndpointDrainer
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
@@ -35,7 +34,6 @@ defmodule Tuist.Application do
   alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
-  alias Tuist.Tests.TestRunChangedFile
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestRunError
   alias Tuist.Tests.TestRunStressCandidate
@@ -56,7 +54,6 @@ defmodule Tuist.Application do
     start_telemetry()
     start_sentry_logger()
     start_loki_logger()
-    SessionStore.init()
 
     application =
       Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)
@@ -348,7 +345,6 @@ defmodule Tuist.Application do
           Supervisor.child_spec(Test.Buffer, id: Test.Buffer),
           Supervisor.child_spec(TestRunDestination.Buffer, id: TestRunDestination.Buffer),
           Supervisor.child_spec(TestRunError.Buffer, id: TestRunError.Buffer),
-          Supervisor.child_spec(TestRunChangedFile.Buffer, id: TestRunChangedFile.Buffer),
           Supervisor.child_spec(TestRunStressCandidate.Buffer, id: TestRunStressCandidate.Buffer),
           Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
           Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
@@ -367,6 +363,8 @@ defmodule Tuist.Application do
           {Finch, name: Tuist.Finch, pools: finch_pools()},
           {Cachex, [:tuist, []]},
           Tuist.Authentication.TokenVerificationCache,
+          Tuist.Authentication.SubjectCache,
+          Tuist.OpenGraphImages,
           TuistWeb.PublicOverviewCache,
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},

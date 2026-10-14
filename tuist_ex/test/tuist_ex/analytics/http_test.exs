@@ -33,6 +33,33 @@ defmodule TuistEx.Analytics.HTTPTest do
              )
   end
 
+  test "build and test reports omit actor headers by default despite operating-system usernames" do
+    environment = fn
+      "TUIST_URL" -> "https://tuist.example"
+      "TUIST_PROJECT" -> "acme/widgets"
+      "USER" -> "developer"
+      "USERNAME" -> "windows-user"
+      "LOGNAME" -> "legacy-user"
+      _ -> nil
+    end
+
+    stub(Auth, :token, fn _ -> {:ok, "existing-token"} end)
+
+    expect(HTTP, :request, 2, fn :post, _url, body, headers ->
+      assert body == %{id: "report-id"}
+      assert headers == [{"authorization", "Bearer existing-token"}]
+      {:ok, 200, %{"id" => "report-id"}}
+    end)
+
+    for suffix <- ["/tests", "/mix/builds"] do
+      assert {:ok, %{"id" => "report-id"}} =
+               AnalyticsHTTP.project_request(:post, suffix, %{id: "report-id"},
+                 environment: environment,
+                 project_config: []
+               )
+    end
+  end
+
   test "surfaces HTTP failures as {:error, {:http, status, body}}" do
     environment = fn
       "TUIST_URL" -> "https://tuist.example"
@@ -70,6 +97,48 @@ defmodule TuistEx.Analytics.HTTPTest do
              AnalyticsHTTP.project_request(:post, "/tests/shards", %{},
                environment: environment,
                actor_id: "developer-123"
+             )
+  end
+
+  test "actor claims never replace missing authentication" do
+    environment = fn
+      "TUIST_URL" -> "https://tuist.example"
+      "TUIST_PROJECT" -> "acme/widgets"
+      "TUIST_ACTOR_ID" -> "employee-123"
+      _ -> nil
+    end
+
+    stub(Auth, :token, fn _ -> {:error, "not authenticated"} end)
+    reject(HTTP, :request, 4)
+
+    assert {:error, "not authenticated"} =
+             AnalyticsHTTP.submit_test_run(%{id: "run-id"}, environment: environment)
+
+    assert {:error, "not authenticated"} =
+             AnalyticsHTTP.submit_mix_build(%{id: "build-id"}, environment: environment)
+  end
+
+  test "reads and uploads omit actor headers and preserve authentication" do
+    environment = fn
+      "TUIST_URL" -> "https://tuist.example"
+      "TUIST_PROJECT" -> "acme/widgets"
+      "TUIST_ACTOR_ID" -> "employee-123"
+      _ -> nil
+    end
+
+    stub(Auth, :token, fn _ -> {:ok, "existing-token"} end)
+
+    expect(HTTP, :request, 2, fn _method, _url, _body, headers ->
+      assert headers == [{"authorization", "Bearer existing-token"}]
+      {:ok, 200, %{}}
+    end)
+
+    assert {:ok, %{}} =
+             AnalyticsHTTP.project_request(:get, "/tests", nil, environment: environment)
+
+    assert {:ok, %{}} =
+             AnalyticsHTTP.project_request(:post, "/tests/coverage/uploads", %{},
+               environment: environment
              )
   end
 

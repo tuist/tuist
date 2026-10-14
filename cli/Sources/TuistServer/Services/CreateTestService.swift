@@ -34,7 +34,8 @@ import TuistHTTP
             skipTestIdentifiers: [String],
             stressNewTests: Components.Schemas.StressNewTestsResult?,
             gitHistory: TestRunGitHistory?,
-            coverageUpload: XcodeCoverageUpload?
+            coverageUpload: XcodeCoverageUpload?,
+            coverageEnabled: Bool?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -58,6 +59,7 @@ import TuistHTTP
         }
     }
 
+    // swiftlint:disable:next type_body_length
     public struct CreateTestService: CreateTestServicing {
         private let fullHandleService: FullHandleServicing
 
@@ -92,7 +94,8 @@ import TuistHTTP
             skipTestIdentifiers: [String],
             stressNewTests: Components.Schemas.StressNewTestsResult? = nil,
             gitHistory: TestRunGitHistory? = nil,
-            coverageUpload: XcodeCoverageUpload? = nil
+            coverageUpload: XcodeCoverageUpload? = nil,
+            coverageEnabled: Bool? = nil
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.reporting(serverURL: serverURL)
             let networkTrusted = try await ServerReportPublishingMode.usesNetworkTrust(serverURL: serverURL)
@@ -296,11 +299,11 @@ import TuistHTTP
                             ci_provider: ciProviderPayload,
                             ci_project_handle: ciProjectHandle,
                             pull_request_number: networkTrusted ? nil : gitHistory?.pullRequestNumber,
+                            coverage_enabled: networkTrusted ? nil : coverageEnabled,
                             stress_new_tests: networkTrusted ? nil : stressNewTests,
                             xcode_coverage_partial: networkTrusted ? nil : coverageUpload?.partial,
                             macos_version: macOSVersion,
                             id: id,
-                            changed_files: networkTrusted ? nil : history.changedFiles,
                             xcode_coverage: networkTrusted ? nil : xcodeCoveragePayload(testSummary.coverage),
                             shard_plan_id: networkTrusted ? nil : shardPlanId,
                             duration: testSummary.duration ?? 0,
@@ -532,25 +535,12 @@ import TuistHTTP
     private struct GitHistoryPayloads {
         typealias Body = Operations.createTest.Input.Body.jsonPayload
 
-        let changedFiles: [Body.changed_filesPayloadPayload]?
         let objectFormat: Body.git_object_formatPayload?
         let source: Body.history_sourcePayload?
 
         init(_ gitHistory: TestRunGitHistory?) {
-            changedFiles = gitHistory.map { history in history.changedFiles.map(Self.changedFile) }
             objectFormat = gitHistory?.objectFormat.flatMap { .init(rawValue: $0) }
             source = gitHistory.map { $0.source == "client" ? .client : .none }
-        }
-
-        private static func changedFile(_ file: TestRunGitHistory.ChangedFile) -> Body.changed_filesPayloadPayload {
-            .init(
-                git_blob_id: file.blobId,
-                hunks: file.hunks.map { Body.changed_filesPayloadPayload.hunksPayloadPayload(end: $0.end, start: $0.start) },
-                path: file.path,
-                previous_path: file.previousPath,
-                status: .init(rawValue: file.status) ?? .modified,
-                truncated: file.truncated
-            )
         }
     }
 #endif

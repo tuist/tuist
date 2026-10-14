@@ -175,15 +175,17 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         }
         var coverageUpload: XcodeCoverageUpload?
         var testRunId: String?
-        if !networkPublishing, let resultBundlePath,
-           let manifest = await coverageManifest(
-               resultBundlePath: resultBundlePath,
-               config: config,
-               rootDirectory: gitInfoDirectory,
-               onlyTestIdentifiers: onlyTestIdentifiers,
-               skipTestIdentifiers: skipTestIdentifiers
-           )
-        {
+        var manifest: XcodeCoverageManifest?
+        if !networkPublishing, let resultBundlePath {
+            manifest = await coverageManifest(
+                resultBundlePath: resultBundlePath,
+                config: config,
+                rootDirectory: gitInfoDirectory,
+                onlyTestIdentifiers: onlyTestIdentifiers,
+                skipTestIdentifiers: skipTestIdentifiers
+            )
+        }
+        if let resultBundlePath, let manifest {
             // The evidence's paths are the compiler's; the manifest is what ties them to the
             // repository, as it does for the coverage itself.
             testSummary = testSummary.applying(
@@ -236,7 +238,10 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             skipTestIdentifiers: networkPublishing ? [] : skipTestIdentifiers,
             stressNewTests: networkPublishing ? nil : stressNewTests,
             gitHistory: gitHistory?.payload,
-            coverageUpload: coverageUpload
+            coverageUpload: coverageUpload,
+            // A run collected coverage when its bundle has some Tuist uploads. Without a bundle
+            // it can't be told.
+            coverageEnabled: networkPublishing ? nil : resultBundlePath.map { _ in manifest != nil }
         )
         if !networkPublishing {
             await gitHistoryService.upload(
@@ -319,13 +324,14 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         // repository files its paths are and which Git blobs they had, so that travels inside the
         // bundle, the way the quarantined tests do.
         let coverageManifestPath = resolvedResultBundlePath.appending(component: XcodeCoverageManifest.fileName)
-        if let manifest = await coverageManifest(
+        let manifest = await coverageManifest(
             resultBundlePath: resolvedResultBundlePath,
             config: config,
             rootDirectory: gitInfoDirectory,
             onlyTestIdentifiers: onlyTestIdentifiers,
             skipTestIdentifiers: skipTestIdentifiers
-        ) {
+        )
+        if let manifest {
             try await fileSystem.writeAsJSON(manifest, at: coverageManifestPath)
         } else if try await fileSystem.exists(coverageManifestPath) {
             // An earlier upload of this bundle wrote one; the server reads coverage from whatever
@@ -400,7 +406,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             skipTestIdentifiers: skipTestIdentifiers,
             stressNewTests: stressNewTests,
             gitHistory: gitHistory?.payload,
-            coverageUpload: nil
+            coverageUpload: nil,
+            coverageEnabled: manifest != nil
         )
         await gitHistoryService.upload(
             gitHistory,

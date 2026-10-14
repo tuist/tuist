@@ -16,6 +16,7 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
           "TUIST_PROJECT" => "acme/widgets",
           "TUIST_NETWORK_TRUSTED_PUBLISHING" => "true",
           "XDG_CONFIG_HOME" => directory,
+          "TUIST_ACTOR_ID" => "developer-123",
           "USER" => "developer-123"
         },
         overrides

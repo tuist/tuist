@@ -12,7 +12,7 @@ This module handles CLI integration with the Tuist Server APIs.
 - Server codebase: `server/AGENTS.md`
 
 ## Invariants
-- `ServerClientActorHeadersMiddleware` sends `x-tuist-actor-id` only on report creation. `TUIST_ACTOR_ID` overrides automatic username detection; an empty/invalid override omits the claim. Claims are unverified, optional, and never replace authentication. Actor API fields are optional and evolving provenance values remain open strings for older-server compatibility.
+- `ServerClientActorHeadersMiddleware` sends `x-tuist-actor-id` only on report creation, requiring explicit `TUIST_ACTOR_ID` or a supplied request header. Never infer operating-system usernames; empty/invalid environment values omit the claim. Identifiers are opaque, unverified, 1–128 bytes of printable non-space ASCII and never replace authentication. Actor API fields are optional and evolving provenance values remain open strings for older-server compatibility. Never attach the claim to cache/read/admin/artifact requests.
 - `Client.reporting` enables absent-credential publication only for structured build/test creates with `TUIST_NETWORK_TRUSTED_PUBLISHING=true` and a validated self-hosted destination. Preserve corrupt/rejected credentials, including refresh rejection outside this mode, so a later opted-in command cannot silently downgrade. Existing credentials and errors must never become anonymous retries; optional cache auth must not suppress report credential errors. File credentials normalize hostname case/trailing dots, retain legacy aliases on reads, and explicit logout removes every matching alias. Directory inspection errors fail closed; fresh login replaces the rejected canonical entry.
 - `TUIST_URL` overrides config URL and must be a valid URL.
 - OAuth client ID defaults to a built-in value if not provided. OAuth app credentials may carry an issuing `oauthClientID`; refresh uses that server-scoped value and preserves it when rotating tokens. Legacy/API-auth credentials remain compatible without this field.
@@ -28,3 +28,5 @@ This module handles CLI integration with the Tuist Server APIs.
   nullable measurements, and map rate limits to AuthorizationThrottledError with
   Retry-After. Noora presentation and project/account resolution belong to the
   runner command module.
+
+- Preserve the deprecated `/api/cache/endpoints` API for older clients. Self-hosted clients use `/api/cache/endpoint` to retrieve one main server-configured URL, without demand or provisioning. Hosted URL derivation in TuistCAS never calls discovery.

@@ -2489,6 +2489,136 @@ seats, suspect the cap rather than reaching for a values change:
 `tuist_runners_fleet_ready_nodes` going to zero, or a RuntimeClass the
 controller cannot read, both degrade it to the byte budget alone.
 
+### Runner jobs waiting for a runner
+
+The same signal as [Runner queue not draining](#runner-queue-not-draining),
+at the threshold customers notice. That rule waits for 30 minutes so it
+only catches stalls. On 2026-10-13 a customer cancelled a macOS job after
+7.5 minutes without a runner, and on 2026-10-05 to 10-09 between 7% and
+20% of customer macOS jobs waited over 10 minutes. None of that reached
+30 minutes.
+
+```promql
+max by (cluster, env, fleet) (
+  tuist_runners_queue_oldest_dispatchable_age_seconds{env="production"}
+) > 300
+```
+
+- Pending period: 10 minutes
+- Severity: warning
+- No `affected_service`: jobs still start, so this is degradation, not an
+  outage, and must not mark the runners component down on the status page.
+- Summary: `Runner fleet {{ $labels.fleet }} in {{ $labels.cluster }}:
+  dispatchable jobs waiting over 5 minutes for 10 minutes (oldest
+  {{ $values.A.Value | humanizeDuration }})`
+
+Jobs from an account at its concurrency limit never count. The gauge
+already drops accounts with no headroom, so a customer queueing past the
+limit they bought reads zero here, as it does for the 30-minute rule. A
+job that had to wait for its account's headroom does count once headroom
+frees and it is still not picked up, which is the fleet's wait, not the
+account's.
+
+It fires when some dispatchable job has been queued over 5 minutes at
+every evaluation for 10 minutes. A single slow cold start usually clears
+that window. Backtested over 2026-09-29 to 10-13 it held for 0 to 16
+minutes on other days and 45 to 170 minutes on 10-01 and 10-05 to 10-09,
+the days customer waits peaked.
+
+The reported age can be far larger than any customer's wait. When a
+runner picks up a different job of the same account than the one it was
+claimed for, the displaced row returns to the queue with its original
+`enqueued_at`, so an account with a deep backlog reports its oldest row
+(hours on 2026-10-13) even though its work is moving. The duration of
+the condition is still meaningful: the row only stays dispatchable while
+no runner is free to claim it. Read the age as "something is waiting",
+and use the jobs view to see who.
+
+When it fires, check [Runner fleet out of macOS capacity](#runner-fleet-out-of-macos-capacity)
+first. If that is not firing, the wait is not a full fleet; work through
+the causes listed under the 30-minute rule.
+
+### Runner fleet out of macOS capacity
+
+Says the cause rather than the symptom: the Scaleway macOS fleet has
+every guest slot running a job and dispatchable work is still queued.
+Adding hosts, or reclaiming slots from our own CI, is the response.
+
+Each Mac host runs at most two guests (Virtualization.framework), so the
+fleet's slots are its advertised memory divided by the 14 GB guest:
+196 GiB, 14 slots, on 2026-10-13. A `-12vcpu-28gb` runner holds two.
+
+```promql
+(
+  sum(max by (pool) (tuist_runners_autoscaler_queued_jobs{cluster="tuist-production", pool=~"tuist-tuist-runner-pool-macos-.*", pool!~".*-ber1-.*"})) > 0
+)
+and
+(
+  (
+    sum(max by (pool) (tuist_runners_autoscaler_occupied_runners{cluster="tuist-production", pool=~"tuist-tuist-runner-pool-macos-.*", pool!~".*-ber1-.*|.*-12vcpu-28gb"}))
+    + 2 * sum(max by (pool) (tuist_runners_autoscaler_occupied_runners{cluster="tuist-production", pool=~"tuist-tuist-runner-pool-macos-.*-12vcpu-28gb", pool!~".*-ber1-.*"}))
+  )
+  / (
+    sum(max by (node) (kube_node_status_allocatable{cluster="tuist-production", node=~"tuist-tuist-runners-fleet-m.*", resource="memory"}))
+    / (14 * 2^30)
+  )
+  >= 0.85
+)
+```
+
+- Pending period: 10 minutes
+- Severity: warning
+- No `affected_service`, for the same reason as the rule above.
+- Summary: `Production macOS runner fleet has {{ $values.A.Value }}
+  dispatchable job(s) queued with at least 85% of its guest slots running
+  jobs for 10 minutes`
+
+The expression aggregates away every label, so the summary cannot
+interpolate `$labels`; its value is the left side, the dispatchable
+queued count.
+
+The queue side is `tuist_runners_autoscaler_queued_jobs`, the server's
+`queued` scaling signal. It is already capped per account at that
+account's concurrency headroom (`Tuist.Runners.dispatchable_queued_count/1`),
+so an account at its limit contributes nothing and cannot fire this. The
+one Pod the autoscaler adds for a pool whose only work is blocked
+(`BlockedDemand`) is not in this series either.
+
+Do not use unschedulable Pods as the capacity signal instead. When the
+fleet is full the allocator clamps each pool's target to what the shape
+can seat, so the waiting pool asks for no more Pods and none go Pending.
+On 2026-10-13 `macos-27-0` held target 8, observed 9, idle 0 for the
+whole episode with no unschedulable Pod of its own.
+
+The occupancy side counts runners holding a slot for real work
+(`occupied`, which includes post-job cache and teardown). Idle warm Pods
+in other pools are excluded on purpose: the allocator reclaims them for
+queued work, so they are not lost capacity. If they are not being
+reclaimed, the rule above fires without this one.
+
+85% rather than 100% because the occupancy gauge trails Pods that are
+booting into a slot; at 14 slots it means at most two free. Backtested
+over 2026-09-29 to 10-13 it held for 37, 39, 8, 8, 39, 106 and 30 minutes
+on 10-01 and 10-05 to 10-09 and 10-13, and 0 to 2 minutes on every other
+day. At 13 of 14 slots it
+missed 10-06 and 10-07 entirely.
+
+The `2 *` term and the `-12vcpu-28gb` regex encode today's only
+double-slot shape. Add any new shape there with its slot count, or the
+rule under-counts occupancy. The rule covers the Scaleway fleet only;
+BER1 is its own capacity domain and needs its own copy over
+`node=~"ber1-runner-.*"` and the `-ber1-` pools once it takes work.
+
+When it fires:
+1. See who holds the slots: open runner sessions grouped by node and
+   account (`runner_sessions` where `ended_at IS NULL` and
+   `platform = 'macos'`). Our own `tuist` account, or a trial account at
+   a generous limit, is a lever we control.
+2. Check whether the queued work is ours. Dispatch is oldest first across
+   accounts in a pool, so a backlog from our own CI wins every slot it
+   frees while it has headroom.
+3. If the fleet is genuinely full of customer work, it needs hosts.
+
 ### Why there is no alert on withheld runner queue depth
 
 `tuist_runners_queue_withheld` is deliberately **not** alerted on, and the
@@ -2716,21 +2846,53 @@ found by hand, from `oban_jobs.attempted_by`.
 ```promql
 count by (cluster, env, queue, node) (
   (
-    time() - max by (cluster, env, queue, node) (
-      tuist_oban_node_last_attempt_timestamp_seconds{
-        cluster="tuist-production",
-        queue=~"process_xcresult|process_build"
-      }
-    ) < 900
+    (
+      time() - max by (cluster, env, queue, node) (
+        tuist_oban_node_last_attempt_timestamp_seconds{
+          cluster="tuist-production",
+          queue=~"process_xcresult|process_build"
+        }
+      ) < 900
+    )
+    unless
+    (
+      time() - max by (cluster, env, queue, node) (
+        tuist_oban_node_last_completion_timestamp_seconds{
+          cluster="tuist-production",
+          queue=~"process_xcresult|process_build"
+        }
+      ) < 900
+    )
   )
-  unless
+  or
   (
-    time() - max by (cluster, env, queue, node) (
-      tuist_oban_node_last_completion_timestamp_seconds{
+    max by (cluster, env, queue, node) (
+      tuist_oban_node_queue_limit{
         cluster="tuist-production",
         queue=~"process_xcresult|process_build"
       }
-    ) < 900
+    )
+    unless on (cluster, env, queue, node)
+    (
+      time() - max by (cluster, env, queue, node) (
+        tuist_oban_node_last_attempt_timestamp_seconds{
+          cluster="tuist-production",
+          queue=~"process_xcresult|process_build"
+        }
+      ) < 900
+    )
+    and on (cluster, env, queue)
+    (
+      min_over_time(
+        max by (cluster, env, queue) (
+          tuist_oban_queue_length_count{
+            cluster="tuist-production",
+            queue=~"process_xcresult|process_build",
+            state="available"
+          }
+        )[15m:1m]
+      ) > 0
+    )
   )
 ) > 0
 ```
@@ -2738,8 +2900,38 @@ count by (cluster, env, queue, node) (
 - Pending period: 20 minutes
 - Keep firing for: 5 minutes
 - Severity: critical
-- Summary: `{{ $labels.node }} has been taking {{ $labels.queue }} jobs
-  without completing any for over 15 minutes`
+- Summary: `{{ $labels.node }} is not completing {{ $labels.queue }} jobs:
+  it either takes work and finishes none, or has stopped taking work
+  while jobs wait`
+
+The expression has two clauses. The first, below, is the original one:
+a node that starts jobs and finishes none. The second covers a node that
+has stopped starting them.
+
+On 2026-10-13 a NIF deadlock (fixed in
+[#14110](https://github.com/tuist/tuist/pull/14110)) retired one
+xcresult processor's slots one at a time until it held all 6 and stopped
+attempting work at all. The first clause requires a recent attempt, so
+it went quiet exactly when the node was fully dead: the node sat at zero
+throughput for over three hours with only the warning-level "losing its
+slots" rule firing. The second clause matches a node that still reports
+its queue limit, so its BEAM is up, has not started a job in 15 minutes,
+and had work `available` to it for the whole of those 15 minutes.
+Replayed against that day it holds continuously from 08:52 UTC, so with
+the pending period it would have paged at about 09:12, twenty minutes
+after the last slot was lost.
+
+"For the whole of those 15 minutes" is what makes the second clause
+safe. With several consumers on a quiet queue, a healthy node can go 15
+minutes without winning a single job, so "work appeared at some point"
+would page on idle peers. Under a sustained backlog every healthy node
+with a free slot takes work within seconds; one that takes nothing for 15
+minutes has no free slot, and no legitimate job holds all of them that
+long. Replayed over the preceding 14 days, including several deploys,
+the only node it ever matched for 20 minutes was the stuck one. The
+subquery is needed because Adaptive Metrics has aggregated `instance`
+and `pod` away on `tuist_oban_*`, so `min_over_time` cannot run on the
+raw selector.
 
 The pending period is 20 minutes rather than 5 because a Pod that is
 being drained satisfies this condition on its way out. It keeps a recent
@@ -2805,9 +2997,10 @@ rather than a firing alert. That gap is deliberately left to the
 `xcresult processor guest metrics unavailable` rules below, which key on
 `up` and already cover it.
 
-15 minutes for the same reason as the queue rule: the NIF's own parse
-deadline is 600s plus a 30s cancellation grace, so a single legitimately
-slow job cannot reach it.
+A single legitimately slow job cannot page: the NIF gives up on a parse
+after at most 960s (600s for the tests, 300s for the coverage and 60s of
+cancellation grace), well inside 15 minutes plus the 20 minute pending
+period.
 
 ### Remote processing consumer is losing its slots
 

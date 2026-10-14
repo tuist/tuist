@@ -35,5 +35,25 @@ compares sustained replication and verifies the retained corpus after handover.
 individual inline fetches and checks the full retained barrier. Its optional
 `KURA_E2E_INLINE_RECORDS` and `KURA_E2E_INLINE_INTERVAL_MS` extend the same workload
 for sequential resource comparisons; failed runs retain measurements and logs.
+`KURA_E2E_AUTHORITY_STANDBY_IMAGE` exercises adjacent-version batch negotiation.
+`resume.mjs` interrupts the local authority API, holds an admitted upload across
+expiry and supplies explicit fencing/resumption grants; it verifies drained
+publication, recovery when a replacement grant arrives after expiry, retained
+reads, persistent-channel writes and dirty-restart refusal.
+It is still a simulator. `client.mjs api-recovery` exercises the real controller
+with the isolated pod's API-partition policy, requiring the same incarnation,
+one new epoch and absence of the rejected upload after API access returns.
 Run-specific manifests, keys, logs and results belong in a temporary output
 directory, never in the repository. Remove only resources created by the fixture.
+
+The pressure case restores free space and repeats handover on the same standby
+incarnation. Preserve this no-restart check: restarting could mask missing
+retained records behind a new bootstrap rather than testing named repair.
+Its source has a 3 GiB ring and the destination a 4 GiB ring in a bounded 6 GiB
+tmpfs, initially pressured with a 2.25 GiB filler. Restoring free bytes alone
+does not guarantee that equal-sized fragmented rings can converge; the extra
+destination capacity makes the successful recovery case explicit without
+bypassing the production capacity guard.
+Capture the expected pressure corpus only after both receipts exist, while the
+source hold prevents read-time promotion and eviction. A pre-hold walk of a full
+ring can evict records it counted earlier and is not the retained barrier.

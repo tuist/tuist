@@ -88,6 +88,7 @@ defmodule Tuist.Tests.Test do
     field :shard_plan_id, Ch, type: "Nullable(UUID)"
     field :only_test_identifiers, Ch, type: "Array(String)", default: []
     field :skip_test_identifiers, Ch, type: "Array(String)", default: []
+    field :coverage_enabled, Ch, type: "Nullable(Bool)"
     field :stress_mode, Ch, type: "LowCardinality(String)", default: ""
     field :stress_outcome, Ch, type: "LowCardinality(String)", default: ""
     field :stress_skip_reason, Ch, type: "LowCardinality(String)", default: ""
@@ -151,6 +152,7 @@ defmodule Tuist.Tests.Test do
       :shard_plan_id,
       :only_test_identifiers,
       :skip_test_identifiers,
+      :coverage_enabled,
       :stress_mode,
       :stress_outcome,
       :stress_skip_reason,

@@ -8,14 +8,8 @@ defmodule TuistEx.Analytics.Actor do
 
     value =
       with nil <- environment.("TUIST_ACTOR_ID"),
-           nil <- Keyword.get(options, :actor_id),
-           nil <- Keyword.get(Config.project_tuist_config(options), :actor_id) do
-        Enum.find_value(~w(USER USERNAME LOGNAME), fn key ->
-          case environment.(key) do
-            "" -> nil
-            value -> value
-          end
-        end)
+           nil <- Keyword.get(options, :actor_id) do
+        Keyword.get(Config.project_tuist_config(options), :actor_id)
       end
 
     if is_binary(value) and byte_size(value) in 1..128 and String.valid?(value) and

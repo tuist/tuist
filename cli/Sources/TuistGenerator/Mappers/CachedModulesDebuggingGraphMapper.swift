@@ -281,6 +281,13 @@ private struct CacheDebuggerSettingsRenderer {
         var lines: [String] = []
         if let originalLLDBInitFile {
             lines.append("command source -s 0 \(lldbQuoted(originalLLDBInitFile.pathString))")
+        } else {
+            // Xcode skips its user initializer when a scheme supplies a custom one.
+            // Check at debugger startup, not generation, since this file can be shared.
+            lines.append(
+                #"script import os; p = os.path.expanduser("~/.lldbinit-Xcode"); p = p if os.path.isfile(p) else os.path.expanduser("~/.lldbinit"); "# +
+                    homeInitializerScript
+            )
         }
         if !frameworkSearchPaths.isEmpty || !moduleSearchPaths.isEmpty {
             lines.append(lldbSetting("target.swift-framework-search-paths", values: frameworkSearchPaths.map(\.pathString)))
@@ -288,6 +295,21 @@ private struct CacheDebuggerSettingsRenderer {
             lines.append("settings set symbols.use-swift-explicit-module-loader false")
         }
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    private var homeInitializerScript: String {
+        [
+            "_tuist_init_options = lldb.SBCommandInterpreterRunOptions();",
+            "_tuist_init_options.SetEchoCommands(False);",
+            "_tuist_init_options.SetPrintResults(True);",
+            "_tuist_init_options.SetPrintErrors(True);",
+            "_tuist_init_options.SetStopOnError(False);",
+            "_tuist_init_options.SetStopOnContinue(True);",
+            "_tuist_init_options.SetAddToHistory(False);",
+            "lldb.debugger.GetCommandInterpreter().HandleCommandsFromFile("
+                + "lldb.SBFileSpec(p), lldb.SBExecutionContext(), _tuist_init_options, lldb.SBCommandReturnObject()) "
+                + "if os.path.isfile(p) else None",
+        ].joined(separator: " ")
     }
 
     private func lldbSetting(_ setting: String, values: [String]) -> String {
@@ -325,7 +347,18 @@ private struct CacheDebuggerSettingsRenderer {
         let sourceOriginal = originalLLDBInitFile.map {
             "lldb_setting command-source \(shellQuoted($0.pathString))"
         } ?? ""
+        let sourceHome = originalLLDBInitFile == nil ? """
+        if [ -n "${HOME:-}" ]; then
+          if [ -f "$HOME/.lldbinit-Xcode" ]; then
+            lldb_setting command-source-home "$HOME/.lldbinit-Xcode"
+          elif [ -f "$HOME/.lldbinit" ]; then
+            lldb_setting command-source-home "$HOME/.lldbinit"
+          fi
+        fi
+        """ : ""
 
+        // Replace home-file and stale source maps, but let an explicit initializer extend or override the map.
+        // Resolve it separately so an unreadable prefix map still leaves the user initializer sourced.
         return """
         set -eu
 
@@ -344,6 +377,10 @@ private struct CacheDebuggerSettingsRenderer {
             printf 'command source -s 0 "%s"\\n' "$(lldb_escape "$1")"
             return
           fi
+          if [ "$setting" = "command-source-home" ]; then
+            printf 'script import os; p = "%s"; \(homeInitializerScript)\\n' "$(lldb_escape "$1")"
+            return
+          fi
           printf 'settings set %s' "$setting"
           for value in "$@"; do
             printf ' "%s"' "$(lldb_escape "$value")"
@@ -355,13 +392,18 @@ private struct CacheDebuggerSettingsRenderer {
           printf '%s' "$1" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g'
         }
 
+        source_map_file="$(mktemp "$lldb_init_file.XXXXXX")"
+        trap 'rm -f "$source_map_file"' EXIT
+        source_map_status=0
+        \(sourceMappingScript)
+
         {
-          :
+          \(sourceHome)
+          cat "$source_map_file"
           \(sourceOriginal)
           \(moduleSettings)
         } > "$lldb_init_file"
-
-        \(sourceMappingScript)
+        exit "$source_map_status"
         """
     }
 
@@ -421,7 +463,7 @@ private struct CacheDebuggerSettingsRenderer {
     /// Reads the build system's evaluated mappings without reparsing characters introduced by macro expansion.
     private var sourceMappingScript: String {
         #"""
-        /usr/bin/python3 - "$lldb_init_file" <<'TUIST_SOURCE_MAP'
+        /usr/bin/python3 - "$source_map_file" <<'TUIST_SOURCE_MAP' || source_map_status=$?
         import json
         import os
         import sys
@@ -457,10 +499,22 @@ private struct CacheDebuggerSettingsRenderer {
         def lldb_quoted(value):
             return '"' + value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r") + '"'
 
+        # LLDB maps a breakpoint's path back through the first entry whose directory contains it, but the
+        # compilers record the most specific directory and, for the same directory, the mapping Xcode passes
+        # last: the SDK mappings, then the project ones, then `*_OTHER_PREFIX_MAPPINGS` such as `/^root`.
+        xcode_aliases = ["/^sdk", "/^toolchain", "/^xcode", "/^src", "/^derived", "/^built", "/^workspace"]
+
+        def compiler_precedence(mapping):
+            alias, path = mapping
+            passed_later = xcode_aliases.index(alias) if alias in xcode_aliases else len(xcode_aliases)
+            return (-len(path.rstrip("/")), -passed_later, alias)
+
         if mappings:
-            arguments = " ".join(lldb_quoted(value) for mapping in sorted(mappings.items(), reverse=True) for value in mapping)
-            with open(sys.argv[1], "a", encoding="utf-8") as output:
-                output.write("settings append target.source-map " + arguments + "\n")
+            arguments = " ".join(lldb_quoted(value) for mapping in sorted(mappings.items(), key=compiler_precedence) for value in mapping)
+            # Xcode keeps one LLDB process across runs and sources this file into its global settings, so
+            # appending would leave earlier runs' entries, including other checkouts', ahead of these.
+            with open(sys.argv[1], "w", encoding="utf-8") as output:
+                output.write("settings set target.source-map " + arguments + "\n")
         TUIST_SOURCE_MAP
         """#
     }

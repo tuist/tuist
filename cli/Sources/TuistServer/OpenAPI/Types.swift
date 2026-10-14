@@ -41,10 +41,11 @@ public protocol APIProtocol: Sendable {
     func createCoverageUpload(_ input: Operations.createCoverageUpload.Input) async throws -> Operations.createCoverageUpload.Output
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account.
+    /// Deprecated for new clients. Hosted clients derive stable cache URLs locally. Self-hosted clients use GET /api/cache/endpoint to discover their main cache URL. This route retains legacy endpoint selection and provisioning behavior.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
+    @available(*, deprecated)
     func getCacheEndpoints(_ input: Operations.getCacheEndpoints.Input) async throws -> Operations.getCacheEndpoints.Output
     /// Get a runner job.
     ///
@@ -139,6 +140,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/post(createTest)`.
     func createTest(_ input: Operations.createTest.Input) async throws -> Operations.createTest.Output
+    /// Get the main self-hosted cache endpoint.
+    ///
+    /// Returns one server-configured cache URL, or null when none is configured. The first configured URL is the main endpoint. This operation never records demand or provisions capacity. Tuist-hosted clients derive their stable hostname locally and do not call this operation.
+    ///
+    /// - Remark: HTTP `GET /api/cache/endpoint`.
+    /// - Remark: Generated from `#/paths//api/cache/endpoint/get(getCacheEndpoint)`.
+    func getCacheEndpoint(_ input: Operations.getCacheEndpoint.Input) async throws -> Operations.getCacheEndpoint.Output
     /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
     ///
     /// Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
@@ -1093,10 +1101,11 @@ extension APIProtocol {
     }
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account.
+    /// Deprecated for new clients. Hosted clients derive stable cache URLs locally. Self-hosted clients use GET /api/cache/endpoint to discover their main cache URL. This route retains legacy endpoint selection and provisioning behavior.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
+    @available(*, deprecated)
     public func getCacheEndpoints(
         query: Operations.getCacheEndpoints.Input.Query = .init(),
         headers: Operations.getCacheEndpoints.Input.Headers = .init()
@@ -1328,6 +1337,15 @@ extension APIProtocol {
             headers: headers,
             body: body
         ))
+    }
+    /// Get the main self-hosted cache endpoint.
+    ///
+    /// Returns one server-configured cache URL, or null when none is configured. The first configured URL is the main endpoint. This operation never records demand or provisions capacity. Tuist-hosted clients derive their stable hostname locally and do not call this operation.
+    ///
+    /// - Remark: HTTP `GET /api/cache/endpoint`.
+    /// - Remark: Generated from `#/paths//api/cache/endpoint/get(getCacheEndpoint)`.
+    public func getCacheEndpoint(headers: Operations.getCacheEndpoint.Input.Headers = .init()) async throws -> Operations.getCacheEndpoint.Output {
+        try await getCacheEndpoint(Operations.getCacheEndpoint.Input(headers: headers))
     }
     /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
     ///
@@ -3839,14 +3857,14 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/git_dirty`.
             public var git_dirty: Swift.Bool?
-            /// Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+            /// Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/history_source`.
             @frozen public enum history_sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case client = "client"
                 case none = "none"
             }
-            /// Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+            /// Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/history_source`.
             public var history_source: Components.Schemas.TestParams.history_sourcePayload?
@@ -3903,6 +3921,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/gradle_build_id`.
             public var gradle_build_id: Swift.String?
+            /// Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/coverage_enabled`.
+            public var coverage_enabled: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/TestParams/stress_new_tests`.
             public var stress_new_tests: Components.Schemas.StressNewTestsResult?
             /// With `xcode_coverage_storage_key`: whether the run left tests out on purpose.
@@ -3921,105 +3943,6 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/id`.
             public var id: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload`.
-            public struct changed_filesPayloadPayload: Codable, Hashable, Sendable {
-                /// The file's Git blob at the head; absent for a deleted file.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/git_blob_id`.
-                public var git_blob_id: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/hunksPayload`.
-                public struct hunksPayloadPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/hunksPayload/end`.
-                    public var end: Swift.Int
-                    /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/hunksPayload/start`.
-                    public var start: Swift.Int
-                    /// Creates a new `hunksPayloadPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - end:
-                    ///   - start:
-                    public init(
-                        end: Swift.Int,
-                        start: Swift.Int
-                    ) {
-                        self.end = end
-                        self.start = start
-                    }
-                    public enum CodingKeys: String, CodingKey {
-                        case end
-                        case start
-                    }
-                }
-                /// The changed line ranges in the file at the head, inclusive.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/hunks`.
-                public typealias hunksPayload = [Components.Schemas.TestParams.changed_filesPayloadPayload.hunksPayloadPayload]
-                /// The changed line ranges in the file at the head, inclusive.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/hunks`.
-                public var hunks: Components.Schemas.TestParams.changed_filesPayloadPayload.hunksPayload?
-                /// The path at the head, relative to the repository root.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/path`.
-                public var path: Swift.String
-                /// The path before a rename.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/previous_path`.
-                public var previous_path: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/status`.
-                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case added = "added"
-                    case modified = "modified"
-                    case deleted = "deleted"
-                    case renamed = "renamed"
-                }
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/status`.
-                public var status: Components.Schemas.TestParams.changed_filesPayloadPayload.statusPayload
-                /// Whether the client stopped listing this file's hunks because the diff exceeded its limits.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/changed_filesPayload/truncated`.
-                public var truncated: Swift.Bool?
-                /// Creates a new `changed_filesPayloadPayload`.
-                ///
-                /// - Parameters:
-                ///   - git_blob_id: The file's Git blob at the head; absent for a deleted file.
-                ///   - hunks: The changed line ranges in the file at the head, inclusive.
-                ///   - path: The path at the head, relative to the repository root.
-                ///   - previous_path: The path before a rename.
-                ///   - status:
-                ///   - truncated: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
-                public init(
-                    git_blob_id: Swift.String? = nil,
-                    hunks: Components.Schemas.TestParams.changed_filesPayloadPayload.hunksPayload? = nil,
-                    path: Swift.String,
-                    previous_path: Swift.String? = nil,
-                    status: Components.Schemas.TestParams.changed_filesPayloadPayload.statusPayload,
-                    truncated: Swift.Bool? = nil
-                ) {
-                    self.git_blob_id = git_blob_id
-                    self.hunks = hunks
-                    self.path = path
-                    self.previous_path = previous_path
-                    self.status = status
-                    self.truncated = truncated
-                }
-                public enum CodingKeys: String, CodingKey {
-                    case git_blob_id
-                    case hunks
-                    case path
-                    case previous_path
-                    case status
-                    case truncated
-                }
-            }
-            /// The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/changed_files`.
-            public typealias changed_filesPayload = [Components.Schemas.TestParams.changed_filesPayloadPayload]
-            /// The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestParams/changed_files`.
-            public var changed_files: Components.Schemas.TestParams.changed_filesPayload?
             /// - Remark: Generated from `#/components/schemas/TestParams/xcode_coverage`.
             public var xcode_coverage: Components.Schemas.XcodeCoverage?
             /// The shard plan ID if this test run is part of a sharded execution.
@@ -4607,7 +4530,7 @@ public enum Components {
             ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
             ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
             ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
-            ///   - history_source: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+            ///   - history_source: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
             ///   - coverage:
             ///   - build_run_id: The UUID of an associated build run.
             ///   - skip_test_identifiers: The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran.
@@ -4619,12 +4542,12 @@ public enum Components {
             ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
             ///   - pull_request_number: The pull or merge request number, when known.
             ///   - gradle_build_id: The UUID of an associated Gradle build.
+            ///   - coverage_enabled: Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
             ///   - stress_new_tests:
             ///   - xcode_coverage_partial: With `xcode_coverage_storage_key`: whether the run left tests out on purpose.
             ///   - macos_version: The version of macOS used during the run.
             ///   - ran_at: ISO 8601 timestamp for when the test run started.
             ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
-            ///   - changed_files: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
             ///   - xcode_coverage:
             ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
             ///   - contract_version: Version of the client-server analytics contract the caller was built against (e.g. "0.1"). Older clients may omit it; the server accepts unknown values.
@@ -4662,12 +4585,12 @@ public enum Components {
                 ci_project_handle: Swift.String? = nil,
                 pull_request_number: Swift.Int? = nil,
                 gradle_build_id: Swift.String? = nil,
+                coverage_enabled: Swift.Bool? = nil,
                 stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                 xcode_coverage_partial: Swift.Bool? = nil,
                 macos_version: Swift.String? = nil,
                 ran_at: Foundation.Date? = nil,
                 id: Swift.String? = nil,
-                changed_files: Components.Schemas.TestParams.changed_filesPayload? = nil,
                 xcode_coverage: Components.Schemas.XcodeCoverage? = nil,
                 shard_plan_id: Swift.String? = nil,
                 contract_version: Swift.String? = nil,
@@ -4705,12 +4628,12 @@ public enum Components {
                 self.ci_project_handle = ci_project_handle
                 self.pull_request_number = pull_request_number
                 self.gradle_build_id = gradle_build_id
+                self.coverage_enabled = coverage_enabled
                 self.stress_new_tests = stress_new_tests
                 self.xcode_coverage_partial = xcode_coverage_partial
                 self.macos_version = macos_version
                 self.ran_at = ran_at
                 self.id = id
-                self.changed_files = changed_files
                 self.xcode_coverage = xcode_coverage
                 self.shard_plan_id = shard_plan_id
                 self.contract_version = contract_version
@@ -4749,12 +4672,12 @@ public enum Components {
                 case ci_project_handle
                 case pull_request_number
                 case gradle_build_id
+                case coverage_enabled
                 case stress_new_tests
                 case xcode_coverage_partial
                 case macos_version
                 case ran_at
                 case id
-                case changed_files
                 case xcode_coverage
                 case shard_plan_id
                 case contract_version
@@ -10685,6 +10608,21 @@ public enum Components {
                 case repository_url
                 case token
                 case visibility
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/CacheEndpoint`.
+        public struct CacheEndpoint: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CacheEndpoint/endpoint`.
+            public var endpoint: Swift.String?
+            /// Creates a new `CacheEndpoint`.
+            ///
+            /// - Parameters:
+            ///   - endpoint:
+            public init(endpoint: Swift.String? = nil) {
+                self.endpoint = endpoint
+            }
+            public enum CodingKeys: String, CodingKey {
+                case endpoint
             }
         }
         /// - Remark: Generated from `#/components/schemas/RunnerWorkflow`.
@@ -21819,7 +21757,7 @@ public enum Operations {
     }
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account.
+    /// Deprecated for new clients. Hosted clients derive stable cache URLs locally. Self-hosted clients use GET /api/cache/endpoint to discover their main cache URL. This route retains legacy endpoint selection and provisioning behavior.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -28446,14 +28384,14 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_dirty`.
                     public var git_dirty: Swift.Bool?
-                    /// Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+                    /// Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/history_source`.
                     @frozen public enum history_sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case client = "client"
                         case none = "none"
                     }
-                    /// Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+                    /// Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/history_source`.
                     public var history_source: Operations.createTest.Input.Body.jsonPayload.history_sourcePayload?
@@ -28510,6 +28448,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/gradle_build_id`.
                     public var gradle_build_id: Swift.String?
+                    /// Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_enabled`.
+                    public var coverage_enabled: Swift.Bool?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/stress_new_tests`.
                     public var stress_new_tests: Components.Schemas.StressNewTestsResult?
                     /// With `xcode_coverage_storage_key`: whether the run left tests out on purpose.
@@ -28528,105 +28470,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/id`.
                     public var id: Swift.String?
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload`.
-                    public struct changed_filesPayloadPayload: Codable, Hashable, Sendable {
-                        /// The file's Git blob at the head; absent for a deleted file.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/git_blob_id`.
-                        public var git_blob_id: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/hunksPayload`.
-                        public struct hunksPayloadPayload: Codable, Hashable, Sendable {
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/hunksPayload/end`.
-                            public var end: Swift.Int
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/hunksPayload/start`.
-                            public var start: Swift.Int
-                            /// Creates a new `hunksPayloadPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - end:
-                            ///   - start:
-                            public init(
-                                end: Swift.Int,
-                                start: Swift.Int
-                            ) {
-                                self.end = end
-                                self.start = start
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case end
-                                case start
-                            }
-                        }
-                        /// The changed line ranges in the file at the head, inclusive.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/hunks`.
-                        public typealias hunksPayload = [Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.hunksPayloadPayload]
-                        /// The changed line ranges in the file at the head, inclusive.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/hunks`.
-                        public var hunks: Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.hunksPayload?
-                        /// The path at the head, relative to the repository root.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/path`.
-                        public var path: Swift.String
-                        /// The path before a rename.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/previous_path`.
-                        public var previous_path: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/status`.
-                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                            case added = "added"
-                            case modified = "modified"
-                            case deleted = "deleted"
-                            case renamed = "renamed"
-                        }
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/status`.
-                        public var status: Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.statusPayload
-                        /// Whether the client stopped listing this file's hunks because the diff exceeded its limits.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_filesPayload/truncated`.
-                        public var truncated: Swift.Bool?
-                        /// Creates a new `changed_filesPayloadPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - git_blob_id: The file's Git blob at the head; absent for a deleted file.
-                        ///   - hunks: The changed line ranges in the file at the head, inclusive.
-                        ///   - path: The path at the head, relative to the repository root.
-                        ///   - previous_path: The path before a rename.
-                        ///   - status:
-                        ///   - truncated: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
-                        public init(
-                            git_blob_id: Swift.String? = nil,
-                            hunks: Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.hunksPayload? = nil,
-                            path: Swift.String,
-                            previous_path: Swift.String? = nil,
-                            status: Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload.statusPayload,
-                            truncated: Swift.Bool? = nil
-                        ) {
-                            self.git_blob_id = git_blob_id
-                            self.hunks = hunks
-                            self.path = path
-                            self.previous_path = previous_path
-                            self.status = status
-                            self.truncated = truncated
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case git_blob_id
-                            case hunks
-                            case path
-                            case previous_path
-                            case status
-                            case truncated
-                        }
-                    }
-                    /// The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_files`.
-                    public typealias changed_filesPayload = [Operations.createTest.Input.Body.jsonPayload.changed_filesPayloadPayload]
-                    /// The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/changed_files`.
-                    public var changed_files: Operations.createTest.Input.Body.jsonPayload.changed_filesPayload?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_coverage`.
                     public var xcode_coverage: Components.Schemas.XcodeCoverage?
                     /// The shard plan ID if this test run is part of a sharded execution.
@@ -29214,7 +29057,7 @@ public enum Operations {
                     ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
                     ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
                     ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
-                    ///   - history_source: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+                    ///   - history_source: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                     ///   - coverage:
                     ///   - build_run_id: The UUID of an associated build run.
                     ///   - skip_test_identifiers: The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran.
@@ -29226,12 +29069,12 @@ public enum Operations {
                     ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
                     ///   - pull_request_number: The pull or merge request number, when known.
                     ///   - gradle_build_id: The UUID of an associated Gradle build.
+                    ///   - coverage_enabled: Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
                     ///   - stress_new_tests:
                     ///   - xcode_coverage_partial: With `xcode_coverage_storage_key`: whether the run left tests out on purpose.
                     ///   - macos_version: The version of macOS used during the run.
                     ///   - ran_at: ISO 8601 timestamp for when the test run started.
                     ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
-                    ///   - changed_files: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
                     ///   - xcode_coverage:
                     ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
                     ///   - contract_version: Version of the client-server analytics contract the caller was built against (e.g. "0.1"). Older clients may omit it; the server accepts unknown values.
@@ -29269,12 +29112,12 @@ public enum Operations {
                         ci_project_handle: Swift.String? = nil,
                         pull_request_number: Swift.Int? = nil,
                         gradle_build_id: Swift.String? = nil,
+                        coverage_enabled: Swift.Bool? = nil,
                         stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                         xcode_coverage_partial: Swift.Bool? = nil,
                         macos_version: Swift.String? = nil,
                         ran_at: Foundation.Date? = nil,
                         id: Swift.String? = nil,
-                        changed_files: Operations.createTest.Input.Body.jsonPayload.changed_filesPayload? = nil,
                         xcode_coverage: Components.Schemas.XcodeCoverage? = nil,
                         shard_plan_id: Swift.String? = nil,
                         contract_version: Swift.String? = nil,
@@ -29312,12 +29155,12 @@ public enum Operations {
                         self.ci_project_handle = ci_project_handle
                         self.pull_request_number = pull_request_number
                         self.gradle_build_id = gradle_build_id
+                        self.coverage_enabled = coverage_enabled
                         self.stress_new_tests = stress_new_tests
                         self.xcode_coverage_partial = xcode_coverage_partial
                         self.macos_version = macos_version
                         self.ran_at = ran_at
                         self.id = id
-                        self.changed_files = changed_files
                         self.xcode_coverage = xcode_coverage
                         self.shard_plan_id = shard_plan_id
                         self.contract_version = contract_version
@@ -29356,12 +29199,12 @@ public enum Operations {
                         case ci_project_handle
                         case pull_request_number
                         case gradle_build_id
+                        case coverage_enabled
                         case stress_new_tests
                         case xcode_coverage_partial
                         case macos_version
                         case ran_at
                         case id
-                        case changed_files
                         case xcode_coverage
                         case shard_plan_id
                         case contract_version
@@ -29776,6 +29619,154 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get the main self-hosted cache endpoint.
+    ///
+    /// Returns one server-configured cache URL, or null when none is configured. The first configured URL is the main endpoint. This operation never records demand or provisions capacity. Tuist-hosted clients derive their stable hostname locally and do not call this operation.
+    ///
+    /// - Remark: HTTP `GET /api/cache/endpoint`.
+    /// - Remark: Generated from `#/paths//api/cache/endpoint/get(getCacheEndpoint)`.
+    public enum getCacheEndpoint {
+        public static let id: Swift.String = "getCacheEndpoint"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/cache/endpoint/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheEndpoint.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheEndpoint.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getCacheEndpoint.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.getCacheEndpoint.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/endpoint/GET/responses/200/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// How long the endpoint configuration can be cached.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/endpoint/GET/responses/200/headers/cache-control`.
+                    public var cache_hyphen_control: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - cache_hyphen_control: How long the endpoint configuration can be cached.
+                    public init(cache_hyphen_control: Swift.String? = nil) {
+                        self.cache_hyphen_control = cache_hyphen_control
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCacheEndpoint.Output.Ok.Headers
+                /// - Remark: Generated from `#/paths/api/cache/endpoint/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/endpoint/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/cache/endpoint/GET/responses/200/content/json/endpoint`.
+                        public var endpoint: Swift.String?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - endpoint:
+                        public init(endpoint: Swift.String? = nil) {
+                            self.endpoint = endpoint
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case endpoint
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/cache/endpoint/GET/responses/200/content/application\/json`.
+                    case json(Operations.getCacheEndpoint.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getCacheEndpoint.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheEndpoint.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getCacheEndpoint.Output.Ok.Headers = .init(),
+                    body: Operations.getCacheEndpoint.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// Main cache endpoint
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/endpoint/get(getCacheEndpoint)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getCacheEndpoint.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getCacheEndpoint.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
                             response: self
                         )
                     }

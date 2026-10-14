@@ -336,7 +336,7 @@ open class StressNewTestsExtension {
 }
 
 /**
- * Configuration for build insight tags and key-value metadata.
+ * Configuration for build insight tags, key-value metadata, and the shared build/test actor claim.
  */
 open class BuildInsightsExtension {
     var actorId: String? = null

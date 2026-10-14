@@ -5,9 +5,10 @@ defmodule TuistEx.Analytics.ActorTest do
 
   defp options(env), do: [environment: &Map.get(env, &1), project_config: []]
 
-  test "automatically reports an environment user with an explicit override and opt-out" do
-    assert Actor.identifier(options(%{"USER" => "developer"})) == "developer"
-    assert Actor.identifier(options(%{"USERNAME" => "windows-user"})) == "windows-user"
+  test "requires an explicit actor and supports override and opt-out" do
+    assert Actor.headers(options(%{"USER" => "developer"})) == []
+    assert Actor.headers(options(%{"USERNAME" => "windows-user"})) == []
+    assert Actor.headers(options(%{"LOGNAME" => "legacy-user"})) == []
 
     assert Actor.identifier(options(%{"USER" => "developer", "TUIST_ACTOR_ID" => "employee-123"})) ==
              "employee-123"
@@ -15,7 +16,7 @@ defmodule TuistEx.Analytics.ActorTest do
     assert Actor.identifier(options(%{"USER" => "developer", "TUIST_ACTOR_ID" => ""})) == nil
   end
 
-  test "environment overrides runtime options, which override project config and automatic detection" do
+  test "environment overrides runtime options, which override project config" do
     options = [
       environment: &Map.get(%{"USER" => "developer"}, &1),
       actor_id: "runtime",

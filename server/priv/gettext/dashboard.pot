@@ -330,7 +330,7 @@ msgstr ""
 msgid "Tests"
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:55
+#: lib/tuist_web/plugs/loader_plug.ex:57
 #, elixir-autogen, elixir-format
 msgid "The account %{account_handle} was not found."
 msgstr ""
@@ -359,18 +359,18 @@ msgstr ""
 
 #: lib/tuist_web/controllers/api/analytics_controller.ex:599
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:36
-#: lib/tuist_web/plugs/loader_plug.ex:131
+#: lib/tuist_web/plugs/loader_plug.ex:138
 #, elixir-autogen, elixir-format
 msgid "The project %{project_slug} was not found."
 msgstr ""
 
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:45
-#: lib/tuist_web/plugs/loader_plug.ex:135
+#: lib/tuist_web/plugs/loader_plug.ex:142
 #, elixir-autogen, elixir-format
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:98
+#: lib/tuist_web/plugs/loader_plug.ex:100
 #, elixir-autogen, elixir-format
 msgid "The run with ID %{run_id} was not found."
 msgstr ""
@@ -2620,7 +2620,7 @@ msgstr ""
 msgid "503"
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:108
+#: lib/tuist_web/plugs/loader_plug.ex:110
 #, elixir-autogen, elixir-format
 msgid "Run analytics are temporarily unavailable. Please try again in a moment."
 msgstr ""

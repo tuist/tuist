@@ -57,7 +57,8 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         // compiles unmapped: `SWIFT_ENABLE_PREFIX_MAPPING` and
         // `CLANG_ENABLE_PREFIX_MAPPING` gate every other mapping, and they resolve
         // through `CLANG_COVERAGE_MAPPING`, which Xcode turns on for test actions
-        // that gather coverage.
+        // that gather coverage. Teams that remap coverage themselves (for example,
+        // with llvm-cov) can explicitly keep those builds path-independent.
         if await Self.isPrefixMappingSupported() {
             baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
             // A shared source namespace can opt out of per-project /^src aliases.
@@ -68,7 +69,8 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                 baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] ?? "YES"
             baseSettings["\(Self.prefixMappingForCoverageSetting)_"] = "YES"
             baseSettings["\(Self.prefixMappingForCoverageSetting)_NO"] = "YES"
-            baseSettings["\(Self.prefixMappingForCoverageSetting)_YES"] = "NO"
+            baseSettings["\(Self.prefixMappingForCoverageSetting)_YES"] =
+                tuist.project.generatedProject?.generationOptions.enableCoveragePrefixMapping == true ? "YES" : "NO"
         }
 
         var casPluginOptions: [String] = []

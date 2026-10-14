@@ -8,7 +8,12 @@ This module contains the Kubernetes controller that reconciles Kura account endp
   detection never resets an activated StatefulSet. Legacy instances keep their
   existing automatic stale-storage recreation, including colocated host loss.
   Missing authority probes never renew or revoke a still-valid grant; expiry
-  or explicit refusal requires fencing. Validate recovery before reserving the
+  or explicit refusal requires fencing. Same-process resumption needs the exact
+  holder's fresh Fencing
+  observation, publication-fencing epoch and zero mutations; issue a new epoch
+  only to that holder. Never infer acknowledgment from expiry, readiness or a
+  restarted pod. Current operator promotion and interrupted handover retain the
+  external recovery path. Validate recovery before reserving the
   rebuild slot, and journal a PodGC replacement UID before deleting it. Persist immutable recovery
   identities, retain the healthy sibling, quarantine the failed PV, and preserve
   `OnDelete`/rollback-floor holds across every maintenance path.
@@ -187,3 +192,7 @@ references after deletion and rejects reusing them for days. Adopt both legacy
 and suffixed checks by box identity, keep the same reference across ambiguous
 create retries and stale lists after success. Release the reference after
 confirmed collection, or rotate it after a definite AlreadyExists response.
+
+## Shared cold activation
+
+The controller image also packages the stateless `cmd/cache-activation` gateway, deployed separately with no Kubernetes credentials or volumes. See [`internal/activation/AGENTS.md`](internal/activation/AGENTS.md) for its security and streaming boundaries and [`activation.md`](activation.md) for the disabled-by-default rollout.
