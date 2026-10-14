@@ -20,5 +20,8 @@ This module provides low-level helpers and shared infrastructure used across the
 - Status output is best-effort: write errors, including a revoked terminal, must not change command results or exit status.
 - Handled cancellation reports `idle`. Tuist intentionally does not install signal handlers for status reporting: Ctrl-C retains its existing process-group and termination semantics, and relies on terminal-side cleanup at process exit or the next shell prompt.
 
+- Automatic package-manifest filtering removes recognized execution identities and Tuist cache-only metadata. Preserve branch/commit, platform/toolchain, and authentication inputs: native SwiftPM resolution receives this environment too, including SwifterPM's cold fallback. Explicit includes take precedence, and `.all` disables automatic filtering. Do not add broad provider-prefix defaults.
+
 ## Related Context
+
 - Core domain abstractions: `cli/Sources/TuistCore/AGENTS.md`

@@ -16,7 +16,10 @@ This module provides manifest-facing types used to describe projects, targets, a
 - `Project` maps 1:1 to `Project.swift` manifests and includes targets, schemes, settings, and packages.
 - `enableCoveragePrefixMapping` is an explicit opt-in for teams remapping coverage with tools such as `llvm-cov`. It requires `enableCaching`; the default stays compatible with `xccov`.
 
+- `InstallOptions.ManifestEnvironment.automatic` hides recognized volatile execution metadata while preserving meaningful package inputs and dependency authentication. Document custom exclusions as a manifest/resolver environment contract, not merely a cache-key optimization; `.automatic(including:)` and `.all` remain escape hatches.
+
 ## Related Context
+
 - cli/Sources/TuistLoader/AGENTS.md
 - cli/Sources/TuistGenerator/AGENTS.md
 - `includeLocalPackageTestTargets` opts local path package tests into generation, including cross-package products available through `Tuist/Package.swift`; remote package tests stay excluded.

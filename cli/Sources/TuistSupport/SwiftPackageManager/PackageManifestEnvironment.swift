@@ -42,7 +42,11 @@ public enum PackageManifestEnvironment {
     }
 
     private static func automaticExcludedVariablePatterns(in variables: [String: String]) -> [String] {
-        var patterns: [String] = []
+        var patterns = [
+            "TUIST_CACHE_SIGNING_GRANT",
+            "TUIST_RUNNER_POD_NAME",
+            "TUIST_RUNNER_POD_UID",
+        ].filter { variables[$0] != nil }
 
         if variables["GITLAB_CI"] == "true" {
             patterns += [
@@ -67,6 +71,7 @@ public enum PackageManifestEnvironment {
 
         if variables["GITHUB_ACTIONS"] == "true" {
             patterns += [
+                "ACTIONS_ORCHESTRATION_ID",
                 "GITHUB_ACTION",
                 "GITHUB_ARTIFACTS",
                 "GITHUB_ARTIFACTS_LIST",
@@ -76,7 +81,10 @@ public enum PackageManifestEnvironment {
                 "GITHUB_RUN_ATTEMPT",
                 "GITHUB_RUN_ID",
                 "GITHUB_RUN_NUMBER",
+                "GITHUB_STATE",
                 "GITHUB_STEP_SUMMARY",
+                "RUNNER_NAME",
+                "RUNNER_TRACKING_ID",
             ]
         }
 

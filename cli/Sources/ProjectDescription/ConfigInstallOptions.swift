@@ -38,7 +38,12 @@ extension Config {
                 self.excludedVariablePatterns = excludedVariablePatterns
             }
 
-            /// Uses provider-specific defaults to hide volatile continuous-integration values.
+            /// Hides recognized volatile CI execution identifiers and Tuist runner/cache metadata.
+            ///
+            /// Branches, commits, platform/toolchain settings and dependency authentication variables remain visible.
+            /// Authentication variables also reach native SwiftPM dependency resolution; excluding them
+            /// can prevent private packages from being fetched. Use `automatic(including:excluding:)`
+            /// to customize the environment contract for your manifests.
             public static let automatic = Self(usesAutomaticProviderDefaults: true)
 
             /// Preserves the complete process environment.
