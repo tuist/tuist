@@ -4,6 +4,11 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+The existing runner-image release workflow runs the portable TCC report tests
+on PRs with read-only permissions and without persisted checkout credentials
+or the release token. Release planning is disabled on PRs and depends on the
+tests on release events. PR concurrency must not block release serialization.
+
 UI evidence for pull request discussions lives in `screenshots/`. Capture the
 actual UI with demo data and link images using immutable commit URLs.
 

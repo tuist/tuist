@@ -81,6 +81,33 @@ right after login. Without a busy timeout, `sqlite3` failed with
 whose log tail reaches Loki, search the `tuist-macos-tart-kubelet`
 `runner log` lines for it.
 
+Some jobs still fail with an immediate `-1743` although boot logs approval.
+`dispatch-poll.sh` streams TCC at Info level as newline-delimited JSON, so
+multiline request bodies retain their service and target fields. At exit it
+appends `dispatch-poll: tcc:` lines after the job output: Finder grant rows,
+database inode/birth time, tccd start times, and AppleEvents request summaries.
+Requests are keyed by daemon PID and message ID; no-ID attribution/decision
+events use the most recent request on the same daemon thread. This is
+best-effort adjacency, not a proven cause or perfect correlation after dropped
+events. Other explicit services are excluded. Parse only the latest MiB;
+retain the last observed `authValue=0` denial and nine recent requests, capped
+below the host's 200-line/64-KiB tail. An `authValue=1` undetermined state is a
+fallback only when no explicit denial is captured. Older requests can fall
+outside this window.
+
+Stream shutdown has a one-second kill grace; report work has a five-second
+deadline and one-second grace, so diagnostics do not indefinitely delay normal
+VM teardown. Only still-running shell-owned stream jobs are signalled, and the
+saved PID is cleared. Capture failure must not change the job's exit code.
+The raw stream is temporary inside the guest and grows for the job lifetime;
+only the bounded report is exported. No grants, probes, or daemon reloads are
+introduced. Remove the capture when the failure is understood.
+
+Run `bash infra/runner-image/tcc-report_test.sh` from the checkout. Tests use
+synthetic JSON and temporary SQLite/processes, never host privacy APIs. The
+existing release workflow runs them on PRs and before releases with a separate
+read-only test job; PR events never plan, build, publish, or deploy images.
+
 The sanity checks at the end of the Packer template run as `sudo
 -u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
 leaves them pointed at `/Users/admin` and they assert against the
