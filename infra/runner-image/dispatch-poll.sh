@@ -297,31 +297,47 @@ keep_desktop_interactive
 # CLI fails at once on a lock unless given a busy timeout. Without one,
 # some boots lost the approval to `database is locked`.
 #
-# Best-effort: a job that never scripts Finder must not wait on this.
+# -bail plus stdin stops on a failed statement before COMMIT.
+finder_tcc_query() {
+  /usr/bin/sqlite3 -batch -bail -cmd '.timeout 1000' "$@"
+}
+
+# Verify persisted decisions, not effective AppleEvent authorization. Leave
+# healthy rows unchanged and repair both grants in one transaction.
 approve_finder_automation() {
-  local db="${RUNNER_TCC_DB}"
+  local db="${1:-${RUNNER_TCC_DB:-/Users/runner/Library/Application Support/com.apple.TCC/TCC.db}}"
   local finder_requirement="X'fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003'"
-  local waited=0 failed=0 client
-  while [ ! -f "${db}" ] && [ "${waited}" -lt 30 ]; do
-    sleep 1
-    waited=$((waited + 1))
-  done
-  if [ ! -f "${db}" ]; then
-    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING per-user TCC.db missing; Finder automation will prompt"
-    return 0
-  fi
+  local attempt=0 rows client sql verification_sql
+  verification_sql="SELECT count(*) FROM access WHERE service = 'kTCCServiceAppleEvents' AND client IN ('/Users/runner/actions-runner/bin/Runner.Listener', '/bin/bash') AND client_type = 1 AND auth_value = 2 AND indirect_object_identifier_type = 0 AND indirect_object_identifier = 'com.apple.finder' AND indirect_object_code_identity = ${finder_requirement};"
+  sql='BEGIN IMMEDIATE;'
   for client in /Users/runner/actions-runner/bin/Runner.Listener /bin/bash; do
-    if ! /usr/bin/sqlite3 -cmd ".timeout 10000" "${db}" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAppleEvents', '${client}', 1, 2, 3, 1, NULL, 0, 'com.apple.finder', ${finder_requirement}, 0, CAST(strftime('%s','now') AS INTEGER));"; then
-      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not approve Finder automation for ${client}"
-      failed=1
-    fi
+    sql="${sql}
+INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAppleEvents', '${client}', 1, 2, 3, 1, NULL, 0, 'com.apple.finder', ${finder_requirement}, 0, CAST(strftime('%s','now') AS INTEGER));"
   done
-  [ "${failed}" -eq 0 ] && echo "$(date -u +%FT%TZ) dispatch-poll: Finder automation approved"
-  return 0
+  sql="${sql}
+COMMIT;
+${verification_sql}"
+  while [ "${attempt}" -lt 30 ]; do
+    # Do not create an empty database before tccd creates its schema.
+    if [ -f "${db}" ]; then
+      if rows=$(finder_tcc_query "${db}" "${verification_sql}") && [ "${rows}" = 2 ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: Finder grants verified"
+        return 0
+      fi
+      if rows=$(printf '%s\n' "${sql}" | finder_tcc_query "${db}") && [ "${rows}" = 2 ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: Finder grants repaired and verified"
+        return 0
+      fi
+    fi
+    attempt=$((attempt + 1))
+    [ "${attempt}" -ge 30 ] || sleep 1
+  done
+  echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not persist and verify Finder grants"
+  return 1
 }
 
 stream_tcc_log
-approve_finder_automation
+approve_finder_automation || true
 
 # In-VM cluster DNS for the runner-cache path. When the
 # runners-controller staged TUIST_CLUSTER_DNS_IP (macOS pools in

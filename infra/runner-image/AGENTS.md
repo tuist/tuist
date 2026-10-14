@@ -73,13 +73,22 @@ attempts got each one wrong:
 - **Target.** `indirect_object_code_identity` must hold Finder's
   code requirement. A row with it NULL is ignored.
 
-The write itself races tccd, which is still writing the database
-right after login. Without a busy timeout, `sqlite3` failed with
-`database is locked` on some boots and the job then hit
-`-1712` (prompt shown) or `-1743` (immediate deny). The guest logs
-`Finder automation approved` or `WARNING could not approve …`; for VMs
-whose log tail reaches Loki, search the `tuist-macos-tart-kubelet`
-`runner log` lines for it.
+The write itself races tccd after login. Retry file/schema readiness and
+locks up to 30 attempts with a one-second SQLite busy timeout. Read back the
+exact two Finder grants and leave valid rows unchanged. Repair both grants
+in one transaction using stdin and `-bail`, so a failed statement cannot
+commit only one grant. Boot remains best-effort and logs persisted grant
+verification, not effective AppleEvent authorization.
+
+Run `bash infra/runner-image/finder-automation_test.sh` from the checkout.
+The Bash suite extracts only the grant functions from `dispatch-poll.sh`
+and uses disposable SQLite databases with the captured macOS 26.6.2 schema;
+it never invokes Finder or accesses the developer's privacy database. The
+existing release workflow runs it on PRs with read-only permissions, as well
+as before releases. No job-start probe, tccd reload, or macOS 27 protected
+path is included: investigate a failing request's attribution before adding
+those mechanisms. A healthy startup check does not explain a denial later
+in a job.
 
 Some jobs still fail with an immediate `-1743` although boot logs approval.
 `dispatch-poll.sh` streams TCC at Info level as newline-delimited JSON, so
