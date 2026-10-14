@@ -56,7 +56,12 @@ else
     abort "Integrity mismatch: #{field}" unless previous[field] == current[field]
   end
   if mode == 'verify'
+    File.write('.validation-evidence/restored.json', JSON.generate(current))
     %w[cache links].each do |field|
+      if previous[field] != current[field]
+        changed = (previous[field].keys | current[field].keys).select { |name| previous[field][name] != current[field][name] }
+        warn JSON.pretty_generate(field: field, changed: changed.first(10).to_h { |name| [name, {before: previous[field][name], after: current[field][name]}] })
+      end
       abort "Retained snapshot mismatch: #{field}" unless previous[field] == current[field]
     end
     puts 'Verified all retained source, cache, symlink, binary and lockfile records on this fresh runner'
