@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        attempt: [c]
+        attempt: [d]
     runs-on: tuist-staging-macos
     timeout-minutes: 60
     steps:
@@ -28,7 +28,13 @@ jobs:
         run: |
           set -x
           mkdir -p "$RUNNER_TEMP/diag"
-          if [ -x /opt/tuist/tcc-seed.sh ]; then echo "IMAGE=build-time-seed"; else echo "IMAGE=release (boot-time approvals)"; fi
+          if [ -x /opt/tuist/tcc-approvals.sh ]; then echo "IMAGE=build-time-approvals"; else echo "IMAGE=other"; fi
+          /opt/tuist/tcc-approvals.sh check
+          grep -a "tcc-approvals" /var/log/tuist-runner/poll.log
+          db="$HOME/Library/Application Support/com.apple.TCC/TCC.db"
+          stat -f "db inode=%i birth=%SB mtime=%Sm" -t "%FT%T" "$db"
+          sudo sqlite3 -readonly "/Library/Application Support/com.apple.TCC/REG.db" ".tables" ".schema" "SELECT * FROM sqlite_master WHERE type='table';" 2>&1 | head -40
+          for t in $(sudo sqlite3 -readonly "/Library/Application Support/com.apple.TCC/REG.db" "SELECT name FROM sqlite_master WHERE type='table';"); do echo "== $t"; sudo sqlite3 -readonly "/Library/Application Support/com.apple.TCC/REG.db" "SELECT * FROM $t LIMIT 20;"; done
           sw_vers; xcodebuild -version; csrutil status || true
           sysctl -n kern.boottime; uptime
           sudo /opt/tuist/tcc-seed.sh snapshot job || true
