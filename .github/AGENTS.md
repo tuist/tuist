@@ -4,6 +4,11 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+The existing runner-image release workflow runs the portable TCC report tests
+on PRs with read-only permissions and without persisted checkout credentials
+or the release token. Release planning is disabled on PRs and depends on the
+tests on release events. PR concurrency must not block release serialization.
+
 UI evidence for pull request discussions lives in `screenshots/`. Capture the
 actual UI with demo data and link images using immutable commit URLs.
 
@@ -149,9 +154,12 @@ Keep `TUIST_DEV_ALL_LOCALES=1` in both phases. Fork pull requests run both unsha
 variants without Tuist authentication or `id-token: write`, like the CLI and
 Gradle fork fallbacks. The explicitly named unsharded fallback also runs both variants when the build-plan job fails, without changing that job's failure status. Never silently fall back to the whole suite inside an authenticated shard.
 
-On push to main, the current ClickHouse shards also run with `--cover
---export-coverage shard`, reporting the server's coverage to `tuist/server`,
-and `coverage-complete` then runs `mix tuist.coverage.complete`. Keep coverage
+On push to main, the current ClickHouse shards also run with `--cover`,
+reporting the server's coverage to `tuist/server`,
+and `coverage-complete` then runs `mix tuist.coverage.complete`. The build
+job plans them with `mix tuist.test.build --cover`, which instruments the
+build for native coverage, so the shards count without compiling every
+module for `cover`. Keep coverage
 off pull requests, the merge queue, the floor shards and the unsharded
 fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`.
 
@@ -164,6 +172,10 @@ Atlas releases publish the image and standalone Helm chart with the same version
 ## Cloudflare configuration
 
 `workflows/cloudflare-config-tests.yml` runs the crawler-exemption scope regressions without credentials on pull requests and main changes. These tests do not validate Cloudflare's API expression parser or modify the live zone.
+
+## SwifterPM diagnostics
+
+The SwifterPM E2E workflow probes public Git HTTP status and isolated Git access after a failure. Keep probes credential-free and do not log authorization headers or change the test result.
 
 ## CodeQL
 

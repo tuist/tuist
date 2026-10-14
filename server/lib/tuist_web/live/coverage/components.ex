@@ -552,7 +552,12 @@ defmodule TuistWeb.Coverage.Components do
           <.widget
             id="widget-coverage-file-lines"
             title={dgettext("dashboard_tests", "Covered lines")}
-            description={dgettext("dashboard_tests", "Executable lines the tests ran at least once.")}
+            description={
+              with_note(
+                dgettext("dashboard_tests", "Executable lines the tests ran at least once."),
+                outside_functions_note(@file)
+              )
+            }
             value={"#{format_number(@file.covered_lines)} / #{format_number(@file.executable_lines)}"}
           />
           <.widget
@@ -579,9 +584,34 @@ defmodule TuistWeb.Coverage.Components do
       points={@trend.points}
       grouping={@trend.grouping}
       selected_widget={@trend.selected_widget}
+      covered_lines_note={outside_functions_note(@file)}
     />
     """
   end
+
+  # The covered lines no listed function owns, such as code a macro generates
+  # on its own line, as a sentence for the covered lines' description: nil
+  # when the functions account for them all, or while a function's own
+  # covered lines are unknown.
+  defp outside_functions_note(file) do
+    functions = Map.get(file, :functions, [])
+
+    with [_ | _] <- functions,
+         true <- Enum.all?(functions, &is_integer(&1.covered_lines)),
+         count when count > 0 <- file.covered_lines - (functions |> Enum.map(& &1.covered_lines) |> Enum.sum()) do
+      dngettext(
+        "dashboard_tests",
+        "%{count} of them belongs to no function, such as code a macro generates.",
+        "%{count} of them belong to no function, such as code a macro generates.",
+        count
+      )
+    else
+      _ -> nil
+    end
+  end
+
+  defp with_note(description, nil), do: description
+  defp with_note(description, note), do: description <> " " <> note
 
   attr :id, :string, default: "coverage-files-table"
 
@@ -696,6 +726,7 @@ defmodule TuistWeb.Coverage.Components do
     doc: "What each point stands for (`History.trend_points/3`): a commit, or a day, week or month; the tooltip names it."
 
   attr :point_href, :any, default: nil, doc: "The page a chart point opens, from the point; nil when points open nothing."
+  attr :covered_lines_note, :string, default: nil, doc: "A sentence the covered lines' description ends with."
 
   slot :actions
   slot :details, doc: "Figures shown under the chart."
@@ -739,9 +770,9 @@ defmodule TuistWeb.Coverage.Components do
             id="widget-coverage-covered-lines"
             title={dgettext("dashboard_tests", "Covered lines")}
             description={
-              dgettext(
-                "dashboard_tests",
-                "Lines that commit's tests ran at least once."
+              with_note(
+                dgettext("dashboard_tests", "Lines that commit's tests ran at least once."),
+                @covered_lines_note
               )
             }
             value={format_number(@latest.covered_lines)}

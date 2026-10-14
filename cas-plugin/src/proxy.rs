@@ -47,20 +47,9 @@ pub const ENDPOINT_REFRESH_INTERVAL: Duration = Duration::from_secs(600);
 /// one is asked again. The move happens only if the second answer agrees.
 pub const ENDPOINT_CONFIRM_INTERVAL: Duration = Duration::from_secs(60);
 
-/// How soon a proxy with no endpoint at all asks again when the CLI has not
-/// said the account's cache is being prepared. Every build until an endpoint
-/// is found runs without a remote.
+/// How soon a proxy with no endpoint at all asks again. Every build until an
+/// endpoint is found runs without a remote.
 pub const ENDPOINT_ABSENT_INTERVAL: Duration = Duration::from_secs(10);
-
-/// How soon the proxy asks again while the CLI reports the account's cache as
-/// being prepared, whether or not it has an endpoint. Every build until the
-/// answer changes runs without the account's cache.
-pub const ENDPOINT_PREPARING_INTERVAL: Duration = Duration::from_secs(1);
-
-/// How long a streak of "being prepared" answers keeps the proxy on
-/// `ENDPOINT_PREPARING_INTERVAL`. Each answer is a CLI process, and a cache
-/// still being prepared after this is not coming back in seconds.
-pub const ENDPOINT_PREPARING_WINDOW: Duration = Duration::from_secs(120);
 
 /// How often the proxy checks whether an endpoint resolution is due.
 pub const ENDPOINT_RESOLUTION_TICK: Duration = Duration::from_millis(250);
@@ -2424,21 +2413,18 @@ pub struct Proxy {
     // Epoch-ms of the last endpoint resolution, so the sweep can carry the
     // interval without a timer of its own. 0 means never resolved.
     endpoint_resolved_at_ms: AtomicU64,
-    // Epoch-ms of the first answer in the current streak of "being prepared"
-    // answers. 0 means the last answer was not one.
-    endpoint_preparing_since_ms: AtomicU64,
     // Bumped on every adoption. Only ever compared for equality.
     endpoint_generation: AtomicU64,
     // An endpoint the last resolution preferred over a healthy current one,
     // awaiting a second resolution that agrees. See `endpoint_verdict`.
     endpoint_candidate: Mutex<Option<String>>,
     tokens: Arc<TokenProvider>,
+    project_tokens: Mutex<HashMap<String, Arc<TokenProvider>>>,
     upstream_plugin: String,
     // Monotonic base for per-path last-used timestamps (see PathState.last_used).
     epoch: Instant,
     // One REAPI client per account/project instance, created on first use.
-    // All share the machine's endpoint + token; only the instance the request
-    // is scoped to differs. This is what lets one proxy serve every project.
+    // Clients for a project share its token provider across endpoint changes.
     // Each client is stamped with the endpoint generation it was built
     // against, because a client outlives the address it dialled. Publication
     // and adoption cannot be ordered against each other -- two first-sight
@@ -2563,10 +2549,10 @@ impl Proxy {
         let proxy: &'static Proxy = Box::leak(Box::new(Proxy {
             grpc_url: RwLock::new(grpc_url),
             endpoint_resolved_at_ms: AtomicU64::new(0),
-            endpoint_preparing_since_ms: AtomicU64::new(0),
             endpoint_generation: AtomicU64::new(0),
             endpoint_candidate: Mutex::new(None),
             tokens,
+            project_tokens: Mutex::new(HashMap::new()),
             upstream_plugin,
             epoch: Instant::now(),
             remotes: Mutex::new(HashMap::new()),
@@ -2627,6 +2613,17 @@ impl Proxy {
         proxy
     }
 
+    // Providers outlive endpoint-bound remotes and are shared even when first
+    // requests race to construct separate clients for the same project.
+    fn tokens_for(&self, instance: &str) -> Arc<TokenProvider> {
+        self.project_tokens
+            .lock()
+            .unwrap()
+            .entry(instance.to_string())
+            .or_insert_with(|| self.tokens.for_instance(instance))
+            .clone()
+    }
+
     /// The REAPI client for an instance, created and cached on first use.
     ///
     /// `instance` is the `account/project` full handle used to key the client
@@ -2665,7 +2662,7 @@ impl Proxy {
                 grpc_url,
                 instance: reapi::reapi_instance(instance).to_string(),
             },
-            self.tokens.clone(),
+            self.tokens_for(instance),
         );
         if let Some(parent) = self.registry_path.as_deref().and_then(Path::parent) {
             remote.enable_chunk_cache(parent.join("download-chunks-v1"), instance);
@@ -4936,6 +4933,16 @@ impl Proxy {
     /// mode or for opaque, non-expiring tokens.
     pub fn maintain_token(&self, lead: std::time::Duration) {
         self.tokens.refresh_if_expiring(lead);
+        let remotes: Vec<_> = self
+            .remotes
+            .lock()
+            .unwrap()
+            .values()
+            .map(|(_, remote)| remote.clone())
+            .collect();
+        for remote in remotes {
+            remote.refresh_token(lead);
+        }
     }
 
     /// Re-resolves the machine's cache endpoint, at most once per `interval`.
@@ -4957,8 +4964,7 @@ impl Proxy {
     /// A resolution that fails changes nothing. A CLI that is absent, logged
     /// out or offline says nothing about where the cache went, and dropping a
     /// working endpoint on its say-so would turn a local problem into a cold
-    /// cache. An answer that the account's cache is being prepared keeps the
-    /// endpoint too, and has the proxy ask again sooner.
+    /// cache.
     pub fn refresh_endpoint(&self) {
         let Some(instance) = self.remotes.lock().unwrap().keys().next().cloned() else {
             // Nothing is being served, so nothing depends on the answer. First
@@ -4983,61 +4989,26 @@ impl Proxy {
             return;
         };
         let now = crate::reapi::now_ms();
-        if !self.claim_endpoint_resolution(now, self.endpoint_resolution_interval(now)) {
+        if !self.claim_endpoint_resolution(now, self.endpoint_resolution_interval()) {
             return;
         }
         let resolution =
             crate::endpoint::resolve(&fetch.tuist_bin, fetch.server_url.as_deref(), instance);
-        self.record_resolution(resolution, now, || {
-            self.current_endpoint_reachable(instance)
-        });
+        self.record_resolution(resolution, || self.current_endpoint_reachable(instance));
     }
 
     fn record_resolution(
         &self,
         resolution: crate::endpoint::Resolution,
-        now: u64,
         current_reachable: impl FnOnce() -> bool,
     ) {
-        match resolution {
-            crate::endpoint::Resolution::Endpoint(resolved) => {
-                self.endpoint_preparing_since_ms.store(0, Ordering::Relaxed);
-                self.consider_endpoint(&resolved, current_reachable);
-            }
-            crate::endpoint::Resolution::BeingPrepared => {
-                // A streak keeps its own start so the window still caps it. A
-                // stamp already older than the window is a streak that ended —
-                // a preparation that outlived it, then `Unknown` answers that
-                // deliberately do not clear it — and this answer starts a new
-                // one. Without that the field keeps its stale timestamp for
-                // the life of the process, and every later preparation (the
-                // archive-and-return this exists for) falls back to the absent
-                // or refresh interval instead of re-arming the fast one.
-                let window = ENDPOINT_PREPARING_WINDOW.as_millis() as u64;
-                let mut observed = self.endpoint_preparing_since_ms.load(Ordering::Relaxed);
-                while observed == 0 || now.saturating_sub(observed) >= window {
-                    match self.endpoint_preparing_since_ms.compare_exchange(
-                        observed,
-                        now,
-                        Ordering::Relaxed,
-                        Ordering::Relaxed,
-                    ) {
-                        Ok(_) => break,
-                        Err(current) => observed = current,
-                    }
-                }
-            }
-            crate::endpoint::Resolution::Unknown => {}
+        if let crate::endpoint::Resolution::Endpoint(resolved) = resolution {
+            self.consider_endpoint(&resolved, current_reachable);
         }
     }
 
-    fn endpoint_resolution_interval(&self, now: u64) -> Duration {
-        let preparing_since = self.endpoint_preparing_since_ms.load(Ordering::Relaxed);
-        if preparing_since != 0
-            && now.saturating_sub(preparing_since) < ENDPOINT_PREPARING_WINDOW.as_millis() as u64
-        {
-            ENDPOINT_PREPARING_INTERVAL
-        } else if self.grpc_url.read().unwrap().is_empty() {
+    fn endpoint_resolution_interval(&self) -> Duration {
+        if self.grpc_url.read().unwrap().is_empty() {
             ENDPOINT_ABSENT_INTERVAL
         } else if self.endpoint_candidate.lock().unwrap().is_some() {
             ENDPOINT_CONFIRM_INTERVAL
@@ -5083,7 +5054,7 @@ impl Proxy {
                     grpc_url: self.grpc_url.read().unwrap().clone(),
                     instance: reapi::reapi_instance(instance).to_string(),
                 },
-                self.tokens.clone(),
+                self.tokens_for(instance),
             )
         });
         remote.reachable()
@@ -8724,97 +8695,12 @@ mod tests {
         );
 
         assert_eq!(
-            proxy.endpoint_resolution_interval(1_000_000),
+            proxy.endpoint_resolution_interval(),
             ENDPOINT_ABSENT_INTERVAL
         );
         assert_eq!(
-            test_proxy().endpoint_resolution_interval(1_000_000),
+            test_proxy().endpoint_resolution_interval(),
             ENDPOINT_REFRESH_INTERVAL
-        );
-    }
-
-    #[test]
-    fn a_cache_being_prepared_is_asked_about_every_second() {
-        let absent = Proxy::new(
-            String::new(),
-            crate::token::TokenProvider::from_env(),
-            crate::upstream_path(),
-            None,
-            None,
-        );
-        let serving = test_proxy();
-        let start = 1_000_000_u64;
-
-        for proxy in [absent, serving] {
-            proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, start, || true);
-
-            assert_eq!(
-                proxy.endpoint_resolution_interval(start + 30_000),
-                ENDPOINT_PREPARING_INTERVAL
-            );
-        }
-    }
-
-    #[test]
-    fn a_streak_of_being_prepared_answers_is_timed_from_its_first_answer() {
-        let proxy = Proxy::new(
-            String::new(),
-            crate::token::TokenProvider::from_env(),
-            crate::upstream_path(),
-            None,
-            None,
-        );
-        let start = 1_000_000_u64;
-        let window = ENDPOINT_PREPARING_WINDOW.as_millis() as u64;
-
-        proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, start, || true);
-        proxy.record_resolution(
-            crate::endpoint::Resolution::BeingPrepared,
-            start + window - 1,
-            || true,
-        );
-
-        assert_eq!(
-            proxy.endpoint_resolution_interval(start + window - 1),
-            ENDPOINT_PREPARING_INTERVAL
-        );
-        assert_eq!(
-            proxy.endpoint_resolution_interval(start + window),
-            ENDPOINT_ABSENT_INTERVAL
-        );
-    }
-
-    #[test]
-    fn a_preparation_after_the_window_lapsed_re_arms_the_fast_interval() {
-        let proxy = Proxy::new(
-            String::new(),
-            crate::token::TokenProvider::from_env(),
-            crate::upstream_path(),
-            None,
-            None,
-        );
-        let start = 1_000_000_u64;
-        let window = ENDPOINT_PREPARING_WINDOW.as_millis() as u64;
-
-        // A preparation that outlives its window, then answers the CLI could
-        // not give — the laptop went offline — which do not clear the stamp.
-        proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, start, || true);
-        proxy.record_resolution(
-            crate::endpoint::Resolution::Unknown,
-            start + window + 1,
-            || true,
-        );
-        assert_eq!(
-            proxy.endpoint_resolution_interval(start + window + 1),
-            ENDPOINT_ABSENT_INTERVAL
-        );
-
-        // A genuinely new preparation, hours later.
-        let later = start + window * 100;
-        proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, later, || true);
-        assert_eq!(
-            proxy.endpoint_resolution_interval(later),
-            ENDPOINT_PREPARING_INTERVAL
         );
     }
 
@@ -8828,36 +8714,11 @@ mod tests {
             None,
         );
 
-        proxy.record_resolution(crate::endpoint::Resolution::Unknown, 1_000_000, || true);
+        proxy.record_resolution(crate::endpoint::Resolution::Unknown, || true);
 
         assert_eq!(
-            proxy.endpoint_resolution_interval(1_001_000),
+            proxy.endpoint_resolution_interval(),
             ENDPOINT_ABSENT_INTERVAL
-        );
-    }
-
-    #[test]
-    fn an_endpoint_ends_a_streak_of_being_prepared_answers() {
-        let proxy = Proxy::new(
-            String::new(),
-            crate::token::TokenProvider::from_env(),
-            crate::upstream_path(),
-            None,
-            None,
-        );
-        let start = 1_000_000_u64;
-
-        proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, start, || true);
-        proxy.record_resolution(
-            crate::endpoint::Resolution::Endpoint(resolution("http://127.0.0.1:2", None)),
-            start + 5_000,
-            || proxy.current_endpoint_reachable("acme/app"),
-        );
-
-        assert_eq!(*proxy.grpc_url.read().unwrap(), "http://127.0.0.1:2");
-        assert_eq!(
-            proxy.endpoint_resolution_interval(start + 6_000),
-            ENDPOINT_REFRESH_INTERVAL
         );
     }
 
@@ -8880,7 +8741,7 @@ mod tests {
         }));
         assert_eq!(*proxy.grpc_url.read().unwrap(), "http://127.0.0.1:2");
         assert_eq!(
-            proxy.endpoint_resolution_interval(1_000_000),
+            proxy.endpoint_resolution_interval(),
             ENDPOINT_REFRESH_INTERVAL
         );
     }
@@ -8991,7 +8852,7 @@ mod tests {
         assert_eq!(*proxy.grpc_url.read().unwrap(), current);
         assert!(Arc::ptr_eq(&before, &proxy.remote_for("acme/app")));
         assert_eq!(
-            proxy.endpoint_resolution_interval(1_000_000),
+            proxy.endpoint_resolution_interval(),
             ENDPOINT_CONFIRM_INTERVAL
         );
     }
@@ -9007,7 +8868,7 @@ mod tests {
 
         assert_eq!(*proxy.grpc_url.read().unwrap(), far);
         assert_eq!(
-            proxy.endpoint_resolution_interval(1_000_000),
+            proxy.endpoint_resolution_interval(),
             ENDPOINT_REFRESH_INTERVAL
         );
     }
@@ -9069,6 +8930,56 @@ mod tests {
         let proxy = test_proxy();
 
         assert!(!proxy.current_endpoint_reachable("acme/app"));
+    }
+
+    #[test]
+    fn project_providers_coalesce_first_requests_and_survive_endpoint_moves() {
+        let cli = crate::token::tests::FakeCli::new();
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            cli.provider(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+        proxy
+            .endpoint_resolved_at_ms
+            .store(crate::reapi::now_ms(), Ordering::Relaxed);
+        let barrier = Arc::new(std::sync::Barrier::new(16));
+        let threads: Vec<_> = (0..16)
+            .map(|_| {
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    proxy
+                        .remote_for("acme/one")
+                        .refresh_token(Duration::from_secs(20));
+                    proxy.tokens_for("acme/one")
+                })
+            })
+            .collect();
+        let provider = proxy.tokens_for("acme/one");
+        for thread in threads {
+            assert!(Arc::ptr_eq(&provider, &thread.join().unwrap()));
+        }
+        assert_eq!(
+            std::fs::read_to_string(cli.0.join("calls")).unwrap(),
+            "acme/one\n"
+        );
+        proxy.adopt_endpoint("http://127.0.0.1:2".into());
+        assert!(Arc::ptr_eq(&provider, &proxy.tokens_for("acme/one")));
+        proxy
+            .remote_for("acme/one")
+            .refresh_token(Duration::from_secs(20));
+        proxy.maintain_token(Duration::from_secs(20));
+        proxy
+            .remote_for("acme/two")
+            .refresh_token(Duration::from_secs(20));
+        assert!(!Arc::ptr_eq(&provider, &proxy.tokens_for("acme/two")));
+        assert_eq!(
+            std::fs::read_to_string(cli.0.join("calls")).unwrap(),
+            "acme/one\nacme/two\n"
+        );
     }
 
     fn test_proxy() -> &'static Proxy {

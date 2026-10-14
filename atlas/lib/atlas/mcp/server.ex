@@ -881,12 +881,18 @@ defmodule Atlas.MCP.Server do
           conn
           |> mcp_claim_metadata()
           |> Map.merge(%{
-            arguments: arguments,
+            arguments: audit_arguments(name, arguments),
             status: tool_call_status(response)
           })
       })
     end
   end
+
+  defp audit_arguments("create_mcp_server", arguments) when is_map(arguments) do
+    Map.drop(arguments, ["bearer_token", :bearer_token])
+  end
+
+  defp audit_arguments(_name, arguments), do: arguments
 
   defp mcp_claim_metadata(%{assigns: %{mcp_claims: claims}}), do: Audit.claim_metadata(claims)
   defp mcp_claim_metadata(_conn), do: %{}

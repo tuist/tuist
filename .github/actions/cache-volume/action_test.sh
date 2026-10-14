@@ -60,3 +60,20 @@ if bash "$action/scripts/package.sh" "$package" > "$fixture/error" 2>&1; then
 fi
 [[ $(cat "$package/keep") == 'existing files' ]]
 echo 'ok: packaging never overwrites an existing directory'
+
+mkdir -p "$fixture/bin"
+cat > "$fixture/bin/tuist-cache-volume" <<'CLIENT'
+#!/bin/bash
+printf '%s\n' "$@" > "$CAPTURE_ARGS"
+CLIENT
+chmod +x "$fixture/bin/tuist-cache-volume"
+for mode in true false; do
+  TUIST_VOLUME_COMMIT="$mode" attach
+  printf '%s\n' --key "$TUIST_VOLUME_KEY" --path "$TUIST_VOLUME_PATH" --commit "$mode" > "$fixture/expected"
+  cmp "$fixture/expected" "$CAPTURE_ARGS"
+done
+if TUIST_VOLUME_COMMIT='false; touch injected' attach; then
+  echo 'FAIL: accepted invalid commit mode' >&2; exit 1
+fi
+[[ ! -e injected ]]
+echo 'ok: commit intent is validated and passed literally'

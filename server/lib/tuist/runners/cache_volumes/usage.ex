@@ -18,6 +18,8 @@ defmodule Tuist.Runners.CacheVolumes.Usage do
     field(:pod_name, :string)
     field(:pod_uid, :string)
     field(:node_name, :string)
+    field(:commit_mode, :string, default: "auto")
+    field(:writer_branch, :string)
     field(:can_publish, :boolean)
     field(:status, :string, default: "allocated")
     field(:warm, :boolean)

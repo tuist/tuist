@@ -74,7 +74,7 @@ jobs:
   # would be reported as main's.
   commit:
     name: Resolve Commit
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 5
     if: github.repository == 'tuist/tuist'
     outputs:

@@ -3,8 +3,10 @@
 This directory contains database migrations and other private assets.
 
 ## Responsibilities
+- Explicit client actor-claim configuration and privacy/legacy-server compatibility are documented in the English Xcode, Gradle, and Elixir build-insights guides. Claims are off by default; Xcode post-actions need their own environment configuration. This header does not imply report persistence, dashboard support, or new authorization; the endpoint scrubs it from Sentry contexts.
 - Grafana build-health setup, metric definitions, reporting limitations, and alert routing are documented in `docs/en/guides/integrations/grafana.md`. Keep this guide aligned with the Grafana plugin readme and link it in `lib/tuist/docs_sidebar.ex`.
 - REAPI module-cache upload concurrency and admission retry settings are documented in `docs/en/guides/features/cache/module-cache.md`; keep them aligned with `cli/Sources/TuistREAPI` and Kura's upload sizing guidance.
+- Xcode coverage prefix-mapping opt-ins and generated-project LLDB source namespaces are documented in `docs/en/guides/features/cache/xcode-cache.md`; keep the `xccov` compatibility warning and per-target mapping guidance aligned with the CLI.
 - Runner cache-volume usage belongs in `docs/en/guides/features/runners/cache-volumes.md`, linked from the runners overview and provider guides. Keep Docker-specific guidance in the Docker page. The docs sidebar is maintained in `lib/tuist/docs_sidebar.ex`.
 - PostgreSQL migrations: `server/priv/repo/migrations`
 - GitHub Enterprise split-host/proxy setup, App repository permissions, and webhook events are documented in `docs/en/guides/integrations/gitforge/github.md`. Document only the repository permissions and webhook events required for PR feedback, checking API usage in `Tuist.GitHub.Client` and event handling in `TuistWeb.Webhooks.GitHubController`; manual App setup belongs in the self-hosting guide. The nullable installation `api_url` is transport metadata; it does not replace canonical `client_url`, webhook identity, or existing project connections. Its migration uses `20261007160000`; the prototype `20261006110000` collided with main's absolute bundle-threshold migration. Reconcile any locally applied prototype history against the actual columns before migrating.
@@ -28,6 +30,7 @@ This directory contains database migrations and other private assets.
 - The standard `repo/seeds.exs` creates `tuist/xcode-comparison` and `tuist/bazel-comparison` with matching test histories, including healthy, flaky, muted, and skipped cases. Keep their scenarios aligned for visual comparison; rerunning seeds preserves existing comparison runs.
 
 ## Guardrails
+- Regenerate Gettext `.pot` templates with `mix gettext.extract` (without `--merge`) after moving translated calls as well as changing strings: CI checks source-line references too. Commit generated `.pot` changes only; never edit `.po` translations.
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
 - REAPI cache output hints default to empty strings for historical rows and older Kura nodes. Append physical ClickHouse columns in schema order; these identifiers correlate profile descriptions and are never repository source links.
@@ -86,3 +89,5 @@ This directory contains database migrations and other private assets.
   legacy index. Do not roll back to pre-platform server images after enablement.
 
 - The Grafana guide distinguishes the neutral percentile-based failed-or-slow metric from explicit duration targets, documents paired cache savings/coverage, and points native failure classification to build details and category filters rather than default table columns.
+
+- Cache-volume writer policy adds an empty-default exact branch list on volumes and auto-default commit intent and nullable additional-branch grant provenance on uses. Preserve existing volume identity, clear epochs and default-branch permissions; document policy data in the export inventory.

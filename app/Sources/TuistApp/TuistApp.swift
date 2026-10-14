@@ -23,20 +23,18 @@ import TuistServer
         }
 
         var body: some Scene {
-            appDelegate.menuBarExtra = FluidMenuBarExtra(title: "Tuist", image: "MenuBarIcon") {
-                if bootstrapper.isReady {
-                    ServerCredentialsStore.$current.withValue(
-                        ServerCredentialsStore(backend: .keychain)
-                    ) {
-                        CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
-                            MenuBarView(
-                                appDelegate: appDelegate,
-                                updaterController: updaterController
-                            )
-                        }
-                    }
-                } else {
-                    ProgressView()
+            // `FluidMenuBarExtra` creates an `NSStatusItem` on initialization and expects to be
+            // initialized only once for the lifetime of the app. `body` is re-evaluated, for example
+            // when `bootstrapper.isReady` changes, so creating the extra unconditionally here leaves
+            // a stale duplicated icon in the menu bar. The readiness state is instead observed by
+            // `MenuBarRootView`, which swaps the spinner for the menu inside the same status item.
+            if appDelegate.menuBarExtra == nil {
+                appDelegate.menuBarExtra = FluidMenuBarExtra(title: "Tuist", image: "MenuBarIcon") {
+                    MenuBarRootView(
+                        bootstrapper: bootstrapper,
+                        appDelegate: appDelegate,
+                        updaterController: updaterController
+                    )
                 }
             }
 
@@ -49,6 +47,29 @@ import TuistServer
             }
             .commands {
                 CommandGroup(replacing: .appSettings) {}
+            }
+        }
+    }
+
+    private struct MenuBarRootView: View {
+        @ObservedObject var bootstrapper: AppBootstrapper
+        let appDelegate: AppDelegate
+        let updaterController: SPUStandardUpdaterController
+
+        var body: some View {
+            if bootstrapper.isReady {
+                ServerCredentialsStore.$current.withValue(
+                    ServerCredentialsStore(backend: .keychain)
+                ) {
+                    CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
+                        MenuBarView(
+                            appDelegate: appDelegate,
+                            updaterController: updaterController
+                        )
+                    }
+                }
+            } else {
+                ProgressView()
             }
         }
     }
