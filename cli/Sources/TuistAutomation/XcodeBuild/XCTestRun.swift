@@ -15,6 +15,11 @@ public struct XCTestRun: Decodable, Equatable {
         public let blueprintName: String
         public let onlyTestIdentifiers: [String]?
 
+        public init(blueprintName: String, onlyTestIdentifiers: [String]?) {
+            self.blueprintName = blueprintName
+            self.onlyTestIdentifiers = onlyTestIdentifiers
+        }
+
         enum CodingKeys: String, CodingKey {
             case blueprintName = "BlueprintName"
             case onlyTestIdentifiers = "OnlyTestIdentifiers"

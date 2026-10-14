@@ -125,13 +125,11 @@
 
             var testSuites: [String]?
             if shardGranularity == .suite {
-                let targets = try await xcTestEnumerator.enumerateTests(
+                testSuites = try await enumerateTestSuites(
                     testProductsPath: xctestproductsPath,
-                    destination: destination
+                    destination: destination,
+                    expectedModules: modules
                 )
-                testSuites = targets.flatMap { target in
-                    (target.onlyTestIdentifiers ?? []).map { "\(target.blueprintName)/\($0)" }
-                }
             }
 
             Logger.current.notice("Creating shard plan with \(modules.count) test module(s)", metadata: .section)
@@ -177,6 +175,66 @@
             try await shardMatrixOutputService.output(shardPlan)
 
             return shardPlan
+        }
+
+        /// The number of times test enumeration is attempted when building a suite-granularity shard plan.
+        ///
+        /// `xcodebuild -enumerate-tests` boots the test bundles to discover their tests and can
+        /// intermittently return an incomplete set of targets (e.g. when a simulator or UI test host is
+        /// slow to launch). Suites that aren't enumerated never enter the shard plan and therefore
+        /// silently never run, so we retry — unioning the results — until every module declared in the
+        /// `.xctestrun` is covered.
+        private static let maxEnumerationAttempts = 3
+
+        /// Enumerates the test suites in the built test products for suite-granularity sharding.
+        ///
+        /// Enumeration is retried, unioning results, until it covers every module listed in the
+        /// `.xctestrun` — guarding against a flaky `xcodebuild -enumerate-tests` silently dropping
+        /// modules (and therefore tests) from the shard plan. Modules that never enumerate any test after
+        /// every attempt are surfaced with a warning: they are usually empty test targets, but a
+        /// persistent enumeration failure would otherwise silently exclude real tests.
+        private func enumerateTestSuites(
+            testProductsPath: AbsolutePath,
+            destination: String?,
+            expectedModules: [String]
+        ) async throws -> [String] {
+            let expectedModules = Set(expectedModules)
+            var suitesByModule: [String: Set<String>] = [:]
+
+            for attempt in 1 ... Self.maxEnumerationAttempts {
+                let targets = try await xcTestEnumerator.enumerateTests(
+                    testProductsPath: testProductsPath,
+                    destination: destination
+                )
+                let coveredModulesBefore = suitesByModule.count
+                for target in targets {
+                    let suites = target.onlyTestIdentifiers ?? []
+                    guard !suites.isEmpty else { continue }
+                    suitesByModule[target.blueprintName, default: []].formUnion(suites)
+                }
+
+                // Stop as soon as every module in the `.xctestrun` has been enumerated.
+                if expectedModules.isSubset(of: suitesByModule.keys) { break }
+                // Otherwise stop once an attempt stops discovering new modules: retrying further won't
+                // recover them (they have no enumerable tests), while keeping the retry cost bounded.
+                if attempt > 1, suitesByModule.count == coveredModulesBefore { break }
+                if attempt < Self.maxEnumerationAttempts {
+                    Logger.current.warning(
+                        "Test enumeration discovered \(suitesByModule.count) of \(expectedModules.count) test module(s); retrying to avoid dropping modules from the shard plan."
+                    )
+                }
+            }
+
+            let missingModules = expectedModules.subtracting(suitesByModule.keys).sorted()
+            if !missingModules.isEmpty {
+                Logger.current.warning(
+                    "\(missingModules.count) test module(s) produced no tests during enumeration and are excluded from the suite-granularity shard plan: \(missingModules.joined(separator: ", ")). If they contain tests this is usually a flaky `xcodebuild -enumerate-tests`; re-run or use `--shard-granularity module`."
+                )
+            }
+
+            return suitesByModule
+                .flatMap { module, suites in suites.map { "\(module)/\($0)" } }
+                .sorted()
         }
 
         private func uploadXCTestProducts(
