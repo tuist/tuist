@@ -210,6 +210,8 @@ enum PinnedSourceSnapshot {
             return (kind == "??" || kind == "!!") && [
                 WorkspaceRestorer.sourceRevisionMarkerFilename,
                 ".build/.lock",
+                ".build/CACHEDIR.TAG",
+                ".build/.buildSystem_debug",
                 ".build/swifterpm/manifests/package.json",
                 ".build/swifterpm/manifests/package.json.envhash",
             ].contains(String(path))

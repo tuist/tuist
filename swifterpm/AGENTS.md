@@ -25,6 +25,7 @@
 
 - Shared sources are pinned snapshots, not native working trees. `PinnedSourceSnapshot` exports through a private index and empty staging tree; never stamp and cache mutable checkout bytes.
 - Every native entry point must prepare a private workspace through `NativeWorkspace`, including force-resolved checks and Tuist's native fallback. Detach Git-bearing checkout links rather than copying potentially damaged working trees. Prefer APFS COW clones for Git-free links/artifacts, with independent-copy fallback; never use hard links.
+- Recognize only explicit SwiftPM marker/manifest-cache paths as generated checkout metadata, including SwiftPM 6.4's `.build/CACHEDIR.TAG` and `.build/.buildSystem_debug`. Arbitrary files under `.build` remain user data.
 - Preserve unmanaged/modified real checkouts and SwiftPM edit state. Legacy cached Git checkouts are rebuilt privately without modifying their shared directory; local source-control legacy entries retain private Git metadata/tags for manifest context. Cache publication failure must leave the usable native checkout intact.
 - Keep source-cache paths and the raw revision marker compatible. Do not add warm source hashing or Git subprocesses for ordinary Git-free cache hits.
 - `NativeWorkspaceTests`, `RestoreTests`, `ResolveTests`, and `FileSystemSupportTests` are also included in the generated `SwifterPMCoreTests` target for focused Xcode validation.
