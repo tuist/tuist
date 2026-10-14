@@ -583,6 +583,11 @@ it, and auto-login only applies on the next boot. On 2026-10-14
 ber1-runner-b04..b07 bootstrapped into Ready Nodes in that state and failed
 every Pod with `TartCreateFailed` until restarted by hand.
 
+Once bootstrapped, the host's first tart-kubelet start registers a Node that
+stays tainted `tuist.dev/prewarming` while it pulls its fleet's in-demand
+runner images, so it takes no Pod that would wait on a download (see
+[`infra/tart-kubelet`](../tart-kubelet/AGENTS.md)).
+
 ### RackPDU
 
 The rack is zero touch: shipping a PDU is racking and cabling it. Everything

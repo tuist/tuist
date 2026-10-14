@@ -646,6 +646,34 @@ func TestAutoscaler_MacosFleetCapacityExcludesUnhealthyNodes(t *testing.T) {
 	}
 }
 
+// A joining host pulling its runner images is tainted against runner Pods, so
+// counting its memory would scale pools into slots the scheduler cannot fill.
+func TestAutoscaler_MacosFleetCapacityExcludesPrewarmingNodes(t *testing.T) {
+	const fleet = "runners-macos"
+	ready := macosNode("mac-ready", fleet)
+	prewarming := macosNode("mac-joining", fleet)
+	prewarming.Spec.Taints = []corev1.Taint{{Key: "tuist.dev/prewarming", Value: "true", Effect: corev1.TaintEffectNoSchedule}}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ready, prewarming).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	got, err := r.macosFleetAllocatableMemory(context.Background(), fleet)
+	if err != nil {
+		t.Fatalf("macosFleetAllocatableMemory: %v", err)
+	}
+	if want := int64(macosGuestMemoryMB) * 1024 * 1024; got != want {
+		t.Fatalf("macosFleetAllocatableMemory = %d, want only the warm node's memory %d", got, want)
+	}
+	if reason := nodeFilterReason(prewarming); reason != nodeFilteredPrewarming {
+		t.Fatalf("nodeFilterReason = %q, want %q", reason, nodeFilteredPrewarming)
+	}
+}
+
 // TestAutoscaler_MacosFleetCapacityCountsGuestsNotHosts is the
 // mixed-SKU case the byte-based budget exists for: one fleet label
 // spanning a single-guest M2-L and a dual-guest M4-XL. Counting hosts
