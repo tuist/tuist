@@ -140,8 +140,51 @@ TCC_LOG_PID=""
 # job takes tens of seconds, and a cut-off scan loses the newest lines,
 # which are the ones that explain a failure near the end of the job.
 stream_tcc_log() {
-  /usr/bin/log stream --style compact --predicate 'subsystem == "com.apple.TCC"' >"${TCC_LOG}" 2>/dev/null &
+  /usr/bin/log stream --level info --style ndjson --predicate 'subsystem == "com.apple.TCC"' >"${TCC_LOG}" 2>/dev/null &
   TCC_LOG_PID=$!
+}
+
+filter_tcc_log() {
+  # JSON preserves multiline request boundaries. Bound parsing to the latest
+  # MiB; keep the last denial plus recent AppleEvents requests, not file access.
+  tail -c 1048576 "${TCC_LOG}" | jq -Rr '
+    fromjson? | select(.eventMessage != null) |
+    [.timestamp, .processID, .threadID, (.eventMessage | gsub("[\\n\\r\\t]"; " "))] | @tsv
+  ' | LC_ALL=C awk -F '\t' '
+    {
+      message=$4; thread=$2 ":" $3
+      if (match(message, /msgID=[0-9.]+/)) {
+        key=$2 ":" substr(message, RSTART, RLENGTH); current[thread]=key
+      } else key=current[thread]
+      if (key == "") next
+      if (message ~ /service="kTCCServiceAppleEvents"|subject=com\.apple\.finder|Handling access request: kTCCServiceAppleEvents/) apple[key]=1
+      if (message ~ /REQUEST_MSG/ && message ~ /service="/ && message !~ /service="kTCCServiceAppleEvents"/) other[key]=1
+      text=$1 " pid=" $2 " " message
+      if (message ~ /REQUEST_MSG|AUTHREQ_SUBJECT/) request[key]=text
+      if (message ~ /^(AUTHREQ_ATTRIBUTION|AttributionChain:)/ && (attribution[key]=="" || message ~ /responsible=/)) attribution[key]=text
+      if (message ~ /^AUTHREQ_RESULT|^Handling access request: kTCCServiceAppleEvents/) {
+        result[key]=text
+        if (message ~ /authValue[=:][ ]*0([, ]|$)/) { denied[key]=NR; denied_result[key]=text }
+        if (message ~ /authValue[=:][ ]*1([, ]|$)/) uncertain[key]=NR
+      }
+      seen[key]=NR; order[NR]=key
+    }
+    function emit(key, decision) {
+      if (request[key] != "") print substr(request[key],1,1800)
+      if (attribution[key] != "") print substr(attribution[key],1,1800)
+      if (decision == "") decision=result[key]
+      if (decision != "") print substr(decision,1,1800)
+    }
+    END {
+      for (key in denied) if (apple[key] && !other[key] && denied[key]>last) { last=denied[key]; failure=key }
+      if (failure == "") for (key in uncertain) if (apple[key] && !other[key] && uncertain[key]>last) { last=uncertain[key]; failure=key }
+      if (failure != "") emit(failure,denied_result[failure])
+      for (i=NR; i>0 && count<9; i--) {
+        key=order[i]
+        if (seen[key]==i && apple[key] && !other[key] && key!=failure) { emit(key); count++ }
+      }
+    }
+  '
 }
 
 # report_finder_automation appends the state behind scripted Finder
@@ -152,33 +195,36 @@ stream_tcc_log() {
 # output, it lands in the bounded tail that publish_runner_log hands to
 # tart-kubelet and that reaches Loki.
 #
-# It records the AppleEvents rows in the session user's TCC database,
-# when that database and each tccd were created (a recreated database or
-# a restarted tccd shows as a later birth or start), and tccd's log lines
-# for Apple Events requests. Those name the responsible process TCC
-# charged and the reason for the decision. Every line of a request that
-# mentions Apple Events, Finder, `osascript` or `Runner.Listener` is
-# kept, by `msgID`, and requests for other services are dropped.
-#
-# Capped so the block fits in the published tail.
+# Keep at most ten request summaries within the host 64 KiB tail. Teardown
+# is best-effort: a stalled stream or report must not prevent VM shutdown.
 report_finder_automation() {
-  local prefix
+  local prefix pid timer stream="${TCC_LOG_PID}"
   prefix="$(date -u +%FT%TZ) dispatch-poll: tcc:"
-  if [ -n "${TCC_LOG_PID}" ]; then
-    kill "${TCC_LOG_PID}" 2>/dev/null
-    wait "${TCC_LOG_PID}" 2>/dev/null
+  TCC_LOG_PID=""
+  if [ -n "${stream}" ] && jobs -pr | grep -qx "${stream}"; then
+    ( sleep 1; kill -KILL "${stream}" 2>/dev/null ) >/dev/null 2>&1 &
+    timer=$!
+    kill "${stream}" 2>/dev/null || true
+    wait "${stream}" 2>/dev/null || true
+    kill "${timer}" 2>/dev/null || true
+    wait "${timer}" 2>/dev/null || true
   fi
-  stat -f "${prefix} db inode=%i birth=%SB mtime=%Sm" -t '%FT%T' "${RUNNER_TCC_DB}" 2>&1 | head -n 1
-  /usr/bin/sqlite3 -readonly "${RUNNER_TCC_DB}" "SELECT client, auth_value, auth_reason, last_modified FROM access WHERE service = 'kTCCServiceAppleEvents';" 2>&1 |
-    head -n 10 | sed "s|^|${prefix} row |"
-  ps -axo pid=,user=,lstart=,comm= | awk '$NF ~ /\/tccd$/' | sed "s|^ *|${prefix} tccd |"
-  [ -f "${TCC_LOG}" ] || return 0
-  awk '
-    { line[NR] = $0; id[NR] = ""; if (match($0, /msgID=[0-9.]+/)) id[NR] = substr($0, RSTART, RLENGTH) }
-    /AUTHREQ_CTX/ && !/service=kTCCServiceAppleEvents/ && id[NR] != "" { other[id[NR]] = 1 }
-    /kTCCServiceAppleEvents|com\.apple\.finder|Runner\.Listener|osascript/ { hit[NR] = 1; if (id[NR] != "") ids[id[NR]] = 1 }
-    END { for (i = 1; i <= NR; i++) if ((hit[i] || (id[i] != "" && (id[i] in ids))) && !(id[i] in other)) print line[i] }
-  ' "${TCC_LOG}" | tail -n 60 | cut -c1-400 | sed "s|^|${prefix} log |"
+  set -m
+  (
+    stat -f "${prefix} db inode=%i birth=%SB mtime=%Sm" -t '%FT%T' "${RUNNER_TCC_DB}" 2>&1 | head -n 1
+    /usr/bin/sqlite3 -readonly -cmd '.timeout 1000' "${RUNNER_TCC_DB}" "SELECT client, auth_value, auth_reason, last_modified FROM access WHERE service = 'kTCCServiceAppleEvents' AND indirect_object_identifier = 'com.apple.finder' LIMIT 10;" 2>&1 |
+      head -n 10 | cut -c1-400 | sed "s|^|${prefix} row |"
+    ps -axo pid=,user=,lstart=,comm= | awk '$NF ~ /(^|\/)tccd$/' | head -n 5 | cut -c1-500 | sed "s|^ *|${prefix} tccd |"
+    [ ! -f "${TCC_LOG}" ] || filter_tcc_log | sed "s|^|${prefix} log |"
+  ) &
+  pid=$!
+  set +m
+  ( sleep 5; kill -TERM -- "-${pid}" 2>/dev/null; sleep 1; kill -KILL -- "-${pid}" 2>/dev/null ) >/dev/null 2>&1 &
+  timer=$!
+  wait "${pid}" 2>/dev/null || true
+  kill -KILL -- "-${pid}" 2>/dev/null || true
+  kill "${timer}" 2>/dev/null || true
+  wait "${timer}" 2>/dev/null || true
 }
 
 # Always halt the VM on script exit. tart-kubelet observes `tart run`
