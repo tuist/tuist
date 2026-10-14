@@ -11,6 +11,46 @@
 msgid ""
 msgstr ""
 
+#: lib/atlas_web/live/postal_live.ex:593
+#, elixir-autogen, elixir-format
+msgid "Awaiting signature"
+msgstr ""
+
+#: lib/atlas_web/live/postal_live.ex:599
+#, elixir-autogen, elixir-format
+msgid "Delivered"
+msgstr ""
+
+#: lib/atlas_web/live/postal_live.ex:601
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr ""
+
+#: lib/atlas_web/live/postal_live.ex:594
+#, elixir-autogen, elixir-format
+msgid "Preparing delivery"
+msgstr ""
+
+#: lib/atlas_web/live/postal_live.ex:596
+#, elixir-autogen, elixir-format
+msgid "Queued"
+msgstr ""
+
+#: lib/atlas_web/live/postal_live.ex:362
+#, elixir-autogen, elixir-format
+msgid "Refresh delivery status"
+msgstr ""
+
+#: lib/atlas_web/live/postal_live.ex:600
+#, elixir-autogen, elixir-format
+msgid "Undeliverable"
+msgstr ""
+
+#: lib/atlas_web/live/postal_live.ex:602
+#, elixir-autogen, elixir-format
+msgid "Unknown"
+msgstr ""
+
 #: lib/atlas_web/components/core_components.ex:369
 #, elixir-autogen, elixir-format
 msgid "Actions"

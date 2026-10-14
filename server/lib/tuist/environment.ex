@@ -657,6 +657,17 @@ defmodule Tuist.Environment do
   def kura_pressure_inactive_days, do: positive_env_integer("TUIST_KURA_PRESSURE_INACTIVE_DAYS", 60)
 
   @doc """
+  Days without cache demand before an Air Kura instance is drained and
+  reclaimed. Demand is real cache traffic (activation requests and the usage
+  managed nodes report), so an Air account that used its cache for a while and
+  stopped gives the room back within a week, and gets it back on its next cache
+  request.
+
+  Read from `TUIST_KURA_AIR_INACTIVE_DAYS`.
+  """
+  def kura_air_inactive_days, do: positive_env_integer("TUIST_KURA_AIR_INACTIVE_DAYS", 7)
+
+  @doc """
   Days a Pro Kura instance may stay in service without storing anything before it
   is drained and reclaimed, measured from when it entered service.
 

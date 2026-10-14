@@ -761,13 +761,13 @@ k8s-monitoring:
       // keeps its per-peer outcome. Warnings and errors from the same target
       // are not matched and stay unsampled.
       stage.match {
-        selector = "{namespace=\"kura\", container=\"kura\"} |= `\"level\":\"INFO\"` |= `\"target\":\"kura::backfill::pass\"` |= `\"message\":\"backfill pass started\"`"
+        selector = `{namespace="kura", container="kura"} |= "\"level\":\"INFO\"" |= "\"target\":\"kura::backfill::pass\"" |= "\"message\":\"backfill pass started\""`
         action = "drop"
         drop_counter_reason = "kura_backfill_pass_started"
       }
 
       stage.match {
-        selector = "{namespace=\"kura\", container=\"kura\"} |= `\"level\":\"INFO\"` |= `\"target\":\"kura::backfill::pass\"` |= `\"message\":\"backfill pass completed\"` |= `\"capacity_completed\":false` |= `\"absent\":0,`"
+        selector = `{namespace="kura", container="kura"} |= "\"level\":\"INFO\"" |= "\"target\":\"kura::backfill::pass\"" |= "\"message\":\"backfill pass completed\"" |= "\"capacity_completed\":false" |= "\"absent\":0,"`
 
         stage.sampling {
           rate = 0.01

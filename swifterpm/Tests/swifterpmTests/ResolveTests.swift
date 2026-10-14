@@ -223,6 +223,52 @@ struct ResolveTests {
     }
 
     @Test
+    func coldResolutionWritesThePackageInfoCacheForTheResolvedPins() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path)
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            #expect(
+                try await PackageResolver.shouldUseNativeColdPath(
+                    packageDir: package,
+                    cacheRoot: cacheDirectory,
+                    registryConfig: RegistryConfig()
+                )
+            )
+
+            _ = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: cacheDirectory,
+                    scratchDirectory: scratch,
+                    disableSandbox: true,
+                    quiet: true
+                ))
+
+            let pin = try #require(
+                try await ResolvedFile.read(packageDir: package).pins.first
+            )
+            let indexPath = scratch.appendingPathComponent("swifterpm/package-info/index.json")
+            let index = try #require(
+                JSONSerialization.jsonObject(
+                    with: try await fileSystem.readFile(at: indexPath.absolutePath))
+                    as? [String: Any])
+            let entries = try #require(index["packages"] as? [[String: Any]])
+            #expect(entries.map { $0["identity"] as? String } == ["dependency"])
+            let entry = try #require(entries.first)
+            #expect(entry["revision"] as? String == pin.state.revision)
+            #expect(entry["version"] as? String == "1.0.0")
+            let packageInfoPath = try #require(entry["package_info_path"] as? String)
+            #expect(try await fileSystem.exists(URL(fileURLWithPath: packageInfoPath).absolutePath))
+        }
+    }
+
+    @Test
     func coldResolutionCopiesCheckoutsInContinuousIntegration() async throws {
         try await Environment.$values.withValue(["CI": "1"]) {
             try await withTemporaryDirectory { root in

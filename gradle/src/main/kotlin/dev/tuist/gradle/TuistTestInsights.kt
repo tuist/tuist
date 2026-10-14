@@ -368,6 +368,7 @@ abstract class TuistTestInsightsService :
         val url: Property<String>
         val project: Property<String>
         val useEnvironmentProxy: Property<Boolean>
+        val actorId: Property<String>
         val rootProjectName: Property<String>
         val projectDir: DirectoryProperty
         val gitBranch: Property<String>
@@ -527,6 +528,9 @@ abstract class TuistTestInsightsService :
                 connection.requestMethod = "POST"
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/json")
+                ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
+                    connection.setRequestProperty(ActorIdentifier.HEADER, it)
+                }
 
                 OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
                     Gson().toJson(report, writer)
@@ -589,6 +593,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             parameters.url.set(config.url)
             config.project?.let { parameters.project.set(it) }
             parameters.useEnvironmentProxy.set(config.network.proxy)
+            config.actorId?.let { parameters.actorId.set(it) }
             parameters.rootProjectName.set(project.rootProject.name)
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
             parameters.gitBranch.set(gitInfo.branch())

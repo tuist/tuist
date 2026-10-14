@@ -25,6 +25,165 @@ struct RestoreTests {
     }
 
     @Test
+    func ensureSourceFallsBackWhenServerRejectsShallowFetch() async throws {
+        try await withTemporaryDirectory { root in
+            try await withLocalHTTPServer { server in
+                let repo = root.appendingPathComponent("Dependency")
+                try await writeMinimalPackageManifest(at: repo, name: "Dependency")
+                let revision = try await initCommittedGitRepository(at: repo)
+                try await serveGitRepositoryWithoutShallowSupport(repo, revision: revision, server: server)
+                let location = server.url(path: "/Dependency.git").absoluteString
+                let pin = ResolvedPin(
+                    identity: "dependency",
+                    kind: "remoteSourceControl",
+                    location: location,
+                    state: ResolvedState(branch: nil, revision: revision, version: nil)
+                )
+                let cache = try await Cache(root: root.appendingPathComponent("cache"))
+
+                let source = try await WorkspaceRestorer.ensureSource(cache: cache, pin: pin, location: location)
+
+                #expect(
+                    try await fileSystem.readFile(at: source.appendingPathComponent("Package.swift").absolutePath)
+                        == fileSystem.readFile(at: repo.appendingPathComponent("Package.swift").absolutePath)
+                )
+                #expect(
+                    try await fileSystem.readTextFile(
+                        at: source.appendingPathComponent(WorkspaceRestorer.sourceRevisionMarkerFilename).absolutePath
+                    ) == revision
+                )
+                #expect(try await !fileSystem.exists(source.appendingPathComponent(".git").absolutePath))
+                #expect(server.requestedPaths == [
+                    "/Dependency.git/info/refs",
+                    "/Dependency.git/info/refs",
+                    "/Dependency.git/git-upload-pack",
+                ])
+
+                let cachedSource = try await WorkspaceRestorer.ensureSource(cache: cache, pin: pin, location: location)
+                #expect(cachedSource.path == source.path)
+                #expect(server.requestedPaths.count == 3)
+            }
+        }
+    }
+
+    @Test
+    func ensureSourceReportsFullFetchFailureAfterShallowRejection() async throws {
+        try await withTemporaryDirectory { root in
+            try await withLocalHTTPServer { server in
+                let repo = root.appendingPathComponent("Dependency")
+                try await writeMinimalPackageManifest(at: repo, name: "Dependency")
+                let revision = try await initCommittedGitRepository(at: repo)
+                try await serveGitRepositoryWithoutShallowSupport(repo, revision: revision, server: server)
+                server.respond(to: "/Dependency.git/git-upload-pack", with: [.status(503)])
+                let location = server.url(path: "/Dependency.git").absoluteString
+                let pin = ResolvedPin(
+                    identity: "dependency",
+                    kind: "remoteSourceControl",
+                    location: location,
+                    state: ResolvedState(branch: nil, revision: revision, version: nil)
+                )
+                let cache = try await Cache(root: root.appendingPathComponent("cache"))
+
+                await #expect(throws: (any Error).self) {
+                    do {
+                        _ = try await WorkspaceRestorer.ensureSource(cache: cache, pin: pin, location: location)
+                    } catch {
+                        #expect(String(describing: error).contains(location))
+                        #expect(String(describing: error).contains("503"))
+                        throw error
+                    }
+                }
+                #expect(try await !fileSystem.exists(cache.sourcePath(pin: pin).absolutePath))
+                #expect(server.requestedPaths == [
+                    "/Dependency.git/info/refs",
+                    "/Dependency.git/info/refs",
+                    "/Dependency.git/git-upload-pack",
+                ])
+            }
+        }
+    }
+
+    @Test
+    func ensureSourceUsesShallowFetchWhenSupported() async throws {
+        try await withTemporaryDirectory { root in
+            let repo = root.appendingPathComponent("Dependency")
+            try await writeMinimalPackageManifest(at: repo, name: "Dependency")
+            let revision = try await initCommittedGitRepository(at: repo)
+            try await fileSystem.atomicWrite("newer content", to: repo.appendingPathComponent("new-file"))
+            try await commitAll(in: repo, message: "newer commit")
+            let pin = ResolvedPin(
+                identity: "dependency",
+                kind: "localSourceControl",
+                location: repo.path,
+                state: ResolvedState(branch: nil, revision: revision, version: nil)
+            )
+            let cache = try await Cache(root: root.appendingPathComponent("cache"))
+
+            let source = try await WorkspaceRestorer.ensureSource(cache: cache, pin: pin, location: repo.path)
+
+            let head = try await SystemProcess.output(
+                "/usr/bin/git", ["rev-parse", "HEAD"], workingDirectory: source
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(head == revision)
+            #expect(try await fileSystem.exists(source.appendingPathComponent(".git/shallow").absolutePath))
+            #expect(try await !fileSystem.exists(source.appendingPathComponent("new-file").absolutePath))
+        }
+    }
+
+    @Test(arguments: [401, 403, 404, 503])
+    func ensureSourceDoesNotRetryUnrelatedFetchFailures(status: Int) async throws {
+        try await withTemporaryDirectory { root in
+            try await withLocalHTTPServer { server in
+                server.respond(to: "/Dependency.git/info/refs", with: [.status(status)])
+                let location = server.url(path: "/Dependency.git").absoluteString
+                let pin = ResolvedPin(
+                    identity: "dependency",
+                    kind: "remoteSourceControl",
+                    location: location,
+                    state: ResolvedState(branch: nil, revision: String(repeating: "a", count: 40), version: nil)
+                )
+                let cache = try await Cache(root: root.appendingPathComponent("cache"))
+
+                await #expect(throws: (any Error).self) {
+                    try await WorkspaceRestorer.ensureSource(cache: cache, pin: pin, location: location)
+                }
+                #expect(server.requestedPaths == ["/Dependency.git/info/refs"])
+            }
+        }
+    }
+
+    /// A Git smart-HTTP advertisement without the `shallow` capability makes real Git reject
+    /// --depth before sending a pack request. A non-shallow fetch can consume the same pack.
+    private func serveGitRepositoryWithoutShallowSupport(
+        _ repo: URL, revision: String, server: LocalHTTPServer
+    ) async throws {
+        func packet(_ payload: String) -> String {
+            String(format: "%04x", payload.utf8.count + 4) + payload
+        }
+        let advertisement = packet("# service=git-upload-pack\n") + "0000"
+            + packet("\(revision) HEAD\0multi_ack_detailed\n") + "0000"
+        server.respond(to: "/Dependency.git/info/refs", with: [
+            .init(
+                statusCode: 200,
+                headers: ["Content-Type": "application/x-git-upload-pack-advertisement"],
+                body: advertisement
+            ),
+        ])
+        let pack = try await SystemProcess.run(
+            "/usr/bin/git", ["pack-objects", "--all", "--stdout"], workingDirectory: repo
+        ).stdout
+        var response = Data("0008NAK\n".utf8)
+        response.append(pack)
+        server.respond(to: "/Dependency.git/git-upload-pack", with: [
+            .init(
+                statusCode: 200,
+                headers: ["Content-Type": "application/x-git-upload-pack-result"],
+                data: response
+            ),
+        ])
+    }
+
+    @Test
     func restorePackageDoesNotInitializeGitSubmodules() async throws {
         try await withTemporaryDirectory { root in
             let repo = root.appendingPathComponent("BrokenSubmodule")

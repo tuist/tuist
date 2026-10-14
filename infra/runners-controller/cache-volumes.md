@@ -183,16 +183,26 @@ separate invalidation generation, removes the shared HEAD and schedules remote
 object cleanup through the existing URL-TTL grace. Running branches cannot
 resurrect it. Account deletion uses the existing master-prefix cleanup.
 
+Allocation applies the same clear when the saved head's last measurement uses
+80% or more of its capacity and a use cloned from that head measured at 99% or
+more of its own. A large cold fill alone never clears, so keys that are merely
+big keep chaining warm. The new use starts cold and begins a fresh lineage;
+running clones of the old lineage cannot publish. Unknown measurements never
+trigger it. Without this, a nearly full head fails every job that mounts it and
+failed jobs never publish a smaller image.
+
 ## User-visible management
 
 Account **Runners → Volumes** shows volume count, retained logical used space
 and cache hit rate with date ranges and period comparisons. Its searchable,
 sortable, paginated table lists keys, repositories, platforms, used space,
 capacity and last use. Volume details sit above the Overview and Jobs tabs;
-the overview adds storage, hit-rate and job-run charts plus recent jobs.
+the overview adds storage, hit-rate and job-run widgets compared with the previous period, their charts, and recent jobs.
 Job history includes job and workflow names, cache lifecycle status ("Saved"
 for published changes), hit/miss, sizes and a single mount timestamp.
 Job details link back to their volumes. Unknown capacity is "Not reported".
+Volume details warn when the saved snapshot uses 80% or more of its capacity;
+job details warn when a failed job's copy reached 99% of its volume.
 Readers need `runners_read`; clearing requires `account_update`
 and a confirmation. Every browser query and mutation is account-scoped.
 
