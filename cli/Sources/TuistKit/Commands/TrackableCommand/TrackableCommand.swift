@@ -258,6 +258,8 @@ public class TrackableCommand {
                         fullHandle,
                         serverURL.absoluteString,
                         sessionDirectory.pathString,
+                        "--project-path",
+                        path.pathString,
                     ],
                     environment: ProcessInfo.processInfo.environment
                 )

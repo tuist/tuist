@@ -113,13 +113,31 @@ struct CommandArgumentsTests {
         #expect(config.fullHandle == "tuist/app")
     }
 
-    @Test(.withMockedEnvironment())
-    func parsed_nil_path_does_not_consume_a_passthrough_path() async throws {
-        let command = ParsedProjectPathCommand(path: nil)
+    @Test(
+        .withMockedEnvironment(),
+        arguments: [Invocation.install, .build, .buildRun, .test, .testRun],
+        [false, true]
+    )
+    func passthrough_path_does_not_override_the_parsed_project_path(
+        _ invocation: Invocation,
+        hasEnvironmentPath: Bool
+    ) async throws {
+        let environment = try #require(Environment.mocked)
+        if hasEnvironmentPath {
+            environment.variables[invocation.environmentKey] = "/environment"
+        }
+        let arguments = invocation.arguments + ["--", "--path", "/passthrough"]
+        let command = try ProjectCommandsRoot.parseAsRoot(arguments)
+        let projectCommand = try #require(command as? ProjectPathProviding)
 
-        let path = try await CommandArguments.path(in: ["install", "--", "--path", "/passthrough"], command: command)
+        let path = try await CommandArguments.path(in: arguments, command: command)
 
-        #expect(path == (try await Environment.current.currentWorkingDirectory()))
+        #expect(projectCommand.path == (hasEnvironmentPath ? "/environment" : nil))
+        let workingDirectory = try await environment.currentWorkingDirectory()
+        #expect(path == (hasEnvironmentPath ? AbsolutePath("/environment") : workingDirectory))
+        if let installCommand = command as? InstallCommand {
+            #expect(installCommand.passthroughArguments == ["--", "--path", "/passthrough"])
+        }
     }
 
     @Test(.withMockedEnvironment())
@@ -165,10 +183,6 @@ private struct ProjectCommandsRoot: ParsableCommand {
             ]
         )
     }
-}
-
-private struct ParsedProjectPathCommand: ParsableCommand, ProjectPathProviding {
-    var path: String?
 }
 
 private struct OtherCommand: ParsableCommand {}
