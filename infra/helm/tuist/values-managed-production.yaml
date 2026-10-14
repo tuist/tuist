@@ -91,6 +91,9 @@ server:
   appUrl: https://tuist.dev
 
   config:
+    # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
+    kuraVolumeRootKeys:
+      enabled: true
     atlasEmail:
       enabled: true
     # Point server error reporting at the Atlas error-tracking ingest
@@ -489,8 +492,8 @@ egressTreeAgent:
   nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west, kura-eu-east, kura-us-central]
 
 # The kura-volumes.tuist.dev CSI driver and kura-encrypted-nvme StorageClass
-# on the Kura cache pools. Inert until server.kuraEncryptedVolumes places
-# instances on the class. The deploy workflows pin kuraVolumesCSI.image.tag to
+# on the Kura cache pools. Inert until the :kura_encrypted_volumes
+# feature flag places an account's instances on the class. The deploy workflows pin kuraVolumesCSI.image.tag to
 # the Kura controller's `sha-` build.
 kuraVolumesCSI:
   enabled: true

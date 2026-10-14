@@ -9,6 +9,14 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Default-off account opt-in to Kura data volumes encrypted at rest
+  (`kura-encrypted-nvme`) in regions on the node-local NVMe class.
+  """
+  def kura_encrypted_volumes_enabled?(account) do
+    FunWithFlags.enabled?(:kura_encrypted_volumes, for: account)
+  end
+
+  @doc """
   Whether legacy endpoint discovery may hand out the stable hostname. Canary
   enables this automatically; other environments use the account/global flag.
   DNS publication is independent because new CLIs derive that hostname locally.

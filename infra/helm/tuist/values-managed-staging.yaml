@@ -68,8 +68,8 @@ egressTreeAgent:
   nodePools: [kura-ca-east]
 
 # The kura-volumes.tuist.dev CSI driver and kura-encrypted-nvme StorageClass
-# on the Kura cache pools. Inert until server.kuraEncryptedVolumes places
-# instances on the class. The deploy workflows pin kuraVolumesCSI.image.tag to
+# on the Kura cache pools. Inert until the :kura_encrypted_volumes
+# feature flag places an account's instances on the class. The deploy workflows pin kuraVolumesCSI.image.tag to
 # the Kura controller's `sha-` build.
 kuraVolumesCSI:
   enabled: true
@@ -104,6 +104,9 @@ server:
   # key in the server-config Secret with it. Rollback is a revert; the
   # existing `dsn` field on the same item stays put.
   config:
+    # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
+    kuraVolumeRootKeys:
+      enabled: true
     externalSecrets:
       fields:
         sentryDsn: dsn_atlas

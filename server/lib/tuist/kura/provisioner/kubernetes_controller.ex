@@ -422,7 +422,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     revision =
       manifest_revision_string(region, claim, external_peers, entitlements, egress) <>
         endpoint_identity_revision(account) <>
-        serving_revision(account)
+        serving_revision(account) <>
+        storage_revision(region, account)
 
     annotations = %{@manifest_revision_annotation => revision}
 
@@ -476,7 +477,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "memoryCeilingMib" => entitlements.memory && entitlements.memory.ceiling_mib,
           "cpuCeilingMilli" => entitlements.cpu_ceiling_milli,
           "memoryCeilingBinPacked" => Regions.memory_ceiling_bin_packed?(region),
-          "storageClassName" => storage_class(region),
+          "storageClassName" => storage_class(region, account),
           "storageSize" => claim,
           "replicas" => replicas(region),
           "nodeSelector" => instance_node_selector(region, server),
@@ -1101,17 +1102,29 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp rewrite_loopback(uri, _), do: uri
 
-  # The class is not part of the manifest revision: flipping the gate builds new
-  # instances on encrypted volumes and reaches existing ones at their next apply.
-  defp storage_class(%Regions{provisioner_config: %{storage_class: @node_local_nvme_storage_class} = config}) do
-    if Map.get(config, :encrypted_volumes, true) and Environment.kura_encrypted_volumes_enabled?(),
+  defp storage_class(region, account) do
+    if encrypted_volumes?(region, account),
       do: @encrypted_nvme_storage_class,
-      else: @node_local_nvme_storage_class
+      else: configured_storage_class(region)
   end
 
-  defp storage_class(%Regions{provisioner_config: %{storage_class: storage_class}}), do: storage_class
+  defp configured_storage_class(%Regions{provisioner_config: %{storage_class: storage_class}}), do: storage_class
+  defp configured_storage_class(_), do: nil
 
-  defp storage_class(_), do: nil
+  defp encrypted_volumes?(
+         %Regions{provisioner_config: %{storage_class: @node_local_nvme_storage_class} = config},
+         account
+       ) do
+    Map.get(config, :encrypted_volumes, true) and FeatureFlags.kura_encrypted_volumes_enabled?(account)
+  end
+
+  defp encrypted_volumes?(_region, _account), do: false
+
+  # Flipping the flag moves the revision, so the account's instances are
+  # re-applied and roll onto the new class one replica at a time.
+  defp storage_revision(region, account) do
+    if encrypted_volumes?(region, account), do: "+encrypted-volumes-v1", else: ""
+  end
 
   # The claim carried on the instance wins over anything else. A claim cannot be
   # expanded on the local-path class these regions run, so an instance whose

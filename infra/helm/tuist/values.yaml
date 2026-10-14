@@ -378,8 +378,8 @@ kuraVolumesCSI:
   # The kura-volumes.tuist.dev CSI driver and the kura-encrypted-nvme
   # StorageClass (templates/kura-volumes-csi.yaml). The node plugin runs on the
   # Kura cache pools (tuist.kuraCachePools). Deploying it changes nothing on its
-  # own: Kura instances move to the class only under
-  # server.kuraEncryptedVolumes.enabled.
+  # own: an account's Kura instances move to the class only under the
+  # :kura_encrypted_volumes feature flag.
   enabled: false
   # Pinned by the deploy workflows to the Kura controller's `sha-` build.
   # Empty is a render-time failure, as for egressTreeAgent.image.tag.
@@ -604,11 +604,6 @@ server:
   # Refuse a new Kura instance before it can use the region's reserved storage
   # headroom. This must remain enabled on hosted deployments.
   kuraCapacityAdmission:
-    enabled: false
-  # Build Kura instances on the node-local NVMe class on kura-encrypted-nvme
-  # instead (TUIST_KURA_ENCRYPTED_VOLUMES_ENABLED). Needs kuraVolumesCSI on the
-  # pools those instances land on and server.config.kuraVolumeRootKeys.
-  kuraEncryptedVolumes:
     enabled: false
   # Opt-in object-storage cleanup windows by artifact family, in days.
   # An empty value disables cleanup only for that artifact family.

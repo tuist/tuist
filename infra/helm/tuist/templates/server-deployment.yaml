@@ -139,10 +139,6 @@ spec:
             - name: TUIST_KURA_CAPACITY_ADMISSION_ENABLED
               value: "1"
             {{- end }}
-            {{- if .Values.server.kuraEncryptedVolumes.enabled }}
-            - name: TUIST_KURA_ENCRYPTED_VOLUMES_ENABLED
-              value: "1"
-            {{- end }}
             {{- if .Values.server.eventsGrpc.enabled }}
             - name: TUIST_ONCE_EVENTS_GRPC
               value: "on"

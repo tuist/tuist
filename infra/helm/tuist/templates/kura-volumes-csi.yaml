@@ -12,8 +12,9 @@ The provisioner runs as a sidecar on every node (--node-deployment): the volume
 is node-local, so the instance on the node the scheduler picked is the one that
 creates it.
 
-Nothing provisions on this class until the server places Kura instances on it
-(server.kuraEncryptedVolumes.enabled), so the driver can be deployed first.
+Nothing provisions on this class until the server places an account's Kura
+instances on it (the :kura_encrypted_volumes feature flag), so the driver can
+be deployed first.
 */ -}}
 {{- $namespace := "kura-volumes" }}
 {{- $name := "kura-volumes-csi-node" }}

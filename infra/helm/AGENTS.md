@@ -18,8 +18,9 @@ This node covers Helm assets under `infra/helm/`.
   never on rack nodes. The `kura-volumes` namespace and the
   `kura-volumes-csi-node` ServiceAccount are fixed: the server's key endpoint
   authorizes by that TokenReview username. `kuraVolumesCSI.image.tag` pins a
-  `sha-<git-sha>` build and is required. Instances move onto the class only
-  with `server.kuraEncryptedVolumes.enabled`. Volume keys are wrapped by the
+  `sha-` build (set by the deploy workflows) and is required. An account's
+  instances move onto the class only under the `:kura_encrypted_volumes`
+  feature flag. Volume keys are wrapped by the
   root keys `server.config.kuraVolumeRootKeys.enabled` syncs from the env's
   `KURA_VOLUME_ROOT_KEYS` 1Password item (`value`); canary and production
   issue no keys without it.

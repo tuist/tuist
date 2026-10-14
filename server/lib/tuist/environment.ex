@@ -2120,14 +2120,6 @@ defmodule Tuist.Environment do
     end
   end
 
-  @doc """
-  Whether Kura instances on the node-local NVMe class are built on encrypted
-  volumes instead (`TUIST_KURA_ENCRYPTED_VOLUMES_ENABLED`).
-  """
-  def kura_encrypted_volumes_enabled? do
-    truthy?(System.get_env("TUIST_KURA_ENCRYPTED_VOLUMES_ENABLED", "0"))
-  end
-
   @doc false
   def parse_runners_site_pools(value) do
     value
