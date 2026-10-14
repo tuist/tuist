@@ -5,9 +5,12 @@ defmodule Tuist.Runners.Workers.SiteSpilloverWorkerTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Repo
+  alias Tuist.Runners.Sites
   alias Tuist.Runners.Workers.SiteSpilloverWorker
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
+
+  setup :verify_on_exit!
 
   setup do
     prefix = Tuist.Environment.runners_macos_pool_name_prefix()
@@ -15,6 +18,7 @@ defmodule Tuist.Runners.Workers.SiteSpilloverWorkerTest do
     stub(Tuist.Environment, :runners_site_pools, fn ->
       %{
         "#{prefix}-ber1-26-6" => %{site: "ber1", platform: :macos},
+        "#{prefix}-ber1-27-0" => %{site: "ber1", platform: :macos},
         "tuist-runner-pool-ber1" => %{site: "ber1", platform: :macos}
       }
     end)
@@ -39,27 +43,57 @@ defmodule Tuist.Runners.Workers.SiteSpilloverWorkerTest do
 
   defp fleet(workflow_job_id), do: Repo.get!(WorkflowJob, workflow_job_id).fleet_name
 
-  test "moves a site job no site runner claimed in time to the rented pool", %{prefix: prefix, account: account} do
-    queue(account, 920_001, "#{prefix}-ber1-26-6", 300)
+  test "keeps site jobs on a site that is up, however long they queue", %{prefix: prefix, account: account} do
+    stub(Sites, :status, fn _site_pool -> :up end)
+    queue(account, 920_001, "#{prefix}-ber1-27-0", 300)
 
     assert :ok = perform_job(SiteSpilloverWorker, %{})
 
-    assert fleet(920_001) == "#{prefix}-26-6"
+    assert fleet(920_001) == "#{prefix}-ber1-27-0"
   end
 
-  test "leaves a site job that is still within its wait", %{prefix: prefix, account: account} do
-    queue(account, 920_002, "#{prefix}-ber1-26-6", 30)
+  test "moves every queued job of a site pool that is down to the rented pool", %{prefix: prefix, account: account} do
+    down_pool = "#{prefix}-ber1-26-6"
+
+    stub(Sites, :status, fn
+      ^down_pool -> {:down, :no_capacity}
+      _site_pool -> :up
+    end)
+
+    queue(account, 920_002, "#{prefix}-ber1-26-6", 300)
+    queue(account, 920_003, "#{prefix}-ber1-26-6", 0)
+    queue(account, 920_004, "#{prefix}-ber1-27-0", 300)
 
     assert :ok = perform_job(SiteSpilloverWorker, %{})
 
-    assert fleet(920_002) == "#{prefix}-ber1-26-6"
+    assert fleet(920_002) == "#{prefix}-26-6"
+    assert fleet(920_003) == "#{prefix}-26-6"
+    assert fleet(920_004) == "#{prefix}-ber1-27-0"
+  end
+
+  test "moves the jobs of a stalled site pool", %{prefix: prefix, account: account} do
+    stub(Sites, :status, fn _site_pool -> {:down, :stalled} end)
+    queue(account, 920_005, "#{prefix}-ber1-27-0", 700)
+
+    assert :ok = perform_job(SiteSpilloverWorker, %{})
+
+    assert fleet(920_005) == "#{prefix}-27-0"
+  end
+
+  test "reads no site state for pools with nothing queued", %{prefix: prefix, account: account} do
+    queued_pool = "#{prefix}-ber1-26-6"
+    expect(Sites, :status, 1, fn ^queued_pool -> :up end)
+    queue(account, 920_006, "#{prefix}-ber1-26-6", 30)
+
+    assert :ok = perform_job(SiteSpilloverWorker, %{})
   end
 
   test "leaves an explicit site pool, which has no rented twin", %{account: account} do
-    queue(account, 920_003, "tuist-runner-pool-ber1", 300)
+    reject(&Sites.status/1)
+    queue(account, 920_007, "tuist-runner-pool-ber1", 300)
 
     assert :ok = perform_job(SiteSpilloverWorker, %{})
 
-    assert fleet(920_003) == "tuist-runner-pool-ber1"
+    assert fleet(920_007) == "tuist-runner-pool-ber1"
   end
 end
