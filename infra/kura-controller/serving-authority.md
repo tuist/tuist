@@ -77,7 +77,14 @@ controller waits for the source to report the current valid Serving grant before
 starting preparation, including after a live-writer resumption.
 The source rejects new mutations, drains admitted work, and freezes metadata
 publication and eviction. The destination must have durably reached the source's
-final feed incarnation/head before freezing its retained corpus. Verification
+final feed incarnation/head, then reconcile the source's complete retained index
+before freezing its retained corpus. This bounded replication pass fetches missing
+records outside the normal bootstrap horizon without echoing them into the sibling
+feed. It preserves resource admission, capacity, version and tombstone checks;
+an incompatible or undersized destination can still fail the final barrier.
+Only one repair runs per destination, and an abort, changed intent or deadline
+cancels it. A retry after the destination is frozen does not repair or release
+that hold. Older destinations keep their verify-only behavior. Verification
 walks the complete retained index in bounded pages, hashes metadata and bodies
 with a 64 KiB buffer, and verifies namespace tombstones against that destination.
 A bootstrapped state, cursor or consumer count alone cannot satisfy the barrier.
