@@ -401,7 +401,7 @@ build {
   }
 
   provisioner "file" {
-    source = "${path.root}/build/tuist-cache-volume"
+    source      = "${path.root}/build/tuist-cache-volume"
     destination = "/tmp/tuist-cache-volume"
   }
 
@@ -525,6 +525,59 @@ build {
       "sudo -u runner defaults -currentHost write com.apple.screensaver askForPasswordDelay -int 0",
       "sudo sysadminctl -screenLock off -password runner || true",
       "sudo /usr/bin/python3 - <<'CHECK'\nimport sys\nkey = bytes([0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f])\nwith open('/etc/kcpassword', 'rb') as f:\n    enc = f.read()\ndec = bytes(b ^ key[i % len(key)] for i, b in enumerate(enc))\nif dec.startswith(b'<sealed>'):\n    sys.stderr.write('kcpassword was replaced by macOS with <sealed>; runner auto-login would boot to the password screen\\n')\n    sys.exit(1)\nif dec != b'runner' + bytes(6):\n    sys.stderr.write('kcpassword does not decode to the runner auto-login payload\\n')\n    sys.exit(1)\nCHECK"
+    ]
+  }
+
+  # [experiment] Seed runner's TCC approvals at build time. Reboot so
+  # `runner` auto-logs in and its tccd creates TCC.db, write the rows
+  # into that file, then reboot again and check they survive. Runs
+  # before the LaunchAgent is installed so dispatch-poll.sh does not
+  # start (and halt the VM) during the build.
+  provisioner "file" {
+    source      = "${path.root}/tcc-seed.sh"
+    destination = "/tmp/tcc-seed.sh"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo install -m 0755 -o root -g wheel /tmp/tcc-seed.sh /opt/tuist/tcc-seed.sh",
+      "rm -f /tmp/tcc-seed.sh",
+      "sudo log config --subsystem com.apple.TCC --mode 'level:debug,persist:debug'",
+      "sudo /opt/tuist/tcc-seed.sh snapshot build-0-before-login || true"
+    ]
+  }
+
+  provisioner "shell" {
+    expect_disconnect = true
+    skip_clean        = true
+    inline            = ["(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"]
+  }
+
+  provisioner "shell" {
+    pause_before = "45s"
+    inline = [
+      "set -euo pipefail",
+      "sudo /opt/tuist/tcc-seed.sh wait",
+      "sudo /opt/tuist/tcc-seed.sh snapshot build-1-after-login",
+      "sudo /opt/tuist/tcc-seed.sh seed",
+      "sudo /opt/tuist/tcc-seed.sh snapshot build-2-seeded"
+    ]
+  }
+
+  provisioner "shell" {
+    expect_disconnect = true
+    skip_clean        = true
+    inline            = ["(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"]
+  }
+
+  provisioner "shell" {
+    pause_before = "45s"
+    inline = [
+      "set -euo pipefail",
+      "sudo /opt/tuist/tcc-seed.sh wait",
+      "sudo /opt/tuist/tcc-seed.sh snapshot build-3-after-reboot",
+      "sudo /opt/tuist/tcc-seed.sh verify"
     ]
   }
 

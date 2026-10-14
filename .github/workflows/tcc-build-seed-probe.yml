@@ -1,0 +1,82 @@
+name: TCC build-time seed probe (temporary)
+
+on:
+  push:
+    branches:
+      - claude/tcc-build-seed-probe
+    paths:
+      - .github/workflows/tcc-build-seed-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: tuist-staging-macos
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Image and TCC evidence
+        run: |
+          set -x
+          mkdir -p "$RUNNER_TEMP/diag"
+          sw_vers; xcodebuild -version; csrutil status || true
+          sysctl -n kern.boottime; uptime
+          sudo /opt/tuist/tcc-seed.sh snapshot job || true
+          for f in /var/db/tuist-tcc-evidence/*.txt; do echo "===== $f"; sudo cat "$f"; done
+          sudo find /Users/runner/Library /private/var/db /Library/Application\ Support -name 'TCC.db*' -print0 2>/dev/null | xargs -0 ls -laO 2>/dev/null || true
+          ls -laOe "$HOME/Library/Application Support" | head -40
+          sudo log show --last boot --info --debug --style compact --predicate 'subsystem == "com.apple.TCC" OR process == "tccd"' > "$RUNNER_TEMP/diag/tcc-boot.log" 2>&1 || true
+          wc -l "$RUNNER_TEMP/diag/tcc-boot.log"
+          grep -a -i -E 'TCC\.db|database|creat|corrupt|migrat|remov|delet|schema|integrity|rename|replac|backup|reset|vault' "$RUNNER_TEMP/diag/tcc-boot.log" | cut -c1-400 | head -150 || true
+      - name: Finder automation probe
+        run: |
+          log stream --level debug --style compact --predicate 'subsystem == "com.apple.TCC"' > "$RUNNER_TEMP/diag/finder.log" 2>&1 &
+          stream=$!
+          sleep 1
+          rc=0
+          osascript -e 'with timeout of 20 seconds' -e 'tell application "Finder" to get name of startup disk' -e 'end timeout' || rc=$?
+          sleep 1; kill $stream || true
+          grep -a -E 'Prompting|AUTHREQ_RESULT|AUTHREQ_ATTRIBUTION.*Finder|indirect object' "$RUNNER_TEMP/diag/finder.log" | grep -v -E 'ListenEvent|ScreenCapture' | cut -c1-300 | head -20 || true
+          echo "FINDER_PROBE_RC=$rc"
+      - name: Generate and build
+        env:
+          MISE_GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! command -v mise >/dev/null; then curl -fsSL https://mise.run | sh; fi
+          export PATH="$HOME/.local/bin:$PATH"
+          cp -R repro-sim-media/MediaRepro "$RUNNER_TEMP/MediaRepro"
+          cd "$RUNNER_TEMP/MediaRepro"
+          mise x tuist@4.212.0 -- tuist generate --no-open
+          xcodebuild build-for-testing -project MediaRepro.xcodeproj -scheme MediaRepro -destination 'generic/platform=iOS Simulator' -quiet
+      - name: Boot simulator
+        run: |
+          set -euo pipefail
+          udid=$(xcrun simctl list devices available -j | jq -r '[.devices | to_entries | sort_by(.key)[] | select(.key | test("iOS")) | .value[] | select(.name | test("^iPhone"))] | last | .udid')
+          echo "UDID=$udid" >> "$GITHUB_ENV"
+          xcrun simctl boot "$udid" || true
+          xcrun simctl bootstatus "$udid" -b
+          for service in microphone camera; do xcrun simctl privacy "$udid" grant "$service" dev.tuist.MediaRepro || true; done
+      - name: Microphone test
+        run: |
+          nohup /usr/bin/log stream --level debug --style compact --predicate 'subsystem == "com.apple.TCC"' > "$RUNNER_TEMP/diag/mic.log" 2>&1 &
+          sleep 1
+          cd "$RUNNER_TEMP/MediaRepro"
+          set -o pipefail
+          rc=0
+          xcodebuild test-without-building -project MediaRepro.xcodeproj -scheme MediaRepro -destination "id=$UDID" \
+            -only-testing:MediaReproUITests/MediaUITests/test6_mic \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
+            2>&1 | tee "$RUNNER_TEMP/diag/mic-test.log" | grep -E "REPRO|Test Case|error:|MediaRepro:" || rc=$?
+          sleep 2
+          echo "AUTHREQ_PROMPTING count: $(grep -a -c 'AUTHREQ_PROMPTING' "$RUNNER_TEMP/diag/mic.log" || true)"
+          grep -a -i -E 'Microphone|SimulatorTrampoline|PROMPTING' "$RUNNER_TEMP/diag/mic.log" | cut -c1-350 | head -40 || true
+          grep -q "Test Case.*test6_mic.*passed" "$RUNNER_TEMP/diag/mic-test.log" && echo "MIC_TEST=passed" || { echo "MIC_TEST=failed"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tcc-build-seed-probe
+          path: ${{ runner.temp }}/diag/*.log

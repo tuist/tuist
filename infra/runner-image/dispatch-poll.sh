@@ -343,8 +343,8 @@ approve_simulator_microphone() {
 }
 
 stream_tcc_log
-approve_finder_automation
-approve_simulator_microphone
+# [experiment] approvals are seeded at image build; record what boot sees instead of writing.
+sudo /opt/tuist/tcc-seed.sh snapshot boot >/dev/null 2>&1 || true
 
 # In-VM cluster DNS for the runner-cache path. When the
 # runners-controller staged TUIST_CLUSTER_DNS_IP (macOS pools in
