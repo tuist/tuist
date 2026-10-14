@@ -3035,7 +3035,8 @@ STUB
     [ "$status" -eq 0 ]
     [[ "$output" == *"dhcp-host=38:05:25:3a:de:65,10.10.0.11,ber1-store-a,infinite"* ]]
     values="$BATS_TEST_TMPDIR/values.yaml"
-    yq '(.rackLinuxFleet.hosts[] | select(.hostname == "ber1-store-a")).address = "10.10.0.12"' "$FLEET_RACK_VALUES" > "$values"
+    # its caches move with it
+    yq '(.rackLinuxFleet.hosts[] | select(.hostname == "ber1-store-a")).address = "10.10.0.12" | .rackFleet.vmCacheGatewayCIDRs = ["10.10.0.12/32"] | .rackFleet.imageCache.nodes[0].address = "10.10.0.12"' "$FLEET_RACK_VALUES" > "$values"
     FLEET_RACK_VALUES="$values" run fleet_edge_machines_dhcp "$SITE_FILE"
     [[ "$output" == *"dhcp-host=38:05:25:3a:de:65,10.10.0.12,ber1-store-a,infinite"* ]]
     # a Linux node on the segment needs a declared host with an address
@@ -3047,6 +3048,30 @@ STUB
     FLEET_RACK_VALUES="$values" run fleet_edge_check_machines "$SITE_FILE"
     [ "$status" -ne 0 ]
     [[ "$output" == *"ber1-store-a is on the machines segment and is neither a RackHost nor a RackLinuxHost"* ]]
+}
+
+@test "the rack's cache gateways and image caches are its storage nodes, at their RackLinuxHosts' addresses" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_check_rack_caches "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    values="$BATS_TEST_TMPDIR/values.yaml"
+    # an image cache at an address its node does not hold
+    yq '.rackFleet.imageCache.nodes[0].address = "10.10.0.12"' "$FLEET_RACK_VALUES" > "$values"
+    FLEET_RACK_VALUES="$values" run fleet_edge_check_rack_caches "$SITE_FILE"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"the image cache on ber1-store-a is at 10.10.0.12, but its RackLinuxHost is at 10.10.0.11"* ]]
+    # an image cache on something that is not a storage node in the rack
+    yq '.rackFleet.imageCache.nodes = [{"name": "ber1-store-b", "address": "10.10.0.12"}, {"name": "ber1-edge-a", "address": "10.10.0.2"}]' "$FLEET_RACK_VALUES" > "$values"
+    FLEET_RACK_VALUES="$values" run fleet_edge_check_rack_caches "$SITE_FILE"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"the image cache on ber1-store-b is not on a storage node of this site that is in the rack"* ]]
+    [[ "$output" == *"the image cache on ber1-edge-a is not on a storage node of this site that is in the rack"* ]]
+    # a cache gateway that is not a storage node's address
+    yq '.rackFleet.vmCacheGatewayCIDRs = ["10.10.0.2/32", "10.10.0.0/24"]' "$FLEET_RACK_VALUES" > "$values"
+    FLEET_RACK_VALUES="$values" run fleet_edge_check_rack_caches "$SITE_FILE"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"cache gateway 10.10.0.2/32 is not the address of a storage node"* ]]
+    [[ "$output" == *"cache gateway 10.10.0.0/24 is not the address of a storage node"* ]]
 }
 
 # Runs a rendered tailnet-routes.sh with the node's tailscale and ip stubbed:

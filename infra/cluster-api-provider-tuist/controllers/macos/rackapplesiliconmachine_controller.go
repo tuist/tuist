@@ -82,6 +82,11 @@ type RackAppleSiliconMachineReconciler struct {
 	// the rented fleets sharing FleetConfig never pass them.
 	VMCacheGatewayCIDRs []string
 
+	// ImageMirrors are the rack's VM image caches, which a rack host's
+	// tart-kubelet tries before the upstream when it pulls a golden base.
+	// Overlaid by rackFleetConfig, like VMCacheGatewayCIDRs.
+	ImageMirrors []string
+
 	// DefaultGuestCapacity is the fleet-wide fallback for a Machine that does
 	// not set spec.guestCapacity.
 	DefaultGuestCapacity int
@@ -998,7 +1003,8 @@ func (r *RackAppleSiliconMachineReconciler) hostSizing(machine *infrav1.RackAppl
 //   - its SSH ingress guard admits the host's subnet routers, the source its
 //     LAN dial arrives from.
 //
-// It also carries the rack's cache gateways into the VM egress firewall.
+// It also carries the rack's cache gateways into the VM egress firewall and
+// the rack's image caches into tart-kubelet.
 //
 // Both push paths and the stamped hash go through here, so a change to any of
 // them drifts the host rather than being recorded as converged without
@@ -1008,6 +1014,7 @@ func (r *RackAppleSiliconMachineReconciler) rackFleetConfig(host *infrav1.RackHo
 	cfg.TailscalePersistentDevice = true
 	cfg.SSHIngressAllowCIDRs = append(slices.Clone(r.FleetConfig.SSHIngressAllowCIDRs), host.Spec.SSHIngressAllowCIDRs...)
 	cfg.VMCacheGatewayCIDRs = slices.Clone(r.VMCacheGatewayCIDRs)
+	cfg.ImageMirrors = slices.Clone(r.ImageMirrors)
 	// A lent host's custom cache volumes are the other cluster's server's.
 	if lent := host.Spec.NodeCluster; lent != nil {
 		cfg.CustomCacheURL = lent.CacheVolumesURL

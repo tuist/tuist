@@ -1632,6 +1632,64 @@ rackFleet:
   # private destination stays blocked. Empty passes none.
   vmCacheGatewayCIDRs: []
 
+  # The rack's VM image cache: a zot registry on each of the rack's storage
+  # nodes that mirrors the runner images, so an image crosses the WAN once per
+  # rack instead of once per mini. Rendered by the rack-nodes chart
+  # (infra/helm/rack-nodes/templates/image-cache.yaml), which a deploy does not
+  # wait on. See "The rack's VM image cache" in infra/rack-nodes/AGENTS.md.
+  imageCache:
+    # Runs the cache on each of `nodes` and keeps `prewarm` synced.
+    enabled: false
+    # Has the rack hosts' tart-kubelet pull golden bases through the caches
+    # (`--image-mirror`), in the order of `nodes`, before the upstream. A
+    # cache that is down, does not hold the image or fails the pull falls back
+    # to the upstream. Changing it drifts every rack host.
+    routeHosts: false
+    # The registry the caches mirror. Only images from it are routed.
+    upstream: ghcr.io
+    # The repositories the caches serve, as zot sync prefixes.
+    repositories:
+      - tuist/tuist-runner
+    # Each storage node that runs a cache, by Node name, and its address on
+    # the machines segment, which the cache binds and the minis pull from.
+    #   - name: ber1-store-a
+    #     address: 10.10.0.11
+    nodes: []
+    port: 5000
+    # The cache's volume on the node's XFS /data (a quota-bounded local-path
+    # volume), also requested as ephemeral-storage so the Kura region on the
+    # same node places its instances around it.
+    storageClass: scw-local-nvme
+    sizeGi: 400
+    # Catalog Xcode versions (`runnersFleet.xcodeVersions`) the caches fetch
+    # as soon as a release names them, rather than on the first pull. Every
+    # other image of `repositories` is fetched on its first pull, which the
+    # hosts that want it wait for together.
+    prewarm: []
+    # How often the prewarm set is asked for again, which is how a release's
+    # new tags reach the cache once a deploy names them.
+    syncInterval: 10m
+    # Tags neither in `prewarm` nor pulled within this long are deleted, and
+    # their blobs collected, so a release's previous images go once the rack
+    # has rolled off them.
+    keepPulledWithin: 24h
+    image:
+      repository: ghcr.io/project-zot/zot-linux-amd64
+      tag: v2.1.22@sha256:46f688dc26315a35a247e1784368829e66a67bf91de94c7d8d1645044fac1d5b
+      pullPolicy: IfNotPresent
+    # The prewarm loop's wget. From ECR Public, so the rack's one egress IP
+    # spends nothing of Docker Hub's anonymous budget.
+    prewarmImage:
+      repository: public.ecr.aws/docker/library/busybox
+      tag: 1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        memory: 4Gi
+
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl
   # history. Removing one is also `kubectl delete rackhost <name>`: Helm keeps

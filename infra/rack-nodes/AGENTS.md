@@ -474,9 +474,10 @@ Ready, the pods on dark nodes included, and a Deployment only when all its
 replicas are available. So nothing in those releases runs a pod on a rack
 node:
 
-- The rack node agent and the boot server are the rack-nodes chart's
-  (`infra/helm/rack-nodes`), installed by `server-deployment.yml` after the
-  tuist release, from the tuist chart's values and the operator's image.
+- The rack node agent, the boot server and the VM image cache are the
+  rack-nodes chart's (`infra/helm/rack-nodes`), installed by
+  `server-deployment.yml` after the tuist release, from the tuist chart's
+  values and the operator's image.
 - The Kura gateways on storage nodes are the rack-cache-gateways chart's
   (`infra/helm/rack-cache-gateways`), installed by `k8s:install-platform` after
   the platform release, from the platform chart's values.
@@ -513,6 +514,91 @@ remediates a mini whose Node has been NotReady for 30 minutes, but only while
 at most one is (`unhealthyRange: "[0-1]"`): a rack-wide outage remediates no
 mini, and once the rack is back, a mini that stayed down is remediated on its
 own.
+
+## The rack's VM image cache
+
+A mini starts a runner by cloning a golden base it materialized once per
+image, with `tart pull` and `tart clone` (see "macOS runner runtime" in
+`infra/tart-kubelet/AGENTS.md`). Without a cache every mini pulls every image
+it runs from ghcr.io. When b04-b09 joined on 2026-10-14 each pulled 33 to 62
+GB in its first hour and a half, peaking at 0.3 to 0.5 Gbit/s per mini, so
+one 60 GB image took 16 to 27 minutes against the pull's 20 minute timeout,
+while edge-a's WAN took 5.8 Gbit/s
+and half the rack's guest slots sat in `CreatingVM`. Every runner image release
+repeats that on every mini. The cache makes an image cross the WAN once per
+rack.
+
+`rackFleet.imageCache` in the tuist chart values declares it, and
+`templates/image-cache.yaml` in the rack-nodes chart runs it: a zot registry
+(the full image; the minimal one has no sync), one Deployment per entry of
+`nodes`, pinned to that storage node, on the host network at the node's
+machines address and `port` (`10.10.0.11:5000` on ber1-store-a), in plain
+HTTP. Its storage is a `scw-local-nvme` volume of `sizeGi` on the node's XFS
+`/data`, under a project quota, and the pod requests the same as
+`ephemeral-storage`, so the ber1-runners Kura region's placement, which reads
+every pod's request on the node, places its instances around it. A cache
+that fills fails its next sync and those hosts pull from ghcr.io; it never
+takes the Kura region with it.
+
+- **What it holds.** zot syncs an image of `repositories` from `upstream` on
+  its first manifest request and answers only once all of it is local, with
+  the upstream's manifest bytes, so the digest is ghcr.io's. Requests for an
+  image that is already being fetched share that one fetch, and the fetch
+  carries on when a requester gives up. A `prewarm` container asks for each
+  `prewarm` Xcode's image every `syncInterval`, one at a time, so a release's
+  images are fetched as soon as a deploy names them. zot's own periodic sync
+  cannot be used: it starts from the registry's repository listing, which
+  ghcr.io refuses. The tags come from the same catalog values as the pools'
+  images; the deploy passes `runnersFleet.runnerImageSemver` to this release
+  too.
+- **Eviction.** A retention policy keeps the `prewarm` tags and any tag pulled
+  within `keepPulledWithin`, and deletes the rest; garbage collection then
+  frees their blobs. A release's previous images go a day after the rack has
+  rolled off them.
+- **How the minis use it.** Tart has no mirror configuration, only `--insecure`
+  for plain HTTP, so tart-kubelet chooses the reference. With `routeHosts`, the
+  operator passes `--rackhost-image-mirrors`, and each rack host's tart-kubelet
+  gets `--image-mirror=ghcr.io=http://10.10.0.11:5000`. When it materializes a
+  golden base it asks the cache for the image's manifest. If the cache holds
+  it, tart-kubelet pulls `10.10.0.11:5000/tuist/tuist-runner@<that digest>`
+  with `--insecure`. If the cache is still fetching it, the Pod is requeued
+  (`ImageCacheSyncing`) for up to 30 minutes rather than pulling the same
+  image from ghcr.io beside it. If the cache is down, does not hold the image,
+  or the pull fails, tart-kubelet pulls from ghcr.io as before. The golden
+  keeps the name the Pod's image gives it, so Pods, golden Node labels, the
+  runners-controller's affinity and the GC key on nothing new.
+- **Pre-pull.** A joining host's prewarm (tuist/tuist#14171) materializes
+  through the same `ensureGolden`, so it goes through the cache too.
+- **Integrity.** Tart does not check a blob against its digest. The cache's
+  bytes are what zot fetched over TLS and wrote under its digest, and the hop
+  to the mini is the machines segment, which carries only our hosts; guests
+  are behind the hosts' NAT. Pulling by digest pins the manifest the probe
+  saw.
+- **Private images.** Everything mirrored today is public, so the cache syncs
+  anonymously. A private repository needs zot's `credentialsFile` for the
+  upstream, from a 1Password item through ESO, mounted into the cache pod. The
+  credential stays on the storage node; the minis keep pulling unauthenticated
+  from the segment.
+
+Sizing, as of the 0.32.0 runner images: each is 55 to 62 GB compressed (263
+layers of up to 512 MiB). All nine catalog images are 537 GB, 404 GB of
+distinct blobs; a release shares about 57% of its blobs with the one before,
+so a release beside its predecessor is 578 GB. ber1-store-a's `/data` is
+928 GB, also home to the Kura region, so production's 400 GiB holds one
+release of what the rack runs plus the previous one while the rack rolls off
+it, rather than the whole catalog twice. A second disk in store-a's spare M.2
+slots, or store-b, is what makes room for more.
+
+Turning it on is two steps, each a deploy: `enabled`, then, once
+`kubectl -n tuist logs deploy/tuist-tuist-rack-image-cache-ber1-store-a -c prewarm`
+shows the prewarm set fetched, `routeHosts`. The second needs an operator image
+with `--rackhost-image-mirrors`, and re-pushes every mini's launchd config
+through the drift loop. `tart_kubelet_image_mirror_probe_total{result}` and
+`tart_kubelet_image_pull_seconds{source}` show what the hosts did; the
+`upstream` and `mirror` pull times on the same hosts are the before and after.
+Turning `routeHosts` off is the rollback. `mise run rack:fleet-test` checks
+that every cache and cache gateway is a storage node of the site at its
+RackLinuxHost's address.
 
 ## Production
 

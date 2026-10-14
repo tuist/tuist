@@ -56,6 +56,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -232,6 +233,13 @@ type Config struct {
 	// leg translates it. Only the rack fleet sets it. Each entry must parse
 	// as an IPv4 CIDR; bootstrap fails closed otherwise.
 	VMCacheGatewayCIDRs []string
+
+	// ImageMirrors are the rack's VM image caches, each `<upstream>=<endpoint>`
+	// (`ghcr.io=http://10.10.0.11:5000`), which tart-kubelet tries in order
+	// before the upstream when it pulls a golden base (`--image-mirror`). The
+	// host itself pulls, from the segment it is on, so this opens nothing in
+	// the VM egress firewall. Only the rack fleet sets it.
+	ImageMirrors []string
 
 	// SSHIngressAllowCIDRs are the source ranges, beyond the tailnet
 	// and loopback, that may reach the host's :22. Everything else is
@@ -1153,6 +1161,10 @@ func renderLaunchdPlist(cfg Config) string {
 			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cas-gib=%d</string>", cfg.CacheVolumeCASGiB)
 		}
 	}
+	imageMirrorArgs := ""
+	for _, mirror := range cfg.ImageMirrors {
+		imageMirrorArgs += fmt.Sprintf("\n    <string>--image-mirror=%s</string>", xmlEscape(mirror))
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -1175,7 +1187,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s%[13]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s%[13]s%[14]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -1189,7 +1201,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg, minGoldensKeptArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg, minGoldensKeptArg, imageMirrorArgs)
 }
 
 func shellQuote(s string) string {
@@ -3328,4 +3340,20 @@ func b64(b []byte) string {
 func sha256Hex(b []byte) string {
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
+}
+
+// ValidateImageMirror checks one ImageMirrors entry against the form
+// tart-kubelet's `--image-mirror` accepts, `<upstream>=http(s)://host[:port]`.
+// tart-kubelet refuses to start on a malformed flag, so the operator checks
+// before it pushes one to every rack host.
+func ValidateImageMirror(mirror string) error {
+	upstream, endpoint, ok := strings.Cut(mirror, "=")
+	if !ok || upstream == "" || strings.ContainsAny(upstream, "/=") {
+		return fmt.Errorf("image mirror %q is not <upstream>=<endpoint>", mirror)
+	}
+	u, err := url.Parse(endpoint)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || strings.Trim(u.Path, "/") != "" || u.RawQuery != "" {
+		return fmt.Errorf("image mirror %q: the endpoint must be http(s)://host[:port]", mirror)
+	}
+	return nil
 }

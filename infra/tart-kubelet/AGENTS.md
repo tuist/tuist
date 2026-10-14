@@ -9,6 +9,15 @@ workflow code runs in the guest. Never expose host credentials or masters.
   API connection (shared `connrotation` dialer) so the next one redials. Keep
   slow work (guest probes, label scans) in the Node status refresh, never in the
   lease path.
+- Golden bases pull through `--image-mirror` (`internal/podagent/image_mirror.go`)
+  when the host has one: the rack's VM image cache (see "The rack's VM image
+  cache" in `infra/rack-nodes/AGENTS.md`). Tart has no mirror support, so the
+  host probes the mirror's manifest, pulls `<mirror>/<repo>@<digest>` with
+  `--insecure`, and falls back to the image's own registry when the mirror is
+  down, lacks the image or fails the pull. A mirror still fetching the image
+  requeues the Pod (`ImageCacheSyncing`) for up to `--image-mirror-sync-timeout`
+  instead of blocking the single reconcile worker. The golden keeps the Pod
+  image's name and the GC keeps mirror-pulled OCI entries as their upstream's.
 - Built-in cache behavior remains in `internal/podagent/volume*.go` and the
   runner-image dispatch script. Preserve existing Tuist/CAS paths and identities.
 - Custom volumes use `internal/podagent/custom_volumes*.go` and the shared

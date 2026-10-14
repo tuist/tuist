@@ -1355,6 +1355,14 @@ jobs:
           if [ -n "$capi_image_tag" ]; then
             rack_node_sets+=(--set "macosFleet.image.tag=$capi_image_tag")
           fi
+          # The rack's image cache prewarms the runner images the tuist
+          # release's pools run, so it names them from the same values.
+          if [ -n "${RUNNER_IMAGE_SEMVER:-}" ]; then
+            rack_node_sets+=(--set "runnersFleet.runnerImageSemver=$RUNNER_IMAGE_SEMVER")
+          fi
+          if [ -n "${MACOS_RUNNER_IMAGE_TAG_INPUT:-}" ]; then
+            rack_node_sets+=(--set-string "runnersFleet.xcodeOverrides.26\\.5.imageTag=$MACOS_RUNNER_IMAGE_TAG_INPUT")
+          fi
           helm upgrade --install "$HELM_RELEASE_NAME-rack-nodes" infra/helm/rack-nodes \
             --namespace "$NAMESPACE" \
             -f "$HELM_CHART_PATH/values.yaml" \

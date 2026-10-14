@@ -676,6 +676,31 @@ func TestRackHostCarriesTheCacheGatewaysIntoItsFirewall(t *testing.T) {
 	}
 }
 
+// The rack's image caches ride the same overlay: a rack host pulls its golden
+// bases through them, the rented fleets never see them, and adding one drifts
+// an already bootstrapped host.
+func TestRackHostPullsThroughTheRackImageCaches(t *testing.T) {
+	r := &RackAppleSiliconMachineReconciler{
+		ImageMirrors:         []string{"ghcr.io=http://10.10.0.11:5000"},
+		DefaultGuestCapacity: 1,
+	}
+	machine := rackMachine("m")
+	host := rackHost("mini-01")
+
+	pushed := r.hostConfig(machine, host, bootstrap.PerHost{})
+	if want := []string{"ghcr.io=http://10.10.0.11:5000"}; !slices.Equal(pushed.ImageMirrors, want) {
+		t.Fatalf("pushed image mirrors = %v, want %v", pushed.ImageMirrors, want)
+	}
+	if len(r.FleetConfig.ImageMirrors) != 0 {
+		t.Fatalf("the rack overlay changed the shared fleet config to %v; rented minis would pull from the rack", r.FleetConfig.ImageMirrors)
+	}
+
+	without := &RackAppleSiliconMachineReconciler{DefaultGuestCapacity: 1}
+	if r.desiredHostConfigHash(machine, host) == without.desiredHostConfigHash(machine, host) {
+		t.Fatal("adding an image cache does not drift the host; an already bootstrapped mini would keep pulling from the upstream")
+	}
+}
+
 // --- egress + node binding --------------------------------------------------
 
 // Both macOS kinds must produce an identically-shaped egress Service: alloy

@@ -372,6 +372,44 @@ var cacheVolumeCacheLimitBytes = prometheus.NewHistogramVec(
 	[]string{"cache", "when"},
 )
 
+// imageMirrorProbeTotal counts what a host learned each time it asked a rack
+// image cache for a golden base's image: `ok` (pulled from it next),
+// `syncing` (requeued while the cache fetches it), `sync_timeout` (waited
+// too long, pulled from the upstream), `absent`, `unavailable` or `error`
+// (pulled from the upstream).
+var imageMirrorProbeTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_image_mirror_probe_total",
+		Help: "Rack image cache probes for a golden base's image, by result.",
+	},
+	[]string{"result"},
+)
+
+// imagePullSeconds is how long each golden base's `tart pull` took, by where
+// it pulled from (`mirror` or `upstream`) and whether it succeeded. The
+// before/after of a rack image cache is the `upstream` and `mirror`
+// distributions on the same hosts.
+var imagePullSeconds = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_image_pull_seconds",
+		Help:    "Wall-clock time of a golden base's tart pull, by source and result.",
+		Buckets: []float64{30, 60, 120, 180, 300, 450, 600, 900, 1200},
+	},
+	[]string{"source", "result"},
+)
+
+func recordImageMirrorProbe(result string) {
+	imageMirrorProbeTotal.WithLabelValues(result).Inc()
+}
+
+func recordImagePull(source string, err error, seconds float64) {
+	result := "ok"
+	if err != nil {
+		result = "error"
+	}
+	imagePullSeconds.WithLabelValues(source, result).Observe(seconds)
+}
+
 func init() {
 	metrics.Registry.MustRegister(
 		vmBootDurationSeconds,
@@ -396,6 +434,8 @@ func init() {
 		cacheVolumeFillPercent,
 		cacheVolumeCacheBytes,
 		cacheVolumeCacheLimitBytes,
+		imageMirrorProbeTotal,
+		imagePullSeconds,
 	)
 
 	// Same reason as the promote results below: a vector's series is created on

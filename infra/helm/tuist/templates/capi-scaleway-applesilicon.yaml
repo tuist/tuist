@@ -462,6 +462,9 @@ spec:
             {{- with .Values.rackFleet.vmCacheGatewayCIDRs }}
             - --rackhost-vm-cache-gateway-cidrs={{ join "," . }}
             {{- end }}
+            {{- with include "tuist.rackImageMirrors" . }}
+            - --rackhost-image-mirrors={{ . }}
+            {{- end }}
             {{- if .Values.rackFleet.cardRootKey.enabled }}
             - --rack-card-root-secret={{ .Values.rackFleet.cardRootKey.secretName | default "rack-card-root" }}
             {{- end }}
