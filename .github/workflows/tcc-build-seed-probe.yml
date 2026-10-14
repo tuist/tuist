@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        attempt: [a, b]
+        attempt: [c]
     runs-on: tuist-staging-macos
     timeout-minutes: 60
     steps:
