@@ -114,7 +114,7 @@ defmodule Tuist.Tests.IngestionTest do
       end
     end)
 
-    expect(Automations, :enqueue_flaky_alert_evaluations, fn project_id, ids ->
+    stub(Automations, :enqueue_flaky_alert_evaluations, fn project_id, ids ->
       send(owner, {:alerts, project_id, ids})
       :ok
     end)
@@ -136,6 +136,7 @@ defmodule Tuist.Tests.IngestionTest do
       assert project_id == project.id
       assert_receive {:test_created, %{id: id}}, 5_000
       assert id == first.id
+      refute_receive {:alerts, _, _}
     end)
   end
 
@@ -172,7 +173,7 @@ defmodule Tuist.Tests.IngestionTest do
     second_module = %{first_module | name: "second"}
     attrs = %{attrs | test_modules: [first_module, second_module]}
 
-    expect(Automations, :enqueue_flaky_alert_evaluations, fn project_id, ids ->
+    stub(Automations, :enqueue_flaky_alert_evaluations, fn project_id, ids ->
       send(owner, {:alerts, project_id, ids})
       :ok
     end)
