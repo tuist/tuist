@@ -12,6 +12,11 @@ permissions:
 
 jobs:
   probe:
+    name: probe ${{ matrix.attempt }}
+    strategy:
+      fail-fast: false
+      matrix:
+        attempt: [a, b]
     runs-on: tuist-staging-macos
     timeout-minutes: 60
     steps:
@@ -19,9 +24,11 @@ jobs:
         with:
           persist-credentials: false
       - name: Image and TCC evidence
+        shell: bash {0}
         run: |
           set -x
           mkdir -p "$RUNNER_TEMP/diag"
+          if [ -x /opt/tuist/tcc-seed.sh ]; then echo "IMAGE=build-time-seed"; else echo "IMAGE=release (boot-time approvals)"; fi
           sw_vers; xcodebuild -version; csrutil status || true
           sysctl -n kern.boottime; uptime
           sudo /opt/tuist/tcc-seed.sh snapshot job || true
@@ -78,5 +85,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: tcc-build-seed-probe
+          name: tcc-build-seed-probe-${{ matrix.attempt }}
           path: ${{ runner.temp }}/diag/*.log
