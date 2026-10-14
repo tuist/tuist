@@ -50,9 +50,14 @@ struct PackageInfoCacheTests {
             try await Task.sleep(nanoseconds: 10_000_000)
             try await fileSystem.atomicWrite(
                 try JSONFormatter.prettyData(emptyManifest(name: "CachedRoot")),
-                to: cacheDir.appendingPathComponent("root.json"))
+                to: cacheDir.appendingPathComponent("root.json")
+            )
             if let rootPath = try? cacheDir.appendingPathComponent("root.json").absolutePath {
-                try await ManifestEnvironmentFingerprint.write(forCacheFile: rootPath, packageDir: package)
+                try await ManifestCache.write(
+                    fileSystem.readFile(at: rootPath),
+                    at: rootPath.fileURL,
+                    inputs: ManifestCache.inputs(packageDir: package, disableSandbox: false)
+                )
             }
 
             try await PackageInfoCacheWriter.write(
@@ -95,13 +100,18 @@ struct PackageInfoCacheTests {
             try await Task.sleep(nanoseconds: 10_000_000)
             let packageInfoPath =
                 cacheDir
-                .appendingPathComponent("packages")
-                .appendingPathComponent("foo-\(entryHashForTest(pin)).json")
+                    .appendingPathComponent("packages")
+                    .appendingPathComponent("foo-\(entryHashForTest(pin)).json")
             try await fileSystem.atomicWrite(
                 try JSONFormatter.prettyData(emptyManifest(name: "CachedDependency")),
-                to: packageInfoPath)
+                to: packageInfoPath
+            )
             if let packageInfoAbsolute = try? packageInfoPath.absolutePath {
-                try await ManifestEnvironmentFingerprint.write(forCacheFile: packageInfoAbsolute, packageDir: checkout)
+                try await ManifestCache.write(
+                    fileSystem.readFile(at: packageInfoAbsolute),
+                    at: packageInfoAbsolute.fileURL,
+                    inputs: ManifestCache.inputs(packageDir: checkout, disableSandbox: false)
+                )
             }
 
             try await PackageInfoCacheWriter.write(
@@ -132,7 +142,8 @@ struct PackageInfoCacheTests {
             let cacheDir = root.appendingPathComponent("package-info")
             try await fileSystem.atomicWrite(
                 try JSONFormatter.prettyData(emptyManifest(name: "StaleRoot")),
-                to: cacheDir.appendingPathComponent("root.json"))
+                to: cacheDir.appendingPathComponent("root.json")
+            )
 
             try await Task.sleep(nanoseconds: 10_000_000)
             try await writeCachedManifest(emptyManifest(name: "FreshRoot"), packageDir: package)
@@ -176,8 +187,8 @@ struct PackageInfoCacheTests {
                             "nameForTargetDependencyResolutionOnly": "LocalTwoProduct",
                             "path": localTwo.path,
                         ],
-                    ]
-                ]
+                    ],
+                ],
             ]
 
             try await writeCachedManifest(manifest, packageDir: package)
@@ -230,7 +241,7 @@ struct PackageInfoCacheTests {
                             "identity": "local-one",
                             "path": "LocalOne",
                         ],
-                    ]
+                    ],
                 ],
             ]
             var localOneManifest = emptyManifest(name: "LocalOne")
@@ -241,7 +252,7 @@ struct PackageInfoCacheTests {
                             "identity": "local-two",
                             "path": "../LocalTwo",
                         ],
-                    ]
+                    ],
                 ],
             ]
 
@@ -285,17 +296,13 @@ struct PackageInfoCacheTests {
             // refill the destination without invoking `swift`.
             try await writeCachedManifest(emptyManifest(name: "FreshFromManifestLoader"), packageDir: package)
 
-            // The package-info destination is newer than `Package.swift`, so the mtime
-            // check alone would consider it fresh, but its env sidecar records a
-            // different environment and must force a refresh.
-            try await Task.sleep(nanoseconds: 10_000_000)
-            try await fileSystem.atomicWrite(
-                try JSONFormatter.prettyData(emptyManifest(name: "StaleDestination")),
-                to: rootPath)
+            try await Environment.withManifestEnvironment(["FEATURE": "different"]) {
+                try await ManifestCache.write(
+                    JSONFormatter.prettyData(emptyManifest(name: "StaleDestination")), at: rootPath,
+                    inputs: ManifestCache.inputs(packageDir: package, disableSandbox: false)
+                )
+            }
             let rootAbsolutePath = try rootPath.absolutePath
-            try await fileSystem.write(
-                Data("a-fingerprint-produced-under-a-different-environment".utf8),
-                to: ManifestEnvironmentFingerprint.sidecarPath(forCacheFile: rootAbsolutePath))
 
             try await PackageInfoCacheWriter.write(
                 packageDir: package,
@@ -313,11 +320,9 @@ struct PackageInfoCacheTests {
                     as? [String: Any])
             #expect(rootInfo["name"] as? String == "FreshFromManifestLoader")
 
-            let sidecar = try await fileSystem.readFile(
-                at: ManifestEnvironmentFingerprint.sidecarPath(forCacheFile: rootAbsolutePath))
+            let inputs = try await ManifestCache.inputs(packageDir: package, disableSandbox: false)
             #expect(
-                String(data: sidecar, encoding: .utf8)
-                    == (await ManifestEnvironmentFingerprint.current(packageDir: package))
+                await ManifestCache.read(at: rootPath, inputs: inputs) != nil
             )
         }
     }
@@ -326,7 +331,8 @@ struct PackageInfoCacheTests {
         try await fileSystem.makeDirectory(at: packageDir.absolutePath, options: [.createTargetParentDirectories])
         try await fileSystem.atomicWrite(
             "not a valid Swift package manifest",
-            to: packageDir.appendingPathComponent("Package.swift"))
+            to: packageDir.appendingPathComponent("Package.swift")
+        )
     }
 
     private func entryHashForTest(_ pin: ResolvedPin) -> String {

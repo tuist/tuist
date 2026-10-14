@@ -25,6 +25,14 @@
 
 - Stale-pin pruning must only inspect version-specific cached sources or registry downloads. If a reachable manifest is missing or cannot be evaluated, retain the seed and defer to normal resolution. Never infer reachability from an unverified scratch checkout or a local repository working tree.
 
+## Manifest caches
+
+- Validate dumps and package-info JSON by manifest contents (including version-specific candidates), the actual manifest environment and mirrors, toolchain identity, declared and resolved package paths, and sandbox mode. Checkout mtimes are not cache identities. Legacy or incomplete records must miss; never certify a legacy dump with current inputs.
+- Bind cached output bytes to the input record, and capture inputs before evaluation. If inputs change during evaluation, do not publish a cache entry for that evaluation.
+- All manifest dumps belong under the root scratch directory, outside materialized package roots. Local checkouts and registry roots can be replaced even when their sources are unchanged. Keep declared paths for evaluation and use canonical paths only for cycle detection and invalidation.
+- `--report-timings` reports installation phase durations without changing the manifest environment. Preserve the native forced-lockfile check, and distinguish fresh-runner measurements from same-machine repeats.
+- The generated `SwifterPMCoreTests` target includes manifest/cache, CLI and resolution coverage. Generate `SwifterPMCore SwifterPMCoreTests` and run the relevant suites through Xcode for focused validation.
+
 ## CI
 
 - CI runs the mise test tasks with `-- --config=ci`. The `ci` config in `.bazelrc` points Bazel's repository cache at the directory the workflow persists with `tuist/cache-volume` and widens Bazel's download retry window. Keep both paths in sync, and keep CI-only Bazel settings under `ci` so local runs are unaffected.

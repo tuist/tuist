@@ -1646,7 +1646,9 @@ public enum Module: String, CaseIterable {
 
     public var unitTestDependencies: [TargetDependency] {
         if self == .swifterPMCore {
-            return sharedDependencies + [.target(name: targetName), .external(name: "FileSystem")]
+            return sharedDependencies + [
+                .target(name: targetName), .external(name: "FileSystem"), .external(name: "FileSystemTesting"),
+            ]
         }
         var dependencies: [TargetDependency] =
             switch self {
@@ -2311,6 +2313,13 @@ public enum Module: String, CaseIterable {
             infoPlist: .default,
             sources: self == .swifterPMCore && product == .unitTests ? [
                 "swifterpm/Tests/swifterpmTests/NetrcTests.swift",
+                "swifterpm/Tests/swifterpmTests/ManifestCacheTests.swift",
+                "swifterpm/Tests/swifterpmTests/ManifestTests.swift",
+                "swifterpm/Tests/swifterpmTests/ManifestEnvironmentFingerprintTests.swift",
+                "swifterpm/Tests/swifterpmTests/PackageInfoCacheTests.swift",
+                "swifterpm/Tests/swifterpmTests/ResolveTests.swift",
+                "swifterpm/Tests/swifterpmTests/CLITests.swift",
+                "swifterpm/Tests/swifterpmTests/CLIRunnerTests.swift",
                 "swifterpm/Tests/swifterpmTests/RegistryTests.swift",
                 "swifterpm/Tests/swifterpmTests/SupportTests.swift",
                 "swifterpm/Tests/swifterpmTests/HTTPClientTests.swift",
