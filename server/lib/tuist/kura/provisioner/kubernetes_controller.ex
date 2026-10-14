@@ -371,7 +371,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       self_hosted_peers(account, region, entitlements),
       entitlements,
       effective_egress(account, region, entitlements)
-    ) <> endpoint_identity_revision(account) <> serving_revision(account)
+    ) <> endpoint_identity_revision(account) <> serving_revision(account) <> storage_revision(region, account)
   end
 
   @doc "The base manifest revision, independent of dynamic per-account inputs."
