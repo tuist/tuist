@@ -82,6 +82,10 @@ before freezing its retained corpus. This bounded replication pass fetches missi
 records outside the normal bootstrap horizon without echoing them into the sibling
 feed. It preserves resource admission, capacity, version and tombstone checks;
 an incompatible or undersized destination can still fail the final barrier.
+Repair applies the capacity check separately to each record at listing and
+dispatch, preserving newer queued records when the listing reaches an older
+capacity-rejected record. It does not increase ring capacity or guarantee that
+equal-sized fragmented replicas can hold the same corpus.
 Only one repair runs per destination, and an abort, changed intent or deadline
 cancels it. A retry after the destination is frozen does not repair or release
 that hold. Older destinations keep their verify-only behavior. Verification
