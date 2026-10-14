@@ -66,6 +66,55 @@ env -i PATH="$PATH" TUIST_RUNNER_JOB_ENV="${BUILDKITE_JOB_ENV_PATH}" TUIST_RUNNE
   bash -ec 'source buildkite-hooks/environment; test "$EXISTING_BUILD_SETTING" = preserved; test "$TUIST_CACHE_VOLUME_URL" = "http://runner-cache-volumes:8090"; test "$TUIST_CACHE_VOLUME_POD" = "pod-test"; test "$TUIST_CACHE_VOLUME_UID" = "uid-test"'
 echo "ok: Buildkite restores cache-volume routing after environment sanitization"
 
+mkdir -p "${fixtures}/bin"
+cat > "${fixtures}/bin/curl" <<'CURL'
+#!/usr/bin/env bash
+set -euo pipefail
+# A fixture transport: the grant must arrive on stdin, never the command line.
+for arg in "$@"; do
+  [[ "$arg" != *job-bound-grant* ]]
+done
+grep -qx 'header = "Authorization: Bearer job-bound-grant"'
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = --data ]; then
+    test "$(printf '%s' "$2" | jq -r .repo_url)" = "https://origin.cursor.com/org/repo.git"
+  fi
+  shift
+done
+printf 'request\n' >> "${HOME}/requests"
+printf '{"token":"oit_fresh_%s"}' "$(wc -l < "${HOME}/requests" | tr -d ' ')"
+CURL
+chmod +x "${fixtures}/bin/curl"
+printf 'TUIST_ORIGIN_CHECKOUT_TOKEN=job-bound-grant\nTUIST_RUNNER_REPORT_URL=https://tuist.example/api/internal/runners\n' > "${fixtures}/origin-env"
+
+for hook in buildkite-hooks/environment ../runner-image/buildkite-hooks/environment; do
+  home="${fixtures}/$(basename "$(dirname "$(dirname "$hook")")")-home"
+  mkdir -p "$home"
+  env -i PATH="${fixtures}/bin:$PATH" HOME="$home" GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 \
+    TUIST_RUNNER_JOB_ENV="${fixtures}/absent" TUIST_RUNNER_STATE_DIR="${fixtures}/state" \
+    bash -ec 'source "$1"; test -z "${BUILDKITE_USE_REPOSITORY_PROVIDER_GIT_CREDENTIALS:-}"; test ! -e "$HOME/.gitconfig"' _ "$hook"
+  env -i PATH="${fixtures}/bin:$PATH" HOME="$home" GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 \
+    TUIST_RUNNER_JOB_ENV="${fixtures}/origin-env" TUIST_RUNNER_STATE_DIR="${fixtures}/state" \
+    bash -ec '
+      git config --global credential.helper "!f() { printf \"username=legacy\\npassword=legacy\\n\"; }; f"
+      source "$1"
+      for attempt in 1 2; do
+        result=$(printf "protocol=https\nhost=origin.cursor.com\npath=org/repo.git\n\n" | git credential fill)
+        grep -qx "username=x-access-token" <<< "$result"
+        grep -qx "password=oit_fresh_${attempt}" <<< "$result"
+      done
+      result=$(printf "protocol=https\nhost=github.com\npath=org/repo.git\n\n" | git credential fill)
+      grep -qx "password=legacy" <<< "$result"
+      test "$(wc -l < "$HOME/requests" | tr -d " ")" = 2
+      if printf "protocol=https\nhost=origin.cursor.com\npath=org/other.git\n\n" | git credential fill >/dev/null 2>&1; then
+        echo "Origin authorization failure unexpectedly fell back to another credential" >&2
+        exit 1
+      fi
+    ' _ "$hook"
+done
+echo "ok: Linux and macOS refresh job-bound Origin credentials through Git without changing GitHub authentication"
+echo "ok: unauthorized Origin checkout fails closed without using an existing credential"
+
 # Run the production launch command with an agent stub. The standalone binary
 # has no packaged config to supply a plugin checkout directory.
 awk '/^  exec \/usr\/local\/bin\/buildkite-agent start/ {

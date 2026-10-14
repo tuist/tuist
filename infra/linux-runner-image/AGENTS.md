@@ -152,6 +152,14 @@ that job could already do — write its own log, declare its own exit
 status — so staging it changes nothing about what the container can
 reach. See `Tuist.Runners.Buildkite.ReportToken`.
 
+Native Cursor Origin repositories use Tuist's Origin-only Git credential
+helper. Dispatch stages `TUIST_ORIGIN_CHECKOUT_TOKEN`, a separate signed grant
+bound to the job and repository; the environment hook restores it after agent
+sanitization. The helper exchanges it for fresh read-only, single-repository
+tokens, never the server's Origin signing key. Buildkite's automatic Origin
+credentials are hosted-agent-only. Keep both images' helpers in step, and leave
+other providers' Git configuration unchanged.
+
 A warm-standby Pod therefore sits in `Pending` (poller polling in
 Init) until a job is claimed, not `Running`. macOS keeps the
 single-container shape — the Tart VM is the isolation boundary and

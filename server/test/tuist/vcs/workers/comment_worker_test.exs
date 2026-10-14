@@ -17,6 +17,21 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
   end
 
   describe "perform/1" do
+    test "publication failures reach Oban for retry", %{project: project} do
+      stub(VCS, :post_vcs_pull_request_comment, fn _ -> {:error, {:http, 503}} end)
+
+      assert {:error, {:http, 503}} =
+               CommentWorker.perform(%Oban.Job{
+                 id: 1,
+                 args: %{
+                   "git_commit_sha" => "head",
+                   "git_ref" => "refs/pull/7/merge",
+                   "git_remote_url_origin" => "https://origin.cursor.com/git/org/repo.git",
+                   "project_id" => project.id
+                 }
+               })
+    end
+
     test "calls VCS.post_vcs_pull_request_comment with correct parameters", %{
       project: project
     } do

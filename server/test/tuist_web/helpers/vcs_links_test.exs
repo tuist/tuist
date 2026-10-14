@@ -5,6 +5,25 @@ defmodule TuistWeb.Helpers.VCSLinksTest do
 
   alias TuistWeb.Helpers.VCSLinks
 
+  test "Origin repository links never inherit GitHub commit or source routes" do
+    project = %{vcs_connection: %{provider: :origin, repository_full_handle: "org/repo"}}
+    html = render_component(&VCSLinks.repository_link/1, %{project: project})
+    assert html =~ ~s(href="https://cursor.com/codebase/org/repo")
+    refute html =~ "github.com"
+    assert VCSLinks.pull_request_url(project, "refs/pull/42/head") == nil
+
+    for html <- [
+          render_component(&VCSLinks.commit_link/1, %{project: project, commit_sha: "abc123"}),
+          render_component(&VCSLinks.source_file_link/1, %{
+            project: project,
+            commit_sha: "abc123",
+            path: "Sources/App.swift"
+          })
+        ] do
+      refute html =~ "href="
+    end
+  end
+
   defp project_with_connection(client_url) do
     %{
       vcs_connection: %{

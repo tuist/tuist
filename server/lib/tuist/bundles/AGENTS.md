@@ -9,6 +9,7 @@ This context owns bundle metadata and artifact trees.
 - Bundle growth thresholds use exactly one of `deviation_percentage` or integer `deviation_bytes`. Existing percentages are not converted. Dashboard absolute values use decimal MB (1,000,000 bytes), with byte-precise comparisons. Equality and decreases pass; missing sizes/baselines skip. Zero baselines skip percentage rules but are valid for absolute rules.
 - The absolute-threshold migration preserves existing rules and refuses rollback while absolute rules remain. Convert those rules explicitly before rolling back; never discard them or infer percentages. Finish rolling out the new server code before creating absolute rules. A code-only rollback also requires converting absolute rules first: older workers do not recognize the byte column and would silently pass them. Percentage rules remain compatible with both versions.
 - Decide who may accept a size increase that exceeded a threshold, and record who did.
+- Origin bundle thresholds publish checks for the verified current PR head with stable project/check identities and upload timestamps. Violations fail without GitHub-only requested-action buttons; Origin cannot accept an increase through a check action.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

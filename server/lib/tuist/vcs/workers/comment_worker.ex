@@ -37,20 +37,24 @@ defmodule Tuist.VCS.Workers.CommentWorker do
 
     project = Projects.get_project_by_id(project_id)
 
-    VCS.post_vcs_pull_request_comment(%{
-      git_commit_sha: git_commit_sha,
-      git_ref: git_ref,
-      git_remote_url_origin: git_remote_url_origin,
-      project: project,
-      preview_url: &preview_url/1,
-      preview_qr_code_url: &preview_qr_code_url/1,
-      command_run_url: &command_run_url/1,
-      test_run_url: &test_run_url/1,
-      bundle_url: &bundle_url/1,
-      build_url: &build_url/1
-    })
+    result =
+      VCS.post_vcs_pull_request_comment(%{
+        git_commit_sha: git_commit_sha,
+        git_ref: git_ref,
+        git_remote_url_origin: git_remote_url_origin,
+        project: project,
+        preview_url: &preview_url/1,
+        preview_qr_code_url: &preview_qr_code_url/1,
+        command_run_url: &command_run_url/1,
+        test_run_url: &test_run_url/1,
+        bundle_url: &bundle_url/1,
+        build_url: &build_url/1
+      })
 
-    :ok
+    case result do
+      {:error, _} = error -> error
+      _ -> :ok
+    end
   end
 
   defp preview_url(%{project: %{account: account} = project, preview: preview}) do

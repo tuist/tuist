@@ -163,6 +163,7 @@ while true; do
       bk_token=$(jq -r '.buildkite_acquisition_token // empty' /tmp/dispatch.json)
       bk_job_uuid=$(jq -r '.buildkite_job_uuid // empty' /tmp/dispatch.json)
       bk_report_token=$(jq -r '.buildkite_report_token // empty' /tmp/dispatch.json)
+      origin_checkout_grant=$(jq -r '.origin_checkout_grant // empty' /tmp/dispatch.json)
       if [ -z "${jit}" ] && [ -z "${bk_token}" ]; then
         echo "$(date -u +%FT%TZ) dispatch-poll: 200 but no runner credential; retrying"
         sleep "${interval}"
@@ -186,6 +187,7 @@ while true; do
           printf 'BUILDKITE_AGENT_ACQUIRE_JOB=%s\n' "${bk_job_uuid}"
           printf 'TUIST_RUNNER_REPORT_TOKEN=%s\n' "${bk_report_token}"
           printf 'TUIST_RUNNER_REPORT_URL=%s\n' "${TUIST_RUNNER_DISPATCH_URL%/dispatch}"
+          [ -n "${origin_checkout_grant}" ] && printf 'TUIST_ORIGIN_CHECKOUT_TOKEN=%s\n' "${origin_checkout_grant}"
           [ -n "${cache_endpoint}" ] && printf 'TUIST_CACHE_ENDPOINT=%s\n' "${cache_endpoint}"
           [ -n "${cache_grant}" ] && printf 'TUIST_CACHE_SIGNING_GRANT=%s\n' "${cache_grant}"
         } >"${bk_tmp}" 2>/dev/null

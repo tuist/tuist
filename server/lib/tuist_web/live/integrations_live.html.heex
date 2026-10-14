@@ -5,6 +5,147 @@
     current_path={@current_path}
     current_user={@current_user}
   />
+  <.card_section :if={@origin_configured?} data-part="github-card-section" id="origin-integration">
+    <div data-part="header">
+      <span data-part="title">Cursor Origin</span>
+      <span data-part="subtitle">{dgettext(
+        "dashboard_integrations",
+        "PR reports and bundle-size checks for native Origin repositories. Run CI on Tuist through Buildkite."
+      )}</span>
+    </div>
+    <div data-part="content">
+      <.alert
+        :if={@pending_origin}
+        status="information"
+        type="secondary"
+        size="large"
+        title={dgettext("dashboard_integrations", "Confirm your Origin installation")}
+        description={
+          dgettext(
+            "dashboard_integrations",
+            "Connect to the selected Tuist account below. Switch accounts first if this installation belongs to your organization."
+          )
+        }
+      />
+      <form :if={@pending_origin} action="/integrations/origin/connect" method="post">
+        <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+        <input type="hidden" name="account_id" value={@selected_account.id} />
+        <.button
+          type="submit"
+          label={
+            dgettext("dashboard_integrations", "Connect to %{account}",
+              account: @selected_account.name
+            )
+          }
+        />
+      </form>
+      <div data-part="actions">
+        <.button
+          :if={is_nil(@origin_installation) and is_nil(@pending_origin)}
+          label={dgettext("dashboard_integrations", "Install Origin App")}
+          href={"/integrations/origin/install?account_id=#{@selected_account.id}"}
+        />
+        <.button
+          :if={@origin_installation}
+          label={dgettext("dashboard_integrations", "Disconnect Origin")}
+          variant="secondary"
+          phx-click="disconnect-origin"
+        />
+        <.button
+          label={dgettext("dashboard_integrations", "Setup and runners guide")}
+          variant="secondary"
+          href="/en/docs/guides/integrations/gitforge/origin"
+        />
+      </div>
+      <.alert
+        :if={@origin_installation && @origin_installation.suspended}
+        status="warning"
+        type="secondary"
+        size="large"
+        title={dgettext("dashboard_integrations", "Origin installation is suspended")}
+        description={
+          dgettext(
+            "dashboard_integrations",
+            "Resume the installation in Origin to publish reports."
+          )
+        }
+      />
+      <div
+        :if={@origin_installation && not @origin_installation.suspended}
+        data-part="create-connection"
+      >
+        <.dropdown
+          id="origin-project-dropdown"
+          label={
+            case Enum.find(@selected_account.projects, &(to_string(&1.id) == @origin_project_id)) do
+              nil -> dgettext("dashboard_integrations", "Choose Tuist project")
+              project -> project.name
+            end
+          }
+        >
+          <.dropdown_item
+            :for={project <- get_available_projects(assigns)}
+            value={to_string(project.id)}
+            label={project.name}
+            phx-click="select-origin-project"
+            phx-value-project_id={project.id}
+          />
+        </.dropdown>
+        <.dropdown
+          id="origin-repository-dropdown"
+          label={
+            case Enum.find(
+                   @origin_repositories.result || [],
+                   &(&1["id"] == @origin_repository_id)
+                 ) do
+              nil -> dgettext("dashboard_integrations", "Choose a repository")
+              repository -> repository["fullName"]
+            end
+          }
+        >
+          <.dropdown_item
+            :for={repo <- @origin_repositories.result || []}
+            value={repo["id"]}
+            label={repo["fullName"]}
+            phx-click="select-origin-repository"
+            phx-value-repository_id={repo["id"]}
+            data-selected={@origin_repository_id == repo["id"]}
+          />
+        </.dropdown>
+        <.button
+          label={dgettext("dashboard_integrations", "Connect repository")}
+          phx-click="connect-origin-project"
+          disabled={is_nil(@origin_project_id) or is_nil(@origin_repository_id)}
+        />
+      </div>
+      <.alert
+        :if={@origin_repositories.failed}
+        status="error"
+        type="secondary"
+        size="small"
+        title={
+          dgettext(
+            "dashboard_integrations",
+            "Unable to load Origin repositories. Reload to retry."
+          )
+        }
+      />
+      <.card_section
+        :for={connection <- Enum.filter(@vcs_connections, &(&1.provider == :origin))}
+        data-part="connection-card-section"
+      >
+        <div data-part="header">
+          <span data-part="label">{connection.project.name} → {connection.repository_full_handle}</span>
+          <.button
+            label={dgettext("dashboard_integrations", "Disconnect")}
+            variant="secondary"
+            phx-click="delete-connection"
+            phx-value-connection_id={connection.id}
+          />
+        </div>
+      </.card_section>
+    </div>
+  </.card_section>
   <.card_section :if={@github_card_visible?} data-part="github-card-section">
     <div data-part="header">
       <span data-part="title">
@@ -286,7 +427,7 @@
         </.modal>
       </div>
       <.card_section
-        :for={vcs_connection <- @vcs_connections}
+        :for={vcs_connection <- Enum.filter(@vcs_connections, &(&1.provider == :github))}
         data-part="connection-card-section"
         data-value={vcs_connection.id}
       >

@@ -175,6 +175,8 @@ defmodule TuistWeb.Authentication do
   def log_in_user(conn, user, params \\ %{}) do
     token = Accounts.generate_user_session_token(user)
     user_return_to = get_session(conn, :user_return_to)
+    pending_origin = get_session(conn, :pending_origin)
+    origin_account_name = get_session(conn, :origin_account_name)
     auth_method = Map.get(params, :auth_method, :password)
 
     {post_invitation_return_to, post_invitation_token} =
@@ -200,6 +202,8 @@ defmodule TuistWeb.Authentication do
     |> renew_session()
     |> put_token_in_session(token)
     |> put_session(:auth_method, auth_method)
+    |> put_session(:pending_origin, pending_origin)
+    |> put_session(:origin_account_name, origin_account_name)
     |> maybe_put_post_invitation_context(
       post_invitation_return_to,
       user.id,

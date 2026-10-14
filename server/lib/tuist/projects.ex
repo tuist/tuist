@@ -651,6 +651,9 @@ defmodule Tuist.Projects do
       %VCSConnection{provider: :github, repository_full_handle: repository_full_handle} ->
         "https://github.com/#{repository_full_handle}"
 
+      %VCSConnection{provider: :origin, repository_full_handle: repository_full_handle} ->
+        "https://cursor.com/codebase/#{repository_full_handle}"
+
       nil ->
         nil
     end
@@ -770,8 +773,11 @@ defmodule Tuist.Projects do
   Expects the project to have `vcs_connection: :github_app_installation` preloaded.
   """
   def has_vcs_connection?(project) do
-    project.vcs_connection != nil &&
-      project.vcs_connection.github_app_installation != nil
+    case project.vcs_connection do
+      %{provider: :origin, origin_app_installation: %Tuist.Origin.Installation{suspended: false}} -> true
+      %{provider: :github, github_app_installation: %Tuist.VCS.GitHubAppInstallation{}} -> true
+      _ -> false
+    end
   end
 
   @doc """
@@ -780,11 +786,13 @@ defmodule Tuist.Projects do
   """
   def projects_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
+    provider = Keyword.get(opts, :provider, :github)
 
     Repo.all(
       from p in Project,
         join: pc in VCSConnection,
         on: pc.project_id == p.id,
+        where: pc.provider == ^provider,
         where: fragment("lower(?) = lower(?)", pc.repository_full_handle, ^vcs_repository_full_handle),
         order_by: [asc: p.id],
         preload: ^preload

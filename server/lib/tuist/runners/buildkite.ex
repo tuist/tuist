@@ -51,6 +51,7 @@ defmodule Tuist.Runners.Buildkite do
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.Origin.RunnerCheckout
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Buildkite.Client
@@ -739,12 +740,14 @@ defmodule Tuist.Runners.Buildkite do
              job.job_uuid,
              @acquisition_token_lifetime_seconds
            ),
-         {:ok, _job} <- capture_cache_volume_identity(job, installation) do
+         {:ok, payload} <- capture_cache_volume_identity(job, installation),
+         {:ok, checkout_grant} <- RunnerCheckout.grant(job, payload) do
       {:ok,
        %{
          token: token,
          job_uuid: job.job_uuid,
          organization_slug: job.organization_slug,
+         origin_checkout_grant: checkout_grant,
          report_token: ReportToken.mint(%{workflow_job_id: workflow_job_id, account_id: account_id})
        }}
     else
@@ -757,15 +760,19 @@ defmodule Tuist.Runners.Buildkite do
 
   defp capture_cache_volume_identity(job, installation) do
     # Stacks only exposes this payload before the agent acquires the job.
-    identity =
-      with {:ok, payload} <- Client.get_job(installation, stack_key_for(installation, job.queue_key), job.job_uuid),
-           {:ok, identity} <- Identity.buildkite_identity(job, payload) do
-        Map.new(identity, fn {key, value} -> {Atom.to_string(key), value} end)
-      else
+    payload =
+      case Client.get_job(installation, stack_key_for(installation, job.queue_key), job.job_uuid) do
+        {:ok, payload} -> payload
         _ -> nil
       end
 
-    job |> Ecto.Changeset.change(cache_volume_identity: identity) |> Repo.update()
+    identity =
+      case Identity.buildkite_identity(job, payload) do
+        {:ok, identity} -> Map.new(identity, fn {key, value} -> {Atom.to_string(key), value} end)
+        _ -> nil
+      end
+
+    with {:ok, _} <- job |> Ecto.Changeset.change(cache_volume_identity: identity) |> Repo.update(), do: {:ok, payload}
   end
 
   @doc """

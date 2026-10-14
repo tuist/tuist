@@ -10,6 +10,8 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
   alias Tuist.Bundles.BundleThreshold
   alias Tuist.Environment
   alias Tuist.GitHub.Client
+  alias Tuist.Origin.Client, as: OriginClient
+  alias Tuist.Origin.Reports, as: OriginReports
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Utilities.ByteFormatter
@@ -33,17 +35,33 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
          true <- should_run?(bundle),
          project = Projects.get_project_by_id(project_id),
          true <- project != nil,
-         project = Repo.preload(project, [:account, vcs_connection: :github_app_installation]),
+         project =
+           Repo.preload(project, account: [], vcs_connection: [:github_app_installation, :origin_app_installation]),
          true <- Projects.has_vcs_connection?(project),
-         %{} <- VCS.github_app_credentials(project.vcs_connection.github_app_installation) do
+         true <- configured?(project.vcs_connection) do
       thresholds = Bundles.get_project_bundle_thresholds(project)
 
       if Enum.empty?(thresholds) do
         :ok
       else
         result = Bundles.evaluate_project_thresholds(project, bundle)
-        head_sha = resolve_head_sha(project, bundle, git_commit_sha)
-        post_check_run(project, bundle, head_sha, result)
+
+        bundle =
+          case args["bundle_inserted_at"] do
+            nil ->
+              bundle
+
+            value ->
+              {:ok, inserted_at, _} = DateTime.from_iso8601(value)
+              %{bundle | inserted_at: inserted_at}
+          end
+
+        if project.vcs_connection.provider == :origin do
+          post_origin_check_run(project, bundle, git_commit_sha, result)
+        else
+          head_sha = resolve_head_sha(project, bundle, git_commit_sha)
+          post_check_run(project, bundle, head_sha, result)
+        end
       end
     else
       {:error, :not_found} when attempt < @not_found_max_attempts ->
@@ -51,6 +69,47 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
 
       _ ->
         :ok
+    end
+  end
+
+  defp configured?(%{provider: :origin}), do: Environment.origin_app_credentials() != nil
+  defp configured?(connection), do: VCS.github_app_credentials(connection.github_app_installation) != nil
+
+  defp post_origin_check_run(project, bundle, sha, result) do
+    connection = project.vcs_connection
+    installation = connection.origin_app_installation
+
+    with false <- installation.suspended,
+         true <- installation.account_id == project.account_id,
+         {:ok, repository} <- OriginReports.repository(installation, connection),
+         number when is_integer(number) <- VCS.pull_request_number_from_git_ref(bundle.git_ref),
+         {:ok, pr} <- OriginClient.get_pull_request(installation, repository["fullName"], number),
+         {:ok, true} <- OriginReports.current_commit?(installation, repository["fullName"], pr, sha) do
+      bundle_url = Environment.app_url(path: "/#{project.account.name}/#{project.name}/bundles/#{bundle.id}")
+      {conclusion, output} = build_check_run_output(result, bundle_url)
+
+      params = %{
+        headSha: pr["head"]["sha"],
+        checkSuite: %{key: "tuist-#{project.id}", name: "Tuist", externalId: to_string(project.id)},
+        checkRun: %{
+          key: "bundle-size-#{bundle.name}",
+          name: @check_name,
+          status: "completed",
+          conclusion: if(conclusion == "action_required", do: "failure", else: conclusion),
+          externalUpdatedAt: DateTime.to_iso8601(bundle.inserted_at || DateTime.utc_now()),
+          externalId: bundle.id,
+          detailsUrl: bundle_url,
+          output: output
+        }
+      }
+
+      case OriginClient.post_check_run(installation, repository["fullName"], params) do
+        {:ok, _} -> :ok
+        error -> error
+      end
+    else
+      {:error, _} = error -> error
+      _ -> :ok
     end
   end
 

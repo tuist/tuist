@@ -29,6 +29,8 @@ Tuist watches the self-hosted queues in your Buildkite cluster and runs the jobs
 
 4. **Push and watch.** The job is queued, claimed by a runner, and streamed back to the **Runners** section of your Tuist dashboard, where you can follow its logs, steps, and machine metrics. The runner ships the log from inside the job with a credential scoped to that one job, so no Buildkite API token is needed.
 
+Native Cursor Origin repositories can use the same queues and runners. Connect Origin as a Buildkite repository provider first; Buildkite supplies the workflow engine and Tuist supplies Linux/macOS compute. See the <.localized_link href="/guides/integrations/gitforge/origin#tuist-hosted-runners">Origin setup guide</.localized_link> for checkout credentials and PR reports.
+
 ## Pausing and disconnecting {#pausing-and-disconnecting}
 
 Pausing dispatch on a Buildkite queue stops Tuist from taking new jobs from it. Jobs already running are unaffected.
