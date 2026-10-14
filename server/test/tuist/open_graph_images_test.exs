@@ -47,8 +47,10 @@ defmodule Tuist.OpenGraphImagesTest do
     stub(Storage, :object_exists?, fn _key, :open_graph_images -> false end)
     reject(&Storage.put_object/3)
 
-    expect(Sentry, :capture_exception, fn %RuntimeError{message: "unexpected render failure"}, opts ->
-      assert opts[:stacktrace] != []
+    parent = self()
+
+    expect(Sentry, :capture_exception, fn error, opts ->
+      send(parent, {:reported_exception, error, opts})
       :ignored
     end)
 
@@ -61,6 +63,8 @@ defmodule Tuist.OpenGraphImagesTest do
     assert log =~ "Unexpected Open Graph image generation failure"
     assert log =~ "RuntimeError"
     assert log =~ "unexpected render failure"
+    assert_received {:reported_exception, %RuntimeError{message: "unexpected render failure"}, opts}
+    assert [{_, _, _, _} | _] = opts[:stacktrace]
     assert Cachex.get(cache, {OpenGraphImages, "open-graph-images/raised.jpg"}) == nil
   end
 
