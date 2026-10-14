@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TuistCAS
 import TuistConfigLoader
 import TuistEnvironment
 import TuistLaunchctl
@@ -32,6 +33,7 @@ struct TeardownCacheCommandService {
             label: proxyLabel,
             plistFileName: "\(proxyLabel).plist"
         )
+        try XcodeCacheInstallationStore().invalidate()
 
         // Best-effort teardown of a per-project cache daemon left over from before
         // the machine-wide proxy.

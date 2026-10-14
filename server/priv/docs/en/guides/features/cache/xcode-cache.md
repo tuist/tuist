@@ -35,9 +35,25 @@ Once you have a `Tuist.swift` file referencing your `fullHandle`, you can set up
 tuist setup cache
 ```
 
-This command creates a [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) to run a local cache service on startup that the Swift [build system](https://github.com/swiftlang/swift-build) uses to share compilation artifacts. This command needs to be run once in both your local and CI environments.
+This command creates a [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) to run a local cache service on startup that the Swift [build system](https://github.com/swiftlang/swift-build) uses to share compilation artifacts. Run it initially on your developer machine and as part of each CI job's setup.
 
 To set up the cache on the CI, make sure you are <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
+
+### Updating the cache components {#updating-the-cache-components}
+
+Upgrading the Tuist CLI alone does not update the installed cache plugin or the running cache proxy. The proxy also uses the setup-time CLI for startup, configuration, and credentials, so a CLI-only change can matter even when the plugin and proxy binaries are unchanged. After upgrading Tuist, or switching or updating Xcode (including an update at the same path), refresh the setup with the intended Tuist and Xcode versions:
+
+```bash
+tuist setup cache
+```
+
+Wait until no builds are running before doing this: the proxy is shared by every project on the machine. Fully quit and reopen Xcode afterwards, because its build service can keep the previous plugin loaded even after the file has been replaced. If the release changes generated build settings, run `tuist generate` again too.
+
+For cache-enabled generated projects, `tuist generate` warns when setup was run with an older Tuist, the Xcode directory or build version differs, or recorded installation files are missing. This is a setup-version and configuration check, not a comparison of binary contents. It does not replace files, restart the proxy, or authenticate on your behalf. An older checkout does not request an upgrade when a verified record identifies a newer setup. Custom plugin, proxy, socket, or registry overrides skip this check.
+
+If metadata is missing or no longer matches the LaunchAgent or its launching CLI, the setup version is reported as unknown. This includes legacy installations and setup changed by an older CLI. Run setup with the versions you intend to use, rather than automatically choosing the current checkout's version. `tuist teardown cache` clears the metadata and stops the proxy; the retained plugin alone does not trigger a warning.
+
+The check describes the files and configuration from setup, not the plugin images already loaded in Xcode or the health of the running proxy. Before removing the Tuist installation last used for setup, run setup with the replacement installation: the proxy and its credential helper still depend on that installation even though the plugin copy has a stable path.
 
 ### Configure Xcode Build Settings {#configure-xcode-build-settings}
 

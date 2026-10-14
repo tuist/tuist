@@ -56,6 +56,9 @@ struct SetupCacheCommandServiceTests {
         given(xcodeController)
             .selectedVersion()
             .willThrow(TestError("no Xcode"))
+        given(xcodeController)
+            .selectedBuildVersion()
+            .willThrow(TestError("no Xcode"))
 
         // Every setup resolves the project's default branch to record the
         // trunk. Left to the real service these tests would reach the production
@@ -85,32 +88,13 @@ struct SetupCacheCommandServiceTests {
             .hasRootManifest(at: .any)
             .willReturn(false)
 
+        resetLaunchAgentStubs()
         given(launchAgentService)
             .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
             .willReturn(nil)
-
-        given(launchAgentService)
-            .teardownLaunchAgent(label: .any, plistFileName: .any)
-            .willReturn()
-
         given(cacheSocketService)
             .waitUntilListening(at: .any, timeout: .any)
             .willReturn(true)
-
-        // A daemon serving the socket under a process this setup did not displace.
-        given(launchAgentService)
-            .runningProcessIdentifier(label: .any)
-            .willReturn(4242)
-
-        given(launchAgentService)
-            .isLaunchAgentCurrent(
-                label: .any,
-                plistFileName: .any,
-                programArguments: .any,
-                environmentVariables: .any,
-                launchInputs: .any
-            )
-            .willReturn(false)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger()) func setupCache_withTuistProject() async throws {
@@ -233,6 +217,155 @@ struct SetupCacheCommandServiceTests {
         #expect(leftovers.isEmpty)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_locksTheSharedInstallationWhileStartingTheProxy() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let lockPath = environment.casPluginInstallPath().parentDirectory.appending(component: "cas-setup.lock")
+        resetLaunchAgentStubs()
+        given(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .willProduce { _, _, _, _ in
+                let descriptor = open(lockPath.pathString, O_RDWR)
+                #expect(descriptor >= 0)
+                defer { close(descriptor) }
+                let result = flock(descriptor, LOCK_EX | LOCK_NB)
+                let lockError = errno
+                #expect(result == -1)
+                #expect(lockError == EWOULDBLOCK)
+                return nil
+            }
+
+        try await subject.run(path: nil)
+
+        let descriptor = open(lockPath.pathString, O_RDWR)
+        defer { close(descriptor) }
+        #expect(descriptor >= 0)
+        #expect(flock(descriptor, LOCK_EX | LOCK_NB) == 0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_recordsConfigurationOnlyAfterTheProxyIsReady() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_CAS_PLUGIN_PATH"] = try await shipCASPlugin(containing: "new plugin").pathString
+        let directory = environment.casPluginInstallPath().parentDirectory
+        let manifest = directory.appending(component: "cas-install.json")
+        try await FileSystem().makeDirectory(at: directory)
+        try await FileSystem().writeText("old metadata", at: manifest)
+        persistLaunchAgentOnSetup()
+        let proxy = try #require(FileSystem.temporaryTestDirectory).appending(component: "tuist-cas-proxy")
+        try await FileSystem().writeText("proxy", at: proxy)
+        environment.variables["TUIST_CAS_PROXY_PATH"] = proxy.pathString
+        let xcode = AbsolutePath("/Applications/Xcode.app/Contents/Developer")
+        xcodeController.reset()
+        given(xcodeController).developerDirectory().willReturn(xcode)
+        given(xcodeController).selectedBuildVersion().willReturn("17F113")
+        given(xcodeController).selectedVersion().willThrow(TestError("no Xcode"))
+        cacheSocketService.reset()
+        given(cacheSocketService).waitUntilListening(at: .any, timeout: .any).willProduce { _, _ in
+            #expect(!FileManager.default.fileExists(atPath: manifest.pathString))
+            #expect(!FileManager.default.fileExists(atPath: environment.casPluginInstallPath().pathString))
+            return true
+        }
+
+        try await Constants.$version.withValue("4.213.0") {
+            try await subject.run(path: nil)
+        }
+
+        let data = try Data(contentsOf: manifest.url)
+        let installation = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(installation["tuistVersion"] as? String == "4.213.0")
+        #expect(installation["proxyPath"] as? String == proxy.url.resolvingSymlinksInPath().path)
+        #expect(installation["pluginInstalled"] as? Bool == true)
+        #expect(installation["launchAgentProgram"] as? String == "/usr/local/bin/tuist")
+        #expect(installation["xcodeBuildVersion"] as? String == "17F113")
+        #expect(installation["developerDirectory"] as? String == xcode.url.resolvingSymlinksInPath().path)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_invalidatesOldMetadataWhenPluginInstallationFailsAfterProxyStartup() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_CAS_PLUGIN_PATH"] = try await shipCASPlugin(containing: "new plugin").pathString
+        let installedPlugin = environment.casPluginInstallPath()
+        let manifest = installedPlugin.parentDirectory.appending(component: "cas-install.json")
+        try await FileSystem().makeDirectory(at: installedPlugin)
+        try await FileSystem().writeText("old metadata", at: manifest)
+
+        await #expect(throws: SetupCacheCommandServiceError.casPluginNotInstalled(installedPlugin.pathString, EISDIR)) {
+            try await subject.run(path: nil)
+        }
+
+        #expect(!FileManager.default.fileExists(atPath: manifest.pathString))
+        verify(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func setupCache_metadataWriteFailureDoesNotRestoreOldMetadataOrFailSetup() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let directory = environment.casPluginInstallPath().parentDirectory
+        let manifest = directory.appending(component: "cas-install.json")
+        try await FileSystem().makeDirectory(at: directory)
+        try await FileSystem().writeText("old metadata", at: manifest)
+        persistLaunchAgentOnSetup()
+        cacheSocketService.reset()
+        given(cacheSocketService).waitUntilListening(at: .any, timeout: .any).willProduce { _, _ in
+            #expect(!FileManager.default.fileExists(atPath: manifest.pathString))
+            // Force the final atomic file write to fail, after the proxy is ready.
+            #expect(throws: Never.self) {
+                try FileManager.default.createDirectory(at: manifest.url, withIntermediateDirectories: false)
+            }
+            return true
+        }
+
+        try await subject.run(path: nil)
+
+        #expect((try? Data(contentsOf: manifest.url)) == nil)
+        #expect(FileManager.default.fileExists(atPath: manifest.pathString))
+        TuistTest.expectLogs("Xcode Cache setup is almost complete!", at: .info)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_canBeCancelledWhileWaitingForTheSharedInstallationLock() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let directory = environment.casPluginInstallPath().parentDirectory
+        try await FileSystem().makeDirectory(at: directory)
+        let lock = directory.appending(component: "cas-setup.lock")
+        let descriptor = open(lock.pathString, O_CREAT | O_RDWR, 0o644)
+        #expect(descriptor >= 0)
+        defer { close(descriptor) }
+        #expect(flock(descriptor, LOCK_EX | LOCK_NB) == 0)
+        defer { flock(descriptor, LOCK_UN) }
+        // Bound a regression to blocking flock rather than hanging the test process.
+        let release = Task {
+            try await Task.sleep(for: .seconds(2))
+            flock(descriptor, LOCK_UN)
+        }
+        let setup = Task { try await subject.run(path: nil) }
+        try await Task.sleep(for: .milliseconds(100))
+        setup.cancel()
+
+        await #expect(throws: CancellationError.self) { try await setup.value }
+        release.cancel()
+        _ = try? await release.value
+        let probe = open(lock.pathString, O_RDWR)
+        #expect(probe >= 0)
+        defer { close(probe) }
+        // Cancellation must finish before the watchdog releases the original lock.
+        let result = flock(probe, LOCK_EX | LOCK_NB)
+        let lockError = errno
+        #expect(result == -1)
+        #expect(lockError == EWOULDBLOCK)
+        verify(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .called(0)
+    }
+
     /// Replacing the plugin on every setup would swap the file compilers load for an
     /// identical one on every CI job.
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -278,6 +411,9 @@ struct SetupCacheCommandServiceTests {
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(27, 0, 0))
+        given(xcodeController)
+            .selectedBuildVersion()
+            .willReturn("18A100")
 
         // When
         try await subject.run(path: nil)
@@ -875,6 +1011,12 @@ struct SetupCacheCommandServiceTests {
     func setupCache_failsWhenTheSocketDoesNotListenAfterRestart() async throws {
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_CAS_PLUGIN_PATH"] = try await shipCASPlugin(containing: "new plugin").pathString
+        let installedPlugin = environment.casPluginInstallPath()
+        try await FileSystem().makeDirectory(at: installedPlugin.parentDirectory)
+        try await FileSystem().writeText("old plugin", at: installedPlugin)
+        let manifest = installedPlugin.parentDirectory.appending(component: "cas-install.json")
+        try await FileSystem().writeText("old metadata", at: manifest)
         cacheSocketService.reset()
         given(cacheSocketService)
             .waitUntilListening(at: .any, timeout: .any)
@@ -895,6 +1037,8 @@ struct SetupCacheCommandServiceTests {
             try await subject.run(path: nil)
         }
 
+        #expect(try await FileSystem().readTextFile(at: installedPlugin) == "old plugin")
+        #expect(!FileManager.default.fileExists(atPath: manifest.pathString))
         verify(launchAgentService)
             .restartLaunchAgent(label: .value("tuist.cas-proxy"))
             .called(1)
@@ -1295,6 +1439,9 @@ struct SetupCacheCommandServiceTests {
         given(xcodeController)
             .selectedVersion()
             .willThrow(TestError("no Xcode"))
+        given(xcodeController)
+            .selectedBuildVersion()
+            .willThrow(TestError("no Xcode"))
 
         // When
         try await subject.run(path: nil)
@@ -1319,6 +1466,34 @@ struct SetupCacheCommandServiceTests {
                 ])
             )
             .called(1)
+    }
+
+    private func resetLaunchAgentStubs() {
+        launchAgentService.reset()
+        given(launchAgentService).teardownLaunchAgent(label: .any, plistFileName: .any).willReturn()
+        given(launchAgentService).runningProcessIdentifier(label: .any).willReturn(4242)
+        given(launchAgentService)
+            .isLaunchAgentCurrent(
+                label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any, launchInputs: .any
+            )
+            .willReturn(false)
+    }
+
+    private func persistLaunchAgentOnSetup() {
+        resetLaunchAgentStubs()
+        given(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .willProduce { _, plistFileName, arguments, environment in
+                let agent = Environment.current.homeDirectory.appending(components: "Library", "LaunchAgents", plistFileName)
+                try FileManager.default.createDirectory(at: agent.parentDirectory.url, withIntermediateDirectories: true)
+                let plist: [String: Any] = [
+                    "Program": try #require(Environment.current.currentExecutablePath()).pathString,
+                    "ProgramArguments": arguments,
+                    "EnvironmentVariables": environment,
+                ]
+                try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: agent.url)
+                return nil
+            }
     }
 }
 

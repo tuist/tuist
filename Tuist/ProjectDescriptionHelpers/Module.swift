@@ -1170,6 +1170,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .cas:
                 [
+                    .external(name: "SwiftToolsSupport"),
                     .target(name: Module.server.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.environment.targetName),
@@ -2153,6 +2154,8 @@ public enum Module: String, CaseIterable {
                 ]
             case .cas:
                 [
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.environment.targetName),

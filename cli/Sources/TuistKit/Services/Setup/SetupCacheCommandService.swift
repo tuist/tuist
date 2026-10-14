@@ -3,6 +3,8 @@ import Foundation
 import Path
 import struct TSCUtility.Version
 import TuistAlert
+import TuistCAS
+import TuistConfig
 import TuistConfigLoader
 import TuistConstants
 import TuistCore
@@ -268,10 +270,17 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
             throw SetupCacheCommandServiceError.registryNotLocked(lockPath.pathString, errno)
         }
         defer { close(descriptor) }
-        guard flock(descriptor, LOCK_EX) == 0 else {
-            throw SetupCacheCommandServiceError.registryNotLocked(lockPath.pathString, errno)
+        // Setup can hold this lock across proxy shutdown and readiness waits.
+        // Poll without blocking a cooperative executor thread, and allow cancellation.
+        while flock(descriptor, LOCK_EX | LOCK_NB) != 0 {
+            let code = errno
+            guard code == EWOULDBLOCK || code == EINTR else {
+                throw SetupCacheCommandServiceError.registryNotLocked(lockPath.pathString, code)
+            }
+            try await Task.sleep(for: .milliseconds(50))
         }
         defer { flock(descriptor, LOCK_UN) }
+        try Task.checkCancellation()
         try await body()
     }
 
@@ -341,20 +350,7 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
             throw SetupCacheCommandServiceError.notAuthenticated
         }
 
-        // Register BEFORE starting the proxy. The proxy prefetches a snapshot for
-        // every instance it already knows as soon as it boots, and it keys that
-        // snapshot by instance alone: if it starts first, an upgraded machine
-        // prefetches an unscoped view and keeps serving it until the next full
-        // refresh, however promptly the mapping lands afterwards.
-        try await registerSource(
-            fullHandle: fullHandle,
-            trunk: await trunkBranch(fullHandle: fullHandle, serverURL: serverURL),
-            branch: await ciBranch(sourceRoot: path),
-            upload: config.xcodeCache.upload,
-            storeSizeLimit: config.xcodeCache.storeSizeLimit
-        )
-        let casPlugin = try await installCASPlugin()
-        try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
+        let casPlugin = try await installCache(config: config, fullHandle: fullHandle, path: path, serverURL: serverURL)
 
         if try await manifestLoader.hasRootManifest(at: path) {
             if let generationOptions = config.project.generatedProject?.generationOptions,
@@ -417,6 +413,47 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
                 """
             )
         }
+    }
+
+    private func installCache(
+        config: Tuist,
+        fullHandle: String,
+        path: AbsolutePath,
+        serverURL: URL
+    ) async throws -> AbsolutePath? {
+        let trunk = await trunkBranch(fullHandle: fullHandle, serverURL: serverURL)
+        let branch = await ciBranch(sourceRoot: path)
+        let installationDirectory = Environment.current.casPluginInstallPath().parentDirectory
+        try await fileSystem.makeDirectory(at: installationDirectory)
+        var casPlugin: AbsolutePath?
+        // Serialize setups that honor this lock. Older CLIs and active builds
+        // do not participate, so setup must still run only when builds are idle.
+        try await withRegistryLock(at: installationDirectory.appending(component: "cas-setup.lock")) {
+            let installationStore = XcodeCacheInstallationStore()
+            try installationStore.invalidate()
+            // Register before starting the proxy, whose startup snapshot must use
+            // the project's trunk and upload policy from its very first request.
+            try await registerSource(
+                fullHandle: fullHandle,
+                trunk: trunk,
+                branch: branch,
+                upload: config.xcodeCache.upload,
+                storeSizeLimit: config.xcodeCache.storeSizeLimit
+            )
+            try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
+            casPlugin = try await installCASPlugin()
+            do {
+                try installationStore.record(
+                    plugin: casPlugin?.url,
+                    proxy: try await resourceLocator.casProxy()?.url,
+                    xcodeBuildVersion: try? await xcodeController.selectedBuildVersion(),
+                    tuistVersion: Constants.version
+                )
+            } catch {
+                Logger.current.debug("Could not record the Xcode Cache installation: \(error.localizedDescription)")
+            }
+        }
+        return casPlugin
     }
 
     /// The `COMPILATION_CACHE_PLUGIN_PATH` value for the manual build-setting
