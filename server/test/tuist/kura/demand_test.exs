@@ -143,6 +143,41 @@ defmodule Tuist.Kura.DemandTest do
   end
 
   describe "upsert_many/1" do
+    test "inserts rows in account and service region order" do
+      first = air_account()
+      second = air_account()
+      now = DateTime.utc_now()
+
+      rows =
+        Enum.map(
+          [{second.id, "us-west"}, {second.id, "eu-west"}, {first.id, "us-west"}, {first.id, "eu-west"}],
+          fn {account_id, service_region} ->
+            %{account_id: account_id, service_region: service_region, last_cache_demand_at: now}
+          end
+        )
+
+      test_pid = self()
+
+      stub(Repo, :insert_all, fn schema, rows, opts ->
+        send(test_pid, {:insert_all, schema, rows})
+        Mimic.call_original(Repo, :insert_all, [schema, rows, opts])
+      end)
+
+      assert {:ok, 4} = Demand.upsert_many(rows)
+      assert_received {:insert_all, AccountRegionLifecycle, inserted_rows}
+
+      assert Enum.map(inserted_rows, &{&1.account_id, &1.service_region}) == [
+               {first.id, "eu-west"},
+               {first.id, "us-west"},
+               {second.id, "eu-west"},
+               {second.id, "us-west"}
+             ]
+
+      for {account_id, service_region} <- Enum.map(rows, &{&1.account_id, &1.service_region}) do
+        assert %AccountRegionLifecycle{} = Demand.get(account_id, service_region)
+      end
+    end
+
     test "writes a batch in one statement and keeps the latest timestamp per row" do
       first = air_account()
       second = paid_account(:pro, :europe)

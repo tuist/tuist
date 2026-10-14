@@ -1,5 +1,11 @@
 # Kura control plane
 
+- `Origins` and `Demand` sort bulk upsert rows by their full conflict keys before
+  insertion so concurrent overlapping batches acquire locks in a consistent
+  order. Keep this ordering at the write boundary, including backfills and
+  write-through calls; sorted account key-share locks alone do not order the
+  subsequent rollup/lifecycle writes.
+
 - `kura_positive_fence` is default off and changes both `servingMode` and the
   manifest revision. Controller activation is sticky: disabling the account
   flag cannot remove the serving rollback floor or restore legacy selection.
