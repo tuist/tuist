@@ -1645,6 +1645,128 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_run_stores_only_the_hashes_of_targets_kept_by_passthrough_only_testing() async throws {
+        try await withMockedDependencies {
+            // Given
+            try givenSchemeWithTwoUncachedTestTargets()
+
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                passthroughXcodeBuildArguments: ["-only-testing:TargetA"]
+            )
+
+            // Then
+            verify(cacheStorage)
+                .store(
+                    .value([CacheStorableItem(name: "TargetA", hash: "hash-a"): []]),
+                    cacheCategory: .value(.selectiveTests)
+                )
+                .called(1)
+            verify(cacheStorage)
+                .store(.any, cacheCategory: .value(.selectiveTests))
+                .called(1)
+        }
+    }
+
+    func test_run_does_not_store_the_hash_of_a_target_narrowed_to_a_class_by_passthrough_only_testing() async throws {
+        try await withMockedDependencies {
+            // Given
+            try givenSchemeWithTwoUncachedTestTargets()
+
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                passthroughXcodeBuildArguments: ["-only-testing", "TargetA/SomeClass"]
+            )
+
+            // Then
+            verify(cacheStorage)
+                .store(.any, cacheCategory: .value(.selectiveTests))
+                .called(0)
+        }
+    }
+
+    func test_run_does_not_store_the_hash_of_a_target_narrowed_to_a_class_by_test_targets() async throws {
+        try await withMockedDependencies {
+            // Given
+            try givenSchemeWithTwoUncachedTestTargets()
+
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                testTargets: [
+                    try TestIdentifier(string: "TargetA/SomeClass"),
+                    try TestIdentifier(string: "TargetB"),
+                ]
+            )
+
+            // Then
+            verify(cacheStorage)
+                .store(
+                    .value([CacheStorableItem(name: "TargetB", hash: "hash-b"): []]),
+                    cacheCategory: .value(.selectiveTests)
+                )
+                .called(1)
+            verify(cacheStorage)
+                .store(.any, cacheCategory: .value(.selectiveTests))
+                .called(1)
+        }
+    }
+
+    private func givenSchemeWithTwoUncachedTestTargets() throws {
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+
+        let projectPath = try temporaryPath().appending(component: "Project")
+        let scheme = Scheme.test(
+            name: "Scheme",
+            testAction: .test(
+                targets: [
+                    .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                    .test(target: TargetReference(projectPath: projectPath, name: "TargetB")),
+                ]
+            )
+        )
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(.test())
+
+        let project = Project.test(
+            path: projectPath,
+            targets: [
+                .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
+                .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
+            ],
+            schemes: [scheme]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = .test(projects: [projectPath: project])
+        environment.targetTestHashes = [
+            projectPath: ["TargetA": "hash-a", "TargetB": "hash-b"],
+        ]
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, .test(projects: [projectPath: project]), environment)
+            }
+    }
+
     func test_run_captures_test_modules_skipped_by_selective_testing_in_the_test_run_report() async throws {
         try await withMockedDependencies {
             // Given
