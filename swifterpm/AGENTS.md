@@ -20,6 +20,7 @@
 
 - `mise run test:e2e` runs `e2e/resolution_spec.sh` and is part of CI. Scenarios that expect SwifterPM to do work itself (dump manifests, download registry archives) must first warm the cache with a resolve; a resolve without a lockfile or with uncached pins is delegated to native SwiftPM.
 - Read pins through `normalize_package_resolved_file`. SwiftPM writes the version 1 `Package.resolved` format for packages below tools version 5.6, which several SwiftPM fixtures are.
+- Real-world graph scenarios explicitly allow only native-checkout cache-publication warnings on stderr. Keeping a usable native checkout when pinned-source publication fails is a valid fallback; still require successful resolution, lockfile checks, and rejection of unrelated stderr.
 
 ## Source cache ownership
 
