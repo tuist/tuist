@@ -261,6 +261,24 @@ jobs:
           case "${cache_ip}" in
             10.*|172.*|192.168.*) probe "${cache_ip}" 22; probe "${cache_ip}" 10250 ;;
           esac
+          # Sibling guests on the same host run sshd. The ARP table shows
+          # which siblings answered at layer 2, so a drop is not just an
+          # empty subnet.
+          self_ip=$(ipconfig getifaddr en0 || true)
+          siblings=$(mktemp)
+          for n in $(seq 2 254); do
+            ip="192.168.64.${n}"
+            [ "${ip}" = "${self_ip}" ] && continue
+            ( if nc -z -G 2 -w 2 "${ip}" 22 >/dev/null 2>&1; then echo "${ip}" >> "${siblings}"; fi ) &
+          done
+          wait
+          echo "siblings at layer 2: $(arp -an | awk -v self="(${self_ip})" '/192\.168\.64\./ && !/incomplete/ && $2 != self && $2 != "(192.168.64.1)" {print $2}' | tr '\n' ' ')"
+          if [ -s "${siblings}" ]; then
+            sed 's/^/open     sibling /;s/$/:22/' "${siblings}"
+            reached=1
+          else
+            echo "dropped  every sibling guest on :22"
+          fi
           for target in ${PRIVATE_TARGETS}; do
             probe "${target%:*}" "${target##*:}"
           done
