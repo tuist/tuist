@@ -254,7 +254,10 @@ jobs:
           probe 169.254.42.42 80
           # The cache answers on its carve-out only.
           cache_host=$(echo "${TUIST_CACHE_ENDPOINT:-}" | sed -E 's#^[a-z]+://([^/:]+).*#\1#')
-          cache_ip=$(dig +short "${cache_host}" 2>/dev/null | grep -E '^[0-9.]+$' | tail -1)
+          cache_ip=""
+          if [ -n "${cache_host}" ]; then
+            cache_ip=$(dig +short "${cache_host}" 2>/dev/null | grep -E '^[0-9.]+$' | tail -1 || true)
+          fi
           case "${cache_ip}" in
             10.*|172.*|192.168.*) probe "${cache_ip}" 22; probe "${cache_ip}" 10250 ;;
           esac
