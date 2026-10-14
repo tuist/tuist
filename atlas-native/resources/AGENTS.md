@@ -1,9 +1,11 @@
 # Native login assets
 
-`generate_login_assets.py` derives the transparent Atlas mark from the Atlas
-server's `logo.svg` and recolors Tuist's existing light/dark launch backgrounds
-into Atlas's azure palette. It writes the iOS asset catalog and Android drawables.
-Keep the layout, image composition, and colors consistent across native clients.
+`generate_login_assets.py` derives the transparent mark from the Atlas server's
+`tuist-logo.svg`, the same Tuist mark used by its web login and dashboard, and
+recolors Tuist's existing light/dark launch backgrounds into Atlas's azure palette.
+Do not use `logo.svg`, which contains the older compass mark. It writes the iOS
+asset catalog and Android drawables. Keep the layout, image composition, and colors
+consistent across native clients.
 
 Run `python3 atlas-native/resources/generate_login_assets.py` from the repository
 root with Pillow and `rsvg-convert` installed when the source branding changes.

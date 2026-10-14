@@ -21,8 +21,8 @@ with an Android Keystore key. Saved sessions are restored on launch. Self-hosted
 servers require HTTPS and OAuth discovery/dynamic registration support.
 
 Both native login screens follow Tuist's welcome layout, backdrop, spacing,
-button treatments and rounded bottom panel, customized with Atlas's mark and
-azure palette. They offer Atlas-hosted and self-hosted browser sign-in; provider
+button treatments and rounded bottom panel, customized with Atlas's azure palette
+and the same Tuist mark used by Atlas's web login and dashboard. They offer Atlas-hosted and self-hosted browser sign-in; provider
 selection happens on the server's login page. Light and dark assets share a
 checked-in generator under `resources/`.
 

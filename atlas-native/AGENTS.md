@@ -23,7 +23,7 @@ may require a separate browser sign-in. OAuth tokens are not browser cookies.
 - `android/`: Kotlin UI, JNI adapter, Android manifest and resources.
 - `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge tests.
   The signed-out screen matches Tuist's login layout with Atlas's azure palette,
-  mark, and supported hosted/self-hosted actions. Keep native browser auth separate
+  the shared Tuist mark used by Atlas's web login, and supported hosted/self-hosted actions. Keep native browser auth separate
   from presentation; restore sessions automatically rather than exposing a debug
   restore button.
 - `resources/`: shared login-asset generation; see `resources/AGENTS.md`. Checked-in

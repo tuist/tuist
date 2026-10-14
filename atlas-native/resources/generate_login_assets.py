@@ -15,7 +15,7 @@ repo = native.parent
 catalog = native / "ios/Resources/Assets.xcassets"
 android = native / "android/res"
 background_source = repo / "app/Resources/TuistApp/Assets.xcassets/LaunchScreenBackground.imageset"
-mark = (repo / "atlas/priv/static/images/logo.svg").read_text().replace("#171A1C", "#FFFFFF")
+mark = (repo / "atlas/priv/static/images/tuist-logo.svg").read_text().replace("#6F2CFF", "#FFFFFF")
 
 
 def contents(directory, images):
