@@ -3,6 +3,7 @@
 This directory contains database migrations and other private assets.
 
 ## Responsibilities
+- Explicit client actor-claim configuration and privacy/legacy-server compatibility are documented in the English Xcode, Gradle, and Elixir build-insights guides. Claims are off by default; Xcode post-actions need their own environment configuration. This header does not imply report persistence, dashboard support, or new authorization; the endpoint scrubs it from Sentry contexts.
 - Grafana build-health setup, metric definitions, reporting limitations, and alert routing are documented in `docs/en/guides/integrations/grafana.md`. Keep this guide aligned with the Grafana plugin readme and link it in `lib/tuist/docs_sidebar.ex`.
 - REAPI module-cache upload concurrency and admission retry settings are documented in `docs/en/guides/features/cache/module-cache.md`; keep them aligned with `cli/Sources/TuistREAPI` and Kura's upload sizing guidance.
 - Xcode coverage prefix-mapping opt-ins and generated-project LLDB source namespaces are documented in `docs/en/guides/features/cache/xcode-cache.md`; keep the `xccov` compatibility warning and per-target mapping guidance aligned with the CLI.

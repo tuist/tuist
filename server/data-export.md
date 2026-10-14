@@ -274,6 +274,10 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Test case events** (`test_case_events` table): Audit log of state changes on a test case — `first_run`, `marked_flaky`/`unmarked_flaky`, `muted`/`unmuted`, `skipped`/`unskipped`. Each row records the `test_case_id`, the `project_id` (denormalized from `test_cases` so the state projection can be scoped per project), the `event_type`, the `inserted_at` timestamp, and attribution columns: `actor_id` (the account that performed the change when initiated by a user; null for system/automation writes) and `alert_id` (the `automation_alerts.id` whose action produced the change; null otherwise). Powers the test case history timeline and is the source of truth for test case state.
 - Build performance metrics
 
+### Client report actor claims
+
+Swift, Gradle, and Elixir clients send the optional `x-tuist-actor-id` header on report creation only when explicitly configured through `TUIST_ACTOR_ID` or supported client configuration. They do not detect operating-system usernames or send a claim by default. The label may contain personal information; an empty `TUIST_ACTOR_ID` suppresses configured claims. It is not a credential or verified identity. The server does not parse the claim into report storage, and its Sentry header scrubber excludes it from error request contexts. This adds no database fields, storage paths, report retention rules, or application export records. Older server versions without this scrubber may include explicitly supplied claims in error-tracker request contexts. Operators must include any retained claims in their error-tracker or HTTP-tooling log retention and export procedures.
+
 ### Operational Telemetry (logs)
 
 - **Historical shadow runner scheduling observations** (runners-controller Pod logs

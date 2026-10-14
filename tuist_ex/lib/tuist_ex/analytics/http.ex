@@ -1,6 +1,7 @@
 defmodule TuistEx.Analytics.HTTP do
   @moduledoc false
 
+  alias TuistEx.Analytics.Actor
   alias TuistEx.Analytics.Config
   alias TuistEx.Auth
   alias TuistEx.HTTP
@@ -30,7 +31,17 @@ defmodule TuistEx.Analytics.HTTP do
           "/api/projects/" <>
           config.project_handle.account <> "/" <> config.project_handle.project <> suffix
 
-      case HTTP.request(method, url, body, [{"authorization", "Bearer " <> token}]) do
+      actor_headers =
+        if method == :post and suffix in ["/tests", "/mix/builds"],
+          do: Actor.headers(options),
+          else: []
+
+      case HTTP.request(
+             method,
+             url,
+             body,
+             [{"authorization", "Bearer " <> token}] ++ actor_headers
+           ) do
         {:ok, status, decoded} when status in 200..299 -> {:ok, decoded}
         {:ok, status, decoded} -> {:error, {:http, status, decoded}}
         {:error, reason} -> {:error, reason}
