@@ -50,41 +50,88 @@ each one with a check that asserts the behaviour rather than the
 ingredient — every gap so far was found by a release failing, not
 by the image build.
 
-TCC is one of those gaps. Scripted Finder automation (`create-dmg`,
-anything driving Finder through `osascript`) needs a standing
-`kTCCServiceAppleEvents` approval, or the first send waits on a
-consent prompt nobody can answer and fails as `AppleEvent timed out
-(-1712)`. `dispatch-poll.sh` (`approve_finder_automation`) writes it
-at boot. Three details decide whether a row matches, and earlier
-attempts got each one wrong:
+TCC is one of those gaps. Two standing approvals live in `runner`'s own
+`~/Library/Application Support/com.apple.TCC/TCC.db`, the same rows
+GitHub-hosted images ship:
 
-- **Database.** Only the session user's
-  `~/Library/Application Support/com.apple.TCC/TCC.db` is consulted.
-  A row in the system database is ignored. The user database only
-  exists once `runner` has logged in, which is why this runs at boot
-  and not in the Packer template.
-- **Client.** TCC charges the event to the responsible process, not
-  to `osascript`. For GitHub jobs that is
-  `/Users/runner/actions-runner/bin/Runner.Listener`. The Buildkite
-  and GitLab agents are started directly by `dispatch-poll.sh`, so
-  theirs is expected to be its `/bin/bash`. `log stream --predicate
-  'subsystem == "com.apple.TCC"'` names it (`Prompting for access to
-  indirect object Finder by …`).
-- **Target.** `indirect_object_code_identity` must hold Finder's
-  code requirement. A row with it NULL is ignored.
+- **Scripting Finder.** `create-dmg`, or anything driving Finder through
+  `osascript`, needs `kTCCServiceAppleEvents` approved, or the first send
+  waits on a consent prompt nobody can answer and fails as `AppleEvent
+  timed out (-1712)`.
+- **The iOS Simulator's microphone.** A simulator app that records audio
+  (`AVAudioSession` in `.playAndRecord`, `AVAudioEngine`'s input node, a
+  video-call SDK) reaches the host microphone through coreaudiod, and TCC
+  charges it to `com.apple.CoreSimulator.SimulatorTrampoline`. Without a
+  row the app's audio call never returns, its main thread stalls, and
+  XCUITest fails with `Failed to get matching snapshots: Timed out while
+  evaluating UI query` or `Unable to monitor event loop`. The iOS-level
+  permission inside the simulator (`simctl privacy`, the in-app alert) is
+  separate and stays the job's responsibility. Simulators have no camera,
+  so `AVCaptureDevice.default(for: .video)` is nil there on any host.
 
-The write itself races tccd, which is still writing the database
-right after login. Without a busy timeout, `sqlite3` failed with
-`database is locked` on some boots and the job then hit
-`-1712` (prompt shown) or `-1743` (immediate deny). The guest logs
-`Finder automation approved` or `WARNING could not approve …`; for VMs
-whose log tail reaches Loki, search the `tuist-macos-tart-kubelet`
-`runner log` lines for it.
+`tcc-approvals.sh` writes them at image build. The Packer template reboots
+the build VM so `runner` auto-logs in, waits for the TCC.db that login
+makes runner's tccd create, seeds the rows into it as `runner`, then
+reboots once more and fails the build unless every row is still there.
+At boot, `dispatch-poll.sh` (`check_tcc_approvals`) only reads them and
+logs `tcc-approvals: all approvals present` or `WARNING tcc-approvals:
+missing …`; for VMs whose log tail reaches Loki, search the
+`tuist-macos-tart-kubelet` `runner log` lines for it.
 
-Some jobs still fail with an immediate `-1743` although boot logs approval.
-`dispatch-poll.sh` streams TCC at Info level as newline-delimited JSON, so
-multiline request bodies retain their service and target fields. At exit it
-appends `dispatch-poll: tcc:` lines after the job output: Finder grant rows,
+What decides whether a row matches:
+
+- **Database.** Only the session user's database is consulted, for both
+  services. A row in the system database is ignored: coreaudiod asks the
+  system tccd, which forwards to the user tccd, and the user tccd decides.
+  PPPC configuration profiles cannot grant Microphone or Camera (deny
+  only), so MDM is not a route.
+- **Client.** TCC charges an AppleEvent to the responsible process, not to
+  `osascript`. For GitHub jobs that is
+  `/Users/runner/actions-runner/bin/Runner.Listener`. The Buildkite and
+  GitLab agents are started directly by `dispatch-poll.sh`, so theirs is
+  expected to be its `/bin/bash`. The microphone row is a bundle-ID client
+  (`client_type` 0). `log stream --predicate 'subsystem == "com.apple.TCC"'`
+  names the charged process (`Prompting for access to indirect object
+  Finder by …`, `AttributionChain: responsible=…`).
+- **Target.** The Finder rows' `indirect_object_code_identity` must hold
+  Finder's code requirement. A row with it NULL is ignored.
+
+Why the rows are written at build and not at boot: the database only
+exists once `runner` has logged in, and before the template rebooted into
+`runner`'s session nothing in the build did, so the image shipped with no
+user TCC.db at all. tccd then created one about 8 s after every VM boot,
+which looked like tccd recreating a database seeded at build. It was not:
+a database tccd created in the build session keeps its inode and birth
+time through `tart push`, the clone, and boot on a cluster node, and tccd
+honours its rows. Writing at boot instead raced tccd, which is still
+writing the database right after login (`database is locked` without a
+busy timeout, then `-1712` or `-1743`), and a microphone row written after
+a prompt is already pending does not unblock coreaudiod.
+
+An earlier attempt (the build-account rename on
+`claude/runner-single-account`) wrote rows into `admin`'s database during
+the build and then moved `admin`'s home to `/Users/runner`. That file was
+gone at boot. The system tccd keeps a registry of user databases
+(`/Library/Application Support/com.apple.TCC/REG.db`; the user tccd calls
+`TCCCheckIfDatabaseIsRegistered` at start), and that database had only
+ever been registered at `/Users/admin`. This is the likely reason, not a
+confirmed one. Seed the database tccd created for `runner` at
+`/Users/runner`, and do not move or copy a TCC.db into place.
+
+macOS 27 moves the user database to
+`/private/var/containers/Data/ProtectedSystem/<id>/Data/Library/Application Support/com.apple.TCC/TCC.db`.
+`tcc-approvals.sh` only knows the Tahoe path, and its `wait` step fails the
+image build when the database does not appear there, so a macOS 27 base
+breaks the build instead of shipping without approvals. The build-time
+approach should carry over, because the container lives on the image's
+disk, but resolve the path from runner's tccd (`lsof -p <pid>`) and verify
+it on a macOS 27 guest first.
+
+Some jobs on images that wrote the Finder approval at boot failed with an
+immediate `-1743` although boot logged approval. `dispatch-poll.sh`
+streams TCC at Info level as newline-delimited JSON, so multiline request
+bodies retain their service and target fields. At exit it appends
+`dispatch-poll: tcc:` lines after the job output: Finder grant rows,
 database inode/birth time, tccd start times, and AppleEvents request summaries.
 Requests are keyed by daemon PID and message ID; no-ID attribution/decision
 events use the most recent request on the same daemon thread. This is
@@ -103,26 +150,10 @@ The raw stream is temporary inside the guest and grows for the job lifetime;
 only the bounded report is exported. No grants, probes, or daemon reloads are
 introduced. Remove the capture when the failure is understood.
 
-The iOS Simulator's microphone is another TCC gap. A simulator app that
-records audio (`AVAudioSession` in `.playAndRecord`, `AVAudioEngine`'s
-input node, or a video-call SDK) reaches the host microphone through
-coreaudiod. TCC charges that to `com.apple.CoreSimulator.SimulatorTrampoline`
-in the session user's database. Without a row, the user tccd shows a
-consent prompt nobody answers. The app's audio call never returns, its main
-thread stalls, and XCUITest fails with `Failed to get matching snapshots:
-Timed out while evaluating UI query` or `Unable to monitor event loop`.
-`dispatch-poll.sh` (`approve_simulator_microphone`) writes the same row
-GitHub-hosted images ship (bundle-ID client, `client_type` 0), at boot,
-after `approve_finder_automation` has waited for the database. The guest
-logs `Simulator microphone approved`. The iOS-level permission inside the
-simulator (`simctl privacy`, the in-app alert) is separate and stays the
-job's responsibility. Simulators have no camera, so
-`AVCaptureDevice.default(for: .video)` is nil there on any host.
-
-Run `bash infra/runner-image/tcc-report_test.sh` from the checkout. Tests use
-synthetic JSON and temporary SQLite/processes, never host privacy APIs. The
-existing release workflow runs them on PRs and before releases with a separate
-read-only test job; PR events never plan, build, publish, or deploy images.
+Run `bash infra/runner-image/tcc-report_test.sh` from the checkout. It also
+covers `tcc-approvals.sh`. Tests use synthetic JSON and temporary
+SQLite/processes, never host privacy APIs. The existing release workflow
+runs them on PRs and before releases with a separate read-only test job; PR events never plan, build, publish, or deploy images.
 
 The sanity checks at the end of the Packer template run as `sudo
 -u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
