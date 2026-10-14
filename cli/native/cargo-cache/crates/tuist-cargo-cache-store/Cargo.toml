@@ -1,0 +1,32 @@
+[package]
+name = "tuist-cargo-cache-store"
+version = "0.1.38"
+description = "Unstable shared action-store retention and inspection for tuist_cargo_cache embedders"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+[dependencies]
+eyre = "0.6"
+fslock = "0.2"
+log = "0.4"
+tuist-cargo-cache-core = { path = "../tuist-cargo-cache-core", version = "0.20.0", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tar = { version = "0.4", default-features = false }
+tempfile = "3"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
+
+[dev-dependencies]
+filetime = "0.2"
+
+[features]
+default = ["rustls"]
+native-tls = ["tuist-cargo-cache-core/native-tls"]
+rustls = ["tuist-cargo-cache-core/rustls"]
+rustls-native-roots = ["tuist-cargo-cache-core/rustls-native-roots"]

@@ -4,23 +4,34 @@
 
 set -e
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${MISE_PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 
 # If --linux-vm is set and we're not already in a container, re-invoke in container
 if [ "$usage_linux_vm" = "true" ]; then
-    if command -v podman &> /dev/null; then
+    if command -v podman &>/dev/null; then
         CONTAINER_ENGINE="podman"
     else
         CONTAINER_ENGINE="docker"
     fi
 
+    # Bootstrap variables must expand inside the container, not on the host.
+    # shellcheck disable=SC2016
     exec $CONTAINER_ENGINE run --rm \
         --volume "$PROJECT_ROOT:/package" \
         --workdir "/package" \
         --env MISE_PROJECT_ROOT=/package \
         swift:6.2 \
-        ./mise/tasks/cli/bundle-linux.sh
+        /bin/bash -lc '
+            set -euo pipefail
+            apt-get update -qq
+            apt-get install -y --no-install-recommends build-essential cmake musl-tools pkg-config curl
+            toolchain=$(awk -F "\"" "/^rust =/ {print \$2}" cas-plugin/mise.toml)
+            test -n "$toolchain"
+            curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain "$toolchain"
+            export PATH="$HOME/.cargo/bin:$PATH"
+            exec ./mise/tasks/cli/bundle-linux.sh
+        '
 fi
 
 # Bundling logic (runs natively on Linux or inside container)
@@ -49,6 +60,20 @@ else
     exit 1
 fi
 
+# Build before the Swift SDK cleanup removes system musl/glibc archives.
+echo "==> Building the internal Cargo cache runtime"
+RUST_TARGET="${ARCH}-unknown-linux-musl"
+rustup target add "$RUST_TARGET"
+env CC_x86_64_unknown_linux_musl=musl-gcc CC_aarch64_unknown_linux_musl=musl-gcc \
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
+    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
+    cargo build --locked --release --manifest-path "$PROJECT_ROOT/cli/native/cargo-cache/Cargo.toml" \
+    -p tuist-cargo-cache --bin tuist-cargo-cache --target "$RUST_TARGET" --target-dir "$BUILD_PATH/cargo-cache"
+cp "$BUILD_PATH/cargo-cache/$RUST_TARGET/release/tuist-cargo-cache" "$BUILD_DIRECTORY/tuist-cargo-cache"
+strip --strip-unneeded "$BUILD_DIRECTORY/tuist-cargo-cache"
+cp "$PROJECT_ROOT/cli/native/cargo-cache/LICENSE" "$BUILD_DIRECTORY/cargo-cache-LICENSE"
+cp "$PROJECT_ROOT/cli/native/cargo-cache/NOTICE" "$BUILD_DIRECTORY/cargo-cache-NOTICE"
+
 # Remove system static archives that conflict with the musl SDK.
 # The musl SDK provides its own minimal static libraries, but the linker also finds
 # the system's glibc-based .a files (libcurl with libidn2/libldap/libssh deps,
@@ -74,16 +99,16 @@ echo "==> Bundling for $ARCH"
     cd $BUILD_DIRECTORY
 
     echo "==> Creating tuist-linux-${ARCH}.tar.gz"
-    tar -czvf "tuist-linux-${ARCH}.tar.gz" tuist
-    rm tuist
+    tar -czvf "tuist-linux-${ARCH}.tar.gz" tuist tuist-cargo-cache cargo-cache-LICENSE cargo-cache-NOTICE
+    rm tuist tuist-cargo-cache cargo-cache-LICENSE cargo-cache-NOTICE
 
     echo "==> Generating checksums"
-    : > SHASUMS256.txt
-    : > SHASUMS512.txt
+    : >SHASUMS256.txt
+    : >SHASUMS512.txt
 
     for file in *.tar.gz; do
-        echo "$(sha256sum "$file" | awk '{print $1}')  ./$file" >> SHASUMS256.txt
-        echo "$(sha512sum "$file" | awk '{print $1}')  ./$file" >> SHASUMS512.txt
+        echo "$(sha256sum "$file" | awk '{print $1}')  ./$file" >>SHASUMS256.txt
+        echo "$(sha512sum "$file" | awk '{print $1}')  ./$file" >>SHASUMS512.txt
     done
 )
 

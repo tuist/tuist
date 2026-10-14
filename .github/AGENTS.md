@@ -87,6 +87,10 @@ Gradle fork fallbacks. The explicitly named unsharded fallback also runs both va
 
 CNPG restore drills resolve production to namespace `tuist`, not `tuist-production`; staging and canary retain their prefixed namespaces. Validate the resolver with `python3 .github/scripts/cnpg-restore-drill.test.py` without credentials. Recovery clusters are isolated and must never archive into or delete the source backup path. Use a run-scoped disposable StorageClass cloned from the source data volume's provisioning settings, with `Delete` reclamation and no default-class annotation. Never change the source class or existing volumes. Teardown must target only the run's `pg-restore-drill-*` resources, use foreground cluster deletion, verify PVC/PV removal, and propagate failures rather than silently leaving copied data. Previously retained drill volumes require separate human-authorized cleanup.
 
+## CLI native Cargo cache packaging
+
+CLI bundles include the internal `tuist-cargo-cache` sibling and the copied model's MIT license/NOTICE, not an external cache-tool installation. Darwin builds both architectures, strips/signs/notarizes the runtime with the existing bundle. Linux installs Rust through the shared mise action using the existing native toolchain pin, plus CMake and musl build dependencies, and builds the locked musl target. Do not silently omit a failed native runtime from a release archive.
+
 ## Pull request quality
 
 `workflows/pr-quality-tests.yml` runs evaluator security/publication tests on pull requests without provider credentials. Keep it separate from the privileged publishing workflow.
