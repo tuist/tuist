@@ -5875,16 +5875,27 @@ max by (fleet) (
 - Pending period: 15 minutes
 - Already created: rule `ffvr99w48mltsb`, folder `Alerts`, group `Runners`,
   receiver `Slack #notifications 2`.
-- **Created paused.** The gauge counts against a 7-day `enqueued_at` floor, and
-  the divergence from the 2026-08-19 log-archiver bug sits inside that window,
-  so the rule would fire continuously until those rows age out. Unpause once
+- **Paused.** Until the release that ships
+  `Tuist.Runners.Workers.RepairReplicaDivergenceWorker`, the gauge also counted
+  long-running jobs in the minute between their completion and the outbox
+  flush, so it read 10 to 35 every day without any lasting divergence. Unpause
+  once that release is deployed and
   `max by (fleet) (tuist_runners_replica_divergence_count{env="production"})`
-  reads 0, or once the affected rows are repaired.
+  reads 0.
 - Counts jobs whose ClickHouse `runner_jobs` row is still
   `queued`/`claimed`/`running` while the authoritative Postgres
-  `runner_workflow_jobs` row is terminal. The server-side poll already excludes
-  rows younger than a 5-minute settle window, so in-flight jobs and normal
-  outbox lag are not counted and steady state is 0.
+  `runner_workflow_jobs` row is terminal. Both stores must have settled for
+  5 minutes: the replica row must not have changed and the Postgres completion
+  must be older than that, so in-flight jobs and normal outbox lag are not
+  counted and steady state is 0.
+- `RepairReplicaDivergenceWorker` re-emits each diverged row's Postgres state
+  every 5 minutes, with the same 5-minute settle window, so a diverged row is
+  repaired within about 11 minutes and a reading that persists past the
+  pending period means the repair itself is failing. Each
+  pass that repairs rows logs `runners: repaired ClickHouse runner_jobs rows`
+  and emits the runner recovery telemetry event with
+  `kind: "replica_divergence"`. Repairs that keep recurring mean some write
+  path still loses completions and should be found.
 - Data-correctness, not availability: dispatch reads Postgres directly, so jobs
   keep running while this fires. What breaks is analytics —
   `Runners.Analytics.jobs_duration` filters on a terminal status with non-null
