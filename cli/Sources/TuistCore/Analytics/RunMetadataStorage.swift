@@ -214,7 +214,12 @@ public actor RunMetadataStorage {
 
     /// Restores the build's `CoverageBuildSources` from the `.xctestproducts` bundle at
     /// `testProductsPath`. No-op when the build did not record them.
+    /// The `.xctestproducts` bundle a run tests without building, when it restored anything
+    /// from one: where the products the coverage export reads live.
+    public private(set) var testProductsPath: AbsolutePath?
+
     public func restoreCoverageBuildSources(from testProductsPath: AbsolutePath) async {
+        self.testProductsPath = testProductsPath
         let sourcesPath = testProductsPath.appending(component: CoverageBuildSources.fileName)
         guard (try? await fileSystem.exists(sourcesPath)) == true else { return }
         do {

@@ -55,6 +55,46 @@ struct CoverageBuildSourcesServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func record_keepsTheTargetsForTheRunAndWriteCarriesThemOver() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let testProductsPath = temporaryDirectory.appending(component: "App.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
+        given(gitController)
+            .topLevelGitDirectory(workingDirectory: .any)
+            .willReturn(try AbsolutePath(validating: "/checkout"))
+        given(gitController).sourceFileBlobIds(workingDirectory: .any, pathExtensions: .any).willReturn([:])
+        let storage = RunMetadataStorage()
+
+        try await RunMetadataStorage.$current.withValue(storage) {
+            await subject.record(config: .test(fullHandle: "tuist/tuist"), targets: [
+                CoverageBuildTarget(
+                    name: "Lib.framework",
+                    isTest: false,
+                    files: ["/checkout/Sources/Lib/A.swift", "/elsewhere/B.swift"]
+                ),
+            ])
+            await subject.write(to: testProductsPath, config: .test(fullHandle: "tuist/tuist"))
+        }
+
+        let expected = CoverageBuildSources(
+            rootDirectories: ["/checkout"],
+            files: [:],
+            targets: [CoverageBuildTarget(
+                name: "Lib.framework",
+                isTest: false,
+                files: ["Sources/Lib/A.swift", "/elsewhere/B.swift"]
+            )]
+        )
+        #expect(await storage.coverageBuildSources == expected)
+        let restored = RunMetadataStorage()
+        await restored.restoreCoverageBuildSources(from: testProductsPath)
+        #expect(await restored.coverageBuildSources == expected)
+        #expect(await restored.testProductsPath == testProductsPath)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func write_removesAnEarlierRecordWhenCoverageUploadIsOff() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testProductsPath = temporaryDirectory.appending(component: "App.xctestproducts")

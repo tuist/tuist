@@ -4,6 +4,7 @@ import Mockable
 import Path
 import TuistAlert
 import TuistConfig
+import TuistCore
 import TuistEnvironment
 import TuistLogging
 import TuistProcess
@@ -61,9 +62,18 @@ public struct CoverageExportService: CoverageExportServicing {
               (try? await fileSystem.exists(resultBundlePath)) == true
         else { return nil }
         do {
-            guard let targets = try await xcResultService.coverageTargets(path: resultBundlePath) else { return nil }
-            guard let profile = try await profilePath(derivedDataDirectory: derivedDataDirectory) else {
-                Logger.current.debug("No Coverage.profdata under the derived data; the bundle's coverage report is used")
+            guard let targets = try await coverageTargets(
+                resultBundlePath: resultBundlePath,
+                derivedDataDirectory: derivedDataDirectory
+            )
+            else { return nil }
+            guard let profile = try await profilePath(
+                derivedDataDirectory: derivedDataDirectory,
+                newerThan: creationDate(of: resultBundlePath)
+            )
+            else {
+                Logger.current
+                    .debug("No Coverage.profdata of this run under the derived data; the bundle's coverage report is used")
                 return nil
             }
             let products = Self.products(of: targets)
@@ -117,6 +127,109 @@ public struct CoverageExportService: CoverageExportServicing {
             }
             return spans
         }
+    }
+
+    /// The run's targets, from the build's graph when the build recorded them (`tuist test`,
+    /// including the targets the binary cache replaced, which the bundle's report never lists),
+    /// else from the bundle's report.
+    private func coverageTargets(
+        resultBundlePath: AbsolutePath,
+        derivedDataDirectory: AbsolutePath?
+    ) async throws -> [XcodeCoverageTarget]? {
+        if let sources = await RunMetadataStorage.current.coverageBuildSources, !sources.targets.isEmpty {
+            var roots: [AbsolutePath] = []
+            if let derivedDataDirectory { roots.append(derivedDataDirectory.appending(components: "Build", "Products")) }
+            if let testProductsPath = await RunMetadataStorage.current.testProductsPath { roots.append(testProductsPath) }
+            return Self.targets(sources, productRoots: roots)
+        }
+        return try await xcResultService.coverageTargets(path: resultBundlePath)
+    }
+
+    /// The build's targets with the products the run used: for a target built from source, its
+    /// product in the products directory the run's test bundles are in (the one under `roots`
+    /// that holds most of them, the newest on a tie); for a target the binary cache replaced, the
+    /// xcframework slice of that directory's platform.
+    static func targets(_ sources: CoverageBuildSources, productRoots roots: [AbsolutePath]) -> [XcodeCoverageTarget] {
+        let candidates = roots.flatMap { root -> [AbsolutePath] in
+            let children = (try? FileManager.default.contentsOfDirectory(atPath: root.pathString)) ?? []
+            return [root] + children.map { root.appending(component: $0) }
+        }
+        let names = sources.targets.map(\.name)
+        var counted: [(directory: AbsolutePath, products: Int)] = []
+        for directory in candidates {
+            let products = names.filter { FileManager.default.fileExists(atPath: directory.appending(component: $0).pathString) }
+                .count
+            if products > 0 { counted.append((directory, products)) }
+        }
+        let productsDirectory: AbsolutePath? = counted.max { lhs, rhs in
+            if lhs.products != rhs.products { return lhs.products < rhs.products }
+            return modificationDate(lhs.directory) < modificationDate(rhs.directory)
+        }?.directory
+        let platform: (name: String, simulator: Bool)? = productsDirectory.map { Self.platform(ofProductsDirectory: $0.basename) }
+
+        return sources.targets.map { target in
+            var product: String?
+            if let productsDirectory {
+                let path = productsDirectory.appending(component: target.name)
+                if FileManager.default.fileExists(atPath: path.pathString) { product = executable(inProduct: path) }
+            }
+            if product == nil, let platform {
+                product = target.binaries
+                    .first {
+                        $0.platform == platform.name && $0.simulator == platform.simulator && FileManager.default
+                            .fileExists(atPath: $0.path)
+                    }?
+                    .path
+            }
+            let files = target.files.flatMap { file -> [String] in
+                file.hasPrefix("/") ? [file] : sources.rootDirectories.map { "\($0)/\(file)" }
+            }
+            return XcodeCoverageTarget(name: target.name, buildProductPath: product, files: files)
+        }
+    }
+
+    /// The platform a products directory is for, from its name: `Debug` is macOS,
+    /// `Debug-iphonesimulator` the iOS simulator, `Release-appletvos` tvOS devices.
+    static func platform(ofProductsDirectory name: String) -> (name: String, simulator: Bool) {
+        guard let dash = name.lastIndex(of: "-") else { return ("macos", false) }
+        let suffix = String(name[name.index(after: dash)...])
+        let simulator = suffix.hasSuffix("simulator")
+        let base = simulator ? String(suffix.dropLast("simulator".count)) : suffix
+            .hasSuffix("os") ? String(suffix.dropLast(2)) : suffix
+        switch base {
+        case "iphone": return ("ios", simulator)
+        case "appletv": return ("tvos", simulator)
+        case "watch": return ("watchos", simulator)
+        case "xr": return ("xros", simulator)
+        case "macosx", "mac": return ("macos", false)
+        default: return (base, simulator)
+        }
+    }
+
+    /// The binary inside a product: the file itself, or a bundle's executable by its
+    /// `CFBundleExecutable` (`Contents/MacOS/<name>` on macOS, `Versions/Current/<name>` in a
+    /// framework, `<name>` elsewhere).
+    static func executable(inProduct path: AbsolutePath) -> String? {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path.pathString, isDirectory: &isDirectory) else { return nil }
+        guard isDirectory.boolValue else { return path.pathString }
+        let plists = ["Contents/Info.plist", "Info.plist", "Versions/Current/Resources/Info.plist", "Resources/Info.plist"]
+        let executable = plists.lazy
+            .compactMap {
+                try? Data(contentsOf: URL(fileURLWithPath: path.appending(try! RelativePath(validating: $0)).pathString))
+            }
+            .compactMap { try? PropertyListSerialization.propertyList(from: $0, format: nil) as? [String: Any] }
+            .compactMap { $0["CFBundleExecutable"] as? String }
+            .first ?? path.basenameWithoutExt
+        for location in ["Contents/MacOS/\(executable)", "Versions/Current/\(executable)", executable] {
+            let candidate = path.appending(try! RelativePath(validating: location))
+            if FileManager.default.fileExists(atPath: candidate.pathString) { return candidate.pathString }
+        }
+        return nil
+    }
+
+    private static func modificationDate(_ path: AbsolutePath) -> Date {
+        (try? FileManager.default.attributesOfItem(atPath: path.pathString)[.modificationDate] as? Date) ?? .distantPast
     }
 
     /// A product `llvm-cov` reads: a Mach-O image (an app, a test bundle, a dynamic framework,
@@ -277,17 +390,20 @@ public struct CoverageExportService: CoverageExportServicing {
     }
 
     /// Xcode merges a run's profiles into `Build/ProfileData/<device>/Coverage.profdata`; the
-    /// newest one is this run's.
-    private func profilePath(derivedDataDirectory: AbsolutePath?) async throws -> AbsolutePath? {
+    /// newest one is this run's, as long as it was written after the run's bundle was started:
+    /// an older one is an earlier run's, left in the derived data by a run without coverage.
+    private func profilePath(derivedDataDirectory: AbsolutePath?, newerThan date: Date?) async throws -> AbsolutePath? {
         guard let derivedDataDirectory else { return nil }
         let profileData = derivedDataDirectory.appending(components: "Build", "ProfileData")
         guard try await fileSystem.exists(profileData) else { return nil }
         let profiles = try await fileSystem.glob(directory: profileData, include: ["*/Coverage.profdata"]).collect()
-        return profiles.max { modificationDate($0) < modificationDate($1) }
+        guard let newest = profiles.max(by: { Self.modificationDate($0) < Self.modificationDate($1) }) else { return nil }
+        if let date, Self.modificationDate(newest) < date { return nil }
+        return newest
     }
 
-    private func modificationDate(_ path: AbsolutePath) -> Date {
-        (try? FileManager.default.attributesOfItem(atPath: path.pathString)[.modificationDate] as? Date) ?? .distantPast
+    private func creationDate(of path: AbsolutePath) -> Date? {
+        try? FileManager.default.attributesOfItem(atPath: path.pathString)[.creationDate] as? Date
     }
 }
 

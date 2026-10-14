@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Path
 import Testing
+import TuistCore
 import XCResultParser
 @testable import TuistKit
 
@@ -245,5 +246,86 @@ struct CoverageExportServiceTests {
         ])
         #expect(CoverageExportService.isSwiftMangled("$s3Lib1fyyF"))
         #expect(!CoverageExportService.isSwiftMangled("-[Foo bar]"))
+    }
+
+    @Test(.inTemporaryDirectory) func resolvesTheBuildsTargetsAgainstTheProductsTheRunUsed() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let products = directory.appending(components: "Build", "Products", "Debug-iphonesimulator")
+        let stale = directory.appending(components: "Build", "Products", "Debug")
+        let cache = directory.appending(component: "Lib.xcframework")
+        for (bundle, executable) in [
+            (products.appending(component: "App.app"), "App"),
+            (products.appending(component: "AppTests.xctest"), "AppTests"),
+            (stale.appending(component: "App.app"), "App"),
+            (cache.appending(components: "ios-arm64-simulator", "Lib.framework"), "Lib"),
+            (cache.appending(components: "ios-arm64", "Lib.framework"), "Lib"),
+        ] {
+            try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
+            try Data("<plist version=\"1.0\"><dict><key>CFBundleExecutable</key><string>\(executable)</string></dict></plist>"
+                .utf8)
+                .write(to: URL(fileURLWithPath: bundle.appending(component: "Info.plist").pathString))
+            try Data([0xCF, 0xFA, 0xED, 0xFE]).write(to: URL(fileURLWithPath: bundle.appending(component: executable).pathString))
+        }
+        let macFramework = products.appending(component: "Mac.framework")
+        try FileManager.default.createDirectory(
+            atPath: macFramework.appending(components: "Versions", "A", "Resources").pathString,
+            withIntermediateDirectories: true
+        )
+        try Data("<plist version=\"1.0\"><dict><key>CFBundleExecutable</key><string>Mac</string></dict></plist>".utf8)
+            .write(to: URL(fileURLWithPath: macFramework.appending(components: "Versions", "A", "Resources", "Info.plist")
+                    .pathString))
+        try Data([0xCF, 0xFA, 0xED, 0xFE]).write(to: URL(fileURLWithPath: macFramework.appending(
+            components: "Versions",
+            "A",
+            "Mac"
+        ).pathString))
+        try FileManager.default.createSymbolicLink(
+            atPath: macFramework.appending(components: "Versions", "Current").pathString,
+            withDestinationPath: "A"
+        )
+        let sources = CoverageBuildSources(
+            rootDirectories: ["/tmp/repo", "/private/tmp/repo"],
+            files: [:],
+            targets: [
+                CoverageBuildTarget(name: "App.app", isTest: false, files: ["Sources/App.swift"]),
+                CoverageBuildTarget(name: "AppTests.xctest", isTest: true, files: ["Tests/AppTests.swift"]),
+                CoverageBuildTarget(name: "Mac.framework", isTest: false, files: ["/elsewhere/Mac.swift"]),
+                CoverageBuildTarget(name: "Lib.framework", isTest: false, files: ["Lib/Lib.swift"], binaries: [
+                    .init(
+                        path: cache.appending(components: "ios-arm64-simulator", "Lib.framework", "Lib").pathString,
+                        platform: "ios",
+                        simulator: true
+                    ),
+                    .init(
+                        path: cache.appending(components: "ios-arm64", "Lib.framework", "Lib").pathString,
+                        platform: "ios",
+                        simulator: false
+                    ),
+                ]),
+                CoverageBuildTarget(name: "Gone.framework", isTest: false, files: []),
+            ]
+        )
+
+        let targets = CoverageExportService.targets(sources, productRoots: [directory.appending(components: "Build", "Products")])
+
+        #expect(targets.map(\.buildProductPath) == [
+            products.appending(components: "App.app", "App").pathString,
+            products.appending(components: "AppTests.xctest", "AppTests").pathString,
+            macFramework.appending(components: "Versions", "Current", "Mac").pathString,
+            cache.appending(components: "ios-arm64-simulator", "Lib.framework", "Lib").pathString,
+            nil,
+        ])
+        #expect(targets[0].files == ["/tmp/repo/Sources/App.swift", "/private/tmp/repo/Sources/App.swift"])
+        #expect(targets[2].files == ["/elsewhere/Mac.swift"])
+        #expect(targets.map(\.isTest) == [false, true, false, false, false])
+    }
+
+    @Test func readsThePlatformOffTheProductsDirectoryName() {
+        #expect(CoverageExportService.platform(ofProductsDirectory: "Debug") == ("macos", false))
+        #expect(CoverageExportService.platform(ofProductsDirectory: "Debug-iphonesimulator") == ("ios", true))
+        #expect(CoverageExportService.platform(ofProductsDirectory: "Release-iphoneos") == ("ios", false))
+        #expect(CoverageExportService.platform(ofProductsDirectory: "Debug-appletvsimulator") == ("tvos", true))
+        #expect(CoverageExportService.platform(ofProductsDirectory: "Debug-watchos") == ("watchos", false))
+        #expect(CoverageExportService.platform(ofProductsDirectory: "Debug-xrsimulator") == ("xros", true))
     }
 }

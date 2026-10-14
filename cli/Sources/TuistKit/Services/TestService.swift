@@ -529,6 +529,17 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        // The schemes' targets and files, for the coverage export to attribute what it measures;
+        // from the graph before the binary cache replaced any target with its xcframework.
+        await coverageBuildSourcesService.record(
+            config: config,
+            targets: CoverageBuildTargets.targets(
+                schemes: schemes,
+                graph: mapperEnvironment.initialGraph ?? graph,
+                generatedGraph: graph
+            )
+        )
+
         if !shouldRunTest(
             for: schemes,
             testPlanConfiguration: testPlanConfiguration,
