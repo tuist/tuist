@@ -103,6 +103,22 @@ The raw stream is temporary inside the guest and grows for the job lifetime;
 only the bounded report is exported. No grants, probes, or daemon reloads are
 introduced. Remove the capture when the failure is understood.
 
+The iOS Simulator's microphone is another TCC gap. A simulator app that
+records audio (`AVAudioSession` in `.playAndRecord`, `AVAudioEngine`'s
+input node, or a video-call SDK) reaches the host microphone through
+coreaudiod. TCC charges that to `com.apple.CoreSimulator.SimulatorTrampoline`
+in the session user's database. Without a row, the user tccd shows a
+consent prompt nobody answers. The app's audio call never returns, its main
+thread stalls, and XCUITest fails with `Failed to get matching snapshots:
+Timed out while evaluating UI query` or `Unable to monitor event loop`.
+`dispatch-poll.sh` (`approve_simulator_microphone`) writes the same row
+GitHub-hosted images ship (bundle-ID client, `client_type` 0), at boot,
+after `approve_finder_automation` has waited for the database. The guest
+logs `Simulator microphone approved`. The iOS-level permission inside the
+simulator (`simctl privacy`, the in-app alert) is separate and stays the
+job's responsibility. Simulators have no camera, so
+`AVCaptureDevice.default(for: .video)` is nil there on any host.
+
 Run `bash infra/runner-image/tcc-report_test.sh` from the checkout. Tests use
 synthetic JSON and temporary SQLite/processes, never host privacy APIs. The
 existing release workflow runs them on PRs and before releases with a separate

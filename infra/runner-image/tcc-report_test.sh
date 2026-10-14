@@ -7,7 +7,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 eq() { [ "$1" = "$2" ] || fail "expected [$1], got [$2]"; }
 event() { jq -nc --arg msg "$1" --argjson pid "${2:-410}" --argjson thread "${3:-10}" '{timestamp:"2026-10-14 14:00:00",processID:$pid,threadID:$thread,eventMessage:$msg}'; }
 fixture() {
-  eval "$(awk '/^(stream_tcc_log|filter_tcc_log|report_finder_automation)\(\)/ {copy=1} copy {print} copy && /^}$/ {copy=0}' "$ROOT/dispatch-poll.sh")"
+  eval "$(awk '/^(stream_tcc_log|filter_tcc_log|report_finder_automation|approve_simulator_microphone)\(\)/ {copy=1} copy {print} copy && /^}$/ {copy=0}' "$ROOT/dispatch-poll.sh")"
   # shellcheck disable=SC2034
   TCC_LOG="$work/tcc.log"; TCC_LOG_PID=''; RUNNER_TCC_DB="$work/TCC.db"
   : > "$TCC_LOG"
@@ -155,6 +155,18 @@ test_stream_stop_is_bounded_and_idempotent() {
   [ -z "$TCC_LOG_PID" ] || fail 'stale stream PID'
   ! kill -0 "$old_pid" 2>/dev/null || fail 'stream survived'
   report_finder_automation >/dev/null 2>&1
+}
+test_simulator_microphone_approval_is_idempotent() {
+  /usr/bin/sqlite3 "$RUNNER_TCC_DB" "CREATE TABLE access (service TEXT NOT NULL, client TEXT NOT NULL, client_type INTEGER NOT NULL, auth_value INTEGER NOT NULL, auth_reason INTEGER NOT NULL, auth_version INTEGER NOT NULL, csreq BLOB, policy_id INTEGER, indirect_object_identifier_type INTEGER, indirect_object_identifier TEXT NOT NULL DEFAULT 'UNUSED', indirect_object_code_identity BLOB, flags INTEGER, last_modified INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (service, client, client_type, indirect_object_identifier));"
+  approve_simulator_microphone > "$work/output" || fail 'approval failed'
+  approve_simulator_microphone >> "$work/output" || fail 'second approval failed'
+  eq 'kTCCServiceMicrophone|com.apple.CoreSimulator.SimulatorTrampoline|0|2|UNUSED' \
+    "$(/usr/bin/sqlite3 "$RUNNER_TCC_DB" "SELECT service, client, client_type, auth_value, indirect_object_identifier FROM access;")"
+  eq 2 "$(grep -c 'Simulator microphone approved' "$work/output")"
+}
+test_simulator_microphone_approval_skips_missing_database() {
+  approve_simulator_microphone > "$work/output" || fail 'missing database failed the boot'
+  [ ! -e "$RUNNER_TCC_DB" ] || fail 'created a database tccd does not own'
 }
 if [ "${1:-}" = --case ]; then
   work="$3"
