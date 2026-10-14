@@ -30,7 +30,7 @@ public enum ServerAuthenticationControllerError: LocalizedError, Equatable {
                 "The refreshing of the access and refresh token pair for the URL \(serverURL.absoluteString) failed running the following command: \(command)"
         case let .timedOut(seconds, serverURL):
             return
-                "The refreshing of the access and refresh token pair for the URL \(serverURL.absoluteString) failed after \(seconds) seconds. Run 'tuist auth login' to renew your session, or explicitly sign out to remove rejected credentials."
+                "The refreshing of the access and refresh token pair for the URL \(serverURL.absoluteString) failed after \(seconds) seconds."
         case .cantRefreshWithLockingAndBackground:
             return
                 "The refreshing with background and locking configurations enabled is not a valid configuration (liley a bug)."
