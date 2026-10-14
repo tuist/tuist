@@ -39,9 +39,9 @@ RUBY
   xcodebuild build -workspace Tuist.xcworkspace -scheme tuist \
     -configuration Release \
     -derivedDataPath "$RUNNER_TEMP/content-cache-build" \
+    CONFIGURATION_BUILD_DIR="$products" \
     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
     > .validation-evidence/build.log 2>&1
-  mv "$RUNNER_TEMP/content-cache-build/Build/Products/Release" "$products"
 else
   tar -xzf .validation-transfer/state.tgz -C "$HOME"
   test ! -e .build
@@ -56,9 +56,12 @@ sysctl -n machdep.cpu.brand_string >> .validation-evidence/toolchain.txt
 shasum -a 256 "$products/tuist" > .validation-evidence/binary.sha256
 /usr/bin/ruby .github/scripts/swifterpm-content-cache-validation.rb snapshot .validation-evidence/before.json
 
-/usr/bin/time -p "$products/tuist" install --force-resolved-versions \
+if ! /usr/bin/time -p "$products/tuist" install --force-resolved-versions \
   --cache-path "$HOME/.cache/swifterpm" --cached-directory-materialization=symlink --report-timings \
-  > .validation-evidence/install.log 2>&1
+  > .validation-evidence/install.log 2>&1; then
+  cat .validation-evidence/install.log
+  exit 1
+fi
 cat .validation-evidence/install.log
 /usr/bin/ruby .github/scripts/swifterpm-content-cache-validation.rb compare .validation-evidence/before.json
 git diff --exit-code -- Package.swift Package.resolved

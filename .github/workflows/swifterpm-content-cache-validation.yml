@@ -55,6 +55,7 @@ jobs:
         with:
           name: state-${{ matrix.variant }}
           path: .validation-transfer/state.tgz
+          include-hidden-files: true
           retention-days: 3
           compression-level: 0
       - uses: actions/upload-artifact@v4
@@ -62,4 +63,5 @@ jobs:
         with:
           name: evidence-${{ matrix.variant }}-${{ github.run_attempt }}
           path: .validation-evidence/
+          include-hidden-files: true
           retention-days: 14
