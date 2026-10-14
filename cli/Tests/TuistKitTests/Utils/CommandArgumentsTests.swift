@@ -17,6 +17,7 @@ import TuistTestCommand
 struct CommandArgumentsTests {
     enum Invocation: CaseIterable {
         case generate, generateRun, cache, cacheWarm, edit, install, build, buildRun, test, testRun
+        case graph, clean, hashCache, hashSelectiveTesting, dump
 
         var arguments: [String] {
             switch self {
@@ -30,6 +31,11 @@ struct CommandArgumentsTests {
             case .buildRun: ["build", "run"]
             case .test: ["test"]
             case .testRun: ["test", "run"]
+            case .graph: ["graph"]
+            case .clean: ["clean"]
+            case .hashCache: ["hash", "cache"]
+            case .hashSelectiveTesting: ["hash", "selective-testing"]
+            case .dump: ["dump"]
             }
         }
 
@@ -41,6 +47,10 @@ struct CommandArgumentsTests {
             case .install: "TUIST_INSTALL_PATH"
             case .build, .buildRun: "TUIST_BUILD_OPTIONS_PATH"
             case .test, .testRun: "TUIST_TEST_PATH"
+            case .graph: "TUIST_GRAPH_PATH"
+            case .clean: "TUIST_CLEAN_PATH"
+            case .hashCache, .hashSelectiveTesting: "TUIST_HASH_CACHE_PATH"
+            case .dump: "TUIST_DUMP_PATH"
             }
         }
     }
@@ -96,18 +106,18 @@ struct CommandArgumentsTests {
         #expect(path == (try await environment.currentWorkingDirectory()).appending(component: "app"))
     }
 
-    @Test(.withMockedEnvironment(), .inTemporaryDirectory)
-    func configuration_is_loaded_from_the_environment_project_path() async throws {
+    @Test(.withMockedEnvironment(), .inTemporaryDirectory, arguments: Invocation.allCases)
+    func configuration_is_loaded_from_the_environment_project_path(_ invocation: Invocation) async throws {
         let environment = try #require(Environment.mocked)
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let projectDirectory = directory.appending(component: "app")
         let fileSystem = FileSystem()
         try await fileSystem.makeDirectory(at: projectDirectory)
         try await fileSystem.writeText("project = \"tuist/app\"", at: projectDirectory.appending(component: "tuist.toml"))
-        environment.variables["TUIST_GENERATE_PATH"] = projectDirectory.pathString
-        let command = try ProjectCommandsRoot.parseAsRoot(["generate"])
+        environment.variables[invocation.environmentKey] = projectDirectory.pathString
+        let command = try ProjectCommandsRoot.parseAsRoot(invocation.arguments)
 
-        let path = try await CommandArguments.path(in: ["generate"], command: command)
+        let path = try await CommandArguments.path(in: invocation.arguments, command: command)
         let config = try await ConfigLoader().loadConfig(path: path)
 
         #expect(config.fullHandle == "tuist/app")
@@ -180,6 +190,10 @@ private struct ProjectCommandsRoot: ParsableCommand {
                 InstallCommand.self,
                 BuildCommand.self,
                 TestCommand.self,
+                GraphCommand.self,
+                CleanCommand.self,
+                HashCommand.self,
+                DumpCommand.self,
             ]
         )
     }
