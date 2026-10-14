@@ -50,15 +50,20 @@ public struct GitHistoryLimits: Equatable, Sendable {
     public var windowCommits: Int
     /// How long deepening a shallow clone may take before giving up on the merge base.
     public var deepenBudgetSeconds: Int
+    /// Whether the base branch may be fetched and a shallow clone deepened. Without it, history is
+    /// read from what the checkout already has.
+    public var unshallow: Bool
 
     public init(
         windowDays: Int = 365,
         windowCommits: Int = 5000,
-        deepenBudgetSeconds: Int = 60
+        deepenBudgetSeconds: Int = 60,
+        unshallow: Bool = true
     ) {
         self.windowDays = windowDays
         self.windowCommits = windowCommits
         self.deepenBudgetSeconds = deepenBudgetSeconds
+        self.unshallow = unshallow
     }
 }
 
@@ -71,7 +76,10 @@ public struct GitHistory: Equatable, Sendable {
     public let headSHA: String
     public let baseBranch: String?
     public let mergeBaseSHA: String?
-    /// The commits reachable from the head within the limits, newest first.
+    /// The base branch's commit as the checkout saw it, nil when the base branch could not be read.
+    public let baseHeadSHA: String?
+    /// The commits reachable from the head, and from the base branch's commit, within the limits,
+    /// newest first.
     public let commits: [GitHistoryCommit]
     public let fallbackReason: String?
 
@@ -80,6 +88,7 @@ public struct GitHistory: Equatable, Sendable {
         headSHA: String,
         baseBranch: String?,
         mergeBaseSHA: String?,
+        baseHeadSHA: String? = nil,
         commits: [GitHistoryCommit],
         fallbackReason: String?
     ) {
@@ -87,6 +96,7 @@ public struct GitHistory: Equatable, Sendable {
         self.headSHA = headSHA
         self.baseBranch = baseBranch
         self.mergeBaseSHA = mergeBaseSHA
+        self.baseHeadSHA = baseHeadSHA
         self.commits = commits
         self.fallbackReason = fallbackReason
     }

@@ -64,8 +64,29 @@ public struct GitHistoryService: GitHistoryServicing {
         self.uploadListingService = uploadListingService
     }
 
-    /// History rides with coverage, which is in early access behind the `COVERAGE` client flag.
-    static var enabled: Bool { ClientFeatureFlags.contains("COVERAGE") }
+    /// History is collected on CI, where it places runs on the default branch's history, and locally
+    /// with coverage, which is in early access behind the `COVERAGE` client flag.
+    /// `TUIST_GIT_UPLOAD_ENABLED=false` turns it off.
+    static var enabled: Bool {
+        guard !Environment.current.isVariableFalsy("TUIST_GIT_UPLOAD_ENABLED") else { return false }
+        return Environment.current.isCI || coverageEnabled
+    }
+
+    /// The commit file listings are what coverage measures against, and have no other use.
+    static var coverageEnabled: Bool { ClientFeatureFlags.contains("COVERAGE") }
+
+    /// `TUIST_GIT_UNSHALLOW_ENABLED=false` reads history from what the checkout has, without fetching.
+    static var unshallowEnabled: Bool { !Environment.current.isVariableFalsy("TUIST_GIT_UNSHALLOW_ENABLED") }
+
+    /// History is best effort, so outside coverage a failure is only logged: a server that predates
+    /// it, or a checkout it cannot read, is no reason to flag every run.
+    private static func warn(_ message: String) {
+        if coverageEnabled {
+            AlertController.current.warning(.alert("\(message)"))
+        } else {
+            Logger.current.debug("\(message)")
+        }
+    }
 
     static var defaultSettings: GitHistorySettings {
         let defaults = GitHistoryLimits()
@@ -141,11 +162,12 @@ public struct GitHistoryService: GitHistoryServicing {
                 limits: GitHistoryLimits(
                     windowDays: settings.windowDays,
                     windowCommits: settings.windowCommits,
-                    deepenBudgetSeconds: settings.deepenBudgetSeconds
+                    deepenBudgetSeconds: settings.deepenBudgetSeconds,
+                    unshallow: Self.unshallowEnabled
                 )
             )
         } catch {
-            AlertController.current.warning(.alert("The run's Git history could not be read: \(error.localizedDescription)"))
+            Self.warn("The run's Git history could not be read: \(error.localizedDescription)")
             return CollectedGitHistory(
                 payload: TestRunGitHistory(
                     baseBranch: gitInfo.baseBranch,
@@ -194,9 +216,10 @@ public struct GitHistoryService: GitHistoryServicing {
     }
 
     /// Sends the commits the server lacks, oldest first so their generation numbers are exact,
-    /// in batches of the server's size, the branch head the run was on, and the commit's file
-    /// listing when the server lacks it and the checkout is clean. The repository is named by its
-    /// remote; a checkout without one has no graph to upload to.
+    /// in batches of the server's size, the branch head the run was on and the base branch's as the
+    /// checkout saw it, and, with coverage, the commit's file listing when the server lacks it and
+    /// the checkout is clean. The repository is named by its remote; a checkout without one has no
+    /// graph to upload to.
     public func upload(
         _ collected: CollectedGitHistory?,
         workingDirectory: AbsolutePath,
@@ -208,9 +231,10 @@ public struct GitHistoryService: GitHistoryServicing {
         do {
             try await uploadCommits(collected, repositoryURL: repositoryURL, fullHandle: fullHandle, serverURL: serverURL)
         } catch {
-            AlertController.current.warning(.alert("The run's Git history could not be uploaded: \(error.localizedDescription)"))
+            Self.warn("The run's Git history could not be uploaded: \(error.localizedDescription)")
         }
 
+        guard Self.coverageEnabled else { return }
         do {
             try await uploadListing(
                 collected,
@@ -253,9 +277,16 @@ public struct GitHistoryService: GitHistoryServicing {
             .sorted { $0.committedAt < $1.committedAt }
             .map { GitHistoryCommitPayload(sha: $0.sha, parents: $0.parents, committedAt: $0.committedAt) }
 
-        let branchHeads = collected.branch.map {
+        var branchHeads = collected.branch.map {
             [GitHistoryBranchHead(branch: $0, sha: collected.history.headSHA, observedAt: collected.observedAt)]
         } ?? []
+        // A pull request's run is how the default branch's head is seen between the default
+        // branch's own runs. It is reported only when it was listed, so the server knows it.
+        if let baseBranch = collected.history.baseBranch, baseBranch != collected.branch,
+           let baseHeadSHA = collected.history.baseHeadSHA, commits.contains(where: { $0.sha == baseHeadSHA })
+        {
+            branchHeads.append(GitHistoryBranchHead(branch: baseBranch, sha: baseHeadSHA, observedAt: collected.observedAt))
+        }
 
         if toUpload.isEmpty {
             if !branchHeads.isEmpty {

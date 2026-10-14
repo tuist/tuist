@@ -546,8 +546,8 @@ struct GitControllerTests {
         commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
         commandRunner.succeedCommand(git + ["merge-base", "origin/main", "head"], output: "base\n")
         commandRunner.succeedCommand(
-            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "head"],
-            output: "head base 1700000100\nbase 1700000000\n"
+            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "head", "basehead"],
+            output: "basehead base 1700000200\nhead base 1700000100\nbase 1700000000\n"
         )
 
         let history = try await subject.gitHistory(
@@ -560,8 +560,74 @@ struct GitControllerTests {
         #expect(history.objectFormat == "sha1")
         #expect(history.headSHA == "head")
         #expect(history.mergeBaseSHA == "base")
-        #expect(history.commits.map(\.sha) == ["head", "base"])
+        // The base branch's commits are listed too, so the server knows the head it is told about.
+        #expect(history.baseHeadSHA == "basehead")
+        #expect(history.commits.map(\.sha) == ["basehead", "head", "base"])
         #expect(history.fallbackReason == nil)
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_never_fetches_when_unshallowing_is_disabled() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
+        commandRunner.errorCommand(git + ["merge-base", "origin/main", "head"])
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "head", "basehead"],
+            output: "basehead 1700000200\nhead 1700000100\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path,
+            headSHA: "head",
+            baseBranch: "main",
+            limits: GitHistoryLimits(windowDays: 30, windowCommits: 10, unshallow: false)
+        )
+
+        #expect(history.mergeBaseSHA == nil)
+        #expect(history.baseHeadSHA == "basehead")
+        #expect(history
+            .fallbackReason == "shallow clone: the merge base with main is not in the checkout and deepening it is disabled")
+        #expect(!commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=50",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ]))
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_never_fetches_a_missing_base_branch_when_unshallowing_is_disabled() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
+        commandRunner.errorCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"])
+        commandRunner.errorCommand(git + ["rev-parse", "--verify", "--quiet", "main^{commit}"])
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "head"],
+            output: "head 1700000100\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path,
+            headSHA: "head",
+            baseBranch: "main",
+            limits: GitHistoryLimits(windowDays: 30, windowCommits: 10, unshallow: false)
+        )
+
+        #expect(history.baseHeadSHA == nil)
+        #expect(history.fallbackReason == "the base branch main is not in the checkout and fetching it is disabled")
+        #expect(!commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--depth=1",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ]))
     }
 
     @Test(.inTemporaryDirectory) func gitHistory_stops_deepening_at_the_history_window() async throws {
@@ -581,7 +647,7 @@ struct GitControllerTests {
             "+main:refs/remotes/origin/main",
         ])
         commandRunner.succeedCommand(
-            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "head"],
+            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "head", "basehead"],
             output: "head 1700000100\n"
         )
 
@@ -635,7 +701,7 @@ struct GitControllerTests {
             "+main:refs/remotes/origin/main",
         ])
         commandRunner.succeedCommand(
-            git + ["log", "--format=%H %P %ct", "--max-count=120", "--since=30.days.ago", "head"],
+            git + ["log", "--format=%H %P %ct", "--max-count=120", "--since=30.days.ago", "head", "basehead"],
             output: "head 1700000100\n"
         )
 
@@ -683,7 +749,7 @@ struct GitControllerTests {
             "+main:refs/remotes/origin/main",
         ])
         commandRunner.succeedCommand(
-            git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
+            git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head", "basehead"],
             output: "head 1700000100\n"
         )
 

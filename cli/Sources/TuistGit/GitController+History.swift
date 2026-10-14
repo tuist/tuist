@@ -31,27 +31,44 @@ extension GitController {
         var reasons: [String] = []
 
         var mergeBase: String?
+        var baseHead: String?
         if let baseBranch {
             let resolved = await resolveMergeBase(git: git, head: head, baseBranch: baseBranch, limits: limits)
             mergeBase = resolved.sha
             reasons = resolved.reasons
+            // Read after any deepening, which fetches the base branch again and can move it.
+            if let ref = resolved.ref {
+                baseHead = await commitSHA(git: git, ref: ref)
+            }
         } else {
             reasons.append("no base branch is known")
         }
 
-        let commits = try await windowCommits(git: git, workingDirectory: workingDirectory, head: head, limits: limits)
+        let commits = try await windowCommits(
+            git: git,
+            workingDirectory: workingDirectory,
+            heads: [head] + [baseHead].compactMap { $0 }.filter { $0 != head },
+            limits: limits
+        )
 
         return GitHistory(
             objectFormat: objectFormat.flatMap { $0.isEmpty ? nil : $0 } ?? "sha1",
             headSHA: head,
             baseBranch: baseBranch,
             mergeBaseSHA: mergeBase,
+            baseHeadSHA: baseHead,
             commits: commits,
             fallbackReason: reasons.isEmpty ? nil : reasons.joined(separator: "; ")
         )
     }
 
-    /// The commits reachable from the head within the window. `git log` lists a shallow clone's
+    private func commitSHA(git: [String], ref: String) async -> String? {
+        let sha = (try? await capture(arguments: git + ["rev-parse", "--verify", "--quiet", "\(ref)^{commit}"]))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (sha?.isEmpty ?? true) ? nil : sha
+    }
+
+    /// The commits reachable from the heads within the window. `git log` lists a shallow clone's
     /// boundary commits (its `shallow` file) without parents, so theirs are read from the commit
     /// objects, which the raw format prints regardless of the shallow grafts. In a depth-1 clone
     /// the head is such a commit. When they cannot be read, the boundary commits are left out
@@ -59,14 +76,14 @@ extension GitController {
     private func windowCommits(
         git: [String],
         workingDirectory: AbsolutePath,
-        head: String,
+        heads: [String],
         limits: GitHistoryLimits
     ) async throws -> [GitHistoryCommit] {
         let output = try await capture(
             arguments: git + [
                 "log", "--format=%H %P %ct", "--max-count=\(limits.windowCommits)",
-                "--since=\(limits.windowDays).days.ago", head,
-            ]
+                "--since=\(limits.windowDays).days.ago",
+            ] + heads
         )
         guard let shallowFile = try? await capture(arguments: git + ["rev-parse", "--git-path", "shallow"]),
               let path = try? AbsolutePath(
@@ -96,7 +113,7 @@ extension GitController {
         head: String,
         baseBranch: String,
         limits: GitHistoryLimits
-    ) async -> (sha: String?, reasons: [String]) {
+    ) async -> MergeBaseResolution {
         let deadline = Date().addingTimeInterval(TimeInterval(limits.deepenBudgetSeconds))
         let shallow = (try? await capture(arguments: git + ["rev-parse", "--is-shallow-repository"]))?
             .trimmingCharacters(in: .whitespacesAndNewlines) == "true"
@@ -122,24 +139,46 @@ extension GitController {
         // filters ignores the option with a warning and sends everything.
         let baseRefspec = "+\(baseBranch):refs/remotes/origin/\(baseBranch)"
         var ref = await baseRef()
+        if ref == nil, !limits.unshallow {
+            return MergeBaseResolution(
+                sha: nil,
+                ref: nil,
+                reasons: ["the base branch \(baseBranch) is not in the checkout and fetching it is disabled"]
+            )
+        }
         if ref == nil {
             var fetch = git + ["fetch", "--no-tags", "--filter=blob:none"]
             if shallow { fetch.append("--depth=1") }
             fetch += ["origin", baseRefspec]
             if await self.fetch(arguments: fetch, deadline: deadline) == .timedOut {
-                return (nil, [
+                return MergeBaseResolution(sha: nil, ref: nil, reasons: [
                     "the base branch \(baseBranch) is not in the checkout and could not be fetched within \(limits.deepenBudgetSeconds)s",
                 ])
             }
             ref = await baseRef()
         }
         guard let ref else {
-            return (nil, ["the base branch \(baseBranch) is not in the checkout and could not be fetched"])
+            return MergeBaseResolution(
+                sha: nil,
+                ref: nil,
+                reasons: ["the base branch \(baseBranch) is not in the checkout and could not be fetched"]
+            )
         }
 
-        if let sha = await resolve(ref) { return (sha, []) }
+        if let sha = await resolve(ref) { return MergeBaseResolution(sha: sha, ref: ref, reasons: []) }
         guard shallow else {
-            return (nil, ["\(head.prefix(12)) and \(baseBranch) share no history in the checkout"])
+            return MergeBaseResolution(
+                sha: nil,
+                ref: ref,
+                reasons: ["\(head.prefix(12)) and \(baseBranch) share no history in the checkout"]
+            )
+        }
+        guard limits.unshallow else {
+            return MergeBaseResolution(
+                sha: nil,
+                ref: ref,
+                reasons: ["shallow clone: the merge base with \(baseBranch) is not in the checkout and deepening it is disabled"]
+            )
         }
 
         // The base branch is named on every deepen: without a refspec git fetches what the
@@ -156,11 +195,22 @@ extension GitController {
             step = min(step, maxDepth - depth)
             let deepen = git + ["fetch", "--no-tags", "--filter=blob:none", "--deepen=\(step)", "origin", baseRefspec]
             guard await fetch(arguments: deepen, deadline: deadline) == .succeeded else { break }
-            if let sha = await resolve(ref) { return (sha, []) }
+            if let sha = await resolve(ref) { return MergeBaseResolution(sha: sha, ref: ref, reasons: []) }
             depth += step
             step *= 2
         }
-        return (nil, ["shallow clone: the merge base with \(baseBranch) was not found within \(limits.deepenBudgetSeconds)s"])
+        return MergeBaseResolution(
+            sha: nil,
+            ref: ref,
+            reasons: ["shallow clone: the merge base with \(baseBranch) was not found within \(limits.deepenBudgetSeconds)s"]
+        )
+    }
+
+    /// The merge base, the base branch's ref it was resolved against, and why either is missing.
+    private struct MergeBaseResolution {
+        let sha: String?
+        let ref: String?
+        let reasons: [String]
     }
 
     private enum FetchOutcome {
