@@ -2,7 +2,7 @@
 {
   "title": "Cache",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, Gradle cache, and Bazel cache."
+  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, Gradle cache, Bazel cache, and experimental Rust compilation caching."
 }
 ---
 # Cache {#cache}
@@ -31,6 +31,12 @@ Learn the cache workflow that matches your project or deployment model:
     title="Bazel cache"
     details="Point Bazel at Tuist's Remote Execution API cache to share action outputs across your team and CI."
     link="/guides/features/cache/bazel-cache"
+/>
+  <.home_card
+    title="Rust cache (experimental)"
+    details="Reuse Cargo compiler outputs with Tuist's bundled compilation-cache runtime. Correctness and cross-worker qualification are still in progress."
+    supported_for="rust"
+    link="/guides/features/build-insights/rust#cache-measurements"
 />
   <.home_card
     title="Self-hosting"

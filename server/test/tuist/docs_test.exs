@@ -17,12 +17,25 @@ defmodule Tuist.DocsTest do
       assert page.body =~ "Install Tuist"
     end
 
+    test "cache documentation exposes Rust with its experimental qualification" do
+      index = Docs.get_page("/en/index").markdown
+      assert index =~ "supported_for=\"apple,gradle,bazel,rust\""
+      assert index =~ "Rust's experimental compilation cache"
+
+      cache = Docs.get_page("/en/guides/features/cache").markdown
+      assert cache =~ "Rust cache (experimental)"
+      assert cache =~ "supported_for=\"rust\""
+      assert cache =~ "/guides/features/build-insights/rust#cache-measurements"
+      assert Docs.get_page("/en/guides/features/build-insights/rust").markdown =~ "{#cache-measurements}"
+    end
+
     test "loads the per-build-system Get Started pages with the agent prompt and prerequisites" do
       pages = [
         "/en/guides/get-started/existing-xcode-project",
         "/en/guides/get-started/generated-xcode-project",
         "/en/guides/get-started/gradle-project",
         "/en/guides/get-started/elixir-project",
+        "/en/guides/get-started/rust-project",
         "/en/guides/get-started/bazel-project"
       ]
 
@@ -33,6 +46,49 @@ defmodule Tuist.DocsTest do
         assert page.markdown =~ "[Agent prompt]"
         assert page.markdown =~ "## Prerequisites"
       end
+    end
+
+    test "Rust guides document the supported boundaries and link every feature" do
+      for path <- ["build-insights", "test-insights", "test-insights/flaky-tests", "test-sharding"] do
+        page = Docs.get_page("/en/guides/features/" <> path <> "/rust")
+        assert page
+        assert page.title =~ "Rust"
+        assert page.markdown =~ "tuist cargo"
+        assert page.markdown =~ "[!IMPORTANT] Requirements"
+        refute Regex.match?(~r/^> \[![A-Z]+\] [A-Z][A-Z ]+\??$/m, page.markdown)
+        assert Docs.get_page("/en/guides/features/" <> path).markdown =~ path <> "/rust"
+      end
+
+      getting_started = Docs.get_page("/en/guides/get-started/rust-project").markdown
+      assert getting_started =~ "[!TIP] Coding agents"
+      assert getting_started =~ "[!NOTE] Why nextest?"
+      assert getting_started =~ "## Test sharding"
+      assert getting_started =~ "timing data from previous runs"
+      refute getting_started =~ "## Coverage and selective testing"
+      refute getting_started =~ "compiler-invocation timings"
+      sharding = Docs.get_page("/en/guides/features/test-sharding/rust").markdown
+      assert sharding =~ "--shard-max-duration <MS>"
+      assert sharding =~ "milliseconds"
+      assert sharding =~ "longest binary"
+      assert sharding =~ "conservative summed estimates"
+      assert sharding =~ "without recompiling"
+      tests = Docs.get_page("/en/guides/features/test-insights/rust").markdown
+      assert tests =~ "does not execute doctests"
+      assert tests =~ "never silently converts"
+      refute tests =~ "stale, or oversized report"
+      flaky = Docs.get_page("/en/guides/features/test-insights/flaky-tests/rust").markdown
+
+      for heading <- [
+            "How flaky detection works",
+            "Managing flaky tests",
+            "Quarantining and stress-testing",
+            "Slack notifications"
+          ] do
+        assert flaky =~ "## #{heading}"
+      end
+
+      assert flaky =~ "does not apply quarantine yet"
+      refute flaky =~ "Quarantine boundaries"
     end
 
     test "supports index aliases" do
