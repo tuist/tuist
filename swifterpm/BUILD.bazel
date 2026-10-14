@@ -32,7 +32,6 @@ swift_test(
     discover_tests = False,
     srcs = glob(["Tests/swifterpmTests/*.swift"]),
     deps = [
-        "@swiftpkg_filesystem//:FileSystemTesting",
         ":swifterpm_sources",
         "@swiftpkg_filesystem//:FileSystemTesting",
         "@swift_argument_parser//:ArgumentParser",
