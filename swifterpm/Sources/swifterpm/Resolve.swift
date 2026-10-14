@@ -100,7 +100,9 @@ enum PackageResolver {
         let authentication = try await NativeRegistryAuthentication.prepare(
             packageDir: packageDir,
             registryConfigurationPath: registryConfigurationPath,
-            defaultRegistryURL: defaultRegistryURL
+            defaultRegistryURL: defaultRegistryURL,
+            disableSandbox: disableSandbox,
+            scmToRegistryTransformation: scmToRegistryTransformation
         )
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
         let effectiveScratchDir = scratchDir ?? packageDir.appendingPathComponent(".build")
@@ -724,11 +726,8 @@ enum PackageResolver {
         disableSandbox: Bool,
         scmToRegistryTransformation: SCMToRegistryTransformation
     ) async throws {
-        let authentication = try await NativeRegistryAuthentication.prepare(
-            packageDir: packageDir,
-            registryConfigurationPath: registryConfigurationPath,
-            defaultRegistryURL: defaultRegistryURL
-        )
+        // The restored workspace makes this a no-fetch validation. Legacy environment
+        // providers are irrelevant here, and refusing them would break warm installs.
         try await runNativeResolution(
             packageDir: packageDir,
             scratchDir: scratchDir,
@@ -737,7 +736,7 @@ enum PackageResolver {
             defaultRegistryURL: defaultRegistryURL,
             disableSandbox: disableSandbox,
             scmToRegistryTransformation: scmToRegistryTransformation,
-            authentication: authentication,
+            authentication: .native,
             forceResolvedVersions: true,
             forwardOutput: false
         )

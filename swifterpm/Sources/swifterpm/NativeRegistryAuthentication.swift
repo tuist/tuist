@@ -17,13 +17,22 @@ enum NativeRegistryAuthentication {
     static func prepare(
         packageDir: URL,
         registryConfigurationPath: URL?,
-        defaultRegistryURL: String?
+        defaultRegistryURL: String?,
+        disableSandbox: Bool,
+        scmToRegistryTransformation: SCMToRegistryTransformation
     ) async throws -> Plan {
         let environment = Environment.current
         guard credentialVariables.contains(where: { nonEmpty(environment[$0]) != nil }) else { return .native }
         let version = try await SystemProcess.run(
             "swift", ["--version"], customEnvironment: Environment.manifestValues
         )
+        if supportsEnvironmentCredentials(version.stdoutString), credentialVariables.allSatisfy({
+            nonEmpty(environment[$0]) == nonEmpty(Environment.manifest[$0])
+        }) { return .native }
+        guard try await mayResolveRegistryDependencies(
+            packageDir: packageDir, disableSandbox: disableSandbox,
+            scmToRegistryTransformation: scmToRegistryTransformation
+        ) else { return .native }
         let config = try await RegistryConfig.loadForNativeResolution(
             packageDir: packageDir, configPath: registryConfigurationPath, defaultRegistryURL: defaultRegistryURL
         )
@@ -34,6 +43,27 @@ enum NativeRegistryAuthentication {
             netrc: Environment.netrc,
             registryConfig: config
         )
+    }
+
+    /// Shared registry settings alone do not imply that a package uses a registry.
+    /// Unknown transitive dependencies remain native SwiftPM's responsibility rather
+    /// than blocking an otherwise working source-control-only resolution.
+    static func mayResolveRegistryDependencies(
+        packageDir: URL,
+        disableSandbox: Bool,
+        scmToRegistryTransformation: SCMToRegistryTransformation
+    ) async throws -> Bool {
+        let manifest = try await ManifestLoader.dumpPackage(packageDir: packageDir, disableSandbox: disableSandbox)
+        let localPackages = try await ManifestFileSystemDependencyGraph.collect(
+            rootPackageDir: packageDir, rootManifest: manifest, disableSandbox: disableSandbox
+        )
+        let dependencies = try ([manifest] + localPackages.map(\.manifest)).flatMap { try ManifestParser.dependencies($0) }
+        if dependencies.contains(where: { $0.kind == .registry }) { return true }
+        guard dependencies.contains(where: { $0.kind == .sourceControl }) else { return false }
+        if scmToRegistryTransformation != .disabled { return true }
+        if let resolved = try? await ResolvedFile.read(packageDir: packageDir),
+           resolved.pins.contains(where: { $0.kind == "registry" }) { return true }
+        return false
     }
 
     static func plan(
@@ -119,12 +149,14 @@ enum NativeRegistryAuthentication {
         return try machines.filter { seen.insert($0.name).inserted }.map { machine in
             let values = [machine.name, machine.login, machine.password]
             guard values
-                .allSatisfy({ !$0.isEmpty && !$0.contains("\"") && !$0.contains("\0") && !$0.contains(where: \.isNewline) })
+                .allSatisfy({ !$0.isEmpty && !$0.contains("\"") && !$0.contains("#") && !$0.contains("\0")
+                        && !$0.contains(where: \.isWhitespace) })
             else {
                 throw ToolError.message("inline netrc contains a credential that cannot be represented safely for older SwiftPM")
             }
-            let location = machine.isDefault ? "default" : "machine \"\(machine.name)\""
-            return "\(location) login \"\(machine.login)\" password \"\(machine.password)\"\n"
+            // Swift 6.0 treats quotes as literal characters, not token delimiters.
+            let location = machine.isDefault ? "default" : "machine \(machine.name)"
+            return "\(location) login \(machine.login) password \(machine.password)\n"
         }.joined()
     }
 

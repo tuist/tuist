@@ -29,6 +29,7 @@ prepare_isolated_state() {
     "${tmp}/xdg-cache" \
     "${tmp}/xdg-config" \
     "${tmp}/xdg-data"
+  write_isolated_swift_wrapper "${tmp}"
 }
 
 scoped_env() {
@@ -37,6 +38,7 @@ scoped_env() {
 
   env \
     HOME="${tmp}/home" \
+    PATH="${tmp}/bin:${PATH}" \
     USERPROFILE="${tmp}/home" \
     TMPDIR="${tmp}/tmp" \
     XDG_CACHE_HOME="${tmp}/xdg-cache" \
@@ -1512,6 +1514,121 @@ scenario_keeps_swiftpm_registry_original_location_spelling() {
   echo "original-location=$(jq -r '.pins[0].originalLocation' "${package_dir}/Package.resolved")"
 }
 
+write_isolated_swift_wrapper() {
+  local tmp="$1" legacy="${2:-false}" native_swift
+  native_swift="$(command -v swift)"
+  mkdir -p "${tmp}/bin"
+  # macOS SwiftPM's security store ignores HOME. Explicit isolation prevents
+  # fixture archives sharing an identity/version from poisoning each other's fingerprints.
+  cat > "${tmp}/bin/swift" <<SH
+#!/bin/sh
+if [ '${legacy}' = true ]; then
+  if [ "\$1" = --version ]; then echo 'Swift version 6.2.3'; exit 0; fi
+  if [ "\$1" = -suppress-warnings ]; then touch '${tmp}/interpreter-invoked'; exit 1; fi
+  unset SWIFTPM_REGISTRY_TOKEN SWIFTPM_REGISTRY_LOGIN SWIFTPM_REGISTRY_PASSWORD
+  unset SWIFTPM_NETRC_DATA SWIFTPM_SOURCE_CONTROL_TOKEN
+fi
+if [ "\$1" = package ]; then
+  shift
+  exec '${native_swift}' package --security-path '${tmp}/security' "\$@"
+fi
+exec '${native_swift}' "\$@"
+SH
+  chmod +x "${tmp}/bin/swift"
+}
+
+write_legacy_swift_wrapper() {
+  write_isolated_swift_wrapper "$1" true
+}
+
+scenario_unused_registry_credentials_on_legacy_toolchain() {
+  local tmp location credentials phase
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "${tmp}"' RETURN
+  prepare_isolated_state "${tmp}"
+  write_legacy_swift_wrapper "${tmp}" || return 1
+  local package_dir="${tmp}/package"
+  mkdir -p "${package_dir}/Sources/Empty"
+  cat > "${package_dir}/Package.swift" <<'SWIFT'
+// swift-tools-version: 6.0
+import PackageDescription
+let package = Package(name: "Empty", targets: [.target(name: "Empty")])
+SWIFT
+  printf 'public let empty = 0\n' > "${package_dir}/Sources/Empty/Empty.swift"
+  local flags=() registry_dir
+  for location in local global file; do
+    flags=()
+    rm -rf "${package_dir}/.swiftpm" "${tmp}/home/.swiftpm"
+    if [[ "${location}" = global ]]; then
+      registry_dir="${tmp}/home/.swiftpm/configuration"
+    else
+      registry_dir="${package_dir}/.swiftpm/configuration"
+    fi
+    mkdir -p "${registry_dir}"
+    printf '%s\n' '{"version":1,"registries":{"[default]":{"url":"https://registry.example.invalid"}}}' > "${registry_dir}/registries.json"
+    if [[ "${location}" = file ]]; then flags=(--config-path "${registry_dir}/registries.json"); fi
+    for credentials in token inline; do
+      local credential_env=()
+      if [[ "${credentials}" = token ]]; then
+        credential_env=(SWIFTPM_REGISTRY_TOKEN=dummy-registry-secret)
+      else
+        credential_env=(SWIFTPM_NETRC_DATA='machine registry.example.invalid login token password dummy-registry-secret')
+      fi
+      printf 'machine unrelated.example.invalid login token password unrelated-secret\n' > "${tmp}/home/.netrc"
+      for phase in cold validation; do
+        local force=()
+        if [[ "${phase}" = cold ]]; then
+          rm -rf "${package_dir}/.build" "${package_dir}/Package.resolved"
+        else
+          force=(--force-resolved-versions)
+        fi
+        scoped_env "${tmp}" env -u SWIFTPM_REGISTRY_TOKEN -u SWIFTPM_NETRC_DATA \
+          -u SWIFTPM_REGISTRY_LOGIN -u SWIFTPM_REGISTRY_PASSWORD -u SWIFTPM_SOURCE_CONTROL_TOKEN \
+          PATH="${tmp}/bin:${PATH}" "${credential_env[@]}" \
+          "${SWIFTERPM_BIN}" --package-path "${package_dir}" --cache-path "${tmp}/cache" \
+          --disable-sandbox --disable-keychain --disable-package-info-cache --quiet \
+          "${flags[@]}" "${force[@]}" resolve > "${tmp}/out" 2> "${tmp}/err" || {
+            cat "${tmp}/err" >&2; return 1
+          }
+      done
+    done
+  done
+  echo 'unused-registry-credentials=cold,validation,local,global,file'
+}
+
+scenario_public_registry_reads_keychain_in_process() {
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'stop_registry_server; rm -rf "${tmp}"' RETURN
+  prepare_isolated_state "${tmp}"
+  write_legacy_swift_wrapper "${tmp}" || return 1
+  write_registry_package_archive "${tmp}" "${tmp}/registry" || return 1
+  start_registry_server "${tmp}" "${tmp}/registry" || return 1
+  local package_dir="${tmp}/package"
+  mkdir -p "${package_dir}/.swiftpm/configuration"
+  cat > "${package_dir}/Package.swift" <<'SWIFT'
+// swift-tools-version: 6.0
+import PackageDescription
+let package = Package(name: "PublicRegistry", dependencies: [.package(id: "example.registryfoo", exact: "1.0.0")])
+SWIFT
+  printf '{"version":1,"registries":{"[default]":{"url":"http://127.0.0.1:%s"}}}\n' "${REGISTRY_SERVER_PORT}" \
+    > "${package_dir}/.swiftpm/configuration/registries.json"
+  local phase
+  for phase in cold warm; do
+    scoped_env "${tmp}" env -u SWIFTPM_REGISTRY_TOKEN -u SWIFTPM_NETRC_DATA \
+      -u SWIFTPM_REGISTRY_LOGIN -u SWIFTPM_REGISTRY_PASSWORD -u SWIFTPM_SOURCE_CONTROL_TOKEN \
+      CI=1 PATH="${tmp}/bin:${PATH}" "${SWIFTERPM_BIN}" \
+      --package-path "${package_dir}" --cache-path "${tmp}/cache" \
+      --disable-sandbox --disable-package-info-cache resolve > "${tmp}/out" 2> "${tmp}/err" || {
+        cat "${tmp}/err" >&2; return 1
+      }
+    ! grep -q 'keychain lookup unavailable' "${tmp}/err" || return 1
+    test ! -f "${tmp}/interpreter-invoked" || return 1
+  done
+  stop_registry_server
+  echo 'public-registry-reader=in-process,no-interpreter'
+}
+
 scenario_authenticated_registry_on_legacy_toolchain() {
   local authentication_type="$1"
   local tmp
@@ -1540,25 +1657,7 @@ SWIFT
 {"version": 1, "registries": {"[default]": {"url": "${registry_url}"}},
  "authentication": {"127.0.0.1:${REGISTRY_SERVER_PORT}": {"type": "${authentication_type}"}}}
 JSON
-  local native_swift
-  native_swift="$(command -v swift)"
-  # Exercise the legacy bridge even on new CI toolchains: remove the environment
-  # providers before entering native SwiftPM, while leaving file netrc available.
-  cat > "${tmp}/bin/swift" <<SH
-#!/bin/sh
-if [ "\$1" = --version ]; then
-  echo 'Swift version 6.2.3'
-  exit 0
-fi
-unset SWIFTPM_REGISTRY_TOKEN SWIFTPM_REGISTRY_LOGIN SWIFTPM_REGISTRY_PASSWORD
-unset SWIFTPM_NETRC_DATA SWIFTPM_SOURCE_CONTROL_TOKEN
-if [ "\$1" = package ]; then
-  shift
-  exec '${native_swift}' package --security-path '${tmp}/security' "\$@"
-fi
-exec '${native_swift}' "\$@"
-SH
-  chmod +x "${tmp}/bin/swift"
+  write_legacy_swift_wrapper "${tmp}" || return 1
   local command phase
   local force_arguments=()
   for phase in cold warm validation missing-pin update; do
@@ -1601,6 +1700,20 @@ PY
   test "$?" = 0 || return 1
   echo "authenticated-${authentication_type}=cold,warm,validation,missing-pin,update"
 }
+
+Describe "registry authentication regression coverage"
+  It "does not refuse unused registry credentials on a legacy toolchain"
+    When call scenario_unused_registry_credentials_on_legacy_toolchain
+    The status should be success
+    The output should include "unused-registry-credentials=cold,validation,local,global,file"
+  End
+
+  It "reads the keychain in-process for public registries without interpreting Swift"
+    When call scenario_public_registry_reads_keychain_in_process
+    The status should be success
+    The output should include "public-registry-reader=in-process,no-interpreter"
+  End
+End
 
 Describe "swifterpm resolve against real-world manifests"
   It "resolves Firefox iOS root Package.swift and emits a SwiftPM-acceptable lockfile"

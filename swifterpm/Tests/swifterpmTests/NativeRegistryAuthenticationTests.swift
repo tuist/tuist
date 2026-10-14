@@ -22,22 +22,77 @@ struct NativeRegistryAuthenticationTests {
         let machines = [
             NetrcMachine(name: "registry.example.com", login: "first", password: "secret"),
             NetrcMachine(name: "registry.example.com", login: "last", password: "wrong"),
-            NetrcMachine(name: "other.example.com", login: "space user", password: "se#cret"),
+            NetrcMachine(name: "other.example.com", login: "user", password: "secret:+/=_-@"),
             NetrcMachine(name: "default", login: "fallback", password: "explicit"),
         ]
         let contents = try NativeRegistryAuthentication.serializedInlineNetrc(machines)
         #expect(NetrcParser.machines(in: contents) == [machines[0], machines[2], machines[3]])
         #expect(!contents.contains("wrong"))
+        #expect(contents == """
+        machine registry.example.com login first password secret
+        machine other.example.com login user password secret:+/=_-@
+        default login fallback password explicit
+
+        """)
     }
 
-    @Test(arguments: ["bad\"secret", "bad\nsecret", "bad\0secret"])
-    func unrepresentableSecretsAreRejectedWithoutDisclosure(secret: String) throws {
+    @Test(
+        arguments: [
+            "",
+            "bad\"secret",
+            "bad\nsecret",
+            "bad\0secret",
+            "bad secret",
+            "bad\tsecret",
+            "bad\rsecret",
+            "bad#secret",
+            "bad\u{00A0}secret",
+        ],
+        ["machine", "login", "password"]
+    )
+    func unrepresentableTokensAreRejectedWithoutDisclosure(value: String, field: String) throws {
         let error = #expect(throws: (any Error).self) {
             try NativeRegistryAuthentication.serializedInlineNetrc([
-                NetrcMachine(name: "registry.example.com", login: "token", password: secret),
+                NetrcMachine(
+                    name: field == "machine" ? value : "registry.example.com",
+                    login: field == "login" ? value : "token",
+                    password: field == "password" ? value : "secret"
+                ),
             ])
         }
-        #expect(!String(describing: try #require(error)).contains(secret))
+        if !value.isEmpty { #expect(!String(describing: try #require(error)).contains(value)) }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func unusedRegistryPinsDoNotMakeDependencyFreePackagesRequireAuthentication(transform: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        try await fileSystem.atomicWrite("""
+        // swift-tools-version: 6.0
+        import PackageDescription
+        let package = Package(name: "Empty")
+        """, to: root.appendingPathComponent("Package.swift"))
+        try await fileSystem.atomicWrite("""
+        {"version":2,"pins":[{"identity":"example.old","kind":"registry","location":"https://registry.example.com",
+        "state":{"version":"1.0.0"}}]}
+        """, to: root.appendingPathComponent("Package.resolved"))
+        let required = try await NativeRegistryAuthentication.mayResolveRegistryDependencies(
+            packageDir: root, disableSandbox: true,
+            scmToRegistryTransformation: transform ? .replaceSCMWithRegistry : .disabled
+        )
+        #expect(!required)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func declaredRegistryDependencyRequiresAuthentication() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        try await fileSystem.atomicWrite("""
+        // swift-tools-version: 6.0
+        import PackageDescription
+        let package = Package(name: "Private", dependencies: [.package(id: "example.foo", exact: "1.0.0")])
+        """, to: root.appendingPathComponent("Package.swift"))
+        #expect(try await NativeRegistryAuthentication.mayResolveRegistryDependencies(
+            packageDir: root, disableSandbox: true, scmToRegistryTransformation: .disabled
+        ))
     }
 
     @Test(.inTemporaryDirectory)
@@ -49,7 +104,7 @@ struct NativeRegistryAuthenticationTests {
             versionOutput: "Swift version 6.2.3", environment: inlineEnvironment,
             childEnvironment: inlineEnvironment, netrc: netrc, registryConfig: config
         )
-        #expect(plan == .inlineNetrc("machine \"registry.example.com\" login \"token\" password \"secret\"\n"))
+        #expect(plan == .inlineNetrc("machine registry.example.com login token password secret\n"))
         #expect(try await fileSystem.contentsOfDirectory(at: root).map(\.lastPathComponent) == ["registries.json"])
     }
 
@@ -113,7 +168,7 @@ struct NativeRegistryAuthenticationTests {
                 versionOutput: "Swift version 6.2.3", environment: inlineEnvironment,
                 childEnvironment: inlineEnvironment, netrc: netrc, registryConfig: config
             )
-            #expect(plan == .inlineNetrc("machine \"registry.example.com\" login \"token\" password \"secret\"\n"))
+            #expect(plan == .inlineNetrc("machine registry.example.com login token password secret\n"))
         }
     }
 
