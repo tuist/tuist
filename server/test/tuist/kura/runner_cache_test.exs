@@ -15,8 +15,8 @@ defmodule Tuist.Kura.RunnerCacheTest do
   setup :set_mimic_from_context
 
   # Drive Regions.available/0 to the real private-region catalog:
-  # `scw-fr-par-runners` serves [:macos] and is the only private region
-  # (Linux runners have none). It provisions through KubernetesController
+  # By default only the macOS region is enabled, as in staging/canary.
+  # It provisions through KubernetesController
   # whose `provision/3` is pure (builds the instance name), and
   # `destroy_server/1` only flips DB state — so reconcile runs for real
   # against the sandbox.
@@ -85,11 +85,37 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert :ok = RunnerCache.reconcile()
 
     # A region's cache only serves the fleet it sits next to. macOS
-    # profiles get the Scaleway fr-par node; there is no Linux-serving
-    # region, so a Linux-only account gets nothing rather than a node in
+    # profiles get the Scaleway fr-par node; no Linux-serving region is
+    # enabled here, so a Linux-only account gets nothing rather than a node in
     # the macOS region, whose URL would route cache traffic across the WAN.
     assert server_regions(linux_only) == []
     assert server_regions(macos_too) == ["scw-fr-par-runners"]
+  end
+
+  test "provisions and tears down OVH and Scaleway caches independently by platform" do
+    stub(Tuist.Environment, :kura_available_region_ids, fn ->
+      ["scw-fr-par-runners", "ovh-gra-runners"]
+    end)
+
+    linux = account_with_profiles([:linux])
+    macos = account_with_profiles([:macos])
+    both = account_with_profiles([:linux, :macos])
+    disabled = account_with_profiles([:linux])
+    set_runner_availability([linux.id, macos.id, both.id])
+
+    assert :ok = RunnerCache.reconcile()
+    assert server_regions(linux) == ["ovh-gra-runners"]
+    assert server_regions(macos) == ["scw-fr-par-runners"]
+    assert server_regions(both) == ["ovh-gra-runners", "scw-fr-par-runners"]
+    assert server_regions(disabled) == []
+
+    Repo.delete_all(from(p in Profile, where: p.account_id == ^both.id and p.platform == :linux))
+    set_runner_availability([macos.id, both.id])
+
+    assert :ok = RunnerCache.reconcile()
+    assert server_regions(linux) == []
+    assert server_regions(macos) == ["scw-fr-par-runners"]
+    assert server_regions(both) == ["scw-fr-par-runners"]
   end
 
   test "is inert without a private runner-cache region" do

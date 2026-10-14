@@ -1825,28 +1825,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         "00000000-0000-0000-0000-000000000001"
       end)
 
-      # Synthetic: no catalog region is cluster-DNS private today (the one that
-      # was went with its node pool), but a private region that omits
-      # `data_plane` still falls back to it, so the manifest builder has to keep
-      # handling it.
-      region = %Regions{
-        id: "cluster-dns-runners",
-        provisioner_config: %{
-          cluster_id: "cluster-dns",
-          private: true,
-          private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
-          data_plane: :cluster_dns,
-          client_cidrs: [],
-          pod_annotations: %{},
-          node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-cluster-dns"},
-          storage_class: "scw-local-nvme",
-          replicas: 1
-        }
-      }
+      region = Regions.get("ovh-gra-runners")
 
       spec =
         KubernetesController.manifest(
-          "kura-tuist-cluster-dns",
+          "kura-tuist-ovh-gra-runners",
           "0.5.2",
           %{name: "tuist"},
           region,
@@ -1855,7 +1838,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       refute Map.has_key?(spec, "exposeNodePort")
       refute Map.has_key?(spec, "clientCIDRs")
-      refute Map.has_key?(spec, "podAnnotations")
+      assert spec["private"] == true
+      assert spec["storageClassName"] == "scw-local-nvme"
+
+      assert spec["nodeSelector"] == %{
+               "node.cluster.x-k8s.io/pool" => "kura-ovh-gra-runners",
+               "tuist.dev/vrack-ready" => "true"
+             }
+
+      assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "750M"}
+      refute Map.has_key?(spec, "publicHost")
+      refute Map.has_key?(spec, "ingressClassName")
     end
   end
 

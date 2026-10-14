@@ -65,10 +65,8 @@ spec:
                         controller claims a free box by display-name prefix, then drives the OS
                         install + self-join.
 
-                        Unlike Elastic Metal there is no Scaleway Private Network: a single
-                        customer-facing box serves public cache traffic over its public IP, so no
-                        VLAN bring-up happens (the shared self-join is rendered with VLAN 0). The
-                        private intra-region mesh over OVH vRack is a multi-box follow-up (VRackID).
+                        Optional vRack connectivity carries same-cluster OVH tunnel traffic over the
+                        private NIC while preserving public Node addresses for the rest of the cluster.
                       properties:
                         adoptDisplayNamePrefix:
                           description: |-
@@ -174,11 +172,18 @@ spec:
                             Scaleway bare-metal kind uses. CAPI core expects this to populate, or the
                             parent Machine never goes Ready.
                           type: string
+                        vRackCIDR:
+                          description: |-
+                            VRackCIDR is the dedicated IPv4 address pool shared by every machine on
+                            this vRack. Addresses are reserved in status before any host uses them.
+                            Use a private /24 through /28 outside the cluster and provider networks.
+                          type: string
                         vRackID:
                           description: |-
-                            VRackID is the OVH vRack the server is attached to for the private
-                            intra-region mesh. Unused at Qty-1 (a single public box needs no private
-                            fabric); wired in the multi-box HA follow-up alongside the failover IP.
+                            VRackID opts this machine into a pre-created, workload-cluster-specific
+                            vRack. The controller attaches its private NIC and configures the host
+                            without restarting kubelet or containerd. Never share this vRack/CIDR
+                            with another cluster's allocator or manually addressed hosts.
                           type: string
                       type: object
                   required:

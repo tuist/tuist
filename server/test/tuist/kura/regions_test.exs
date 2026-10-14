@@ -390,6 +390,7 @@ defmodule Tuist.Kura.RegionsTest do
         "eu-central" => %{country: "FR", subdivision: "FR-IDF"},
         "ca-east" => %{country: "CA", subdivision: "CA-QC"},
         "scw-fr-par-runners" => %{country: "FR", subdivision: "FR-IDF"},
+        "ovh-gra-runners" => %{country: "FR", subdivision: "FR-HDF"},
         # Singapore is a city-state: its ISO 3166-2 codes are CDC statistical
         # districts rather than anything a datacenter address resolves to, so
         # the country alone is the whole location and the subdivision is left
@@ -587,6 +588,7 @@ defmodule Tuist.Kura.RegionsTest do
       # be deleted. It is not an available serving region.
       assert Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id) == [
                "scw-fr-par-runners",
+               "ovh-gra-runners",
                "hetzner-staging-runners"
              ]
 
@@ -613,10 +615,34 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.serves_runner_platform?(scw, :linux)
     end
 
-    test "no region serves the linux fleet" do
-      # The Hetzner-backed staging region was the only :linux one, and it went
-      # with its node pool. Linux runners fall back to the public endpoint.
-      refute Enum.any?(Regions.all(), &Regions.serves_runner_platform?(&1, :linux))
+    test "OVH Gravelines serves only Linux through the private cluster network" do
+      region = Regions.get("ovh-gra-runners")
+      config = region.provisioner_config
+
+      assert Regions.private?(region)
+      refute Regions.retired?(region)
+      assert region.runner_platforms == [:linux]
+      assert Regions.serves_runner_platform?(region, :linux)
+      refute Regions.serves_runner_platform?(region, :macos)
+      refute Regions.node_port_data_plane?(region)
+      assert config.data_plane == :cluster_dns
+
+      assert config.node_selector == %{
+               "node.cluster.x-k8s.io/pool" => "kura-ovh-gra-runners",
+               "tuist.dev/vrack-ready" => "true"
+             }
+
+      assert config.storage_class == "scw-local-nvme"
+      assert config.storage_size == "50Gi"
+      assert config.replicas == 1
+      assert config.mesh
+
+      assert config.tolerations == [
+               %{"key" => "tuist.dev/kura-cache", "operator" => "Exists", "effect" => "NoSchedule"}
+             ]
+
+      assert config.pod_annotations == %{"kubernetes.io/egress-bandwidth" => "750M"}
+      refute Map.has_key?(config, :public_host_template)
     end
 
     test "scw region uses the node-port data plane; customer regions stay on cluster DNS" do
@@ -636,13 +662,18 @@ defmodule Tuist.Kura.RegionsTest do
     test "excludes private regions a customer cannot pick" do
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-central", "scw-fr-par-runners"] end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-central", "scw-fr-par-runners", "ovh-gra-runners"]
+      end)
 
       available_ids = Enum.map(Regions.available(), & &1.id)
       selectable_ids = Enum.map(Regions.selectable(), & &1.id)
 
       assert "scw-fr-par-runners" in available_ids
       refute "scw-fr-par-runners" in selectable_ids
+      assert "ovh-gra-runners" in available_ids
+      refute "ovh-gra-runners" in selectable_ids
       assert "eu-central" in selectable_ids
     end
   end

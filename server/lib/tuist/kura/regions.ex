@@ -410,14 +410,11 @@ defmodule Tuist.Kura.Regions do
   #     across the WAN, which is worse than the public ingress it's
   #     meant to replace.
   #
-  # Linux runners have no private cache region. `hetzner-staging-runners`
-  # was one, on the staging cluster's Hetzner node pool, but that pool is
-  # gone: the Kura fleet is bare metal (Dedibox/OVH/Scaleway Elastic
-  # Metal) and staging's Linux runners moved to the `runners-linux` pool.
-  # The spec outlived the pool and kept minting instances that could
-  # never schedule, so it was removed rather than repointed — staging's
-  # Mac minis already exercise the co-located topology through
-  # `scw-fr-par-runners`, the same spec production uses.
+  #   * `ovh-gra-runners` is pinned to OVH Gravelines beside the Linux
+  #     runner fleet. Kata pods are on the cluster network, so they use
+  #     a private ClusterIP Service directly rather than a NodePort.
+  #
+  # Enable each region only in deployments with its backing cache pool.
   @private_region_specs [
     %{
       id: "scw-fr-par-runners",
@@ -458,6 +455,24 @@ defmodule Tuist.Kura.Regions do
       # Scaleway Elastic Metal fr-par-1, Paris.
       country: "FR",
       subdivision: "FR-IDF"
+    },
+    %{
+      id: "ovh-gra-runners",
+      display_name: "OVH Gravelines (runner cache)",
+      cluster_id: "ovh-gra-runners",
+      node_pool: "kura-ovh-gra-runners",
+      node_selector: %{"tuist.dev/vrack-ready" => "true"},
+      storage_class: "scw-local-nvme",
+      storage_size: "50Gi",
+      runner_platforms: [:linux],
+      data_plane: :cluster_dns,
+      # Leave headroom on the shared NIC for concurrent accounts and peers.
+      egress_burst_mbps: 750,
+      tolerations: [
+        %{"key" => "tuist.dev/kura-cache", "operator" => "Exists", "effect" => "NoSchedule"}
+      ],
+      country: "FR",
+      subdivision: "FR-HDF"
     },
     # A catalog tombstone for runner-cache rows created before the staging
     # Hetzner runner pool was retired. It is never offered for provisioning,
@@ -982,7 +997,8 @@ defmodule Tuist.Kura.Regions do
         pod_annotations: egress_bandwidth_pod_annotations(spec),
         egress_burst_mbps: Map.get(spec, :egress_burst_mbps),
         tolerations: Map.get(spec, :tolerations, []),
-        node_selector: %{@managed_region_node_pool_label => spec.node_pool},
+        node_selector:
+          Map.merge(%{@managed_region_node_pool_label => spec.node_pool}, Map.get(spec, :node_selector, %{})),
         country: Map.get(spec, :country),
         subdivision: Map.get(spec, :subdivision),
         storage_class: spec.storage_class,
@@ -992,7 +1008,7 @@ defmodule Tuist.Kura.Regions do
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         # The runner-cache node replicates with the account's other nodes
         # over the in-cluster peer mesh (cache content stays coherent; the
-        # runner hot path remains node-local over the Private Network).
+        # runner hot path stays in the fleet's datacenter).
         mesh: true
       }
     }

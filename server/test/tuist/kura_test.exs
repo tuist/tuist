@@ -1229,6 +1229,34 @@ defmodule Tuist.KuraTest do
       %{account: account}
     end
 
+    test "prefers the active OVH private cache for Linux and falls back when disabled", %{account: account} do
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-central", "scw-fr-par-runners", "ovh-gra-runners"]
+      end)
+
+      activate_public_server!(account, "eu-central")
+
+      {:ok, private} =
+        Kura.create_server(%{account_id: account.id, region: "ovh-gra-runners", image_tag: "0.5.2"})
+
+      handle = String.downcase(account.name)
+      fallback_url = "http://kura-#{handle}-eu-central-1.kura.svc.cluster.local:4000"
+      assert Kura.runner_cache_endpoint_url(account, :linux) == fallback_url
+
+      {:ok, active_private} = Kura.activate_server(private, "0.5.2")
+      assert active_private.url == "http://kura-#{handle}-ovh-gra-runners.kura.svc.cluster.local:4000"
+      assert Kura.runner_cache_endpoint_url(account, :linux) == active_private.url
+      assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+
+      # ClusterIP readiness comes from Service endpoints, not the NodePort
+      # heartbeat used by the off-cluster Mac fleet.
+      active_private |> Ecto.Changeset.change(last_ready_at: nil) |> Repo.update!()
+      assert Kura.runner_cache_endpoint_url(account, :linux) == active_private.url
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-central"] end)
+      assert Kura.runner_cache_endpoint_url(account, :linux) == fallback_url
+    end
+
     test "hands linux fleets the in-cluster form of the instance the CLI resolves",
          %{account: account} do
       activate_public_server!(account, "eu-central")

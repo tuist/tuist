@@ -1454,6 +1454,12 @@ ovhFleet:
     # Per-box egress budget in Mbps advertised as the tuist.dev/egress-mbps
     # extended resource (0 = unset).
     egressBudgetMbps: 0
+    # Optional pre-created, cluster-specific OVH vRack and reserved private
+    # IPv4 /24 through /28. Every participating fleet shares both values.
+    # The controller repairs Ready hosts in place; OnDelete Machines must
+    # also have their specs updated when enabling this on an existing fleet.
+    vRackID: ""
+    vRackCIDR: ""
   # Override to point the reconciler at a Secret you manage instead of the
   # ESO-synced one. Holds application-key + application-secret + consumer-key.
   secretName: ""

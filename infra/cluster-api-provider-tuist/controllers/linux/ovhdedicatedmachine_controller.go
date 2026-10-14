@@ -73,8 +73,8 @@ const (
 // as an ordinary Linux Node and links by providerID. The operator only
 // pre-orders the box and points its reverse DNS at the adopt prefix; the OS
 // install is scripted, never manual. There is no Scaleway Private Network: a
-// customer-facing box serves public cache traffic over its public IP, so the
-// self-join runs with VLAN 0.
+// customer-facing box serves public cache traffic over its public IP. Optional
+// vRack attachment and routing converge on the Ready path without re-bootstrap.
 type OVHDedicatedMachineReconciler struct {
 	client.Client
 	// APIReader is the uncached reader for the cross-namespace kube-dns read
@@ -346,6 +346,9 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 	}
 
 	if nodeReady(node) {
+		if err := r.reconcileVRack(ctx, machine, node); err != nil {
+			return ctrl.Result{}, err
+		}
 		machine.Status.Ready = true
 		machine.Status.Phase = "Ready"
 		conditions.MarkTrue(machine, NodeReadyCondition)
@@ -467,8 +470,24 @@ func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, mac
 	// dropping the finalizer — it's the only step that retries on failure, so on
 	// the happy path it fires exactly once. Fire-and-forget: the wipe + reimage
 	// (Ubuntu + fleet key + ubuntu login) finishes after the Machine is gone,
-	// leaving a box the next claim self-joins.
-	if machine.Status.ServiceName != "" {
+	// leaving a box the next claim self-joins. Addressed vRack Machines instead
+	// retain the finalizer until the wipe has released their private address.
+	wipeConfirmed := false
+	if machine.Status.VRackAddress != "" && conditions.IsTrue(machine, vrackReleaseStartedCondition) {
+		state, err := r.OVHClient.InstallState(ctx, machine.Status.ServiceName)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		switch state {
+		case ovh.InstallDone:
+			wipeConfirmed = true
+		case ovh.InstallFailed:
+			conditions.Delete(machine, vrackReleaseStartedCondition)
+		default:
+			return ctrl.Result{RequeueAfter: ovhReleaseRetryInterval}, nil
+		}
+	}
+	if machine.Status.ServiceName != "" && !wipeConfirmed {
 		err := r.reinstallToPool(ctx, machine)
 		switch {
 		case err == nil:
@@ -480,6 +499,12 @@ func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, mac
 		default:
 			r.event(machine, "ReleaseReinstallFailed", "reinstall on release: %v (retrying in %s)", err, ovhReleaseRetryInterval)
 			logger.Error(err, "reinstall OVH box on release", "service", machine.Status.ServiceName)
+			return ctrl.Result{RequeueAfter: ovhReleaseRetryInterval}, nil
+		}
+		// The address remains reserved while the old OS might still be using
+		// it. Non-vRack fleets keep their existing fire-and-forget release.
+		if machine.Status.VRackAddress != "" {
+			conditions.MarkTrue(machine, vrackReleaseStartedCondition)
 			return ctrl.Result{RequeueAfter: ovhReleaseRetryInterval}, nil
 		}
 	}

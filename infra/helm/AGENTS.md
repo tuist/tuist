@@ -23,6 +23,11 @@ This node covers Helm assets under `infra/helm/`.
   pod IP changes do not multiply series. Preserve the cluster label and the
   unready scrape's `ready="false"` label when changing either scrape path.
 
+- The OVH Linux runner cache is a private Kura region on a dedicated Gravelines
+  fleet. Enable its production values only after the vRack and cache box are
+  prepared; the activation and route verification steps are in
+  [`../cluster-api-provider-tuist/docs/ovh-runner-cache.md`](../cluster-api-provider-tuist/docs/ovh-runner-cache.md).
+
 ## Related Context
 - Parent infra context: `infra/AGENTS.md`
 - Noora Storybook chart: `infra/helm/noora-storybook/AGENTS.md`

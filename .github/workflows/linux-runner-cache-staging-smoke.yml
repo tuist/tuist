@@ -1,0 +1,41 @@
+name: Linux Runner Kura Staging Smoke Test
+
+# Requires vRack-capable staging runner/cache hosts and the private region
+# enabled. Pair this application check with the host packet-capture procedure
+# in infra/cluster-api-provider-tuist/docs/ovh-runner-cache.md to prove vRack use.
+# TUIST_STAGING_GRADLE_SMOKE_TOKEN must authorize the selected staging project.
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: Staging account/project belonging to the runner account
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  gradle-cache:
+    runs-on: tuist-staging-linux
+    timeout-minutes: 20
+    env:
+      TUIST_URL: https://staging.tuist.dev
+      TUIST_TOKEN: ${{ secrets.TUIST_STAGING_GRADLE_SMOKE_TOKEN }}
+      SMOKE_PROJECT: ${{ inputs.project }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify dispatched endpoint and remote Gradle restore
+        shell: bash
+        run: bash .github/scripts/linux-runner-cache-smoke.sh
+      - name: Preserve Gradle cache evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-runner-kura-smoke
+          path: ${{ runner.temp }}/kura-gradle-smoke/*.log
+          if-no-files-found: ignore

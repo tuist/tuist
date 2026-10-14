@@ -15,10 +15,8 @@ import (
 // controller claims a free box by display-name prefix, then drives the OS
 // install + self-join.
 //
-// Unlike Elastic Metal there is no Scaleway Private Network: a single
-// customer-facing box serves public cache traffic over its public IP, so no
-// VLAN bring-up happens (the shared self-join is rendered with VLAN 0). The
-// private intra-region mesh over OVH vRack is a multi-box follow-up (VRackID).
+// Optional vRack connectivity carries same-cluster OVH tunnel traffic over the
+// private NIC while preserving public Node addresses for the rest of the cluster.
 type OVHDedicatedMachineSpec struct {
 	// ProviderID, set by the controller after the self-join completes, takes
 	// the shape `ovh://<datacenter>/<service-name>` — a foreign providerID host
@@ -74,11 +72,18 @@ type OVHDedicatedMachineSpec struct {
 	// +optional
 	NodeTaints []corev1.Taint `json:"nodeTaints,omitempty"`
 
-	// VRackID is the OVH vRack the server is attached to for the private
-	// intra-region mesh. Unused at Qty-1 (a single public box needs no private
-	// fabric); wired in the multi-box HA follow-up alongside the failover IP.
+	// VRackID opts this machine into a pre-created, workload-cluster-specific
+	// vRack. The controller attaches its private NIC and configures the host
+	// without restarting kubelet or containerd. Never share this vRack/CIDR
+	// with another cluster's allocator or manually addressed hosts.
 	// +optional
 	VRackID string `json:"vRackID,omitempty"`
+
+	// VRackCIDR is the dedicated IPv4 address pool shared by every machine on
+	// this vRack. Addresses are reserved in status before any host uses them.
+	// Use a private /24 through /28 outside the cluster and provider networks.
+	// +optional
+	VRackCIDR string `json:"vRackCIDR,omitempty"`
 
 	// KataRuntime provisions the box to run microVM-isolated Pods: it installs
 	// kata-static under /opt/kata, registers the kata-qemu handler with
@@ -108,8 +113,7 @@ type OVHDedicatedMachineSpec struct {
 // handles are adoption (claim a pre-ordered box by reverse-DNS prefix), the
 // readiness wait (Status.Phase = AwaitingInstall until the operator-installed box
 // reports a healthy state), and the install login user (with sudo). There is no
-// PN-VLAN step — OVH delivers no Scaleway-style Private Network, so the self-join
-// runs with VLAN 0.
+// Scaleway PN-VLAN step; optional OVH vRack is reconciled after the Node joins.
 
 // OVHDedicatedMachineStatus is the observed state of the Machine.
 type OVHDedicatedMachineStatus struct {
@@ -122,6 +126,11 @@ type OVHDedicatedMachineStatus struct {
 	// `nsXXXXXX.ip-A-B-C.eu`), used for install polling, delete, and status.
 	// +optional
 	ServiceName string `json:"serviceName,omitempty"`
+
+	// VRackAddress is the reserved private IPv4 address. It is retained through
+	// retries and only released when the machine is deleted after the host wipe.
+	// +optional
+	VRackAddress string `json:"vRackAddress,omitempty"`
 
 	// Addresses surfaces the server's public address + hostname for kubectl
 	// describe / event correlation.

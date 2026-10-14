@@ -36,6 +36,10 @@ spec:
       # Stable fleet name so every Machine the MachineDeployment clones shares one
       # SSH key — the key the controller registers and the OS install authorizes.
       fleetName: {{ $fleetName | quote }}
+      {{- with .Values.ovhFleet.machine.vRackID }}
+      vRackID: {{ . | quote }}
+      vRackCIDR: {{ required "ovhFleet.machine.vRackCIDR is required with vRackID" $.Values.ovhFleet.machine.vRackCIDR | quote }}
+      {{- end }}
       # Dedicate the node to this region's cache pod; general workloads stay off.
       nodeTaints:
         - key: tuist.dev/kura-cache

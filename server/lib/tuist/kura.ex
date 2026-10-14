@@ -1333,17 +1333,11 @@ defmodule Tuist.Kura do
     end
   end
 
-  # Tier 2, interim until the Linux fleets get a node-local private
-  # region (tier 1). eu-central is hardcoded: every runner fleet is
-  # colocated with it today, so it's the instance the CLI's latency
-  # race would pick from a runner — and both URL forms route through
-  # the same pinned per-instance Service, so same pod. Without an
-  # eu-central instance the race is moot (every public form is
-  # unreachable from a runner), so the first candidate wins: a
-  # cross-region cache beats none. No readiness heartbeat needed — the
-  # in-cluster Service already drops not-ready pods. Linux-only because
-  # only cluster-CNI pods resolve Service DNS; macOS Tart VMs can't,
-  # and their public resolution works anyway.
+  # Tier 2 covers environments without an OVH runner-cache pool and
+  # accounts whose private instance is still provisioning. Prefer eu-central
+  # (the nearest public region to the Gravelines fleet), then the first
+  # available candidate. Linux-only: Kata pods resolve Service DNS, while
+  # macOS Tart VMs use their Scaleway NodePort or public resolution.
   defp public_in_cluster_runner_cache_url(%Account{} = account, :linux) do
     servers = managed_cli_endpoint_servers(account)
 

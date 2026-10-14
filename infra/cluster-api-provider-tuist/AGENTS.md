@@ -647,6 +647,29 @@ for darwin/arm64 (so the manager can ship them to Mac minis at
 bootstrap time) and builds the manager itself for whatever
 linux/<arch> the cluster runs on.
 
+## OVH runner-cache private network
+
+`controllers/linux/ovh_vrack.go` reconciles optional `vRackID` + `vRackCIDR`
+on Ready OVH Machines, so existing hosts can gain the network without an OS
+reinstall or runner restart. The controller reserves private addresses in Machine
+status under the adoption lock, waits for the OVH attachment, and configures only
+the MAC-addressed private NIC. A systemd timer maintains scoped host routes to
+same-vRack peers through their private next hops. Addressed Machines retain their
+finalizer until the release reinstall finishes, preventing premature address
+reuse while the old OS may still be running. Kubernetes Node addresses stay
+public so the other providers in the cluster remain reachable.
+
+The `tuist.dev/vrack-ready` label is published after host configuration; the
+`ovh-gra-runners` private Kura region requires it in addition to its pool label.
+This confirms attachment/interface configuration, not a throughput measurement.
+Follow [OVH runner cache](docs/ovh-runner-cache.md) for activation, credentials,
+OnDelete template handling, route/packet verification, the staging Gradle smoke
+workflow and rollback. Staging's RISE-S runner has no private NIC; validating
+vRack uses the replacement RISE-M and separate RISE-1 cache host listed in that
+runbook, attached to staging vRack `pn-2023588`. The old RISE-S stays active
+until the replacement passes the smoke job. This is an
+opt-in capability: existing public OVH regions keep their network untouched.
+
 ## Operating
 
 ### Bring a pre-ordered bare-metal box into the pool (Dedibox / OVH)
