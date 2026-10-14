@@ -26,9 +26,11 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM ubuntu:${UBUNTU_VERSION}
 
+# ca-certificates: the key fetch verifies the server's public TLS certificate.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends cryptsetup-bin xfsprogs util-linux mount \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends ca-certificates cryptsetup-bin xfsprogs util-linux mount \
+    && rm -rf /var/lib/apt/lists/* \
+    && test -s /etc/ssl/certs/ca-certificates.crt
 
 COPY --from=builder /out/kura-volumes-csi /usr/local/bin/kura-volumes-csi
 
