@@ -822,13 +822,17 @@ fleet_check_rack_hosts() {
   rm -f "$known"
 
   # A mini's outlet is its RackHost's and its ToR port is this file's, so this
-  # is the one place both halves meet. They have to resolve to the same
-  # transfer switch: crossed, any one ATS failure takes the whole fleet, half
-  # the minis losing power and the other half their ToR.
+  # is the one place both halves meet. Its ToR has to resolve to its own chain's
+  # transfer switch or to the critical layer, one that feeds no PDU: on another
+  # chain's, any one ATS failure takes the whole fleet, half the minis losing
+  # power and the other half their ToR. The critical layer carries the WAN and
+  # management for every mini already, so a ToR on it adds no new way to lose
+  # them all.
   local outlets crossed
   outlets="$(yq -o=json '[.rackFleet.hosts[]? | {"key": .name, "value": (.power.pdu // "")}] | from_entries' "$values" 2>/dev/null)" || outlets='{}'
   crossed="$(jq -r --argjson outlets "$outlets" '
     ([.nodes[]? | select(.hardware == "evmafc20a") | {key: .name, value: .ats}] | from_entries) as $pdus |
+    ([$pdus[]] | unique) as $chains |
     ([.nodes[]?, .devices[]] | map({key: .name, value: (if .ats != null then .ats elif .pdu != null then $pdus[.pdu] else null end)}) | from_entries) as $feeder |
     .nodes[]? | select(.rack_host != null) | . as $node |
     ($outlets[$node.rack_host] // "") as $pdu | select($pdu != "") |
@@ -838,8 +842,8 @@ fleet_check_rack_hosts() {
       $pdus[$pdu] as $ats |
       $node.links[]? | select(.purpose == "data" and .switch != null) |
       .switch as $tor | $feeder[$tor] as $tor_ats |
-      select($tor_ats != null and $tor_ats != $ats) |
-        "\($node.name): its outlet on \($pdu) resolves to \($ats) but its ToR \($tor) to \($tor_ats); a mini and its ToR must lose power together"
+      select($tor_ats != null and $tor_ats != $ats and ($chains | index($tor_ats))) |
+        "\($node.name): its outlet on \($pdu) resolves to \($ats) but its ToR \($tor) to \($tor_ats), another chain; a mini and its ToR must lose power together"
     end
   ' "$site_file")"
   [ -n "$crossed" ] && bad="$bad$crossed"$'\n'

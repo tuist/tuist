@@ -422,25 +422,25 @@
 			"ip":  ["tcp:22"],
 		},
 
-		// Production cluster -> ber1-pdu-b's REST API, which the operator adopts
-		// the card through and switches the rack Macs' outlets through (the
-		// RackPDU ber1-pdu-b), through the macmini-egress ProxyGroup. The PDU
-		// sits on the rack's management LAN; the edge holding the management
+		// Production cluster -> ber1-pdu-a and ber1-pdu-b's REST API, which the
+		// operator adopts each card through and switches the rack Macs' outlets
+		// through (the RackPDU objects), through the macmini-egress ProxyGroup.
+		// A PDU sits on the rack's management LAN; the edge holding the management
 		// address advertises it as a /32 and forwards to it with SNAT. HTTPS
 		// only.
 		{
 			"src": ["tag:tuist-k8s-production"],
-			"dst": ["192.168.0.16/32"],
+			"dst": ["192.168.0.16/32", "192.168.0.17/32"],
 			"ip":  ["tcp:443"],
 		},
 
-		// Production cluster -> ber1-ats-1 and ber1-ats-3's REST API, which the
-		// operator adopts each transfer switch's card through and reads its
+		// Production cluster -> ber1-ats-1, ber1-ats-2 and ber1-ats-3's REST API,
+		// which the operator adopts each transfer switch's card through and reads its
 		// sources through every minute (the RackATS objects), through the
 		// macmini-egress ProxyGroup. Same path as the PDU above. HTTPS only.
 		{
 			"src": ["tag:tuist-k8s-production"],
-			"dst": ["192.168.0.14/32", "192.168.0.15/32"],
+			"dst": ["192.168.0.14/32", "192.168.0.15/32", "192.168.0.18/32"],
 			"ip":  ["tcp:443"],
 		},
 
@@ -667,7 +667,8 @@
 	// into the tailnet's routing table; what is reachable through those
 	// routes is decided by the per-host grant above, not by the approval.
 	// On the management LAN, only the installed power devices' addresses
-	// are approved: ber1-ats-1, ber1-ats-3 and ber1-pdu-b.
+	// are approved: ber1-ats-1, ber1-ats-2, ber1-ats-3, ber1-pdu-a and
+	// ber1-pdu-b.
 	"autoApprovers": {
 		"routes": {
 			"10.128.0.0/12":   ["tag:tuist-k8s-staging"],
@@ -675,6 +676,8 @@
 			"192.168.0.14/32": ["tag:tuist-rack-edge"],
 			"192.168.0.15/32": ["tag:tuist-rack-edge"],
 			"192.168.0.16/32": ["tag:tuist-rack-edge"],
+			"192.168.0.17/32": ["tag:tuist-rack-edge"],
+			"192.168.0.18/32": ["tag:tuist-rack-edge"],
 		},
 		// Tailscale Services the operator's ingress ProxyGroups advertise
 		// (infra/helm/tailscale-operator, `tailnetIngress`). The operator

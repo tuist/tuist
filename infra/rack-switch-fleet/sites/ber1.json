@@ -398,8 +398,8 @@
       "name": "ber1-ats-2",
       "role": "power",
       "hardware": "eats16n",
-      "status": "planned",
-      "note": "Chain A: its C19 output feeds ber1-pdu-a and nothing else. Prefers feed A. Bought and boxed; chain A exists only at the colo.",
+      "status": "installed",
+      "note": "Chain A: its C19 output feeds ber1-pdu-a and nothing else. Prefers feed A.",
       "links": [
         {
           "switch": "ber1-mgmt",
@@ -409,6 +409,7 @@
           "purpose": "management"
         }
       ],
+      "mgmt_address": "192.168.0.18",
       "preferred_source": 1
     },
     {
@@ -434,8 +435,8 @@
       "name": "ber1-pdu-a",
       "role": "power",
       "hardware": "evmafc20a",
-      "status": "planned",
-      "note": "Eaton Rack PDU G4 on chain A. Carries the chain A minis and the RS485 sensor chain on its SENSOR port. The second PDU, ordered 2026-09-24.",
+      "status": "installed",
+      "note": "Eaton Rack PDU G4 on chain A. Carries the minis cabled to ToR A and the RS485 sensor chain on its SENSOR port.",
       "links": [
         {
           "switch": "ber1-mgmt",
@@ -445,7 +446,8 @@
           "purpose": "management"
         }
       ],
-      "ats": "ber1-ats-2"
+      "ats": "ber1-ats-2",
+      "mgmt_address": "192.168.0.17"
     },
     {
       "name": "ber1-pdu-b",
@@ -618,8 +620,8 @@
       "status": "installed",
       "links": [
         {
-          "switch": "ber1-tor-b",
-          "port": 8,
+          "switch": "ber1-tor-a",
+          "port": 2,
           "media": "copper",
           "nic": "en0",
           "purpose": "data",
@@ -635,8 +637,8 @@
       "status": "installed",
       "links": [
         {
-          "switch": "ber1-tor-b",
-          "port": 9,
+          "switch": "ber1-tor-a",
+          "port": 3,
           "media": "copper",
           "nic": "en0",
           "purpose": "data",
@@ -652,8 +654,8 @@
       "status": "installed",
       "links": [
         {
-          "switch": "ber1-tor-b",
-          "port": 10,
+          "switch": "ber1-tor-a",
+          "port": 4,
           "media": "copper",
           "nic": "en0",
           "purpose": "data",
