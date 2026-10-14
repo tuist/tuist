@@ -10,11 +10,13 @@ permissions:
 
 jobs:
   repro:
-    name: Repro on ${{ matrix.runner }}
+    name: Repro on ${{ matrix.runner }} (approve first ${{ matrix.approve_first }})
     strategy:
       fail-fast: false
       matrix:
-        runner: [tuist-ber1-smoke, macos-26]
+        include:
+          - { runner: tuist-ber1-smoke, approve_first: "no" }
+          - { runner: tuist-ber1-smoke, approve_first: "yes" }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 75
     steps:
@@ -74,7 +76,12 @@ jobs:
           EOF
           chmod +x "$RUNNER_TEMP/sampler.sh"
           nohup "$RUNNER_TEMP/sampler.sh" "$RUNNER_TEMP/diag/samples" >/dev/null 2>&1 &
-      - name: Run UI tests (image as is)
+      - name: Approve microphone before any simulator audio (boot-time fix stand-in)
+        if: matrix.approve_first == 'yes'
+        run: |
+          db="$HOME/Library/Application Support/com.apple.TCC/TCC.db"
+          sqlite3 -cmd ".timeout 10000" "$db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceMicrophone', 'com.apple.CoreSimulator.SimulatorTrampoline', 0, 2, 3, 1, NULL, NULL, 'UNUSED', NULL, 0, CAST(strftime('%s','now') AS INTEGER));"
+      - name: Run UI tests
         continue-on-error: true
         run: |
           cd "$RUNNER_TEMP/MediaRepro"
@@ -114,7 +121,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: diag-${{ matrix.runner }}
+          name: diag-${{ matrix.runner }}-${{ matrix.approve_first }}
           path: |
             ${{ runner.temp }}/diag/*.log
             ${{ runner.temp }}/diag/phases
