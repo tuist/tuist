@@ -391,6 +391,94 @@ struct InspectTestCommandServiceTests {
             .called(1)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_from_xcode_waits_for_result_bundle_to_be_finalized() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let resultBundlePath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: resultBundlePath.appending(component: "Staging"))
+        let infoPlistPath = resultBundlePath.appending(component: "Info.plist")
+
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables["TUIST_INSPECT_TEST_WAIT"] = "YES"
+        mockedEnvironment.workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .value(temporaryDirectory))
+            .willReturn(temporaryDirectory.appending(component: "App.xcworkspace"))
+
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .value(resultBundlePath), rootDirectory: .any)
+            .willProduce { _, _ in
+                #expect(FileManager.default.fileExists(atPath: infoPlistPath.pathString))
+                return TestSummary(testPlanName: nil, status: .passed, duration: 1000, testModules: [])
+            }
+
+        let finalizeTask = Task {
+            try await Task.sleep(for: .milliseconds(300))
+            try await fileSystem.writeText("", at: infoPlistPath)
+        }
+
+        // When
+        try await subject.run(
+            path: temporaryDirectory.pathString,
+            resultBundlePath: resultBundlePath.pathString
+        )
+        try await finalizeTask.value
+
+        // Then
+        verify(uploadResultBundleService)
+            .uploadTestSummary(
+                testSummary: .any,
+                resultBundlePath: .value(resultBundlePath),
+                projectDerivedDataDirectory: .any,
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_from_xcode_throws_when_result_bundle_is_never_finalized() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let resultBundlePath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: resultBundlePath.appending(component: "Staging"))
+
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables["TUIST_INSPECT_TEST_WAIT"] = "YES"
+        mockedEnvironment.workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
+
+        let subject = InspectTestCommandService(
+            derivedDataLocator: derivedDataLocator,
+            fileSystem: fileSystem,
+            xcResultService: xcResultService,
+            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator,
+            uploadResultBundleService: uploadResultBundleService,
+            configLoader: configLoader,
+            backgroundProcessRunner: backgroundProcessRunner,
+            resultBundleFinalizationTimeout: .milliseconds(200)
+        )
+
+        // When / Then
+        await #expect(
+            throws: InspectTestCommandServiceError.resultBundleNotFinalized(resultBundlePath)
+        ) {
+            try await subject.run(
+                path: temporaryDirectory.pathString,
+                resultBundlePath: resultBundlePath.pathString
+            )
+        }
+        verify(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .called(0)
+    }
+
     @Test(.withMockedEnvironment())
     func when_should_not_wait() async throws {
         // Given
