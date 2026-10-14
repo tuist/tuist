@@ -108,12 +108,13 @@ writing the database right after login (`database is locked` without a
 busy timeout, then `-1712` or `-1743`), and a microphone row written after
 a prompt is already pending does not unblock coreaudiod.
 
-An earlier attempt (the build-account rename on
-`claude/runner-single-account`) wrote rows into `admin`'s database during
+An earlier attempt (the build-account rename in
+[#13597](https://github.com/tuist/tuist/pull/13597)) wrote rows into `admin`'s database during
 the build and then moved `admin`'s home to `/Users/runner`. That file was
-gone at boot. The system tccd keeps a registry of user databases
-(`/Library/Application Support/com.apple.TCC/REG.db`; the user tccd calls
-`TCCCheckIfDatabaseIsRegistered` at start), and that database had only
+gone at boot. The system tccd keeps a registry of user databases in
+`/Library/Application Support/com.apple.TCC/REG.db` (table `registry`:
+`abs_path`, `first_seen`, `last_seen`, `trusted`), and the user tccd calls
+`TCCCheckIfDatabaseIsRegistered` when it starts. That database had only
 ever been registered at `/Users/admin`. This is the likely reason, not a
 confirmed one. Seed the database tccd created for `runner` at
 `/Users/runner`, and do not move or copy a TCC.db into place.
