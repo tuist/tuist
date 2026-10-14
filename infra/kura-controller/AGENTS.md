@@ -4,6 +4,14 @@ This module contains the Kubernetes controller that reconciles Kura account endp
 
 ## Scope
 
+- Proposed separate-physical-host replicas and traffic failover:
+  [`replica-host-failover.md`](replica-host-failover.md). This is a specification,
+  not deployed behavior; it covers shared gateways on existing cache hosts, regional
+  DNS failover first while OVH BGP is alpha, later shared-IP qualification, a required
+  shared regional private network, and integration with shipped spec 95,
+  machine/cost sizing, fencing, replication barriers, per-replica storage recovery,
+  and migration acceptance gates.
+
 - Pod CPU usage for autosizing includes only the `kura` container. Missing runtime
   metrics are omitted rather than recorded as zero; auxiliary-container usage
   must never influence the runtime request bands.
