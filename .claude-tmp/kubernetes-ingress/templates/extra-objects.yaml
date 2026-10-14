@@ -1,0 +1,4 @@
+{{- range .Values.extraObjects }}
+---
+{{ include "kubernetes-ingress.renderExtraObject" (dict "value" . "context" $) }}
+{{- end }}

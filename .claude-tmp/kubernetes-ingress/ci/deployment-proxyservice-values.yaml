@@ -1,0 +1,8 @@
+controller:
+  sync:
+    mode: fetch
+    fetchParams:
+      source: proxy
+    proxyParams:
+      replicaCount: 3
+      proxySvcLabelSelector: run:haproxy-ingress-proxy

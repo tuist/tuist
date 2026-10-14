@@ -1,0 +1,5 @@
+controller:
+  config: |
+    rate-limit: "{{ .Values.controller.configVars.rateLimit | required "controller.configVars.rateLimit is required" }}"
+  configVars:
+    rateLimit: "ON"

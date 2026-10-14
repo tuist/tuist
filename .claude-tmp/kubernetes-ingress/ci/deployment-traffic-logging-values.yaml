@@ -1,0 +1,6 @@
+controller:
+  logging:
+    traffic:
+      address: stdout
+      format: raw
+      facility: daemon

@@ -1,0 +1,28 @@
+annotations:
+  artifacthub.io/category: networking
+  artifacthub.io/changes: '- Do not render the PodSecurityPolicy Role and RoleBinding
+    on Kubernetes 1.25 and newer'
+  artifacthub.io/images: |
+    - name: controller
+      image: docker.io/haproxytech/kubernetes-ingress:3.2.15
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/links: |
+    - name: support
+      url: https://github.com/haproxytech/helm-charts/issues
+apiVersion: v2
+appVersion: 3.2.15
+description: A Helm chart for HAProxy Kubernetes Ingress Controller
+home: https://github.com/haproxytech/helm-charts/tree/main/kubernetes-ingress
+icon: https://raw.githubusercontent.com/haproxytech/helm-charts/main/kubernetes-ingress/chart-icon.png
+keywords:
+- ingress
+- haproxy
+kubeVersion: '>=1.23.0-0'
+maintainers:
+- email: dkorunic@haproxy.com
+  name: Dinko Korunic
+name: kubernetes-ingress
+sources:
+- https://github.com/haproxytech/kubernetes-ingress
+type: application
+version: 1.54.2

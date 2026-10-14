@@ -1,0 +1,4 @@
+controller:
+  kind: DaemonSet
+  config:
+    rate-limit: "ON"

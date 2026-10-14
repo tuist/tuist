@@ -1,0 +1,6 @@
+controller:
+  kind: DaemonSet
+  ingressClass: haproxy
+  ingressClassResource:
+    enabled: true
+    default: true

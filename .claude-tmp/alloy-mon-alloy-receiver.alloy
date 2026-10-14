@@ -1,0 +1,512 @@
+// Feature: Application Observability
+declare "application_observability" {
+  argument "metrics_destinations" {
+    comment = "Must be a list of metrics destinations where collected metrics should be forwarded to"
+  }
+
+  argument "logs_destinations" {
+    comment = "Must be a list of log destinations where collected logs should be forwarded to"
+  }
+
+  argument "traces_destinations" {
+    comment = "Must be a list of trace destinations where collected trace should be forwarded to"
+  }
+
+  // OTLP Receiver
+  otelcol.receiver.otlp "receiver" {
+    grpc {
+      endpoint = "0.0.0.0:4317"
+      include_metadata = false
+      max_recv_msg_size = "4MiB"
+      read_buffer_size = "512KiB"
+      write_buffer_size = "32KiB"
+    }
+    http {
+      endpoint = "0.0.0.0:4318"
+      include_metadata = false
+      max_request_body_size = "20MiB"
+    }
+    debug_metrics {
+      disable_high_cardinality_metrics = true
+    }
+    output {
+      metrics = [otelcol.processor.resourcedetection.default.input]
+      logs = [otelcol.processor.resourcedetection.default.input]
+      traces = [otelcol.processor.resourcedetection.default.input]
+    }
+  }
+
+  // Resource Detection Processor
+  otelcol.processor.resourcedetection "default" {
+    detectors = ["env","system"]
+    override = true
+
+    system {
+      hostname_sources = ["os"]
+    }
+
+    output {
+      metrics = [otelcol.processor.k8sattributes.default.input]
+      logs = [otelcol.processor.k8sattributes.default.input]
+      traces = [otelcol.processor.k8sattributes.default.input]
+    }
+  }
+
+  // K8s Attributes Processor
+  otelcol.processor.k8sattributes "default" {
+    passthrough = false
+    extract {
+      metadata = ["k8s.namespace.name","k8s.pod.name","k8s.deployment.name","k8s.statefulset.name","k8s.daemonset.name","k8s.cronjob.name","k8s.job.name","k8s.node.name","k8s.pod.uid","k8s.pod.start_time"]
+    }
+    pod_association {
+      source {
+        from = "resource_attribute"
+        name = "k8s.pod.ip"
+      }
+    }
+    pod_association {
+      source {
+        from = "resource_attribute"
+        name = "k8s.pod.uid"
+      }
+    }
+    pod_association {
+      source {
+        from = "connection"
+      }
+    }
+
+    output {
+      metrics = [otelcol.processor.transform.default.input]
+      logs = [otelcol.processor.transform.default.input]
+      traces = [otelcol.processor.transform.default.input, otelcol.connector.host_info.default.input]
+    }
+  }
+
+  // Host Info Connector
+  otelcol.connector.host_info "default" {
+    host_identifiers = [ "k8s.node.name" ]
+
+    output {
+      metrics = [otelcol.processor.batch.default.input]
+    }
+  }
+
+  // Transform Processor
+  otelcol.processor.transform "default" {
+    error_mode = "ignore"
+    log_statements {
+      context = "resource"
+      statements = [
+        "set(attributes[\"pod\"], attributes[\"k8s.pod.name\"])",
+        "set(attributes[\"namespace\"], attributes[\"k8s.namespace.name\"])",
+        "set(attributes[\"loki.resource.labels\"], \"cluster, namespace, job, pod\")",
+      ]
+    }
+    trace_statements {
+      context = "span"
+      statements = [
+       "set_semconv_span_name(\"1.37.0\", \"original_span_name\")",
+      ]
+    }
+
+    output {
+      metrics = [otelcol.processor.batch.default.input]
+      logs = [otelcol.processor.batch.default.input]
+      traces = [otelcol.processor.batch.default.input]
+    }
+  }
+
+  // Batch Processor
+  otelcol.processor.batch "default" {
+    send_batch_size = 8192
+    send_batch_max_size = 0
+    timeout = "2s"
+
+    output {
+      metrics = argument.metrics_destinations.value
+      logs = argument.logs_destinations.value
+      traces = argument.traces_destinations.value
+    }
+  }
+}
+application_observability "feature" {
+  metrics_destinations = [
+    otelcol.exporter.prometheus.grafana_cloud_metrics.input,
+  ]
+  logs_destinations = [
+    otelcol.exporter.loki.grafana_cloud_logs.input,
+  ]
+  traces_destinations = [
+    otelcol.processor.attributes.grafana_cloud_traces.input,
+  ]
+}
+
+
+
+loki.source.api "tuist_tart_guests" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port = 3100
+  }
+  forward_to = [loki.write.grafana_cloud_logs.receiver]
+}
+
+// Browser real user monitoring for tuist.dev. The Grafana Faro Web SDK
+// bundled into the server's JavaScript posts here through the tuist.dev
+// Ingress (server.faro in the tuist chart routes /-/faro/collect at
+// this port via an ExternalName Service), so the request stays
+// same-origin.
+//
+// Web vitals arrive as `kind=measurement` entries whose logfmt line
+// carries one field per vital (lcp, cls, inp, fcp, ttfb). The LCP alert
+// rules unwrap `lcp` off this stream; see alerts.md.
+faro.receiver "tuist_web" {
+  server {
+    listen_address = "0.0.0.0"
+    listen_port = 12347
+    cors_allowed_origins = ["https://tuist.dev"]
+  }
+
+  extra_log_labels = {
+    service_name = "tuist-web",
+  }
+
+  output {
+    logs = [loki.write.grafana_cloud_logs.receiver]
+  }
+}
+// Destination: grafana-cloud-logs (loki)
+otelcol.exporter.loki "grafana_cloud_logs" {
+  forward_to = [loki.write.grafana_cloud_logs.receiver]
+}
+
+loki.write "grafana_cloud_logs" {
+  endpoint {
+    url = "https://logs-prod-012.grafana.net/loki/api/v1/push"
+    retry_on_http_429 = true
+    tenant_id = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_logs.data["tenantId"])
+    basic_auth {
+      username = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_logs.data["loki-username"])
+      password = remote.kubernetes.secret.grafana_cloud_logs.data["loki-password"]
+    }
+    tls_config {
+      insecure_skip_verify = false
+      ca_pem = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_logs.data["ca"])
+      cert_pem = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_logs.data["cert"])
+      key_pem = remote.kubernetes.secret.grafana_cloud_logs.data["key"]
+    }
+    min_backoff_period = "500ms"
+    max_backoff_period = "5m"
+    max_backoff_retries = "10"
+  }
+  external_labels = {
+    "cluster" = "tuist-production",
+    "k8s_cluster_name" = "tuist-production",
+    env = "production",
+  }
+}
+
+remote.kubernetes.secret "grafana_cloud_logs" {
+  name      = "k8s-monitoring-grafana-cloud"
+  namespace = "observability"
+}
+
+
+// Destination: grafana-cloud-metrics (prometheus)
+otelcol.exporter.prometheus "grafana_cloud_metrics" {
+  add_metric_suffixes = true
+  resource_to_telemetry_conversion = false
+  forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+}
+
+prometheus.remote_write "grafana_cloud_metrics" {
+  endpoint {
+    url = "https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom/push"
+    headers = {
+      "X-Scope-OrgID" = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_metrics.data["tenantId"]),
+    }
+    basic_auth {
+      username = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_metrics.data["prometheus-username"])
+      password = remote.kubernetes.secret.grafana_cloud_metrics.data["prometheus-password"]
+    }
+    tls_config {
+      insecure_skip_verify = false
+      ca_pem = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_metrics.data["ca"])
+      cert_pem = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_metrics.data["cert"])
+      key_pem = remote.kubernetes.secret.grafana_cloud_metrics.data["key"]
+    }
+    send_native_histograms = false
+
+    queue_config {
+      capacity = 10000
+      min_shards = 1
+      max_shards = 50
+      max_samples_per_send = 2000
+      batch_send_deadline = "5s"
+      min_backoff = "30ms"
+      max_backoff = "5s"
+      retry_on_http_429 = true
+      sample_age_limit = "0s"
+    }
+
+    write_relabel_config {
+      source_labels = ["cluster"]
+      regex = ""
+      replacement = "tuist-production"
+      target_label = "cluster"
+    }
+    write_relabel_config {
+      source_labels = ["k8s_cluster_name"]
+      regex = ""
+      replacement = "tuist-production"
+      target_label = "k8s_cluster_name"
+    }
+    // StatefulSet pod names survive replacement, but their IPs do not.
+    // Normalize both Ready autodiscovery and unready Kura scrapes here,
+    // including up/scrape_*; keep cluster and ready labels distinct.
+    write_relabel_config {
+      source_labels = ["job", "namespace", "pod"]
+      separator = ";"
+      regex = "kura;([^;]+);([^;]+)"
+      target_label = "instance"
+      replacement = "$1/$2"
+      action = "replace"
+    }
+    write_relabel_config {
+      action = "labeldrop"
+      regex = "container_id|uid|pod_ip|image_id|image_spec|k8s_pod_uid"
+    }
+    write_relabel_config {
+      source_labels = ["job"]
+      regex = "integrations/(process|self)"
+      action = "drop"
+    }
+    write_relabel_config {
+      source_labels = ["cluster", "__name__"]
+      separator = ";"
+      regex = "tuist-(staging|canary|pentest);.+_bucket"
+      action = "drop"
+    }
+    // Non-production keeps only what validates a deploy. Everything below
+    // the `keep` list is dropped for staging, canary and pentest, which
+    // together were 39% of all billed series while nothing pages on them.
+    //
+    // The keep list is not a judgement call: it is every metric read by an
+    // alert rule that does NOT pin `cluster="tuist-production"`, so no
+    // alert changes scope silently. Recover it with
+    //   GET /api/v1/provisioning/alert-rules
+    //   jq '[.[] | {e: ([.data[]?|.model.expr? // empty]|join(" "))}
+    //        | select(.e|test("tuist-production")|not) | .e]'
+    // and re-derive this regex if the alert set changes. `up` and
+    // `scrape_*` are outside the dropped prefixes, so the
+    // "Kura - cache telemetry missing" alert keeps its staging and canary
+    // arms.
+    //
+    // Two alerts DO change scope, deliberately: the Phoenix route-latency
+    // pair carries no cluster matcher, so staging and canary traffic has
+    // been folding into what reads as a production SLO. They become
+    // production-only.
+    write_relabel_config {
+      source_labels = ["__name__"]
+      regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state)|tuist_clickhouse_.*|tuist_repo_.*|tuist_runner_cache_volume_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
+      target_label = "__tmp_nonprod_keep"
+      replacement = "keep"
+      action = "replace"
+    }
+    // The PN VLAN alert compares node_load1 against VLAN transmit metrics.
+    // Keeping only its liveness anchor makes healthy non-production Macs
+    // appear to have no VLAN. Retain one series per VLAN, not every NIC.
+    write_relabel_config {
+      source_labels = ["job", "__name__", "device"]
+      separator = ";"
+      regex = "tuist-macos-node-exporter;node_network_transmit_bytes_total;vlan.*"
+      target_label = "__tmp_nonprod_keep"
+      replacement = "keep"
+      action = "replace"
+    }
+    // `hubble_*` is in the dropped set because its `source` label is a bare
+    // remote address for external traffic, so its cardinality is unbounded.
+    // The mis-sourced-host runbook in alerts.md that justifies keeping it
+    // is production-only.
+    write_relabel_config {
+      source_labels = ["cluster", "__tmp_nonprod_keep", "__name__"]
+      separator = ";"
+      regex = "tuist-(staging|canary|pentest);;(kube_.*|kura_.*|tuist_.*|container_.*|node_.*|hubble_.*)"
+      action = "drop"
+    }
+    write_relabel_config {
+      regex = "__tmp_nonprod_keep"
+      action = "labeldrop"
+    }
+    // Kura histograms whose buckets no dashboard or alert reads. Their
+    // cardinality is pod count x `le`, so it grows with every account
+    // admitted to a region. `_count` and `_sum` survive, and a pod's full
+    // distribution is readable on demand from
+    // /api/ops/kura/pods/:pod/metrics.
+    write_relabel_config {
+      source_labels = ["__name__"]
+      regex = "kura_(analytics_batch_duration_seconds|artifact_egress_duration_seconds|artifact_egress_throughput_bytes_per_second|artifact_write_size_bytes|auth_backend_request_duration_seconds|auth_decision_duration_seconds|file_descriptor_wait_seconds|file_operation_duration_seconds|internal_backfill_http_request_duration_seconds|manifest_index_rebuild_duration_seconds|response_stream_wait_duration_seconds|segment_refresh_duration_seconds)_bucket"
+      action = "drop"
+    }
+    // Kura runs one StatefulSet pod per cache node. Its public latency
+    // histograms below therefore multiply every node by 17 classic
+    // buckets, even though the dashboards only need an approximate
+    // percentile and the count/sum series for rates and mean latency.
+    // Keep every other bucket so histogram_quantile remains useful, but
+    // remove alternating buckets. This takes the request families from
+    // 17 to 10 buckets (and the multipart family from 15 to 8) without
+    // changing labels or making duplicate remote-write series.
+    //
+    // kura_replication_request_duration_seconds keeps every bucket. Since
+    // pull replication it only times catch-up passes (backfill_entries,
+    // backfill_bodies, backfill_artifact), labelled by operation alone, so
+    // it is cheap, and it is the only latency signal when a node is
+    // bootstrapping or rejoining. Thinned buckets overstated its p99 by
+    // 50-75%.
+    write_relabel_config {
+      source_labels = ["cluster", "__name__", "le"]
+      separator = ";"
+      regex = "tuist-production;kura_(http_request_duration_seconds|public_request_latency_seconds|multipart_upload_admission_duration_seconds)_bucket;(0.002|0.008|0.032|0.128|0.512|2.048|8.192)"
+      action = "drop"
+    }
+    // The server's two exponential histograms grow each boundary by a
+    // factor of 2 (runs) and 2.15 (HTTP client requests) across 15
+    // boundaries, which is finer than any dashboard percentile needs.
+    // Dropping alternating buckets keeps each one at 9 buckets (a factor
+    // of about 4 and 4.6 apart) and removes roughly 2,800 production
+    // series.
+    // Scrapes normalize `le`, so these match the stored spelling.
+    write_relabel_config {
+      source_labels = ["__name__", "le"]
+      separator = ";"
+      regex = "tuist_runs_duration_milliseconds_bucket;(200.0|800.0|3200.0|12800.0|51200.0|204800.0|819200.0)|tuist_http_request_duration_nanoseconds_bucket;(4.3e\\+06|1.9876749e\\+07|9.1880276e\\+07|4.24716579e\\+08|1.96325239e\\+09|9.075134174e\\+09|4.1949807721e\\+10)"
+      action = "drop"
+    }
+
+  }
+
+  wal {
+    truncate_frequency = "2h"
+    min_keepalive_time = "5m"
+    max_keepalive_time = "8h"
+  }
+  external_labels = {
+    env = "production",
+  }
+}
+
+remote.kubernetes.secret "grafana_cloud_metrics" {
+  name      = "k8s-monitoring-grafana-cloud"
+  namespace = "observability"
+}
+
+
+// Destination: grafana-cloud-traces (otlp)
+otelcol.processor.attributes "grafana_cloud_traces" {
+  action {
+    key = "deployment.environment"
+    action = "insert"
+    value = "production"
+  }
+  output {
+    traces = [otelcol.processor.transform.grafana_cloud_traces.input]
+  }
+}
+
+otelcol.processor.transform "grafana_cloud_traces" {
+  error_mode = "ignore"
+
+  trace_statements {
+    context = "resource"
+    statements = [
+      `set(attributes["cluster"], "tuist-production")`,
+      `set(attributes["k8s.cluster.name"], "tuist-production")`,
+      `delete_key(attributes, "process.pid")`,
+      `delete_key(attributes, "process.parent_pid")`,
+      `delete_key(attributes, "process.executable.path")`,
+      `delete_key(attributes, "process.command_line")`,
+      `delete_key(attributes, "process.command_args")`,
+      `delete_key(attributes, "process.owner")`,
+      `delete_key(attributes, "process.runtime.version")`,
+      `delete_key(attributes, "process.runtime.description")`,
+      `delete_key(attributes, "host.ip")`,
+      `delete_key(attributes, "host.mac")`,
+      `delete_key(attributes, "k8s.pod.start_time")`,
+      `delete_key(attributes, "k8s.pod.uid")`,
+      `delete_key(attributes, "container.image.id")`,
+      `delete_key(attributes, "container.image.repo_digests")`,
+      `delete_key(attributes, "os.description")`,
+      `delete_key(attributes, "os.build_id")`,
+    ]
+  }
+
+  output {
+    traces = [otelcol.exporter.loadbalancing.grafana_cloud_traces_sampler.input]
+  }
+}
+
+otelcol.exporter.loadbalancing "grafana_cloud_traces_sampler" {
+  resolver {
+    kubernetes {
+      service = "mon-grafana-cloud-traces-sampler"
+    }
+  }
+  protocol {
+    otlp {
+      client {
+        tls {
+          insecure = true
+        }
+      }
+    }
+  }
+}
+
+otelcol.processor.batch "grafana_cloud_traces" {
+  timeout = "2s"
+  send_batch_size = 8192
+  send_batch_max_size = 0
+
+  output {
+    traces = [otelcol.exporter.otlp.grafana_cloud_traces.input]
+  }
+}
+otelcol.exporter.otlp "grafana_cloud_traces" {
+  client {
+    endpoint = "tempo-prod-10-prod-eu-west-2.grafana.net:443"
+    auth = otelcol.auth.basic.grafana_cloud_traces.handler
+    headers = {
+      "X-Scope-OrgID" = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_traces.data["tenantId"]),
+    }
+    tls {
+      insecure = false
+      insecure_skip_verify = false
+      ca_pem = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_traces.data["ca"])
+      cert_pem = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_traces.data["cert"])
+      key_pem = remote.kubernetes.secret.grafana_cloud_traces.data["key"]
+    }
+  }
+
+  retry_on_failure {
+    enabled = true
+    initial_interval = "5s"
+    max_interval = "30s"
+    max_elapsed_time = "5m"
+  }
+
+  sending_queue {
+    enabled = true
+  }
+}
+
+otelcol.auth.basic "grafana_cloud_traces" {
+  username = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_traces.data["tempo-username"])
+  password = remote.kubernetes.secret.grafana_cloud_traces.data["tempo-password"]
+}
+
+remote.kubernetes.secret "grafana_cloud_traces" {
+  name      = "k8s-monitoring-grafana-cloud"
+  namespace = "observability"
+}
+

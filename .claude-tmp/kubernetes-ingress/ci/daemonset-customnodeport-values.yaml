@@ -1,0 +1,7 @@
+controller:
+  kind: DaemonSet
+  service:
+    type: NodePort
+    ports:
+      8000: 10000
+      8001: 10001

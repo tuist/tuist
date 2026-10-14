@@ -1,0 +1,6 @@
+controller:
+  service:
+    enablePorts:
+      http: false
+      https: true
+      stat: false

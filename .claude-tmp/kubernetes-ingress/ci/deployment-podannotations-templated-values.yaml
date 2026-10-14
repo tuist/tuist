@@ -1,0 +1,5 @@
+controller:
+  podAnnotations: |
+      my-checksum: {{ $.Values.myCustomVar | toYaml | sha256sum }}
+myCustomVar:
+  FOO: BAR

@@ -1,0 +1,3 @@
+controller:
+  extraArgs:
+    - --namespace-whitelist=default

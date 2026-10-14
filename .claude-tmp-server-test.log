@@ -1,0 +1,4732 @@
+mix deps.compile running across 4 OS processes
+3> ==> gen_stage
+3> Compiling 10 files (.ex)
+2> ==> file_system
+2> Compiling 7 files (.ex)
+4> ==> boundary
+4> Compiling 15 files (.ex)
+1> ==> floki
+1> Compiling 2 files (.erl)
+3>      warning: unused require Logger
+3>      \x{2502}
+3>  103 \x{2502}   require Logger
+3>      \x{2502}   ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/gen_stage/dispatchers/partition_dispatcher.ex:103:3
+3> 
+2> Generated file_system app
+2> ==> uri_query
+2> Compiling 1 file (.ex)
+2> Generated uri_query app
+2> ==> eternal
+2> Compiling 5 files (.ex)
+2> Generated eternal app
+1> Compiling 30 files (.ex)
+2> ==> combine
+2> Compiling 6 files (.ex)
+3> Generated gen_stage app
+2>     warning: the variable "n" (context Combine.Parsers.Binary) is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>     \x{2502}
+2>  26 \x{2502}       <<bits::bitstring-size(n), rest::bitstring>> ->
+2>     \x{2502}                              ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/combine/parsers/binary.ex:26:30: Combine.Parsers.Binary.bits_impl/2
+2> 
+2>     warning: the variable "bits_size" (context Combine.Parsers.Binary) is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>     \x{2502}
+2>  48 \x{2502}       <<bits::bitstring-size(bits_size), rest::bitstring>> ->
+2>     \x{2502}                              ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/combine/parsers/binary.ex:48:30: Combine.Parsers.Binary.bytes_impl/2
+2> 
+2>     warning: the variable "size" (context Combine.Parsers.Binary) is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>     \x{2502}
+2>  70 \x{2502}           <<int::big-unsigned-size(size), rest::bitstring>> ->
+2>     \x{2502}                                    ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/combine/parsers/binary.ex:70:36: Combine.Parsers.Binary.uint_impl/3
+2> 
+2>     warning: the variable "size" (context Combine.Parsers.Binary) is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>     \x{2502}
+2>  77 \x{2502}           <<int::little-unsigned-size(size), rest::bitstring>> ->
+2>     \x{2502}                                       ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/combine/parsers/binary.ex:77:39: Combine.Parsers.Binary.uint_impl/3
+2> 
+2>      warning: the variable "size" (context Combine.Parsers.Binary) is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>      \x{2502}
+2>  101 \x{2502}           <<int::big-signed-size(size), rest::bitstring>> ->
+2>      \x{2502}                                  ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/combine/parsers/binary.ex:101:34: Combine.Parsers.Binary.int_impl/3
+2> 
+2>      warning: the variable "size" (context Combine.Parsers.Binary) is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>      \x{2502}
+2>  108 \x{2502}           <<int::little-signed-size(size), rest::bitstring>> ->
+2>      \x{2502}                                     ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/combine/parsers/binary.ex:108:37: Combine.Parsers.Binary.int_impl/3
+2> 
+2>      warning: the variable "size" (context Combine.Parsers.Binary) is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>      \x{2502}
+2>  128 \x{2502}       <<num::float-size(size), rest::bitstring>> ->
+2>      \x{2502}                         ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/combine/parsers/binary.ex:128:25: Combine.Parsers.Binary.float_impl/2
+2> 
+2>      warning: the variable "byte_size" (context Combine.Parsers.Text) is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>      \x{2502}
+2>  432 \x{2502}         <<^expected::binary-size(byte_size), rest::binary>> ->
+2>      \x{2502}                                  ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/combine/parsers/text.ex:432:34: Combine.Parsers.Text.string_impl/2
+2> 
+4> Generated boundary app
+3> ==> ymlr
+3> Compiling 3 files (.ex)
+1>      warning: the variable "namespace_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  111 \x{2502}       <<^namespace::binary-size(namespace_size), ":", _::binary>> -> true
+1>      \x{2502}                                 ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/floki/selector.ex:111:33: Floki.Selector.namespace_match?/2
+1> 
+1>      warning: the variable "expected_namespace_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  128 \x{2502}             _ns::binary-size(expected_namespace_size),
+1>      \x{2502}                              ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/floki/selector.ex:128:30: Floki.Selector.type_match?/2
+1> 
+4> ==> let_me
+4> Compiling 6 files (.ex)
+2>      warning: the following clause is redundant:
+2> 
+2>          defp word_of_impl(%Combine.ParserState{...} = state, _pattern)
+2> 
+2>      it has type:
+2> 
+2>          dynamic(%Combine.ParserState{status: :ok}), dynamic()
+2> 
+2>      previous clauses have already matched on the following types:
+2> 
+2>          %Combine.ParserState{status: :error}, term()
+2>          %Combine.ParserState{status: :ok}, term()
+2> 
+2>      \x{2502}
+2>  488 \x{2502}   defp word_of_impl(%ParserState{status: :ok} = state, _pattern) do
+2>      \x{2502}        ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/combine/parsers/text.ex:488:8: Combine.Parsers.Text.word_of_impl/2
+2> 
+2> Generated combine app
+4> Generated let_me app
+2> ==> crypto_rand
+2> Compiling 1 file (.ex)
+3> Generated ymlr app
+4> ==> result
+4> Compiling 7 files (.ex)
+2>     warning: the variable "pos" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>     \x{2502}
+2>  73 \x{2502}     <<_::binary-size(pos), value::binary-size(1), _::binary>> = string
+2>     \x{2502}                      ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/crypto_rand.ex:73:22: CryptoRand.random/2
+2> 
+2>      warning: the variable "offset" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>      \x{2502}
+2>  444 \x{2502}       <<_skip::size(offset), keep::bits>> = bytes
+2>      \x{2502}                     ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/crypto_rand.ex:444:21: CryptoRand.get_bytes/3
+2> 
+2>      warning: the variable "offset" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>      \x{2502}
+2>  458 \x{2502}     <<_skip::size(offset), bits_value::size(bits), _rest::bits>> = bytes
+2>      \x{2502}                   ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/crypto_rand.ex:458:19: CryptoRand.slice/3
+2> 
+2>      warning: the variable "bits" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>      \x{2502}
+2>  458 \x{2502}     <<_skip::size(offset), bits_value::size(bits), _rest::bits>> = bytes
+2>      \x{2502}                                             ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/crypto_rand.ex:458:45: CryptoRand.slice/3
+2> 
+3> ==> mime
+3> Compiling 1 file (.ex)
+4> Generated result app
+2>      warning: List.zip/1 is deprecated. Use Enum.zip/1 instead
+2>      \x{2502}
+2>  138 \x{2502}     |> List.zip()
+2>      \x{2502}             ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/crypto_rand.ex:138:13: CryptoRand.shuffle_list/3
+2> 
+2> Generated crypto_rand app
+4> warning: "xref: [exclude: ...]" in your mix.exs file is deprecated, instead use: "elixirc_options: [no_warn_undefined: ...]"
+4>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:243: Mix.Tasks.Compile.Elixir.xref_exclude_opts/2
+4>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:142: Mix.Tasks.Compile.Elixir.run/1
+4>   (mix 1.20.2) lib/mix/task.ex:502: anonymous fn/3 in Mix.Task.run_task/5
+4>   (mix 1.20.2) lib/mix/task.compiler.ex:299: Mix.Task.Compiler.run_compiler/2
+4>   (mix 1.20.2) lib/mix/task.compiler.ex:287: Mix.Task.Compiler.run/4
+4>   (mix 1.20.2) lib/mix/tasks/compile.all.ex:75: Mix.Tasks.Compile.All.do_run/2
+4> 
+4> ==> x509
+4> Compiling 24 files (.ex)
+2> ==> nimble_options
+2> Compiling 3 files (.ex)
+3> Generated mime app
+3> ==> fine
+3> Compiling 1 file (.ex)
+3> Generated fine app
+3> ==> bunt
+3> Compiling 2 files (.ex)
+2> Generated nimble_options app
+2> ==> comeonin
+2> Compiling 3 files (.ex)
+2> Generated comeonin app
+2> ==> tuist_ex
+2> Compiling 22 files (.ex)
+4>      warning: the variable "size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+4>      \x{2502}
+4>  371 \x{2502}     <<i::unsigned-size(size)-unit(8)>> = :crypto.strong_rand_bytes(size)
+4>      \x{2502}                        ~
+4>      \x{2502}
+4>      \x{2514}\x{2500} lib/x509/certificate.ex:371:24: X509.Certificate.random_serial/1
+4> 
+3> Generated bunt app
+4> Generated x509 app
+3> ==> ham
+3> Compiling 6 files (.ex)
+4> ==> plug_crypto
+4> Compiling 5 files (.ex)
+4> Generated plug_crypto app
+4> ==> hpax
+4> Compiling 4 files (.ex)
+1>       warning: this clause of defp charref_html_after_buffer/2 is never used (or it will always fail/warn when invoked)
+1>       \x{2502}
+1>  2797 \x{2502}   defp charref_html_after_buffer(
+1>       \x{2502}        ~
+1>       \x{2502}
+1>       \x{2514}\x{2500} lib/floki/html/tokenizer.ex:2797:8: Floki.HTML.Tokenizer.charref_html_after_buffer/2
+1> 
+1> Generated floki app
+3> Generated ham app
+2> Generated tuist_ex app
+1> ==> kday
+1> Compiling 1 file (.ex)
+1> Generated kday app
+1> ==> zxcvbn
+1> Compiling 10 files (.ex)
+4> Generated hpax app
+4> ==> xml_builder
+4> Compiling 3 files (.ex)
+4> Generated xml_builder app
+2> ==> tuist
+2> ===> Analyzing applications...
+3> ==> tuist
+3> ===> Analyzing applications...
+2> ===> Compiling mimerl
+3> ===> Compiling yamerl
+3> /Users/marekfort/Developer/tuist/.claude/worktrees/kura-ready-replicas-alert-94748a/server/deps/yamerl/src/yamerl_constr.erl:801:5: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+3> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+3> warnings in selected modules.
+3> %  801|     catch Mod:module_info(),
+3> %     |     ^
+3> 
+3> /Users/marekfort/Developer/tuist/.claude/worktrees/kura-ready-replicas-alert-94748a/server/deps/yamerl/src/yamerl_node_binary.erl:65:9: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+3> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+3> warnings in selected modules.
+3> %   65|    case catch base64:decode(Text) of
+3> %     |         ^
+3> 
+3> /Users/marekfort/Developer/tuist/.claude/worktrees/kura-ready-replicas-alert-94748a/server/deps/yamerl/src/yamerl_node_binary.erl:72:9: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+3> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+3> warnings in selected modules.
+3> %   72|    case catch base64:decode(Text) of
+3> %     |         ^
+3> 
+3>      \x{250C}\x{2500} src/yamerl_constr.erl:
+3>      \x{2502}
+3>  801 \x{2502}      catch Mod:module_info(),
+3>      \x{2502}      \x{2570}\x{2500}\x{2500} Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+3> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+3> warnings in selected modules.
+3> 
+3> 
+3>     \x{250C}\x{2500} src/yamerl_node_binary.erl:
+3>     \x{2502}
+3>  65 \x{2502}     case catch base64:decode(Text) of
+3>     \x{2502}          \x{2570}\x{2500}\x{2500} Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+3> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+3> warnings in selected modules.
+3> 
+3>     \x{250C}\x{2500} src/yamerl_node_binary.erl:
+3>     \x{2502}
+3>  72 \x{2502}     case catch base64:decode(Text) of
+3>     \x{2502}          \x{2570}\x{2500}\x{2500} Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+3> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+3> warnings in selected modules.
+3> 
+3> 
+4> ==> tuist
+4> ===> Analyzing applications...
+4> ===> Compiling sleeplocks
+4> ==> jose
+4> Compiling 113 files (.erl)
+2> ==> ssl_verify_fun
+2> Compiling 7 files (.erl)
+3> ===> Analyzing applications...
+2> Generated ssl_verify_fun app
+3> ===> Compiling ranch
+2> ==> cubdb
+2> Compiling 14 files (.ex)
+2>     warning: the variable "block_rest" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>     \x{2502}
+2>  81 \x{2502}           <<prefix::binary-size(block_rest), rest::binary>> = bin
+2>     \x{2502}                                 ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/cubdb/store/file/blocks.ex:81:33: CubDB.Store.File.Blocks.at_block_boundary/4
+2> 
+2>     warning: the variable "data_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>     \x{2502}
+2>  93 \x{2502}       <<block::binary-size(data_size), rest::binary>> = bin
+2>     \x{2502}                            ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/cubdb/store/file/blocks.ex:93:28: CubDB.Store.File.Blocks.add/3
+2> 
+2>      warning: the variable "data_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>      \x{2502}
+2>  104 \x{2502}       <<_::binary-1, block::binary-size(data_size), rest::binary>> = bin
+2>      \x{2502}                                         ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/cubdb/store/file/blocks.ex:104:41: CubDB.Store.File.Blocks.strip/3
+2> 
+1> Generated zxcvbn app
+4> src/jose_server.erl:137:7: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  137| 		_ = catch jose_jwa:unsecured_signing(UnsecuredSigning),
+4> %     | 		    ^
+4> 
+4> src/jose_server.erl:797:7: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  797| 	case catch jose_crypto_compat:crypto_one_time(Cipher, Key, PlainText, true) of
+4> %     | 	     ^
+4> 
+4> src/jose_server.erl:799:9: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  799| 			case catch jose_crypto_compat:crypto_one_time(Cipher, Key, CipherText, false) of
+4> %     | 			     ^
+4> 
+4> src/jose_server.erl:809:7: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  809| 	case catch jose_crypto_compat:crypto_one_time(Cipher, Key, IV, PlainText, true) of
+4> %     | 	     ^
+4> 
+4> src/jose_server.erl:811:9: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  811| 			case catch jose_crypto_compat:crypto_one_time(Cipher, Key, IV, CipherText, false) of
+4> %     | 			     ^
+4> 
+4> src/jose_server.erl:821:7: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  821| 	case catch jose_crypto_compat:crypto_one_time(Cipher, Key, IV, {AAD, PlainText}, true) of
+4> %     | 	     ^
+4> 
+4> src/jose_server.erl:823:9: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  823| 			case catch jose_crypto_compat:crypto_one_time(Cipher, Key, IV, {AAD, CipherText, CipherTag}, false) of
+4> %     | 			     ^
+4> 
+4> src/jose_server.erl:837:7: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  837| 	case catch public_key:encrypt_public(PlainText, PublicKey, FutureOptions) of
+4> %     | 	     ^
+4> 
+4> src/jose_server.erl:840:9: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  840| 			case catch public_key:decrypt_private(CipherText, PrivateKey, FutureOptions) of
+4> %     | 			     ^
+4> 
+4> src/jose_server.erl:842:11: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  842| 					case catch public_key:decrypt_private(rsa_ciphertext(Algorithm), PrivateKey, FutureOptions) of
+4> %     | 					     ^
+4> 
+4> src/jose_server.erl:859:7: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  859| 	case catch public_key:encrypt_public(PlainText, PublicKey, LegacyOptions) of
+4> %     | 	     ^
+4> 
+4> src/jose_server.erl:862:9: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  862| 			case catch public_key:decrypt_private(CipherText, PrivateKey, LegacyOptions) of
+4> %     | 			     ^
+4> 
+4> src/jose_server.erl:864:11: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  864| 					case catch public_key:decrypt_private(rsa_ciphertext(Algorithm), PrivateKey, LegacyOptions) of
+4> %     | 					     ^
+4> 
+4> src/jose_server.erl:882:7: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  882| 	case catch public_key:sign(Message, DigestType, PrivateKey, Options) of
+4> %     | 	     ^
+4> 
+4> src/jose_server.erl:885:9: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  885| 			case catch public_key:verify(Message, DigestType, Signature, PublicKey, Options) of
+4> %     | 			     ^
+4> 
+4> src/jose_server.erl:897:7: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  897| 	case catch public_key:sign(Message, DigestType, PrivateKey) of
+4> %     | 	     ^
+4> 
+4> src/jose_server.erl:900:9: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  900| 			case catch public_key:verify(Message, DigestType, Signature, PublicKey) of
+4> %     | 			     ^
+4> 
+4> src/jwa/jose_jwa.erl:230:7: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  230| 	case catch block_cipher(Cipher) of
+4> %     | 	     ^
+4> 
+4> src/jwa/jose_jwa.erl:238:7: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  238| 	case catch ?MAYBE_START_JOSE(ets:lookup_element(?TAB, chacha20_poly1305_module, 2)) of
+4> %     | 	     ^
+4> 
+4> src/jwa/jose_jwa.erl:246:7: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  246| 	case catch rsa_crypt(Padding) of
+4> %     | 	     ^
+4> 
+4> src/jwa/jose_jwa.erl:254:7: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  254| 	case catch rsa_sign(Padding) of
+4> %     | 	     ^
+4> 
+4> src/jwa/jose_jwa.erl:262:7: Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> %  262| 	case catch ?MAYBE_START_JOSE(ets:lookup_element(?TAB, xchacha20_poly1305_module, 2)) of
+4> %     | 	     ^
+4> 
+1> ==> ua_parser
+1> Compiling 13 files (.ex)
+2>       warning: a struct for CubDB.State is expected on struct update:
+2> 
+2>           %CubDB.State{state | auto_compact: setting}
+2> 
+2>       but got type:
+2> 
+2>           dynamic()
+2> 
+2>       where "state" was given the type:
+2> 
+2>           # type: dynamic()
+2>           # from: lib/cubdb.ex:1382:52
+2>           state
+2> 
+2>       when defining the variable "state", you must also pattern match on "%CubDB.State{}"
+2> 
+2>       type warning found at:
+2>       \x{2502}
+2>  1384 \x{2502}       {:ok, setting} -> {:reply, :ok, %State{state | auto_compact: setting}}
+2>       \x{2502}                                       ~
+2>       \x{2502}
+2>       \x{2514}\x{2500} lib/cubdb.ex:1384:39: CubDB.handle_call/3
+2> 
+2>       warning: a struct for CubDB.State is expected on struct update:
+2> 
+2>           %CubDB.State{state | auto_file_sync: bool}
+2> 
+2>       but got type:
+2> 
+2>           dynamic()
+2> 
+2>       where "state" was given the type:
+2> 
+2>           # type: dynamic()
+2>           # from: lib/cubdb.ex:1389:51
+2>           state
+2> 
+2>       when defining the variable "state", you must also pattern match on "%CubDB.State{}"
+2> 
+2>       type warning found at:
+2>       \x{2502}
+2>  1390 \x{2502}     {:reply, :ok, %State{state | auto_file_sync: bool}}
+2>       \x{2502}                   ~
+2>       \x{2502}
+2>       \x{2514}\x{2500} lib/cubdb.ex:1390:19: CubDB.handle_call/3
+2> 
+2>       warning: comparison between distinct types found:
+2> 
+2>           pid != nil
+2> 
+2>       given types:
+2> 
+2>           dynamic(not nil) != nil
+2> 
+2>       where "pid" was given the type:
+2> 
+2>           # type: dynamic(not nil)
+2>           # from: lib/cubdb.ex:1579:33
+2>           state = %CubDB.State{compactor: pid}
+2> 
+2>       While Elixir can compare across all types, you are comparing across types which are always disjoint, and the result is either always true or always false
+2> 
+2>       type warning found at:
+2>       \x{2502}
+2>  1580 \x{2502}     if pid != nil do
+2>       \x{2502}            ~
+2>       \x{2502}
+2>       \x{2514}\x{2500} lib/cubdb.ex:1580:12: CubDB.do_halt_compaction/1
+2> 
+2>       warning: a struct for CubDB.State is expected on struct update:
+2> 
+2>           %CubDB.State{state | clean_up_pending: true}
+2> 
+2>       but got type:
+2> 
+2>           dynamic()
+2> 
+2>       where "state" was given the type:
+2> 
+2>           # type: dynamic()
+2>           # from: lib/cubdb.ex:1620:31
+2>           state
+2> 
+2>       when defining the variable "state", you must also pattern match on "%CubDB.State{}"
+2> 
+2>       type warning found at:
+2>       \x{2502}
+2>  1621 \x{2502}     %State{state | clean_up_pending: true}
+2>       \x{2502}     ~
+2>       \x{2502}
+2>       \x{2514}\x{2500} lib/cubdb.ex:1621:5: CubDB.clean_up_when_possible/1
+2> 
+1> Generated ua_parser app
+2> Generated cubdb app
+4> Compiling 8 files (.ex)
+4> Generated jose app
+1> ==> tuist
+1> ===> Analyzing applications...
+2> ==> tuist
+2> ===> Analyzing applications...
+1> ===> Compiling shards
+2> ===> Compiling h2
+4> ==> tuist
+4> ===> Analyzing applications...
+4> ===> Compiling ctx
+3> ==> table_rex
+3> Compiling 7 files (.ex)
+3>      warning: incompatible types given to Map.get/3:
+3> 
+3>          Map.get(cell, :width_calc, nil)
+3> 
+3>      the map:
+3> 
+3>          dynamic(%TableRex.Cell{})
+3> 
+3>      does not have all required keys:
+3> 
+3>          :width_calc
+3> 
+3>      therefore this function will always return nil
+3> 
+3>      where "cell" was given the types:
+3> 
+3>          # type: dynamic(%TableRex.Cell{})
+3>          # from: lib/table_rex/renderer/text.ex:305:63
+3>          %TableRex.Cell{} = cell
+3> 
+3>          # type: dynamic(%TableRex.Cell{})
+3>          # from: lib/table_rex/renderer/text.ex
+3>          {%TableRex.Cell{} = cell, col_index}
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  312 \x{2502}       Map.get(cell, :width_calc, nil) || Table.get_column_meta(table, col_index, :width_calc)
+3>      \x{2502}           ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/table_rex/renderer/text.ex:312:11: TableRex.Renderer.Text.render_cell/3
+3> 
+3> Generated table_rex app
+3> ==> styler
+3> Compiling 14 files (.ex)
+3> Generated styler app
+3> ==> jumper
+3> Compiling 1 file (.ex)
+3> Generated jumper app
+3> ==> ex_hash_ring
+3> Compiling 7 files (.ex)
+3> Generated ex_hash_ring app
+3> ==> date_time_parser
+3> Compiling 15 files (.ex)
+1> ==> owl
+1> Compiling 19 files (.ex)
+1> Generated owl app
+1> ==> castore
+1> Compiling 1 file (.ex)
+1> Generated castore app
+1> ==> mint
+1> Compiling 1 file (.erl)
+2> ==> elixir_make
+2> Compiling 8 files (.ex)
+1> Compiling 19 files (.ex)
+2> Generated elixir_make app
+2> ==> octo_fetch
+2> Compiling 3 files (.ex)
+2> Generated octo_fetch app
+1> Generated mint app
+1> ==> mint_web_socket
+1> Compiling 7 files (.ex)
+1>      warning: the variable "payload_length" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  268 \x{2502}          <<payload::binary-size(payload_length), more::bitstring>> <- rest do
+1>      \x{2502}                                 ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/mint/web_socket/frame.ex:268:33: Mint.WebSocket.Frame.decode_payload_and_mask/2
+1> 
+1>      warning: the variable "data_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  150 \x{2502}       <<deflated::binary-size(data_size), 0x00, 0x00, 0xFF, 0xFF>> -> deflated
+1>      \x{2502}                               ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/mint/web_socket/per_message_deflate.ex:150:31: Mint.WebSocket.PerMessageDeflate.deflate_data/2
+1> 
+1>      warning: a struct for Mint.WebSocket.Extension is expected on struct update:
+1> 
+1>          %Mint.WebSocket.Extension{client_extension | params: server_extension.params}
+1> 
+1>      but got type:
+1> 
+1>          dynamic()
+1> 
+1>      where "client_extension" was given the type:
+1> 
+1>          # type: dynamic()
+1>          # from: lib/mint/web_socket/extension.ex:219:34
+1>          {:ok, client_extension} <- Map.fetch(client_extension_mapping, server_extension.name)
+1> 
+1>      when defining the variable "client_extension", you must also pattern match on "%Mint.WebSocket.Extension{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  221 \x{2502}          extension = %__MODULE__{client_extension | params: server_extension.params},
+1>      \x{2502}                      ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/mint/web_socket/extension.ex:221:22: Mint.WebSocket.Extension.accept_extensions/3
+1> 
+1> Generated mint_web_socket app
+1> ==> saxy
+1> Compiling 19 files (.ex)
+2> ==> tuist
+2> ===> Analyzing applications...
+4> ===> Analyzing applications...
+2> ===> Compiling cowlib
+4> ===> Compiling mochiweb
+1> Generated saxy app
+1> ==> bcrypt_elixir
+1> mkdir -p "/Users/marekfort/Developer/tuist/.claude/worktrees/kura-ready-replicas-alert-94748a/server/_build/test/lib/bcrypt_elixir/priv"
+1> cc -g -O3 -Wall -Wno-format-truncation -I"/Users/marekfort/.local/share/mise/installs/erlang/29.0.3/erts-17.0.3/include" -Ic_src -fPIC -shared -dynamiclib -undefined dynamic_lookup c_src/bcrypt_nif.c c_src/blowfish.c -o "/Users/marekfort/Developer/tuist/.claude/worktrees/kura-ready-replicas-alert-94748a/server/_build/test/lib/bcrypt_elixir/priv/bcrypt_nif.so"
+1> Compiling 3 files (.ex)
+1> Generated bcrypt_elixir app
+1> ==> opentelemetry_semantic_conventions
+1> Compiling 2 files (.erl)
+1> Compiling 79 files (.ex)
+4>      \x{250C}\x{2500} src/reloader.erl:
+4>      \x{2502}
+4>  154 \x{2502}                      case catch Module:test() of
+4>      \x{2502}                           \x{2570}\x{2500}\x{2500} Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> 
+4> 
+4>     \x{250C}\x{2500} src/mochiweb_acceptor.erl:
+4>     \x{2502}
+4>  53 \x{2502}      case catch do_accept(Server, Listen) of
+4>     \x{2502}           \x{2570}\x{2500}\x{2500} Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> 
+4> 
+4>      \x{250C}\x{2500} src/mochiweb_util.erl:
+4>      \x{2502}
+4>  143 \x{2502}      after catch port_close(Port)
+4>      \x{2502}            \x{2570}\x{2500}\x{2500} Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> 
+4> 
+4>      \x{250C}\x{2500} src/mochiweb_socket_server.erl:
+4>      \x{2502}
+4>  199 \x{2502}      case (catch inet:getaddr("localhost", inet6)) of
+4>      \x{2502}            \x{2570}\x{2500}\x{2500} Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> 
+4>      \x{250C}\x{2500} src/mochiweb_socket_server.erl:
+4>      \x{2502}
+4>  322 \x{2502}              catch F([{timing, Timing} | state_to_proplist(State1)])
+4>      \x{2502}              \x{2570}\x{2500}\x{2500} Warning: 'catch ...' is deprecated; please use 'try ... catch ... end' instead.
+4> Compile directive 'nowarn_deprecated_catch' can be used to suppress
+4> warnings in selected modules.
+4> 
+4> 
+1> Generated opentelemetry_semantic_conventions app
+3> Compiling lib/combinators.ex (it's taking more than 10s)
+4> ==> deep_merge
+4> Compiling 2 files (.ex)
+4> Generated deep_merge app
+4> ==> decimal
+4> Compiling 4 files (.ex)
+1> ==> tuist
+1> ===> Analyzing applications...
+4> Generated decimal app
+4> ==> jason
+4> Compiling 10 files (.ex)
+1> ===> Compiling otel_http
+4> Generated jason app
+4> ==> sobelow
+4> Compiling 51 files (.ex)
+4>      warning: the following conditional expression will always succeed:
+4> 
+4>          is_atom(mod_struct)
+4> 
+4>      because it evaluates to:
+4> 
+4>          dynamic(true)
+4> 
+4>      where "mod_struct" was given the type:
+4> 
+4>          # type: dynamic(
+4>            Sobelow.CI or Sobelow.CI.OS or Sobelow.CI.System or Sobelow.Config or Sobelow.Config.CSP or
+4>              Sobelow.Config.CSRF or Sobelow.Config.CSRFRoute or Sobelow.Config.CSWH or Sobelow.Config.HSTS or
+4>              Sobelow.Config.HTTPS or Sobelow.Config.Headers or Sobelow.Config.Secrets or Sobelow.DOS or
+4>              Sobelow.DOS.BinToAtom or Sobelow.DOS.ListToAtom or Sobelow.DOS.StringToAtom or Sobelow.Misc or
+4>              Sobelow.Misc.BinToTerm or Sobelow.Misc.FilePath or Sobelow.RCE or Sobelow.RCE.CodeModule or
+4>              Sobelow.RCE.EEx or Sobelow.SQL or Sobelow.SQL.Query or Sobelow.SQL.Stream or Sobelow.Traversal or
+4>              Sobelow.Traversal.FileModule or Sobelow.Traversal.SendDownload or Sobelow.Traversal.SendFile or
+4>              Sobelow.Vuln or Sobelow.Vuln.Coherence or Sobelow.Vuln.CookieRCE or Sobelow.Vuln.Ecto or
+4>              Sobelow.Vuln.HeaderInject or Sobelow.Vuln.PlugNull or Sobelow.Vuln.Redirect or Sobelow.XSS or
+4>              Sobelow.XSS.ContentType or Sobelow.XSS.HTML or Sobelow.XSS.Raw or Sobelow.XSS.SendResp or nil
+4>          )
+4>          # from: lib/sobelow/finding_log.ex:111:16
+4>          mod_struct = Sobelow.get_mod(mod)
+4> 
+4>      type warning found at:
+4>      \x{2502}
+4>  115 \x{2502}       if is_atom(mod_struct) and
+4>      \x{2502}       ~~~~~~~~~~~~~~~~~~~~~~~~~~
+4>      \x{2502}
+4>      \x{2514}\x{2500} lib/sobelow/finding_log.ex:115: Sobelow.FindingLog.format_sarif/1
+4> 
+4> Generated sobelow app
+4> ==> esbuild
+4> Compiling 4 files (.ex)
+4> Generated esbuild app
+4> ==> protobuf
+4> Compiling 50 files (.ex)
+1> ==> yaml_elixir
+1> Compiling 6 files (.ex)
+1>     warning: unused require Record
+1>     \x{2502}
+1>   2 \x{2502}   require Record
+1>     \x{2502}   ~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/yaml_elixir/yaml_node_keyword_list.ex:2:3
+1> 
+1> Generated yaml_elixir app
+1> ==> mix_audit
+1> Compiling 16 files (.ex)
+1> Generated mix_audit app
+1> ==> ex_json_schema
+1> Compiling 40 files (.ex)
+4> Generated protobuf app
+1> Generated ex_json_schema app
+1> ==> ex_maybe
+1> Compiling 1 file (.ex)
+1> Generated ex_maybe app
+1> ==> googleapis
+1> Compiling 45 files (.ex)
+1> Generated googleapis app
+4> ==> tuist
+4> ===> Analyzing applications...
+4> ===> Compiling idna
+1> ==> tuist
+1> ===> Analyzing applications...
+1> ===> Compiling gproc
+2> ===> Analyzing applications...
+2> ===> Compiling gun
+1>      \x{250C}\x{2500} src/gproc_pool.erl:
+1>      \x{2502}
+1>  809 \x{2502}      gproc:set_attributes_shared(Wrk, [{n, Pos}]).
+1>      \x{2502}                                  \x{2570}\x{2500}\x{2500} Warning: variable 'Wrk' exported from call (line 808, column 5).
+1> Exporting bindings from subexpressions other than block expressions is
+1> deprecated and may yield an error in a future version of Erlang/OTP.
+1> Please move the binding of 'Wrk' out of the call.
+1> Compile directive 'nowarn_export_var_subexpr' can be used to suppress
+1> warnings in selected modules.
+1> 
+1>      \x{250C}\x{2500} src/gproc_pool.erl:
+1>      \x{2502}
+1>  832 \x{2502}                      gproc:set_value_shared(K, {NewLen, Type})
+1>      \x{2502}                                                 \x{2570}\x{2500}\x{2500} Warning: variable 'NewLen' exported from '-' (line 828, column 41).
+1> Exporting bindings from subexpressions other than block expressions is
+1> deprecated and may yield an error in a future version of Erlang/OTP.
+1> Please move the binding of 'NewLen' out of the '-'.
+1> Compile directive 'nowarn_export_var_subexpr' can be used to suppress
+1> warnings in selected modules.
+1> 
+1> 
+1>       \x{250C}\x{2500} src/gproc.erl:
+1>       \x{2502}
+1>  2285 \x{2502}      {?MODULE, lists:zf(
+1>       \x{2502}                \x{2570}\x{2500}\x{2500} Warning: lists:zf/2 is deprecated; use filtermap/2 instead
+1> 
+1> 
+1>      \x{250C}\x{2500} src/gproc_lib.erl:
+1>      \x{2502}
+1>  143 \x{2502}  	    ets:insert(?TAB, {K, Attrs1}),
+1>      \x{2502}  	                      \x{2570}\x{2500}\x{2500} Warning: variable 'K' exported from call (line 136, column 10).
+1> Exporting bindings from subexpressions other than block expressions is
+1> deprecated and may yield an error in a future version of Erlang/OTP.
+1> Please move the binding of 'K' out of the call.
+1> Compile directive 'nowarn_export_var_subexpr' can be used to suppress
+1> warnings in selected modules.
+1> 
+1>      \x{250C}\x{2500} src/gproc_lib.erl:
+1>      \x{2502}
+1>  491 \x{2502}      Reg;
+1>      \x{2502}      \x{2570}\x{2500}\x{2500} Warning: variable 'Reg' exported from call (line 490, column 5).
+1> Exporting bindings from subexpressions other than block expressions is
+1> deprecated and may yield an error in a future version of Erlang/OTP.
+1> Please move the binding of 'Reg' out of the call.
+1> Compile directive 'nowarn_export_var_subexpr' can be used to suppress
+1> warnings in selected modules.
+1> 
+1>      \x{250C}\x{2500} src/gproc_lib.erl:
+1>      \x{2502}
+1>  494 \x{2502}      Reg;
+1>      \x{2502}      \x{2570}\x{2500}\x{2500} Warning: variable 'Reg' exported from call (line 493, column 5).
+1> Exporting bindings from subexpressions other than block expressions is
+1> deprecated and may yield an error in a future version of Erlang/OTP.
+1> Please move the binding of 'Reg' out of the call.
+1> Compile directive 'nowarn_export_var_subexpr' can be used to suppress
+1> warnings in selected modules.
+1> 
+1>      \x{250C}\x{2500} src/gproc_lib.erl:
+1>      \x{2502}
+1>  497 \x{2502}      Reg;
+1>      \x{2502}      \x{2570}\x{2500}\x{2500} Warning: variable 'Reg' exported from call (line 496, column 5).
+1> Exporting bindings from subexpressions other than block expressions is
+1> deprecated and may yield an error in a future version of Erlang/OTP.
+1> Please move the binding of 'Reg' out of the call.
+1> Compile directive 'nowarn_export_var_subexpr' can be used to suppress
+1> warnings in selected modules.
+1> 
+1>      \x{250C}\x{2500} src/gproc_lib.erl:
+1>      \x{2502}
+1>  500 \x{2502}      Reg.
+1>      \x{2502}      \x{2570}\x{2500}\x{2500} Warning: variable 'Reg' exported from call (line 499, column 5).
+1> Exporting bindings from subexpressions other than block expressions is
+1> deprecated and may yield an error in a future version of Erlang/OTP.
+1> Please move the binding of 'Reg' out of the call.
+1> Compile directive 'nowarn_export_var_subexpr' can be used to suppress
+1> warnings in selected modules.
+1> 
+1>      \x{250C}\x{2500} src/gproc_lib.erl:
+1>      \x{2502}
+1>  610 \x{2502}              case get_attr(on_zero, Pid, K, undefined) of
+1>      \x{2502}                                          \x{2570}\x{2500}\x{2500} Warning: variable 'K' exported from call (line 608, column 10).
+1> Exporting bindings from subexpressions other than block expressions is
+1> deprecated and may yield an error in a future version of Erlang/OTP.
+1> Please move the binding of 'K' out of the call.
+1> Compile directive 'nowarn_export_var_subexpr' can be used to suppress
+1> warnings in selected modules.
+1> 
+1> 
+1> ==> nimble_parsec
+1> Compiling 4 files (.ex)
+1> Generated nimble_parsec app
+1> ==> makeup
+1> Compiling 15 files (.ex)
+1> Generated makeup app
+1> ==> briefly
+1> Compiling 5 files (.ex)
+1> Generated briefly app
+1> ==> tuist
+1> ===> Analyzing applications...
+1> ===> Compiling telemetry
+1> ==> db_connection
+1> Compiling 18 files (.ex)
+1> Generated db_connection app
+3> Generated date_time_parser app
+1> ==> telemetry_metrics
+1> Compiling 7 files (.ex)
+3> ==> solid
+3> Compiling 49 files (.ex)
+1>      warning: unused require Logger
+1>      \x{2502}
+1>  392 \x{2502}   require Logger
+1>      \x{2502}   ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/telemetry_metrics.ex:392:3
+1> 
+1> Generated telemetry_metrics app
+3>      warning: the right-hand side of || will always execute:
+3> 
+3>          name
+3> 
+3>      because the left-hand side always evaluates to:
+3> 
+3>          dynamic(false or nil)
+3> 
+3>      where "x" (context Kernel) was given the type:
+3> 
+3>          # type: dynamic(false or nil)
+3>          # from: lib/solid/context.ex:105
+3>          x
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  105 \x{2502}         {cycle_slug(name || values), context}
+3>      \x{2502}         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/solid/context.ex:105: Solid.Context.run_cycle/3
+3> 
+3> Generated solid app
+3> ==> libcluster
+3> Compiling 13 files (.ex)
+3> Generated libcluster app
+3> ==> broadway
+3> Compiling 21 files (.ex)
+3>      warning: this clause of defp enqueue_batch/2 is never used (or it will always fail/warn when invoked)
+3>      \x{2502}
+3>  372 \x{2502}   defp enqueue_batch(queue, _list = []), do: queue
+3>      \x{2502}        ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/broadway/topology/producer_stage.ex:372:8: Broadway.Topology.ProducerStage.enqueue_batch/2
+3> 
+3> Generated broadway app
+3> ==> off_broadway_memory
+3> Compiling 3 files (.ex)
+3> Generated off_broadway_memory app
+3> ==> redix
+3> Compiling 12 files (.ex)
+3>      warning: the variable "size_left" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  197 \x{2502}       <<str::bytes-size(size_left), rest::binary>> ->
+3>      \x{2502}                         ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/redix/protocol.ex:197:25: Redix.Protocol.parse_string_of_known_size/3
+3> 
+3> Generated redix app
+1> ==> tuist
+1> ===> Analyzing applications...
+3> ==> slipstream
+3> Compiling 44 files (.ex)
+1> ===> Compiling telemetry_poller
+3>     warning: a struct for Slipstream.Connection.State is expected on struct update:
+3> 
+3>         %Slipstream.Connection.State{state | conn: conn, websocket: websocket}
+3> 
+3>     but got type:
+3> 
+3>         dynamic(%{..., conn: term(), request_ref: term(), websocket: term()})
+3> 
+3>     where "state" was given the types:
+3> 
+3>         # type: dynamic(%{..., websocket: term()})
+3>         # from: lib/slipstream/connection/impl.ex:52:25
+3>         Mint.WebSocket.encode(state.websocket, frame)
+3> 
+3>         # type: dynamic(%{..., conn: term(), websocket: term()})
+3>         # from: lib/slipstream/connection/impl.ex:54:29
+3>         Mint.WebSocket.stream_request_body(
+3>           state.conn,
+3>           state.request_ref,
+3>           data
+3>         )
+3> 
+3>         # type: dynamic(%{..., conn: term(), request_ref: term(), websocket: term()})
+3>         # from: lib/slipstream/connection/impl.ex:54:29
+3>         Mint.WebSocket.stream_request_body(
+3>           state.conn,
+3>           state.request_ref,
+3>           data
+3>         )
+3> 
+3>     when defining the variable "state", you must also pattern match on "%Slipstream.Connection.State{}"
+3> 
+3>     type warning found at:
+3>     \x{2502}
+3>  60 \x{2502}             {:ok, %State{state | conn: conn, websocket: websocket}}
+3>     \x{2502}                   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/slipstream/connection/impl.ex:60:19: Slipstream.Connection.Impl.push_message/2
+3> 
+3>     warning: a struct for Slipstream.Connection.State is expected on struct update:
+3> 
+3>         %Slipstream.Connection.State{state | current_ref: ref, current_ref_str: to_string(ref)}
+3> 
+3>     but got type:
+3> 
+3>         dynamic(%{..., current_ref: float() or integer()})
+3> 
+3>     where "state" was given the type:
+3> 
+3>         # type: dynamic(%{..., current_ref: float() or integer()})
+3>         # from: lib/slipstream/connection/state.ex:65:29
+3>         state.current_ref + 1
+3> 
+3>     when defining the variable "state", you must also pattern match on "%Slipstream.Connection.State{}"
+3> 
+3>     type warning found at:
+3>     \x{2502}
+3>  68 \x{2502}      %__MODULE__{state | current_ref: ref, current_ref_str: to_string(ref)}}
+3>     \x{2502}      ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/slipstream/connection/state.ex:68:6: Slipstream.Connection.State.next_ref/1
+3> 
+3>      warning: a struct for Slipstream.Socket is expected on struct update:
+3> 
+3>          %Slipstream.Socket{
+3>            socket
+3>            | channel_pid: event.pid,
+3>              channel_config: event.config || socket.channel_config,
+3>              reconnect_counter: 0
+3>          }
+3> 
+3>      but got type:
+3> 
+3>          dynamic(not %{..., metadata: %{..., connect: map() and not empty_map()}})
+3> 
+3>      where "socket" was given the type:
+3> 
+3>          # type: dynamic(not %{..., metadata: %{..., connect: map() and not empty_map()}})
+3>          # from: lib/slipstream/socket.ex:259:12
+3>          socket = Slipstream.TelemetryHelper.conclude_connect(socket, event)
+3> 
+3>      when defining the variable "socket", you must also pattern match on "%Slipstream.Socket{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  261 \x{2502}     %__MODULE__{
+3>      \x{2502}     ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/socket.ex:261:5: Slipstream.Socket.apply_event/2
+3> 
+3>     warning: a struct for Slipstream.Connection.State is expected on struct update:
+3> 
+3>         %Slipstream.Connection.State{state | heartbeat_ref: ref}
+3> 
+3>     but got type:
+3> 
+3>         dynamic(%{..., current_ref: float() or integer(), current_ref_str: term()})
+3> 
+3>     where "state" was given the type:
+3> 
+3>         # type: dynamic(%{..., current_ref: float() or integer(), current_ref_str: term()})
+3>         # from: lib/slipstream/connection/state.ex:73:18
+3>         {ref, state} = next_ref(state)
+3> 
+3>     when defining the variable "state", you must also pattern match on "%Slipstream.Connection.State{}"
+3> 
+3>     type warning found at:
+3>     \x{2502}
+3>  75 \x{2502}     %__MODULE__{state | heartbeat_ref: ref}
+3>     \x{2502}     ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/slipstream/connection/state.ex:75:5: Slipstream.Connection.State.next_heartbeat_ref/1
+3> 
+3>     warning: a struct for Slipstream.Connection.State is expected on struct update:
+3> 
+3>         %Slipstream.Connection.State{state | heartbeat_ref: nil}
+3> 
+3>     but got type:
+3> 
+3>         dynamic()
+3> 
+3>     where "state" was given the type:
+3> 
+3>         # type: dynamic()
+3>         # from: lib/slipstream/connection/state.ex:88:23
+3>         state
+3> 
+3>     when defining the variable "state", you must also pattern match on "%Slipstream.Connection.State{}"
+3> 
+3>     type warning found at:
+3>     \x{2502}
+3>  89 \x{2502}     %__MODULE__{state | heartbeat_ref: nil}
+3>     \x{2502}     ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/slipstream/connection/state.ex:89:5: Slipstream.Connection.State.reset_heartbeat/1
+3> 
+3>      warning: a struct for Slipstream.Socket is expected on struct update:
+3> 
+3>          %Slipstream.Socket{
+3>            socket
+3>            | channel_pid: nil,
+3>              joins:
+3>                Enum.into(socket.joins, %{}, fn {topic, join} ->
+3>                  {topic, %Slipstream.Socket.Join{join | status: :closed}}
+3>                end)
+3>          }
+3> 
+3>      but got type:
+3> 
+3>          dynamic()
+3> 
+3>      where "socket" was given the type:
+3> 
+3>          # type: dynamic()
+3>          # from: lib/slipstream/socket.ex:285:19
+3>          socket
+3> 
+3>      when defining the variable "socket", you must also pattern match on "%Slipstream.Socket{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  286 \x{2502}     %__MODULE__{
+3>      \x{2502}     ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/socket.ex:286:5: Slipstream.Socket.apply_event/2
+3> 
+3>      warning: a struct for Slipstream.Socket is expected on struct update:
+3> 
+3>          %Slipstream.Socket{socket | channel_config: config}
+3> 
+3>      but got type:
+3> 
+3>          dynamic()
+3> 
+3>      where "socket" was given the type:
+3> 
+3>          # type: dynamic()
+3>          # from: lib/slipstream.ex:808:16
+3>          socket = Slipstream.TelemetryHelper.begin_connect(socket, config)
+3> 
+3>      when defining the variable "socket", you must also pattern match on "%Slipstream.Socket{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  812 \x{2502}         {:ok, %Socket{socket | channel_config: config}}
+3>      \x{2502}               ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream.ex:812:15: Slipstream.connect/2
+3> 
+3>     warning: a struct for Slipstream.Socket is expected on struct update:
+3> 
+3>         %Slipstream.Socket{socket | metadata: Map.delete(socket.metadata, :connect)}
+3> 
+3>     but got type:
+3> 
+3>         dynamic(%{..., metadata: %{..., connect: map() and not empty_map()}})
+3> 
+3>     where "socket" was given the type:
+3> 
+3>         # type: dynamic(%{..., metadata: %{..., connect: map() and not empty_map()}})
+3>         # from: lib/slipstream/telemetry_helper.ex:52:64
+3>         %{metadata: %{connect: start_metadata}} = socket
+3> 
+3>     when defining the variable "socket", you must also pattern match on "%Slipstream.Socket{}"
+3> 
+3>     type warning found at:
+3>     \x{2502}
+3>  70 \x{2502}     %Socket{socket | metadata: Map.delete(socket.metadata, :connect)}
+3>     \x{2502}     ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/slipstream/telemetry_helper.ex:70:5: Slipstream.TelemetryHelper.conclude_connect/2
+3> 
+3>      warning: a struct for Slipstream.Socket is expected on struct update:
+3> 
+3>          %Slipstream.Socket{socket | metadata: %{}}
+3> 
+3>      but got type:
+3> 
+3>          dynamic()
+3> 
+3>      where "socket" was given the type:
+3> 
+3>          # type: dynamic()
+3>          # from: lib/slipstream/telemetry_helper.ex:189:21
+3>          socket
+3> 
+3>      when defining the variable "socket", you must also pattern match on "%Slipstream.Socket{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  194 \x{2502}     %Slipstream.Socket{socket | metadata: %{}}
+3>      \x{2502}     ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/telemetry_helper.ex:194:5: Slipstream.TelemetryHelper.clean_socket/1
+3> 
+3>      warning: a struct for Slipstream.Socket is expected on struct update:
+3> 
+3>          %Slipstream.Socket{socket | channel_config: config}
+3> 
+3>      but got type:
+3> 
+3>          dynamic()
+3> 
+3>      where "socket" was given the type:
+3> 
+3>          # type: dynamic()
+3>          # from: lib/slipstream.ex:831:12
+3>          socket = Slipstream.TelemetryHelper.begin_connect(socket, config)
+3> 
+3>      when defining the variable "socket", you must also pattern match on "%Slipstream.Socket{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  835 \x{2502}     %Socket{socket | channel_config: config}
+3>      \x{2502}     ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream.ex:835:5: Slipstream.connect!/2
+3> 
+3>     warning: a struct for Slipstream.Connection.State is expected on struct update:
+3> 
+3>         %Slipstream.Connection.State{p.state | conn: conn, websocket: websocket}
+3> 
+3>     but got type:
+3> 
+3>         dynamic(%{..., request_ref: term()})
+3> 
+3>     where "p" was given the type:
+3> 
+3>         # type: dynamic(%{..., raw_message: non_empty_list(term(), term()), state: %{..., request_ref: term()}})
+3>         # from: lib/slipstream/connection/pipeline.ex:68:12
+3>         %{
+3>           raw_message: [{:status, ref, status}, {:headers, ref, headers} | _maybe_done],
+3>           state: %{request_ref: ref} = state
+3>         } = p
+3> 
+3>     you must assign "p.state" to variable and pattern match on "%Slipstream.Connection.State{}"
+3> 
+3>     type warning found at:
+3>     \x{2502}
+3>  80 \x{2502}         |> put_state(%State{p.state | conn: conn, websocket: websocket})
+3>     \x{2502}                      ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/slipstream/connection/pipeline.ex:80:22: Slipstream.Connection.Pipeline.decode_message/1
+3> 
+3>      warning: a struct for Slipstream.Connection.State is expected on struct update:
+3> 
+3>          %Slipstream.Connection.State{p.state | conn: conn}
+3> 
+3>      but got type:
+3> 
+3>          dynamic(%{..., conn: term()})
+3> 
+3>      where "p" was given the types:
+3> 
+3>          # type: dynamic(
+3>            not %{..., raw_message: :connect or {:__slipstream_command__, term()}} and
+3>              not %{
+3>                ...,
+3>                raw_message: empty_list() or non_empty_list(term(), term()),
+3>                state: %{..., request_ref: term()}
+3>              }
+3>          )
+3>          # from: lib/slipstream/connection/pipeline.ex:139:23
+3>          p
+3> 
+3>          # type: dynamic(
+3>            %{..., state: %{..., conn: term()}} and
+3>              not (%{
+3>                     ...,
+3>                     raw_message: empty_list() or non_empty_list(term(), term()),
+3>                     state: %{..., request_ref: term()}
+3>                   } or %{..., raw_message: :connect or {:__slipstream_command__, term()}})
+3>          )
+3>          # from: lib/slipstream/connection/pipeline.ex:140:25
+3>          Mint.WebSocket.stream(p.state.conn, p.raw_message)
+3> 
+3>          # type: dynamic(
+3>            %{..., raw_message: term(), state: %{..., conn: term()}} and
+3>              not (%{
+3>                     ...,
+3>                     raw_message: empty_list() or non_empty_list(term(), term()),
+3>                     state: %{..., request_ref: term()}
+3>                   } or %{..., raw_message: :connect or {:__slipstream_command__, term()}})
+3>          )
+3>          # from: lib/slipstream/connection/pipeline.ex:140:25
+3>          Mint.WebSocket.stream(p.state.conn, p.raw_message)
+3> 
+3>          # type: dynamic(
+3>            %{..., raw_message: term(), state: %{..., conn: term()}} and
+3>              not (%{
+3>                     ...,
+3>                     raw_message: empty_list() or non_empty_list(term(), term()),
+3>                     state: %{..., request_ref: term()}
+3>                   } or %{..., raw_message: :connect or {:__slipstream_command__, term()}})
+3>          )
+3>          # from: lib/slipstream/connection/pipeline.ex:143:22
+3>          %Slipstream.Connection.State{...}
+3> 
+3>      you must assign "p.state" to variable and pattern match on "%Slipstream.Connection.State{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  143 \x{2502}         |> put_state(%State{p.state | conn: conn})
+3>      \x{2502}                      ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/connection/pipeline.ex:143:22: Slipstream.Connection.Pipeline.decode_message/1
+3> 
+3>      warning: a struct for Slipstream.Connection.State is expected on struct update:
+3> 
+3>          %Slipstream.Connection.State{state | conn: conn, request_ref: ref}
+3> 
+3>      but got type:
+3> 
+3>          dynamic(%{..., config: term()})
+3> 
+3>      where "state" was given the types:
+3> 
+3>          # type: dynamic(%{..., config: term()})
+3>          # from: lib/slipstream/connection/pipeline.ex:176:56
+3>          %{config: config} = state
+3> 
+3>          # type: dynamic(%{..., config: term()})
+3>          # from: lib/slipstream/connection/pipeline.ex:176:65
+3>          %{message: :connect, state: %{config: config} = state} = p
+3> 
+3>      when defining the variable "state", you must also pattern match on "%Slipstream.Connection.State{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  180 \x{2502}       put_state(p, %State{state | conn: conn, request_ref: ref})
+3>      \x{2502}                    ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/connection/pipeline.ex:180:20: Slipstream.Connection.Pipeline.handle_message/1
+3> 
+3>      warning: a struct for Slipstream.Connection.State is expected on struct update:
+3> 
+3>          %Slipstream.Connection.State{state | joins: Map.put(state.joins, cmd.topic, ref)}
+3> 
+3>      but got type:
+3> 
+3>          dynamic(%{..., current_ref: float() or integer(), current_ref_str: term()})
+3> 
+3>      where "state" was given the type:
+3> 
+3>          # type: dynamic(%{..., current_ref: float() or integer(), current_ref_str: term()})
+3>          # from: lib/slipstream/connection/pipeline.ex:275:18
+3>          {ref, state} = Slipstream.Connection.State.next_ref(state)
+3> 
+3>      when defining the variable "state", you must also pattern match on "%Slipstream.Connection.State{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  276 \x{2502}     state = %State{state | joins: Map.put(state.joins, cmd.topic, ref)}
+3>      \x{2502}             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/connection/pipeline.ex:276:13: Slipstream.Connection.Pipeline.handle_message/1
+3> 
+3>      warning: a struct for Slipstream.Connection.State is expected on struct update:
+3> 
+3>          %Slipstream.Connection.State{state | leaves: Map.put(state.leaves, cmd.topic, ref)}
+3> 
+3>      but got type:
+3> 
+3>          dynamic(%{..., current_ref: float() or integer(), current_ref_str: term()})
+3> 
+3>      where "state" was given the type:
+3> 
+3>          # type: dynamic(%{..., current_ref: float() or integer(), current_ref_str: term()})
+3>          # from: lib/slipstream/connection/pipeline.ex:292:18
+3>          {ref, state} = Slipstream.Connection.State.next_ref(state)
+3> 
+3>      when defining the variable "state", you must also pattern match on "%Slipstream.Connection.State{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  293 \x{2502}     state = %State{state | leaves: Map.put(state.leaves, cmd.topic, ref)}
+3>      \x{2502}             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/connection/pipeline.ex:293:13: Slipstream.Connection.Pipeline.handle_message/1
+3> 
+3>      warning: a struct for Slipstream.Connection.State is expected on struct update:
+3> 
+3>          %Slipstream.Connection.State{state | joins: Map.delete(state.joins, event.topic)}
+3> 
+3>      but got type:
+3> 
+3>          dynamic()
+3> 
+3>      where "state" was given the type:
+3> 
+3>          # type: dynamic()
+3>          # from: lib/slipstream/connection/pipeline.ex:354:72
+3>          %{message: {:__slipstream_event__, %type{} = event}, state: state} = p
+3> 
+3>      when defining the variable "state", you must also pattern match on "%Slipstream.Connection.State{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  356 \x{2502}     state = %State{state | joins: Map.delete(state.joins, event.topic)}
+3>      \x{2502}             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/connection/pipeline.ex:356:13: Slipstream.Connection.Pipeline.handle_message/1
+3> 
+3>      warning: a struct for Slipstream.Connection.State is expected on struct update:
+3> 
+3>          %Slipstream.Connection.State{state | leaves: Map.delete(state.leaves, event.topic)}
+3> 
+3>      but got type:
+3> 
+3>          dynamic()
+3> 
+3>      where "state" was given the type:
+3> 
+3>          # type: dynamic()
+3>          # from: lib/slipstream/connection/pipeline.ex:364:80
+3>          %{message: {:__slipstream_event__, %Slipstream.Events.TopicLeaveAccepted{} = event}, state: state} =
+3>            p
+3> 
+3>      when defining the variable "state", you must also pattern match on "%Slipstream.Connection.State{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  367 \x{2502}     state = %State{state | leaves: Map.delete(state.leaves, event.topic)}
+3>      \x{2502}             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/connection/pipeline.ex:367:13: Slipstream.Connection.Pipeline.handle_message/1
+3> 
+3>      warning: a struct for Slipstream.Connection.State is expected on struct update:
+3> 
+3>          %Slipstream.Connection.State{state | status: :connected, heartbeat_timer: timer}
+3> 
+3>      but got type:
+3> 
+3>          dynamic(%{..., config: %{..., heartbeat_interval_msec: term()}})
+3> 
+3>      where "state" was given the type:
+3> 
+3>          # type: dynamic(%{..., config: %{..., heartbeat_interval_msec: term()}})
+3>          # from: lib/slipstream/connection/pipeline.ex:384:47
+3>          state.config.heartbeat_interval_msec != 0
+3> 
+3>      when defining the variable "state", you must also pattern match on "%Slipstream.Connection.State{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  395 \x{2502}       %State{state | status: :connected, heartbeat_timer: timer}
+3>      \x{2502}       ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/connection/pipeline.ex:395:7: Slipstream.Connection.Pipeline.handle_message/1
+3> 
+3>      warning: a struct for Slipstream.Connection.State is expected on struct update:
+3> 
+3>          %Slipstream.Connection.State{state | status: :terminating}
+3> 
+3>      but got type:
+3> 
+3>          dynamic(%{
+3>            ...,
+3>            conn: %Mint.HTTP1{} or %Mint.HTTP2{} or %Mint.UnsafeProxy{},
+3>            heartbeat_timer: term()
+3>          })
+3> 
+3>      where "state" was given the types:
+3> 
+3>          # type: dynamic(%{..., conn: %Mint.HTTP1{} or %Mint.HTTP2{} or %Mint.UnsafeProxy{}})
+3>          # from: lib/slipstream/connection/pipeline.ex:407:15
+3>          Mint.HTTP.close(state.conn)
+3> 
+3>          # type: dynamic(%{
+3>            ...,
+3>            conn: %Mint.HTTP1{} or %Mint.HTTP2{} or %Mint.UnsafeProxy{},
+3>            heartbeat_timer: term()
+3>          })
+3>          # from: lib/slipstream/connection/pipeline.ex:409:62
+3>          state.heartbeat_timer
+3> 
+3>      when defining the variable "state", you must also pattern match on "%Slipstream.Connection.State{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  413 \x{2502}     state = %State{state | status: :terminating}
+3>      \x{2502}             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/connection/pipeline.ex:413:13: Slipstream.Connection.Pipeline.handle_message/1
+3> 
+3>      warning: a struct for Slipstream.Connection.Pipeline is expected on struct update:
+3> 
+3>          %Slipstream.Connection.Pipeline{p | built_events: built_events}
+3> 
+3>      but got type:
+3> 
+3>          dynamic(%{..., events: not empty_list()})
+3> 
+3>      where "p" was given the type:
+3> 
+3>          # type: dynamic(%{..., events: not empty_list()})
+3>          # from: lib/slipstream/connection/pipeline.ex:455:39
+3>          %{events: events} = p
+3> 
+3>      when defining the variable "p", you must also pattern match on "%Slipstream.Connection.Pipeline{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  461 \x{2502}     %__MODULE__{p | built_events: built_events}
+3>      \x{2502}     ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/connection/pipeline.ex:461:5: Slipstream.Connection.Pipeline.build_events/1
+3> 
+3>      warning: a struct for Slipstream.Connection.Pipeline is expected on struct update:
+3> 
+3>          %Slipstream.Connection.Pipeline{p | state: state}
+3> 
+3>      but got type:
+3> 
+3>          dynamic()
+3> 
+3>      where "p" was given the type:
+3> 
+3>          # type: dynamic()
+3>          # from: lib/slipstream/connection/pipeline.ex:485:17
+3>          p
+3> 
+3>      when defining the variable "p", you must also pattern match on "%Slipstream.Connection.Pipeline{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  486 \x{2502}     %__MODULE__{p | state: state}
+3>      \x{2502}     ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/connection/pipeline.ex:486:5: Slipstream.Connection.Pipeline.put_state/2
+3> 
+3>      warning: a struct for Slipstream.Connection.Pipeline is expected on struct update:
+3> 
+3>          %Slipstream.Connection.Pipeline{p | message: message}
+3> 
+3>      but got type:
+3> 
+3>          dynamic()
+3> 
+3>      where "p" was given the type:
+3> 
+3>          # type: dynamic()
+3>          # from: lib/slipstream/connection/pipeline.ex:490:19
+3>          p
+3> 
+3>      when defining the variable "p", you must also pattern match on "%Slipstream.Connection.Pipeline{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  491 \x{2502}     %__MODULE__{p | message: message}
+3>      \x{2502}     ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/connection/pipeline.ex:491:5: Slipstream.Connection.Pipeline.put_message/2
+3> 
+3>      warning: a struct for Slipstream.Connection.Pipeline is expected on struct update:
+3> 
+3>          %Slipstream.Connection.Pipeline{
+3>            p
+3>            | events: p.events ++ [%{type: event, attrs: Enum.into(attrs, %{})}]
+3>          }
+3> 
+3>      but got type:
+3> 
+3>          dynamic()
+3> 
+3>      where "p" was given the type:
+3> 
+3>          # type: dynamic()
+3>          # from: lib/slipstream/connection/pipeline.ex:501:17
+3>          p
+3> 
+3>      when defining the variable "p", you must also pattern match on "%Slipstream.Connection.Pipeline{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  502 \x{2502}     %__MODULE__{
+3>      \x{2502}     ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/connection/pipeline.ex:502:5: Slipstream.Connection.Pipeline.put_event/3
+3> 
+3>      warning: a struct for Slipstream.Connection.Pipeline is expected on struct update:
+3> 
+3>          %Slipstream.Connection.Pipeline{p | return: return}
+3> 
+3>      but got type:
+3> 
+3>          dynamic()
+3> 
+3>      where "p" was given the type:
+3> 
+3>          # type: dynamic()
+3>          # from: lib/slipstream/connection/pipeline.ex:514:18
+3>          p
+3> 
+3>      when defining the variable "p", you must also pattern match on "%Slipstream.Connection.Pipeline{}"
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  515 \x{2502}     %__MODULE__{p | return: return}
+3>      \x{2502}     ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/slipstream/connection/pipeline.ex:515:5: Slipstream.Connection.Pipeline.put_return/2
+3> 
+3> Generated slipstream app
+3> ==> websockex
+3> Compiling 6 files (.ex)
+3>      warning: the variable "size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  109 \x{2502}     <<payload::bytes-size(size), rest::bitstring>> = remaining
+3>      \x{2502}                           ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:109:27: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  125 \x{2502}       <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:125:29: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  125 \x{2502}       <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:125:29: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  145 \x{2502}     <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                           ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:145:27: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  150 \x{2502}     <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                           ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:150:27: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  155 \x{2502}     <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                           ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:155:27: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  164 \x{2502}       <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:164:29: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  171 \x{2502}       <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:171:29: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  176 \x{2502}       <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:176:29: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  164 \x{2502}       <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:164:29: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  171 \x{2502}       <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:171:29: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  176 \x{2502}       <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:176:29: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  183 \x{2502}     <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                           ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:183:27: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  188 \x{2502}     <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                           ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:188:27: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  193 \x{2502}     <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                           ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:193:27: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  199 \x{2502}     <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                           ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:199:27: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  204 \x{2502}     <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                           ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:204:27: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  209 \x{2502}     <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                           ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:209:27: WebSockex.Frame.parse_frame/1
+3> 
+3>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  358 \x{2502}     <<payload::bytes-size(len), rest::bitstring>> = remaining
+3>      \x{2502}                           ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/websockex/frame.ex:358:27: WebSockex.Frame.parse_text_payload/3
+3> 
+3> Generated websockex app
+3> ==> ecto
+3> Compiling 56 files (.ex)
+3>      warning: this clause of defp field_source!/2 is never used (or it will always fail/warn when invoked)
+3>      \x{2502}
+3>  968 \x{2502}   defp field_source!(nil, field) do
+3>      \x{2502}        ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/ecto/repo/schema.ex:968:8: Ecto.Repo.Schema.field_source!/2
+3> 
+3> Generated ecto app
+3> ==> uniq
+3> Compiling 5 files (.ex)
+3>      warning: the variable "clock_hi_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  547 \x{2502}            <<clock_hi::bits(clock_hi_size), clock_lo::bits(8), node::bits(48)>> <-
+3>      \x{2502}                             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/uuid.ex:547:29: Uniq.UUID.parse_raw/5
+3> 
+3>      warning: the variable "clock_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  549 \x{2502}            <<clock::uint(clock_size)>> <-
+3>      \x{2502}                          ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/uuid.ex:549:26: Uniq.UUID.parse_raw/5
+3> 
+3>      warning: the variable "clock_hi_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  547 \x{2502}            <<clock_hi::bits(clock_hi_size), clock_lo::bits(8), node::bits(48)>> <-
+3>      \x{2502}                             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/uuid.ex:547:29: Uniq.UUID.parse_raw/5
+3> 
+3>      warning: the variable "clock_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  549 \x{2502}            <<clock::uint(clock_size)>> <-
+3>      \x{2502}                          ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/uuid.ex:549:26: Uniq.UUID.parse_raw/5
+3> 
+3>      warning: the variable "clock_hi_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  547 \x{2502}            <<clock_hi::bits(clock_hi_size), clock_lo::bits(8), node::bits(48)>> <-
+3>      \x{2502}                             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/uuid.ex:547:29: Uniq.UUID.parse_raw/5
+3> 
+3>      warning: the variable "clock_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  549 \x{2502}            <<clock::uint(clock_size)>> <-
+3>      \x{2502}                          ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/uuid.ex:549:26: Uniq.UUID.parse_raw/5
+3> 
+3>      warning: the variable "clock_hi_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  547 \x{2502}            <<clock_hi::bits(clock_hi_size), clock_lo::bits(8), node::bits(48)>> <-
+3>      \x{2502}                             ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/uuid.ex:547:29: Uniq.UUID.parse_raw/5
+3> 
+3>      warning: the variable "clock_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  549 \x{2502}            <<clock::uint(clock_size)>> <-
+3>      \x{2502}                          ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/uuid.ex:549:26: Uniq.UUID.parse_raw/5
+3> 
+1> ==> ch
+1> Compiling 8 files (.ex)
+3> Generated uniq app
+3> ==> telemetry_metrics_prometheus_core
+3> Compiling 9 files (.ex)
+3>      warning: unused require Logger
+3>      \x{2502}
+3>  148 \x{2502}   require Logger
+3>      \x{2502}   ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/core.ex:148:3
+3> 
+3> warning: first..last inside match is deprecated, you must always match on the step: first..last//var or first..last//_ if you want to ignore it
+3>   lib/core/registry.ex:87: TelemetryMetricsPrometheus.Core.Registry.validate_distribution_buckets!/1
+3> 
+3> Generated telemetry_metrics_prometheus_core app
+3> ==> thousand_island
+3> Compiling 18 files (.ex)
+3> Generated thousand_island app
+3> ==> flop
+3> Compiling 17 files (.ex)
+2> ==> flow
+2> Compiling 9 files (.ex)
+3>      warning: unused require Logger
+3>      \x{2502}
+3>  801 \x{2502}   require Logger
+3>      \x{2502}   ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/flop/schema.ex:801:3
+3> 
+2> Generated flow app
+3>      warning: unused require Ecto.Query
+3>      \x{2502}
+3>  290 \x{2502}   require Ecto.Query
+3>      \x{2502}   ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/flop.ex:290:3
+3> 
+3>      warning: the following clause is redundant:
+3> 
+3>          defp build_op(
+3>                 _schema_struct,
+3>                 %Flop.FieldInfo{extra: %{type: :join, binding: binding, field: field}},
+3>                 %Flop.Filter{op: :empty, value: value}
+3>               )
+3> 
+3>      it has type:
+3> 
+3>          dynamic(), dynamic(%Flop.FieldInfo{extra: %{..., binding: term(), field: term(), type: :join}}), dynamic(%Flop.Filter{op: :empty})
+3> 
+3>      previous clauses have already matched on the following types:
+3> 
+3>          term(), %Flop.FieldInfo{extra: %{..., fields: term(), type: :compound}}, %Flop.Filter{op: :like_and}
+3>          term(), %Flop.FieldInfo{extra: %{..., fields: term(), type: :compound}}, %Flop.Filter{op: :like_or}
+3>          term(), %Flop.FieldInfo{extra: %{..., fields: term(), type: :compound}}, %Flop.Filter{op: :ilike_and}
+3>          term(), %Flop.FieldInfo{extra: %{..., fields: term(), type: :compound}}, %Flop.Filter{op: :ilike_or}
+3>          term(), %Flop.FieldInfo{extra: %{..., fields: term(), type: :compound}}, %Flop.Filter{op: :=~ or :ilike or :like or :not_empty or :not_ilike or :not_like}
+3>          term(), %Flop.FieldInfo{extra: %{..., fields: term(), type: :compound}}, %Flop.Filter{op: :empty}
+3>          term(), %Flop.FieldInfo{extra: %{..., type: :compound}}, %Flop.Filter{
+3>            op: :!= or :< or :<= or :== or :> or :>= or :contains or :in or :not_contains or :not_in
+3>          }
+3>          %{..., __struct__: atom()}, %Flop.FieldInfo{extra: %{..., field: term(), type: :normal}}, %Flop.Filter{op: :empty or :not_empty}
+3>          term(), %Flop.FieldInfo{extra: %{..., binding: term(), field: term(), type: :join}}, %Flop.Filter{op: :empty or :not_empty}
+3>          term(), %Flop.FieldInfo{extra: %{..., field: term(), type: :normal}}, %Flop.Filter{op: :==}
+3>          term(), %Flop.FieldInfo{extra: %{..., binding: term(), field: term(), type: :join}}, %Flop.Filter{op: :==}
+3>          term(), %Flop.FieldInfo{extra: %{..., field: term(), type: :normal}}, %Flop.Filter{op: :!=}
+3>          term(), %Flop.FieldInfo{extra: %{..., binding: term(), field: term(), type: :join}}, %Flop.Filter{op: :!=}
+3>          term(), %Flop.FieldInfo{extra: %{..., field: term(), type: :normal}}, %Flop.Filter{op: :empty}
+3> 
+3>      \x{2502}
+3>  657 \x{2502}     defp build_op(
+3>      \x{2502}          ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/flop/adapter/ecto.ex:657:10: Flop.Adapter.Ecto.build_op/3
+3> 
+3>      warning: the following clause is redundant:
+3> 
+3>          defp build_op(
+3>                 _schema_struct,
+3>                 %Flop.FieldInfo{extra: %{type: :join, binding: binding, field: field}},
+3>                 %Flop.Filter{op: :not_empty, value: value}
+3>               )
+3> 
+3>      it has type:
+3> 
+3>          dynamic(), dynamic(%Flop.FieldInfo{extra: %{..., binding: term(), field: term(), type: :join}}), dynamic(%Flop.Filter{op: :not_empty})
+3> 
+3>      previous clauses have already matched on the following types:
+3> 
+3>          term(), %Flop.FieldInfo{extra: %{..., fields: term(), type: :compound}}, %Flop.Filter{op: :like_and}
+3>          term(), %Flop.FieldInfo{extra: %{..., fields: term(), type: :compound}}, %Flop.Filter{op: :like_or}
+3>          term(), %Flop.FieldInfo{extra: %{..., fields: term(), type: :compound}}, %Flop.Filter{op: :ilike_and}
+3>          term(), %Flop.FieldInfo{extra: %{..., fields: term(), type: :compound}}, %Flop.Filter{op: :ilike_or}
+3>          term(), %Flop.FieldInfo{extra: %{..., fields: term(), type: :compound}}, %Flop.Filter{op: :=~ or :ilike or :like or :not_empty or :not_ilike or :not_like}
+3>          term(), %Flop.FieldInfo{extra: %{..., fields: term(), type: :compound}}, %Flop.Filter{op: :empty}
+3>          term(), %Flop.FieldInfo{extra: %{..., type: :compound}}, %Flop.Filter{
+3>            op: :!= or :< or :<= or :== or :> or :>= or :contains or :in or :not_contains or :not_in
+3>          }
+3>          %{..., __struct__: atom()}, %Flop.FieldInfo{extra: %{..., field: term(), type: :normal}}, %Flop.Filter{op: :empty or :not_empty}
+3>          term(), %Flop.FieldInfo{extra: %{..., binding: term(), field: term(), type: :join}}, %Flop.Filter{op: :empty or :not_empty}
+3>          term(), %Flop.FieldInfo{extra: %{..., field: term(), type: :normal}}, %Flop.Filter{op: :==}
+3>          term(), %Flop.FieldInfo{extra: %{..., binding: term(), field: term(), type: :join}}, %Flop.Filter{op: :==}
+3>          term(), %Flop.FieldInfo{extra: %{..., field: term(), type: :normal}}, %Flop.Filter{op: :!=}
+3>          term(), %Flop.FieldInfo{extra: %{..., binding: term(), field: term(), type: :join}}, %Flop.Filter{op: :!=}
+3>          term(), %Flop.FieldInfo{extra: %{..., field: term(), type: :normal}}, %Flop.Filter{op: :empty}
+3>          term(), %Flop.FieldInfo{extra: %{..., field: term(), type: :normal}}, %Flop.Filter{op: :not_empty}
+3> 
+3>      \x{2502}
+3>  657 \x{2502}     defp build_op(
+3>      \x{2502}          ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/flop/adapter/ecto.ex:657:10: Flop.Adapter.Ecto.build_op/3
+3> 
+3> Generated flop app
+3> ==> phoenix_html
+3> Compiling 6 files (.ex)
+1>       warning: the following clause is redundant:
+1> 
+1>           defp decode_rows([_ | _] = types_rest, <<>> = empty, row, rows, _types)
+1> 
+1>       it has type:
+1> 
+1>           dynamic(non_empty_list(term(), term())), binary(), dynamic(), dynamic(), dynamic()
+1> 
+1>       previous clauses have already matched on the following types:
+1> 
+1>           non_empty_list(term(), term()), binary(), term(), term(), term()
+1>           empty_list(), binary(), term(), term(), term()
+1> 
+1>       \x{2502}
+1>  1521 \x{2502}   defp decode_rows([_ | _] = types_rest, <<>> = empty, row, rows, _types) do
+1>       \x{2502}        ~
+1>       \x{2502}
+1>       \x{2514}\x{2500} lib/ch/row_binary.ex:1521:8: Ch.RowBinary.decode_rows/5
+1> 
+1> Generated ch app
+3> Generated phoenix_html app
+1> ==> expo
+1> Compiling 2 files (.erl)
+3> ==> money
+3> Compiling 13 files (.ex)
+3> Generated money app
+3> ==> phoenix_template
+3> Compiling 4 files (.ex)
+1> Compiling 22 files (.ex)
+3> Generated phoenix_template app
+3> ==> phoenix_pubsub
+3> Compiling 13 files (.ex)
+1> Generated expo app
+1> ==> gettext
+1> Compiling 18 files (.ex)
+2> ==> tuist
+2> ===> Analyzing applications...
+3> Generated phoenix_pubsub app
+1>      warning: this clause in cond will never match:
+1> 
+1>          not is_binary(locale)
+1> 
+1>      since it has type:
+1> 
+1>          dynamic(false)
+1> 
+1>      where "locale" was given the types:
+1> 
+1>          # type: binary()
+1>          # from: lib/gettext.ex:806:28
+1>          locale
+1> 
+1>          # type: binary()
+1>          # from: lib/gettext.ex:806:41
+1>          is_binary(locale)
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  808 \x{2502}       not is_binary(locale) ->
+1>      \x{2502}                             ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/gettext.ex:808:29: Gettext.put_locale!/2
+1> 
+1>      warning: the following clause is redundant:
+1> 
+1>          defp ensure_empty_msgstr!(%Expo.Message.Plural{} = message)
+1> 
+1>      it has type:
+1> 
+1>          dynamic(%Expo.Message.Plural{})
+1> 
+1>      previous clauses have already matched on the following types:
+1> 
+1>          %Expo.Message.Singular{}
+1>          %Expo.Message.Plural{}
+1> 
+1>      \x{2502}
+1>  391 \x{2502}   defp ensure_empty_msgstr!(%Message.Plural{} = message) do
+1>      \x{2502}        ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/gettext/extractor.ex:391:8: Gettext.Extractor.ensure_empty_msgstr!/1
+1> 
+1>      warning: Kernel.ParallelCompiler.async/1 is deprecated. Use `pmap/2` instead
+1>      \x{2502}
+1>  426 \x{2502}               Kernel.ParallelCompiler.async(fn ->
+1>      \x{2502}                                       ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/gettext/compiler.ex:426:39: Gettext.Compiler.compile_po_files/3
+1> 
+3> ==> cloak
+3> Compiling 14 files (.ex)
+1> Generated gettext app
+3>     warning: the variable "length" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>     \x{2502}
+3>  23 \x{2502}       <<tlv::binary-size(length), remainder::binary>> ->
+3>     \x{2502}                          ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/cloak/tags/decoder.ex:23:26: Cloak.Tags.Decoder.decode/1
+3> 
+3>     warning: the variable "size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>     \x{2502}
+3>  45 \x{2502}     <<_value_bytes::binary-size(size), tag::binary>> = rest
+3>     \x{2502}                                 ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/cloak/tags/decoder.ex:45:33: Cloak.Tags.Decoder.tag/1
+3> 
+3>     warning: the variable "iv_length" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>     \x{2502}
+3>  62 \x{2502}       %{remainder: <<iv::binary-size(iv_length), ciphertag::binary-16, ciphertext::binary>>} =
+3>     \x{2502}                                      ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/cloak/ciphers/aes_gcm.ex:62:38: Cloak.Ciphers.AES.GCM.decrypt/2
+3> 
+3>     warning: the variable "iv_length" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>     \x{2502}
+3>  84 \x{2502}         remainder: <<_iv::binary-size(iv_length), _ciphertag::binary-16, _ciphertext::binary>>
+3>     \x{2502}                                       ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/cloak/ciphers/aes_gcm.ex:84:39: Cloak.Ciphers.AES.GCM.can_decrypt?/2
+3> 
+1> ==> rustler_precompiled
+1> Compiling 4 files (.ex)
+3> Generated cloak app
+3> ==> html_sanitize_ex
+3> Compiling 11 files (.ex)
+1> Generated rustler_precompiled app
+1> ==> lumis
+1> Compiling 6 files (.ex)
+2> ===> Compiling cowboy
+1> 
+1> 14:17:49.213 [debug] Copying NIF from cache and extracting to /Users/marekfort/Developer/tuist/.claude/worktrees/kura-ready-replicas-alert-94748a/server/_build/test/lib/lumis/priv/native/liblumis_nif-v0.1.2-nif-2.15-aarch64-apple-darwin.so.tar.gz
+1>      warning: the following clause will never match:
+1> 
+1>          {:error, error} ->
+1> 
+1>      because it attempts to match on the result of:
+1> 
+1>          highlight(source, options)
+1> 
+1>      which has type:
+1> 
+1>          dynamic(not {:error, term()})
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  961 \x{2502}       {:error, error} ->
+1>      \x{2502}       ~~~~~~~~~~~~~~~~~~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/lumis.ex:961: Lumis.highlight!/2
+1> 
+1> Generated lumis app
+1> ==> mdex_native
+1> Compiling 8 files (.ex)
+1> 
+1> 14:17:49.989 [debug] Copying NIF from cache and extracting to /Users/marekfort/Developer/tuist/.claude/worktrees/kura-ready-replicas-alert-94748a/server/_build/test/lib/mdex_native/priv/native/libmdex_native_nif-v0.2.5-nif-2.15-aarch64-apple-darwin--lumis.so.tar.gz
+1> Generated mdex_native app
+1> ==> html2markdown
+1> Compiling 6 files (.ex)
+1> Generated html2markdown app
+1> ==> phoenix_view
+1> Compiling 1 file (.ex)
+1>      warning: the variable "prefix_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  655 \x{2502}       <<prefix::binary-size(prefix_size), ^suffix::binary>> -> prefix
+1>      \x{2502}                             ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/phoenix_view.ex:655:29: Phoenix.View.unsuffix/2
+1> 
+1> Generated phoenix_view app
+1> ==> uuidv7
+1> Compiling 1 file (.ex)
+1> Generated uuidv7 app
+4> ===> Analyzing applications...
+1> ==> retry
+1> Compiling 3 files (.ex)
+1> Generated retry app
+4> ===> Compiling acceptor_pool
+3> Generated html_sanitize_ex app
+3> ==> digital_token
+3> Compiling 6 files (.ex)
+1> ==> tuist
+1> ===> Analyzing applications...
+1> ===> Compiling hpack
+2> ==> grpc
+2> Compiling 1 file (.erl)
+2> warning: "xref: [exclude: ...]" in your mix.exs file is deprecated, instead use: "elixirc_options: [no_warn_undefined: ...]"
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:243: Mix.Tasks.Compile.Elixir.xref_exclude_opts/2
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:142: Mix.Tasks.Compile.Elixir.run/1
+2>   (mix 1.20.2) lib/mix/task.ex:502: anonymous fn/3 in Mix.Task.run_task/5
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:299: Mix.Task.Compiler.run_compiler/2
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:287: Mix.Task.Compiler.run/4
+2>   (mix 1.20.2) lib/mix/tasks/compile.all.ex:75: Mix.Tasks.Compile.All.do_run/2
+2> 
+2> Compiling 65 files (.ex)
+2>      warning: the variable "bytes_length" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>      \x{2502}
+2>  346 \x{2502}       <<head::binary-size(bytes_length), tail::binary>> -> {head, tail}
+2>      \x{2502}                           ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/grpc/client/adapters/mint/connection_process/connection_process.ex:346:27: GRPC.Client.Adapters.Mint.ConnectionProcess.chunk_body/2
+2> 
+2>      warning: unused require Logger
+2>      \x{2502}
+2>  113 \x{2502}   require Logger
+2>      \x{2502}   ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/grpc/server.ex:113:3
+2> 
+3> Generated digital_token app
+4> ===> Analyzing applications...
+2>     warning: a struct for Protobuf.Protoc.Context is expected on struct update:
+2> 
+2>         %Protobuf.Protoc.Context{
+2>           ctx
+2>           | syntax: syntax(desc.syntax),
+2>             package: desc.package,
+2>             dep_type_mapping: get_dep_type_mapping(ctx, desc.dependency, desc.name)
+2>         }
+2> 
+2>     but got type:
+2> 
+2>         dynamic()
+2> 
+2>     where "ctx" was given the type:
+2> 
+2>         # type: dynamic()
+2>         # from: lib/grpc/protoc/generator.ex:43:36
+2>         ctx
+2> 
+2>     when defining the variable "ctx", you must also pattern match on "%Protobuf.Protoc.Context{}"
+2> 
+2>     type warning found at:
+2>     \x{2502}
+2>  45 \x{2502}       %Context{
+2>     \x{2502}       ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/grpc/protoc/generator.ex:45:7: GRPC.Protoc.Generator.generate_module_definitions/2
+2> 
+2>      warning: the following clause will never match:
+2> 
+2>          nil ->
+2> 
+2>      because it attempts to match on the result of:
+2> 
+2>          scheme
+2> 
+2>      which has type:
+2> 
+2>          dynamic(not false and not nil)
+2> 
+2>      type warning found at:
+2>      \x{2502}
+2>  132 \x{2502}       nil ->
+2>      \x{2502}       ~~~~~~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/grpc/client/resolver.ex:132: GRPC.Client.Resolver.resolve/1
+2> 
+2>     warning: Protobuf.Decoder.decode/2 is undefined or private. Did you mean:
+2> 
+2>         * decode/3
+2> 
+2>     \x{2502}
+2>  27 \x{2502}     Protobuf.Decoder.decode(binary, module)
+2>     \x{2502}                      ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/grpc/codec/web_text.ex:27:22: GRPC.Codec.WebText.decode/2
+2> 
+2>     warning: Protobuf.Decoder.decode/2 is undefined or private. Did you mean:
+2> 
+2>         * decode/3
+2> 
+2>     \x{2502}
+2>  47 \x{2502}     request = Protobuf.Decoder.decode(bin, Google.Protobuf.Compiler.CodeGeneratorRequest)
+2>     \x{2502}                                ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/grpc/protoc/cli.ex:47:32: GRPC.Protoc.CLI.main/1
+2> 
+2>      warning: a struct for GRPC.Client.Connection is expected on struct update:
+2> 
+2>          %GRPC.Client.Connection{
+2>            base_state
+2>            | lb_mod: lb_mod,
+2>              lb_state: new_lb_state,
+2>              virtual_channel: ch,
+2>              real_channels: real_channels
+2>          }
+2> 
+2>      but got type:
+2> 
+2>          dynamic(%{..., virtual_channel: term()})
+2> 
+2>      where "base_state" was given the type:
+2> 
+2>          # type: dynamic(%{..., virtual_channel: term()})
+2>          # from: lib/grpc/client/connection.ex:417:11
+2>          build_real_channels(addresses, base_state.virtual_channel, norm_opts, adapter)
+2> 
+2>      when defining the variable "base_state", you must also pattern match on "%GRPC.Client.Connection{}"
+2> 
+2>      type warning found at:
+2>      \x{2502}
+2>  423 \x{2502}            %__MODULE__{
+2>      \x{2502}            ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/grpc/client/connection.ex:423:12: GRPC.Client.Connection.build_balanced_state/6
+2> 
+2>     warning: a struct for Protobuf.Protoc.Context is expected on struct update:
+2> 
+2>         %Protobuf.Protoc.Context{ctx | plugins: String.split(plugins, "+")}
+2> 
+2>     but got type:
+2> 
+2>         dynamic()
+2> 
+2>     where "ctx" was given the type:
+2> 
+2>         # type: dynamic()
+2>         # from: lib/grpc/protoc/cli.ex:86:43
+2>         ctx
+2> 
+2>     when defining the variable "ctx", you must also pattern match on "%Protobuf.Protoc.Context{}"
+2> 
+2>     type warning found at:
+2>     \x{2502}
+2>  87 \x{2502}     %Context{ctx | plugins: String.split(plugins, "+")}
+2>     \x{2502}     ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/grpc/protoc/cli.ex:87:5: GRPC.Protoc.CLI.parse_param/2
+2> 
+2>     warning: a struct for Protobuf.Protoc.Context is expected on struct update:
+2> 
+2>         %Protobuf.Protoc.Context{ctx | gen_descriptors?: true}
+2> 
+2>     but got type:
+2> 
+2>         dynamic()
+2> 
+2>     where "ctx" was given the type:
+2> 
+2>         # type: dynamic()
+2>         # from: lib/grpc/protoc/cli.ex:90:49
+2>         ctx
+2> 
+2>     when defining the variable "ctx", you must also pattern match on "%Protobuf.Protoc.Context{}"
+2> 
+2>     type warning found at:
+2>     \x{2502}
+2>  93 \x{2502}         %Context{ctx | gen_descriptors?: true}
+2>     \x{2502}         ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/grpc/protoc/cli.ex:93:9: GRPC.Protoc.CLI.parse_param/2
+2> 
+2>      warning: a struct for GRPC.Client.Connection is expected on struct update:
+2> 
+2>          %GRPC.Client.Connection{
+2>            base_state
+2>            | virtual_channel: ch,
+2>              real_channels: %{<<to_string(host)::binary, ":", to_string(port)::binary>> => ch}
+2>          }
+2> 
+2>      but got type:
+2> 
+2>          dynamic(%{..., virtual_channel: term()})
+2> 
+2>      where "base_state" was given the type:
+2> 
+2>          # type: dynamic(%{..., virtual_channel: term()})
+2>          # from: lib/grpc/client/connection.ex:441:8
+2>          vc = base_state.virtual_channel
+2> 
+2>      when defining the variable "base_state", you must also pattern match on "%GRPC.Client.Connection{}"
+2> 
+2>      type warning found at:
+2>      \x{2502}
+2>  446 \x{2502}          %__MODULE__{
+2>      \x{2502}          ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/grpc/client/connection.ex:446:10: GRPC.Client.Connection.build_direct_state/4
+2> 
+2>      warning: a struct for Protobuf.Protoc.Context is expected on struct update:
+2> 
+2>          %Protobuf.Protoc.Context{ctx | package_prefix: package}
+2> 
+2>      but got type:
+2> 
+2>          dynamic()
+2> 
+2>      where "ctx" was given the type:
+2> 
+2>          # type: dynamic()
+2>          # from: lib/grpc/protoc/cli.ex:100:50
+2>          ctx
+2> 
+2>      when defining the variable "ctx", you must also pattern match on "%Protobuf.Protoc.Context{}"
+2> 
+2>      type warning found at:
+2>      \x{2502}
+2>  104 \x{2502}       %Context{ctx | package_prefix: package}
+2>      \x{2502}       ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/grpc/protoc/cli.ex:104:7: GRPC.Protoc.CLI.parse_param/2
+2> 
+2>      warning: a struct for Protobuf.Protoc.Context is expected on struct update:
+2> 
+2>          %Protobuf.Protoc.Context{ctx | transform_module: Module.concat([module])}
+2> 
+2>      but got type:
+2> 
+2>          dynamic()
+2> 
+2>      where "ctx" was given the type:
+2> 
+2>          # type: dynamic()
+2>          # from: lib/grpc/protoc/cli.ex:108:51
+2>          ctx
+2> 
+2>      when defining the variable "ctx", you must also pattern match on "%Protobuf.Protoc.Context{}"
+2> 
+2>      type warning found at:
+2>      \x{2502}
+2>  109 \x{2502}     %Context{ctx | transform_module: Module.concat([module])}
+2>      \x{2502}     ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/grpc/protoc/cli.ex:109:5: GRPC.Protoc.CLI.parse_param/2
+2> 
+2>      warning: a struct for GRPC.Channel is expected on struct update:
+2> 
+2>          %GRPC.Channel{virtual_channel | host: host, port: port}
+2> 
+2>      but got type:
+2> 
+2>          dynamic()
+2> 
+2>      where "virtual_channel" was given the type:
+2> 
+2>          # type: dynamic()
+2>          # from: lib/grpc/client/connection.ex:457:39
+2>          virtual_channel
+2> 
+2>      when defining the variable "virtual_channel", you must also pattern match on "%GRPC.Channel{}"
+2> 
+2>      type warning found at:
+2>      \x{2502}
+2>  460 \x{2502}              %Channel{virtual_channel | host: host, port: port},
+2>      \x{2502}              ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/grpc/client/connection.ex:460:14: GRPC.Client.Connection.build_real_channels/4
+2> 
+2>      warning: a struct for Protobuf.Protoc.Context is expected on struct update:
+2> 
+2>          %Protobuf.Protoc.Context{ctx | one_file_per_module?: true}
+2> 
+2>      but got type:
+2> 
+2>          dynamic()
+2> 
+2>      where "ctx" was given the type:
+2> 
+2>          # type: dynamic()
+2>          # from: lib/grpc/protoc/cli.ex:112:53
+2>          ctx
+2> 
+2>      when defining the variable "ctx", you must also pattern match on "%Protobuf.Protoc.Context{}"
+2> 
+2>      type warning found at:
+2>      \x{2502}
+2>  115 \x{2502}         %Context{ctx | one_file_per_module?: true}
+2>      \x{2502}         ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/grpc/protoc/cli.ex:115:9: GRPC.Protoc.CLI.parse_param/2
+2> 
+2>      warning: a struct for GRPC.Channel is expected on struct update:
+2> 
+2>          %GRPC.Channel{vc | host: host, port: port}
+2> 
+2>      but got type:
+2> 
+2>          dynamic()
+2> 
+2>      where "vc" was given the type:
+2> 
+2>          # type: dynamic()
+2>          # from: lib/grpc/client/connection.ex:525:29
+2>          vc
+2> 
+2>      when defining the variable "vc", you must also pattern match on "%GRPC.Channel{}"
+2> 
+2>      type warning found at:
+2>      \x{2502}
+2>  526 \x{2502}     %Channel{vc | host: host, port: port}
+2>      \x{2502}     ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/grpc/client/connection.ex:526:5: GRPC.Client.Connection.connect_real_channel/5
+2> 
+2>      warning: incompatible types given to pick_channel/1:
+2> 
+2>          pick_channel(opts)
+2> 
+2>      given types:
+2> 
+2>          -dynamic(empty_list() or non_empty_list(term(), term()))-
+2> 
+2>      but expected one of:
+2> 
+2>          %GRPC.Channel{}
+2> 
+2>      where "opts" was given the type:
+2> 
+2>          # type: dynamic(empty_list() or non_empty_list(term(), term()))
+2>          # from: lib/grpc/client/connection.ex:178:46
+2>          Keyword.merge(opts, ref: ref)
+2> 
+2>      type warning found at:
+2>      \x{2502}
+2>  188 \x{2502}             case pick_channel(opts) do
+2>      \x{2502}                  ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/grpc/client/connection.ex:188:18: GRPC.Client.Connection.connect/2
+2> 
+2> Generated grpc app
+2> ==> credo
+2> Compiling 257 files (.ex)
+4> ===> Compiling certifi
+2> Generated credo app
+2> ==> excellent_migrations
+2> Compiling 11 files (.ex)
+2> Generated excellent_migrations app
+2> ==> telemetry_test
+2> Compiling 3 files (.ex)
+2> Generated telemetry_test app
+3> ==> tuist
+3> ===> Analyzing applications...
+2> ==> matrix_reloaded
+2> Compiling 3 files (.ex)
+2>      warning: List.zip/1 is deprecated. Use Enum.zip/1 instead
+2>      \x{2502}
+2>  117 \x{2502}       |> List.zip()
+2>      \x{2502}               ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/matrix_reloaded/vector.ex:117:15: MatrixReloaded.Vector.add/2
+2>      \x{2514}\x{2500} lib/matrix_reloaded/vector.ex:146:15: MatrixReloaded.Vector.sub/2
+2>      \x{2514}\x{2500} lib/matrix_reloaded/vector.ex:175:15: MatrixReloaded.Vector.dot/2
+2>      \x{2514}\x{2500} lib/matrix_reloaded/vector.ex:207:15: MatrixReloaded.Vector.inner_product/2
+2> 
+2> Generated matrix_reloaded app
+2> ==> plug
+2> Compiling 1 file (.erl)
+2> warning: "xref: [exclude: ...]" in your mix.exs file is deprecated, instead use: "elixirc_options: [no_warn_undefined: ...]"
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:243: Mix.Tasks.Compile.Elixir.xref_exclude_opts/2
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:142: Mix.Tasks.Compile.Elixir.run/1
+2>   (mix 1.20.2) lib/mix/task.ex:502: anonymous fn/3 in Mix.Task.run_task/5
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:299: Mix.Task.Compiler.run_compiler/2
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:287: Mix.Task.Compiler.run/4
+2>   (mix 1.20.2) lib/mix/tasks/compile.all.ex:75: Mix.Tasks.Compile.All.do_run/2
+2> 
+2> Compiling 42 files (.ex)
+2>      warning: the variable "prefix_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>      \x{2502}
+2>  154 \x{2502}         <<prefix::binary-size(prefix_size), ?\\, char, suffix::binary-size(suffix_size)>> =
+2>      \x{2502}                               ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/plug/router/utils.ex:154:31: Plug.Router.Utils.build_path_clause/7
+2> 
+2>      warning: the variable "suffix_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>      \x{2502}
+2>  154 \x{2502}         <<prefix::binary-size(prefix_size), ?\\, char, suffix::binary-size(suffix_size)>> =
+2>      \x{2502}                                                                            ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/plug/router/utils.ex:154:76: Plug.Router.Utils.build_path_clause/7
+2> 
+2>      warning: the variable "prefix_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>      \x{2502}
+2>  162 \x{2502}         <<prefix::binary-size(prefix_size), char, suffix::binary-size(suffix_size)>> = segment
+2>      \x{2502}                               ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/plug/router/utils.ex:162:31: Plug.Router.Utils.build_path_clause/7
+2> 
+2>      warning: the variable "suffix_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>      \x{2502}
+2>  162 \x{2502}         <<prefix::binary-size(prefix_size), char, suffix::binary-size(suffix_size)>> = segment
+2>      \x{2502}                                                                       ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/plug/router/utils.ex:162:71: Plug.Router.Utils.build_path_clause/7
+2> 
+3> ===> Compiling tls_certificate_check
+2>      warning: the following clause will never match:
+2> 
+2>          {:error, reason} ->
+2> 
+2>      because it attempts to match on the result of:
+2> 
+2>          IO.binwrite(device, contents)
+2> 
+2>      which has type:
+2> 
+2>          dynamic(not {:error, term()})
+2> 
+2>      type warning found at:
+2>      \x{2502}
+2>  293 \x{2502}       {:error, reason} ->
+2>      \x{2502}       ~~~~~~~~~~~~~~~~~~~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/plug/parsers/multipart.ex:293: Plug.Parsers.MULTIPART.binwrite!/2
+2> 
+2> Generated plug app
+2> ==> open_api_spex
+2> Compiling 80 files (.ex)
+2>      warning: the following clause is redundant:
+2> 
+2>          defp resolve_schema_modules_from_media_type(media = %OpenApiSpex.MediaType{}, schemas)
+2> 
+2>      it has type:
+2> 
+2>          dynamic(%OpenApiSpex.MediaType{}), dynamic()
+2> 
+2>      previous clauses have already matched on the following types:
+2> 
+2>          %OpenApiSpex.MediaType{}, term()
+2> 
+2>      \x{2502}
+2>  152 \x{2502}   defp resolve_schema_modules_from_media_type(media = %MediaType{}, schemas) do
+2>      \x{2502}        ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/open_api_spex/schema_resolver.ex:152:8: OpenApiSpex.SchemaResolver.resolve_schema_modules_from_media_type/2
+2> 
+2>      warning: the right-hand side of || will never be executed:
+2> 
+2>          description || ...
+2> 
+2>      because the left-hand side always evaluates to:
+2> 
+2>          dynamic(not false and not nil)
+2> 
+2>      where "description" was given the type:
+2> 
+2>          # type: dynamic(not false and not nil)
+2>          # from: lib/open_api_spex/controller.ex
+2>          {:ok, {mod_meta, summary, description, meta}}
+2> 
+2>      type warning found at:
+2>      \x{2502}
+2>  184 \x{2502}           description: description || "",
+2>      \x{2502}           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/open_api_spex/controller.ex:184: OpenApiSpex.Controller.__api_operation__/2
+2> 
+2>     warning: the right-hand side of || will never be executed:
+2> 
+2>         OpenApiSpex.OpenApi.yaml_encoder() || ...
+2> 
+2>     because the left-hand side always evaluates to:
+2> 
+2>         dynamic(OpenApiSpex.OpenApi.YmlrEncoder)
+2> 
+2>     type warning found at:
+2>     \x{2502}
+2>  56 \x{2502}     OpenApiSpex.OpenApi.yaml_encoder() ||
+2>     \x{2502}     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/mix/tasks/openapi.spec.yaml.ex:56: Mix.Tasks.Openapi.Spec.Yaml.encoder/0
+2> 
+2>      warning: the following clause is redundant:
+2> 
+2>          def cast(schema = %OpenApiSpex.Schema{type: :object, allOf: []}, value = %{}, schemas)
+2> 
+2>      it has type:
+2> 
+2>          dynamic(%OpenApiSpex.Schema{type: :object, allOf: empty_list()}), dynamic(map()), dynamic()
+2> 
+2>      previous clauses have already matched on the following types:
+2> 
+2>          %OpenApiSpex.Schema{type: :boolean}, boolean(), term()
+2>          %OpenApiSpex.Schema{type: :boolean}, binary(), term()
+2>          %OpenApiSpex.Schema{type: :integer}, integer(), term()
+2>          %OpenApiSpex.Schema{type: :integer}, binary(), term()
+2>          %OpenApiSpex.Schema{type: :number}, float(), term()
+2>          %OpenApiSpex.Schema{type: :number}, integer(), term()
+2>          %OpenApiSpex.Schema{type: :number}, binary(), term()
+2>          %OpenApiSpex.Schema{type: :string, format: :"date-time"}, binary(), term()
+2>          %OpenApiSpex.Schema{type: :string, format: :date}, binary(), term()
+2>          %OpenApiSpex.Schema{type: :string, format: :binary}, %Plug.Upload{}, term()
+2>          %OpenApiSpex.Schema{type: :string}, binary(), term()
+2>          %OpenApiSpex.Schema{type: :array, items: nil}, empty_list() or non_empty_list(term(), term()), term()
+2>          %OpenApiSpex.Schema{type: :array}, empty_list(), term()
+2>          %OpenApiSpex.Schema{type: :array}, non_empty_list(term(), term()), term()
+2>          %OpenApiSpex.Schema{type: :array}, not empty_list() and not non_empty_list(term(), term()), term()
+2>          %OpenApiSpex.Schema{type: :object, discriminator: map()}, map(), term()
+2>          %OpenApiSpex.Schema{type: :object, allOf: empty_list() or non_empty_list(term(), term())}, map(), term()
+2> 
+2>      \x{2502}
+2>  107 \x{2502}   def cast(schema = %Schema{type: :object, allOf: []}, value = %{}, schemas) do
+2>      \x{2502}       ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/open_api_spex/deprecated_cast.ex:107:7: OpenApiSpex.DeprecatedCast.cast/3
+2> 
+2>      warning: the following clause is redundant:
+2> 
+2>          def cast(%OpenApiSpex.Schema{oneOf: []}, _value, _schemas)
+2> 
+2>      it has type:
+2> 
+2>          %OpenApiSpex.Schema{oneOf: empty_list()}, dynamic(), dynamic()
+2> 
+2>      previous clauses have already matched on the following types:
+2> 
+2>          %OpenApiSpex.Schema{type: :boolean}, boolean(), term()
+2>          %OpenApiSpex.Schema{type: :boolean}, binary(), term()
+2>          %OpenApiSpex.Schema{type: :integer}, integer(), term()
+2>          %OpenApiSpex.Schema{type: :integer}, binary(), term()
+2>          %OpenApiSpex.Schema{type: :number}, float(), term()
+2>          %OpenApiSpex.Schema{type: :number}, integer(), term()
+2>          %OpenApiSpex.Schema{type: :number}, binary(), term()
+2>          %OpenApiSpex.Schema{type: :string, format: :"date-time"}, binary(), term()
+2>          %OpenApiSpex.Schema{type: :string, format: :date}, binary(), term()
+2>          %OpenApiSpex.Schema{type: :string, format: :binary}, %Plug.Upload{}, term()
+2>          %OpenApiSpex.Schema{type: :string}, binary(), term()
+2>          %OpenApiSpex.Schema{type: :array, items: nil}, empty_list() or non_empty_list(term(), term()), term()
+2>          %OpenApiSpex.Schema{type: :array}, empty_list(), term()
+2>          %OpenApiSpex.Schema{type: :array}, non_empty_list(term(), term()), term()
+2>          %OpenApiSpex.Schema{type: :array}, not empty_list() and not non_empty_list(term(), term()), term()
+2>          %OpenApiSpex.Schema{type: :object, discriminator: map()}, map(), term()
+2>          %OpenApiSpex.Schema{type: :object, allOf: empty_list() or non_empty_list(term(), term())}, map(), term()
+2>          %OpenApiSpex.Schema{oneOf: empty_list() or non_empty_list(term(), term())}, term(), term()
+2> 
+2>      \x{2502}
+2>  115 \x{2502}   def cast(%Schema{oneOf: []}, _value, _schemas) do
+2>      \x{2502}       ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/open_api_spex/deprecated_cast.ex:115:7: OpenApiSpex.DeprecatedCast.cast/3
+2> 
+2>      warning: this clause of defp term_type/1 is never used (or it will always fail/warn when invoked)
+2>      \x{2502}
+2>  325 \x{2502}   defp term_type(v) when is_nil(v), do: nil
+2>      \x{2502}        ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/open_api_spex/deprecated_cast.ex:325:8: OpenApiSpex.DeprecatedCast.term_type/1
+2> 
+2>      warning: this clause of defp validate_required_properties/3 is never used (or it will always fail/warn when invoked)
+2>      \x{2502}
+2>  466 \x{2502}   defp validate_required_properties(%Schema{type: :object, required: nil}, _val, _path), do: :ok
+2>      \x{2502}        ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/open_api_spex/deprecated_cast.ex:466:8: OpenApiSpex.DeprecatedCast.validate_required_properties/3
+2> 
+2> Generated open_api_spex app
+2> ==> ueberauth
+2> Compiling 9 files (.ex)
+2> Generated ueberauth app
+2> warning: "xref: [exclude: ...]" in your mix.exs file is deprecated, instead use: "elixirc_options: [no_warn_undefined: ...]"
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:243: Mix.Tasks.Compile.Elixir.xref_exclude_opts/2
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:142: Mix.Tasks.Compile.Elixir.run/1
+2>   (mix 1.20.2) lib/mix/task.ex:502: anonymous fn/3 in Mix.Task.run_task/5
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:299: Mix.Task.Compiler.run_compiler/2
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:287: Mix.Task.Compiler.run/4
+2>   (mix 1.20.2) lib/mix/tasks/compile.all.ex:75: Mix.Tasks.Compile.All.do_run/2
+2> 
+2> ==> guardian
+2> Compiling 25 files (.ex)
+2> Generated guardian app
+2> ==> emcp
+2> Compiling 11 files (.ex)
+2> Generated emcp app
+2> ==> plug_minify_html
+2> Compiling 1 file (.ex)
+2> Generated plug_minify_html app
+2> warning: "xref: [exclude: ...]" in your mix.exs file is deprecated, instead use: "elixirc_options: [no_warn_undefined: ...]"
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:243: Mix.Tasks.Compile.Elixir.xref_exclude_opts/2
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:142: Mix.Tasks.Compile.Elixir.run/1
+2>   (mix 1.20.2) lib/mix/task.ex:502: anonymous fn/3 in Mix.Task.run_task/5
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:299: Mix.Task.Compiler.run_compiler/2
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:287: Mix.Task.Compiler.run/4
+2>   (mix 1.20.2) lib/mix/tasks/compile.all.ex:75: Mix.Tasks.Compile.All.do_run/2
+2> 
+2> ==> postgrex
+2> Compiling 70 files (.ex)
+1> ==> secure_random
+1> Compiling 1 file (.ex)
+1>     warning: use Bitwise is deprecated. import Bitwise instead
+1>     \x{2502}
+1>   2 \x{2502}   use Bitwise
+1>     \x{2502}   ~~~~~~~~~~~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/secure_random.ex:2: SecureRandom (module)
+1> 
+1> Generated secure_random app
+1> ==> joken
+1> Compiling 8 files (.ex)
+1> Generated joken app
+1> ==> peep
+1> Compiling 19 files (.ex)
+1> Generated peep app
+1> ==> muontrap
+1>  CC muontrap.o
+1>  LD muontrap
+1> Compiling 5 files (.ex)
+1> Generated muontrap app
+1> ==> hammer
+1> Compiling 10 files (.ex)
+1> Generated hammer app
+4> ==> cldr_utils
+4> Compiling 12 files (.ex)
+4> Generated cldr_utils app
+4> ==> ex_cldr
+4> Compiling 2 files (.erl)
+4> Compiling 46 files (.ex)
+3> ==> unsafe
+3> Compiling 3 files (.ex)
+3> Generated unsafe app
+3> ==> cachex
+3> Compiling 61 files (.ex)
+2> Compiling lib/postgrex/default_types.ex (it's taking more than 10s)
+2> Generated postgrex app
+3>     warning: unused require Cachex.Services.Overseer
+3>     \x{2502}
+3>  52 \x{2502}   require Overseer
+3>     \x{2502}   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/cachex.ex:52:3
+3> 
+2> warning: "xref: [exclude: ...]" in your mix.exs file is deprecated, instead use: "elixirc_options: [no_warn_undefined: ...]"
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:243: Mix.Tasks.Compile.Elixir.xref_exclude_opts/2
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:142: Mix.Tasks.Compile.Elixir.run/1
+2>   (mix 1.20.2) lib/mix/task.ex:502: anonymous fn/3 in Mix.Task.run_task/5
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:299: Mix.Task.Compiler.run_compiler/2
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:287: Mix.Task.Compiler.run/4
+2>   (mix 1.20.2) lib/mix/tasks/compile.all.ex:75: Mix.Tasks.Compile.All.do_run/2
+2> 
+2> ==> phoenix_ecto
+2> Compiling 7 files (.ex)
+3> Generated cachex app
+2> Generated phoenix_ecto app
+1> ==> tuist
+1> ===> Analyzing applications...
+3> warning: "xref: [exclude: ...]" in your mix.exs file is deprecated, instead use: "elixirc_options: [no_warn_undefined: ...]"
+3>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:243: Mix.Tasks.Compile.Elixir.xref_exclude_opts/2
+3>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:142: Mix.Tasks.Compile.Elixir.run/1
+3>   (mix 1.20.2) lib/mix/task.ex:502: anonymous fn/3 in Mix.Task.run_task/5
+3>   (mix 1.20.2) lib/mix/task.compiler.ex:299: Mix.Task.Compiler.run_compiler/2
+3>   (mix 1.20.2) lib/mix/task.compiler.ex:287: Mix.Task.Compiler.run/4
+3>   (mix 1.20.2) lib/mix/tasks/compile.all.ex:75: Mix.Tasks.Compile.All.do_run/2
+3> 
+3> ==> ecto_sql
+3> Compiling 25 files (.ex)
+2> ==> redis_mutex
+2> Compiling 3 files (.ex)
+2> Generated redis_mutex app
+3>       warning: the variable "size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>       \x{2502}
+3>  1983 \x{2502}       <<val::size(size)>> = value
+3>       \x{2502}                   ~
+3>       \x{2502}
+3>       \x{2514}\x{2500} lib/ecto/adapters/postgres/connection.ex:1983:19: Ecto.Adapters.Postgres.Connection.bitstring_literal/1
+3> 
+2> ==> pngex
+2> Compiling 4 files (.ex)
+2>     warning: the variable "row_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>     \x{2502}
+2>  23 \x{2502}       <<row::size(row_size), rest::bitstring>> ->
+2>     \x{2502}                   ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/pngex/bitmap.ex:23:19: Pngex.Bitmap.build/2
+2> 
+3>      warning: unused require Ecto.Query
+3>      \x{2502}
+3>  107 \x{2502}   require Ecto.Query
+3>      \x{2502}   ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/ecto/migrator.ex:107:3
+3> 
+3>      warning: unused require Ecto.Query
+3>      \x{2502}
+3>  140 \x{2502}   require Ecto.Query
+3>      \x{2502}   ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/ecto/adapters/tds.ex:140:3
+3> 
+3>      warning: unused require Logger
+3>      \x{2502}
+3>  139 \x{2502}   require Logger
+3>      \x{2502}   ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/ecto/adapters/tds.ex:139:3
+3> 
+2> Generated pngex app
+2> ==> nimble_pool
+2> Compiling 2 files (.ex)
+2> Generated nimble_pool app
+2> ==> finch
+2> Compiling 14 files (.ex)
+3>       warning: this clause of defp validate_index_opts!/1 is never used (or it will always fail/warn when invoked)
+3>       \x{2502}
+3>  1724 \x{2502}   defp validate_index_opts!(opts), do: opts
+3>       \x{2502}        ~
+3>       \x{2502}
+3>       \x{2514}\x{2500} lib/ecto/migration.ex:1724:8: Ecto.Migration.validate_index_opts!/1
+3> 
+3>       warning: this clause of defp drop_reference_if_exists_expr/3 is never used (or it will always fail/warn when invoked)
+3>       \x{2502}
+3>  1881 \x{2502}     defp drop_reference_if_exists_expr(_, _, _),
+3>       \x{2502}          ~
+3>       \x{2502}
+3>       \x{2514}\x{2500} lib/ecto/adapters/postgres/connection.ex:1881:10: Ecto.Adapters.Postgres.Connection.drop_reference_if_exists_expr/3
+3> 
+2>     warning: the variable "window" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>     \x{2502}
+2>  53 \x{2502}       <<bytes_to_send::binary-size(window), rest::binary>> ->
+2>     \x{2502}                                    ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/finch/http2/request_stream.ex:53:36: Finch.HTTP2.RequestStream.next_chunk/2
+2> 
+2>     warning: the variable "fittable_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>     \x{2502}
+2>  75 \x{2502}         <<fittable_binary::binary-size(fittable_size), overload_binary::binary>> =
+2>     \x{2502}                                        ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/finch/http2/request_stream.ex:75:40: Finch.HTTP2.RequestStream.continue_reduce/2
+2> 
+3> Generated ecto_sql app
+3> ==> fun_with_flags
+3> Compiling 22 files (.ex)
+2> Generated finch app
+2> warning: "xref: [exclude: ...]" in your mix.exs file is deprecated, instead use: "elixirc_options: [no_warn_undefined: ...]"
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:243: Mix.Tasks.Compile.Elixir.xref_exclude_opts/2
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:142: Mix.Tasks.Compile.Elixir.run/1
+2>   (mix 1.20.2) lib/mix/task.ex:502: anonymous fn/3 in Mix.Task.run_task/5
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:299: Mix.Task.Compiler.run_compiler/2
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:287: Mix.Task.Compiler.run/4
+2>   (mix 1.20.2) lib/mix/tasks/compile.all.ex:75: Mix.Tasks.Compile.All.do_run/2
+2> 
+3> Generated fun_with_flags app
+2> ==> oban
+2> Compiling 65 files (.ex)
+3> ==> guardian_db
+3> Compiling 7 files (.ex)
+3> Generated guardian_db app
+3> ==> ecto_psql_extras
+3> Compiling 43 files (.ex)
+3>     warning: unused require Logger
+3>     \x{2502}
+3>   6 \x{2502}   require Logger
+3>     \x{2502}   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/ecto_psql_extras/missing_fk_indexes_logic.ex:6:3
+3> 
+3>     warning: unused require Logger
+3>     \x{2502}
+3>   6 \x{2502}   require Logger
+3>     \x{2502}   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/ecto_psql_extras/missing_fk_constraints_logic.ex:6:3
+3> 
+3> Generated ecto_psql_extras app
+3> warning: "xref: [exclude: ...]" in your mix.exs file is deprecated, instead use: "elixirc_options: [no_warn_undefined: ...]"
+3>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:243: Mix.Tasks.Compile.Elixir.xref_exclude_opts/2
+3>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:142: Mix.Tasks.Compile.Elixir.run/1
+3>   (mix 1.20.2) lib/mix/task.ex:502: anonymous fn/3 in Mix.Task.run_task/5
+3>   (mix 1.20.2) lib/mix/task.compiler.ex:299: Mix.Task.Compiler.run_compiler/2
+3>   (mix 1.20.2) lib/mix/task.compiler.ex:287: Mix.Task.Compiler.run/4
+3>   (mix 1.20.2) lib/mix/tasks/compile.all.ex:75: Mix.Tasks.Compile.All.do_run/2
+3> 
+3> ==> req
+3> Compiling 21 files (.ex)
+2>      warning: struct MyXQL.Error is undefined (module MyXQL.Error is not available or is yet to be defined)
+2>      \x{2502}
+2>  123 \x{2502}     error in [DBConnection.ConnectionError, Postgrex.Error, MyXQL.Error] ->
+2>      \x{2502}           ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/oban/peers/database.ex:123:11: Oban.Peers.Database.handle_info/2
+2> 
+2>      warning: struct MyXQL.Error is undefined (module MyXQL.Error is not available or is yet to be defined)
+2>      \x{2502}
+2>  158 \x{2502}     error in [DBConnection.ConnectionError, Postgrex.Error, MyXQL.Error] ->
+2>      \x{2502}           ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/oban/repo.ex:158:11: Oban.Repo.transaction/4
+2> 
+2>      warning: the following conditional expression will always succeed:
+2> 
+2>          is_list(keys)
+2> 
+2>      because it evaluates to:
+2> 
+2>          dynamic(true)
+2> 
+2>      where "keys" was given the types:
+2> 
+2>          # type: dynamic(not empty_list())
+2>          # from: lib/oban/job.ex:711:12
+2>          keys == []
+2> 
+2>          # type: dynamic(non_empty_list(term(), term()))
+2>          # from: lib/oban/job.ex:714:12
+2>          is_list(keys)
+2> 
+2>      type warning found at:
+2>      \x{2502}
+2>  717 \x{2502}       not (is_list(keys) and Enum.any?(@keyable_fields, &(&1 in fields))) ->
+2>      \x{2502}       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/oban/job.ex:717: Oban.Job.validate_keys/2
+2> 
+2> Generated oban app
+2> ==> oban_met
+2> Compiling 11 files (.ex)
+1> ===> Compiling parse_trans
+2> Generated oban_met app
+2> ==> browse
+2> Compiling 5 files (.ex)
+2> Generated browse app
+2> ==> carta
+2> Compiling 1 file (.ex)
+3> Generated req app
+2> Generated carta app
+2> ==> decorator
+2> Compiling 2 files (.ex)
+3> ==> langchain
+3> Compiling 58 files (.ex)
+2> Generated decorator app
+3>     warning: unused require Logger
+3>     \x{2502}
+3>   2 \x{2502}   require Logger
+3>     \x{2502}   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/chat_models/chat_model.ex:2:3
+3> 
+2> ==> loki_logger_handler
+2> Compiling 10 files (.ex)
+4> Compiling lib/cldr/validity/subdivision.ex (it's taking more than 10s)
+4> Compiling lib/cldr/validity/language.ex (it's taking more than 10s)
+3>     warning: unused require Logger
+3>     \x{2502}
+3>  19 \x{2502}   require Logger
+3>     \x{2502}   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/images/generated_image.ex:19:3
+3> 
+3>     warning: unused require Logger
+3>     \x{2502}
+3>  74 \x{2502}   require Logger
+3>     \x{2502}   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/function_param.ex:74:3
+3> 
+2> Generated loki_logger_handler app
+3>     warning: unused require Logger
+3>     \x{2502}
+3>  17 \x{2502}   require Logger
+3>     \x{2502}   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/message/tool_call.ex:17:3
+3> 
+3>     warning: unused require Logger
+3>     \x{2502}
+3>  25 \x{2502}   require Logger
+3>     \x{2502}   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/message/tool_result.ex:25:3
+3> 
+3>     warning: unused require Logger
+3>     \x{2502}
+3>  54 \x{2502}   require Logger
+3>     \x{2502}   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/message_delta.ex:54:3
+3> 
+3>     warning: unused require Logger
+3>     \x{2502}
+3>  58 \x{2502}   require Logger
+3>     \x{2502}   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/routing/prompt_route.ex:58:3
+3> 
+2> ==> nebulex
+2> Compiling 45 files (.ex)
+3>     warning: unused require Logger
+3>     \x{2502}
+3>  23 \x{2502}   require Logger
+3>     \x{2502}   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/token_usage.ex:23:3
+3> 
+3>     warning: unused require Logger
+3>     \x{2502}
+3>  76 \x{2502}   require Logger
+3>     \x{2502}   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/chat_models/chat_grok.ex:76:3
+3> 
+2> Generated nebulex app
+3>      warning: the following clause is redundant:
+3> 
+3>          {:ok, []} ->
+3> 
+3>      previous clauses have already matched on the following types:
+3> 
+3>          {:ok, binary()}
+3>          {:ok, empty_list() or non_empty_list(term(), term())}
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  232 \x{2502}       {:ok, []} ->
+3>      \x{2502}                 ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/message.ex:232:17: LangChain.Message.validate_content_type/1
+3> 
+2> ==> cc_precompiler
+2> Compiling 3 files (.ex)
+3>      warning: the following conditional expression:
+3> 
+3>          chain.verbose
+3> 
+3>      will always evaluate to:
+3> 
+3>          dynamic(true)
+3> 
+3>      where "chain" was given the type:
+3> 
+3>          # type: dynamic(%LangChain.Chains.LLMChain{verbose: true})
+3>          # from: lib/chains/llm_chain.ex:542:53
+3>          %LangChain.Chains.LLMChain{verbose: true} = chain
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  544 \x{2502}     if chain.verbose, do: IO.inspect(chain.llm, label: "LLM")
+3>      \x{2502}     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/chains/llm_chain.ex:544: LangChain.Chains.LLMChain.initial_run_logging/1
+3> 
+3>      warning: the following clause is redundant:
+3> 
+3>          def for_api(%LangChain.Message{content: content} = message) when is_list(content)
+3> 
+3>      it has type:
+3> 
+3>          dynamic(%LangChain.Message{content: empty_list() or non_empty_list(term(), term())})
+3> 
+3>      previous clauses have already matched on the following types:
+3> 
+3>          %LangChain.Message{role: :assistant}
+3>          %LangChain.Message{role: :tool}
+3>          %LangChain.Message{content: binary()}
+3>          %LangChain.Message{content: empty_list() or non_empty_list(term(), term())}
+3> 
+3>      \x{2502}
+3>  313 \x{2502}   def for_api(%Message{content: content} = message) when is_list(content) do
+3>      \x{2502}       ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/chat_models/chat_google_ai.ex:313:7: LangChain.ChatModels.ChatGoogleAI.for_api/1
+3> 
+3>      warning: this clause of defp format_sources/1 is never used (or it will always fail/warn when invoked)
+3>      \x{2502}
+3>  272 \x{2502}   defp format_sources(_), do: "No source information available."
+3>      \x{2502}        ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/tools/deep_research.ex:272:8: LangChain.Tools.DeepResearch.format_sources/1
+3> 
+3>      warning: the right-hand side of || will never be executed:
+3> 
+3>          primary.content || ...
+3> 
+3>      because the left-hand side always evaluates to:
+3> 
+3>          binary()
+3> 
+3>      where "primary" was given the type:
+3> 
+3>          # type: dynamic(%LangChain.Message.ContentPart{content: binary()})
+3>          # from: lib/message/content_part.ex:214:69
+3>          %LangChain.Message.ContentPart{type: primary_type, content: primary_content} = primary
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  221 \x{2502}     %ContentPart{primary | content: (primary.content || "") <> new_content}
+3>      \x{2502}     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/message/content_part.ex:221: LangChain.Message.ContentPart.append_content/2
+3> 
+3>      warning: comparison between distinct types found:
+3> 
+3>          type == :object
+3> 
+3>      given types:
+3> 
+3>          dynamic(not :object) == :object
+3> 
+3>      where "type" was given the type:
+3> 
+3>          # type: dynamic(not :object)
+3>          # from: lib/function_param.ex:184:12
+3>          type == :object
+3> 
+3>      While Elixir can compare across all types, you are comparing across types which are always disjoint, and the result is either always true or always false
+3> 
+3>      type warning found at:
+3>      \x{2502}
+3>  192 \x{2502}       !Enum.empty?(props) and (!(type == :array and item == "object") and !(type == :object)) ->
+3>      \x{2502}                                                                                  ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/function_param.ex:192:82: LangChain.FunctionParam.validate_object_type/1
+3> 
+3> Generated langchain app
+2> Generated cc_precompiler app
+3> ==> qr_code
+3> Compiling 24 files (.ex)
+2> ==> lazy_html
+2> Compiling 3 files (.ex)
+3>      warning: the variable "bytes_in_group1" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  312 \x{2502}     <<data_group1::binary-size(bytes_in_group1), data_group2::binary-size(bytes_in_group2)>> =
+3>      \x{2502}                                ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/qr_code/error_correction.ex:312:32: QRCode.ErrorCorrection.put_groups/2
+3> 
+3>      warning: the variable "bytes_in_group2" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  312 \x{2502}     <<data_group1::binary-size(bytes_in_group1), data_group2::binary-size(bytes_in_group2)>> =
+3>      \x{2502}                                                                           ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/qr_code/error_correction.ex:312:75: QRCode.ErrorCorrection.put_groups/2
+3> 
+3>      warning: the variable "codewords" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  350 \x{2502}     <<block_data::binary-size(codewords), rest::binary>> = data
+3>      \x{2502}                               ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/qr_code/error_correction.ex:350:31: QRCode.ErrorCorrection.group/3
+3> 
+2> Generated lazy_html app
+3> Generated qr_code app
+3> ==> browse_chrome
+3> Compiling 7 files (.ex)
+2> ==> vix
+2> Compiling 28 files (.ex)
+3> Generated browse_chrome app
+2>     warning: unused require Logger
+2>     \x{2502}
+2>  18 \x{2502}     require Logger
+2>     \x{2502}     ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/vix/nif.ex:18:5
+2> 
+2>     warning: unused require Logger
+2>     \x{2502}
+2>   3 \x{2502}   require Logger
+2>     \x{2502}   ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/vix/source_pipe.ex:3:3
+2> 
+2>     warning: unused require Logger
+2>     \x{2502}
+2>   3 \x{2502}   require Logger
+2>     \x{2502}   ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/vix/target_pipe.ex:3:3
+2> 
+2>     warning: a struct for Vix.SourcePipe.Pending is expected on struct update:
+2> 
+2>         %Vix.SourcePipe.Pending{pending | bin: binary}
+2> 
+2>     but got type:
+2> 
+2>         dynamic(%{..., bin: binary()})
+2> 
+2>     where "pending" was given the types:
+2> 
+2>         # type: dynamic(%{..., bin: bitstring()})
+2>         # from: lib/vix/source_pipe.ex:77:16
+2>         byte_size(pending.bin)
+2> 
+2>         # type: dynamic(%{..., bin: binary()})
+2>         # from: lib/vix/source_pipe.ex:81:18
+2>         binary_part(pending.bin, size, bin_size - size)
+2> 
+2>     when defining the variable "pending", you must also pattern match on "%Vix.SourcePipe.Pending{}"
+2> 
+2>     type warning found at:
+2>     \x{2502}
+2>  82 \x{2502}         noreply_action(%{state | pending: %Pending{pending | bin: binary}})
+2>     \x{2502}                                           ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/vix/source_pipe.ex:82:43: Vix.SourcePipe.do_write/1
+2> 
+2>     warning: a struct for Vix.TargetPipe is expected on struct update:
+2> 
+2>         %Vix.TargetPipe{state | task_result: result, task_pid: nil}
+2> 
+2>     but got type:
+2> 
+2>         dynamic(%{..., task_pid: term()})
+2> 
+2>     where "state" was given the type:
+2> 
+2>         # type: dynamic(%{..., task_pid: term()})
+2>         # from: lib/vix/target_pipe.ex:65:60
+2>         %{task_pid: from} = state
+2> 
+2>     when defining the variable "state", you must also pattern match on "%Vix.TargetPipe{}"
+2> 
+2>     type warning found at:
+2>     \x{2502}
+2>  66 \x{2502}     do_read(%TargetPipe{state | task_result: result, task_pid: nil})
+2>     \x{2502}             ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/vix/target_pipe.ex:66:13: Vix.TargetPipe.handle_info/2
+2> 
+2> Generated vix app
+3> ==> tuist
+3> ===> Analyzing applications...
+4> Generated ex_cldr app
+4> ==> ex_cldr_currencies
+4> Compiling 11 files (.ex)
+2> ==> tuist
+2> ===> Analyzing applications...
+3> ===> Compiling chatterbox
+4> Generated ex_cldr_currencies app
+4> ==> ex_cldr_numbers
+4> Compiling 4 files (.erl)
+2> ===> Compiling cowboy_telemetry
+1> ==> websock
+1> Compiling 1 file (.ex)
+1> Generated websock app
+1> ==> bandit
+1> Compiling 54 files (.ex)
+1> Generated bandit app
+1> ==> tower
+1> Compiling 8 files (.ex)
+1> Generated tower app
+1> ==> sweet_xml
+1> Compiling 2 files (.ex)
+1>      warning: the variable "size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  838 \x{2502}       <<_::binary - size(size), h>> <> tail when h == ?\s or h == ?\n or h == ?\r or h == ?\t ->
+1>      \x{2502}                          ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/sweet_xml.ex:838:26: SweetXml.split_last_whitespace/2
+1> 
+1>      warning: a struct for SweetXpath is expected on struct update:
+1> 
+1>          %SweetXpath{xpath | namespaces: [{to_charlist(prefix), to_charlist(uri)} | xpath.namespaces]}
+1> 
+1>      but got type:
+1> 
+1>          dynamic()
+1> 
+1>      where "xpath" was given the type:
+1> 
+1>          # type: dynamic()
+1>          # from: lib/sweet_xml.ex:245:21
+1>          xpath
+1> 
+1>      when defining the variable "xpath", you must also pattern match on "%SweetXpath{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  246 \x{2502}     %SweetXpath{xpath | namespaces: [{to_charlist(prefix), to_charlist(uri)}
+1>      \x{2502}     ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/sweet_xml.ex:246:5: SweetXml.add_namespace/3
+1> 
+1> Generated sweet_xml app
+1> ==> image
+1> Compiling 71 files (.ex)
+1>     warning: the variable "offset" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>     \x{2502}
+1>  99 \x{2502}       <<_::binary-size(offset), tag_count::binary-size(2), tags::binary>> ->
+1>     \x{2502}                        ~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/image/exif.ex:99:24: Image.Exif.read_ifd/1
+1> 
+1>      warning: the variable "exif_offset" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  143 \x{2502}     <<_::binary-size(exif_offset), count::binary-size(2), tags::binary>> = exif
+1>      \x{2502}                      ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/image/exif.ex:143:22: Image.Exif.read_exif/2
+1> 
+1>      warning: the variable "gps_offset" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  151 \x{2502}       <<_::binary-size(gps_offset), count::binary-size(2), tags::binary>> ->
+1>      \x{2502}                        ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/image/exif.ex:151:24: Image.Exif.read_gps/2
+1> 
+1>     warning: the variable "offset" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>     \x{2502}
+1>  24 \x{2502}         <<_::binary-size(offset), string::binary-size(length), _::binary>> = exif
+1>     \x{2502}                          ~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/image/exif/tag.ex:24:26: Image.Exif.Tag.value/4
+1> 
+1>     warning: the variable "length" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>     \x{2502}
+1>  24 \x{2502}         <<_::binary-size(offset), string::binary-size(length), _::binary>> = exif
+1>     \x{2502}                                                       ~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/image/exif/tag.ex:24:55: Image.Exif.Tag.value/4
+1> 
+1>     warning: the variable "length" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>     \x{2502}
+1>  31 \x{2502}         <<string::binary-size(length), _::binary>> = value
+1>     \x{2502}                               ~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/image/exif/tag.ex:31:31: Image.Exif.Tag.value/4
+1> 
+1>     warning: the variable "length" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>     \x{2502}
+1>  76 \x{2502}         <<data::binary-size(length), _::binary>> = value
+1>     \x{2502}                             ~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/image/exif/tag.ex:76:29: Image.Exif.Tag.decode_numeric/4
+1> 
+1>     warning: the variable "value" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>     \x{2502}
+1>  71 \x{2502}           <<_::binary-size(value), data::binary-size(length), _::binary>> -> data
+1>     \x{2502}                            ~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/image/exif/tag.ex:71:28: Image.Exif.Tag.decode_numeric/4
+1> 
+1>     warning: the variable "length" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>     \x{2502}
+1>  71 \x{2502}           <<_::binary-size(value), data::binary-size(length), _::binary>> -> data
+1>     \x{2502}                                                      ~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/image/exif/tag.ex:71:54: Image.Exif.Tag.decode_numeric/4
+1> 
+1>      warning: the variable "offset" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  116 \x{2502}       <<_::binary-size(offset), numerator::binary-size(4), denominator::binary-size(4),
+1>      \x{2502}                        ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/image/exif/tag.ex:116:24: Image.Exif.Tag.decode_ratios/5
+1> 
+1>      warning: the variable "size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  140 \x{2502}     <<number::binary-size(size), rest::binary>> = data
+1>      \x{2502}                           ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/image/exif/tag.ex:140:27: Image.Exif.Tag.read_unsigned_many/3
+1> 
+1>      warning: the variable "y_bytes" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  485 \x{2502}       <<y::bytes-size(y_bytes), u::bytes-size(y_bytes), v::bytes-size(y_bytes)>> ->
+1>      \x{2502}                       ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/image/yuv.ex:485:23: Image.YUV.decode/4
+1> 
+1>      warning: the variable "y_bytes" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  485 \x{2502}       <<y::bytes-size(y_bytes), u::bytes-size(y_bytes), v::bytes-size(y_bytes)>> ->
+1>      \x{2502}                                               ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/image/yuv.ex:485:47: Image.YUV.decode/4
+1> 
+1>      warning: the variable "y_bytes" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  485 \x{2502}       <<y::bytes-size(y_bytes), u::bytes-size(y_bytes), v::bytes-size(y_bytes)>> ->
+1>      \x{2502}                                                                       ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/image/yuv.ex:485:71: Image.YUV.decode/4
+1> 
+1>      warning: the variable "y_bytes" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  498 \x{2502}       <<y::bytes-size(y_bytes), u::bytes-size(uv_bytes), v::bytes-size(uv_bytes)>> ->
+1>      \x{2502}                       ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/image/yuv.ex:498:23: Image.YUV.decode/4
+1> 
+1>      warning: the variable "uv_bytes" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  498 \x{2502}       <<y::bytes-size(y_bytes), u::bytes-size(uv_bytes), v::bytes-size(uv_bytes)>> ->
+1>      \x{2502}                                               ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/image/yuv.ex:498:47: Image.YUV.decode/4
+1> 
+1>      warning: the variable "uv_bytes" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  498 \x{2502}       <<y::bytes-size(y_bytes), u::bytes-size(uv_bytes), v::bytes-size(uv_bytes)>> ->
+1>      \x{2502}                                                                        ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/image/yuv.ex:498:72: Image.YUV.decode/4
+1> 
+1>      warning: the variable "y_bytes" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  511 \x{2502}       <<y::bytes-size(y_bytes), u::bytes-size(uv_bytes), v::bytes-size(uv_bytes)>> ->
+1>      \x{2502}                       ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/image/yuv.ex:511:23: Image.YUV.decode/4
+1> 
+1>      warning: the variable "uv_bytes" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  511 \x{2502}       <<y::bytes-size(y_bytes), u::bytes-size(uv_bytes), v::bytes-size(uv_bytes)>> ->
+1>      \x{2502}                                               ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/image/yuv.ex:511:47: Image.YUV.decode/4
+1> 
+1>      warning: the variable "uv_bytes" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  511 \x{2502}       <<y::bytes-size(y_bytes), u::bytes-size(uv_bytes), v::bytes-size(uv_bytes)>> ->
+1>      \x{2502}                                                                        ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/image/yuv.ex:511:72: Image.YUV.decode/4
+1> 
+1>       warning: the variable "size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>       \x{2502}
+1>  1771 \x{2502}         <<chunk::binary-size(size), rest::binary>> = bin
+1>       \x{2502}                              ~
+1>       \x{2502}
+1>       \x{2514}\x{2500} lib/image.ex:1771:30: Image.buffer!/2
+1> 
+1>     warning: unused require Logger
+1>     \x{2502}
+1>  11 \x{2502}   require Logger
+1>     \x{2502}   ~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/application.ex:11:3
+1> 
+1>       warning: comparison with structs found:
+1> 
+1>           min(width, height)
+1> 
+1>       given types:
+1> 
+1>           min(
+1>             dynamic(%Vix.Vips.Image{} or float() or integer()),
+1>             dynamic(%Vix.Vips.Image{} or float() or integer())
+1>           )
+1> 
+1>       where "height" was given the type:
+1> 
+1>           # type: dynamic(%Vix.Vips.Image{} or float() or integer())
+1>           # from: lib/image.ex:7950:36
+1>           Image.Math./(height, 2.0)
+1> 
+1>       where "width" was given the type:
+1> 
+1>           # type: dynamic(%Vix.Vips.Image{} or float() or integer())
+1>           # from: lib/image.ex:7950:22
+1>           Image.Math./(width, 2.0)
+1> 
+1>       Comparison operators (>, <, >=, <=, min, and max) perform structural and not semantic comparison. Comparing with a struct won't give meaningful results. Structs that can be compared typically define a compare/2 function within their modules that can be used for semantic comparison.
+1> 
+1>       type warning found at:
+1>       \x{2502}
+1>  7952 \x{2502}     scale = min(width, height) / width
+1>       \x{2502}             ~
+1>       \x{2502}
+1>       \x{2514}\x{2500} lib/image.ex:7952:13: Image.to_polar_coordinates/1
+1> 
+1>       warning: comparison with structs found:
+1> 
+1>           min(width, height)
+1> 
+1>       given types:
+1> 
+1>           min(
+1>             dynamic(%Vix.Vips.Image{} or float() or integer()),
+1>             dynamic(%Vix.Vips.Image{} or float() or integer())
+1>           )
+1> 
+1>       where "height" was given the type:
+1> 
+1>           # type: dynamic(
+1>             %Vix.Vips.Image{} or empty_list() or float() or integer() or non_empty_list(term(), term())
+1>           )
+1>           # from: lib/image.ex:8019:27
+1>           Image.Math./(360.0, height)
+1> 
+1>       where "width" was given the types:
+1> 
+1>           # type: dynamic()
+1>           # from: lib/image.ex:8015:11
+1>           width = width(image)
+1> 
+1>           # type: dynamic(%Vix.Vips.Image{} or float() or integer())
+1>           # from: lib/image.ex:8022:13
+1>           min(width, height)
+1> 
+1>       Comparison operators (>, <, >=, <=, min, and max) perform structural and not semantic comparison. Comparing with a struct won't give meaningful results. Structs that can be compared typically define a compare/2 function within their modules that can be used for semantic comparison.
+1> 
+1>       type warning found at:
+1>       \x{2502}
+1>  8022 \x{2502}     scale = min(width, height) / width
+1>       \x{2502}             ~
+1>       \x{2502}
+1>       \x{2514}\x{2500} lib/image.ex:8022:13: Image.to_rectangular_coordinates/1
+1> 
+1> Generated image app
+1> ==> nimble_ownership
+1> Compiling 2 files (.ex)
+1> Generated nimble_ownership app
+1> ==> mimic
+1> Compiling 10 files (.ex)
+1> Generated mimic app
+1> ==> hammer_backend_redis
+1> Compiling 5 files (.ex)
+1> Generated hammer_backend_redis app
+2> ==> plug_cowboy
+2> Compiling 5 files (.ex)
+2> Generated plug_cowboy app
+2> ==> fun_with_flags_ui
+2> Compiling 6 files (.ex)
+2> Generated fun_with_flags_ui app
+2> ==> websock_adapter
+2> Compiling 4 files (.ex)
+2> Generated websock_adapter app
+1> ==> tuist
+1> ===> Analyzing applications...
+2> ==> phoenix
+2> Compiling 75 files (.ex)
+2> Generated phoenix app
+2> ==> phoenix_live_view
+2> Compiling 55 files (.ex)
+1> ===> Compiling quic
+2> Generated phoenix_live_view app
+2> warning: "xref: [exclude: ...]" in your mix.exs file is deprecated, instead use: "elixirc_options: [no_warn_undefined: ...]"
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:243: Mix.Tasks.Compile.Elixir.xref_exclude_opts/2
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:142: Mix.Tasks.Compile.Elixir.run/1
+2>   (mix 1.20.2) lib/mix/task.ex:502: anonymous fn/3 in Mix.Task.run_task/5
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:299: Mix.Task.Compiler.run_compiler/2
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:287: Mix.Task.Compiler.run/4
+2>   (mix 1.20.2) lib/mix/tasks/compile.all.ex:75: Mix.Tasks.Compile.All.do_run/2
+2> 
+2> ==> phoenix_live_dashboard
+2> Compiling 36 files (.ex)
+3> ===> Analyzing applications...
+2> Generated phoenix_live_dashboard app
+2> ==> broadway_dashboard
+2> Compiling 7 files (.ex)
+2>     warning: Phoenix.LiveView.push_redirect/2 is deprecated. Use push_navigate/2 instead
+2>     \x{2502}
+2>  97 \x{2502}             {:ok, push_redirect(socket, to: to)}
+2>     \x{2502}                   ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/broadway_dashboard.ex:97:19: BroadwayDashboard.mount/3
+2> 
+2> Generated broadway_dashboard app
+2> ==> mdex
+2> Compiling 11 files (.ex)
+3> ===> Compiling grpcbox
+2> Generated mdex app
+2> ==> mdex_katex
+2> Compiling 1 file (.ex)
+2> Generated mdex_katex app
+2> ==> mdex_mermaid
+2> Compiling 1 file (.ex)
+2> Generated mdex_mermaid app
+2> ==> oban_web
+2> Compiling 63 files (.ex)
+2> Generated oban_web app
+2> ==> prom_ex
+2> Compiling 41 files (.ex)
+2>     warning: unused require Logger
+2>     \x{2502}
+2>   7 \x{2502}   require Logger
+2>     \x{2502}   ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/prom_ex/dashboard_renderer.ex:7:3
+2> 
+2>      warning: unused require Logger
+2>      \x{2502}
+2>  112 \x{2502}     require Logger
+2>      \x{2502}     ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/prom_ex/plugins/plug_router.ex:112:5
+2> 
+2>     warning: unused require Logger
+2>     \x{2502}
+2>  37 \x{2502}     require Logger
+2>     \x{2502}     ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/prom_ex/plugins/broadway.ex:37:5
+2> 
+2> Generated prom_ex app
+2> ==> redirect
+2> Compiling 1 file (.ex)
+2> Generated redirect app
+2> ==> puid
+2> Compiling 5 files (.ex)
+2>      warning: use Bitwise is deprecated. import Bitwise instead
+2>      \x{2502}
+2>  133 \x{2502}   use Bitwise, only: bsl
+2>      \x{2502}   ~~~~~~~~~~~~~~~~~~~~~~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/puid/puid.ex:133: Puid (module)
+2> 
+2> Generated puid app
+2> ==> boruta
+2> Compiling 160 files (.ex)
+2>     warning: the variable "uniform_offset" (context Puid) is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>     \x{2502}
+2>   8 \x{2502}   defmodule TxCode do
+2>     \x{2502}   ~~~~~~~~~~~~~~~~~~~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/boruta/adapters/token_generator.ex:8: Boruta.TokenGenerator.TxCode.decimal_chars/5
+2> 
+2>     warning: the variable "bits" (context Puid) is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>     \x{2502}
+2>   8 \x{2502}   defmodule TxCode do
+2>     \x{2502}   ~~~~~~~~~~~~~~~~~~~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/boruta/adapters/token_generator.ex:8: Boruta.TokenGenerator.TxCode.decimal_chars/5
+2> 
+2>     warning: the variable "uniform_offset" (context Puid) is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>     \x{2502}
+2>   1 \x{2502} defmodule Boruta.TokenGenerator do
+2>     \x{2502} ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/boruta/adapters/token_generator.ex:1: Boruta.TokenGenerator.alphanum_chars/5
+2> 
+2>     warning: the variable "bits" (context Puid) is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+2>     \x{2502}
+2>   1 \x{2502} defmodule Boruta.TokenGenerator do
+2>     \x{2502} ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/boruta/adapters/token_generator.ex:1: Boruta.TokenGenerator.alphanum_chars/5
+2> 
+2>      warning: List.zip/1 is deprecated. Use Enum.zip/1 instead
+2>      \x{2502}
+2>  187 \x{2502}     List.zip([template_paths(@module_paths), @module_paths])
+2>      \x{2502}          ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/mix/tasks/boruta.gen.controllers.ex:187:10: Mix.Tasks.Boruta.Gen.Controllers.copy_modules/2
+2>      \x{2514}\x{2500} lib/mix/tasks/boruta.gen.controllers.ex:199:10: Mix.Tasks.Boruta.Gen.Controllers.copy_raw_files/2
+2>      \x{2514}\x{2500} lib/mix/tasks/boruta.gen.controllers.ex:211:10: Mix.Tasks.Boruta.Gen.Controllers.copy_test_files/2
+2> 
+2>      warning: the following clause will never match:
+2> 
+2>          {:error, :invalid_code_challenge} ->
+2> 
+2>      it is expected to match on type:
+2> 
+2>          dynamic(
+2>            ({:error,
+2>              %Boruta.Oauth.Error{
+2>                status: :bad_request,
+2>                error: :invalid_scope,
+2>                error_description: binary(),
+2>                format: nil,
+2>                redirect_uri: nil,
+2>                state: nil
+2>              }} and not {:ok, term()}) or
+2>              ({:error,
+2>                %Boruta.Oauth.Error{
+2>                  status: :unauthorized,
+2>                  error: :invalid_agent_token,
+2>                  error_description: binary(),
+2>                  format: nil,
+2>                  redirect_uri: nil,
+2>                  state: nil
+2>                }} and not {:ok, %Boruta.Oauth.ResourceOwner{}}) or
+2>              ({:error,
+2>                %Boruta.Oauth.Error{
+2>                  status: :unauthorized,
+2>                  error: :invalid_client,
+2>                  error_description: binary(),
+2>                  format: nil,
+2>                  redirect_uri: nil,
+2>                  state: nil
+2>                }} and not {:ok, term()}) or
+2>              ({:error,
+2>                %Boruta.Oauth.Error{
+2>                  status: :unauthorized,
+2>                  error: :invalid_resource_owner,
+2>                  error_description: binary(),
+2>                  format: nil,
+2>                  redirect_uri: nil,
+2>                  state: nil
+2>                }} and not {:ok, %Boruta.Oauth.ResourceOwner{}}) or
+2>              ({:error,
+2>                %Boruta.Oauth.Error{
+2>                  status: :bad_request,
+2>                  error: :invalid_request,
+2>                  format: nil,
+2>                  redirect_uri: nil,
+2>                  state: nil
+2>                } or
+2>                  %Boruta.Oauth.Error{
+2>                    status: :bad_request,
+2>                    error: :unsupported_grant_type,
+2>                    error_description: binary(),
+2>                    format: nil,
+2>                    redirect_uri: nil,
+2>                    state: nil
+2>                  }} and not {:ok, term()}) or
+2>              ({:error,
+2>                %Boruta.Oauth.Error{
+2>                  status: :bad_request,
+2>                  error: :unsupported_grant_type,
+2>                  error_description: binary(),
+2>                  format: nil,
+2>                  redirect_uri: nil,
+2>                  state: nil
+2>                } or
+2>                  %Boruta.Oauth.Error{
+2>                    status: :unauthorized,
+2>                    error: :invalid_client,
+2>                    error_description: binary(),
+2>                    format: nil,
+2>                    redirect_uri: nil,
+2>                    state: nil
+2>                  }} and not {:ok, term()}) or
+2>              ({:error,
+2>                %Boruta.Oauth.Error{
+2>                  status: :bad_request,
+2>                  error: :unsupported_grant_type,
+2>                  error_description: binary(),
+2>                  format: nil,
+2>                  redirect_uri: nil,
+2>                  state: nil
+2>                } or
+2>                  %Boruta.Oauth.Error{
+2>                    status: :unauthorized,
+2>                    error: :invalid_client,
+2>                    format: nil,
+2>                    redirect_uri: nil,
+2>                    state: nil
+2>                  }} and not {:ok, term()}) or
+2>              ({:error,
+2>                %Boruta.Oauth.Error{
+2>                  status: :bad_request,
+2>                  error: :invalid_request or :unsupported_grant_type,
+2>                  error_description: binary(),
+2>                  format: nil,
+2>                  redirect_uri: nil,
+2>                  state: nil
+2>                } or
+2>                  %Boruta.Oauth.Error{
+2>                    status: :unauthorized,
+2>                    error: :invalid_client,
+2>                    error_description: binary(),
+2>                    format: nil,
+2>                    redirect_uri: nil,
+2>                    state: nil
+2>                  }} and not {:ok, term()}) or
+2>              ({:ok, %{..., extra_claims: term()}} and not {:ok, %Boruta.Oauth.ResourceOwner{}})
+2>          )
+2> 
+2>      type warning found at:
+2>      \x{2502}
+2>  708 \x{2502}       {:error, :invalid_code_challenge} ->
+2>      \x{2502}       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/boruta/oauth/authorization.ex:708: Boruta.Oauth.Authorization.Boruta.Oauth.PreauthorizedCodeRequest.preauthorize/1
+2> 
+2> Generated boruta app
+2> ==> ecto_ch
+2> Compiling 9 files (.ex)
+2>     warning: unused require Logger
+2>     \x{2502}
+2>   7 \x{2502}   require Logger
+2>     \x{2502}   ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/ecto/adapters/clickhouse/connection.ex:7:3
+2> 
+2>     warning: the following pattern will never match:
+2> 
+2>         _source = nil
+2> 
+2>     because the right-hand side has type:
+2> 
+2>         none()
+2> 
+2>     type warning found at:
+2>     \x{2502}
+2>  19 \x{2502}     run(_source = nil, kvs)
+2>     \x{2502}                 ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/mix/tasks/schema.ex:19:17: Mix.Tasks.Ecto.Ch.Schema.run/1
+2> 
+2> Generated ecto_ch app
+2> ==> opentelemetry_api
+2> Compiling 19 files (.erl)
+2> Compiling 5 files (.ex)
+2> Generated opentelemetry_api app
+2> ==> tower_opentelemetry
+2> Compiling 2 files (.ex)
+2> Generated tower_opentelemetry app
+3> ==> opentelemetry_finch
+3> Compiling 1 file (.ex)
+3> Generated opentelemetry_finch app
+3> ==> opentelemetry_logger_metadata
+3> Compiling 1 file (.erl)
+3> Compiling 1 file (.ex)
+3> Generated opentelemetry_logger_metadata app
+3> ==> opentelemetry_bandit
+3> Compiling 1 file (.ex)
+3> Generated opentelemetry_bandit app
+3> ==> opentelemetry_telemetry
+3> Compiling 1 file (.erl)
+3> Compiling 1 file (.ex)
+3> Generated opentelemetry_telemetry app
+3> ==> opentelemetry_broadway
+3> Compiling 2 files (.ex)
+3> Generated opentelemetry_broadway app
+3> ==> opentelemetry_process_propagator
+3> Compiling 1 file (.erl)
+3> Compiling 4 files (.ex)
+3> Generated opentelemetry_process_propagator app
+3> ==> opentelemetry_phoenix
+3> Compiling 1 file (.ex)
+3>     warning: unused require OpenTelemetry.Tracer
+3>     \x{2502}
+3>  60 \x{2502}   require OpenTelemetry.Tracer
+3>     \x{2502}   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/opentelemetry_phoenix.ex:60:3
+3> 
+3> Generated opentelemetry_phoenix app
+3> ==> opentelemetry_ecto
+3> Compiling 2 files (.ex)
+3> Generated opentelemetry_ecto app
+2> ==> tuist
+2> ===> Analyzing applications...
+3> ==> zstream
+3> Compiling 16 files (.ex)
+3>     warning: the variable "aes_key_length" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>     \x{2502}
+3>  59 \x{2502}       encryption_key::binary-size(aes_key_length),
+3>     \x{2502}                                   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/zstream/encryption_coder/aes.ex:59:35: Zstream.EncryptionCoder.AES.init/1
+3> 
+3>     warning: the variable "aes_key_length" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>     \x{2502}
+3>  60 \x{2502}       hmac_key::binary-size(aes_key_length),
+3>     \x{2502}                             ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/zstream/encryption_coder/aes.ex:60:29: Zstream.EncryptionCoder.AES.init/1
+3> 
+3>      warning: the variable "plaintext_size" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  103 \x{2502}       <<plaintext::binary-size(plaintext_size), new_buffer::binary>> = input
+3>      \x{2502}                                ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/zstream/encryption_coder/aes.ex:103:32: Zstream.EncryptionCoder.AES.encrypt_chunk/2
+3> 
+3>      warning: the variable "tsize" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  152 \x{2502}     <<_data::binary-size(tsize), rest::binary>> = rest
+3>      \x{2502}                          ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/zstream/unzip/extra.ex:152:26: Zstream.Unzip.Extra.parse/2
+3> 
+3>      warning: the variable "tsize" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+3>      \x{2502}
+3>  163 \x{2502}     <<data::binary-size(tsize), rest::binary>> = rest
+3>      \x{2502}                         ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/zstream/unzip/extra.ex:163:25: Zstream.Unzip.Extra.parse/2
+3> 
+3> Generated zstream app
+3> ==> cloak_ecto
+3> Compiling 23 files (.ex)
+3>     warning: expected a map or struct when accessing .__cloak_cursor_fields__ in expression:
+3> 
+3>         schema.__cloak_cursor_fields__
+3> 
+3>     where "schema" was given the type:
+3> 
+3>         # type: dynamic(atom())
+3>         # from: lib/cloak_ecto/migrator/cursor_stream.ex:79:8
+3>         function_exported?(schema, :__cloak_cursor_fields__, 0)
+3> 
+3>     hint: "var.field" (without parentheses) means "var" is a map() while "var.fun()" (with parentheses) means "var" is an atom()
+3> 
+3>     type warning found at:
+3>     \x{2502}
+3>  80 \x{2502}       schema.__cloak_cursor_fields__
+3>     \x{2502}              ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/cloak_ecto/migrator/cursor_stream.ex:80:14: Cloak.Ecto.Migrator.CursorStream.fields_for_cursor/2
+3> 
+3> Generated cloak_ecto app
+2> ===> Compiling opentelemetry
+1> ===> Analyzing applications...
+1> ===> Compiling webtransport
+2> ===> Analyzing applications...
+2> ===> Compiling opentelemetry_exporter
+1> ===> Analyzing applications...
+1> ===> Compiling hackney
+1> warning: "xref: [exclude: ...]" in your mix.exs file is deprecated, instead use: "elixirc_options: [no_warn_undefined: ...]"
+1>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:243: Mix.Tasks.Compile.Elixir.xref_exclude_opts/2
+1>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:142: Mix.Tasks.Compile.Elixir.run/1
+1>   (mix 1.20.2) lib/mix/task.ex:502: anonymous fn/3 in Mix.Task.run_task/5
+1>   (mix 1.20.2) lib/mix/task.compiler.ex:299: Mix.Task.Compiler.run_compiler/2
+1>   (mix 1.20.2) lib/mix/task.compiler.ex:287: Mix.Task.Compiler.run/4
+1>   (mix 1.20.2) lib/mix/tasks/compile.all.ex:75: Mix.Tasks.Compile.All.do_run/2
+1> 
+3> warning: "xref: [exclude: ...]" in your mix.exs file is deprecated, instead use: "elixirc_options: [no_warn_undefined: ...]"
+3>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:243: Mix.Tasks.Compile.Elixir.xref_exclude_opts/2
+3>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:142: Mix.Tasks.Compile.Elixir.run/1
+3>   (mix 1.20.2) lib/mix/task.ex:502: anonymous fn/3 in Mix.Task.run_task/5
+3>   (mix 1.20.2) lib/mix/task.compiler.ex:299: Mix.Task.Compiler.run_compiler/2
+3>   (mix 1.20.2) lib/mix/task.compiler.ex:287: Mix.Task.Compiler.run/4
+3>   (mix 1.20.2) lib/mix/tasks/compile.all.ex:75: Mix.Tasks.Compile.All.do_run/2
+3> 
+2> ==> httpoison
+2> Compiling 3 files (.ex)
+3> ==> ex_aws
+1> ==> bamboo
+3> Compiling 29 files (.ex)
+1> Compiling 28 files (.ex)
+1>      warning: incompatible types given to ExUnit.Assertions.flunk/1:
+1> 
+1>          ExUnit.Assertions.flunk(flunk_with_email_list(email))
+1> 
+1>      given types:
+1> 
+1>          -none()-
+1> 
+1>      the 1st argument is empty (often represented as none()), most likely because it is the result of an expression that always fails, such as a `raise` or a previous invalid call. This causes any function called with this value to fail
+1> 
+1>      where "email" was given the type:
+1> 
+1>          # type: dynamic(%{..., assigns: :assigns_removed_for_testing})
+1>          # from: lib/bamboo/test.ex:162:11
+1>          email = normalize_for_testing(email)
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  164 \x{2502}     assert_receive({:delivered_email, ^email}, timeout, flunk_with_email_list(email))
+1>      \x{2502}     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/bamboo/test.ex:164: Bamboo.Test.assert_delivered_email/2
+1> 
+1>      warning: incompatible types given to ExUnit.Assertions.flunk/1:
+1> 
+1>          ExUnit.Assertions.flunk(flunk_no_emails_received())
+1> 
+1>      given types:
+1> 
+1>          -none()-
+1> 
+1>      the 1st argument is empty (often represented as none()), most likely because it is the result of an expression that always fails, such as a `raise` or a previous invalid call. This causes any function called with this value to fail
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  225 \x{2502}     assert_receive({:delivered_email, email}, timeout, flunk_no_emails_received())
+1>      \x{2502}     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/bamboo/test.ex:225: Bamboo.Test.assert_email_delivered_with/2
+1> 
+3> Generated ex_aws app
+1>     warning: Plug.Cowboy.http/3 is undefined (module Plug.Cowboy is not available or is yet to be defined)
+1>     \x{2502}
+1>  11 \x{2502}     Plug.Cowboy.http(Bamboo.SentEmailViewerPlug, [], port: 4003)
+1>     \x{2502}                 ~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/mix/start_sent_email_viewer_task.ex:11:17: Mix.Tasks.Bamboo.StartSentEmailViewer.run/1
+1> 
+1> Generated bamboo app
+2> Generated httpoison app
+3> ==> ex_aws_s3
+3> Compiling 7 files (.ex)
+1> ==> ex_aws_sts
+1> Compiling 4 files (.ex)
+2> ==> stripity_stripe
+2> Compiling 172 files (.ex)
+1> Generated ex_aws_sts app
+1> ==> tzdata
+1> Compiling 18 files (.ex)
+3> Generated ex_aws_s3 app
+3> ==> tesla
+3> Compiling 57 files (.ex)
+1> Generated tzdata app
+1> ==> timex
+1> Compiling 62 files (.ex)
+1>     warning: default arguments in protocol definitions is deprecated
+1>     \x{2502}
+1>  84 \x{2502}   def compare(a, b, granularity \\ :microsecond)
+1>     \x{2502}   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/comparable/comparable.ex:84: Timex.Comparable (module)
+1> 
+1>      warning: default arguments in protocol definitions is deprecated
+1>      \x{2502}
+1>  139 \x{2502}   def diff(a, b, granularity \\ :microsecond)
+1>      \x{2502}   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/comparable/comparable.ex:139: Timex.Comparable (module)
+1> 
+1>     warning: protocols can only define functions without implementation via def/1, found: diff/2, compare/2
+1>     \x{2502}
+1>   1 \x{2502} defprotocol Timex.Comparable do
+1>     \x{2502} ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/comparable/comparable.ex:1: Timex.Comparable (module)
+1> 
+3>      warning: function terminal_reply_message?/1 is unused
+3>      \x{2502}
+3>  555 \x{2502}     defp terminal_reply_message?({:gun_response, _pid, _stream, :fin, _status, _headers}),
+3>      \x{2502}          ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/tesla/adapter/gun.ex:555:10: Tesla.Adapter.Gun (module)
+3> 
+3>      warning: function next_reply_state/2 is unused
+3>      \x{2502}
+3>  550 \x{2502}     defp next_reply_state(_state, {:gun_response, _pid, _stream, :nofin, _status, _headers}),
+3>      \x{2502}          ~
+3>      \x{2502}
+3>      \x{2514}\x{2500} lib/tesla/adapter/gun.ex:550:10: Tesla.Adapter.Gun (module)
+3> 
+1>     warning: default arguments in protocol definitions is deprecated
+1>     \x{2502}
+1>  48 \x{2502}   def to_datetime(datetime, timezone \\ :utc)
+1>     \x{2502}   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/protocol.ex:48: Timex.Protocol (module)
+1> 
+1>     warning: protocols can only define functions without implementation via def/1, found: to_datetime/1
+1>     \x{2502}
+1>   1 \x{2502} defprotocol Timex.Protocol do
+1>     \x{2502} ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/protocol.ex:1: Timex.Protocol (module)
+1> 
+3>     warning: unused require Tesla.Adapter.Httpc
+3>     \x{2502}
+3>  67 \x{2502}   require Tesla.Adapter.Httpc
+3>     \x{2502}   ~
+3>     \x{2502}
+3>     \x{2514}\x{2500} lib/tesla.ex:67:3
+3> 
+1>     warning: unused require Timex.Macros
+1>     \x{2502}
+1>   5 \x{2502}   require Timex.Macros
+1>     \x{2502}   ~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/comparable/naivedatetime.ex:5:3
+1> 
+1>     warning: unused require Timex.Macros
+1>     \x{2502}
+1>   5 \x{2502}   require Timex.Macros
+1>     \x{2502}   ~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/comparable/tuple.ex:5:3
+1> 
+1>     warning: unused require Bitwise
+1>     \x{2502}
+1>   5 \x{2502}   require Bitwise
+1>     \x{2502}   ~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/calendar/julian.ex:5:3
+1> 
+1>      warning: the variable "len" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+1>      \x{2502}
+1>  317 \x{2502}     <<abbrevs::bytes(len), rest::binary>> = data
+1>      \x{2502}                      ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/zoneinfo/parser.ex:317:22: Timex.Parse.ZoneInfo.Parser.parse_abbreviations/4
+1> 
+2>     warning: expected a module (an atom) when invoking __from_json__/1 in expression:
+2> 
+2>         module.__from_json__(
+2>           Enum.reduce(struct_keys, %{}, fn key, acc ->
+2>             string_key = to_string(key)
+2>         
+2>             converted_value =
+2>               case string_key do
+2>                 ...
+2>               end
+2>         
+2>             Map.put(acc, key, converted_value)
+2>           end)
+2>         )
+2> 
+2>     where "module" was given the type:
+2> 
+2>         # type: dynamic(%{..., __struct__: map()})
+2>         # from: lib/stripe/converter.ex:41:23
+2>         Map.keys(module.__struct__)
+2> 
+2>     where "struct_keys" was given the type:
+2> 
+2>         # type: dynamic()
+2>         # from: lib/stripe/converter.ex:41:17
+2>         struct_keys = List.delete(Map.keys(module.__struct__), :__struct__)
+2> 
+2>     where "value" was given the type:
+2> 
+2>         # type: dynamic(map())
+2>         # from: lib/stripe/converter.ex:39:57
+2>         %{"object" => object_name} = value
+2> 
+2>     type warning found at:
+2>     \x{2502}
+2>  57 \x{2502}       |> module.__from_json__()
+2>     \x{2502}                 ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/stripe/converter.ex:57:17: Stripe.Converter.convert_stripe_object/1
+2> 
+3> Generated tesla app
+2> Generated stripity_stripe app
+3> ==> oauth2
+3> Compiling 13 files (.ex)
+2> warning: "xref: [exclude: ...]" in your mix.exs file is deprecated, instead use: "elixirc_options: [no_warn_undefined: ...]"
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:243: Mix.Tasks.Compile.Elixir.xref_exclude_opts/2
+2>   (mix 1.20.2) lib/mix/tasks/compile.elixir.ex:142: Mix.Tasks.Compile.Elixir.run/1
+2>   (mix 1.20.2) lib/mix/task.ex:502: anonymous fn/3 in Mix.Task.run_task/5
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:299: Mix.Task.Compiler.run_compiler/2
+2>   (mix 1.20.2) lib/mix/task.compiler.ex:287: Mix.Task.Compiler.run/4
+2>   (mix 1.20.2) lib/mix/tasks/compile.all.ex:75: Mix.Tasks.Compile.All.do_run/2
+2> 
+2> ==> sentry
+2> Compiling 49 files (.ex)
+3> Generated oauth2 app
+3> ==> ueberauth_github
+3> Compiling 3 files (.ex)
+2>      warning: unused require Logger
+2>      \x{2502}
+2>  188 \x{2502}   require Logger
+2>      \x{2502}   ~
+2>      \x{2502}
+2>      \x{2514}\x{2500} lib/sentry.ex:188:3
+2> 
+3> Generated ueberauth_github app
+2>     warning: unused require OpenTelemetry
+2>     \x{2502}
+2>   8 \x{2502}     require OpenTelemetry
+2>     \x{2502}     ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/sentry/opentelemetry/span_record.ex:8:5
+2> 
+2>     warning: unused require Logger
+2>     \x{2502}
+2>   8 \x{2502}   require Logger
+2>     \x{2502}   ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/sentry/transport/sender.ex:8:3
+2> 
+3> ==> ueberauth_google
+3> Compiling 3 files (.ex)
+2>     warning: unused require Logger
+2>     \x{2502}
+2>  23 \x{2502}   require Logger
+2>     \x{2502}   ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/sentry/client.ex:23:3
+2> 
+2>     warning: unused require OpenTelemetry.SemConv.ClientAttributes (convert it to an alias instead)
+2>     \x{2502}
+2>   7 \x{2502}     require OpenTelemetry.SemConv.ClientAttributes, as: ClientAttributes
+2>     \x{2502}     ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/sentry/opentelemetry/span_processor.ex:7:5
+2> 
+2>     warning: unused require OpenTelemetry.SemConv.Incubating.URLAttributes (convert it to an alias instead)
+2>     \x{2502}
+2>  10 \x{2502}     require OpenTelemetry.SemConv.Incubating.URLAttributes, as: URLAttributes
+2>     \x{2502}     ~
+2>     \x{2502}
+2>     \x{2514}\x{2500} lib/sentry/opentelemetry/span_processor.ex:10:5
+2> 
+3> Generated ueberauth_google app
+2> Generated sentry app
+3> ==> ueberauth_apple
+3> Compiling 4 files (.ex)
+2> ==> tuist_common
+2> Compiling 29 files (.ex)
+3> Generated ueberauth_apple app
+2> Generated tuist_common app
+1>     warning: the following pattern will never match:
+1> 
+1>         {y, m, d} <- to_erl_datetime(date)
+1> 
+1>     because the right-hand side has type:
+1> 
+1>         dynamic(
+1>           {:error, :invalid_date} or
+1>             {:ok, {{integer(), integer(), integer()}, {integer(), integer(), integer()}}}
+1>         )
+1> 
+1>     where "date" was given the type:
+1> 
+1>         # type: dynamic({...})
+1>         # from: lib/datetime/erlang.ex:7:17
+1>         date
+1> 
+1>     type warning found at:
+1>     \x{2502}
+1>   8 \x{2502}     with {y, m, d} <- to_erl_datetime(date),
+1>     \x{2502}          ~
+1>     \x{2502}
+1>     \x{2514}\x{2500} lib/datetime/erlang.ex:8:10: Timex.Protocol.Tuple.to_julian/1
+1> 
+1>      warning: the following clause will never match:
+1> 
+1>          {ty, a, b} when ty === :gap or ty === :ambiguous ->
+1> 
+1>      it is expected to match on type:
+1> 
+1>          dynamic({:error, term()} and not {:ok, %{..., time_zone: term()}})
+1> 
+1>      where "ty" was given the type:
+1> 
+1>          # type: :ambiguous or :gap
+1>          # from: lib/timezone/timezone.ex:548
+1>          ty in [:gap, :ambiguous]
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  548 \x{2502}       {ty, a, b} when ty in [:gap, :ambiguous] ->
+1>      \x{2502}       ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/timezone/timezone.ex:548:7: Timex.Timezone.convert/2
+1> 
+1>      warning: a struct for Timex.PosixTimezone is expected on struct update:
+1> 
+1>          %Timex.PosixTimezone{rule | std_abbr: abbr}
+1> 
+1>      but got type:
+1> 
+1>          dynamic()
+1> 
+1>      where "rule" was given the type:
+1> 
+1>          # type: dynamic()
+1>          # from: lib/parse/posix/parser.ex:119:33
+1>          rule
+1> 
+1>      when defining the variable "rule", you must also pattern match on "%Timex.PosixTimezone{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  121 \x{2502}       parse_tz(:std_offset, rest, %TZ{rule | std_abbr: abbr})
+1>      \x{2502}                                   ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/posix/parser.ex:121:35: Timex.Parse.Timezones.Posix.parse_tz/3
+1> 
+1>      warning: the following clause is redundant:
+1> 
+1>          def shift(_, _)
+1> 
+1>      it has type:
+1> 
+1>          dynamic(%Date{}), dynamic()
+1> 
+1>      previous clauses have already matched on the following types:
+1> 
+1>          %Date{}, term()
+1> 
+1>      \x{2502}
+1>  227 \x{2502}   def shift(_, _), do: {:error, :badarg}
+1>      \x{2502}       ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/date/date.ex:227:7: Timex.Protocol.Date.shift/2
+1> 
+1>      warning: a struct for Timex.PosixTimezone is expected on struct update:
+1> 
+1>          %Timex.PosixTimezone{rule | std_offset: offset}
+1> 
+1>      but got type:
+1> 
+1>          dynamic()
+1> 
+1>      where "rule" was given the type:
+1> 
+1>          # type: dynamic()
+1>          # from: lib/parse/posix/parser.ex:125:35
+1>          rule
+1> 
+1>      when defining the variable "rule", you must also pattern match on "%Timex.PosixTimezone{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  127 \x{2502}       parse_tz(:dst_abbr, rest, %TZ{rule | std_offset: offset})
+1>      \x{2502}                                 ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/posix/parser.ex:127:33: Timex.Parse.Timezones.Posix.parse_tz/3
+1> 
+1>      warning: a struct for Timex.PosixTimezone is expected on struct update:
+1> 
+1>          %Timex.PosixTimezone{rule | dst_abbr: abbr}
+1> 
+1>      but got type:
+1> 
+1>          dynamic()
+1> 
+1>      where "rule" was given the type:
+1> 
+1>          # type: dynamic()
+1>          # from: lib/parse/posix/parser.ex:141:33
+1>          rule
+1> 
+1>      when defining the variable "rule", you must also pattern match on "%Timex.PosixTimezone{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  143 \x{2502}          rule = %TZ{rule | dst_abbr: abbr} do
+1>      \x{2502}                 ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/posix/parser.ex:143:17: Timex.Parse.Timezones.Posix.parse_tz/3
+1> 
+1>      warning: a struct for Timex.Parse.ZoneInfo.Parser.Zone is expected on struct update:
+1> 
+1>          %Timex.Parse.ZoneInfo.Parser.Zone{zone | transitions: transitions, leaps: leaps}
+1> 
+1>      but got type:
+1> 
+1>          dynamic(%{..., leaps: term(), transitions: term()})
+1> 
+1>      where "zone" was given the types:
+1> 
+1>          # type: dynamic(%{..., rule: term()} or %{..., transitions: term()})
+1>          # from: lib/parse/zoneinfo/parser.ex:156:28
+1>          {:ok, zone, rest} <- parse_content(1, data, %Timex.Parse.ZoneInfo.Parser.Zone{..., version: 1})
+1> 
+1>          # type: dynamic(%{..., transitions: term()})
+1>          # from: lib/parse/zoneinfo/parser.ex:157:26
+1>          Enum.sort_by(zone.transitions, fn tx -> tx.starts_at end)
+1> 
+1>          # type: dynamic(%{..., leaps: term(), transitions: term()})
+1>          # from: lib/parse/zoneinfo/parser.ex:158:20
+1>          Enum.sort_by(zone.leaps, fn leap -> leap.epoch end)
+1> 
+1>      when defining the variable "zone", you must also pattern match on "%Timex.Parse.ZoneInfo.Parser.Zone{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  159 \x{2502}       {:ok, %Zone{zone | transitions: transitions, leaps: leaps}, rest}
+1>      \x{2502}             ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/zoneinfo/parser.ex:159:13: Timex.Parse.ZoneInfo.Parser.parse_versioned_content/2
+1> 
+1>      warning: a struct for Timex.PosixTimezone is expected on struct update:
+1> 
+1>          %Timex.PosixTimezone{rule | dst_offset: offset}
+1> 
+1>      but got type:
+1> 
+1>          dynamic()
+1> 
+1>      where "rule" was given the type:
+1> 
+1>          # type: dynamic()
+1>          # from: lib/parse/posix/parser.ex:160:35
+1>          rule
+1> 
+1>      when defining the variable "rule", you must also pattern match on "%Timex.PosixTimezone{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  162 \x{2502}          rule = %TZ{rule | dst_offset: offset} do
+1>      \x{2502}                 ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/posix/parser.ex:162:17: Timex.Parse.Timezones.Posix.parse_tz/3
+1> 
+1>      warning: a struct for Timex.Parse.ZoneInfo.Parser.Zone is expected on struct update:
+1> 
+1>          %Timex.Parse.ZoneInfo.Parser.Zone{zone | transitions: times}
+1> 
+1>      but got type:
+1> 
+1>          dynamic()
+1> 
+1>      where "zone" was given the type:
+1> 
+1>          # type: dynamic()
+1>          # from: lib/parse/zoneinfo/parser.ex:270:92
+1>          zone
+1> 
+1>      when defining the variable "zone", you must also pattern match on "%Timex.Parse.ZoneInfo.Parser.Zone{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  272 \x{2502}     parse_transition_info(version, rest, header, %Zone{zone | transitions: times})
+1>      \x{2502}                                                  ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/zoneinfo/parser.ex:272:50: Timex.Parse.ZoneInfo.Parser.parse_transition_times/4
+1> 
+1>      warning: a struct for Timex.Parse.ZoneInfo.Parser.Zone is expected on struct update:
+1> 
+1>          %Timex.Parse.ZoneInfo.Parser.Zone{zone | leaps: leaps}
+1> 
+1>      but got type:
+1> 
+1>          dynamic()
+1> 
+1>      where "zone" was given the type:
+1> 
+1>          # type: dynamic()
+1>          # from: lib/parse/zoneinfo/parser.ex:330:79
+1>          zone
+1> 
+1>      when defining the variable "zone", you must also pattern match on "%Timex.Parse.ZoneInfo.Parser.Zone{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  344 \x{2502}     parse_flags(version, rest, header, %Zone{zone | leaps: leaps})
+1>      \x{2502}                                        ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/zoneinfo/parser.ex:344:40: Timex.Parse.ZoneInfo.Parser.parse_leap_seconds/4
+1> 
+1>      warning: a struct for Timex.PosixTimezone is expected on struct update:
+1> 
+1>          %Timex.PosixTimezone{rule | dst_start: dst_start, dst_end: dst_end}
+1> 
+1>      but got type:
+1> 
+1>          dynamic()
+1> 
+1>      where "rule" was given the type:
+1> 
+1>          # type: dynamic()
+1>          # from: lib/parse/posix/parser.ex:185:36
+1>          rule
+1> 
+1>      when defining the variable "rule", you must also pattern match on "%Timex.PosixTimezone{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  190 \x{2502}           {:ok, %TZ{rule | dst_start: dst_start, dst_end: dst_end}, rest}
+1>      \x{2502}                 ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/posix/parser.ex:190:17: Timex.Parse.Timezones.Posix.parse_tz/3
+1> 
+1>      warning: the following clause will never match:
+1> 
+1>          :error ->
+1> 
+1>      it is expected to match on type:
+1> 
+1>          dynamic({:error, :invalid_number, binary()})
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  264 \x{2502}       :error ->
+1>      \x{2502}       ~~~~~~~~~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/posix/parser.ex:264: Timex.Parse.Timezones.Posix.parse_month_week_day/3
+1> 
+1>      warning: a struct for Timex.Parse.ZoneInfo.Parser.Zone is expected on struct update:
+1> 
+1>          %Timex.Parse.ZoneInfo.Parser.Zone{zone | transitions: transitions}
+1> 
+1>      but got type:
+1> 
+1>          dynamic(%{..., transitions: term()})
+1> 
+1>      where "zone" was given the type:
+1> 
+1>          # type: dynamic(%{..., transitions: term()})
+1>          # from: lib/parse/zoneinfo/parser.ex:354:15
+1>          Enum.with_index(zone.transitions)
+1> 
+1>      when defining the variable "zone", you must also pattern match on "%Timex.Parse.ZoneInfo.Parser.Zone{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  362 \x{2502}       parse_posixtz_string(version, rest, %Zone{zone | transitions: transitions})
+1>      \x{2502}                                           ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/zoneinfo/parser.ex:362:43: Timex.Parse.ZoneInfo.Parser.parse_flags/4
+1> 
+1>      warning: a struct for Timex.Parse.ZoneInfo.Parser.Zone is expected on struct update:
+1> 
+1>          %Timex.Parse.ZoneInfo.Parser.Zone{zone | transitions: transitions}
+1> 
+1>      but got type:
+1> 
+1>          dynamic(%{..., transitions: term()})
+1> 
+1>      where "zone" was given the type:
+1> 
+1>          # type: dynamic(%{..., transitions: term()})
+1>          # from: lib/parse/zoneinfo/parser.ex:354:15
+1>          Enum.with_index(zone.transitions)
+1> 
+1>      when defining the variable "zone", you must also pattern match on "%Timex.Parse.ZoneInfo.Parser.Zone{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  364 \x{2502}       {:ok, %Zone{zone | transitions: transitions}, rest}
+1>      \x{2502}             ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/zoneinfo/parser.ex:364:13: Timex.Parse.ZoneInfo.Parser.parse_flags/4
+1> 
+1>      warning: a struct for Timex.Parse.ZoneInfo.Parser.Zone is expected on struct update:
+1> 
+1>          %Timex.Parse.ZoneInfo.Parser.Zone{zone | rule: rule}
+1> 
+1>      but got type:
+1> 
+1>          dynamic()
+1> 
+1>      where "zone" was given the type:
+1> 
+1>          # type: dynamic()
+1>          # from: lib/parse/zoneinfo/parser.ex:369:62
+1>          zone
+1> 
+1>      when defining the variable "zone", you must also pattern match on "%Timex.Parse.ZoneInfo.Parser.Zone{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  372 \x{2502}       {:ok, %Zone{zone | rule: rule}, format_rest <> rest}
+1>      \x{2502}             ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/zoneinfo/parser.ex:372:13: Timex.Parse.ZoneInfo.Parser.parse_posixtz_string/3
+1> 
+1>      warning: a struct for Timex.Parse.ZoneInfo.Parser.Rule is expected on struct update:
+1> 
+1>          %Timex.Parse.ZoneInfo.Parser.Rule{rule | std_abbr: abbr, dst_abbr: abbr}
+1> 
+1>      but got type:
+1> 
+1>          dynamic()
+1> 
+1>      where "rule" was given the type:
+1> 
+1>          # type: dynamic()
+1>          # from: lib/parse/zoneinfo/parser.ex:383:33
+1>          rule
+1> 
+1>      when defining the variable "rule", you must also pattern match on "%Timex.Parse.ZoneInfo.Parser.Rule{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  385 \x{2502}       parse_tz(:std_offset, rest, %Rule{rule | std_abbr: abbr, dst_abbr: abbr})
+1>      \x{2502}                                   ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/zoneinfo/parser.ex:385:35: Timex.Parse.ZoneInfo.Parser.parse_tz/3
+1> 
+1>      warning: a struct for Timex.Parse.ZoneInfo.Parser.Rule is expected on struct update:
+1> 
+1>          %Timex.Parse.ZoneInfo.Parser.Rule{rule | std_offset: offset, dst_offset: offset}
+1> 
+1>      but got type:
+1> 
+1>          dynamic()
+1> 
+1>      where "rule" was given the type:
+1> 
+1>          # type: dynamic()
+1>          # from: lib/parse/zoneinfo/parser.ex:389:35
+1>          rule
+1> 
+1>      when defining the variable "rule", you must also pattern match on "%Timex.Parse.ZoneInfo.Parser.Rule{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  391 \x{2502}       parse_tz(:dst_abbr, rest, %Rule{rule | std_offset: offset, dst_offset: offset})
+1>      \x{2502}                                 ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/zoneinfo/parser.ex:391:33: Timex.Parse.ZoneInfo.Parser.parse_tz/3
+1> 
+1>      warning: a struct for Timex.Parse.ZoneInfo.Parser.Rule is expected on struct update:
+1> 
+1>          %Timex.Parse.ZoneInfo.Parser.Rule{rule | dst_abbr: abbr}
+1> 
+1>      but got type:
+1> 
+1>          dynamic()
+1> 
+1>      where "rule" was given the type:
+1> 
+1>          # type: dynamic()
+1>          # from: lib/parse/zoneinfo/parser.ex:405:33
+1>          rule
+1> 
+1>      when defining the variable "rule", you must also pattern match on "%Timex.Parse.ZoneInfo.Parser.Rule{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  407 \x{2502}          rule = %Rule{rule | dst_abbr: abbr} do
+1>      \x{2502}                 ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/zoneinfo/parser.ex:407:17: Timex.Parse.ZoneInfo.Parser.parse_tz/3
+1> 
+1>      warning: a struct for Timex.Parse.ZoneInfo.Parser.Rule is expected on struct update:
+1> 
+1>          %Timex.Parse.ZoneInfo.Parser.Rule{rule | dst_offset: offset}
+1> 
+1>      but got type:
+1> 
+1>          dynamic()
+1> 
+1>      where "rule" was given the type:
+1> 
+1>          # type: dynamic()
+1>          # from: lib/parse/zoneinfo/parser.ex:424:35
+1>          rule
+1> 
+1>      when defining the variable "rule", you must also pattern match on "%Timex.Parse.ZoneInfo.Parser.Rule{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  426 \x{2502}          rule = %Rule{rule | dst_offset: offset} do
+1>      \x{2502}                 ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/zoneinfo/parser.ex:426:17: Timex.Parse.ZoneInfo.Parser.parse_tz/3
+1> 
+1>      warning: a struct for Timex.Parse.ZoneInfo.Parser.Rule is expected on struct update:
+1> 
+1>          %Timex.Parse.ZoneInfo.Parser.Rule{rule | start_time: start_time, end_time: end_time}
+1> 
+1>      but got type:
+1> 
+1>          dynamic()
+1> 
+1>      where "rule" was given the type:
+1> 
+1>          # type: dynamic()
+1>          # from: lib/parse/zoneinfo/parser.ex:449:36
+1>          rule
+1> 
+1>      when defining the variable "rule", you must also pattern match on "%Timex.Parse.ZoneInfo.Parser.Rule{}"
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  454 \x{2502}           {:ok, %Rule{rule | start_time: start_time, end_time: end_time}, rest}
+1>      \x{2502}                 ~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/zoneinfo/parser.ex:454:17: Timex.Parse.ZoneInfo.Parser.parse_tz/3
+1> 
+1>      warning: the following clause will never match:
+1> 
+1>          :error ->
+1> 
+1>      it is expected to match on type:
+1> 
+1>          dynamic({:error, :invalid_number, binary()})
+1> 
+1>      type warning found at:
+1>      \x{2502}
+1>  528 \x{2502}       :error ->
+1>      \x{2502}       ~~~~~~~~~
+1>      \x{2502}
+1>      \x{2514}\x{2500} lib/parse/zoneinfo/parser.ex:528: Timex.Parse.ZoneInfo.Parser.parse_month_week_day/3
+1> 
+1> Generated timex app
+1> ==> noora
+1> Compiling 38 files (.ex)
+1> Generated noora app
+4> Compiling 27 files (.ex)
+4> Generated ex_cldr_numbers app
+Compiling 1275 files (.ex)
+Compiling lib/tuist_web/router.ex (it's taking more than 10s)
+    warning: the following conditional expression:
+
+        locale in []
+
+    will always evaluate to:
+
+        dynamic(false)
+
+    where "locale" was given the type:
+
+        # type: dynamic()
+        # from: lib/tuist/locale.ex
+        ["", locale]
+
+    type warning found at:
+    \x{2502}
+ 38 \x{2502}       ["", locale] -> if locale in @additional_locales, do: "/:locale", else: path
+    \x{2502}       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    \x{2502}
+    \x{2514}\x{2500} lib/tuist/locale.ex:38: Tuist.Locale.collapse_locale_path_prefix/1
+
+    warning: the following conditional expression:
+
+        locale in []
+
+    will always evaluate to:
+
+        dynamic(false)
+
+    where "locale" was given the type:
+
+        # type: dynamic()
+        # from: lib/tuist/locale.ex
+        ["", locale, rest]
+
+    type warning found at:
+    \x{2502}
+ 39 \x{2502}       ["", locale, rest] -> if locale in @additional_locales, do: "/:locale/" <> rest, else: path
+    \x{2502}       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    \x{2502}
+    \x{2514}\x{2500} lib/tuist/locale.ex:39: Tuist.Locale.collapse_locale_path_prefix/1
+
+Generated tuist app
+    warning: the variable "delimiter" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+    \x{2502}
+ 87 \x{2502}         <<_delimiter::binary-size(byte_size(delimiter)), rest::binary>> = sql
+    \x{2502}                                             ~
+    \x{2502}
+    \x{2514}\x{2500} priv/repo/migrations/20240301000000_create_legacy_baseline.exs:87:45: Tuist.Repo.Migrations.CreateLegacyBaseline.split_sql_statements/5
+
+     warning: the variable "delimiter" is accessed inside size(...) of a bitstring but it was defined outside of the match. You must precede it with the pin operator
+     \x{2502}
+ 141 \x{2502}       <<_delimiter::binary-size(byte_size(delimiter)), rest::binary>> = sql
+     \x{2502}                                           ~
+     \x{2502}
+     \x{2514}\x{2500} priv/repo/migrations/20240301000000_create_legacy_baseline.exs:141:43: Tuist.Repo.Migrations.CreateLegacyBaseline.split_sql_statements/5
+
+Validating migration prerequisites...
+\x{2713} All migration prerequisites validated successfully!
+Validating ClickHouse migration prerequisites...
+\x{2713} PostgreSQL connection verified: found 0 command_events
+\x{2713} All command_events have UUID values
+Found 0 rows in ClickHouse xcode_graphs table
+\x{2713} All ClickHouse migration prerequisites validated successfully!
+Running ExUnit with seed: 512268, max_cases: 22
+Excluding tags: [:skip, :destructive_clickhouse_migration, :locale]
+
+..................................................................................................................................................................
+Finished in 2.9 seconds (2.9s async, 0.00s sync)
+
+Result: 162 passed
+[os_mon] memory supervisor port (memsup): Erlang has closed
+[os_mon] cpu supervisor port (cpu_sup): Erlang has closed
+test exit 0

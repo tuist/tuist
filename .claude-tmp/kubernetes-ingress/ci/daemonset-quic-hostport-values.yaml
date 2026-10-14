@@ -1,0 +1,8 @@
+controller:
+  kind: DaemonSet
+  daemonset:
+    useHostPort: true
+    hostPorts:
+      http: 8080
+      https: 8443
+      stat: 1024

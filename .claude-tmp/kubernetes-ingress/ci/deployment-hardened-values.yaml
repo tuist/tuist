@@ -1,0 +1,8 @@
+controller:
+  service:
+    enablePorts:
+      admin: false
+  prometheus:
+    enabled: true
+  pprof:
+    enabled: false

@@ -1,0 +1,4 @@
+controller:
+  kubernetesGateway:
+    enabled: true
+    gatewayControllerName: haproxy.org/gateway-controller

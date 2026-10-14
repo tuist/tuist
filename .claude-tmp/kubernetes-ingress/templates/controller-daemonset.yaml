@@ -1,0 +1,58 @@
+{{/*
+Copyright 2019 HAProxy Technologies LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/}}
+
+{{- if eq .Values.controller.kind "DaemonSet" }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "kubernetes-ingress.fullname" . }}
+  namespace: {{ include "kubernetes-ingress.namespace" . }}
+  {{- with .Values.controller.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "kubernetes-ingress.labels" . | nindent 4 }}
+    {{- if .Values.controller.extraLabels }}
+{{ toYaml .Values.controller.extraLabels | indent 4 }}
+    {{- end }}
+spec:
+  minReadySeconds: {{ .Values.controller.minReadySeconds }}
+  {{- with .Values.controller.strategy }}
+  updateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "kubernetes-ingress.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kubernetes-ingress.selectorLabels" . | nindent 8 }}
+        {{- if .Values.controller.podLabels }}
+{{ toYaml .Values.controller.podLabels | indent 8 }}
+        {{- end }}
+      {{- if .Values.controller.podAnnotations }}
+      annotations:
+{{- if eq "string" (printf "%T" .Values.controller.podAnnotations) }}
+{{ tpl .Values.controller.podAnnotations . | indent 8 }}
+{{- else }}
+{{ toYaml .Values.controller.podAnnotations | indent 8 }}
+{{- end }}
+      {{- end }}
+    spec:
+      {{- include "kubernetes-ingress.podSpec" (dict "Root" . "Mode" "DaemonSet") | nindent 6 }}
+{{- end }}

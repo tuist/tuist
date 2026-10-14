@@ -1,0 +1,17 @@
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "hcloud" chart repository
+...Successfully got an update from the "ingress-nginx" chart repository
+...Successfully got an update from the "scaleway" chart repository
+...Successfully got an update from the "haproxytech" chart repository
+...Successfully got an update from the "external-dns" chart repository
+...Successfully got an update from the "pomerium" chart repository
+...Successfully got an update from the "cnpg" chart repository
+...Successfully got an update from the "jetstack" chart repository
+...Successfully got an update from the "tailscale" chart repository
+...Successfully got an update from the "external-secrets" chart repository
+...Successfully got an update from the "cilium" chart repository
+...Successfully got an update from the "grafana" chart repository
+Update Complete. ⎈Happy Helming!⎈
+Saving 1 charts
+Downloading k8s-monitoring from repo https://grafana.github.io/helm-charts
+Deleting outdated charts

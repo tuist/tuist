@@ -1,0 +1,6 @@
+controller:
+  extraEnvs:
+    - name: TEST_STR1
+      value: foo
+    - name: TEST_STR2
+      value: baz

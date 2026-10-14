@@ -1,0 +1,6 @@
+controller:
+  kind: DaemonSet
+  containerPort:
+    http: 80
+    https: 443
+    stat: 1024

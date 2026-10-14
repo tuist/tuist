@@ -1,0 +1,113 @@
+{{/*
+Copyright 2023 HAProxy Technologies LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/}}
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "kubernetes-ingress.crdjob.fullname" . }}
+  namespace: {{ include "kubernetes-ingress.namespace" . }}
+  labels:
+    {{- include "kubernetes-ingress.crdJobLabels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    helm.sh/hook: post-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+  {{- with .Values.controller.annotations }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+{{- if .Values.crdjob.ttlSecondsAfterFinished }}
+  ttlSecondsAfterFinished: {{ .Values.crdjob.ttlSecondsAfterFinished }}
+{{- end }}
+{{- if .Values.crdjob.activeDeadlineSeconds }}
+  activeDeadlineSeconds: {{ .Values.crdjob.activeDeadlineSeconds }}
+{{- end }}
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        {{- include "kubernetes-ingress.crdJobSelectorLabels" . | nindent 8 }}
+        {{- if .Values.controller.podLabels }}
+{{ toYaml .Values.controller.podLabels | indent 8 }}
+        {{- end }}
+      {{- if .Values.crdjob.podAnnotations }}
+      annotations:
+{{- if eq "string" (printf "%T" .Values.crdjob.podAnnotations) }}
+{{ tpl .Values.crdjob.podAnnotations . | indent 8 }}
+{{- else }}
+{{ toYaml .Values.crdjob.podAnnotations | indent 8 }}
+{{- end }}
+      {{- end }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "kubernetes-ingress.crdjob.serviceAccountName" . }}
+{{- if .Values.controller.imageCredentials.registry }}
+      imagePullSecrets:
+      - name: {{ include "kubernetes-ingress.fullname" . }}
+{{- else if .Values.controller.existingImagePullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.controller.existingImagePullSecret }}
+{{- end }}
+{{- if .Values.controller.priorityClassName }}
+      priorityClassName: {{ .Values.controller.priorityClassName }}
+{{- end }}
+{{- if .Values.controller.runtimeClassName }}
+      runtimeClassName: {{ .Values.controller.runtimeClassName }}
+{{- end }}
+{{- if .Values.controller.unprivileged }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser:  1000
+        runAsGroup: 1000
+{{- end }}
+      containers:
+        - name: crd
+          image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.controller.image.pullPolicy }}
+          command:
+            - /haproxy-ingress-controller
+            - --job-check-crd
+          resources:
+            {{- toYaml .Values.crdjob.resources | nindent 12 }}
+          {{- if .Values.controller.unprivileged }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser:  1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: {{ .Values.controller.allowPrivilegeEscalation }}
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+            {{- if .Values.controller.enableRuntimeDefaultSeccompProfile }}
+            seccompProfile:
+              type: RuntimeDefault
+            {{- end }}
+          {{- end }}
+      {{- with .Values.crdjob.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.crdjob.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.crdjob.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

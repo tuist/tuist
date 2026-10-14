@@ -1,0 +1,4 @@
+controller:
+  PodDisruptionBudget:
+    enable: true
+    minAvailable: 1

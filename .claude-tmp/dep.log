@@ -1,0 +1,48 @@
+Getting updates for unmanaged Helm repositories...
+...Successfully got an update from the "https://kubernetes-sigs.github.io/metrics-server/" chart repository
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "scaleway" chart repository
+...Successfully got an update from the "external-dns" chart repository
+...Successfully got an update from the "tailscale" chart repository
+...Successfully got an update from the "haproxytech" chart repository
+...Successfully got an update from the "pomerium" chart repository
+...Successfully got an update from the "ingress-nginx" chart repository
+...Successfully got an update from the "jetstack" chart repository
+...Successfully got an update from the "hcloud" chart repository
+...Successfully got an update from the "cnpg" chart repository
+...Successfully got an update from the "external-secrets" chart repository
+...Successfully got an update from the "cilium" chart repository
+...Successfully got an update from the "grafana" chart repository
+Update Complete. ⎈Happy Helming!⎈
+Saving 26 charts
+Downloading cert-manager from repo https://charts.jetstack.io
+Downloading ingress-nginx from repo https://kubernetes.github.io/ingress-nginx
+Already downloaded ingress-nginx from repo https://kubernetes.github.io/ingress-nginx
+Already downloaded ingress-nginx from repo https://kubernetes.github.io/ingress-nginx
+Already downloaded ingress-nginx from repo https://kubernetes.github.io/ingress-nginx
+Already downloaded ingress-nginx from repo https://kubernetes.github.io/ingress-nginx
+Already downloaded ingress-nginx from repo https://kubernetes.github.io/ingress-nginx
+Already downloaded ingress-nginx from repo https://kubernetes.github.io/ingress-nginx
+Already downloaded ingress-nginx from repo https://kubernetes.github.io/ingress-nginx
+Already downloaded ingress-nginx from repo https://kubernetes.github.io/ingress-nginx
+Already downloaded ingress-nginx from repo https://kubernetes.github.io/ingress-nginx
+Already downloaded ingress-nginx from repo https://kubernetes.github.io/ingress-nginx
+Downloading kubernetes-ingress from repo https://haproxytech.github.io/helm-charts
+Already downloaded kubernetes-ingress from repo https://haproxytech.github.io/helm-charts
+Already downloaded kubernetes-ingress from repo https://haproxytech.github.io/helm-charts
+Already downloaded kubernetes-ingress from repo https://haproxytech.github.io/helm-charts
+Already downloaded kubernetes-ingress from repo https://haproxytech.github.io/helm-charts
+Already downloaded kubernetes-ingress from repo https://haproxytech.github.io/helm-charts
+Already downloaded kubernetes-ingress from repo https://haproxytech.github.io/helm-charts
+Already downloaded kubernetes-ingress from repo https://haproxytech.github.io/helm-charts
+Already downloaded kubernetes-ingress from repo https://haproxytech.github.io/helm-charts
+Downloading external-dns from repo https://kubernetes-sigs.github.io/external-dns
+Downloading external-secrets from repo https://charts.external-secrets.io
+Downloading metrics-server from repo https://kubernetes-sigs.github.io/metrics-server/
+Downloading cloudnative-pg from repo oci://ghcr.io/cloudnative-pg/charts
+Pulled: ghcr.io/cloudnative-pg/charts/cloudnative-pg:0.28.3
+Digest: sha256:e01684efd9aa83c81578a2f624c0bd702e607844b8f0bf19196230322703485a
+Downloading plugin-barman-cloud from repo oci://ghcr.io/cloudnative-pg/charts
+Pulled: ghcr.io/cloudnative-pg/charts/plugin-barman-cloud:0.7.0
+Digest: sha256:5d31605cad886f93abb7cd9884170d74ece913fe8b95c74b127ec5e8bcd2b2b6
+Deleting outdated charts

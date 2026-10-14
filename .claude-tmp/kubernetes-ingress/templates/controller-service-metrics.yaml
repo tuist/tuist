@@ -1,0 +1,59 @@
+{{/*
+Copyright 2022 HAProxy Technologies LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/}}
+
+{{/*
+The following Service resource will be created upon certain conditions:
+- The ServiceMonitor integration is enabled
+- A Service resource must be created
+
+The reason for that is that the Ingress Controller would make it available to the outside
+sensitive data such as its metrics, and the operator wants to keep these data private
+(such as the value of "controller.service.enablePorts.stat=false").
+
+To let the Prometheus Operator being able to scrape the metrics, an additional service
+is going to be created, allowing it to expose of these in the internal Kubernetes networking.
+*/}}
+{{- if and (.Values.controller.serviceMonitor.enabled) (.Values.controller.service.enabled) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kubernetes-ingress.serviceMetricsName" . }}
+  namespace: {{ include "kubernetes-ingress.namespace" . }}
+  labels:
+    {{- include "kubernetes-ingress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics
+{{- if .Values.controller.service.metrics.labels }}
+{{ toYaml .Values.controller.service.metrics.labels | indent 4 }}
+{{- end }}
+{{- with .Values.controller.service.metrics.annotations }}
+  annotations:
+    {{- range $key, $value := . }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+{{- end }}
+spec:
+  type: {{ .Values.controller.service.metrics.type }}
+  ports:
+    - name: stat
+      port: {{ .Values.controller.service.ports.stat }}
+      protocol: TCP
+      targetPort: {{ .Values.controller.service.targetPorts.stat }}
+    {{- if .Values.controller.service.nodePorts.stat }}
+      nodePort: {{ .Values.controller.service.nodePorts.stat }}
+    {{- end }}
+  selector:
+    {{- include "kubernetes-ingress.selectorLabels" . | nindent 4 }}
+{{- end }}

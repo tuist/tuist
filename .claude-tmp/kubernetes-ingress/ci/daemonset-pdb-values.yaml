@@ -1,0 +1,5 @@
+controller:
+  kind: DaemonSet
+  PodDisruptionBudget:
+    enable: true
+    maxUnavailable: 1

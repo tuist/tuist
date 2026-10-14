@@ -1,0 +1,29 @@
+Unable to find image 'grafana/alloy:latest' locally
+latest: Pulling from grafana/alloy
+818154cda96d: Pulling fs layer
+c168acaa0719: Pulling fs layer
+93829b4a44b7: Pulling fs layer
+d9c77651d28d: Pulling fs layer
+39a4b95ff1a5: Pulling fs layer
+1fe8cf837984: Pulling fs layer
+c88b270c6f0f: Pulling fs layer
+39a4b95ff1a5: Waiting
+1fe8cf837984: Waiting
+c88b270c6f0f: Waiting
+d9c77651d28d: Waiting
+c168acaa0719: Verifying Checksum
+c168acaa0719: Download complete
+d9c77651d28d: Verifying Checksum
+d9c77651d28d: Download complete
+39a4b95ff1a5: Verifying Checksum
+39a4b95ff1a5: Download complete
+818154cda96d: Verifying Checksum
+818154cda96d: Download complete
+818154cda96d: Pull complete
+1fe8cf837984: Verifying Checksum
+1fe8cf837984: Download complete
+c168acaa0719: Pull complete
+c88b270c6f0f: Verifying Checksum
+c88b270c6f0f: Download complete
+docker: context canceled.
+See 'docker run --help'.

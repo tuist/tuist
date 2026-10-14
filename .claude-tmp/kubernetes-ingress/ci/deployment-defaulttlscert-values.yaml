@@ -1,0 +1,4 @@
+controller:
+  defaultTLSSecret:
+    enabled: true
+    secret: my-existing-tls-secret

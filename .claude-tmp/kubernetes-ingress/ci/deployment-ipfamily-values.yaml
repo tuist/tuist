@@ -1,0 +1,4 @@
+controller:
+  service:
+    ipFamilies: [IPv4]
+    ipFamilyPolicy: SingleStack

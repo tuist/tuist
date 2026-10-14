@@ -1,0 +1,5 @@
+controller:
+  kind: DaemonSet
+  service:
+    ipFamilies: [IPv4]
+    ipFamilyPolicy: SingleStack

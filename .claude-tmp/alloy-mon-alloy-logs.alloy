@@ -1,0 +1,478 @@
+// Feature: Node Logs
+declare "node_logs" {
+  argument "logs_destinations" {
+    comment = "Must be a list of log destinations where collected logs should be forwarded to"
+  }
+
+  loki.relabel "journal" {
+    rule {
+      action = "keep"
+      source_labels = ["__journal__systemd_unit"]
+      regex = "^$|containerd.service|kubelet.service"
+    }
+
+    rule {
+      action = "replace"
+      source_labels = ["__journal__systemd_unit"]
+      replacement = "$1"
+      target_label = "unit"
+    }
+
+    // the service_name label will be set automatically in loki if not set, and the unit label
+    // will not allow service_name to be set automatically.
+    rule {
+      action = "replace"
+      source_labels = ["__journal__systemd_unit"]
+      replacement = "$1"
+      target_label = "service_name"
+    }
+
+    forward_to = [] // No forward_to is used in this component, the defined rules are used in the loki.source.journal component
+  }
+
+  loki.source.journal "worker" {
+    path = "/var/log/journal"
+    format_as_json = false
+    max_age = "4h"
+    relabel_rules = loki.relabel.journal.rules
+    labels = {
+      job = "integrations/kubernetes/journal",
+      instance = sys.env("HOSTNAME"),
+    }
+    forward_to = [loki.process.journal_logs.receiver]
+  }
+
+  loki.process "journal_logs" {
+    stage.static_labels {
+      values = {
+        // add a static source label to the logs so they can be differentiated / restricted if necessary
+        "source" = "journal",
+        // default level to unknown
+        level = "UNKNOWN",
+      }
+    }
+
+    // Attempt to determine the log level, most k8s workers are either in logfmt or klog formats
+    // check to see if the log line matches the klog format (https://github.com/kubernetes/klog)
+    stage.match {
+      // unescaped regex: ([IWED][0-9]{4}\s+[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+)
+      selector = "{level=\"UNKNOWN\"} |~ \"([IWED][0-9]{4}\\\\s+[0-9]{2}:[0-9]{2}:[0-9]{2}\\\\.[0-9]+)\""
+
+      // extract log level, klog uses a single letter code for the level followed by the month and day i.e. I0119
+      stage.regex {
+        expression = "((?P<level>[A-Z])[0-9])"
+      }
+
+      // if the extracted level is I set INFO
+      stage.replace {
+        source = "level"
+        expression = "(I)"
+        replace = "INFO"
+      }
+
+      // if the extracted level is W set WARN
+      stage.replace {
+        source = "level"
+        expression = "(W)"
+        replace = "WARN"
+      }
+      // standardize on WARN
+      stage.replace {
+        source = "level"
+        expression = "(warning)"
+        replace = "WARN"
+      }
+
+      // if the extracted level is E set ERROR
+      stage.replace {
+        source = "level"
+        expression = "(E)"
+        replace = "ERROR"
+      }
+
+      // if the extracted level is I set INFO
+      stage.replace {
+        source = "level"
+        expression = "(D)"
+        replace = "DEBUG"
+      }
+
+      // set the extracted level to be a label
+      stage.labels {
+        values = {
+          level = "",
+        }
+      }
+    }
+
+    // if the level is still unknown, do one last attempt at detecting it based on common levels
+    stage.match {
+      selector = "{level=\"UNKNOWN\"}"
+
+      // unescaped regex: (?i)(?:"(?:level|loglevel|levelname|lvl|levelText|SeverityText)":\s*"|\s*(?:level|loglevel|levelText|lvl)="?|\s+\[?)(?P<level>(DEBUG?|DBG|INFO?(RMATION)?|WA?RN(ING)?|ERR(OR)?|CRI?T(ICAL)?|FATAL|FTL|NOTICE|TRACE|TRC|PANIC|PNC|ALERT|EMERGENCY))("|\s+|-|\s*\])
+      stage.regex {
+        expression = "(?i)(?:\"(?:level|loglevel|levelname|lvl|levelText|SeverityText)\":\\s*\"|\\s*(?:level|loglevel|levelText|lvl)=\"?|\\s+\\[?)(?P<level>(DEBUG?|DBG|INFO?(RMATION)?|WA?RN(ING)?|ERR(OR)?|CRI?T(ICAL)?|FATAL|FTL|NOTICE|TRACE|TRC|PANIC|PNC|ALERT|EMERGENCY))(\"|\\s+|-|\\s*\\])"
+      }
+
+      // set the extracted level to be a label
+      stage.labels {
+        values = {
+          level = "",
+        }
+      }
+    }
+
+    // Standardize on upper-case
+    stage.template {
+      source   = "level"
+      template = "{{ ToUpper .Value }}"
+    }
+
+    forward_to = argument.logs_destinations.value
+  }
+}
+node_logs "feature" {
+  logs_destinations = [
+    loki.write.grafana_cloud_logs.receiver,
+  ]
+}
+// Feature: Pod Logs (Loki)
+declare "pod_logs_via_loki" {
+  argument "logs_destinations" {
+    comment = "Must be a list of log destinations where collected logs should be forwarded to"
+  }
+
+  discovery.kubernetes "pods" {
+    role = "pod"
+    selectors {
+      role = "pod"
+      field = "spec.nodeName=" + sys.env("HOSTNAME")
+    }
+  }
+
+  discovery.relabel "filtered_pods" {
+    targets = discovery.kubernetes.pods.targets
+    rule {
+      source_labels = ["__meta_kubernetes_namespace"]
+      action = "replace"
+      target_label = "namespace"
+    }
+    rule {
+      source_labels = ["__meta_kubernetes_pod_name"]
+      action = "replace"
+      target_label = "pod"
+    }
+    rule {
+      source_labels = ["__meta_kubernetes_pod_container_name"]
+      action = "replace"
+      target_label = "container"
+    }
+    rule {
+      source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_container_name"]
+      separator = "/"
+      action = "replace"
+      replacement = "$1"
+      target_label = "job"
+    }
+
+    // set the container runtime as a label
+    rule {
+      action = "replace"
+      source_labels = ["__meta_kubernetes_pod_container_id"]
+      regex = "^(\\S+):\\/\\/.+$"
+      replacement = "$1"
+      target_label = "tmp_container_runtime"
+    }
+
+    // explicitly set service_name. if not set, loki will automatically try to populate a default.
+    // see https://grafana.com/docs/loki/latest/get-started/labels/#default-labels-for-all-users
+    //
+    // choose the first value found from the following ordered list:
+    // - pod.annotation[resource.opentelemetry.io/service.name]
+    // - pod.label[app.kubernetes.io/name]
+    // - k8s.container.name
+    rule {
+      action = "replace"
+      source_labels = [
+        "__meta_kubernetes_pod_annotation_resource_opentelemetry_io_service_name",
+        "__meta_kubernetes_pod_label_app_kubernetes_io_name",
+        "__meta_kubernetes_pod_container_name",
+      ]
+      separator = ";"
+      regex = "^(?:;*)?([^;]+).*$"
+      replacement = "$1"
+      target_label = "service_name"
+    }
+
+    // explicitly set service_namespace.
+    //
+    // choose the first value found from the following ordered list:
+    // - pod.annotation[resource.opentelemetry.io/service.namespace]
+    // - pod.namespace
+    rule {
+      action = "replace"
+      source_labels = [
+        "__meta_kubernetes_pod_annotation_resource_opentelemetry_io_service_namespace",
+        "namespace",
+      ]
+      separator = ";"
+      regex = "^(?:;*)?([^;]+).*$"
+      replacement = "$1"
+      target_label = "service_namespace"
+    }
+
+    // explicitly set service_instance_id.
+    //
+    // choose the first value found from the following ordered list:
+    // - pod.annotation[resource.opentelemetry.io/service.instance.id]
+    // - concat([k8s.namespace.name, k8s.pod.name, k8s.container.name], '.')
+    rule {
+      source_labels = ["__meta_kubernetes_pod_annotation_resource_opentelemetry_io_service_instance_id"]
+      target_label = "service_instance_id"
+    }
+    rule {
+      source_labels = ["service_instance_id", "namespace", "pod", "container"]
+      separator = "."
+      regex = "^\\.([^.]+\\.[^.]+\\.[^.]+)$"
+      target_label = "service_instance_id"
+    }
+
+    // set resource attributes
+    rule {
+      action = "labelmap"
+      regex = "__meta_kubernetes_pod_annotation_resource_opentelemetry_io_(.+)"
+    }
+    rule {
+      source_labels = ["__meta_kubernetes_pod_annotation_k8s_grafana_com_logs_job"]
+      regex = "(.+)"
+      target_label = "job"
+    }
+    rule {
+      source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+      regex = "(.+)"
+      target_label = "app_kubernetes_io_name"
+    }
+
+    // Set the pod log path.
+    rule {
+      source_labels = ["__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
+      separator = "/"
+      action = "replace"
+      replacement = "/var/log/pods/*$1/*.log"
+      target_label = "__path__"
+    }
+
+    // If kubernetes.io/config.mirror is set, this is a static pod, created by the kubelet.
+    // It's logs live on a different path.
+    rule {
+      source_labels = ["__meta_kubernetes_pod_annotation_kubernetes_io_config_mirror", "__meta_kubernetes_pod_container_name"]
+      separator = "/"
+      regex = "(.+/.+)"
+      action = "replace"
+      replacement = "/var/log/pods/*$1/*.log"
+      target_label = "__path__"
+    }
+  }
+
+  local.file_match "pod_logs" {
+    path_targets = discovery.relabel.filtered_pods.output
+  }
+
+  loki.source.file "pod_logs" {
+    targets    = local.file_match.pod_logs.targets
+    tail_from_end = true
+    forward_to = [loki.process.pod_logs.receiver]
+  }
+
+  loki.process "pod_logs" {
+    stage.match {
+      selector = "{tmp_container_runtime=~\"containerd|cri-o|\"}"
+      // the cri processing stage extracts the following k/v pairs: log, stream, time, flags
+      stage.cri {
+        max_partial_lines = 100
+      }
+
+      // Set the extract flags and stream values as labels
+      stage.labels {
+        values = {
+          flags  = "",
+          stream  = "",
+        }
+      }
+    }
+
+    stage.match {
+      selector = "{tmp_container_runtime=\"docker\"}"
+      // the docker processing stage extracts the following k/v pairs: log, stream, time
+      stage.docker {}
+
+      // Set the extract stream value as a label
+      stage.labels {
+        values = {
+          stream  = "",
+        }
+      }
+    }
+
+    // Drop the filename label, since it's not really useful in the context of Kubernetes, where we already have cluster,
+    // namespace, pod, and container labels. Drop any structured metadata. Also drop the temporary
+    // container runtime label as it is no longer needed.
+    stage.label_drop {
+      values = [
+        "filename",
+        "tmp_container_runtime",
+      ]
+    }
+    stage.structured_metadata {
+      values = {
+        "k8s_pod_name" = "k8s_pod_name",
+        "pod" = "pod",
+        "service_instance_id" = "service_instance_id",
+      }
+    }
+    // Each Tuist request produces one completion entry with its method, path,
+    // status, and duration. Sample routine responses while preserving every
+    // warning, error, and unsuccessful response. Requests that used operator
+    // access (an Atlas-proxied read of a customer account, or a dashboard
+    // request under an ops grant) are the server's record of operator access
+    // to customer data, so they are never sampled; they are a small share of
+    // traffic.
+    stage.match {
+      selector = "{service_name=\"tuist\", container=\"server\"} |~ \"status=(2[0-9]{2}|3[0-9]{2}).*\\\\[info\\\\] Request completed\" !~ \"(atlas_operator_read_account_id|operator_grant_jti)=\""
+
+      stage.sampling {
+        rate = 0.1
+        drop_counter_reason = "tuist_request_completion_sampling"
+      }
+    }
+
+    // Kura cache misses return 404 as part of normal operation. Extract the
+    // ingress response status temporarily so successful responses and cache
+    // misses can be sampled without suppressing other client or server errors.
+    stage.match {
+      selector = "{service_name=~\"kura-.*-ingress-nginx\"}"
+
+      stage.regex {
+        expression = "^[^ ]+ - - \\[[^]]+\\] \"[A-Z]+ [^\"]+\" (?P<response_status>[0-9]{3}) "
+      }
+
+      stage.labels {
+        values = {
+          tmp_response_status = "response_status",
+        }
+      }
+    }
+
+    stage.match {
+      selector = "{service_name=~\"kura-.*-ingress-nginx\", tmp_response_status=~\"2[0-9]{2}|404\"}"
+
+      stage.sampling {
+        // Kura request volume is high and routine 2xx/404 lines are not
+        // useful at the current 10% rate. Keep every error and sample one
+        // percent of normal traffic for capacity and adoption analysis.
+        rate = 0.01
+        drop_counter_reason = "kura_ingress_request_sampling"
+      }
+    }
+
+    // The same sampling for the HAProxy gateways, whose access lines are
+    // HAProxy's HTTP log format: the status follows the timers.
+    stage.match {
+      selector = "{service_name=~\"kura-.*-haproxy\"}"
+
+      stage.regex {
+        expression = "^\\S+ \\[[^]]+\\] \\S+ \\S+ \\S+ (?P<response_status>[0-9]{3}) "
+      }
+
+      stage.labels {
+        values = {
+          tmp_response_status = "response_status",
+        }
+      }
+    }
+
+    stage.match {
+      selector = "{service_name=~\"kura-.*-haproxy\", tmp_response_status=~\"2[0-9]{2}|404\"}"
+
+      stage.sampling {
+        rate = 0.01
+        drop_counter_reason = "kura_ingress_request_sampling"
+      }
+    }
+
+    stage.label_drop {
+      values = ["tmp_response_status"]
+    }
+
+    // Every Kura peer link logs an INFO line when a backfill pass starts and
+    // another when it completes, several times a second once pull
+    // replication is caught up. Each line repeats the full span context, so
+    // in October 2026 they were about 730 MB/hour, nearly all of Kura's log
+    // volume. Drop the start line, which carries nothing the completion does
+    // not. Sample 1% of routine completions, those that neither exhausted
+    // the capacity budget nor found absent entries; every other completion
+    // keeps its per-peer outcome. Warnings and errors from the same target
+    // are not matched and stay unsampled.
+    stage.match {
+      selector = "{namespace=\"kura\", container=\"kura\"} |= `\"level\":\"INFO\"` |= `\"target\":\"kura::backfill::pass\"` |= `\"message\":\"backfill pass started\"`"
+      action = "drop"
+      drop_counter_reason = "kura_backfill_pass_started"
+    }
+
+    stage.match {
+      selector = "{namespace=\"kura\", container=\"kura\"} |= `\"level\":\"INFO\"` |= `\"target\":\"kura::backfill::pass\"` |= `\"message\":\"backfill pass completed\"` |= `\"capacity_completed\":false` |= `\"absent\":0,`"
+
+      stage.sampling {
+        rate = 0.01
+        drop_counter_reason = "kura_backfill_pass_completed_sampling"
+      }
+    }
+
+    forward_to = argument.logs_destinations.value
+  }
+}
+pod_logs_via_loki "feature" {
+  logs_destinations = [
+    loki.write.grafana_cloud_logs.receiver,
+  ]
+}
+
+
+
+
+// Destination: grafana-cloud-logs (loki)
+otelcol.exporter.loki "grafana_cloud_logs" {
+  forward_to = [loki.write.grafana_cloud_logs.receiver]
+}
+
+loki.write "grafana_cloud_logs" {
+  endpoint {
+    url = "https://logs-prod-012.grafana.net/loki/api/v1/push"
+    retry_on_http_429 = true
+    tenant_id = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_logs.data["tenantId"])
+    basic_auth {
+      username = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_logs.data["loki-username"])
+      password = remote.kubernetes.secret.grafana_cloud_logs.data["loki-password"]
+    }
+    tls_config {
+      insecure_skip_verify = false
+      ca_pem = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_logs.data["ca"])
+      cert_pem = convert.nonsensitive(remote.kubernetes.secret.grafana_cloud_logs.data["cert"])
+      key_pem = remote.kubernetes.secret.grafana_cloud_logs.data["key"]
+    }
+    min_backoff_period = "500ms"
+    max_backoff_period = "5m"
+    max_backoff_retries = "10"
+  }
+  external_labels = {
+    "cluster" = "tuist-production",
+    "k8s_cluster_name" = "tuist-production",
+    env = "production",
+  }
+}
+
+remote.kubernetes.secret "grafana_cloud_logs" {
+  name      = "k8s-monitoring-grafana-cloud"
+  namespace = "observability"
+}
+

@@ -1,0 +1,3 @@
+controller:
+  unprivileged: true
+  allowPrivilegedPorts: true

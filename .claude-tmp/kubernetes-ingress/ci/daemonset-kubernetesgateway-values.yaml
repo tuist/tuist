@@ -1,0 +1,5 @@
+controller:
+  kind: DaemonSet
+  kubernetesGateway:
+    enabled: true
+    gatewayControllerName: haproxy.org/gateway-controller

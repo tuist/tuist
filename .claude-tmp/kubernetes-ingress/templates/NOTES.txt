@@ -1,0 +1,109 @@
+HAProxy Kubernetes Ingress Controller has been successfully installed.
+
+Controller image deployed is: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag | default .Chart.AppVersion }}".
+Your controller is of a "{{ .Values.controller.kind }}" kind. Your controller service is running as a "{{ .Values.controller.service.type }}" type.
+{{- if .Values.rbac.create}}
+RBAC authorization is enabled.
+{{- else}}
+RBAC authorization is disabled.
+{{- end}}
+{{- if .Values.controller.ingressClass}}
+Controller ingress.class is set to "{{ .Values.controller.ingressClass }}" so make sure to use same annotation for
+Ingress resource.
+{{- end}}
+{{- if and .Values.controller.kubernetesGateway.enabled .Values.controller.kubernetesGateway.gatewayControllerName }}
+Controller Gateway Controller Name is set to "{{ .Values.controller.kubernetesGateway.gatewayControllerName }}" so make sure
+that Gateway API CRDs are installed in Kubernetes.
+{{- end}}
+
+Service ports mapped are:
+{{- if eq .Values.controller.kind "Deployment" }}
+{{- range $key, $value := .Values.controller.containerPort }}
+  - name: {{ $key }}
+    containerPort: {{ $value }}
+    protocol: TCP
+{{- end }}
+{{- if and (semverCompare ">=1.24.0-0" .Capabilities.KubeVersion.Version) .Values.controller.service.enablePorts.quic }}
+  - name: quic
+    containerPort: {{ .Values.controller.containerPort.https }}
+    protocol: UDP
+{{- end }}
+{{- range .Values.controller.service.tcpPorts }}
+  - name: {{ .name | trunc 15 | trimSuffix "-" }}
+    containerPort: {{ .targetPort }}
+    protocol: TCP
+{{- end }}
+{{- end }}
+{{- if eq .Values.controller.kind "DaemonSet" }}
+{{- $useHostPort := .Values.controller.daemonset.useHostPort -}}
+{{- $hostPorts := .Values.controller.daemonset.hostPorts -}}
+{{- $hostIP := .Values.controller.daemonset.hostIP -}}
+{{- range $key, $value := .Values.controller.containerPort }}
+  - name: {{ $key }}
+    containerPort: {{ $value }}
+    protocol: TCP
+{{- if $useHostPort }}
+    hostPort: {{ index $hostPorts $key | default $value }}
+{{- end }}
+{{- if $hostIP }}
+    hostIP: {{ $hostIP }}
+{{- end }}
+{{- end }}
+{{- if and (semverCompare ">=1.24.0-0" .Capabilities.KubeVersion.Version) .Values.controller.service.enablePorts.quic }}
+  - name: quic
+    containerPort: {{ .Values.controller.containerPort.https }}
+    protocol: UDP
+{{- if $useHostPort }}
+    hostPort: {{ .Values.controller.daemonset.hostPorts.https }}
+{{- end }}
+{{- if $hostIP }}
+    hostIP: {{ $hostIP }}
+{{- end }}
+{{- end }}
+{{- range .Values.controller.service.tcpPorts }}
+  - name: {{ .name | trunc 15 | trimSuffix "-" }}
+    containerPort: {{ .targetPort }}
+    protocol: TCP
+{{- if $useHostPort }}
+    hostPort: {{ .port }}
+{{- end }}
+{{- if $hostIP }}
+    hostIP: {{ $hostIP }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+Node IP can be found with:
+  $ kubectl --namespace {{ include "kubernetes-ingress.namespace" . }} get nodes -o jsonpath="{.items[0].status.addresses[1].address}"
+
+The following ingress resource routes traffic to pods that match the following:
+  * service name: web
+  * client's Host header: webdemo.com
+  * path begins with /
+
+  ---
+  apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    name: web-ingress
+    namespace: default
+    annotations:
+      ingress.class: "haproxy"
+  spec:
+    rules:
+    - host: webdemo.com
+      http:
+        paths:
+        - path: /
+          backend:
+            serviceName: web
+            servicePort: 80
+
+In case that you are using multi-ingress controller environment, make sure to use ingress.class annotation and match it
+with helm chart option controller.ingressClass.
+
+For more examples and up to date documentation, please visit:
+  * Helm chart documentation: https://github.com/haproxytech/helm-charts/tree/main/kubernetes-ingress
+  * Controller documentation: https://www.haproxy.com/documentation/kubernetes/latest/
+  * Annotation reference: https://github.com/haproxytech/kubernetes-ingress/tree/master/documentation
+  * Image parameters reference: https://github.com/haproxytech/kubernetes-ingress/blob/master/documentation/controller.md

@@ -1,0 +1,5 @@
+controller:
+  kind: DaemonSet
+  service:
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-internal: 0.0.0.0/0

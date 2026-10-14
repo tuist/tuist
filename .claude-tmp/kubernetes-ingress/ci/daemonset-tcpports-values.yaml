@@ -1,0 +1,14 @@
+controller:
+  kind: DaemonSet
+  daemonset:
+    useHostPort: true
+    hostPorts:
+      http: 80
+      https: 443
+      stat: 1024
+  service:
+    tcpPorts:
+      - name: mqtt
+        port: 1883
+        targetPort: 8883
+        nodePort: 31883

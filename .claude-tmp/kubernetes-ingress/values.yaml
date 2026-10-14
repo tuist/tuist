@@ -1,0 +1,782 @@
+# Copyright 2019 HAProxy Technologies LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+## Default values for kubernetes-ingress Chart for HAProxy Ingress Controller
+## ref: https://github.com/haproxytech/kubernetes-ingress/tree/master/documentation
+
+podSecurityPolicy:
+  ## Specify pod annotations
+  ## ref: https://kubernetes.io/docs/concepts/policy/pod-security-policy/#apparmor
+  ## ref: https://kubernetes.io/docs/concepts/policy/pod-security-policy/#seccomp
+  ## ref: https://kubernetes.io/docs/concepts/policy/pod-security-policy/#sysctl
+  annotations: {}
+    # apparmor.security.beta.kubernetes.io/allowedProfileNames: runtime/default
+    # apparmor.security.beta.kubernetes.io/defaultProfileName: runtime/default
+    # seccomp.security.alpha.kubernetes.io/allowedProfileNames: runtime/default
+    # seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
+  enabled: false
+
+## Enable RBAC Authorization
+## ref: https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+rbac:
+  create: true
+
+## Create namespace
+## https://kubernetes.io/docs/tasks/administer-cluster/namespaces-walkthrough/
+## Note: do not combine this with `helm install --create-namespace`.
+namespace:
+  create: false
+
+## Configure Service Account
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+serviceAccount:
+  create: true
+  name:
+  # automountServiceAccountToken: true   # uncomment to override the Kubernetes default
+
+## Namespace override
+## Allow the release namespace to be overridden for multi-namespace deployments in combined charts
+# namespaceOverride: haproxytech
+
+## AWS Market Place integration
+## Allows installation of the HAPEE Ingress Controller on AWS EKS and EKS-Anywhere.
+## ref: https://docs.aws.amazon.com/marketplace/latest/userguide/container-anywhere-license-manager-integration.html
+aws:
+  ## Name of the Secret deployed in the desired namespace containing the AWS license files
+  licenseConfigSecretName: ""
+
+## Controller default values
+controller:
+  name: controller
+  image:
+    repository: docker.io/haproxytech/kubernetes-ingress    # can be changed to use CE or EE Controller images
+    tag: ""                                                 # overrides the image tag whose default is the chart appVersion
+    pullPolicy: IfNotPresent
+
+  ## Deployment or DaemonSet pod mode
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/
+  kind: Deployment    # can be 'Deployment' or 'DaemonSet'
+  replicaCount: 2
+
+  ## minReadySeconds setting of Deployment or DaemonSet
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#min-ready-seconds
+  minReadySeconds: 0
+
+  ## Running container without root privileges
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+  unprivileged: true
+
+  ## Allow privileged port binding without root privileges
+  ## ref: https://kubernetes.io/docs/tasks/administer-cluster/sysctl-cluster/
+  ## Note: this feature enables net.ipv4.ip_unprivileged_port_start=0 sysctl when running in unprivileged mode
+  allowPrivilegedPorts: false
+
+  ## Restricts container syscalls
+  ## ref: https://kubernetes.io/docs/tutorials/security/seccomp/
+  enableRuntimeDefaultSeccompProfile: true
+
+  ## Privilege escalation
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+  allowPrivilegeEscalation: false
+
+  ## Init Containers
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+  initContainers: []
+  # - name: sysctl
+  #   image: "busybox:musl"
+  #   command:
+  #     - /bin/sh
+  #     - -c
+  #     - sysctl -w net.core.somaxconn=65536
+  #   securityContext:
+  #     privileged: true
+
+  ## Pod sysctls (applies to Deployment/DaemonSet template)
+  ## ref: https://kubernetes.io/docs/tasks/administer-cluster/sysctl-cluster/
+  ## Note: when unprivileged=true and allowPrivilegedPorts=true, the chart will also
+  ## set net.ipv4.ip_unprivileged_port_start=0 unless you override it here.
+  sysctls: {}
+  #  "net.core.somaxconn": "8192"
+
+  ## Pod termination grace period
+  ## ref: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/
+  terminationGracePeriodSeconds: 60
+
+  ## Private Registry configuration
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+  imageCredentials:
+    registry: null
+    username: null
+    password: null
+  existingImagePullSecret: null
+
+  ## Controller Container listener port configuration
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/connect-applications-service/
+  ## Note: If binding to privileged ports, allowPrivilegeEscalation will be required for NET_BIND_SERVICE to apply
+  containerPort:
+    http: 8080
+    https: 8443
+    stat: 1024
+    admin: 6060
+
+  ## Enable the controller's Prometheus metrics endpoint (served on the stat port at /metrics).
+  ## Required for ServiceMonitor / PodMonitor scraping.
+  ## Defaults to true. Previously this was implicitly gated on controller.service.enablePorts.admin,
+  ## but the metrics endpoint is on the stat port, not the admin port — so the coupling was wrong.
+  prometheus:
+    enabled: true
+
+  ## Enable the controller's pprof debug endpoints (served on the admin port at /debug/pprof).
+  ## Defaults to true for backward compatibility. Consider disabling in production hardening
+  ## to reduce attack surface.
+  pprof:
+    enabled: true
+
+  ## QUIC (HTTP/3) configuration
+  ## announcePort overrides the port advertised to clients in Alt-Svc headers.
+  ## When empty, the chart auto-derives the announce port from the deployment topology:
+  ##   - useHostNetwork=true: containerPort.https
+  ##   - useHostPort=true:    deployment.hostPorts.https or daemonset.hostPorts.https (matching controller.kind)
+  ##   - default (Service):   service.ports.https
+  ## Set explicitly when clients reach the controller through a port-translating front-end
+  ## (e.g. a LoadBalancer that maps an external port to a different Service port).
+  quic:
+    announcePort: ""
+
+  ## Controller Container liveness/readiness probe configuration
+  ## Port 1042 is the controller's built-in /healthz HTTP listener, bound
+  ## unconditionally by the controller binary — independent of containerPort above.
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 1042
+      scheme: HTTP
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 1
+    successThreshold: 1
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: 1042
+      scheme: HTTP
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 1
+    successThreshold: 1
+    failureThreshold: 3
+
+  startupProbe:
+    httpGet:
+      path: /healthz
+      port: 1042
+      scheme: HTTP
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 1
+    successThreshold: 1
+    failureThreshold: 30
+
+  ## IngressClass:
+  ## ref: https://github.com/haproxytech/kubernetes-ingress/blob/master/documentation/ingressclass.md
+
+  # k8s >= 1.18: IngressClass resource used, in multi-ingress environments, to select ingress resources to implement.
+  # ref: https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-class
+  # ref: https://kubernetes.io/docs/concepts/services-networking/ingress/#default-ingress-class
+  # Note: Uses ingressClass as name for the Ingress Class object if enabled
+  ingressClassResource:
+    name: haproxy
+    default: false
+    parameters: {}
+
+  # k8s < 1.18: Ingress Class used, in multi-ingress environments, for ingress.class annotation to select ingress resources to implement.
+  # k8s >= 1.18: Ingress Class used to target specific HAProxy Ingress Controller in multi-ingress envionments
+  # ref: https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/#using-multiple-ingress-controllers
+  ingressClass: haproxy   # typically "haproxy" or null to receive all events
+
+  # Gateway API controller, not available in K8s as default but can be installed
+  # ref: https://gateway-api.sigs.k8s.io/
+  # ref: https://gateway-api.sigs.k8s.io/guides/#installing-a-gateway-controller
+  kubernetesGateway:
+    enabled: false
+    gatewayControllerName: haproxy.org/gateway-controller
+
+  ## Additional labels to add to the deployment or daemonset metadata
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  extraLabels: {}
+  #  key: value
+
+  ## Additional annotations to add to the deployment or daemonset metadata
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  annotations: {}
+  #  key: value
+
+  ## Additional labels to add to the pod container metadata
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  podLabels: {}
+  #  key: value
+
+  ## Additional annotations to add to the pod container metadata
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  podAnnotations: {}
+  #  key: value
+
+  ## Allows to enable/disable environment variables for finding services
+  ## ref: https://kubernetes.io/docs/tutorials/services/connect-applications-service/#accessing-the-service
+  ## Note: Possible performance issues in large clusters: https://github.com/kubernetes/kubernetes/issues/92615
+  enableServiceLinks: true
+
+  ## Ingress TLS secret, if it is enabled and secret is null then controller will use auto-generated secret, otherwise
+  ## secret needs to contain name of the Secret object which has been created manually
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/ingress/#tls
+  ## ref: https://kubernetes.io/docs/concepts/configuration/secret/
+  defaultTLSSecret:
+    enabled: true
+    secretNamespace: '{{ include "kubernetes-ingress.namespace" . }}'
+    secret: null
+
+  ## Compute Resources for controller container
+  ## ref: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
+  resources:
+  #  limits:
+  #    cpu: 250m
+  #    memory: 400Mi
+    requests:
+      cpu: 250m
+      memory: 400Mi
+
+  ## Horizontal Pod Scaler
+  ## Only to be used with Deployment kind
+  ## ref: https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+
+    ## HPA annotations
+    ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+    annotations: {}
+    #  annotationKey: value
+
+    ## Behavior
+    ## ref: https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#configurable-scaling-behavior
+    # behavior:
+    #   scaleDown:
+    #      stabilizationWindowSeconds: 3600
+
+    ## Custom metrics (example)
+    ## ref: https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/#autoscaling-on-multiple-metrics-and-custom-metrics
+    # custom:
+    #   - type: Pods
+    #     pods:
+    #       metricName: haproxy_backend_current_sessions
+    #       targetAverageValue: 2000
+
+  ## Kubernetes Event-driven Autoscaling: KEDA 2.x
+  ## ref: https://keda.sh/docs/2.3/concepts/scaling-deployments/
+  ## Note: mutually exclusive with HPA, enabling KEDA disables HPA
+  ## Node: requires serviceMonitor enabled
+  keda:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 20
+    pollingInterval: 30
+    cooldownPeriod: 300
+    restoreToOriginalReplicaCount: false
+    # fallback:
+    #   failureThreshold: 3
+    #   replicas: 6
+    #   behavior: static
+    scaledObject:
+      annotations: {}
+    horizontalPodAutoscalerConfig: {}
+      # name: ""
+      # behavior:
+      #  scaleDown:
+      #    stabilizationWindowSeconds: 300
+      #    policies:
+      #    - type: Percent
+      #      value: 100
+      #      periodSeconds: 15
+    triggers: []
+    #  - type: prometheus
+    #    metadata:
+    #      serverAddress: http://<prometheus-host>:9090
+    #      metricName: haproxy_process_idle_time_percent
+    #      threshold: '50'
+    #      query: avg(100-avg_over_time(haproxy_process_idle_time_percent{container="kubernetes-ingress-controller",service="mytest-kubernetes-ingress"}[2m]))
+
+  ## Pod Disruption Budget
+  ## Only to be used with Deployment kind
+  ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/
+  PodDisruptionBudget:
+    enable: false
+    # maxUnavailable: 1
+    # minAvailable: 1
+
+  ## Pod Node assignment
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+  nodeSelector: {}
+
+  ## Node Taints and Tolerations for pod-node cheduling through attraction/repelling
+  ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  tolerations: []
+  #  - key: "key"
+  #    operator: "Equal|Exists"
+  #    value: "value"
+  #    effect: "NoSchedule|PreferNoSchedule|NoExecute(1.6 only)"
+
+  ## Node Affinity for pod-node scheduling constraints
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  affinity: {}
+
+  ## Topology spread constraints (Deployment only; ignored for DaemonSet since
+  ## DaemonSets already run one pod per node — see _podspec.tpl).
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+  topologySpreadConstraints: []
+  # - maxSkew: 1
+  #   topologyKey: kubernetes.io/zone
+  #   whenUnsatisfiable: DoNotSchedule
+  #   labelSelector:
+  #     matchLabels:
+  #       app.kubernetes.io/name: kubernetes-ingress
+  #       app.kubernetes.io/instance: kubernetes-ingress
+
+  ## Pod DNS Config
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
+  dnsConfig: {}
+
+  ## Pod DNS Policy
+  ## Change this to ClusterFirstWithHostNet in case you have useHostNetwork set to true
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy
+  dnsPolicy: ClusterFirst
+
+  ## Additional command line arguments to pass to Controller
+  ## ref: https://github.com/haproxytech/kubernetes-ingress/blob/master/documentation/controller.md
+  extraArgs: []
+  #  - --namespace-whitelist=default
+  #  - --namespace-whitelist=namespace1
+  #  - --namespace-blacklist=namespace2
+  #  - --disable-ipv4
+  #  - --disable-ipv6
+  #  - --disable-http
+  #  - --disable-https
+  #  - --disable-quic
+  #  - --sync-period=10s
+
+  ## Custom configuration for Controller
+  ## ref: https://github.com/haproxytech/kubernetes-ingress/tree/master/documentation
+  config: {}
+  #   timeout-connect: "250ms"
+  #   servers-increment: "10"
+  #   servers-increment-max-disabled: "10"
+  #   rate-limit: "ON"
+  #   rate-limit-expire: "1m"
+  #   rate-limit-interval: "10s"
+  #   rate-limit-size: "100k"
+
+  ## Extra annotation for custom configmap for Controller
+  configAnnotations: {}
+  #   annotationKey: value
+
+  ## Auxiliary configuration for HAProxy
+  ## ref: https://www.haproxy.com/documentation/kubernetes-ingress/ingress-tutorials/auxiliary-config-file/
+  ## When set, creates a dedicated ConfigMap and mounts it at /etc/haproxy/haproxy-aux.cfg
+  auxiliaryConfig: ""
+  # auxiliaryConfig: |
+  #   cache mycache
+  #       total-max-size 4095
+  #       max-object-size 10000
+  #       max-age 30
+
+  ## Controller Logging configuration
+  ## Careful: this block will be ignored if you use config.cr-global.
+  ## In this case, move your logging config in entry spec.log_targets in your CR.
+  logging:
+    ## Controller logging level
+    ## This only relevant to Controller logs
+    level: info
+
+    ## HAProxy traffic logs
+    ## ref: https://github.com/haproxytech/kubernetes-ingress/tree/master/documentation#logging
+    traffic: {}
+      #      address:  "stdout"
+      #      format:   "raw"
+      #      facility: "daemon"
+
+  ## Mirrors the address of the service's endpoints to the
+  ## load-balancer status of all Ingress objects it satisfies.
+  publishService:
+    enabled: true
+    ##
+    ## Override of the publish service
+    ## Must be <namespace>/<service_name>
+    pathOverride: ""
+
+  ## Controller Service configuration
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/service/
+  service:
+    enabled: true     # set to false when controller.kind is 'DaemonSet' and controller.daemonset.useHostPorts is true
+
+    type: NodePort    # can be 'ClusterIP', 'NodePort' or 'LoadBalancer'
+
+    ## Service annotations
+    ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+    annotations: {}
+
+    ## Service labels
+    ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+    labels: {}
+
+    ## Health check node port
+    ## ref: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+    healthCheckNodePort: 0
+
+    ## Service nodePorts to use for http, https and stat
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/
+    ## If empty, random ports will be used
+    nodePorts: {}
+    #  http: 31080
+    #  https: 31443
+    #  stat: 31024
+    #  admin: 31060
+
+    ## Service ports to use for http, https and stat
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/
+    ports:
+      http: 80
+      https: 443
+      stat: 1024
+      admin: 6060
+
+    ## The controller service ports for http, https and stat can be disabled by
+    ## setting below to false - this could be useful when only deploying haproxy
+    ## as a TCP loadbalancer
+    ## Note: At least one port (http, https, stat or from tcpPorts) has to be enabled
+    enablePorts:
+      http: true
+      https: true
+      quic: true
+      stat: true
+      admin: true
+
+    ## Target port mappings for http, https and stat
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/
+    targetPorts:
+      http: http
+      https: https
+      quic: quic
+      stat: stat
+      admin: admin
+
+    ## Additional tcp ports to expose
+    ## This is especially useful for TCP services:
+    ## https://github.com/haproxytech/kubernetes-ingress/blob/master/documentation/controller.md
+    tcpPorts: []
+    #  - name: http-alt
+    #    port: 8080
+    #    targetPort: http-alt
+    #    nodePort: 32080
+
+    ## Set external traffic policy
+    ## Default is "Cluster", setting it to "Local" preserves source IP
+    ## ref: https://kubernetes.io/docs/tutorials/services/source-ip/#source-ip-for-services-with-typeloadbalancer
+    # externalTrafficPolicy: "Local"
+
+    ## Expose service via external IPs that route to one or more cluster nodes
+    externalIPs: []
+
+    ## LoadBalancer IP
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer
+    loadBalancerIP: ""
+
+    ## Source IP ranges permitted to access Network Load Balancer
+    ## ref: https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/
+    loadBalancerSourceRanges: []
+
+    ## Class of load balancer implementation
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#load-balancer-class
+    loadBalancerClass: null
+
+    ## Service ClusterIP
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/
+    # clusterIP: ""
+
+    ## IPv4/IPv6 dual-stack
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/dual-stack/
+    ##
+    # ipFamilies: [IPv4, IPv6]
+    # ipFamilyPolicy: PreferDualStack
+
+    ## Service session affinity
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/
+    # sessionAffinity: ""
+
+    ## Traffic distribution policy for the Service
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#traffic-distribution
+    ## Supported values: "PreferSameZone", "PreferSameNode"
+    # trafficDistribution: ""
+
+    ## Controller Metrics Service configuration
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/
+    metrics:
+      type: ClusterIP    # can be 'ClusterIP', 'NodePort' or 'LoadBalancer'
+
+      ## Service annotations
+      ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+      annotations: {}
+
+      ## Service labels
+      ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+      labels: {}
+
+  ## Controller Deployment configuration
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+  deployment:
+    useHostNetwork: false  # also modify dnsPolicy accordingly
+    useHostPort: false
+    hostIP: null
+    hostPorts:
+      http: 80
+      https: 443
+      stat: 1024
+
+  ## Controller DaemonSet configuration
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/
+  daemonset:
+    useHostNetwork: false  # also modify dnsPolicy accordingly
+    useHostPort: false
+    hostIP: null
+    hostPorts:
+      http: 80
+      https: 443
+      stat: 1024
+
+  ## Controller deployment strategy definition
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
+  ## ref: https://kubernetes.io/docs/tasks/manage-daemon/update-daemon-set/
+  strategy:
+    type: RollingUpdate
+
+  ## Controller Pod PriorityClass
+  ## ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/#priorityclass
+  priorityClassName: ""
+
+  ## Pod runtime class name
+  ## ref: https://kubernetes.io/docs/concepts/containers/runtime-class/
+  runtimeClassName: ""
+
+  ## Controller container lifecycle handlers
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/
+  lifecycle: {}
+    ## Example preStop for graceful shutdown
+    # preStop:
+    #   exec:
+    #     command: ["/bin/sh", "-c", "kill -USR1 $(pidof haproxy); while killall -0 haproxy; do sleep 1; done"]
+
+  ## Set additional environment variables
+  extraEnvs: []
+    ## Set TZ env to configure timezone on controller containers
+    # - name: TZ
+    #   value: "Etc/UTC"
+
+  ## Use envFrom to add env vars from a secret or ConfigMap to the HAProxy container
+  ## ref: https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/
+  extraEnvFrom: []
+  ## Example passing the pod IP into a container
+  #  - configMapRef:
+  #      name: ha-env-config
+
+  ## Add additional containers
+  extraContainers: []
+    ## Example sidecar
+    # - name: sidecar
+    #   image: alpine # alpine is a simple Linux OS image
+    #   command: ["/bin/sh"]
+    #   args: ["-c", "while true; do date; sleep 5;done"]
+
+  ## Additional volumeMounts to the controller main container
+  extraVolumeMounts: []
+    ## Example empty volume mounts when using securityContext->readOnlyRootFilesystem
+    # - name: etc-haproxy
+    #   mountPath: /etc/haproxy
+    # - name: tmp
+    #   mountPath: /tmp
+    # - name: var-state-haproxy
+    #   mountPath: /var/state/haproxy
+
+  ## Additional volumes to the controller pod
+  extraVolumes: []
+    ## Example empty volumes when using securityContext->readOnlyRootFilesystem
+    # - name: etc-haproxy
+    #   emptyDir: {}
+    # - name: tmp
+    #   emptyDir: {}
+    # - name: var-state-haproxy
+    #   emptyDir: {}
+
+  ## ServiceMonitor
+  ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/user-guides/getting-started.md
+  ## Note: requires Prometheus Operator to be able to work, for example:
+  ## helm install prometheus prometheus-community/kube-prometheus-stack \
+  ##   --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
+  ##   --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
+  serviceMonitor:
+    ## Toggle the ServiceMonitor true if you have Prometheus Operator installed and configured
+    ## Should not be enabled when controller.podMonitor.enabled is true
+    ## Note: this manifest is not capability-gated; if monitoring.coreos.com/v1 CRDs are
+    ## missing, helm install will fail with "no matches for kind ServiceMonitor".
+    enabled: false
+
+    ## Specify the labels to add to the ServiceMonitors to be selected for target discovery
+    extraLabels: {}
+
+    ## Specify the endpoints
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/design.md#servicemonitor
+    endpoints:
+      - port: stat
+        path: /metrics
+        scheme: http
+        interval: 30s
+
+  ## PodMonitor
+  ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/user-guides/getting-started.md
+  ## Note: requires Prometheus Operator to be able to work, for example:
+  ## helm install prometheus prometheus-community/kube-prometheus-stack \
+  ##   --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
+  ##   --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
+  podMonitor:
+    ## Toggle the PodMonitor true if you have Prometheus Operator installed and configured
+    ## Should not be enabled when controller.serviceMonitor.enabled is true
+    ## Note: this manifest is not capability-gated; if monitoring.coreos.com/v1 CRDs are
+    ## missing, helm install will fail with "no matches for kind PodMonitor".
+    enabled: false
+
+    ## Specify the labels to add to the PodMonitors to be selected for target discovery
+    extraLabels: {}
+
+    ## Specify the endpoints
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/design.md#podMonitor
+    endpoints:
+      - port: stat
+        path: /metrics
+        scheme: http
+        interval: 30s
+        params:
+          scope:
+            - global
+            - frontend
+            - backend
+
+  ## Controller sync mode with Kubernetes
+  ## Note: requires Enterprise Kubernetes Ingress Controller
+  ## Possible values: 'default' or 'fetch'
+  ## - 'default': the sync is done based on K8s informers (event based)
+  ## - 'fetch':  the controller pulls data periodically (from K8s or from proxy)
+  sync:
+    mode: default                                       # can be 'default' or 'fetch'
+    fetchParams:                                        # Mandatory if mode is 'fetch'
+      # period: 3s                                      # optional, default is 5s
+      source: k8s                                       # possible values are: 'proxy', 'k8s'
+    proxyParams:                                        # Mandatory if source is 'proxy'
+      replicaCount: 3                                   # number of replicas of the proxy, mandatory if source is 'proxy'
+      proxySvcLabelSelector: run:haproxy-ingress-proxy  # label selector of the proxy service, mandatory if source is 'proxy'
+
+## CRD job default values
+crdjob:
+  ## Additional annotations to add to the pod container metadata
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  podAnnotations: {}
+  # key: value
+
+  ## Automatic job cleanup
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/ttlafterfinished/
+  ttlSecondsAfterFinished: 600
+
+  ## Duration in seconds relative to the startTime that the job may be continuously active before the system tries to terminate it
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/job/#job-termination-and-cleanup
+  activeDeadlineSeconds:
+
+  ## Pod Node assignment
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+  nodeSelector: {}
+
+  ## Node Taints and Tolerations for pod-node cheduling through attraction/repelling
+  ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  tolerations: []
+  #  - key: "key"
+  #    operator: "Equal|Exists"
+  #    value: "value"
+  #    effect: "NoSchedule|PreferNoSchedule|NoExecute(1.6 only)"
+
+  ## Node Affinity for pod-node scheduling constraints
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  affinity: {}
+
+  ## Compute Resources for the CRD Job
+  ## ref: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
+  resources:
+  #  limits:
+  #    cpu: 250m
+  #    memory: 400Mi
+    requests:
+      cpu: 250m
+      memory: 400Mi
+
+## Extra raw objects to template
+## Each entry must carry apiVersion, kind and metadata.name (or
+## metadata.generateName). Chart labels are added, and metadata.namespace
+## defaults to the release namespace (honouring namespaceOverride) unless the
+## object sets it; set "namespace: null" to leave a cluster-scoped object
+## without one.
+## Note: this manifest is not capability-gated; if specific CRDs are
+## missing, helm install will fail; this being said, this manifest
+## is not intended to be used to deploy ingress.v3.haproxy.org/v3 CRs
+## since their CRDs are installed/upgraded via a post-install/pre-upgrade job
+extraObjects: []
+  ## Use maps to declare raw manifests. They are emitted verbatim, so any
+  ## foreign Go template syntax ({{ }} in Grafana dashboards, Prometheus rules,
+  ## Alertmanager templates) is left untouched.
+  # - apiVersion: v1
+  #   kind: ConfigMap
+  #   metadata:
+  #     name: extra-conf-1
+  #   data:
+  #     extra.conf: |
+  #       example_config_1
+  ## Use multiline strings to declare templated manifests. This is an explicit
+  ## opt-in to templating, so every {{ }} is evaluated against the chart
+  ## context. A single string may hold several '---' separated documents.
+  # - |
+  #   apiVersion: v1
+  #   kind: ConfigMap
+  #   metadata:
+  #     name: {{ .Release.Name }}-extra-conf-2
+  #   data:
+  #     extra.conf: |
+  #       example_config_2
+  #   ---
+  #   apiVersion: v1
+  #   kind: ConfigMap
+  #   metadata:
+  #     name: {{ .Release.Name }}-extra-conf-3
+  #   data:
+  #     extra.conf: |
+  #       example_config_3
