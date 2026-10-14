@@ -87,7 +87,7 @@ concurrency:
 jobs:
   cli-lint:
     name: Lint
-    runs-on: ${{ github.event.pull_request.head.repo.fork == true && 'tuist-macos-27-0' || 'tuist-macos-27-0-volumes' }}
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
     if: github.repository == 'tuist/tuist'
     permissions:
@@ -151,7 +151,7 @@ jobs:
 
   cli-spm-build:
     name: SwiftPM Build
-    runs-on: ${{ github.event.pull_request.head.repo.fork == true && 'tuist-macos-27-0' || 'tuist-macos-27-0-volumes' }}
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
     permissions:
       contents: read
@@ -208,7 +208,7 @@ jobs:
 
   cli-cache:
     name: Cache
-    runs-on: tuist-macos-27-0-volumes
+    runs-on: tuist-macos-27-0
     timeout-minutes: 60
     permissions:
       contents: read
@@ -257,7 +257,7 @@ jobs:
 
   cli-unit-tests:
     name: Unit Tests
-    runs-on: ${{ github.event.pull_request.head.repo.fork == true && 'tuist-macos-27-0' || 'tuist-macos-27-0-volumes' }}
+    runs-on: tuist-macos-27-0
     timeout-minutes: 90
     permissions:
       contents: read
@@ -324,7 +324,7 @@ jobs:
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
-    runs-on: tuist-macos-27-0-volumes
+    runs-on: tuist-macos-27-0
     timeout-minutes: 90
     permissions:
       contents: read
@@ -383,7 +383,7 @@ jobs:
 
   cli-acceptance-tests:
     name: Acceptance Tests
-    runs-on: tuist-macos-27-0-volumes
+    runs-on: tuist-macos-27-0
     timeout-minutes: 60
     needs: cli-acceptance-tests-build
     permissions:

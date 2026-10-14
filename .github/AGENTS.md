@@ -104,11 +104,13 @@ writer from an earlier attempt.
 
 ## CLI dependency volumes
 
-Trusted macOS jobs in `cli.yml` use `tuist-macos-27-0-volumes`, the M4 profile
-with enough host SSD capacity for custom volumes. Keep fork jobs on the ordinary
-profile with archive caches and copied dependencies; they cannot authenticate
-volume attachments. Linux and release/backport workflows have separate toolchain
-and runner requirements and are not part of this migration.
+macOS jobs in `cli.yml` use the standard `tuist-macos-27-0` profile. Custom
+volumes do not require the larger M4 shape. If host cache capacity is unavailable,
+each attachment falls back independently to an empty job-local directory; always
+run dependency installation and do not require a hit in ordinary jobs. Forks keep
+archive caches and copied dependencies because they cannot authenticate volume
+attachments. Linux and release/backport workflows have separate toolchain and
+runner requirements and are not part of this migration.
 
 Attach `.build` and `~/.cache/swifterpm` before installing dependencies. Workspace
 keys include the job, Xcode version and `Package.swift`; the source-cache key is
@@ -142,10 +144,11 @@ By default, pull requests consume private snapshots without publishing. A volume
 admin can grant a same-repository PR branch writer permission for a dedicated
 experiment, paired with explicit `commit: 'true'`; grants apply to new attachments.
 Ordinary CLI jobs keep the default policy. First successful permitted jobs seed
-these new keys; measure subsequent jobs only after publication. The
-full-host M4 profile has less concurrency than the ordinary macOS pool, so track
-queue time separately from dependency-install time. The three volumes publish
-independently; always run the installer even when all attachments are hits.
+these new keys; measure subsequent jobs only after publication. Track queue time
+separately from dependency-install time. Smaller hosts have less cache capacity,
+so report actual attachments and hits separately from successful cold fallbacks.
+The three volumes publish independently; always run the installer even when all
+attachments are hits.
 
 ## Bazel and Mix cache volumes
 
