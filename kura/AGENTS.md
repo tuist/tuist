@@ -18,6 +18,11 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   this acknowledgment never authorizes another replica. Handover batches must
   negotiate support, bound descriptors and referenced bytes, preserve ordered
   full-corpus verification, and retain the individual-record fallback.
+  A named destination reconciles the source’s complete retained index before
+  taking its hold. Keep this pass serialized, bounded by normal replication
+  resources and the intent deadline, cancellable on authoritative abort, and
+  subject to capacity/version/tombstone rules. Repair completion never replaces
+  the final full-corpus verification or authorizes promotion.
   Qualification fixtures and their simulator limits are documented in
   [`test/e2e/serving-authority/AGENTS.md`](test/e2e/serving-authority/AGENTS.md).
 - High-level architecture overview: `docs/architecture.md` — start here when onboarding or reasoning about how subsystems interact

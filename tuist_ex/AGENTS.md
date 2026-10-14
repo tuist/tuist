@@ -77,7 +77,19 @@ written its report nor, in an umbrella, restarted `cover` for the next
 application. It never wraps or replaces the project's `test_coverage` tool,
 so `mix test`'s report, threshold and excoveralls keep working. A run is
 partial only when its own arguments pick tests; the files a shard appends are
-not counted. Paths are relative to the Git root, a build compiled elsewhere is
+not counted. `mix tuist.test.build --cover` recompiles the build's modules
+from their debug info with `line_coverage` (`Coverage.instrument/1`; the
+Elixir compiler skips the pass that adds the counters), keeping chunks only
+Elixir writes, and marks the build. A shard of it switches the runtime to line
+counters (`Coverage.enable_native/1`: `code:set_coverage_mode/1` applies after
+boot only to explicitly loaded code, so every module of the build is loaded
+then, before the application starts) and drops Mix's `--cover` and
+`--export-coverage`; the
+formatter's `init`, which runs after the test helper and before any test,
+cover compiles only the modules Mimic marked to copy (Mimic carries a cover
+compiled module's counts across its swaps, while a reload resets native
+counters), and the snapshot merges `cover`'s counts with the native ones of
+every other module of the build, loading those the run never did. Paths are relative to the Git root, a build compiled elsewhere is
 matched by path suffix, the OTP application is the target, and files under the
 test paths are test code. A line belongs to the function whose clause head
 starts closest above it. Generated functions (`__*`, `module_info`), such as
@@ -108,6 +120,7 @@ dashboard presentation belong in `server/`.
   ExUnit's formatter callbacks. Submission failures are logged through the
   passed shell function and swallowed. A submission failure never changes the
   exit code of `mix test`.
+- `Analytics.Actor` adds an optional, unverified `x-tuist-actor-id` only to build/test report POSTs. Resolve explicit `TUIST_ACTOR_ID`, runtime `:actor_id`, then project `:actor_id`. Never infer usernames or send a claim by default. Empty/invalid overrides omit the claim instead of falling back. Attribution never changes `Auth.token/1`, endpoints, JSON bodies or upload/read/shard requests; older servers ignore this header.
 - Options resolved by `TuistEx.Analytics.Config` mirror `TuistEx.Auth`: env
   overrides beat runtime options beat `Mix.Project.config()[:tuist]`.
 

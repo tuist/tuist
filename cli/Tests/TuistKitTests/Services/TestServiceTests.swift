@@ -7716,6 +7716,63 @@ struct TestServiceSchemePlanningTests {
             .called(0)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), arguments: [
+        TestHashStorageCase(
+            passthroughXcodeBuildArguments: ["-only-testing:AppTests"],
+            storedTargetNames: ["AppTests"]
+        ),
+        TestHashStorageCase(
+            passthroughXcodeBuildArguments: ["-only-testing", "AppTests/SomeClass"],
+            storedTargetNames: []
+        ),
+        TestHashStorageCase(
+            passthroughXcodeBuildArguments: ["-only-testing:AppTests/Outer/Inner/nested()"],
+            storedTargetNames: []
+        ),
+        TestHashStorageCase(
+            testTargets: ["AppTests/SomeClass", "FeatureTests"],
+            storedTargetNames: ["FeatureTests"]
+        ),
+        TestHashStorageCase(
+            testTargets: ["AppTests", "FeatureTests"],
+            passthroughXcodeBuildArguments: ["-only-testing:AppTests/Outer/Inner"],
+            storedTargetNames: ["FeatureTests"]
+        ),
+    ])
+    func run_stores_only_the_hashes_of_test_targets_run_in_full(_ testCase: TestHashStorageCase) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceSchemePlanningFixture(
+            scenario: SchemePlanningScenario(rootDirectory: temporaryDirectory)
+        )
+        let hashes = [
+            "AppTests": "app-tests-hash",
+            "AppSnapshotTests": "app-snapshot-tests-hash",
+            "FeatureTests": "feature-tests-hash",
+        ]
+
+        try await fixture.run(
+            path: temporaryDirectory,
+            testTargets: try testCase.testTargets.map { try TestIdentifier(string: $0) },
+            passthroughXcodeBuildArguments: testCase.passthroughXcodeBuildArguments
+        )
+
+        if testCase.storedTargetNames.isEmpty {
+            verify(fixture.cacheStorage)
+                .store(.any, cacheCategory: .value(.selectiveTests))
+                .called(0)
+        } else {
+            let storedItems = testCase.storedTargetNames.reduce(into: [CacheStorableItem: [AbsolutePath]]()) {
+                $0[CacheStorableItem(name: $1, hash: hashes[$1]!)] = []
+            }
+            verify(fixture.cacheStorage)
+                .store(.value(storedItems), cacheCategory: .value(.selectiveTests))
+                .called(1)
+            verify(fixture.cacheStorage)
+                .store(.any, cacheCategory: .value(.selectiveTests))
+                .called(1)
+        }
+    }
+
     @Test(.inTemporaryDirectory, .withMockedDependencies())
     func run_warns_without_failing_when_test_hashes_fail_to_upload() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -7914,6 +7971,16 @@ private struct SchemePlanningScenario {
             featureScheme,
             workspaceScheme,
         ]
+    }
+}
+
+struct TestHashStorageCase: Sendable, CustomTestStringConvertible {
+    var testTargets: [String] = []
+    var passthroughXcodeBuildArguments: [String] = []
+    let storedTargetNames: [String]
+
+    var testDescription: String {
+        "test targets \(testTargets), passthrough \(passthroughXcodeBuildArguments)"
     }
 }
 

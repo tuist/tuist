@@ -174,34 +174,112 @@ supported yet.
 
 ## Report code coverage
 
-Pass `--cover` and the run's line coverage is reported with it:
+Pass `--cover` to `mix tuist.test` and the run's line coverage is reported with
+it, along with the run's Git history. Once every job that measures the
+commit's coverage has finished, tell Tuist the commit's coverage is complete
+with `mix tuist.coverage.complete`; until then the commit is shown as in
+progress and stays out of the branch's coverage trend.
+
+### Without shards
+
+Run the whole suite with coverage, then mark the commit complete:
 
 ```sh
 mix tuist.test --cover
+mix tuist.coverage.complete
 ```
 
 Tuist reads the counters Erlang's `cover` collected once the suite finishes,
 so your coverage tool keeps working as before: `mix test`'s HTML report and
-threshold, or excoveralls. Each covered file is reported with the OTP
-application it belongs to and the Git blob it had, and files under your test
-paths count as test code, which no figure includes. Each file also lists its
-functions; lines that hold only code the compiler or a macro generates, such as
-the line `defmodule`, `schema` or `use` sits on, count for the file but belong
-to no function. A run that picks its tests
-(`--only`, `--exclude`, `--failed`, `--stale`, or test files on the command
-line) is reported as partial and stays out of the branch's coverage trend.
-Shards each report their share and Tuist merges them.
+threshold, or excoveralls.
 
-With coverage, the run also reports its Git history: the merge base with the
-branch a pull request merges into and the commits Tuist does not have yet. A shallow clone is deepened, within a time budget, until
-the merge base is found. Once every job of the pipeline that measures coverage
-has finished, tell Tuist the commit's coverage is complete:
+### With shards
+
+Build the shards with `--cover`, run each one with `--cover`, and mark the
+commit complete from a job that runs after all of them:
 
 ```sh
+# once, on the machine that builds
+mix tuist.test.build --shard-total 4 --cover
+
+# on each shard
+TUIST_SHARD_INDEX=0 mix tuist.test --cover
+
+# once every shard has finished
 mix tuist.coverage.complete
 ```
 
-Until then the commit is shown as in progress and stays out of the trend.
+On GitHub Actions, for example:
+
+```yaml
+permissions:
+  contents: read
+  id-token: write # the tasks sign in with GitHub's identity token
+jobs:
+  build:
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      # checkout, Elixir, mix deps.get
+      - id: plan
+        run: mix tuist.test.build --shard-total 4 --cover
+  test:
+    needs: build
+    strategy:
+      matrix: ${{ fromJson(needs.build.outputs.matrix) }}
+    env:
+      TUIST_SHARD_INDEX: ${{ matrix.shard }}
+    steps:
+      # checkout, Elixir, mix deps.get
+      - run: mix tuist.test --cover
+  complete:
+    needs: test
+    # A shard with a failing test still reported its coverage.
+    if: ${{ !cancelled() }}
+    steps:
+      # checkout, Elixir, mix deps.get
+      - run: mix tuist.coverage.complete
+```
+
+Each shard reports its share and Tuist merges them into one run. Erlang's
+`cover` compiles every module of the project again at the start of each run,
+which on a large project costs every shard a minute or more, so with `--cover`
+the build's modules are recompiled once, on the machine that builds, with the
+runtime's native line counters. Each shard switches the counters on and counts
+with them instead of running Mix's coverage tool, so no Mix coverage report is
+written. Only the modules Mimic copies are compiled for `cover`, because Mimic
+keeps a `cover` compiled module's counts across the swaps it makes and
+reloading a module resets its native counters.
+
+A shard on a runtime without the JIT cannot count natively and uses Mix's
+coverage tool, as does one built without `--cover`. Its coverage is then
+exported, under `cover/shard-<index>` unless you pass `--export-coverage`
+yourself, rather than held to the project's threshold, which a shard running
+part of the suite would not meet.
+
+### What is reported
+
+Each covered file is reported with the OTP application it belongs to and the
+Git blob it had, and files under your test paths count as test code, which no
+figure includes. Each file also lists its functions; lines that hold only code
+the compiler or a macro generates, such as the line `defmodule`, `schema` or
+`use` sits on, count for the file but belong to no function.
+
+A run that picks its tests (`--only`, `--exclude`, `--failed`, `--stale`, or
+test files on the command line) is reported as partial and stays out of the
+branch's coverage trend.
+
+The run's Git history is the merge base with the branch a pull request merges
+into and the commits Tuist does not have yet. A shallow
+clone is deepened, within a time budget, until the merge base is found.
+
+## Optional reported actor
+
+Build and test reports include an optional `x-tuist-actor-id` header only when explicitly configured. No claim is sent by default, and operating-system usernames are not detected. This is an unverified label, not a credential or a verified user identity. Existing authentication and report payloads are unchanged. Older servers ignore the header; displaying the claim requires server support.
+
+Use `TUIST_ACTOR_ID=employee-123`, a runtime `actor_id: "employee-123"` option, or `tuist: [actor_id: "employee-123"]` in your Mix project to opt in, in that order. Values must be 1–128 bytes of printable, non-space ASCII. An explicitly empty or invalid override omits the claim instead of falling back to a lower-precedence setting.
+
+Set `TUIST_ACTOR_ID=""` to suppress a configured claim, including when a custom proxy rejects unfamiliar headers. Claims may be visible to report viewers on supporting servers; avoid sensitive personal identifiers.
 
 ## Tag runs with custom metadata
 
