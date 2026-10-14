@@ -3830,7 +3830,9 @@ observability:
 # Enable in one cluster only after validation. No PVCs or Kubernetes API token.
 kuraActivation:
   enabled: false
-  ingressClassName: nginx
+  # Both protocols must share this load balancer. The main nginx class sends
+  # Connection: close upstream, which Go correctly rejects on HTTP/2.
+  ingressClassName: nginx-grpc
   servers:
     production: https://tuist.dev
     canary: https://canary.tuist.dev
