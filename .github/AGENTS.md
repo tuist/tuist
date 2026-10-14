@@ -101,6 +101,14 @@ The barrier reads only its own workflow run attempt and fails if its peer fails
 or does not attach within 25 minutes. Keep it outside the timed install command.
 Rerun both jobs together: a failed-job-only retry cannot prove overlap with a
 writer from an earlier attempt.
+## SwifterPM E2E credentials
+
+`swifterpm.yml` passes its read-only job token to the E2E task's HTTPS GitHub
+credential helper. The fixtures deliberately isolate HOME and disable global/system
+Git configuration, so checkout's local authentication does not reach their native
+SwiftPM fetches. Keep the credential in the job environment, outside cached paths;
+never persist it or extend its host scope beyond github.com.
+
 ## Bazel and Mix cache volumes
 
 Kura's `.bazelrc` configures repository downloads and disk action caching under

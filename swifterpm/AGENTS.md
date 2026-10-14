@@ -21,6 +21,7 @@
 - `mise run test:e2e` runs `e2e/resolution_spec.sh` and is part of CI. Scenarios that expect SwifterPM to do work itself (dump manifests, download registry archives) must first warm the cache with a resolve; a resolve without a lockfile or with uncached pins is delegated to native SwiftPM.
 - Read pins through `normalize_package_resolved_file`. SwiftPM writes the version 1 `Package.resolved` format for packages below tools version 5.6, which several SwiftPM fixtures are.
 - Real-world graph scenarios explicitly allow only native-checkout cache-publication warnings on stderr. Keeping a usable native checkout when pinned-source publication fails is a valid fallback; still require successful resolution, lockfile checks, and rejection of unrelated stderr.
+- CI explicitly supplies `SWIFTERPM_E2E_GIT_TOKEN` to a Git credential helper scoped to HTTPS `github.com`. Pass its non-secret configuration through `GIT_CONFIG_COUNT` so fixture isolation can still disable host/global Git configuration. Never persist the token or use it as a production provider API token; local runs without the variable remain anonymous. `e2e/github_credential_spec.sh` checks credential scoping and Git integration.
 
 ## Source cache ownership
 

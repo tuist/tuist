@@ -61,4 +61,6 @@ jobs:
           github_token: ${{ github.token }}
       - name: E2E
         working-directory: swifterpm
+        env:
+          SWIFTERPM_E2E_GIT_TOKEN: ${{ github.token }}
         run: mise run test:e2e -- --config=ci
