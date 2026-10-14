@@ -46,6 +46,7 @@ var tuistDependencies: [Target.Dependency] = [
     .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
     "TuistAuthCommand",
     "TuistCacheCommand",
+    "TuistCargoCommand",
     "TuistBazelCommand",
     "TuistVersionCommand",
     "TuistAccountCommand",
@@ -66,6 +67,21 @@ var tuistDependencies: [Target.Dependency] = [
     pathDependency,
     fileSystemDependency,
     swiftToolsSupportDependency,
+]
+var tuistCargoCommandDependencies: [Target.Dependency] = [
+    "TuistCAS",
+    "TuistHTTP",
+    .product(name: "Crypto", package: "apple.swift-crypto"),
+    processDependency,
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    tomlDecoderDependency,
+    "TuistAlert",
+    "TuistConfigLoader",
+    "TuistEnvironment",
+    "TuistServer",
+    "TuistCI",
 ]
 var tuistBazelCommandDependencies: [Target.Dependency] = [
     processDependency,
@@ -729,6 +745,12 @@ var targets: [Target] = [
         name: "TuistCacheCommand",
         dependencies: tuistCacheCommandDependencies,
         path: "cli/Sources/TuistCacheCommand"
+    ),
+    .target(
+        name: "TuistCargoCommand",
+        dependencies: tuistCargoCommandDependencies,
+        path: "cli/Sources/TuistCargoCommand",
+        exclude: ["AGENTS.md"]
     ),
     .target(
         name: "TuistBazelCommand",

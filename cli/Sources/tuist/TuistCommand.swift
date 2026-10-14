@@ -10,6 +10,7 @@ import TuistBazelCommand
 import TuistBuildCommand
 import TuistBundleCommand
 import TuistCacheCommand
+import TuistCargoCommand
 import TuistConfigLoader
 import TuistEnvironment
 import TuistGenerateCommand
@@ -61,6 +62,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     subcommands: [
                         HashCommand.self,
                         BazelCommand.self,
+                        CargoCommand.self,
                         BuildCommand.self,
                         CacheCommand.self,
                         CacheProxyCommand.self,
@@ -107,6 +109,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 name: "Develop",
                 subcommands: [
                     BazelCommand.self,
+                    CargoCommand.self,
                     BuildCommand.self,
                     CacheCommand.self,
                     GenerateCommand.self,
@@ -156,6 +159,14 @@ public struct TuistCommand: AsyncParsableCommand {
         _ arguments: [String]? = nil,
         parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
     ) async throws {
+        if let cargoArguments = CargoCommand.delegatedArguments(in: arguments ?? Array(Environment.current.arguments)) {
+            // Cargo owns its flags and exit status. Compiler hooks must never enter CLI analytics/authentication.
+            do {
+                let command = try CargoCommand.parse(cargoArguments)
+                try await command.run()
+            } catch { CargoCommand.exit(withError: error) }
+            return
+        }
         let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
 
         #if os(macOS)

@@ -6,6 +6,7 @@ This module handles CLI integration with the Tuist Server APIs.
 - Resolve server environment (base URL, OAuth client ID) with env var overrides.
 - Provide cache storage factories and API clients for server-backed features.
 - Map CLI actions to server operations (projects, previews, analytics, registry).
+- `CreateShardPlanService` can declare concurrent module-level units (nextest binaries) via `concurrentModules`. Keep this distinct from `parallelizableModules`, which declares suite-level parallelism within a module for Xcode. Other callers omit the declaration and retain their existing planning behavior. Regenerate the shared API from controller schemas when extending this contract.
 - Apply the shared [Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) retry policy to retryable server operations.
 
 ## Related Context

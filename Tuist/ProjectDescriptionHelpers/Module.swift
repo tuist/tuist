@@ -50,6 +50,7 @@ public enum Module: String, CaseIterable {
     case har = "TuistHAR"
     case cacheCommand = "TuistCacheCommand"
     case bazelCommand = "TuistBazelCommand"
+    case cargoCommand = "TuistCargoCommand"
     case authCommand = "TuistAuthCommand"
     case envKey = "TuistEnvKey"
     case versionCommand = "TuistVersionCommand"
@@ -564,7 +565,7 @@ public enum Module: String, CaseIterable {
              .xcodeBuildProducts,
              .http, .har, .configLoader, .machineMetrics, .appleArchiver, .jobSummary:
             moduleTags.append("domain:infrastructure")
-        case .cacheCommand, .bazelCommand, .authCommand, .envKey, .versionCommand,
+        case .cacheCommand, .bazelCommand, .cargoCommand, .authCommand, .envKey, .versionCommand,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand, .testCommand,
              .initCommand, .runCommand, .runnerCommand, .shareCommand, .inspectCommand, .android:
@@ -732,6 +733,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.alert.targetName),
                     .target(name: Module.authCommand.targetName),
                     .target(name: Module.cacheCommand.targetName),
+                    .target(name: Module.cargoCommand.targetName),
                     .target(name: Module.bazelCommand.targetName),
                     .target(name: Module.accountCommand.targetName),
                     .target(name: Module.organizationCommand.targetName),
@@ -1259,6 +1261,21 @@ public enum Module: String, CaseIterable {
                     .external(name: "Noora"),
                     .external(name: "SwiftToolsSupport"),
                 ]
+            case .cargoCommand:
+                [
+                    .target(name: Module.cas.targetName),
+                    .target(name: Module.http.targetName),
+                    .external(name: "Crypto"),
+                    .target(name: Module.process.targetName),
+                    .target(name: Module.alert.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.ci.targetName),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "FileSystem"),
+                    .external(name: "TOMLDecoder"),
+                ]
             case .bazelCommand:
                 [
                     .target(name: "TuistProcess"),
@@ -1750,6 +1767,14 @@ public enum Module: String, CaseIterable {
                     .external(name: "ArgumentParser"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                ]
+            case .cargoCommand:
+                [
+                    .target(name: Module.process.targetName),
+                    .target(name: Module.server.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                    .external(name: "ArgumentParser"),
                 ]
             case .bazelCommand:
                 [
