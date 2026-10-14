@@ -6,6 +6,7 @@ This module provides low-level helpers and shared infrastructure used across the
 - Logging infrastructure and log handlers (console, detailed, OSLog, JSON).
 - Error modeling (`FatalError`) and common system helpers (process, environment, Xcode detection).
 - Shared constants and utilities used across CLI modules.
+- `ProjectPathProviding` exposes a command's parsed project path to configuration loading and analytics without duplicating environment-variable mappings.
 - Caller-owned scratch directory preparation and validation for cache warming.
 - Terminal-native command state reporting through `ProgramStatusReporter` (OSC 7501).
 
