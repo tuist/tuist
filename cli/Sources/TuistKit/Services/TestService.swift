@@ -1557,6 +1557,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 if runningMultipleSchemes, let testSchemeResultBundlePath {
                     perSchemeResultBundlePaths.append(testSchemeResultBundlePath)
                 }
+                let fullyRunTargetNames = fullyRunTestTargetNames(
+                    scheme: testScheme,
+                    requestedTestTargets: testSchemeRun.testTargets,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: action,
+                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+                )
 
                 do {
                     try await self.testScheme(
@@ -1604,6 +1611,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         quarantinedTests: quarantinedTests
                     )
                     passingTestTargets += failure.passingTestTargets
+                        .filter { fullyRunTargetNames.contains($0.target.name) }
                     if failure.onlyQuarantinedTestsFailed {
                         continue
                     }
@@ -1611,19 +1619,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 }
 
                 if action != .build {
-                    let runTestTargetNames = testSchemeRun.testTargets.isEmpty
-                        ? Set(
-                            testActionTargetReferences(
-                                scheme: testScheme,
-                                testPlanConfiguration: testPlanConfiguration,
-                                action: action
-                            ).map(\.name)
-                        ).subtracting(passthroughSkippedTargetNames)
-                        : Set(testSchemeRun.testTargets.map(\.target))
                     passingTestTargets += testActionTargets(
                         for: [testScheme], testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
                     )
-                    .filter { runTestTargetNames.contains($0.target.name) }
+                    .filter { fullyRunTargetNames.contains($0.target.name) }
                 }
             }
         } catch {
@@ -1870,6 +1869,49 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         return true
+    }
+
+    /// The scheme's test targets a run executes every test of. Only these can have their selective-testing
+    /// hashes stored: a target the run narrowed to some of its tests, or left out through `-only-testing`,
+    /// would otherwise be skipped by later runs without its other tests ever passing.
+    ///
+    /// With `--test-targets` or a passthrough `-only-testing`, a target counts only when it is selected whole
+    /// and no other selection narrows it. Identifiers are split on their first `/` rather than parsed, so
+    /// nested suites such as `Target/Outer/Inner/test()` still narrow their target.
+    private func fullyRunTestTargetNames(
+        scheme: Scheme,
+        requestedTestTargets: [TestIdentifier],
+        testPlanConfiguration: TestPlanConfiguration?,
+        action: XcodeBuildTestAction,
+        passthroughXcodeBuildArguments: [String]
+    ) -> Set<String> {
+        let schemeTargetNames = Set(
+            testActionTargetReferences(
+                scheme: scheme,
+                testPlanConfiguration: testPlanConfiguration,
+                action: action
+            ).map(\.name)
+        ).subtracting(passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments))
+
+        let selections = requestedTestTargets.map(\.description)
+            + XcodeBuildTestCommandService.testIdentifiers(for: "-only-testing", in: passthroughXcodeBuildArguments)
+        guard !selections.isEmpty else { return schemeTargetNames }
+
+        var wholeTargetNames = Set<String>()
+        var narrowedTargetNames = Set<String>()
+        for selection in selections {
+            let components = selection.split(separator: "/", maxSplits: 1)
+            guard let targetName = components.first.map(String.init) else { continue }
+            if components.count == 1 {
+                wholeTargetNames.insert(targetName)
+            } else {
+                narrowedTargetNames.insert(targetName)
+            }
+        }
+
+        return schemeTargetNames
+            .intersection(wholeTargetNames)
+            .subtracting(narrowedTargetNames)
     }
 
     private func passthroughSkippedTestTargetNames(_ arguments: [String]) -> Set<String> {
