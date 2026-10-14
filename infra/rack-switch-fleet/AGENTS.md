@@ -223,6 +223,7 @@ mise run rack:ztp <device> [--via <host>] --interface <iface> [--create-credenti
 mise run rack:write-install-usb <disk> --host <node>   # a stick that makes a rack Linux host a node (infra/rack-nodes)
 mise run rack:omada controller|devices|inform|adopt|apply|api [device]  # the Omada controller's side
 mise run rack:fleet-test                    # the suite; needs no hardware
+mise run rack:fleet-test render edge        # the files a site definition change touches
 ```
 
 The suite runs in CI on any change under `infra/rack-switch-fleet/` or
@@ -235,6 +236,17 @@ also fails if a credential hash ever reaches this directory.
 A note on reading its output: a test runner's prose is a convenience and its
 exit code is the fact. Three of these tests were red for several rounds of work
 because the tail of the `bats` output looked green.
+
+The suite is one bats file per subject under `tests/` (`render`, `edge`,
+`session`, `replace`, `recover`, `apply`, `resolve`, `save`, `omada`, `ztp`),
+sharing `tests/helpers.bash`. `rack:fleet-test` runs the files side by side and
+prints each file's output whole, with how long it took; names run a subset.
+Each file runs against its own copy of this directory and `infra/helm`, made
+in `setup_file`, and each test takes the lock in its own `FLEET_LOCK_DIR`, so a
+test may render into, edit or add to the committed files without touching the
+checkout or another file. Most of the suite's time is fake switches waiting
+out the session driver's quiet window, so a new test that drives a session
+belongs in a file of its own subject rather than in `render`.
 
 `--site` selects the rack and defaults to `ber1`.
 
