@@ -104,7 +104,7 @@ struct RestoreTests {
     }
 
     @Test
-    func ensureSourceUsesShallowFetchWhenSupported() async throws {
+    func ensureSourceRestoresPinnedSnapshotWhenShallowFetchIsSupported() async throws {
         try await withTemporaryDirectory { root in
             let repo = root.appendingPathComponent("Dependency")
             try await writeMinimalPackageManifest(at: repo, name: "Dependency")
@@ -121,11 +121,14 @@ struct RestoreTests {
 
             let source = try await WorkspaceRestorer.ensureSource(cache: cache, pin: pin, location: repo.path)
 
-            let head = try await SystemProcess.output(
-                "/usr/bin/git", ["rev-parse", "HEAD"], workingDirectory: source
-            ).trimmingCharacters(in: .whitespacesAndNewlines)
-            #expect(head == revision)
-            #expect(try await fileSystem.exists(source.appendingPathComponent(".git/shallow").absolutePath))
+            let marker = try await fileSystem.readFile(
+                at: source.appendingPathComponent(WorkspaceRestorer.sourceRevisionMarkerFilename).absolutePath
+            )
+            #expect(String(decoding: marker, as: UTF8.self) == revision)
+            let expectedManifest = try await fileSystem.readFile(at: repo.appendingPathComponent("Package.swift").absolutePath)
+            #expect(try await fileSystem
+                .readFile(at: source.appendingPathComponent("Package.swift").absolutePath) == expectedManifest)
+            #expect(try await !fileSystem.exists(source.appendingPathComponent(".git").absolutePath))
             #expect(try await !fileSystem.exists(source.appendingPathComponent("new-file").absolutePath))
         }
     }
