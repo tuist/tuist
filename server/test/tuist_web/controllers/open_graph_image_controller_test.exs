@@ -8,6 +8,7 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.OpenGraphImageRenderer
+  alias Tuist.OpenGraphImages
   alias Tuist.OpenGraphImageTemplates
   alias Tuist.Projects
   alias Tuist.Projects.Project
@@ -18,8 +19,15 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
   @endpoint TuistWeb.Endpoint
 
   setup do
+    cache = String.to_atom("open_graph_controller_test_#{System.unique_integer([:positive])}")
+    start_supervised!({OpenGraphImages, cache: cache})
     stub(Environment, :tuist_hosted?, fn -> true end)
-    %{conn: build_conn()}
+
+    stub(OpenGraphImages, :ensure_available, fn key, resolve, opts ->
+      Mimic.call_original(OpenGraphImages, :ensure_available, [key, resolve, Keyword.put(opts, :cache, cache)])
+    end)
+
+    %{conn: build_conn(), cache: cache}
   end
 
   test "throttles images before storage or rendering work", %{conn: conn} do
@@ -272,6 +280,36 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     conn = get(conn, path)
     assert response(conn, :ok) == "fallback-image"
     assert get_resp_header(conn, "cache-control") == ["public, no-cache"]
+  end
+
+  test "a warmed transient card cannot bypass a public-to-private visibility change", %{conn: conn, cache: cache} do
+    %{object_key: object_key, path: path} = project_image_request()
+    expect(Storage, :object_exists?, 2, fn ^object_key, :open_graph_images -> false end)
+    expect(OpenGraphImageRenderer, :render, fn _html, "Builds" -> {:fallback, "fallback-image"} end)
+    reject(&Storage.put_object/3)
+    reject(&Storage.get_object/2)
+
+    assert response(get(conn, path), :ok) == "fallback-image"
+    assert Cachex.get(cache, {OpenGraphImages, object_key}) == {:transient, "fallback-image"}
+
+    project = public_project()
+    stub(Projects, :get_project_by_slug, fn _slug -> {:ok, %{project | visibility: :private}} end)
+    reject(&Storage.object_exists?/2)
+    reject(&OpenGraphImageRenderer.render/2)
+    assert response(get(conn, path), :not_found) == ""
+  end
+
+  test "an unavailable generation cache returns 503 without immutable headers", %{conn: conn} do
+    %{object_key: object_key, path: path} = image_request()
+    stop_supervised!(OpenGraphImages)
+    expect(Storage, :object_exists?, fn ^object_key, :open_graph_images -> false end)
+    reject(&OpenGraphImageRenderer.render/2)
+    reject(&Storage.put_object/3)
+    reject(&Storage.get_object/2)
+
+    conn = get(conn, path)
+    assert response(conn, :service_unavailable) == ""
+    assert get_resp_header(conn, "cache-control") != ["public, max-age=31536000, immutable"]
   end
 
   test "rechecks visibility before returning not modified", %{conn: conn} do
