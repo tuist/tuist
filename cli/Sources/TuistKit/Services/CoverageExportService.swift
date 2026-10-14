@@ -30,11 +30,13 @@ import XCResultParser
 @Mockable
 public protocol CoverageExportServicing {
     /// The export's path inside the bundle, or nil when the run uploads no coverage, has none, or
-    /// could not be exported.
+    /// could not be exported. `runStartedAt` is when the test action started: a profile older
+    /// than that is an earlier run's.
     func export(
         resultBundlePath: AbsolutePath?,
         derivedDataDirectory: AbsolutePath?,
-        config: Tuist
+        config: Tuist,
+        runStartedAt: Date
     ) async -> AbsolutePath?
 }
 
@@ -56,9 +58,11 @@ public struct CoverageExportService: CoverageExportServicing {
     public func export(
         resultBundlePath: AbsolutePath?,
         derivedDataDirectory: AbsolutePath?,
-        config: Tuist
+        config: Tuist,
+        runStartedAt: Date
     ) async -> AbsolutePath? {
-        guard UploadResultBundleService.uploadsCoverage(config: config), let resultBundlePath,
+        // Without a project to upload to, the run sends nothing, so nothing is measured.
+        guard config.fullHandle != nil, UploadResultBundleService.uploadsCoverage(config: config), let resultBundlePath,
               (try? await fileSystem.exists(resultBundlePath)) == true
         else { return nil }
         do {
@@ -67,10 +71,7 @@ public struct CoverageExportService: CoverageExportServicing {
                 derivedDataDirectory: derivedDataDirectory
             )
             else { return nil }
-            guard let profile = try await profilePath(
-                derivedDataDirectory: derivedDataDirectory,
-                newerThan: creationDate(of: resultBundlePath)
-            )
+            guard let profile = try await profilePath(derivedDataDirectory: derivedDataDirectory, newerThan: runStartedAt)
             else {
                 Logger.current
                     .debug("No Coverage.profdata of this run under the derived data; the bundle's coverage report is used")
@@ -85,7 +86,13 @@ public struct CoverageExportService: CoverageExportServicing {
             let prefixMaps = CompilationPrefixMaps(derivedDataDirectory: derivedDataDirectory)
             let targetNames = products.map { CompilationPrefixMaps.targetName(ofProduct: $0.path) }
             try await fileSystem.runInTemporaryDirectory(prefix: "tuist-coverage-export") { directory in
-                async let reports = export(products: products, profile: profile, into: directory)
+                async let reports = export(
+                    products: products,
+                    profile: profile,
+                    architecture: products.first { $0.kind == .image }.flatMap { Self.architecture(ofImage: $0.path) }
+                        ?? Self.hostArchitecture,
+                    into: directory
+                )
                 let spans = await Self.spans(of: products)
                 let exported = try await reports
                 try await CoverageExport.write(
@@ -294,6 +301,7 @@ public struct CoverageExportService: CoverageExportServicing {
     private func export(
         products: [Product],
         profile: AbsolutePath,
+        architecture: String,
         into directory: AbsolutePath
     ) async throws -> [String: AbsolutePath] {
         var reports: [String: AbsolutePath] = [:]
@@ -305,7 +313,7 @@ public struct CoverageExportService: CoverageExportServicing {
                 }
                 let report = directory.appending(component: "\(index).lcov")
                 group.addTask {
-                    try await export(product: product, profile: profile, to: report)
+                    try await export(product: product, profile: profile, architecture: architecture, to: report)
                     return (product.path, report)
                 }
             }
@@ -317,9 +325,10 @@ public struct CoverageExportService: CoverageExportServicing {
     }
 
     /// One product's LCOV report. `llvm-cov` reads an archive, and a universal image, only for
-    /// a named architecture: the one the tests ran as, which is the host's.
-    private func export(product: Product, profile: AbsolutePath, to report: AbsolutePath) async throws {
-        let architecture = ["-arch", Self.hostArchitecture]
+    /// a named architecture: the one the run's images were built for, which the host's is not
+    /// under Rosetta.
+    private func export(product: Product, profile: AbsolutePath, architecture: String, to report: AbsolutePath) async throws {
+        let architecture = ["-arch", architecture]
         do {
             if product.kind == .image {
                 do {
@@ -353,6 +362,21 @@ public struct CoverageExportService: CoverageExportServicing {
         for try await event in commandRunner.run(arguments: arguments, environment: Environment.current.variables) {
             guard case let .standardOutput(bytes) = event else { continue }
             try handle.write(contentsOf: Data(bytes))
+        }
+    }
+
+    /// The architecture of a thin Mach-O image, from its header; nil for a universal one or
+    /// anything else.
+    static func architecture(ofImage path: String) -> String? {
+        guard let handle = FileHandle(forReadingAtPath: path), let data = try? handle.read(upToCount: 8), data.count == 8 else {
+            return nil
+        }
+        try? handle.close()
+        guard data.prefix(4).withUnsafeBytes({ $0.loadUnaligned(as: UInt32.self) }) == 0xFEED_FACF else { return nil }
+        switch data.dropFirst(4).withUnsafeBytes({ $0.loadUnaligned(as: UInt32.self) }) {
+        case 0x0100_000C: return "arm64"
+        case 0x0100_0007: return "x86_64"
+        default: return nil
         }
     }
 
@@ -402,20 +426,19 @@ public struct CoverageExportService: CoverageExportServicing {
     }
 
     /// Xcode merges a run's profiles into `Build/ProfileData/<device>/Coverage.profdata`; the
-    /// newest one is this run's, as long as it was written after the run's bundle was started:
-    /// an older one is an earlier run's, left in the derived data by a run without coverage.
-    private func profilePath(derivedDataDirectory: AbsolutePath?, newerThan date: Date?) async throws -> AbsolutePath? {
+    /// newest one is this run's, as long as it was written after the run started: an older one is
+    /// an earlier run's, left in the derived data by a run without coverage.
+    private func profilePath(derivedDataDirectory: AbsolutePath?, newerThan date: Date) async throws -> AbsolutePath? {
         guard let derivedDataDirectory else { return nil }
         let profileData = derivedDataDirectory.appending(components: "Build", "ProfileData")
         guard try await fileSystem.exists(profileData) else { return nil }
         let profiles = try await fileSystem.glob(directory: profileData, include: ["*/Coverage.profdata"]).collect()
-        guard let newest = profiles.max(by: { Self.modificationDate($0) < Self.modificationDate($1) }) else { return nil }
-        if let date, Self.modificationDate(newest) < date { return nil }
-        return newest
+        return Self.newest(profiles, writtenAfter: date)
     }
 
-    private func creationDate(of path: AbsolutePath) -> Date? {
-        try? FileManager.default.attributesOfItem(atPath: path.pathString)[.creationDate] as? Date
+    static func newest(_ profiles: [AbsolutePath], writtenAfter date: Date) -> AbsolutePath? {
+        guard let newest = profiles.max(by: { modificationDate($0) < modificationDate($1) }) else { return nil }
+        return modificationDate(newest) < date ? nil : newest
     }
 }
 
@@ -632,9 +655,10 @@ public enum CoverageExport {
     /// The compiler's paths of every file the export holds.
     public static func paths(of export: AbsolutePath) throws -> [String] {
         var paths: [String] = []
+        let decoder = JSONDecoder()
         try forEachLine(of: export) { line in
             guard !line.isEmpty else { return }
-            paths.append(try JSONDecoder().decode(ExportedPath.self, from: Data(line.utf8)).path)
+            paths.append(try decoder.decode(ExportedPath.self, from: Data(line.utf8)).path)
         }
         return paths
     }

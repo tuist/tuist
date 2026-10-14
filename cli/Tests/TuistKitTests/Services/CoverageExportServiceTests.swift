@@ -397,4 +397,35 @@ struct CoverageExportServiceTests {
         #expect(files.map(\.path) == ["/checkout/Lib/A.swift"])
         #expect(files[0].targets == ["Lib.framework"])
     }
+
+    @Test(.inTemporaryDirectory) func readsTheArchitectureOffAThinImageAndKeepsOnlyThisRunsProfile() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let arm64 = directory.appending(component: "arm64")
+        try Data([0xCF, 0xFA, 0xED, 0xFE, 0x0C, 0x00, 0x00, 0x01]).write(to: URL(fileURLWithPath: arm64.pathString))
+        let x86 = directory.appending(component: "x86_64")
+        try Data([0xCF, 0xFA, 0xED, 0xFE, 0x07, 0x00, 0x00, 0x01]).write(to: URL(fileURLWithPath: x86.pathString))
+        let universal = directory.appending(component: "universal")
+        try Data([0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x02]).write(to: URL(fileURLWithPath: universal.pathString))
+        #expect(CoverageExportService.architecture(ofImage: arm64.pathString) == "arm64")
+        #expect(CoverageExportService.architecture(ofImage: x86.pathString) == "x86_64")
+        #expect(CoverageExportService.architecture(ofImage: universal.pathString) == nil)
+
+        let old = directory.appending(component: "old.profdata")
+        let new = directory.appending(component: "new.profdata")
+        try Data().write(to: URL(fileURLWithPath: old.pathString))
+        try Data().write(to: URL(fileURLWithPath: new.pathString))
+        let runStartedAt = Date()
+        try FileManager.default.setAttributes(
+            [.modificationDate: runStartedAt.addingTimeInterval(-60)],
+            ofItemAtPath: old.pathString
+        )
+        try FileManager.default.setAttributes(
+            [.modificationDate: runStartedAt.addingTimeInterval(60)],
+            ofItemAtPath: new.pathString
+        )
+        #expect(CoverageExportService.newest([old, new], writtenAfter: runStartedAt) == new)
+        // An earlier run's profile is not this run's.
+        #expect(CoverageExportService.newest([old], writtenAfter: runStartedAt) == nil)
+        #expect(CoverageExportService.newest([], writtenAfter: runStartedAt) == nil)
+    }
 }

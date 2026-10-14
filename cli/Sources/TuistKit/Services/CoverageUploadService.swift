@@ -79,8 +79,10 @@ public struct CoverageUploadService: CoverageUploadServicing {
                 let export = resultBundlePath.appending(component: CoverageExport.fileName)
                 if try await fileSystem.exists(export) {
                     tool = "llvm-cov"
-                    summary = try CoverageExport.tie(export: export, manifest: manifest, into: ndjson)
+                    // The export is the run's intermediate, not part of the bundle, whatever the tie does.
+                    let tied = Result { try CoverageExport.tie(export: export, manifest: manifest, into: ndjson) }
                     try await fileSystem.remove(export)
+                    summary = try tied.get()
                 } else {
                     tool = "xccov"
                     guard let parsed = try await xcResultService.parseCoverage(

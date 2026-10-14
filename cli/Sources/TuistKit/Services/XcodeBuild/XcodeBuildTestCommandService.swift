@@ -662,6 +662,7 @@ extension XcodeBuildTestCommandService {
             platform: passedValue(for: "-destination", arguments: arguments)
                 .flatMap(TestCoverageEvidencePlatform.init(destination:))
         )
+        let runStartedAt = Date()
         var runError: Error?
         do {
             try await XcodeBuildEnvironment.$additionalVariables.withValue(session?.environment ?? [:]) {
@@ -680,7 +681,8 @@ extension XcodeBuildTestCommandService {
         _ = await coverageExportService.export(
             resultBundlePath: resultBundlePath,
             derivedDataDirectory: derivedDataPath,
-            config: config
+            config: config,
+            runStartedAt: runStartedAt
         )
         if let runError { throw runError }
     }

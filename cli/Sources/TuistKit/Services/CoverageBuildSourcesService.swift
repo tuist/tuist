@@ -7,6 +7,7 @@ import TuistCore
 import TuistEnvironment
 import TuistGit
 import TuistRootDirectoryLocator
+import XCResultParser
 
 /// Records the build's checkout and the targets it builds, for this process's test run and,
 /// through a `.xctestproducts` bundle, for a run that uses the products elsewhere (a shard,
@@ -89,17 +90,11 @@ struct CoverageBuildSourcesService {
                 CoverageBuildTarget(
                     name: target.name,
                     isTest: target.isTest,
-                    files: target.files.map { Self.relativize($0, to: rootDirectories) },
+                    files: target.files
+                        .map { XcodeCoverageParser.relativize($0, to: XcodeCoverageParser.roots(rootDirectories)) },
                     binaries: target.binaries
                 )
             }
         )
-    }
-
-    static func relativize(_ path: String, to roots: [String]) -> String {
-        for root in roots.sorted(by: { $0.count > $1.count }) where path.hasPrefix(root + "/") {
-            return String(path.dropFirst(root.count + 1))
-        }
-        return path
     }
 }
