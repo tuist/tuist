@@ -74,14 +74,7 @@ defmodule Tuist.OpenGraphImages do
           Keyword.get(opts, :cache, @cache),
           {__MODULE__, object_key},
           fn ->
-            result =
-              if Storage.object_exists?(object_key, @actor) do
-                :ok
-              else
-                generate_and_store(key, object_key, resolve)
-              end
-
-            case result do
+            case generation_result(key, object_key, resolve) do
               {:transient, _image} = transient ->
                 {:commit, transient, expire: Keyword.get(opts, :transient_ttl, @transient_ttl)}
 
@@ -98,6 +91,19 @@ defmodule Tuist.OpenGraphImages do
         result -> result
       end
     end
+  end
+
+  defp generation_result(key, object_key, resolve) do
+    if Storage.object_exists?(object_key, @actor) do
+      :ok
+    else
+      generate_and_store(key, object_key, resolve)
+    end
+  rescue
+    error ->
+      Logger.error("Unexpected Open Graph image generation failure: #{Exception.format(:error, error, __STACKTRACE__)}")
+      Sentry.capture_exception(error, stacktrace: __STACKTRACE__)
+      {:error, :unavailable}
   end
 
   # The image is read fully into memory before the caller commits a response.

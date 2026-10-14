@@ -2,6 +2,8 @@ defmodule Tuist.OpenGraphImagesTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Tuist.OpenGraphImages
   alias Tuist.Storage
 
@@ -31,6 +33,35 @@ defmodule Tuist.OpenGraphImagesTest do
       assert spec.render == render
       assert spec.key == OpenGraphImages.key(["marketing", "About Tuist"])
     end
+  end
+
+  test "the application starts the default generation cache before handling cold images" do
+    assert is_pid(Process.whereis(:open_graph_images))
+    refute :ets.whereis(:open_graph_images_flights) == :undefined
+    stub_object_storage()
+    key = OpenGraphImages.key(["startup", System.unique_integer([:positive])])
+    assert OpenGraphImages.ensure_available(key, successful_render(key)) == :ok
+  end
+
+  test "unexpected generation exceptions are reported with a stacktrace and remain uncached", %{cache: cache} do
+    stub(Storage, :object_exists?, fn _key, :open_graph_images -> false end)
+    reject(&Storage.put_object/3)
+
+    expect(Sentry, :capture_exception, fn %RuntimeError{message: "unexpected render failure"}, opts ->
+      assert opts[:stacktrace] != []
+      :ignored
+    end)
+
+    log =
+      capture_log(fn ->
+        assert OpenGraphImages.ensure_available("raised", fn -> raise "unexpected render failure" end, cache: cache) ==
+                 {:error, :unavailable}
+      end)
+
+    assert log =~ "Unexpected Open Graph image generation failure"
+    assert log =~ "RuntimeError"
+    assert log =~ "unexpected render failure"
+    assert Cachex.get(cache, {OpenGraphImages, "open-graph-images/raised.jpg"}) == nil
   end
 
   test "a transient image is coalesced locally and retried after eviction", %{cache: cache} do
@@ -155,7 +186,7 @@ defmodule Tuist.OpenGraphImagesTest do
     assert OpenGraphImages.ensure_available("winner", fn -> flunk("another replica published") end, cache: cache) == :ok
   end
 
-  test "a render timeout cancels local work and permits a fresh retry", %{cache: cache} do
+  test "a fill timeout cancels its coordinating worker and permits a fresh retry", %{cache: cache} do
     parent = self()
     stub(Storage, :object_exists?, fn _key, :open_graph_images -> false end)
     expect(Storage, :put_object, fn _key, "image", :open_graph_images -> :ok end)
@@ -254,17 +285,25 @@ defmodule Tuist.OpenGraphImagesTest do
     stub(Storage, :put_object, fn key, _image, :open_graph_images -> Agent.update(objects, &MapSet.put(&1, key)) end)
   end
 
-  defp wait_for_waiter(cache, object_key, waiter, retries \\ 500)
-  defp wait_for_waiter(_cache, _object_key, _waiter, 0), do: flunk("waiter did not join the local flight")
+  defp wait_for_waiter(cache, object_key, waiter) do
+    wait_for_waiter(cache, object_key, waiter, System.monotonic_time(:millisecond) + 5_000)
+  end
 
-  defp wait_for_waiter(cache, object_key, waiter, retries) do
+  defp wait_for_waiter(cache, object_key, waiter, deadline) do
     table = String.to_existing_atom("#{cache}_flights")
     [{_, coordinator}] = :ets.lookup(table, {OpenGraphImages, object_key})
     {:monitored_by, monitors} = Process.info(coordinator, :monitored_by)
 
-    if waiter not in monitors do
-      Process.sleep(1)
-      wait_for_waiter(cache, object_key, waiter, retries - 1)
+    cond do
+      waiter in monitors ->
+        :ok
+
+      System.monotonic_time(:millisecond) >= deadline ->
+        flunk("waiter did not join the local flight")
+
+      true ->
+        Process.sleep(1)
+        wait_for_waiter(cache, object_key, waiter, deadline)
     end
   end
 end
