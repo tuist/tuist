@@ -9,6 +9,12 @@ workflow code runs in the guest. Never expose host credentials or masters.
   API connection (shared `connrotation` dialer) so the next one redials. Keep
   slow work (guest probes, label scans) in the Node status refresh, never in the
   lease path.
+- `tart run` needs an Aqua session for the host user. `internal/tart/session.go`
+  kicks loginwindow before each run when it is missing; on timeout the error
+  names who holds `/dev/console`. `_mbsetupuser` (Setup Assistant from first
+  boot) is not fixable by a kick: restart the host. Bootstrap verifies the
+  session, so a new host should not reach this (see "The console session" in
+  [`cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)).
 - Built-in cache behavior remains in `internal/podagent/volume*.go` and the
   runner-image dispatch script. Preserve existing Tuist/CAS paths and identities.
 - Custom volumes use `internal/podagent/custom_volumes*.go` and the shared

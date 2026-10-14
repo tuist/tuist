@@ -20,7 +20,10 @@
 //  1. Wait for SSH (host has just booted from the provider's image).
 //  2. Grant the SSH user passwordless sudo using UserPassword.
 //  3. Configure GUI auto-login via /etc/kcpassword + autoLoginUser
-//     so Virtualization.framework has a live console session.
+//     so Virtualization.framework has a live console session. A host
+//     still without an Aqua session for the user is restarted once and
+//     fails bootstrap if the session does not come up (see
+//     ensureGUISession).
 //  4. Set the macOS hostname to NodeName.
 //  5. Install Tart by extracting the operator-pinned tart.app tarball
 //     to /usr/local/lib/tart.app + wrapper at /usr/local/bin/tart.
@@ -463,7 +466,8 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer client.Close()
+	// A closure: ensureGUISession may restart the host and hand back a new client.
+	defer func() { client.Close() }()
 
 	// No fingerprint on this path: the key belongs to whichever box answered,
 	// and pinning it would refuse the right one when it takes the address.
@@ -485,6 +489,15 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := installSetupAssistantSuppression(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("suppress setup assistant: %w", err)
+	}
+	// After auto-login and Setup Assistant suppression, which the session a
+	// restart brings up depends on, and before anything that would make the
+	// host look like a working Node without one.
+	guiHost := newSSHGUISessionHost(client, cfg.IP, cfg.SSHUser, signer, hk)
+	guiErr := ensureGUISession(ctx, guiHost, cfg.SSHUser, defaultGUISessionWait)
+	client = guiHost.client
+	if guiErr != nil {
+		return hk.Observed(), fmt.Errorf("gui session: %w", guiErr)
 	}
 	if err := installSSHReachability(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("install ssh reachability: %w", err)
@@ -1403,7 +1416,7 @@ if [ "$(sudo od -An -v -tx1 -N 8 /etc/kcpassword 2>/dev/null | tr -d ' \n')" = "
 fi
 
 if [ "$session_up" = "0" ]; then
-  echo "WARN: Aqua session for %[1]s did not appear after loginwindow kick; bootstrap continues — VM-start preflight will retry"
+  echo "WARN: Aqua session for %[1]s did not appear after loginwindow kick; bootstrap restarts the host to apply auto-login"
 fi
 `, user, encoded)
 }

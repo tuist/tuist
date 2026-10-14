@@ -287,6 +287,35 @@ func TestBootstrapFailureCyclesTheOutletAtTheRebootThreshold(t *testing.T) {
 	}
 }
 
+// A host without a GUI session must not read as a generic bootstrap failure: it
+// is the one failure that would otherwise look like a healthy Node, since
+// tart-kubelet runs fine and only every VM start fails.
+func TestBootstrapFailureWithoutAGUISessionSaysSo(t *testing.T) {
+	machine := rackMachine("ber1-0")
+	host := rackHost("mini-01")
+	r := newRackReconciler(t, host, machine)
+
+	guiErr := &bootstrap.GUISessionError{
+		User:   "tuist",
+		State:  bootstrap.GUISessionState{ConsoleUser: "_mbsetupuser", FileVaultOff: true},
+		Reason: "still missing after a restart and a loginwindow kick",
+	}
+	r.handleBootstrapFailure(context.Background(), machine, host, fmt.Errorf("gui session: %w", guiErr))
+
+	cond := conditions.Get(machine, BootstrappedCondition)
+	if cond == nil || cond.Status != corev1.ConditionFalse || cond.Reason != "GUISessionMissing" {
+		t.Fatalf("Bootstrapped = %+v, want False with reason GUISessionMissing", cond)
+	}
+	if !strings.Contains(cond.Message, "_mbsetupuser") {
+		t.Fatalf("condition message %q does not say who holds the console", cond.Message)
+	}
+
+	r.handleBootstrapFailure(context.Background(), machine, host, errors.New("ssh wedged"))
+	if got := conditions.GetReason(machine, BootstrappedCondition); got != "BootstrapFailed" {
+		t.Fatalf("reason = %q for any other failure, want BootstrapFailed", got)
+	}
+}
+
 func TestBootstrapFailureCyclesTheOutletOnlyOnce(t *testing.T) {
 	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
 		m.Status.BootstrapAttempts = 4

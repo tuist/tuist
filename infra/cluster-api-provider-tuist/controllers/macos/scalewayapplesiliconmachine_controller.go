@@ -1122,9 +1122,9 @@ func handleBootstrapFailure(
 	machine.Status.BootstrapAttempts++
 	attempts := machine.Status.BootstrapAttempts
 
-	conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapFailed",
+	conditions.MarkFalse(machine, BootstrappedCondition, bootstrapFailureReason(err),
 		clusterv1.ConditionSeverityWarning, "%v", err)
-	recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapFailed",
+	recorder.Eventf(machine, corev1.EventTypeWarning, bootstrapFailureReason(err),
 		"%v (attempt %d, will retry)", err, attempts)
 
 	hostAdoptable := machine.Status.ServerID != "" && poolPrefix != ""

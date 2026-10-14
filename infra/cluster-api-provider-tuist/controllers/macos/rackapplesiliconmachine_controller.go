@@ -568,9 +568,9 @@ func (r *RackAppleSiliconMachineReconciler) handleBootstrapFailure(
 	machine.Status.BootstrapAttempts++
 	attempts := machine.Status.BootstrapAttempts
 
-	conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapFailed",
+	conditions.MarkFalse(machine, BootstrappedCondition, bootstrapFailureReason(cause),
 		clusterv1.ConditionSeverityWarning, "%v", cause)
-	r.Recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapFailed",
+	r.Recorder.Eventf(machine, corev1.EventTypeWarning, bootstrapFailureReason(cause),
 		"%v (attempt %d on %s, will retry)", cause, attempts, host.Name)
 
 	switch {
