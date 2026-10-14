@@ -147,6 +147,10 @@ Atlas releases publish the image and standalone Helm chart with the same version
 
 `workflows/cloudflare-config-tests.yml` runs the crawler-exemption scope regressions without credentials on pull requests and main changes. These tests do not validate Cloudflare's API expression parser or modify the live zone.
 
+## SwifterPM diagnostics
+
+The SwifterPM E2E workflow probes public Git HTTP status and isolated Git access after a failure. Keep probes credential-free and do not log authorization headers or change the test result.
+
 ## CodeQL
 
 `workflows/codeql.yml` replaces GitHub's CodeQL default setup. Default setup
