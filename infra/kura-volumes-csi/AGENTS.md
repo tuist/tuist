@@ -34,7 +34,8 @@ CreateVolume and DeleteVolume run on the node that owns the volume.
   - `<id>.img.new`: in-flight CreateVolume; renamed to `.img` after the marker
     is written.
 - Device chain: `losetup --direct-io=on` loop, dm-crypt mapping `kura-<id>`
-  (no discards, `--perf-no_read_workqueue --perf-no_write_workqueue`), XFS
+  (no discards; default workqueues, which keep throughput at the loop
+  device's level where the inline `--perf-no_*_workqueue` modes cost 70%), XFS
   mounted `nodev,nosuid,noatime` at the staging path and bind mounted into
   pods.
 - LUKS2: `aes-xts-plain64`, 512-bit key, PBKDF2 with 1000 iterations (the
