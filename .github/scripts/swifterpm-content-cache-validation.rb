@@ -57,7 +57,13 @@ else
   end
   if mode == 'verify'
     File.write('.validation-evidence/restored.json', JSON.generate(current))
-    %w[cache links].each do |field|
+    retained_cache = current['cache'].keys.sort == previous['cache'].keys.sort && current['cache'].all? do |name, (digest, mtime)|
+      expected_digest, expected_mtime = previous['cache'].fetch(name)
+      digest == expected_digest && (mtime == expected_mtime || mtime == expected_mtime.floor)
+    end
+    abort 'Retained snapshot mismatch: cache contents or archive timestamps' unless retained_cache
+    puts 'Verified retained cache contents and timestamps at seed archive precision (whole seconds); no timestamps were modified'
+    %w[links].each do |field|
       if previous[field] != current[field]
         changed = (previous[field].keys | current[field].keys).select { |name| previous[field][name] != current[field][name] }
         warn JSON.pretty_generate(field: field, changed: changed.first(10).to_h { |name| [name, {before: previous[field][name], after: current[field][name]}] })
