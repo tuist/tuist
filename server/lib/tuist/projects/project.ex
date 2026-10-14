@@ -32,6 +32,8 @@ defmodule Tuist.Projects.Project do
     field :report_schedule_time, :utc_datetime
     field :report_timezone, :string
     field :build_system, Ecto.Enum, values: [xcode: 0, gradle: 1], default: :xcode
+    field :test_timing_source, Ecto.Enum, values: [branch: 0, any: 1], default: :branch
+    field :test_timing_branch, :string
 
     field :auto_quarantine_flaky_tests, :boolean, default: false
     field :flaky_test_alerts_enabled, :boolean, default: false
@@ -97,14 +99,39 @@ defmodule Tuist.Projects.Project do
       :auto_mark_flaky_tests,
       :auto_mark_flaky_threshold,
       :flaky_cooldown_days,
-      :build_system
+      :build_system,
+      :test_timing_source,
+      :test_timing_branch
     ])
+    |> update_change(:test_timing_branch, &normalize_test_timing_branch/1)
     |> validate_name()
     |> validate_number(:auto_mark_flaky_threshold, greater_than: 0)
     |> validate_number(:flaky_cooldown_days, greater_than: 0)
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
     |> validate_inclusion(:build_system, [:xcode, :gradle])
+    |> validate_inclusion(:test_timing_source, [:branch, :any])
+    |> validate_length(:test_timing_branch, max: 255)
+  end
+
+  @doc """
+  Returns the branch name to filter test timing data by, falling back to
+  the project's default branch when no override is configured.
+  Returns `nil` when timing data should be sourced from any branch.
+  """
+  def test_timing_branch_filter(%__MODULE__{test_timing_source: :any}), do: nil
+
+  def test_timing_branch_filter(%__MODULE__{test_timing_branch: override}) when is_binary(override), do: override
+
+  def test_timing_branch_filter(%__MODULE__{default_branch: default_branch}), do: default_branch
+
+  defp normalize_test_timing_branch(nil), do: nil
+
+  defp normalize_test_timing_branch(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
   end
 
   def xcode_project?(%__MODULE__{build_system: :xcode}), do: true

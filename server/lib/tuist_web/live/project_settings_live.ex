@@ -22,10 +22,17 @@ defmodule TuistWeb.ProjectSettingsLive do
       socket
       |> assign(rename_project_form: rename_project_form)
       |> assign(delete_project_form: delete_project_form)
+      |> assign(test_timing_branch_form: build_test_timing_branch_form(selected_project))
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Settings")} · #{selected_project.name} · Tuist")
       |> assign(OpenGraph.og_image_assigns("settings"))
 
     {:ok, socket}
+  end
+
+  defp build_test_timing_branch_form(project) do
+    to_form(%{"test_timing_branch" => project.test_timing_branch || ""},
+      as: :test_timing_branch
+    )
   end
 
   @impl true
@@ -100,5 +107,40 @@ defmodule TuistWeb.ProjectSettingsLive do
 
     socket = assign(socket, selected_project: updated_project)
     {:noreply, socket}
+  end
+
+  def handle_event(
+        "update_test_timing_source",
+        %{"source" => source},
+        %{assigns: %{selected_project: selected_project}} = socket
+      )
+      when source in ["branch", "any"] do
+    {:ok, updated_project} =
+      Projects.update_project(selected_project, %{test_timing_source: String.to_existing_atom(source)})
+
+    {:noreply,
+     socket
+     |> assign(selected_project: updated_project)
+     |> assign(test_timing_branch_form: build_test_timing_branch_form(updated_project))}
+  end
+
+  def handle_event(
+        "update_test_timing_branch",
+        %{"test_timing_branch" => %{"test_timing_branch" => branch}},
+        %{assigns: %{selected_project: selected_project}} = socket
+      ) do
+    case Projects.update_project(selected_project, %{test_timing_branch: branch}) do
+      {:ok, updated_project} ->
+        {:noreply,
+         socket
+         |> assign(selected_project: updated_project)
+         |> assign(test_timing_branch_form: build_test_timing_branch_form(updated_project))}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply,
+         assign(socket,
+           test_timing_branch_form: to_form(changeset, as: :test_timing_branch)
+         )}
+    end
   end
 end

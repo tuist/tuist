@@ -54,6 +54,82 @@ defmodule Tuist.ShardsTest do
       assert result.shard_count == 2
     end
 
+    test "ignores CI runs from non-default branches by default" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/branch",
+        test_modules: [
+          %{name: "SlowTests", status: "success", duration: 100_000, test_cases: []}
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{reference: "default-branch-only", modules: ["SlowTests"], shard_max: 2}
+      result = Shards.create_shard_plan(project, params)
+
+      [%{"estimated_duration_ms" => duration}] = result.shard_assignments
+      assert duration == 30_000
+    end
+
+    test "uses CI runs from the configured test_timing_branch override" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, project} =
+        Tuist.Projects.update_project(project, %{test_timing_branch: "release/2026.05"})
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "release/2026.05",
+        test_modules: [
+          %{name: "SlowTests", status: "success", duration: 80_000, test_cases: []}
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{name: "SlowTests", status: "success", duration: 10_000, test_cases: []}
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{reference: "branch-override", modules: ["SlowTests"], shard_max: 2}
+      result = Shards.create_shard_plan(project, params)
+
+      [%{"estimated_duration_ms" => duration}] = result.shard_assignments
+      assert duration == 80_000
+    end
+
+    test "uses CI runs from any branch when test_timing_source is :any" do
+      project = ProjectsFixtures.project_fixture()
+      {:ok, project} = Tuist.Projects.update_project(project, %{test_timing_source: :any})
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/branch",
+        test_modules: [
+          %{name: "SlowTests", status: "success", duration: 100_000, test_cases: []}
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{reference: "any-branch", modules: ["SlowTests"], shard_max: 2}
+      result = Shards.create_shard_plan(project, params)
+
+      [%{"estimated_duration_ms" => duration}] = result.shard_assignments
+      assert duration == 100_000
+    end
+
     test "creates a shard plan with suite-level granularity" do
       project = ProjectsFixtures.project_fixture()
 

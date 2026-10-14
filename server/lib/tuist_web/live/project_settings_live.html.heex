@@ -89,6 +89,102 @@
       </.dropdown>
     </div>
   </.card_section>
+  <.card_section data-part="test-timing-source-card-section">
+    <div data-part="header">
+      <div data-part="title-row">
+        <span data-part="title">
+          {dgettext("dashboard_projects", "Test timing data source")}
+        </span>
+        <.tooltip
+          id="test-timing-source-tooltip"
+          size="large"
+          title={dgettext("dashboard_projects", "Test timing data source")}
+          description={
+            dgettext(
+              "dashboard_projects",
+              "Tuist uses historical CI test durations from the last 30 days to bin-pack test targets into balanced shards. By default it only looks at the project's default branch, but you can point it at a specific branch (for example a release branch with more representative runs) or let it use timing from any branch."
+            )
+          }
+        >
+          <:trigger :let={attrs}>
+            <span data-part="title-tooltip-trigger" {attrs}>
+              <.icon name="info_circle" />
+            </span>
+          </:trigger>
+          <:icon>
+            <.icon name="info_circle" />
+          </:icon>
+        </.tooltip>
+      </div>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_projects",
+          "Choose which CI runs feed historical timing data for test sharding."
+        )}
+      </span>
+    </div>
+    <div data-part="content">
+      <div data-part="field">
+        <label data-part="dropdown-label">
+          {dgettext("dashboard_projects", "Source")}
+        </label>
+        <.dropdown
+          id="test-timing-source-dropdown"
+          label={
+            if @selected_project.test_timing_source == :any do
+              dgettext("dashboard_projects", "Any branch")
+            else
+              dgettext("dashboard_projects", "A specific branch")
+            end
+          }
+        >
+          <.dropdown_item
+            value="branch"
+            label={dgettext("dashboard_projects", "A specific branch")}
+            phx-click="update_test_timing_source"
+            phx-value-source="branch"
+            data-selected={@selected_project.test_timing_source == :branch}
+          >
+            <:right_icon :if={@selected_project.test_timing_source == :branch}>
+              <.icon name="check" />
+            </:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="any"
+            label={dgettext("dashboard_projects", "Any branch")}
+            phx-click="update_test_timing_source"
+            phx-value-source="any"
+            data-selected={@selected_project.test_timing_source == :any}
+          >
+            <:right_icon :if={@selected_project.test_timing_source == :any}>
+              <.icon name="check" />
+            </:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+      </div>
+      <div :if={@selected_project.test_timing_source == :branch} data-part="field">
+        <.form
+          for={@test_timing_branch_form}
+          id="test-timing-branch-form"
+          phx-submit="update_test_timing_branch"
+        >
+          <.text_input
+            type="basic"
+            label={dgettext("dashboard_projects", "Branch")}
+            sublabel={
+              dgettext(
+                "dashboard_projects",
+                "Defaults to the project's default branch (%{default_branch}) when left empty.",
+                default_branch: @selected_project.default_branch
+              )
+            }
+            field={@test_timing_branch_form[:test_timing_branch]}
+            placeholder={@selected_project.default_branch}
+          />
+        </.form>
+      </div>
+    </div>
+  </.card_section>
   <.card_section data-part="rename-card-section">
     <div data-part="header">
       <span data-part="title">

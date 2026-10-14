@@ -239,14 +239,17 @@ defmodule Tuist.Shards do
   defp fetch_timing_data(project, "module") do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
 
-    from(mr in TestModuleRun,
-      where: mr.project_id == ^project.id,
-      where: mr.is_ci == true,
-      where: mr.git_branch == ^project.default_branch,
-      where: mr.ran_at >= ^cutoff,
-      group_by: mr.name,
-      select: %{name: mr.name, avg_duration: fragment("avg(?)", mr.duration)}
-    )
+    query =
+      from(mr in TestModuleRun,
+        where: mr.project_id == ^project.id,
+        where: mr.is_ci == true,
+        where: mr.ran_at >= ^cutoff,
+        group_by: mr.name,
+        select: %{name: mr.name, avg_duration: fragment("avg(?)", mr.duration)}
+      )
+
+    query
+    |> filter_by_timing_source(project, :module)
     |> ClickHouseRepo.all()
     |> Map.new(fn %{name: name, avg_duration: avg} -> {name, round(avg)} end)
   end
@@ -254,16 +257,34 @@ defmodule Tuist.Shards do
   defp fetch_timing_data(project, "suite") do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
 
-    from(sr in TestSuiteRun,
-      where: sr.project_id == ^project.id,
-      where: sr.is_ci == true,
-      where: sr.git_branch == ^project.default_branch,
-      where: sr.ran_at >= ^cutoff,
-      group_by: sr.name,
-      select: %{name: sr.name, avg_duration: fragment("avg(?)", sr.duration)}
-    )
+    query =
+      from(sr in TestSuiteRun,
+        where: sr.project_id == ^project.id,
+        where: sr.is_ci == true,
+        where: sr.ran_at >= ^cutoff,
+        group_by: sr.name,
+        select: %{name: sr.name, avg_duration: fragment("avg(?)", sr.duration)}
+      )
+
+    query
+    |> filter_by_timing_source(project, :suite)
     |> ClickHouseRepo.all()
     |> Map.new(fn %{name: name, avg_duration: avg} -> {name, round(avg)} end)
+  end
+
+  defp filter_by_timing_source(query, %Project{} = project, granularity) do
+    case Project.test_timing_branch_filter(project) do
+      nil -> query
+      branch -> filter_by_branch(query, branch, granularity)
+    end
+  end
+
+  defp filter_by_branch(query, branch, :module) do
+    from(mr in query, where: mr.git_branch == ^branch)
+  end
+
+  defp filter_by_branch(query, branch, :suite) do
+    from(sr in query, where: sr.git_branch == ^branch)
   end
 
   defp assign_durations(unit_names, timing_data, granularity) do
