@@ -10,7 +10,13 @@ mkdir -p .validation-evidence .validation-transfer "$state"
 git show "$accepted:Tuist.swift" > Tuist.swift
 git show "$accepted:.github/scripts/retain-swiftpm-manifest-cache.sh" > "$RUNNER_TEMP/retain-manifests.sh"
 
-if [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]; then
+seed=false
+if [[ ! -f .validation-transfer/state.tgz ]]; then
+  seed=true
+fi
+echo "seed=$seed" >> "$GITHUB_OUTPUT"
+
+if [[ "$seed" == true ]]; then
   test ! -e .build
   mkdir -p "$state/workspace"
   ln -s "$state/workspace" .build
@@ -66,7 +72,7 @@ cat .validation-evidence/install.log
 /usr/bin/ruby .github/scripts/swifterpm-content-cache-validation.rb compare .validation-evidence/before.json
 git diff --exit-code -- Package.swift Package.resolved
 
-if [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]; then
+if [[ "$seed" == true ]]; then
   /usr/bin/ruby .github/scripts/swifterpm-content-cache-validation.rb snapshot "$state/seed.json"
   tar -czf .validation-transfer/state.tgz -C "$HOME" \
     .cache/swifterpm-content-validation .cache/swifterpm

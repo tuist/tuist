@@ -1,7 +1,7 @@
 # GitHub automation
 
 The temporary `swifterpm-content-cache-validation.yml` compares parent and candidate
-cache behavior on fresh M4 runners. Attempt 1 seeds artifacts; reruns restore the same
+cache behavior on fresh M4 runners. A seed run creates artifacts; later runs restore the same
 binary and retained directories into new VMs, verify their contents, then time a real
 forced installation. It uses no cache-volume attachment or writer grants. Remove the
 temporary workflow and its scripts after recording the fresh-runner evidence.

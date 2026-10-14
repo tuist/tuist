@@ -44,14 +44,17 @@ jobs:
           tuist auth login
           tuist setup
       - uses: actions/download-artifact@v4
-        if: github.run_attempt != 1
+        if: false
         with:
           name: state-${{ matrix.variant }}
           path: .validation-transfer
+          github-token: ${{ github.token }}
+          run-id: 38533876876
       - name: Profile real installation
+        id: profile
         run: bash .github/scripts/swifterpm-content-cache-validation.sh
       - uses: actions/upload-artifact@v4
-        if: github.run_attempt == 1
+        if: steps.profile.outputs.seed == 'true'
         with:
           name: state-${{ matrix.variant }}
           path: .validation-transfer/state.tgz
