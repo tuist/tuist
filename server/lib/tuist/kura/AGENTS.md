@@ -5,6 +5,8 @@
   flag cannot remove the serving rollback floor or restore legacy selection.
   See [serving authority](../../../../../infra/kura-controller/serving-authority.md).
 
+- Capacity counts every node-local volume on a region's nodes that no claim is bound to (a quarantined replica's retained volume, a Released volume awaiting deletion) at its provisioned size, in the region total and in the node's headroom. No pod requests that disk, so the scheduler would otherwise hand it out again. Failing to list volumes leaves the reading unknown, the same as failing to list pods.
+
 - Storage sizing counts `disk_pressure` events as eviction activity to block occupancy shrink, but excludes their bytes from turnover and invalidates all retention ages for the affected account-region-day. Keep snapshots reporting configured ring budgets; runtime pressure caps belong to backfill, not the resize denominator.
 
 - Region location metadata follows the active fleet's physical datacenter:

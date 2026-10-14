@@ -523,6 +523,7 @@ defmodule Tuist.Kura.PromExPluginTest do
   end
 
   defp stub_region_pods(pods) do
+    stub(Client, :list_persistent_volumes, fn _opts -> {:ok, []} end)
     stub(Client, :list_pods, fn _namespace, _selector -> {:ok, pods} end)
   end
 
