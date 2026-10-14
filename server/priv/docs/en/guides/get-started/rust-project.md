@@ -106,4 +106,3 @@ TUIST_SHARD_PLAN_ID="$PLAN_ID" TUIST_SHARD_INDEX=0 \
 Each worker downloads the compiled tests and runs its assigned binaries without rebuilding. Use the same checkout and compatible operating systems and architectures on all workers. The results appear as one test run in the dashboard.
 
 See <.localized_link href="/guides/features/test-sharding/rust">Rust Test Sharding</.localized_link> for a complete CI example and options for balancing the workers.
-
