@@ -54,10 +54,13 @@ defmodule Tuist.Kura.ClaimSizing do
     # The absolute arm does not move when the floor is recalibrated. A tier
     # appears twice where volume can stand in for elapsed time: the ring the
     # account cycled is evidence the same reading held all day. Turnover counts
-    # rings across the whole window, so two over two days is one a day.
+    # rings across the whole window, so two over two days is one a day. Three
+    # rings in one day buys a third of the floor down to that day: a single
+    # busy day of a ring that is big enough cycles well under two.
     grow_windows: [
       %{shed_age_under: {:seconds, 3_600}, window_days: 1, min_ring_turnover: 1.0},
       %{shed_age_under: {:seconds, 28_800}, window_days: 1, min_ring_turnover: 2.0},
+      %{shed_age_under: {:floor_fraction, 0.34}, window_days: 1, min_ring_turnover: 3.0},
       %{shed_age_under: {:seconds, 28_800}, window_days: 2},
       %{shed_age_under: {:floor_fraction, 0.1}, window_days: 2},
       %{shed_age_under: {:floor_fraction, 0.34}, window_days: 2, min_ring_turnover: 2.0},

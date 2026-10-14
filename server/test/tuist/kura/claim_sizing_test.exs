@@ -505,6 +505,49 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert evidence["window_days"] == 5
     end
 
+    test "a single day under a third of the floor acts once it cycled three rings" do
+      # An account that started building on a 5Gi ring: its second day sheds
+      # at the ring's own age, just over the two-day rung, and its third
+      # cycles nearly five rings at half a day. That is not a busy afternoon,
+      # so it grows on the one day rather than waiting out a second.
+      ring_bytes = 5 * @gibibyte
+
+      rollups = [
+        rollup(Date.add(@today, -1),
+          eviction_count: 15,
+          evicted_bytes: round(1.3 * ring_bytes),
+          median_shed_age_seconds: 92_682,
+          median_ring_span_seconds: 92_544,
+          last_ring_budget_bytes: ring_bytes
+        ),
+        rollup(@today,
+          eviction_count: 45,
+          evicted_bytes: 24 * @gibibyte,
+          median_shed_age_seconds: 42_814,
+          median_ring_span_seconds: 45_035,
+          last_ring_budget_bytes: ring_bytes
+        )
+      ]
+
+      context = context(current_claim_size: "8Gi", rollups: rollups)
+
+      assert {:grow, "16Gi", evidence} = ClaimSizing.evaluate(context)
+      assert evidence["window_days"] == 1
+      assert evidence["ring_turnover"] == 4.8
+      assert evidence["qualifying_threshold_seconds"] == round(0.34 * 3 * @day_seconds)
+    end
+
+    test "a single day under a third of the floor that cycled under three rings waits" do
+      # The busiest one-off days production recorded cycled under one and a
+      # half rings, so a day short of three is still read as one of them.
+      rollups =
+        1
+        |> churn_at(@today, 12 * 3_600, 13 * 3_600)
+        |> Enum.map(&Map.merge(&1, %{evicted_bytes: 14 * @gibibyte, last_ring_budget_bytes: 5 * @gibibyte}))
+
+      assert ClaimSizing.evaluate(context(current_claim_size: "8Gi", rollups: rollups)) == :none
+    end
+
     test "the step a reading may take scales with the confirmation behind it" do
       # The projection here runs far past either bound, so the bound is what
       # lands: a single day's reading doubles, and a tier confirmed across
