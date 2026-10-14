@@ -72,6 +72,24 @@ install reboots (`casper.service`, overridden under `/run`): an ejected stick
 reports no medium until `eject -t` loads it, so the next reinstall would not
 find it.
 
+The stick's five minutes are on the clock: a machine without its
+provisioning lease sends the request out the default route an uplink's DHCP
+gave it, where nothing answers, so each try lasts until curl's ten-second
+connect timeout. While the boot server does not answer, the console says once
+a minute which addresses the installer holds, so a stick that never got a
+provisioning lease shows it.
+
+The installer's DHCP is the live ISO's own, `en*` (cloud-init prefers the
+ISO's system configuration to the seed's `network-config`). Once it has an
+install, subiquity applies that install's network section, DHCP on the
+uplinks only, to the live system and unmanages its 2.5G ports, about nine
+seconds after they come up. An installer that sends one `DHCPDISCOVER` on the
+management segment and then nothing is often just that; see "An offer in the
+log with no request after it" in
+[`infra/rack-switch-fleet`](../rack-switch-fleet/AGENTS.md). At the colo, where
+nothing serves DHCP on an edge's uplinks, it also takes away an edge install's
+only route out, its provisioning lease.
+
 - A box with an empty disk boots the stick on its own, with the firmware's
   defaults: Secure Boot on and the network stack off.
 - To reinstall a running host, the operator looks for a USB disk whose ISO
@@ -146,7 +164,10 @@ every other edge of the site. The chain a netbooting host goes through:
    two hours.
 5. Once a tailnet device that is not the one the install replaced shows up, the
    host controller withdraws the install, so the key stops being served, and
-   records the generation it installed.
+   records the generation it installed. It holds that device to the install's
+   host key only when the boot server handed out the seed
+   (`status.boot.servedAt`); a device that joins otherwise came from another
+   installer, such as the host's own stick, and is trusted on first use.
 
 The iPXE is the iPXE project's Secure Boot build (pinned in the operator's
 image): a shim signed by Microsoft's UEFI CA 2011, the CA that signs Ubuntu's
@@ -332,9 +353,22 @@ carries the same guard.
 
 ## What an install carries
 
-- network configuration for the SFP+ uplinks only (DHCP on the X710's `i40e`
-  ports), so the 2.5G ports stay unmanaged for the node's pods: an edge's
-  rack-edge pod owns its switch port;
+- network configuration for the SFP+ uplinks only, so the 2.5G ports stay
+  unmanaged for the node's pods: an edge's rack-edge pod owns its switch port.
+  That is DHCP on the X710's `i40e` ports, except on an edge whose
+  RackLinuxHost carries `spec.edge` (rendered from the site definition at a
+  site with a WAN): its uplinks take no address, and it goes out over the
+  site's VRRP VLAN through the other edge, an active-backup bond `vrrp0` over
+  `vrrp0-<n>` on the n-th uplink with its VRRP address and a default route
+  through the other edge at metric 200, built the way the rack-edge pod
+  builds it, plus global resolvers in
+  `/etc/systemd/resolved.conf.d/10-tuist-edge.conf`. Nothing serves DHCP on
+  the management VLAN at the colo, so that is how a reinstalled edge reaches
+  the tailnet and gets converged. It needs the other edge up as master, so the
+  edges are reinstalled one at a time. A per-host stick (`--host`) renders no
+  edge network; install an edge at the colo by netboot or with the site's stick
+  (`--any-host`). See "Rack-owned Linux hosts" in
+  [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md);
 - `blacklist btusb` in `/etc/modprobe.d/tuist-rack.conf`, which the converge
   also keeps: the MS-01's Bluetooth dereferences NULL on a warm boot of the 6.8
   kernel, and the node's `panic_on_oops` turns that into a reboot every 70
@@ -351,7 +385,9 @@ carries the same guard.
   the install replaces the host keys the package generated with it alone, and
   tells cloud-init to keep it, and the operator trusts the new install by its
   fingerprint rather than by whatever answers first. A per-host stick carries
-  none, and the host generates its own;
+  none, and the host generates its own, which the operator pins on first use
+  even while an install is published for the host, since the boot server never
+  handed that install's seed out;
 - a tailnet join key minted from the OAuth client in `TAILSCALE_RACK_NODES`:
   single-use, pre-authorized, not ephemeral, carrying the host's tags, and
   valid for two hours. One no host fetched is renewed before it expires, and a
@@ -463,7 +499,7 @@ For planned downtime, a move or work on the rack:
 1. **The minis** (remote). Cordon each one's Node and let its running jobs
    finish (`kubectl get rh` names the Machine, which is also the Node), then
    set `parked: true` on each host in `rackFleet.hosts` and deploy. Parking
-   deletes the Machine and the Node, so the `ber1` pool has no nodes to place
+   deletes the Machine and the Node, so the rack's pools have no nodes to place
    runners on and nothing tries to bootstrap a mini that is off. Unparking them
    afterwards (and deploying) bootstraps each one again.
 2. **The Linux hosts** need nothing. Their Nodes go NotReady and their pods are
@@ -775,6 +811,106 @@ STORE_A=3a898800-6402-11f1-ab1d-b1bd5a0f6400
 Until step 8, going back is redeploying staging from `main` and turning its
 flag on again. After it, the hosts are reinstalled into whichever env takes
 them.
+
+## Customer jobs
+
+`rackFleet.runners` renders the runner catalog a second time onto the rack:
+for each Xcode, a pool named `<release>-runner-pool-macos-<site>-<xcode>`
+(plus the shapes `rackFleet.runners.shapes` names) that selects the rack
+fleet, with the same image as the rented fleet's pool for that Xcode. The
+server learns them through `TUIST_RUNNERS_SITE_POOLS`. An account on the
+`runner_site` flag (`https://tuist.dev/ops/flags`) has its macOS profiles
+(`tuist-macos` and the rest) routed to the rack's pool for the profile's Xcode
+and shape, and to the rented fleet when the rack has none. While the rack is
+up, the account's jobs run only there: they queue for as long as the rack is
+busy, and no rented runner is minted for them, so none can pick one up. GitHub
+hands a queued job to any idle runner of the org that carries its labels, and
+a rack runner carries the same label as a rented one, so keeping rented
+runners from being minted is what keeps the jobs on the rack.
+
+The rented fleet is the rack's backup while it is down (`Tuist.Runners.Sites`):
+
+- **No capacity:** no Node of the rack fleet is Ready, schedulable and large
+  enough for the pool's guest. Power, the uplink and a drain all show up this
+  way within the node-monitor grace period.
+- **Stalled:** a pool's oldest queued job has waited 10 minutes and nothing at
+  the rack held or took a claim in that time; 30 minutes while no eligible
+  Node holds the pool's golden image, so a cold pull is not an outage.
+
+While a pool is down, dispatch routes new jobs to the rented pool for the same
+Xcode and shape, and `SiteSpilloverWorker` moves its queued ones there every
+minute. A cluster the server cannot read leaves the rack up.
+
+The flag also gives the account a node in `ber1-runners`, as
+`runner_site_cache` does. With the
+flag off for everyone, the rack's pools idle at their floors and nothing a
+customer runs lands on them.
+
+The rack's pools autoscale against the rack's own guest slots: the
+runners-controller apportions a fleet's capacity among the autoscaling pools
+that share its `fleetSelector`, so the rack and the rented fleet are separate
+budgets. That is also why the `ber1` smoke pool autoscales from zero instead
+of holding a fixed count: the allocator counts only autoscaling pools, and a
+fixed count would hold slots it believes free.
+
+A Tart guest cannot be newer than its host. Every catalog image is a macOS 26
+guest and the rack's hosts run macOS 27, so every Xcode runs there; a catalog
+entry on a newer guest needs the hosts updated first.
+
+### Lending a host to another env
+
+A rack host can run another env's runners while it stays in the rack's env:
+its Machine, power, OS updates and bootstrap stay there, and its tart-kubelet
+registers its Node in the other env's cluster, whose runner pools and server
+then drive its guests. Staging borrows production's this way, so staging jobs
+run on rack hardware. The borrowing env's chart issues the host a node
+identity (`rackFleet.joiningNodes`), and the lending env's RackHost points the
+host at it (`nodeCluster`, `nodeFleet`). The operator waits for that
+kubeconfig, then revokes the host's identity in its own cluster, deletes its
+Node there, and pushes the other cluster's kubeconfig through the drift loop.
+The Machine carries `cluster.x-k8s.io/skip-remediation` while lent, since its
+cluster never sees the Node.
+
+1. **Issue the identity** (remote). In the borrowing env's values, add the
+   host's Machine name (`<fleet>-<host>`) to `rackFleet.joiningNodes`, set
+   `rackFleet.name` to the fleet its pools select and `rackFleet.site`, enable
+   `rackFleet.runners`, and deploy.
+2. **Store it in the lending env's vault** (remote, by a person: it writes a
+   credential into 1Password). With `S` the borrowing cluster's context and
+   `M` the Machine name:
+
+   ```
+   M=tuist-tuist-rack-fleet-ber1-runner-b01; S="--context kube-staging.tuist.dev"
+   umask 077; d="$(mktemp -d)"
+   kubectl $S -n tuist-staging get secret "tart-kubelet-$M-token" -o json >"$d/s.json"
+   server="$(kubectl $S -n kube-public get cm cluster-info -o jsonpath='{.data.kubeconfig}' | yq -r '.clusters[0].cluster.server')"
+   printf 'apiVersion: v1\nkind: Config\ncurrent-context: tart-kubelet\nclusters:\n  - name: cluster\n    cluster:\n      server: %s\n      certificate-authority-data: %s\ncontexts:\n  - name: tart-kubelet\n    context:\n      cluster: cluster\n      user: tart-kubelet-%s\nusers:\n  - name: tart-kubelet-%s\n    user:\n      token: %s\n' \
+     "$server" "$(jq -r '.data["ca.crt"]' "$d/s.json")" "$M" "$M" "$(jq -r .data.token "$d/s.json" | base64 -d)" >"$d/kubeconfig"
+   jq -n --rawfile k "$d/kubeconfig" '{title: "BER1_RUNNER_B01_STAGING_KUBECONFIG", category: "API_CREDENTIAL", fields: [{id: "kubeconfig", label: "kubeconfig", type: "CONCEALED", value: $k}]}' >"$d/item.json"
+   op item create --vault tuist-k8s-production --template "$d/item.json"; rm -rf "$d"
+   ```
+
+3. **Lend it** (remote). Cordon the host's Node in the lending env and let
+   its jobs finish, then set the host's `nodeFleet` (the borrowing env's
+   `rackFleet.name`) and `nodeCluster.kubeconfigItem` (the item above) in the
+   lending env's `rackFleet.hosts`, and deploy. A host that cannot read its
+   kubeconfig keeps serving its own env and records `Not lending ... yet`
+   events on its RackAppleSiliconMachine.
+4. **Check it** (remote): `kubectl $S get node $M -L tuist.dev/fleet` is
+   Ready in the borrowing cluster, and the lending cluster has no Node `$M`.
+
+Returning the host is the reverse: drop `nodeCluster` and `nodeFleet` in the
+lending env and deploy (the operator mints its identity there again and pushes
+it), then drop it from `joiningNodes` in the borrowing env, deploy, and delete
+the Node there. Rotating the kubeconfig takes a new item name: the Secret is
+named after the item, and the drift loop keys on the Secret's name, not its
+contents.
+
+Before enabling the flag for any account other than Tuist's own, the rack's
+runner VMs have to be isolated from the rack's private networks and the
+tailnet (the VM egress firewall in `infra/macos-host-bootstrap`, the ACL
+catch-all in `infra/tailscale/acls.json`), and the isolation probed from a
+runner VM.
 
 ## Tests
 

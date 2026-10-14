@@ -750,7 +750,8 @@ defmodule Atlas.MCP.Server do
       description: @description,
       instructions: @instructions,
       tools: @static_tools,
-      prompts: @prompts
+      prompts: @prompts,
+      session_store: nil
     )
   end
 
@@ -777,8 +778,21 @@ defmodule Atlas.MCP.Server do
     negotiated = negotiated_protocol_version(request)
 
     case EMCP.Server.handle_message(server(), conn, request) do
-      %{"result" => result} = response -> %{response | "result" => Map.put(result, "protocolVersion", negotiated)}
-      response -> response
+      %{"result" => result} = response ->
+        capabilities =
+          Map.new(result["capabilities"], fn
+            {name, options} when name in ["tools", "prompts", "resources"] ->
+              {name, Map.put(options, "listChanged", false)}
+
+            capability ->
+              capability
+          end)
+
+        result = result |> Map.put("protocolVersion", negotiated) |> Map.put("capabilities", capabilities)
+        %{response | "result" => result}
+
+      response ->
+        response
     end
   end
 
@@ -867,12 +881,18 @@ defmodule Atlas.MCP.Server do
           conn
           |> mcp_claim_metadata()
           |> Map.merge(%{
-            arguments: arguments,
+            arguments: audit_arguments(name, arguments),
             status: tool_call_status(response)
           })
       })
     end
   end
+
+  defp audit_arguments("create_mcp_server", arguments) when is_map(arguments) do
+    Map.drop(arguments, ["bearer_token", :bearer_token])
+  end
+
+  defp audit_arguments(_name, arguments), do: arguments
 
   defp mcp_claim_metadata(%{assigns: %{mcp_claims: claims}}), do: Audit.claim_metadata(claims)
   defp mcp_claim_metadata(_conn), do: %{}

@@ -244,7 +244,8 @@ defmodule Tuist.Kura.ClaimSizing do
 
   # The capped step's evidence already proved the ring short, so a rung
   # confirms on one day of the resized ring, at the one-day bound, until its
-  # own window could have run since the resize. That day pays in volume, as
+  # own window could have run since the resize, unless another day of the
+  # resized ring shed past the rung's threshold. That day pays in volume, as
   # the ladder's own one-day rungs do: a rebuilt ring sheds nothing older than
   # itself, so shed age alone cannot tell a short ring from a young one.
   defp capped_resize_verdict(_by_date, _idle_dates, _floor_seconds, _claim_bytes, %{capped_resize_from: nil}, _policy),
@@ -262,10 +263,24 @@ defmodule Tuist.Kura.ClaimSizing do
       turnover = max(Map.get(rung, :min_ring_turnover, 0), one_day_turnover)
       one_day_rung = Map.merge(rung, %{window_days: 1, min_ring_turnover: turnover})
 
-      case rung_verdict([one_day_rung], days, idle_dates, floor_seconds, claim_bytes, context, policy) do
-        nil -> nil
-        {target_bytes, evidence} -> {target_bytes, Map.put(evidence, "after_capped_resize", true)}
+      with false <- shed_past_threshold?(days, idle_dates, shed_age_threshold(rung.shed_age_under, floor_seconds)),
+           {target_bytes, evidence} <-
+             rung_verdict([one_day_rung], days, idle_dates, floor_seconds, claim_bytes, context, policy) do
+        {target_bytes, Map.put(evidence, "after_capped_resize", true)}
+      else
+        _ -> nil
       end
+    end)
+  end
+
+  # One day stands in for a rung's window only while nothing the resized ring
+  # measured says otherwise. A day it shed content that outlived the rung's
+  # threshold, and was not idle, is the window's own answer, and one day under
+  # it does not outweigh that. A day that shed nothing is not evidence either
+  # way: a rebuilt ring refills before it sheds.
+  defp shed_past_threshold?(days, idle_dates, threshold_seconds) do
+    Enum.any?(days, fn {_date, rollup} ->
+      rollup.eviction_count > 0 and grow_standing(rollup, idle_dates, threshold_seconds) == :breaks
     end)
   end
 

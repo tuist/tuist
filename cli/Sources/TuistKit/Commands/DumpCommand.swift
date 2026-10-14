@@ -3,7 +3,7 @@ import Foundation
 import TuistLoader
 import TuistSupport
 
-public struct DumpCommand: AsyncParsableCommand {
+public struct DumpCommand: AsyncParsableCommand, ProjectPathProviding {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -21,7 +21,7 @@ public struct DumpCommand: AsyncParsableCommand {
         completion: .directory,
         envKey: .dumpPath
     )
-    var path: String?
+    public var path: String?
 
     @Argument(help: "The manifest to be dumped", envKey: .dumpManifest)
     var manifest: DumpableManifest = .project

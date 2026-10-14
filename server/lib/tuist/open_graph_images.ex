@@ -3,6 +3,9 @@ defmodule Tuist.OpenGraphImages do
   Content-addressed runtime generation and object-storage caching for Open Graph images.
   """
 
+  import Cachex.Spec, only: [expiration: 1, hook: 1]
+
+  alias Tuist.Authentication.SingleFlight
   alias Tuist.Environment
   alias Tuist.Storage
 
@@ -10,6 +13,17 @@ defmodule Tuist.OpenGraphImages do
 
   @actor :open_graph_images
   @storage_prefix "open-graph-images"
+  @cache :open_graph_images
+  @generation_timeout to_timeout(minute: 2)
+  @transient_ttl to_timeout(second: 2)
+  @max_transient_entries 128
+
+  def child_spec(opts) do
+    SingleFlight.cache_child_spec(__MODULE__, Keyword.get(opts, :cache, @cache),
+      expiration: expiration(default: @transient_ttl, interval: @transient_ttl),
+      hooks: [hook(module: Cachex.Limit.Scheduled, args: {@max_transient_entries, [], []})]
+    )
+  end
 
   def spec(key_parts, params, render) when is_list(key_parts) and is_map(params) and is_function(render, 0) do
     %{key: key(key_parts), params: params, render: render}
@@ -49,21 +63,47 @@ defmodule Tuist.OpenGraphImages do
   def ensure_available(key, resolve, opts \\ []) when is_binary(key) and is_function(resolve, 0) do
     object_key = object_key(key, opts)
 
-    # Fast path: an already-generated image (the overwhelming majority of
-    # requests) is served without taking the cluster-wide lock. Only a cache
-    # miss acquires it, and re-checks existence inside the lock so concurrent
-    # first-requests for the same key render exactly once.
+    # Published images bypass local coordination, including cache restarts.
+    # Cold requests coalesce only on this replica. Other replicas may render
+    # equivalent images independently; correctness never depends on membership.
     if Storage.object_exists?(object_key, @actor) do
       :ok
     else
-      :global.trans({__MODULE__, key}, fn ->
-        if Storage.object_exists?(object_key, @actor) do
-          :ok
-        else
-          generate_and_store(key, object_key, resolve)
-        end
-      end)
+      result =
+        SingleFlight.fetch(
+          Keyword.get(opts, :cache, @cache),
+          {__MODULE__, object_key},
+          fn ->
+            case generation_result(key, object_key, resolve) do
+              {:transient, _image} = transient ->
+                {:commit, transient, expire: Keyword.get(opts, :transient_ttl, @transient_ttl)}
+
+              result ->
+                {:ignore, result}
+            end
+          end,
+          timeout: Keyword.get(opts, :timeout, @generation_timeout)
+        )
+
+      case result do
+        {:commit, result} -> result
+        {:ignore, result} -> result
+        result -> result
+      end
     end
+  end
+
+  defp generation_result(key, object_key, resolve) do
+    if Storage.object_exists?(object_key, @actor) do
+      :ok
+    else
+      generate_and_store(key, object_key, resolve)
+    end
+  rescue
+    error ->
+      Logger.error("Unexpected Open Graph image generation failure: #{Exception.format(:error, error, __STACKTRACE__)}")
+      Sentry.capture_exception(error, stacktrace: __STACKTRACE__)
+      {:error, :unavailable}
   end
 
   # The image is read fully into memory before the caller commits a response.

@@ -130,13 +130,18 @@ defmodule Tuist.Kura.RunnerCache do
   end
 
   # A site's region serves only the pools racked there, so it holds nodes for
-  # the accounts enabled on the site cache flag rather than for every account
-  # with runners. An account the flag drops has its node torn down.
+  # the accounts whose jobs run there (`runner_site`) or that the site cache
+  # flag enables, rather than for every account with runners. An account both
+  # flags drop has its node torn down.
   defp admitted_account_ids(%Regions{} = region, account_ids) do
     case Regions.site(region) do
       nil -> account_ids
-      _site -> MapSet.filter(account_ids, &FeatureFlags.runner_site_cache_enabled?(%Account{id: &1}))
+      _site -> MapSet.filter(account_ids, &site_account?(%Account{id: &1}))
     end
+  end
+
+  defp site_account?(account) do
+    FeatureFlags.runner_site_enabled?(account) or FeatureFlags.runner_site_cache_enabled?(account)
   end
 
   # Platforms a region's nodes serve. Private regions always declare

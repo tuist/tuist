@@ -62,6 +62,14 @@ The **Timeline** tab shows the same build over time: which files compiled in par
 
 The **Warnings** and **Errors** tabs list the diagnostics of the build.
 
+## Report actor claim {#report-actor-claim}
+
+Mix build and test report requests include the optional `x-tuist-actor-id` header only when you explicitly configure a label. Set `TUIST_ACTOR_ID` to an organization-scoped label, or add `actor_id: "developer-label"` to the project's `tuist` configuration. Resolution prefers the environment variable, then runtime `:actor_id` options, then project configuration. No label is sent by default, and the package does not detect operating-system usernames.
+
+Labels must be 1–128 bytes of printable ASCII without spaces. An empty or invalid override omits the claim; set `TUIST_ACTOR_ID=""` to suppress a configured value. The label may contain personal information. Do not use credentials or other sensitive values.
+
+The claim is unverified metadata, not authentication. Existing credentials, permissions, endpoints, and report bodies are unchanged. Servers without actor support ignore the header and keep their existing attribution; this client change alone does not add dashboard actor labels. If a custom proxy rejects unfamiliar headers, opt out using the empty environment override.
+
 ## Custom metadata {#custom-metadata}
 
 Attach tags and key-value data to Mix builds to tell apart runs from different teams, hardware, or workflows. Both appear on each build's detail page.

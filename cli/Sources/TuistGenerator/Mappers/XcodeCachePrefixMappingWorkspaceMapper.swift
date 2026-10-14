@@ -19,9 +19,11 @@ import XcodeGraph
 ///
 /// Every project gets the SwiftPM scratch directory mapped to `/^spm` and the Tuist
 /// root directory mapped to `/^root`, through `SWIFT_OTHER_PREFIX_MAPPINGS` and
-/// `CLANG_OTHER_PREFIX_MAPPINGS`. Xcode emits these after the project mappings, and the
-/// scratch directory before the root directory that usually contains it, so a path
-/// always resolves to its most specific placeholder.
+/// `CLANG_OTHER_PREFIX_MAPPINGS`. The compilation-cache scanners sort mappings so
+/// nested prefixes take precedence, independent of the flag order. Keep the scratch
+/// directory before the root for deterministic output, not to select the winning map.
+/// Shared intermediate and product mappings keep build paths stable when a project
+/// explicitly disables per-project mapping to avoid ambiguous `/^src` source paths.
 ///
 /// The root is the directory the scratch directory is resolved from, not the generated
 /// workspace's, which can sit below it (`tuist generate --path App`). That keeps the
@@ -84,7 +86,11 @@ public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
                 : directory.pathString
             return quoted("\(prefix)=/^spm\(index == 0 ? "" : "\(index + 1)")")
         }
-        return scratchMappings + [quoted("\(root)=/^root")]
+        return scratchMappings + [
+            quoted("$(OBJROOT)=/^intermediates"),
+            quoted("$(SYMROOT)=/^products"),
+            quoted("\(root)=/^root"),
+        ]
     }
 
     /// Quotes `value` as a single element of a build setting list.

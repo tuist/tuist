@@ -135,7 +135,7 @@ public struct SwifterPM: Sendable {
     public func resolve(_ request: SwifterPMResolutionRequest) async throws
         -> SwifterPMResolutionResult
     {
-        try await Environment.withNetrc(try await loadNetrc(request.netrc)) {
+        try await Environment.withNetrc(try await loadNetrc(request.netrc), quiet: request.quiet) {
             try await Environment.withManifestEnvironment(request.manifestEnvironment) {
                 try await Environment.withCachedDirectoryMaterialization(
                     request.cachedDirectoryMaterialization
@@ -149,7 +149,7 @@ public struct SwifterPM: Sendable {
     public func update(_ request: SwifterPMResolutionRequest) async throws
         -> SwifterPMResolutionResult
     {
-        try await Environment.withNetrc(try await loadNetrc(request.netrc)) {
+        try await Environment.withNetrc(try await loadNetrc(request.netrc), quiet: request.quiet) {
             try await Environment.withManifestEnvironment(request.manifestEnvironment) {
                 try await Environment.withCachedDirectoryMaterialization(
                     request.cachedDirectoryMaterialization
@@ -161,7 +161,7 @@ public struct SwifterPM: Sendable {
     }
 
     public func restore(_ request: SwifterPMRestoreRequest) async throws {
-        try await Environment.withNetrc(try await loadNetrc(request.netrc)) {
+        try await Environment.withNetrc(try await loadNetrc(request.netrc), quiet: request.quiet) {
             try await Environment.withCachedDirectoryMaterialization(
                 request.cachedDirectoryMaterialization
             ) {
@@ -286,6 +286,18 @@ public struct SwifterPM: Sendable {
             )
             if !request.quiet {
                 ResolvedFile.print(resolved)
+            }
+            if request.restorePackage {
+                try await maybeWritePackageInfoCache(
+                    packageDir: package,
+                    scratchDir: scratch,
+                    resolved: resolved,
+                    mirrors: mirrors,
+                    cacheDir: request.packageInfoCacheDirectory,
+                    disablePackageInfoCache: request.disablePackageInfoCache,
+                    disableSandbox: request.disableSandbox,
+                    quiet: request.quiet
+                )
             }
             return SwifterPMResolutionResult(resolved)
         }

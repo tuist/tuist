@@ -263,7 +263,7 @@ enum WorkspaceRestorer {
                 try await HTTPClient.download(
                     url: remoteURL,
                     destination: archivePath,
-                    headers: await HTTPClient.binaryArtifactHeaders(for: remoteURL)
+                    headers: try await HTTPClient.binaryArtifactHeaders(for: remoteURL)
                 )
 
                 let actualChecksum = try Hashing.sha256Hex(fileAt: archivePath)
@@ -797,7 +797,7 @@ enum WorkspaceRestorer {
                 )
             } catch {
                 try await resetDirectory(temp)
-                try await shallowFetchCheckout(pin: pin, location: location, destination: temp)
+                try await fetchCheckout(pin: pin, location: location, destination: temp)
             }
 
             try await writeSourceRevisionMarker(directory: temp, revision: expectedRevision)
@@ -835,10 +835,10 @@ enum WorkspaceRestorer {
         return try await submodulesAreMaterialized(in: source)
     }
 
-    // Verifies the checkout in `source` was written for `expectedRevision` by reading the
-    // `.swifterpm-source-sha` marker left behind at write time. A missing or mismatched marker
-    // treats the entry as a miss so the next resolve refetches instead of trusting a stale
-    // Package.swift. See `ensureSource` and `cacheNativeSourceCheckouts` for the writers.
+    /// Verifies the checkout in `source` was written for `expectedRevision` by reading the
+    /// `.swifterpm-source-sha` marker left behind at write time. A missing or mismatched marker
+    /// treats the entry as a miss so the next resolve refetches instead of trusting a stale
+    /// Package.swift. See `ensureSource` and `cacheNativeSourceCheckouts` for the writers.
     private static func cachedSourceIsUsable(_ source: URL, expectedRevision: String) async throws -> Bool {
         guard try await cachedSourceIsUsable(source) else {
             return false
@@ -1137,7 +1137,7 @@ enum WorkspaceRestorer {
         try await rejectArchiveWithSubmodules(destination)
     }
 
-    private static func shallowFetchCheckout(
+    private static func fetchCheckout(
         pin: ResolvedPin,
         location fetchLocation: String,
         destination: URL
@@ -1153,11 +1153,24 @@ enum WorkspaceRestorer {
                 try await SystemProcess.run(
                     "/usr/bin/git", ["-C", destination.path, "remote", "add", "origin", location]
                 )
-                try await SystemProcess.run(
-                    "/usr/bin/git",
-                    ["-C", destination.path, "fetch", "--depth=1", "origin", revision],
-                    environment: SystemProcess.nonInteractiveGitEnvironment
-                )
+                do {
+                    try await SystemProcess.run(
+                        "/usr/bin/git",
+                        ["-C", destination.path, "fetch", "--depth=1", "origin", revision],
+                        environment: SystemProcess.nonInteractiveGitEnvironment
+                    )
+                } catch {
+                    guard case let ToolError.message(message) = error,
+                          message.contains("Server does not support shallow clients")
+                    else {
+                        throw error
+                    }
+                    try await SystemProcess.run(
+                        "/usr/bin/git",
+                        ["-C", destination.path, "fetch", "origin", revision],
+                        environment: SystemProcess.nonInteractiveGitEnvironment
+                    )
+                }
                 try await SystemProcess.run(
                     "/usr/bin/git", ["-C", destination.path, "checkout", "--detach", "FETCH_HEAD"]
                 )

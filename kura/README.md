@@ -8,6 +8,13 @@ Managed positive-fence serving is experimental and default off. See the
 [serving authority and recovery runbook](../infra/kura-controller/serving-authority.md)
 for activation, named handover, asynchronous crash-loss semantics and the
 controller/runtime rollback floor. Lease expiry alone never promotes a writer.
+After an API interruption, the same live writer can resume in a new epoch only
+after explicitly fencing publication and draining admitted work; a restarted
+primary still requires quarantine and recovery. Planned handover reconciles
+missing retained records on the named standby before freezing it, then verifies
+the complete corpus. Repair checks capacity per record, preserving newer queued
+work when an older record is rejected. Capacity or content mismatches still
+prevent promotion.
 
 `Kura` is a Rust server for building low-latency cache meshes for tenants, handling distributed cache traffic for binary artifacts and metadata.
 

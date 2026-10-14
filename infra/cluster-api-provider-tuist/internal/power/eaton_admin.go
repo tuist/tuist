@@ -19,6 +19,8 @@ type EatonOutletSettings struct {
 	Number         int
 	StateOnStartup string
 	Switchable     bool
+	// On is the outlet's status.switchedOn, unset when the card did not say.
+	On *bool
 	// Settings is the card's settings object, written back whole with
 	// changed fields.
 	Settings map[string]any
@@ -101,7 +103,10 @@ func eatonOutletSettings(ctx context.Context, get eatonGetter) ([]EatonOutletSet
 			return nil, fmt.Errorf("outlet %q is not numbered", member.ID)
 		}
 		var outlet struct {
-			Settings       map[string]any `json:"settings"`
+			Settings map[string]any `json:"settings"`
+			Status   struct {
+				SwitchedOn *bool `json:"switchedOn"`
+			} `json:"status"`
 			Specifications struct {
 				Switchable bool `json:"switchable"`
 			} `json:"specifications"`
@@ -110,7 +115,7 @@ func eatonOutletSettings(ctx context.Context, get eatonGetter) ([]EatonOutletSet
 			return nil, err
 		}
 		state, _ := outlet.Settings["stateOnStartup"].(string)
-		outlets = append(outlets, EatonOutletSettings{Number: n, StateOnStartup: state, Switchable: outlet.Specifications.Switchable, Settings: outlet.Settings})
+		outlets = append(outlets, EatonOutletSettings{Number: n, StateOnStartup: state, Switchable: outlet.Specifications.Switchable, On: outlet.Status.SwitchedOn, Settings: outlet.Settings})
 	}
 	return outlets, nil
 }

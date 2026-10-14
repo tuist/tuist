@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Path
 import Testing
 import TSCUtility
 import TuistEnvironment
@@ -406,6 +407,129 @@ struct GitControllerTests {
         #expect(gitInfo.pullRequestNumber == nil)
     }
 
+    @Test func ciBuildParameters_parse_reads_javas_xml_properties_format() throws {
+        let properties = try #require(CIBuildParameters.parse(Data(
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+            <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+            <properties>
+            <comment>TeamCity configuration parameters</comment>
+            <entry key="vcsroot.url">https://github.example.com/org/repo.git</entry>
+            <entry key="path">C:\\agent\\temp\\config.parameters</entry>
+            <entry key="escaped">a &lt;b&gt; &amp; &quot;c&quot;</entry>
+            <entry key="unicode">café 😀</entry>
+            <entry key="empty"/>
+            </properties>
+            """.utf8
+        )))
+
+        #expect(properties["vcsroot.url"] == "https://github.example.com/org/repo.git")
+        #expect(properties["path"] == "C:\\agent\\temp\\config.parameters")
+        #expect(properties["escaped"] == "a <b> & \"c\"")
+        #expect(properties["unicode"] == "café 😀")
+        #expect(properties["empty"] == "")
+        #expect(properties.count == 5)
+        #expect(CIBuildParameters.parse(Data("<properties><entry key=".utf8)) == nil)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_builds_a_pull_request() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(
+            at: path,
+            configuration: [
+                "teamcity.build.branch": "pull/42",
+                "teamcity.pullRequest.number": "42",
+                "teamcity.pullRequest.source.branch": "refs/heads/feature",
+                "teamcity.pullRequest.target.branch": "refs/heads/master",
+            ]
+        )
+        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse"])
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == "refs/pull/42/merge")
+        #expect(gitInfo.pullRequestNumber == 42)
+        #expect(gitInfo.branch == "feature")
+        #expect(gitInfo.baseBranch == "master")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_builds_a_branch() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(at: path, configuration: ["teamcity.build.branch": "master"])
+        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse"])
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == nil)
+        #expect(gitInfo.pullRequestNumber == nil)
+        #expect(gitInfo.branch == "master")
+        #expect(gitInfo.baseBranch == nil)
+    }
+
+    /// Without a branch specification naming it, TeamCity calls the default branch `<default>`.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_builds_the_default_branch_without_a_name() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(at: path, configuration: ["teamcity.build.branch": "<default>"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD"], output: "master-sha\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "branch", "--show-current"], output: "master\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "")
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.branch == "master")
+    }
+
+    /// Writes the parameter files a TeamCity agent writes for a build, in the XML format it writes
+    /// next to the `.properties` ones, and points the environment at them.
+    private func mockTeamCity(at path: AbsolutePath, configuration: [String: String]) async throws {
+        let buildParameters = path.appending(component: "teamcity.build.parameters")
+        let configurationParameters = path.appending(component: "teamcity.config.parameters")
+        try await writeJavaXMLProperties(
+            ["teamcity.configuration.properties.file": configurationParameters.pathString],
+            to: buildParameters
+        )
+        try await writeJavaXMLProperties(configuration, to: configurationParameters)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "TEAMCITY_VERSION": "2025.07 (build 197242)",
+            "TEAMCITY_BUILD_PROPERTIES_FILE": buildParameters.pathString,
+            "BUILD_NUMBER": "1234",
+        ]
+    }
+
+    private func writeJavaXMLProperties(_ properties: [String: String], to path: AbsolutePath) async throws {
+        let escape = { (string: String) in
+            string.replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+                .replacingOccurrences(of: "\"", with: "&quot;")
+        }
+        let entries = properties.sorted { $0.key < $1.key }
+            .map { "<entry key=\"\(escape($0.key))\">\(escape($0.value))</entry>" }
+        try await FileSystem().writeText(
+            ([
+                #"<?xml version="1.0" encoding="UTF-8" standalone="no"?>"#,
+                #"<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">"#,
+                "<properties>",
+            ] + entries + ["</properties>"]).joined(separator: "\n"),
+            at: path.parentDirectory.appending(component: path.basename + ".xml")
+        )
+    }
+
     @Test func parseCommits_reads_sha_parents_and_time() {
         let commits = GitHistoryParser.parseCommits("head mid 1700000000\nmid base other 1600000000\nroot 1500000000\nbad\n")
 
@@ -414,107 +538,7 @@ struct GitControllerTests {
         #expect(commits[0].committedAt == Date(timeIntervalSince1970: 1_700_000_000))
     }
 
-    @Test func parseChangedFiles_joins_the_raw_listing_with_the_hunks() {
-        let raw = [
-            ":100644 100644 aaa bbb M", "Sources/A.swift",
-            ":000000 100644 0000000 ccc A", "Sources/New.swift",
-            ":100644 000000 ddd 0000000 D", "Sources/Gone.swift",
-            ":100644 100644 eee fff R090", "Sources/Old.swift", "Sources/Renamed.swift",
-        ].joined(separator: "\0") + "\0"
-        let unified = """
-        diff --git a/Sources/A.swift b/Sources/A.swift
-        --- a/Sources/A.swift
-        +++ b/Sources/A.swift
-        @@ -3,2 +3,4 @@
-        +x
-        @@ -10 +12 @@
-        +y
-        @@ -20,2 +22,0 @@
-        -gone
-        diff --git a/Sources/New.swift b/Sources/New.swift
-        --- /dev/null
-        +++ b/Sources/New.swift
-        @@ -0,0 +1,2 @@
-        +a
-        +b
-        diff --git a/Sources/Gone.swift b/Sources/Gone.swift
-        --- a/Sources/Gone.swift
-        +++ /dev/null
-        @@ -1,2 +0,0 @@
-        -a
-        """
-
-        let (files, dropped) = GitHistoryParser.parseChangedFiles(
-            raw: raw, unified: unified, limits: GitHistoryLimits(maxChangedFiles: 3, maxHunksPerFile: 1)
-        )
-
-        #expect(dropped == 1)
-        #expect(files.map(\.path) == ["Sources/A.swift", "Sources/New.swift", "Sources/Gone.swift"])
-        #expect(files[0] == GitChangedFile(
-            path: "Sources/A.swift", previousPath: nil, status: .modified, blobId: "bbb",
-            hunks: [GitHunk(start: 3, end: 6)], truncated: true
-        ))
-        #expect(files[1].status == .added)
-        #expect(files[1].hunks == [GitHunk(start: 1, end: 2)])
-        #expect(files[2] == GitChangedFile(
-            path: "Sources/Gone.swift", previousPath: nil, status: .deleted, blobId: nil, hunks: [], truncated: false
-        ))
-    }
-
-    @Test func parseHunks_reads_quoted_and_tab_terminated_paths_and_added_lines_that_look_like_headers() {
-        // `git -c core.quotePath=false diff -U0 --src-prefix=a/ --dst-prefix=b/` output: a name with
-        // a space ends in a tab, one with a double quote is quoted, and an added line can start
-        // with `++ `.
-        let unified = [
-            "diff --git a/a b.swift b/a b.swift",
-            "index 5626abf..80bbe06 100644",
-            "--- a/a b.swift\t",
-            "+++ b/a b.swift\t",
-            "@@ -1,0 +2,2 @@ one",
-            "+++ x",
-            "+two",
-            "@@ -5 +7 @@ one",
-            "-a",
-            "+b",
-            "diff --git a/café.swift b/café.swift",
-            "index 5626abf..814f4a4 100644",
-            "--- a/café.swift",
-            "+++ b/café.swift",
-            "@@ -1,0 +2 @@ one",
-            "+two",
-            #"diff --git "a/say \"hi\"é.swift" "b/say \"hi\"é.swift""#,
-            "new file mode 100644",
-            "index 0000000..587be6b",
-            "--- /dev/null",
-            #"+++ "b/say \"hi\"é.swift""# + "\t",
-            "@@ -0,0 +1 @@",
-            "+x",
-            "diff --git a/Assets/logo.png b/Assets/logo.png",
-            "index 1111111..2222222 100644",
-            "Binary files a/Assets/logo.png and b/Assets/logo.png differ",
-            "diff --git a/plain.swift b/plain.swift",
-            "index 5626abf..b9156bd 100644",
-            "--- a/plain.swift",
-            "+++ b/plain.swift",
-            "@@ -1,0 +2,2 @@ one",
-            "+++ added",
-            "+three\r",
-            "@@ -9,0 +11 @@",
-            "+four",
-            "",
-        ].joined(separator: "\n")
-
-        let hunks = GitHistoryParser.parseHunks(unified)
-
-        #expect(hunks == [
-            "a b.swift": [GitHunk(start: 2, end: 3), GitHunk(start: 7, end: 7)],
-            "café.swift": [GitHunk(start: 2, end: 2)],
-            #"say "hi"é.swift"#: [GitHunk(start: 1, end: 1)],
-            "plain.swift": [GitHunk(start: 2, end: 3), GitHunk(start: 11, end: 11)],
-        ])
-    }
-
-    @Test(.inTemporaryDirectory) func gitHistory_collects_the_merge_base_commits_and_changed_files() async throws {
+    @Test(.inTemporaryDirectory) func gitHistory_collects_the_merge_base_and_commits() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
         commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
@@ -524,17 +548,6 @@ struct GitControllerTests {
         commandRunner.succeedCommand(
             git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "head"],
             output: "head base 1700000100\nbase 1700000000\n"
-        )
-        commandRunner.succeedCommand(
-            git + ["diff", "--raw", "--no-abbrev", "-z", "-M", "base", "head"],
-            output: ":100644 100644 aaa bbb M\0Sources/A.swift\0"
-        )
-        commandRunner.succeedCommand(
-            git + [
-                "-c", "core.quotePath=false", "diff", "-U0", "-M", "--no-color", "--no-ext-diff",
-                "--src-prefix=a/", "--dst-prefix=b/", "base", "head",
-            ],
-            output: "diff --git a/Sources/A.swift b/Sources/A.swift\n--- a/Sources/A.swift\n+++ b/Sources/A.swift\n@@ -1 +1,2 @@\n+a\n+b\n"
         )
 
         let history = try await subject.gitHistory(
@@ -548,8 +561,6 @@ struct GitControllerTests {
         #expect(history.headSHA == "head")
         #expect(history.mergeBaseSHA == "base")
         #expect(history.commits.map(\.sha) == ["head", "base"])
-        #expect(history.changedFiles.map(\.path) == ["Sources/A.swift"])
-        #expect(history.changedFiles[0].hunks == [GitHunk(start: 1, end: 2)])
         #expect(history.fallbackReason == nil)
     }
 
@@ -868,7 +879,6 @@ struct GitControllerTests {
 
         #expect(history.objectFormat == "sha256")
         #expect(history.mergeBaseSHA == nil)
-        #expect(history.changedFiles.isEmpty)
         #expect(history.fallbackReason == "no base branch is known")
     }
 

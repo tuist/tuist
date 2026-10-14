@@ -116,6 +116,11 @@ func TestAuthorityRejectsMissingAndRecreatedEpochRecord(t *testing.T) {
 func TestHandoverRequiresMatchingReceiptAndExplicitRevokeAcknowledgment(t *testing.T) {
 	r, instance, statuses := authorityFixture(t)
 	grant := authorityStep(t, r)
+	sample := statuses["test-0"]
+	sample.ServingAuthority.Valid = true
+	sample.ServingAuthority.Epoch = grant.Epoch
+	sample.ServingAuthority.Observed = &grant
+	statuses["test-0"] = sample
 	target := statuses["test-1"].ServingAuthority.Identity
 	if err := r.Get(context.Background(), client.ObjectKeyFromObject(instance), instance); err != nil {
 		t.Fatal(err)
@@ -129,7 +134,7 @@ func TestHandoverRequiresMatchingReceiptAndExplicitRevokeAcknowledgment(t *testi
 		t.Fatal(grant)
 	}
 	receipt := &handoverReceipt{ID: "handover-1", Source: grant.Holder, Destination: target, Incarnation: 7, Head: 9, FrontierMS: 100, Records: 3, Digest: "corpus-digest"}
-	sample := statuses["test-0"]
+	sample = statuses["test-0"]
 	sample.ServingAuthority.Barrier = receipt
 	statuses["test-0"] = sample
 	if next := authorityStep(t, r); next.Phase != "Quiescing" {
@@ -144,6 +149,7 @@ func TestHandoverRequiresMatchingReceiptAndExplicitRevokeAcknowledgment(t *testi
 	}
 	sample = statuses["test-0"]
 	sample.ServingAuthority.Observed = &grant
+	sample.ServingAuthority.Valid = false
 	statuses["test-0"] = sample
 	if next := authorityStep(t, r); next.Epoch != 1 {
 		t.Fatal("missing revoke acknowledgment accepted")
@@ -257,5 +263,121 @@ func TestAuthorityExplicitRefusalFencesWithoutWaitingForExpiry(t *testing.T) {
 				t.Fatalf("explicit refusal ignored: %+v", next)
 			}
 		})
+	}
+}
+
+func TestAuthorityResumesOnlyThePositivelyFencedLiveWriter(t *testing.T) {
+	for _, fault := range []string{"none", "old-runtime", "wrong-epoch", "wrong-observation", "wrong-holder", "restarted", "valid", "mutations", "missing", "handover", "operator-promotion"} {
+		t.Run(fault, func(t *testing.T) {
+			r, instance, statuses := authorityFixture(t)
+			grant := authorityStep(t, r)
+			grant.Phase = "Fencing"
+			grant.ExpiresMS = time.Now().UnixMilli() - 1000
+			if fault == "handover" {
+				grant.Handover = &handoverIntent{ID: "interrupted"}
+			}
+			writeAuthorityGrant(t, r, grant)
+			sample := statuses[grant.PodName]
+			observed := grant
+			sample.ServingAuthority.Observed = &observed
+			sample.ServingAuthority.FencedEpoch = grant.Epoch
+			switch fault {
+			case "old-runtime":
+				sample.ServingAuthority.FencedEpoch = 0
+			case "wrong-epoch":
+				sample.ServingAuthority.FencedEpoch++
+			case "wrong-observation":
+				observed.Phase = "Serving"
+			case "wrong-holder":
+				observed.Holder.Incarnation = "another-process"
+			case "restarted":
+				sample.ServingAuthority.Identity.Incarnation = "replacement"
+			case "valid":
+				sample.ServingAuthority.Valid = true
+			case "mutations":
+				sample.ServingAuthority.Mutations = 1
+			case "operator-promotion":
+				if err := r.Get(context.Background(), client.ObjectKeyFromObject(instance), instance); err != nil {
+					t.Fatal(err)
+				}
+				instance.Spec.PrimaryPromotion = &kurav1alpha1.PrimaryPromotionRequest{PreviousEpoch: grant.Epoch}
+				if err := r.Update(context.Background(), instance); err != nil {
+					t.Fatal(err)
+				}
+			}
+			statuses[grant.PodName] = sample
+			if fault == "missing" {
+				delete(statuses, grant.PodName)
+			}
+			next := authorityStep(t, r)
+			if fault == "none" {
+				if next.Phase != "Serving" || next.Epoch != grant.Epoch+1 || next.ResumeEpoch != grant.Epoch || next.Holder != grant.Holder || next.PodName != grant.PodName || next.Barrier != nil {
+					t.Fatal(next)
+				}
+			} else if next.Phase != "Fencing" || next.Epoch != grant.Epoch {
+				t.Fatal("unsafe resumption", next)
+			}
+		})
+	}
+}
+
+func TestAuthorityPreservesResumeBindingWhenReplacementGrantExpires(t *testing.T) {
+	r, _, statuses := authorityFixture(t)
+	grant := authorityStep(t, r)
+	grant.Phase = "Fencing"
+	writeAuthorityGrant(t, r, grant)
+	sample := statuses[grant.PodName]
+	observed := grant
+	sample.ServingAuthority.Observed = &observed
+	sample.ServingAuthority.FencedEpoch = 1
+	statuses[grant.PodName] = sample
+	resumed := authorityStep(t, r)
+	if resumed.Epoch != 2 || resumed.ResumeEpoch != 1 {
+		t.Fatal(resumed)
+	}
+	// The runtime only received epoch 2 after its deadline, so it reports no
+	// valid grant and still owns its positive acknowledgment for epoch 1.
+	observed = resumed
+	statuses[grant.PodName] = sample
+	fenced := authorityStep(t, r)
+	if fenced.Phase != "Fencing" || fenced.Epoch != 2 || fenced.ResumeEpoch != 1 {
+		t.Fatal(fenced)
+	}
+	observed = fenced
+	sample.ServingAuthority.FencedEpoch = 2
+	statuses[grant.PodName] = sample
+	next := authorityStep(t, r)
+	if next.Phase != "Serving" || next.Epoch != 3 || next.ResumeEpoch != 2 || next.Holder != grant.Holder {
+		t.Fatal(next)
+	}
+}
+
+func TestHandoverWaitsForTheResumedServingGrant(t *testing.T) {
+	r, instance, statuses := authorityFixture(t)
+	initial := authorityStep(t, r)
+	grant := initial
+	grant.Epoch, grant.ResumeEpoch = 2, 1
+	writeAuthorityGrant(t, r, grant)
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(instance), instance); err != nil {
+		t.Fatal(err)
+	}
+	target := statuses["test-1"].ServingAuthority.Identity
+	instance.Spec.PlannedHandover = &kurav1alpha1.PlannedHandoverRequest{ID: "pending", PodName: "test-1", PodUID: target.PodUID, Incarnation: target.Incarnation}
+	if err := r.Update(context.Background(), instance); err != nil {
+		t.Fatal(err)
+	}
+	sample := statuses["test-0"]
+	initial.Phase = "Fencing"
+	sample.ServingAuthority.Observed = &initial
+	sample.ServingAuthority.FencedEpoch = 1
+	statuses["test-0"] = sample
+	if next := authorityStep(t, r); next.Phase != "Serving" || next.Handover != nil {
+		t.Fatal("handover started before resume delivery", next)
+	}
+	sample.ServingAuthority.Observed = &grant
+	sample.ServingAuthority.Valid, sample.ServingAuthority.Epoch = true, 2
+	statuses["test-0"] = sample
+	if next := authorityStep(t, r); next.Phase != "Quiescing" || next.Handover == nil {
+		t.Fatal(next)
 	}
 }

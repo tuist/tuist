@@ -85,9 +85,16 @@ enum SystemProcess {
         workingDirectory: URL? = nil,
         environment: [String: String] = [:],
         customEnvironment: [String: String]? = nil,
+        input: String = "",
+        gracefulShutdown: Bool = false,
+        failureMessage: String? = nil,
         forwardOutput: Bool = false,
         outputLimit: Int = 64 * 1024 * 1024
     ) async throws -> Result {
+        var platformOptions = PlatformOptions()
+        if gracefulShutdown {
+            platformOptions.teardownSequence = [.gracefulShutDown(allowedDurationToNextStep: .seconds(5))]
+        }
         if forwardOutput {
             // Standard error is teed rather than inherited so a failure can report what the
             // child printed, not only its exit status.
@@ -96,6 +103,8 @@ enum SystemProcess {
                 arguments: Arguments(arguments),
                 environment: subprocessEnvironment(environment, customEnvironment: customEnvironment),
                 workingDirectory: workingDirectory.map { FilePath($0.path) },
+                platformOptions: platformOptions,
+                input: .string(input),
                 output: .standardOutput
             ) { _, errorSequence in
                 var captured = Data()
@@ -110,7 +119,7 @@ enum SystemProcess {
             guard outcome.terminationStatus.isSuccess else {
                 let stderrText = String(decoding: outcome.value, as: UTF8.self)
                 throw ToolError.message(
-                    stderrText.isEmpty ? outcome.terminationStatus.description : stderrText
+                    failureMessage ?? (stderrText.isEmpty ? outcome.terminationStatus.description : stderrText)
                 )
             }
 
@@ -122,6 +131,8 @@ enum SystemProcess {
             arguments: Arguments(arguments),
             environment: subprocessEnvironment(environment, customEnvironment: customEnvironment),
             workingDirectory: workingDirectory.map { FilePath($0.path) },
+            platformOptions: platformOptions,
+            input: .string(input),
             output: .bytes(limit: outputLimit),
             error: .bytes(limit: outputLimit)
         )
@@ -131,7 +142,7 @@ enum SystemProcess {
             let stdoutText = String(data: Data(result.standardOutput), encoding: .utf8) ?? ""
             let message = stderrText.isEmpty ? stdoutText : stderrText
             throw ToolError.message(
-                message.isEmpty ? result.terminationStatus.description : message
+                failureMessage ?? (message.isEmpty ? result.terminationStatus.description : message)
             )
         }
 
@@ -207,9 +218,9 @@ enum HTTPClient {
         return URLSession(configuration: configuration)
     }()
 
-    static func defaultHeaders(for url: URL) async -> [String: String] {
+    static func defaultHeaders(for url: URL) async throws -> [String: String] {
         var headers = ["User-Agent": "swifterpm/0.1"]
-        if let authorization = await HTTPAuthorization.header(for: url) {
+        if let authorization = try await HTTPAuthorization.header(for: url) {
             headers["Authorization"] = authorization
         }
         return headers
@@ -217,8 +228,8 @@ enum HTTPClient {
 
     /// Headers for downloading a binary artifact archive. GitHub's release-asset
     /// endpoint returns asset metadata unless the request accepts the raw bytes.
-    static func binaryArtifactHeaders(for url: URL) async -> [String: String] {
-        var headers = await defaultHeaders(for: url)
+    static func binaryArtifactHeaders(for url: URL) async throws -> [String: String] {
+        var headers = try await defaultHeaders(for: url)
         headers["Accept"] = "application/octet-stream"
         return headers
     }
@@ -391,15 +402,15 @@ enum HTTPClient {
 }
 
 enum HTTPAuthorization {
-    static func header(for url: URL) async -> String? {
+    static func header(for url: URL) async throws -> String? {
         let environment = Environment.current
 
         let netrc = Environment.netrc
-        return await prioritizedHeader(
+        return try await prioritizedHeader(
             sourceControlToken: environment["SWIFTPM_SOURCE_CONTROL_TOKEN"],
             netrcCredential: netrc.credential(for: url),
             keychain: {
-                netrc.keychainDisabled ? nil : await KeychainAuthorization.credential(for: url)
+                netrc.keychainDisabled ? nil : try await KeychainAuthorization.httpCredential(for: url)
             }
         )
     }
@@ -407,8 +418,8 @@ enum HTTPAuthorization {
     static func prioritizedHeader(
         sourceControlToken: String?,
         netrcCredential: RegistryCredential?,
-        keychain: () async -> RegistryCredential?
-    ) async -> String? {
+        keychain: () async throws -> RegistryCredential?
+    ) async throws -> String? {
         // SwiftPM's source-control environment provider is deliberately not host-scoped.
         if let token = sourceControlToken, !token.isEmpty {
             return basicHeader(RegistryCredential(user: "token", password: token))
@@ -416,7 +427,7 @@ enum HTTPAuthorization {
         if let credential = netrcCredential {
             return basicHeader(credential)
         }
-        if let credential = await keychain() {
+        if let credential = try await keychain() {
             return basicHeader(credential)
         }
         return nil
@@ -426,7 +437,6 @@ enum HTTPAuthorization {
         let token = Data("\(credential.user):\(credential.password)".utf8).base64EncodedString()
         return "Basic \(token)"
     }
-
 }
 
 enum Hashing {
@@ -449,7 +459,6 @@ enum Hashing {
         }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
-
 }
 
 private let defaultParallelism = max(4, min(32, ProcessInfo.processInfo.activeProcessorCount * 4))

@@ -115,7 +115,11 @@ defmodule Tuist.Cache do
 
     cache_token_signer().encode_and_sign(
       subject,
-      Map.put(billing_refusal_claims(subject), "cache_grants", grants),
+      subject
+      |> billing_refusal_claims()
+      |> Map.put("cache_grants", grants)
+      |> Map.put("cache_origin", Keyword.get(opts, :origin))
+      |> Map.reject(fn {_key, value} -> is_nil(value) end),
       token_type: @cache_token_type,
       ttl: {ttl, :second}
     )

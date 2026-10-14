@@ -1,13 +1,27 @@
 //! Named, retained-corpus handover verification. A feed cursor alone can skip
 //! capacity-rejected data, so every retained body and metadata record is checked.
 use crate::{
-    http::BackfillBodyManifestMeta, serving_authority::Holder, state::SharedState,
-    store::manifest_version_ms, utils::BackfillRecordKind,
+    backfill::{
+        pass::{
+            BackfillPassOutcome, BackfillPassTuning, PassSource, run_backfill_pass_with_tuning,
+        },
+        window::BackfillWindow,
+    },
+    http::BackfillBodyManifestMeta,
+    serving_authority::Holder,
+    state::SharedState,
+    store::manifest_version_ms,
+    utils::BackfillRecordKind,
 };
 use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::time::Duration;
+use tokio_util::sync::CancellationToken;
+
+const MAX_BATCH_RECORDS: usize = 32;
+const MAX_BATCH_BODY_BYTES: u64 = 8 * 1024 * 1024;
+const MAX_BATCH_METADATA_BYTES: usize = 64 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Intent {
@@ -39,13 +53,15 @@ pub struct Record {
     digest: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct VerifyRequest {
     #[serde(default)]
     begin: bool,
     intent: Intent,
     source: Holder,
     record: Option<Record>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    records: Vec<Record>,
     receipt: Option<Receipt>,
 }
 
@@ -53,16 +69,22 @@ fn verification_context(request: &VerifyRequest) -> String {
     if request.begin {
         "begin".into()
     } else if let Some(record) = &request.record {
-        format!(
-            "record kind={} id={:?} version={} size={}",
-            bounded_detail(&record.kind),
-            bounded_detail(&record.id),
-            record.version,
-            record.size
-        )
+        record_context(record)
+    } else if !request.records.is_empty() {
+        format!("batch records={}", request.records.len())
     } else {
         "receipt".into()
     }
+}
+
+fn record_context(record: &Record) -> String {
+    format!(
+        "record kind={} id={:?} version={} size={}",
+        bounded_detail(&record.kind),
+        bounded_detail(&record.id),
+        record.version,
+        record.size
+    )
 }
 
 fn bounded_detail(detail: &str) -> String {
@@ -159,23 +181,20 @@ async fn verify_inner(
     state: &SharedState,
     request: VerifyRequest,
 ) -> Result<serde_json::Value, String> {
-    let authority = &state.runtime.authority;
-    let grant = authority.intent().ok_or("no handover intent")?;
-    if grant.phase != "Quiescing"
-        || grant.holder != request.source
-        || grant.handover.as_ref() != Some(&request.intent)
-        || request.intent.destination != *authority.identity()
-        || crate::utils::now_ms() >= request.intent.deadline_ms
+    if request.records.len() > MAX_BATCH_RECORDS
+        || (!request.records.is_empty()
+            && (request.begin || request.record.is_some() || request.receipt.is_some()))
     {
-        return Err("handover identity, phase or deadline mismatch".into());
+        return Err("invalid retained record batch".into());
     }
+    let authority = &state.runtime.authority;
+    require_current_destination(state, &request)?;
     if request.begin {
         let receipt = request.receipt.as_ref().ok_or("missing source position")?;
-        let mut hold = state
-            .store
-            .handover_hold
-            .lock()
-            .map_err(|_| "handover hold poisoned")?;
+        let _preparation = authority
+            .handover_preparation
+            .try_lock()
+            .map_err(|_| "retained corpus reconciliation in progress")?;
         let cursor = state
             .store
             .sync_cursor(&request.intent.source_url)?
@@ -183,11 +202,32 @@ async fn verify_inner(
         if cursor.incarnation != receipt.incarnation || cursor.seq < receipt.head {
             return Err("source feed not yet applied".into());
         }
-        if hold.as_ref().is_some_and(|id| id != &request.intent.id) {
-            return Err("another handover owns the retained corpus".into());
+        let already_held = {
+            let hold = state
+                .store
+                .handover_hold
+                .lock()
+                .map_err(|_| "handover hold poisoned")?;
+            if hold.as_ref().is_some_and(|id| id != &request.intent.id) {
+                return Err("another handover owns the retained corpus".into());
+            }
+            hold.is_some()
+        };
+        if !already_held {
+            reconcile_retained_corpus(state, &request).await?;
         }
+        let mut hold = state
+            .store
+            .handover_hold
+            .lock()
+            .map_err(|_| "handover hold poisoned")?;
+        // Reconciliation awaited peer I/O. An abort or a replaced intent must
+        // not acquire a hold or acknowledge preparation after that wait.
+        require_current_destination(state, &request)?;
         *hold = Some(request.intent.id.clone());
-        return Ok(serde_json::json!({"destination": authority.identity()}));
+        return Ok(
+            serde_json::json!({"destination": authority.identity(), "max_batch_records": MAX_BATCH_RECORDS}),
+        );
     }
     if state
         .store
@@ -199,37 +239,18 @@ async fn verify_inner(
     {
         return Err("retained corpus not held".into());
     }
-    if let Some(expected) = request.record {
-        let kind = BackfillRecordKind::from_wire_name(&expected.kind)
-            .ok_or("unknown retained record kind")?;
-        let actual = match record(state, kind, &expected.id, expected.version).await? {
-            Some(actual) => actual,
-            None => {
-                let version = if kind == BackfillRecordKind::NamespaceTombstone {
-                    state.store.namespace_tombstone_version(&expected.id)?
-                } else {
-                    state
-                        .store
-                        .manifest_from_db(&expected.id)?
-                        .as_ref()
-                        .map(manifest_version_ms)
-                };
-                return Err(format!(
-                    "retained record missing or version differs: expected_version={} actual_version={version:?}",
-                    expected.version
-                ));
-            }
-        };
-        if actual.size != expected.size || actual.digest != expected.digest {
-            return Err(format!(
-                "retained record content mismatch: expected_size={} actual_size={} expected_digest={} actual_digest={}",
-                expected.size,
-                actual.size,
-                bounded_detail(&expected.digest),
-                actual.digest
-            ));
+    if request.record.is_some() || !request.records.is_empty() {
+        let records = request.record.into_iter().chain(request.records);
+        let mut count = 0;
+        for expected in records {
+            verify_record(state, &expected)
+                .await
+                .map_err(|error| format!("{}; {error}", record_context(&expected)))?;
+            count += 1;
         }
-        return Ok(serde_json::json!({"destination": authority.identity()}));
+        return Ok(
+            serde_json::json!({"destination": authority.identity(), "verified_records": count}),
+        );
     }
     let receipt = request.receipt.ok_or("missing receipt")?;
     if receipt.id != request.intent.id
@@ -253,6 +274,100 @@ async fn verify_inner(
         .await?;
     *authority.barrier.lock().map_err(|_| "barrier poisoned")? = Some(receipt.clone());
     Ok(serde_json::json!({"receipt": receipt}))
+}
+
+fn require_current_destination(state: &SharedState, request: &VerifyRequest) -> Result<(), String> {
+    let authority = &state.runtime.authority;
+    let grant = authority.intent().ok_or("no handover intent")?;
+    if grant.phase != "Quiescing"
+        || grant.holder != request.source
+        || grant.handover.as_ref() != Some(&request.intent)
+        || request.intent.destination != *authority.identity()
+        || crate::utils::now_ms() >= request.intent.deadline_ms
+    {
+        return Err("handover identity, phase or deadline mismatch".into());
+    }
+    Ok(())
+}
+
+async fn reconcile_retained_corpus(
+    state: &SharedState,
+    request: &VerifyRequest,
+) -> Result<(), String> {
+    // A feed cursor covers arrivals, not everything the source still retains:
+    // bootstrap is horizon bounded and local eviction can remove older rows.
+    // Reuse the bounded replication pipeline before freezing the destination.
+    // Keep ordinary capacity/version/tombstone rules; the subsequent full
+    // verification, never pass completion, is what authorizes the transfer.
+    let mut tuning = BackfillPassTuning::from_config(&state.config);
+    tuning.source = PassSource::RetainedIndex;
+    tuning.feed_rows = false;
+    tuning.bandwidth_shaped = false;
+    let cancel = CancellationToken::new();
+    let pass = run_backfill_pass_with_tuning(
+        state,
+        &request.intent.source_url,
+        BackfillWindow {
+            min_version_ms: None,
+        },
+        state.backfill_claims.register_pass(),
+        &cancel,
+        tuning,
+    );
+    tokio::pin!(pass);
+    let mut check = tokio::time::interval(Duration::from_millis(100));
+    loop {
+        tokio::select! {
+            biased;
+            _ = check.tick() => require_current_destination(state, request)?,
+            outcome = &mut pass => {
+                return match outcome {
+                    BackfillPassOutcome::Completed { stats, .. } => {
+                        tracing::info!(event.name="kura.handover.reconciled", id=%request.intent.id,
+                            listed=stats.tuples_listed, applied=stats.bodies_applied,
+                            bytes=stats.bytes_applied, capacity_skipped=stats.tuples_capacity_skipped,
+                            "Named destination reconciled before retained-corpus verification");
+                        Ok(())
+                    }
+                    BackfillPassOutcome::Failed { error, .. } => Err(format!("retained corpus reconciliation failed: {}", bounded_detail(&error))),
+                    BackfillPassOutcome::Cancelled { .. } => Err("retained corpus reconciliation cancelled".into()),
+                };
+            }
+        }
+    }
+}
+
+async fn verify_record(state: &SharedState, expected: &Record) -> Result<(), String> {
+    let kind =
+        BackfillRecordKind::from_wire_name(&expected.kind).ok_or("unknown retained record kind")?;
+    let actual = match record(state, kind, &expected.id, expected.version).await? {
+        Some(actual) => actual,
+        None => {
+            let version = if kind == BackfillRecordKind::NamespaceTombstone {
+                state.store.namespace_tombstone_version(&expected.id)?
+            } else {
+                state
+                    .store
+                    .manifest_from_db(&expected.id)?
+                    .as_ref()
+                    .map(manifest_version_ms)
+            };
+            return Err(format!(
+                "retained record missing or version differs: expected_version={} actual_version={version:?}",
+                expected.version
+            ));
+        }
+    };
+    if actual.size != expected.size || actual.digest != expected.digest {
+        return Err(format!(
+            "retained record content mismatch: expected_size={} actual_size={} expected_digest={} actual_digest={}",
+            expected.size,
+            actual.size,
+            bounded_detail(&expected.digest),
+            actual.digest
+        ));
+    }
+    Ok(())
 }
 
 async fn send(
@@ -282,6 +397,39 @@ async fn send(
         ));
     }
     serde_json::from_slice(&bytes).map_err(|e| e.to_string())
+}
+
+fn check_destination(answer: &serde_json::Value, intent: &Intent) -> Result<(), String> {
+    if answer["destination"]
+        != serde_json::to_value(&intent.destination).map_err(|e| e.to_string())?
+    {
+        return Err("destination incarnation changed".into());
+    }
+    Ok(())
+}
+
+async fn send_records(
+    state: &SharedState,
+    intent: &Intent,
+    source: &Holder,
+    mut records: Vec<Record>,
+    batched: bool,
+) -> Result<(), String> {
+    let count = records.len();
+    let request = VerifyRequest {
+        begin: false,
+        intent: intent.clone(),
+        source: source.clone(),
+        record: if batched { None } else { records.pop() },
+        records,
+        receipt: None,
+    };
+    let answer = send(state, intent, &request).await?;
+    check_destination(&answer, intent)?;
+    if batched && answer["verified_records"].as_u64() != Some(count as u64) {
+        return Err("destination did not acknowledge the complete batch".into());
+    }
+    Ok(())
 }
 
 async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String> {
@@ -318,20 +466,31 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
     };
     let mut after = None;
     let mut digest = Sha256::new();
-    send(
+    let answer = send(
         state,
         intent,
         &VerifyRequest {
             begin: true,
             intent: intent.clone(),
             source: receipt.source.clone(),
+            records: Vec::new(),
             record: None,
             receipt: Some(receipt.clone()),
         },
     )
     .await?;
+    check_destination(&answer, intent)?;
+    let batch_size = answer["max_batch_records"]
+        .as_u64()
+        .unwrap_or(1)
+        .clamp(1, MAX_BATCH_RECORDS as u64) as usize;
     loop {
-        let page = state.store.backfill_index_page(after.as_deref(), 32)?;
+        let page = state
+            .store
+            .backfill_index_page(after.as_deref(), MAX_BATCH_RECORDS)?;
+        let mut batch = Vec::with_capacity(batch_size);
+        let mut body_bytes = 0u64;
+        let mut metadata_bytes = 0usize;
         for row in page.entries {
             // Stale index rows are not retained objects. Only the exact current
             // tuple is verified, and all subsequent pages are still visited.
@@ -339,26 +498,42 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
                 continue;
             };
             let encoded = serde_json::to_vec(&value).map_err(|e| e.to_string())?;
+            if !batch.is_empty()
+                && (body_bytes.saturating_add(value.size) > MAX_BATCH_BODY_BYTES
+                    || metadata_bytes.saturating_add(encoded.len()) > MAX_BATCH_METADATA_BYTES)
+            {
+                send_records(
+                    state,
+                    intent,
+                    &receipt.source,
+                    std::mem::take(&mut batch),
+                    batch_size > 1,
+                )
+                .await?;
+                body_bytes = 0;
+                metadata_bytes = 0;
+            }
+            metadata_bytes += encoded.len();
             digest.update((encoded.len() as u64).to_be_bytes());
             digest.update(encoded);
-            let answer = send(
-                state,
-                intent,
-                &VerifyRequest {
-                    begin: false,
-                    intent: intent.clone(),
-                    source: receipt.source.clone(),
-                    record: Some(value),
-                    receipt: None,
-                },
-            )
-            .await?;
-            if answer["destination"]
-                != serde_json::to_value(&intent.destination).map_err(|e| e.to_string())?
-            {
-                return Err("destination incarnation changed".into());
-            }
+            body_bytes = body_bytes.saturating_add(value.size);
+            batch.push(value);
             receipt.records += 1;
+            if batch.len() == batch_size {
+                send_records(
+                    state,
+                    intent,
+                    &receipt.source,
+                    std::mem::take(&mut batch),
+                    batch_size > 1,
+                )
+                .await?;
+                body_bytes = 0;
+                metadata_bytes = 0;
+            }
+        }
+        if !batch.is_empty() {
+            send_records(state, intent, &receipt.source, batch, batch_size > 1).await?;
         }
         after = page.next_after;
         if after.is_none() {
@@ -376,6 +551,7 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
             begin: false,
             intent: intent.clone(),
             source: receipt.source.clone(),
+            records: Vec::new(),
             record: None,
             receipt: Some(receipt.clone()),
         },
@@ -447,6 +623,386 @@ mod tests {
         test_support::test_context,
     };
 
+    async fn serve(state: SharedState) -> (String, tokio::task::JoinHandle<()>) {
+        state.store.run_backfill_index_build().unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move {
+            axum::serve(listener, crate::http::router(state))
+                .await
+                .unwrap();
+        });
+        (url, task)
+    }
+
+    fn begin_request(state: &SharedState, source_url: String) -> VerifyRequest {
+        let mut source = state.runtime.authority.identity().clone();
+        source.pod_uid = "source".into();
+        let intent = Intent {
+            id: "repair".into(),
+            destination: state.runtime.authority.identity().clone(),
+            source_url,
+            destination_url: "http://destination".into(),
+            deadline_ms: crate::utils::now_ms() + 15_000,
+        };
+        state
+            .runtime
+            .authority
+            .install(Grant {
+                epoch: 1,
+                holder: source.clone(),
+                phase: "Quiescing".into(),
+                expires_ms: crate::utils::now_ms() + 15_000,
+                handover: Some(intent.clone()),
+                barrier: None,
+                resume_epoch: None,
+            })
+            .unwrap();
+        state
+            .store
+            .write_sync_cursor(
+                &intent.source_url,
+                SyncPosition {
+                    incarnation: 7,
+                    seq: 9,
+                },
+            )
+            .unwrap();
+        VerifyRequest {
+            begin: true,
+            receipt: Some(Receipt {
+                id: intent.id.clone(),
+                source: source.clone(),
+                destination: intent.destination.clone(),
+                incarnation: 7,
+                head: 9,
+                frontier_ms: 100,
+                records: 0,
+                digest: String::new(),
+            }),
+            intent,
+            source,
+            records: Vec::new(),
+            record: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn caught_up_cursor_repairs_missing_retained_records_before_freezing() {
+        let source = test_context(|_| {}).await;
+        let target = test_context(|_| {}).await;
+        let state = &target.state;
+        state.store.sync_feed_activate().await.unwrap();
+        source
+            .state
+            .store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "old-inline",
+                "text/plain",
+                b"retained",
+                1000,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        let segment = source
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "segment",
+                "application/octet-stream",
+                &vec![42; 128 * 1024],
+            )
+            .await
+            .unwrap();
+        source
+            .state
+            .store
+            .apply_replicated_namespace_delete("deleted", 1000)
+            .await
+            .unwrap();
+        let (url, server) = serve(source.state.clone()).await;
+        let request = begin_request(state, url);
+        *source.state.store.handover_hold.lock().unwrap() = Some(request.intent.id.clone());
+        let entries = source
+            .state
+            .store
+            .backfill_index_page_ascending(0, None, 10, u64::MAX, None)
+            .unwrap()
+            .entries;
+        assert_eq!(entries.len(), 3);
+        let mut records = Vec::new();
+        for entry in entries {
+            let expected = record(
+                &source.state,
+                entry.kind,
+                &entry.record_id,
+                entry.version_ms,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            assert!(verify_record(state, &expected).await.is_err());
+            records.push(expected);
+        }
+        let before = state.store.sync_feed().head();
+        verify_inner(state, request.clone()).await.unwrap();
+        for expected in records {
+            verify_record(state, &expected).await.unwrap();
+        }
+        assert!(
+            state
+                .store
+                .manifest(&segment.artifact_id)
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(
+            state.store.sync_feed().head(),
+            before,
+            "sibling repair must not echo arrivals"
+        );
+        assert_eq!(
+            state.store.handover_hold.lock().unwrap().as_deref(),
+            Some("repair")
+        );
+        assert!(
+            state.runtime.authority.barrier.lock().unwrap().is_none(),
+            "repair alone is not a receipt"
+        );
+        // A retry after freezing is idempotent and needs no peer I/O.
+        server.abort();
+        verify_inner(state, request).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn retained_repair_keeps_newer_work_queued_before_capacity_cutoff() {
+        use crate::segment::{reference::SegmentReference, state::SegmentState};
+
+        let source = test_context(|_| {}).await;
+        let target = test_context(|config| config.cas_capacity_bytes = Some(1)).await;
+        for (ctx, key, version) in [
+            (&source, "newer", 1000),
+            (&source, "older", 400),
+            (&target, "older", 400),
+        ] {
+            ctx.state
+                .store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    b"retained body",
+                    version,
+                )
+                .await
+                .unwrap();
+        }
+        let mut ring = SegmentState::default();
+        for (index, stat) in [500, 600, 650, 700, 750].into_iter().enumerate() {
+            let mut reference =
+                SegmentReference::new(format!("capacity-{index}"), index as u64 + 1);
+            reference.max_version_ms = Some(stat);
+            match index {
+                0 => ring.old.push(reference),
+                1 | 2 => ring.current.push(reference),
+                _ => ring.new.push(reference),
+            }
+        }
+        target
+            .state
+            .store
+            .install_segment_state_for_testing(ring)
+            .await
+            .unwrap();
+        let (url, server) = serve(source.state.clone()).await;
+        let request = begin_request(&target.state, url);
+        *source.state.store.handover_hold.lock().unwrap() = Some(request.intent.id.clone());
+        let entries = source
+            .state
+            .store
+            .backfill_index_page_ascending(0, None, 10, u64::MAX, None)
+            .unwrap()
+            .entries;
+        assert_eq!(entries.len(), 2);
+        let mut expected = Vec::new();
+        for entry in entries {
+            expected.push(
+                record(
+                    &source.state,
+                    entry.kind,
+                    &entry.record_id,
+                    entry.version_ms,
+                )
+                .await
+                .unwrap()
+                .unwrap(),
+            );
+        }
+        // The older retained record is already present. Listing it must not
+        // cancel the newer missing record queued in the same response page.
+        assert!(expected.iter().any(|r| r.version == 1000));
+        verify_inner(&target.state, request).await.unwrap();
+        for record in expected {
+            verify_record(&target.state, &record).await.unwrap();
+        }
+        assert_eq!(
+            target.state.store.handover_hold.lock().unwrap().as_deref(),
+            Some("repair")
+        );
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn repair_preserves_newer_destination_version_and_verification_refuses_it() {
+        let source = test_context(|_| {}).await;
+        let target = test_context(|_| {}).await;
+        for (ctx, version, body) in [
+            (&source, 1000, b"old".as_slice()),
+            (&target, 2000, b"new".as_slice()),
+        ] {
+            ctx.state
+                .store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    "same-key",
+                    "text/plain",
+                    body,
+                    version,
+                    None,
+                    None,
+                )
+                .await
+                .unwrap();
+        }
+        let (url, server) = serve(source.state.clone()).await;
+        let entry = source
+            .state
+            .store
+            .backfill_index_page_ascending(0, None, 1, u64::MAX, None)
+            .unwrap()
+            .entries
+            .remove(0);
+        let expected = record(
+            &source.state,
+            entry.kind,
+            &entry.record_id,
+            entry.version_ms,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        verify_inner(&target.state, begin_request(&target.state, url))
+            .await
+            .unwrap();
+        assert_eq!(
+            target
+                .state
+                .store
+                .manifest(&entry.record_id)
+                .unwrap()
+                .unwrap()
+                .version_ms,
+            2000
+        );
+        let error = verify_record(&target.state, &expected).await.unwrap_err();
+        assert!(error.contains("actual_version=Some(2000)"), "{error}");
+        assert!(
+            target
+                .state
+                .runtime
+                .authority
+                .barrier
+                .lock()
+                .unwrap()
+                .is_none()
+        );
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn abort_or_deadline_cancels_repair_and_never_freezes_destination() {
+        for abort in [true, false] {
+            let target = test_context(|_| {}).await;
+            let entered = std::sync::Arc::new(tokio::sync::Notify::new());
+            let signal = entered.clone();
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = format!("http://{}", listener.local_addr().unwrap());
+            let app = axum::Router::new().fallback(move || {
+                let signal = signal.clone();
+                async move {
+                    signal.notify_one();
+                    std::future::pending::<StatusCode>().await
+                }
+            });
+            let server = tokio::spawn(async move {
+                axum::serve(listener, app).await.unwrap();
+            });
+            let mut request = begin_request(&target.state, url);
+            if !abort {
+                request.intent.deadline_ms = crate::utils::now_ms() + 1_000;
+                let mut grant = target.state.runtime.authority.intent().unwrap();
+                grant.handover = Some(request.intent.clone());
+                target.state.runtime.authority.install(grant).unwrap();
+            }
+            let concurrent = request.clone();
+            let state = target.state.clone();
+            let repair = tokio::spawn(async move { verify_inner(&state, request).await });
+            tokio::time::timeout(Duration::from_secs(5), entered.notified())
+                .await
+                .unwrap();
+            assert!(
+                verify_inner(&target.state, concurrent)
+                    .await
+                    .unwrap_err()
+                    .contains("reconciliation in progress")
+            );
+            let mut grant = target.state.runtime.authority.intent().unwrap();
+            if abort {
+                grant.phase = "Serving".into();
+                grant.handover = None;
+                target.state.runtime.authority.install(grant).unwrap();
+            }
+            let error = tokio::time::timeout(Duration::from_secs(2), repair)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap_err();
+            assert!(
+                error.contains("identity, phase or deadline mismatch"),
+                "{error}"
+            );
+            assert!(target.state.store.handover_hold.lock().unwrap().is_none());
+            assert!(
+                target
+                    .state
+                    .runtime
+                    .authority
+                    .barrier
+                    .lock()
+                    .unwrap()
+                    .is_none()
+            );
+            assert!(
+                target
+                    .state
+                    .runtime
+                    .authority
+                    .handover_preparation
+                    .try_lock()
+                    .is_ok()
+            );
+            server.abort();
+        }
+    }
+
     #[tokio::test]
     async fn peer_rejection_keeps_stage_record_and_bounded_reason() {
         let ctx = test_context(|_| {}).await;
@@ -474,6 +1030,7 @@ mod tests {
             begin: false,
             intent: intent.clone(),
             source: holder,
+            records: Vec::new(),
             record: Some(Record {
                 kind: "segment".into(),
                 id: "artifact-id".into(),
@@ -560,10 +1117,11 @@ mod tests {
         );
         let mut source = state.runtime.authority.identity().clone();
         source.pod_uid = "source".into();
+        let (source_url, server) = serve(state.clone()).await;
         let intent = Intent {
             id: "named".into(),
             destination: state.runtime.authority.identity().clone(),
-            source_url: "http://source".into(),
+            source_url,
             destination_url: "http://destination".into(),
             deadline_ms: crate::utils::now_ms() + 300_000,
         };
@@ -574,6 +1132,7 @@ mod tests {
             expires_ms: crate::utils::now_ms() + 15_000,
             handover: Some(intent.clone()),
             barrier: None,
+            resume_epoch: None,
         };
         let _ = state.runtime.authority.install(grant);
         let receipt = Receipt {
@@ -590,6 +1149,7 @@ mod tests {
             begin,
             intent: intent.clone(),
             source: source.clone(),
+            records: Vec::new(),
             record,
             receipt,
         };
@@ -611,6 +1171,7 @@ mod tests {
         verify_inner(state, request(true, None, Some(receipt.clone())))
             .await
             .unwrap();
+        let mut records = Vec::new();
         for (kind, id, version) in [
             (
                 BackfillRecordKind::InlineArtifact,
@@ -629,6 +1190,7 @@ mod tests {
             ),
         ] {
             let expected = record(state, kind, id, version).await.unwrap().unwrap();
+            records.push(expected.clone());
             let mut wrong = expected.clone();
             wrong.digest.push('0');
             let error = verify_inner(state, request(false, Some(wrong), None))
@@ -640,6 +1202,34 @@ mod tests {
                 .await
                 .unwrap();
         }
+        let mut batch = request(false, None, None);
+        batch.records = records.clone();
+        let answer = verify_inner(state, batch).await.unwrap();
+        assert_eq!(answer["verified_records"], 3);
+        let mut batch = request(false, None, None);
+        batch.records = records.clone();
+        batch.records[2].digest.push('0');
+        let error = verify_inner(state, batch).await.unwrap_err();
+        assert!(
+            error.contains("test/deleted") && error.contains("content mismatch"),
+            "{error}"
+        );
+        let mut batch = request(false, None, None);
+        batch.records = vec![records[0].clone(); MAX_BATCH_RECORDS + 1];
+        assert!(
+            verify_inner(state, batch)
+                .await
+                .unwrap_err()
+                .contains("invalid retained record batch")
+        );
+        let mut batch = request(false, Some(records[0].clone()), None);
+        batch.records = records;
+        assert!(
+            verify_inner(state, batch)
+                .await
+                .unwrap_err()
+                .contains("invalid retained record batch")
+        );
         assert!(
             state
                 .store
@@ -664,5 +1254,54 @@ mod tests {
         let mut wrong_destination = request(false, None, None);
         wrong_destination.intent.destination.incarnation.push('x');
         assert!(verify_inner(state, wrong_destination).await.is_err());
+        server.abort();
+    }
+    #[tokio::test]
+    async fn batches_require_complete_acknowledgments_and_legacy_requests_stay_individual() {
+        let ctx = test_context(|_| {}).await;
+        for (batched, complete) in [(true, true), (true, false), (false, true)] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let holder = ctx.state.runtime.authority.identity().clone();
+            let destination = holder.clone();
+            let app = axum::Router::new().route("/_internal/handover/verify", axum::routing::post(
+                move |Json(request): Json<VerifyRequest>| {
+                    let destination = destination.clone();
+                    async move {
+                        if batched {
+                            assert!(request.record.is_none());
+                            assert_eq!(request.records.len(), 2);
+                            Json(serde_json::json!({"destination": destination, "verified_records": if complete { 2 } else { 1 }}))
+                        } else {
+                            assert!(request.record.is_some());
+                            assert!(request.records.is_empty());
+                            // The preceding runtime does not send a record count.
+                            Json(serde_json::json!({"destination": destination}))
+                        }
+                    }
+                }
+            ));
+            let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            let intent = Intent {
+                id: "batch".into(),
+                destination: holder.clone(),
+                destination_url: format!("http://{address}"),
+                source_url: "http://source".into(),
+                deadline_ms: crate::utils::now_ms() + 300_000,
+            };
+            let records = vec![
+                Record {
+                    kind: "inline".into(),
+                    id: "record".into(),
+                    version: 1,
+                    size: 1,
+                    digest: "digest".into()
+                };
+                if batched { 2 } else { 1 }
+            ];
+            let result = send_records(&ctx.state, &intent, &holder, records, batched).await;
+            server.abort();
+            assert_eq!(result.is_ok(), complete, "{result:?}");
+        }
     }
 }

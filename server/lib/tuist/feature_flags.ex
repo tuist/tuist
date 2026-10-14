@@ -9,11 +9,9 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether the account may advertise and receive its managed stable cache
-  hostname. Canary is automatically enabled. Every other environment requires
-  the `:kura_stable_hostname` flag for the account or for everyone. The same
-  flag controls advertising intent and URL hand-out; readiness still gates
-  publication and endpoint selection.
+  Whether legacy endpoint discovery may hand out the stable hostname. Canary
+  enables this automatically; other environments use the account/global flag.
+  DNS publication is independent because new CLIs derive that hostname locally.
   """
   def kura_stable_hostname_enabled?(account) do
     Environment.env() == :can or FunWithFlags.enabled?(:kura_stable_hostname, for: account)
@@ -48,6 +46,19 @@ defmodule Tuist.FeatureFlags do
   """
   def runner_site_cache_enabled?(account) do
     FunWithFlags.enabled?(:runner_site_cache, for: account)
+  end
+
+  @doc """
+  Whether the account's macOS profile jobs run at a site: dispatch routes a
+  profile to the same Xcode and shape racked at a site
+  (`Tuist.Runners.Catalog.site_pool_name/1`) when one is and the site can
+  serve it (`Tuist.Runners.Sites`), and to the rented fleet otherwise; a site
+  job queued while the site is down moves to the rented fleet
+  (`Tuist.Runners.Workers.SiteSpilloverWorker`). The account also gets a
+  node in the site's runner-cache region, as `:runner_site_cache` gives one.
+  """
+  def runner_site_enabled?(account) do
+    FunWithFlags.enabled?(:runner_site, for: account)
   end
 
   @doc """

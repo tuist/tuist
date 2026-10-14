@@ -37,6 +37,8 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.GapReasons
   alias Tuist.Tests.Coverage.Reported
+  alias Tuist.Tests.Coverage.TargetSources
+  alias Tuist.Tests.Coverage.TestSources
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.CoverageRun
@@ -122,6 +124,11 @@ defmodule Tuist.Tests.Coverage.Commits do
       # it) synced no row, and this commit's own advance, observed earlier
       # than that one or finding the branch already holds it, moves nothing.
       if row.git_repository_id > 0, do: GitHistory.sync_coverage_places(row.git_repository_id, [sha])
+
+      # The targets the commit's runs executed whole, and the versions of the
+      # tests they ran, become carry sources for the commits that skip them.
+      TargetSources.record(project.id, runs)
+      TestSources.record(project.id, runs)
 
       summary = summary(project.id, sha)
       if Deltas.complete?(summary), do: Deltas.enqueue(project.id, sha)
@@ -381,13 +388,16 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   # A commit's runs from a clean checkout, measured or not, oldest first, with
   # what they reported about where the commit is: what labels a commit whose
-  # every scheme was skipped whole and moves its refs.
+  # every scheme was skipped whole and moves its refs. Runs not set up to
+  # collect coverage are left out, as `Reported` leaves them out.
   defp clean_runs(project_id, sha) do
     ClickHouseRepo.all(
       from(t in Test,
         where: t.project_id == ^project_id and t.git_commit_sha == ^sha,
         group_by: t.id,
-        having: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false,
+        having:
+          fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false and
+            fragment("ifNull(argMax(?, ?), true)", t.coverage_enabled, t.inserted_at),
         order_by: [asc: min(t.ran_at)],
         select: %{
           test_run_id: t.id,
@@ -570,15 +580,22 @@ defmodule Tuist.Tests.Coverage.Commits do
   Only when no first parent within the window qualifies does the walk cover
   the window.
   """
-  def nearest_measured_ancestor(_project_id, _repository_id, _sha, []), do: nil
+  def nearest_measured_ancestor(project_id, repository_id, sha, schemes, opts \\ [])
+  def nearest_measured_ancestor(_project_id, _repository_id, _sha, [], _opts), do: nil
 
-  def nearest_measured_ancestor(project_id, repository_id, sha, schemes) do
+  def nearest_measured_ancestor(project_id, repository_id, sha, schemes, opts) do
     measured =
       from(c in CoverageCommit,
         where:
           c.project_id == ^project_id and c.executable_lines > 0 and c.git_commit_sha != ^sha and
             fragment("? && ?", c.schemes, type(^schemes, {:array, :string}))
       )
+
+    measured =
+      case Keyword.get(opts, :kind) do
+        nil -> measured
+        kind -> where(measured, [c], c.reported_kind == ^kind)
+      end
 
     nearest =
       case first_parent_distance_in(measured, repository_id, sha) do

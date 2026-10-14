@@ -5055,6 +5055,75 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
+    ) func map_whenProductDependencyNamesARegistryPackageOverriddenLocally_mapsToTheProductOfTheLocalPackage() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "acme.client/Sources/Client"))
+        )
+
+        let client = PackageInfo.test(
+            name: "Client",
+            products: [
+                .init(name: "Client", type: .library(.automatic), targets: ["Client"]),
+            ],
+            targets: [
+                .test(
+                    name: "Client",
+                    dependencies: [
+                        .product(name: "Core", package: "acme.Kit", moduleAliases: nil, condition: nil),
+                    ]
+                ),
+            ],
+            platforms: [.ios],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
+        )
+        // The local `../ios-Kit` checkout replaced `acme.Kit`, and an unrelated package vends a product with the same name.
+        let localKit = PackageInfo.test(
+            name: "Kit",
+            products: [.init(name: "Core", type: .library(.automatic), targets: ["KitCore"])],
+            targets: [.test(name: "KitCore")],
+            platforms: [.ios]
+        )
+        let other = PackageInfo.test(
+            name: "Other",
+            products: [.init(name: "Core", type: .library(.automatic), targets: ["OtherCore"])],
+            targets: [.test(name: "OtherCore")],
+            platforms: [.ios]
+        )
+        let packageInfos = ["acme.client": client, "ios-kit": localKit, "acme.other": other]
+        let localKitFolder = basePath.appending(component: "ios-Kit")
+        let externalDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
+            packageInfos: packageInfos,
+            packageToFolder: [
+                "acme.client": basePath.appending(component: "acme.client"),
+                "ios-kit": localKitFolder,
+                "acme.other": basePath.appending(component: "Other"),
+            ],
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:],
+            packageSettings: .test()
+        )
+
+        let project = try await subject.map(
+            package: "acme.client",
+            basePath: basePath,
+            packageInfos: packageInfos,
+            packageProducts: externalDependencies.packageProducts
+        )
+
+        #expect(
+            project?.targets.first?.dependencies == [
+                .project(target: "KitCore", path: .path(localKitFolder.pathString)),
+            ]
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func resolveDependencies_keysPackageProductsByIdentityManifestNameAndRegistryName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let issueReportingFolder = basePath.appending(component: "swift-issue-reporting")

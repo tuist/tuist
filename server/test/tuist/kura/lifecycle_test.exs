@@ -140,6 +140,7 @@ defmodule Tuist.Kura.LifecycleTest do
     stub(Environment, :kura_capacity_admission_required?, fn -> true end)
     stub(Capacity, :pressure_line_gib, fn @region -> @air_resident_gib - 1 end)
     stub(Capacity, :reserved_gib, fn @region -> 0 end)
+    stub(Capacity, :reserved_gib_by_instance, fn @region -> %{} end)
   end
 
   defp reload(%Server{id: id}), do: Repo.get!(Server, id)
@@ -154,6 +155,15 @@ defmodule Tuist.Kura.LifecycleTest do
     Lifecycle.sweep()
     assert reload(server).status == :drain_pending
     reload_lifecycle(account)
+  end
+
+  # Moves the archival a minute into the past, so demand recorded by the
+  # test lands after it rather than in the same second.
+  defp backdate_archival(account) do
+    account
+    |> reload_lifecycle()
+    |> Ecto.Changeset.change(%{archived_at: DateTime.truncate(DateTime.add(DateTime.utc_now(), -60, :second), :second)})
+    |> Repo.update!()
   end
 
   # Rewinds the drain clock so the next tick sees the drain window as elapsed.
@@ -285,8 +295,61 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload_lifecycle(account).drain_started_at
     end
 
-    test "leaves an instance alone inside its inactive window" do
+    test "drains an Air instance after a week without cache demand" do
       account = account()
+      server = active_instance(account)
+      with_demand(account, 8)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :drain_pending
+      assert reload_lifecycle(account).drain_reason == :inactive
+    end
+
+    test "leaves an Air instance alone inside its week" do
+      account = account()
+      server = active_instance(account)
+      with_demand(account, 6)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "caps Air's window at the window every plan uses" do
+      stub(Environment, :kura_inactive_days, fn -> 3 end)
+      account = account()
+      server = active_instance(account)
+      with_demand(account, 4)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :drain_pending
+    end
+
+    test "returns an Air instance archived for inactivity only on demand after the archival" do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+      account = account()
+      server = active_instance(account)
+      with_demand(account, 8)
+
+      assert :ok = Lifecycle.sweep()
+      elapse_drain(account)
+      assert :ok = Lifecycle.reconcile()
+      assert reload(server).status == :archived
+      backdate_archival(account)
+
+      assert :ok = Lifecycle.reconcile()
+      assert reload(server).status == :archived
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+      assert reload(server).status == :provisioning
+    end
+
+    test "leaves an instance alone inside its inactive window" do
+      account = account(plan: :pro, region: :usa)
       server = active_instance(account)
       with_demand(account, 89)
 
@@ -360,6 +423,8 @@ defmodule Tuist.Kura.LifecycleTest do
 
   describe "Air capacity pressure" do
     setup do
+      # Pressure only reaches Air where its own window is the longer one.
+      stub(Environment, :kura_air_inactive_days, fn -> 90 end)
       stub(Environment, :kura_capacity_admission_required?, fn -> true end)
       stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, 1)}])
       :ok
@@ -444,7 +509,7 @@ defmodule Tuist.Kura.LifecycleTest do
       # 702Gi reserved against a 670Gi line: 64Gi short of room for a new
       # 32Gi enterprise instance, exactly what the grown Pro instance holds
       # across its two replicas.
-      stub_region_pods([reserved_pod(2) | List.duplicate(reserved_pod(10), 70)])
+      stub_region_reservation(702)
 
       assert :ok = Lifecycle.sweep()
 
@@ -737,6 +802,7 @@ defmodule Tuist.Kura.LifecycleTest do
       elapse_drain(account)
       Lifecycle.reconcile()
       assert reload(server).status == :archived
+      backdate_archival(account)
       server
     end
 
@@ -983,6 +1049,7 @@ defmodule Tuist.Kura.LifecycleTest do
       elapse_drain(account)
       Lifecycle.reconcile()
       assert reload(server).status == :archived
+      backdate_archival(account)
 
       Demand.record(account.id)
       Lifecycle.reconcile()
@@ -1151,8 +1218,32 @@ defmodule Tuist.Kura.LifecycleTest do
   # Answers the pod list with exactly the reservation the fixtures imply, so
   # the region reads as just short of room for a new enterprise instance.
   defp under_pressure do
-    stub_region_pods(List.duplicate(reserved_pod(div(@air_resident_gib, @replicas)), @instances_to_pressure * @replicas))
+    stub_region_reservation(@instances_to_pressure * @air_resident_gib)
   end
+
+  # The region's pods request `total_gib` in all: every instance in the region
+  # through its own replicas at its claim, and the rest through pods no row
+  # describes.
+  defp stub_region_reservation(total_gib) do
+    {:ok, region} = Regions.fetch(@region)
+
+    instance_pods =
+      for server <-
+            Repo.all(from(s in Server, where: s.region == ^@region and s.status not in [:archived, :destroyed])),
+          _replica <- 1..@replicas do
+        region
+        |> Capacity.resident_gib(server)
+        |> div(@replicas)
+        |> reserved_pod()
+        |> Map.put("metadata", %{"labels" => %{"app.kubernetes.io/instance" => server.provisioner_node_ref}})
+      end
+
+    owned_gib = Enum.sum(Enum.map(instance_pods, &pod_gib/1))
+    stub_region_pods([reserved_pod(max(total_gib - owned_gib, 0)) | instance_pods])
+  end
+
+  defp pod_gib(%{"spec" => %{"containers" => [%{"resources" => %{"requests" => %{"ephemeral-storage" => gib}}}]}}),
+    do: gib |> String.trim_trailing("Gi") |> String.to_integer()
 
   defp stub_region_pods(pods) do
     stub(Client, :list_pods, fn _namespace, _selector -> {:ok, pods} end)
@@ -1580,7 +1671,8 @@ defmodule Tuist.Kura.LifecycleTest do
       # waits for is the destination coming up, which happens on that cadence.
       account = account(plan: :enterprise)
       source = active_instance(account)
-      _destination = active_instance_in(account, "eu-west")
+      destination = active_instance_in(account, "eu-west")
+      mark_stable_ready(destination, account)
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
       {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
@@ -1595,6 +1687,7 @@ defmodule Tuist.Kura.LifecycleTest do
       account = account(plan: :enterprise)
       source = active_instance(account)
       destination = active_instance_in(account, "eu-west")
+      mark_stable_ready(destination, account)
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
       {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
@@ -1717,7 +1810,8 @@ defmodule Tuist.Kura.LifecycleTest do
       # again — holding its volume and its slot forever.
       account = account(plan: :enterprise)
       source = active_instance(account)
-      _destination = active_instance_in(account, "eu-west")
+      destination = active_instance_in(account, "eu-west")
+      mark_stable_ready(destination, account)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
       {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
       {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
@@ -1772,7 +1866,8 @@ defmodule Tuist.Kura.LifecycleTest do
       # here, which the inactivity rules get no say in.
       account = account(plan: :enterprise)
       source = active_instance(account)
-      _destination = active_instance_in(account, "eu-west")
+      destination = active_instance_in(account, "eu-west")
+      mark_stable_ready(destination, account)
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
       {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
@@ -1794,7 +1889,8 @@ defmodule Tuist.Kura.LifecycleTest do
       # margin would tear the instance down under live builds.
       account = account(plan: :enterprise)
       source = active_instance(account)
-      _destination = active_instance_in(account, "eu-west")
+      destination = active_instance_in(account, "eu-west")
+      mark_stable_ready(destination, account)
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
       {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
@@ -1813,7 +1909,8 @@ defmodule Tuist.Kura.LifecycleTest do
     test "tears the retired instance down once its drain window has elapsed" do
       account = account(plan: :enterprise)
       _source = active_instance(account)
-      _destination = active_instance_in(account, "eu-west")
+      destination = active_instance_in(account, "eu-west")
+      mark_stable_ready(destination, account)
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
       {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
@@ -1853,6 +1950,7 @@ defmodule Tuist.Kura.LifecycleTest do
       elapse_drain(account)
       Lifecycle.reconcile()
       assert reload(server).status == :archived
+      backdate_archival(account)
       server
     end
 
@@ -1967,6 +2065,18 @@ defmodule Tuist.Kura.LifecycleTest do
     account
     |> reload_lifecycle()
     |> Ecto.Changeset.change(%{drain_started_at: started_at})
+    |> Repo.update!()
+  end
+
+  defp mark_stable_ready(server, account) do
+    server
+    |> Ecto.Changeset.change(
+      stable_endpoint: %{
+        "host" => StableEndpoint.host(account),
+        "ready" => true,
+        "checked_at" => DateTime.to_iso8601(DateTime.utc_now())
+      }
+    )
     |> Repo.update!()
   end
 
