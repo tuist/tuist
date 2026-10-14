@@ -115,7 +115,9 @@ struct TuistGeneratedProjectOptionsTests {
                 buildInsightsDisabled: true,
                 testInsightsDisabled: false,
                 disableSandbox: true,
-                includeGenerateScheme: true
+                includeGenerateScheme: true,
+                enableCaching: true,
+                enableCoveragePrefixMapping: true
             )
 
             // When
@@ -132,6 +134,8 @@ struct TuistGeneratedProjectOptionsTests {
             #expect(result.buildInsightsDisabled == true)
             #expect(result.disableSandbox == true)
             #expect(result.includeGenerateScheme == true)
+            #expect(result.enableCaching == true)
+            #expect(result.enableCoveragePrefixMapping == true)
 
             // Original arguments should be preserved plus new ones
             #expect(result.additionalPackageResolutionArguments.contains("-verbose"))

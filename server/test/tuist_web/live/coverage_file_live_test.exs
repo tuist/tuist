@@ -133,6 +133,30 @@ defmodule TuistWeb.CoverageFileLiveTest do
     end
   end
 
+  test "says how many covered lines belong to no function", %{
+    conn: conn,
+    base: base,
+    organization: organization,
+    project: project
+  } do
+    # Line 1 holds only generated code; `run/0` owns lines 2 and 3.
+    functions = [%{name: "run/0", line_number: 2, execution_count: 1, covered_lines: 1, executable_lines: 2}]
+    outside = "Sources/G.ex" |> CoverageFixtures.file([1, 1, 0]) |> Map.put(:functions, functions)
+    functions = [%{name: "run/0", line_number: 1, execution_count: 1, covered_lines: 2, executable_lines: 3}]
+    inside = "Sources/H.ex" |> CoverageFixtures.file([1, 1, 0]) |> Map.put(:functions, functions)
+    run(project, organization, "g", [outside, inside])
+    note = "1 of them belongs to no function, such as code a macro generates."
+
+    {:ok, lv, _html} = live(conn, base <> "/files/Sources/G.ex")
+    assert render(element(lv, "#widget-coverage-covered-lines")) =~ note
+
+    {:ok, lv, _html} = live(conn, base <> "/files/Sources/G.ex?commit=g")
+    assert render(element(lv, "#widget-coverage-file-lines")) =~ note
+
+    {:ok, lv, _html} = live(conn, base <> "/files/Sources/H.ex")
+    refute render(element(lv, "#widget-coverage-covered-lines")) =~ "belongs to no function"
+  end
+
   test "searches, sorts and pages the file's functions, least covered first by default", %{
     conn: conn,
     base: base,

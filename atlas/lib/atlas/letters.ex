@@ -78,6 +78,27 @@ defmodule Atlas.Letters do
     {letters, %{total_count: meta.total_count || length(letters), has_next_page?: meta.has_next_page?}}
   end
 
+  def list_delivery_check_candidate_ids(opts \\ []) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    checked_before = DateTime.add(now, -300, :second)
+    sent_after = DateTime.add(now, -30 * 24 * 60 * 60, :second)
+    limit = opts |> Keyword.get(:limit, 100) |> min(100)
+
+    Letter
+    |> where([letter], not is_nil(letter.pingen_letter_id))
+    |> where(
+      [letter],
+      letter.status == "sending" or
+        (letter.status == "failed" and letter.pingen_status == "action_required") or
+        (letter.status == "sent" and letter.sent_at > ^sent_after)
+    )
+    |> where([letter], is_nil(letter.last_checked_at) or letter.last_checked_at < ^checked_before)
+    |> order_by([letter], asc_nulls_first: letter.last_checked_at, asc: letter.id)
+    |> limit(^limit)
+    |> select([letter], letter.id)
+    |> Repo.all()
+  end
+
   def list_letter_accounts do
     Letter
     |> join(:inner, [letter], account in assoc(letter, :account))
@@ -362,14 +383,10 @@ defmodule Atlas.Letters do
 
   def check_delivery(%Letter{} = letter, %User{} = actor) do
     with :ok <- authorize(actor),
-         pingen_letter_id when is_binary(pingen_letter_id) <- letter.pingen_letter_id,
-         {:ok, delivery} <- Pingen.get_letter(pingen_letter_id),
-         {:ok, updated} <- apply_provider_delivery(letter, delivery, "poll") do
+         {:ok, updated} <- refresh_delivery(letter) do
       audit("letter.delivery_checked", updated, actor, %{"pingen_status" => updated.pingen_status})
       {:ok, preload_letter(updated)}
     else
-      :disabled -> {:error, :postal_delivery_not_configured}
-      nil -> {:error, :letter_not_submitted}
       {:error, _reason} = error -> error
     end
   end
@@ -378,6 +395,33 @@ defmodule Atlas.Letters do
     case get_letter(letter_id) do
       nil -> {:error, :not_found}
       letter -> check_delivery(letter, actor)
+    end
+  end
+
+  def sync_delivery(letter_id) when is_binary(letter_id) do
+    Audit.with_context(%{interface: "worker"}, fn ->
+      with %Letter{} = letter <- get_letter(letter_id),
+           {:ok, updated} <- refresh_delivery(letter) do
+        audit("letter.delivery_checked", updated, letter.created_by, %{"pingen_status" => updated.pingen_status},
+          interface: "worker"
+        )
+
+        {:ok, updated}
+      else
+        nil -> {:error, :not_found}
+        {:error, _reason} = error -> error
+      end
+    end)
+  end
+
+  defp refresh_delivery(letter) do
+    with pingen_letter_id when is_binary(pingen_letter_id) <- letter.pingen_letter_id,
+         {:ok, delivery} <- Pingen.get_letter(pingen_letter_id) do
+      apply_provider_delivery(letter, delivery, "poll")
+    else
+      :disabled -> {:error, :postal_delivery_not_configured}
+      nil -> {:error, :letter_not_submitted}
+      {:error, _reason} = error -> error
     end
   end
 
@@ -794,6 +838,10 @@ defmodule Atlas.Letters do
   end
 
   defp apply_provider_delivery(letter, delivery, source) do
+    with_locked_letter(letter.id, &update_provider_delivery(&1, delivery, source))
+  end
+
+  defp update_provider_delivery(letter, delivery, source) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
     next_status = provider_status(delivery.status, letter.status)
 
@@ -805,7 +853,7 @@ defmodule Atlas.Letters do
         pingen_events: append_event(letter.pingen_events, provider_event(delivery, source, now)),
         last_checked_at: now,
         status: next_status,
-        last_error: nil
+        last_error: provider_last_error(next_status, delivery.status)
       }
       |> Map.merge(provider_status_timestamp_attrs(next_status, delivery, letter, now))
 
@@ -813,6 +861,23 @@ defmodule Atlas.Letters do
   end
 
   defp apply_webhook(letter, payload) do
+    with_locked_letter(letter.id, &update_webhook(&1, payload))
+  end
+
+  defp with_locked_letter(id, update) do
+    Repo.transact(fn ->
+      Letter
+      |> where([letter], letter.id == ^id)
+      |> lock("FOR UPDATE")
+      |> Repo.one()
+      |> case do
+        nil -> {:error, :not_found}
+        letter -> letter |> preload_letter() |> update.()
+      end
+    end)
+  end
+
+  defp update_webhook(letter, payload) do
     data = payload["data"] || %{}
     attributes = data["attributes"] || %{}
     now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -863,7 +928,7 @@ defmodule Atlas.Letters do
   end
 
   defp webhook_letter_id(%{"data" => %{"relationships" => relationships}}) when is_map(relationships) do
-    case get_in(relationships, ["letter", "data", "id"]) do
+    case get_in(relationships, ["deliverable", "data", "id"]) || get_in(relationships, ["letter", "data", "id"]) do
       id when is_binary(id) and id != "" -> {:ok, id}
       _ -> {:error, :missing_letter_id}
     end
@@ -879,13 +944,18 @@ defmodule Atlas.Letters do
       provider_status in ["webhook_delivered", "delivered"] -> "delivered"
       provider_status in ["webhook_undeliverable", "undeliverable"] -> "undeliverable"
       provider_status in ["webhook_sent", "sent", "submitted", "dispatched"] -> "sent"
-      provider_status in ["webhook_issues", "failed", "error", "cancelled"] -> "failed"
+      provider_status in ["webhook_issues", "action_required", "failed", "error", "cancelled"] -> "failed"
+      current_status == "sent" -> "sent"
       true -> "sending"
     end
   end
 
+  defp provider_last_error("failed", "action_required"), do: "Pingen requires action before sending this letter."
+  defp provider_last_error("failed", status), do: "Pingen reported #{status}."
+  defp provider_last_error(_status, _provider_status), do: nil
+
   defp provider_status_timestamp_attrs("sent", delivery, letter, now),
-    do: %{sent_at: delivery.submitted_at || letter.sent_at || now}
+    do: %{sent_at: letter.sent_at || delivery.submitted_at || now}
 
   defp provider_status_timestamp_attrs("delivered", delivery, letter, now),
     do: %{delivered_at: delivery.delivered_at || letter.delivered_at || now}

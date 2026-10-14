@@ -34,7 +34,8 @@ import TuistHTTP
             skipTestIdentifiers: [String],
             stressNewTests: Components.Schemas.StressNewTestsResult?,
             gitHistory: TestRunGitHistory?,
-            coverageUpload: XcodeCoverageUpload?
+            coverageUpload: XcodeCoverageUpload?,
+            coverageEnabled: Bool?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -58,6 +59,7 @@ import TuistHTTP
         }
     }
 
+    // swiftlint:disable:next type_body_length
     public struct CreateTestService: CreateTestServicing {
         private let fullHandleService: FullHandleServicing
 
@@ -92,7 +94,8 @@ import TuistHTTP
             skipTestIdentifiers: [String],
             stressNewTests: Components.Schemas.StressNewTestsResult? = nil,
             gitHistory: TestRunGitHistory? = nil,
-            coverageUpload: XcodeCoverageUpload? = nil
+            coverageUpload: XcodeCoverageUpload? = nil,
+            coverageEnabled: Bool? = nil
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -295,11 +298,11 @@ import TuistHTTP
                             ci_provider: ciProviderPayload,
                             ci_project_handle: ciProjectHandle,
                             pull_request_number: gitHistory?.pullRequestNumber,
+                            coverage_enabled: coverageEnabled,
                             stress_new_tests: stressNewTests,
                             xcode_coverage_partial: coverageUpload?.partial,
                             macos_version: macOSVersion,
                             id: id,
-                            changed_files: history.changedFiles,
                             xcode_coverage: xcodeCoveragePayload(testSummary.coverage),
                             shard_plan_id: shardPlanId,
                             duration: testSummary.duration ?? 0,
@@ -531,25 +534,12 @@ import TuistHTTP
     private struct GitHistoryPayloads {
         typealias Body = Operations.createTest.Input.Body.jsonPayload
 
-        let changedFiles: [Body.changed_filesPayloadPayload]?
         let objectFormat: Body.git_object_formatPayload?
         let source: Body.history_sourcePayload?
 
         init(_ gitHistory: TestRunGitHistory?) {
-            changedFiles = gitHistory.map { history in history.changedFiles.map(Self.changedFile) }
             objectFormat = gitHistory?.objectFormat.flatMap { .init(rawValue: $0) }
             source = gitHistory.map { $0.source == "client" ? .client : .none }
-        }
-
-        private static func changedFile(_ file: TestRunGitHistory.ChangedFile) -> Body.changed_filesPayloadPayload {
-            .init(
-                git_blob_id: file.blobId,
-                hunks: file.hunks.map { Body.changed_filesPayloadPayload.hunksPayloadPayload(end: $0.end, start: $0.start) },
-                path: file.path,
-                previous_path: file.previousPath,
-                status: .init(rawValue: file.status) ?? .modified,
-                truncated: file.truncated
-            )
         }
     }
 #endif

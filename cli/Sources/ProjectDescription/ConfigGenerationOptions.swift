@@ -125,6 +125,12 @@ extension Tuist {
         /// that names a different directory in every project.
         public var enableCaching: Bool
 
+        /// Keeps compilation-cache prefix mapping enabled for coverage builds on Xcode 27 and later.
+        /// Defaults to `false` because `xccov` cannot resolve the mapped source paths.
+        /// Enable only when reading coverage with a tool such as `llvm-cov` and remapping paths using
+        /// each binary's target-specific `compilation-prefix-map.json`. Requires `enableCaching`.
+        public var enableCoveragePrefixMapping: Bool
+
         /// When enabled, generates the Swift Package Registry configuration file during project generation.
         /// This eliminates the need to run `tuist registry setup` separately.
         public var registryEnabled: Bool
@@ -166,6 +172,7 @@ extension Tuist {
             disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true,
             enableCaching: Bool = false,
+            enableCoveragePrefixMapping: Bool = false,
             registryEnabled: Bool = false,
             additionalPackageResolutionArguments: [String] = [],
             warningsAsErrors: WarningsAsErrors = .none,
@@ -188,6 +195,7 @@ extension Tuist {
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching,
+                enableCoveragePrefixMapping: enableCoveragePrefixMapping,
                 registryEnabled: registryEnabled,
                 warningsAsErrors: warningsAsErrors,
                 defaultSwiftVersion: defaultSwiftVersion,
@@ -230,6 +238,7 @@ extension Tuist {
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching,
+                enableCoveragePrefixMapping: false,
                 registryEnabled: false,
                 warningsAsErrors: .none,
                 defaultSwiftVersion: "5",
@@ -267,6 +276,7 @@ extension Tuist {
                 disableSandbox: true,
                 includeGenerateScheme: false,
                 enableCaching: false,
+                enableCoveragePrefixMapping: false,
                 registryEnabled: false,
                 warningsAsErrors: .none,
                 defaultSwiftVersion: "5",

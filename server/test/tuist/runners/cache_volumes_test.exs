@@ -47,7 +47,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
       "attach_ms" => 10
     }
 
-  defp publish_report(node, id) do
+  defp publish_report(node, id, sizes \\ %{}) do
     usage = Repo.get!(Usage, id)
     digest = :sha |> :crypto.hash(id) |> Base.encode16(case: :lower)
     content = :sha256 |> :crypto.hash(id) |> Base.encode16(case: :lower)
@@ -56,7 +56,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
       CacheVolumes.image(node, id, %{"operation" => "publish", "image_digest" => digest, "content_digest" => content})
     end
 
-    CacheVolumes.report(node, id, report("sealed"))
+    CacheVolumes.report(node, id, Map.merge(report("sealed"), sizes))
   end
 
   defp complete(job, conclusion \\ "success") do
@@ -601,6 +601,100 @@ defmodule Tuist.Runners.CacheVolumesTest do
     refute fresh.scope == clone.scope
     assert {:ok, %{action: "forget"}} = CacheVolumes.report("node", clone.id, %{"state" => "deleted"})
     assert is_nil(volume(account).head_id)
+  end
+
+  defp report_size(node, id, size, capacity \\ 2048),
+    do:
+      CacheVolumes.report(
+        node,
+        id,
+        Map.merge(report("active", false), %{"size_bytes" => size, "capacity_bytes" => capacity})
+      )
+
+  test "a nearly full saved snapshot that a clone ran out of space on starts a fresh lineage", %{
+    job: job,
+    account: account
+  } do
+    {:ok, full} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    {:ok, running} = CacheVolumes.allocate_for_job(job, identity(), attrs("running"))
+    complete(job)
+    publish_report("node", full.id, %{"size_bytes" => 1639, "capacity_bytes" => 2048})
+    {:ok, filled} = CacheVolumes.allocate_for_job(job, identity(), attrs("filled"))
+    assert filled.parent_id == full.id
+    assert {:ok, %{action: "hold"}} = report_size("node", filled.id, 2028)
+
+    {:ok, fresh} = CacheVolumes.allocate_for_job(job, identity(), attrs("fresh"))
+
+    assert is_nil(fresh.parent_id)
+    assert fresh.base_generation == 0
+    refute fresh.scope == full.scope
+    assert is_nil(volume(account).head_id)
+    assert {:ok, %{action: "delete"}} = publish_report("node", running.id)
+    assert {:ok, %{action: "seal"}} = CacheVolumes.report("node", fresh.id, report())
+  end
+
+  test "a nearly full saved snapshot keeps chaining warm while its clones have room", %{job: job} do
+    complete(job)
+    {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("job-0"))
+    publish_report("node", first.id, %{"size_bytes" => 1741, "capacity_bytes" => 2048})
+
+    Enum.reduce(1..4, first, fn n, parent ->
+      {:ok, use} = CacheVolumes.allocate_for_job(job, identity(), attrs("job-#{n}"))
+      assert use.parent_id == parent.id
+      assert use.base_generation > 0
+      assert use.scope == first.scope
+      assert {:ok, %{action: "keep"}} = publish_report("node", use.id, %{"size_bytes" => 1741, "capacity_bytes" => 2048})
+      use
+    end)
+  end
+
+  test "a saved snapshot below the fill limit stays the parent even when a clone ran out of space", %{job: job} do
+    {:ok, saved} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    complete(job)
+    publish_report("node", saved.id, %{"size_bytes" => 1638, "capacity_bytes" => 2048})
+    {:ok, filled} = CacheVolumes.allocate_for_job(job, identity(), attrs("filled"))
+    report_size("node", filled.id, 2048)
+
+    {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), attrs("next"))
+
+    assert next.parent_id == saved.id
+    assert next.scope == saved.scope
+  end
+
+  test "a clone that stayed below the out-of-space limit keeps the saved snapshot", %{job: job} do
+    {:ok, saved} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    complete(job)
+    publish_report("node", saved.id, %{"size_bytes" => 1900, "capacity_bytes" => 2048})
+    {:ok, roomy} = CacheVolumes.allocate_for_job(job, identity(), attrs("roomy"))
+    report_size("node", roomy.id, 2027)
+
+    {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), attrs("next"))
+
+    assert next.parent_id == saved.id
+  end
+
+  test "a saved snapshot with unknown size stays the parent", %{job: job} do
+    {:ok, saved} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    complete(job)
+    publish_report("node", saved.id, %{"size_bytes" => nil, "capacity_bytes" => nil})
+
+    {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), attrs("next"))
+
+    assert next.parent_id == saved.id
+  end
+
+  test "statistics report the saved snapshot's size separately from retained copies", %{job: job, account: account} do
+    {:ok, saved} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    {:ok, _clone} = CacheVolumes.allocate_for_job(job, identity(), attrs("clone"))
+    complete(job)
+    publish_report("node", saved.id, %{"size_bytes" => 1700, "capacity_bytes" => 2048})
+    id = volume(account).id
+
+    assert %{saved_bytes: 1700, saved_capacity_bytes: 2048} = CacheVolumes.statistics([id])[id]
+    assert CacheVolumes.full?(1639, 2048)
+    refute CacheVolumes.full?(1638, 2048)
+    refute CacheVolumes.full?(nil, 2048)
+    refute CacheVolumes.full?(1024, 0)
   end
 
   test "tenant and node boundaries apply to every operation", %{job: job, account: account} do

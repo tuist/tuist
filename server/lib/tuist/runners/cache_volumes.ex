@@ -25,6 +25,11 @@ defmodule Tuist.Runners.CacheVolumes do
   @retention_seconds 7 * 24 * 60 * 60
   @commit_modes ~w(auto true false)
 
+  # A saved snapshot at or above @full_percent of its capacity, which a clone filled
+  # to @out_of_space_percent, is not cloned again: the next use starts a fresh lineage.
+  @full_percent 80
+  @out_of_space_percent 99
+
   def allocate(
         %{
           "pod_name" => pod,
@@ -144,7 +149,7 @@ defmodule Tuist.Runners.CacheVolumes do
       volume =
         Repo.one!(from(v in volume_query(job, identity, attrs), lock: "FOR UPDATE"))
 
-      volume = expire_locked(volume, now)
+      volume = volume |> expire_locked(now) |> reset_full_locked()
 
       head = VolumeHeads.get_head(volume.account_id, storage_name(volume))
 
@@ -325,6 +330,39 @@ defmodule Tuist.Runners.CacheVolumes do
     else
       volume
     end
+  end
+
+  def full?(size, capacity) when is_integer(size) and is_integer(capacity) and capacity > 0,
+    do: size * 100 >= capacity * @full_percent
+
+  def full?(_size, _capacity), do: false
+
+  def out_of_space?(size, capacity) when is_integer(size) and is_integer(capacity) and capacity > 0,
+    do: size * 100 >= capacity * @out_of_space_percent
+
+  def out_of_space?(_size, _capacity), do: false
+
+  defp reset_full_locked(%Volume{head_id: nil} = volume), do: volume
+
+  defp reset_full_locked(volume) do
+    head = Repo.get(Usage, volume.head_id)
+
+    if head && full?(head.size_bytes, head.capacity_bytes) && clone_ran_out_of_space?(head.id) do
+      Runners.clear_volume_master(volume.account_id, storage_name(volume))
+      Repo.update!(Ecto.Changeset.change(volume, generation: volume.generation + 1, head_id: nil))
+    else
+      volume
+    end
+  end
+
+  defp clone_ran_out_of_space?(head_id) do
+    Repo.exists?(
+      from(u in Usage,
+        where:
+          u.parent_id == ^head_id and u.capacity_bytes > 0 and
+            u.size_bytes * 100 >= u.capacity_bytes * @out_of_space_percent
+      )
+    )
   end
 
   def scope(volume) do
@@ -736,11 +774,15 @@ defmodule Tuist.Runners.CacheVolumes do
     since = DateTime.add(DateTime.utc_now(), -30 * 24 * 60 * 60)
 
     from(u in Usage,
+      join: v in Volume,
+      on: v.id == u.volume_id,
       where: u.volume_id in ^ids,
       group_by: u.volume_id,
       select:
         {u.volume_id,
          %{
+           saved_bytes: type(filter(max(u.size_bytes), u.id == v.head_id), :integer),
+           saved_capacity_bytes: type(filter(max(u.capacity_bytes), u.id == v.head_id), :integer),
            uses: filter(count(u.id), not is_nil(u.attached_at) and u.inserted_at >= ^since),
            hits: filter(count(u.id), u.warm == true and u.inserted_at >= ^since),
            active: filter(count(u.id), is_nil(u.finished_at) and is_nil(coalesce(u.deleted_at, u.superseded_at))),

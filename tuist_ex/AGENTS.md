@@ -77,9 +77,25 @@ written its report nor, in an umbrella, restarted `cover` for the next
 application. It never wraps or replaces the project's `test_coverage` tool,
 so `mix test`'s report, threshold and excoveralls keep working. A run is
 partial only when its own arguments pick tests; the files a shard appends are
-not counted. Paths are relative to the Git root, a build compiled elsewhere is
+not counted. `mix tuist.test.build --cover` recompiles the build's modules
+from their debug info with `line_coverage` (`Coverage.instrument/1`; the
+Elixir compiler skips the pass that adds the counters), keeping chunks only
+Elixir writes, and marks the build. A shard of it switches the runtime to line
+counters (`Coverage.enable_native/1`: `code:set_coverage_mode/1` applies after
+boot only to explicitly loaded code, so every module of the build is loaded
+then, before the application starts) and drops Mix's `--cover` and
+`--export-coverage`; the
+formatter's `init`, which runs after the test helper and before any test,
+cover compiles only the modules Mimic marked to copy (Mimic carries a cover
+compiled module's counts across its swaps, while a reload resets native
+counters), and the snapshot merges `cover`'s counts with the native ones of
+every other module of the build, loading those the run never did. Paths are relative to the Git root, a build compiled elsewhere is
 matched by path suffix, the OTP application is the target, and files under the
-test paths are test code. Coverage that compresses past the server's inline
+test paths are test code. A line belongs to the function whose clause head
+starts closest above it. Generated functions (`__*`, `module_info`), such as
+those on a `defmodule`, `schema` or `use` line, are not listed, but their
+lines still count for the file, as `cover` and Mix count them; the file page
+says how many covered lines no listed function owns. Coverage that compresses past the server's inline
 threshold is uploaded first (`/tests/coverage/uploads`). Retries never carry
 `--cover`. `mix tuist.coverage.complete` signals the commit's coverage
 complete, as `tuist coverage complete` does. Tests that start or stop `cover`
@@ -89,7 +105,7 @@ collection (`GitController+History.swift`, `GitHistoryParser.swift`,
 `GitHistoryService.swift`) and must stay in step with it, since the server
 compares what both report: the merge base with the CI provider's base branch
 (fetching it and deepening a shallow clone within the server's budget), the
-changed files and hunks since, the commits within the window (a shallow
+commits within the window (a shallow
 boundary's parents read from the commit objects), whether the checkout is
 dirty (`git status --porcelain`, untracked files included), and after the run
 the commits the server lacks, the branch head, and a clean checkout's file
