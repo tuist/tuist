@@ -1911,6 +1911,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.userInputReader.targetName),
                     .target(name: Module.uniqueIDGenerator.targetName),
                     .target(name: Module.alert.targetName),
+                    .target(name: Module.nooraExtension.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "GraphViz"),
                     .external(name: "AnyCodable"),
