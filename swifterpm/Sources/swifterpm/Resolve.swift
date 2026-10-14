@@ -106,10 +106,15 @@ enum PackageResolver {
         // exists to escape. Clear both together and let SwiftPM rewrite each
         // from the fresh solver output.
         let workspaceStatePath = effectiveScratchDir.appendingPathComponent("workspace-state.json")
-        // Native SwiftPM updates an existing git checkout in place, which would rewrite a
-        // cached source through its `checkouts/<identity>` symlink.
-        try await detachNativeCheckoutSymlinks(scratchDir: effectiveScratchDir)
-        try await copyBinaryArtifactSymlinks(scratchDir: effectiveScratchDir)
+        let scratchLock = try await PathLock.acquire(
+            at: effectiveScratchDir.appendingPathComponent(".swifterpm.lock")
+        )
+        defer { withExtendedLifetime(scratchLock) {} }
+        let existingCheckouts = effectiveScratchDir.appendingPathComponent("checkouts")
+        let preexisting = try await fileSystem.exists(existingCheckouts.absolutePath)
+            ? Set(try await fileSystem.contentsOfDirectory(at: existingCheckouts).map(\.lastPathComponent)) : []
+        try await WorkspaceRestorer.assertNoEditedDependencies(scratchDir: effectiveScratchDir)
+        let prepared = try await NativeWorkspace.prepare(scratchDir: effectiveScratchDir)
         let resolvedSnapshot =
             (!writeResolvedFile || !useExistingResolvedFile)
                 ? try await snapshotResolvedFile(at: resolvedPath) : nil
@@ -139,9 +144,12 @@ enum PackageResolver {
                 forwardOutput: forwardOutput
             )
             let resolvedPathExists = try await fileSystem.exists(resolvedPath.absolutePath)
-            let resolved = resolvedPathExists
+            var resolved = resolvedPathExists
                 ? try await ResolvedFile.read(packageDir: packageDir)
                 : ResolvedPins(originHash: nil, pins: [], version: 3)
+            let currentCheckouts = try await fileSystem.exists(existingCheckouts.absolutePath)
+                ? Set(try await fileSystem.contentsOfDirectory(at: existingCheckouts).map(\.lastPathComponent)) : []
+            resolved.nativeOwnedCheckouts = prepared.union(currentCheckouts.subtracting(preexisting))
             if !writeResolvedFile, let resolvedSnapshot {
                 try await restoreResolvedFile(resolvedSnapshot, at: resolvedPath)
                 if let workspaceStateSnapshot {
@@ -157,40 +165,6 @@ enum PackageResolver {
                 try? await restoreResolvedFile(workspaceStateSnapshot, at: workspaceStatePath)
             }
             throw error
-        }
-    }
-
-    /// Only links whose target still has a `.git` can be checked out in place.
-    private static func detachNativeCheckoutSymlinks(scratchDir: URL) async throws {
-        let checkouts = scratchDir.appendingPathComponent("checkouts")
-        guard try await fileSystem.exists(checkouts.absolutePath) else { return }
-        for entry in try await fileSystem.contentsOfDirectory(at: checkouts)
-            where fileSystem.isSymlink(entry)
-        {
-            guard try await fileSystem.exists(entry.appendingPathComponent(".git").absolutePath) else {
-                continue
-            }
-            try await fileSystem.removePath(entry)
-        }
-    }
-
-    /// SwiftPM extracts a changed binary target over `artifacts/<identity>/<target>` but expects an
-    /// unchanged one to still be there, so each link becomes a copy SwiftPM can overwrite.
-    private static func copyBinaryArtifactSymlinks(scratchDir: URL) async throws {
-        let artifacts = scratchDir.appendingPathComponent("artifacts")
-        guard try await fileSystem.exists(artifacts.absolutePath) else { return }
-        for package in try await fileSystem.contentsOfDirectory(at: artifacts)
-            where fileSystem.isDirectoryAndNotSymlink(package)
-        {
-            for entry in try await fileSystem.contentsOfDirectory(at: package)
-                where fileSystem.isSymlink(entry)
-            {
-                let cached = entry.resolvingSymlinksInPath()
-                try await fileSystem.removePath(entry)
-                if try await fileSystem.exists(cached.absolutePath) {
-                    try await fileSystem.copy(cached.absolutePath, to: entry.absolutePath)
-                }
-            }
         }
     }
 
@@ -405,7 +379,9 @@ enum PackageResolver {
             }
             for dependency in dependencies {
                 if dependency.kind == .sourceControl {
-                    for transformedIdentity in transformedIdentities where expectedIdentities.insert(transformedIdentity).inserted {
+                    for transformedIdentity in transformedIdentities
+                        where expectedIdentities.insert(transformedIdentity).inserted
+                    {
                         identitiesToInspect.append(transformedIdentity)
                     }
                 }
@@ -677,6 +653,10 @@ enum PackageResolver {
         disableSandbox: Bool,
         scmToRegistryTransformation: SCMToRegistryTransformation
     ) async throws {
+        let scratch = scratchDir ?? packageDir.appendingPathComponent(".build")
+        let scratchLock = try await PathLock.acquire(at: scratch.appendingPathComponent(".swifterpm.lock"))
+        defer { withExtendedLifetime(scratchLock) {} }
+        _ = try await NativeWorkspace.prepare(scratchDir: scratch)
         let arguments = swiftPackageResolveArguments(
             packageDir: packageDir,
             scratchDir: scratchDir,

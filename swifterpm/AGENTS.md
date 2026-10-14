@@ -16,6 +16,14 @@
 - `mise run test:e2e` runs `e2e/resolution_spec.sh` and is part of CI. Scenarios that expect SwifterPM to do work itself (dump manifests, download registry archives) must first warm the cache with a resolve; a resolve without a lockfile or with uncached pins is delegated to native SwiftPM.
 - Read pins through `normalize_package_resolved_file`. SwiftPM writes the version 1 `Package.resolved` format for packages below tools version 5.6, which several SwiftPM fixtures are.
 
+## Source cache ownership
+
+- Shared sources are pinned snapshots, not native working trees. `PinnedSourceSnapshot` exports through a private index and empty staging tree; never stamp and cache mutable checkout bytes.
+- Every native entry point must prepare a private workspace through `NativeWorkspace`, including force-resolved checks and Tuist's native fallback. Detach Git-bearing checkout links rather than copying potentially damaged working trees. Prefer APFS COW clones for Git-free links/artifacts, with independent-copy fallback; never use hard links.
+- Preserve unmanaged/modified real checkouts and SwiftPM edit state. Legacy cached Git checkouts are rebuilt privately without modifying their shared directory; local source-control legacy entries retain private Git metadata/tags for manifest context. Cache publication failure must leave the usable native checkout intact.
+- Keep source-cache paths and the raw revision marker compatible. Do not add warm source hashing or Git subprocesses for ordinary Git-free cache hits.
+- `NativeWorkspaceTests`, `RestoreTests`, `ResolveTests`, and `FileSystemSupportTests` are also included in the generated `SwifterPMCoreTests` target for focused Xcode validation.
+
 ## Resolution
 
 - Stale-pin pruning must only inspect version-specific cached sources or registry downloads. If a reachable manifest is missing or cannot be evaluated, retain the seed and defer to normal resolution. Never infer reachability from an unverified scratch checkout or a local repository working tree.

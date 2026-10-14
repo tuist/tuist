@@ -16,6 +16,7 @@ This module provides low-level helpers and shared infrastructure used across the
 - Logger configuration honors environment variables (quiet, osLog, detailed, verbose).
 - `FatalError` types are used to classify user-facing failures vs. unexpected errors.
 - Caller-owned cache-warm scratch directories are created when absent and must be empty when present.
+- Direct native SwiftPM resolve/update calls, including `TUIST_USE_SWIFTERPM=0`, must run through SwifterPM's private-workspace preparation using the actual package/scratch/build-path arguments; native must not mutate shared source/artifact aliases.
 - Program-status reports are disabled by default outside the CLI entry point and suppressed for non-interactive stdout, CI, machine-readable output, and quiet mode. Messages are single-line, control-free UTF-8, base64-encoded, and bounded to the protocol's 2048-byte decoded limit.
 - Status output is best-effort: write errors, including a revoked terminal, must not change command results or exit status.
 - Handled cancellation reports `idle`. Tuist intentionally does not install signal handlers for status reporting: Ctrl-C retains its existing process-group and termination semantics, and relies on terminal-side cleanup at process exit or the next shell prompt.

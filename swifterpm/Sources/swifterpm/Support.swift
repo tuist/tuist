@@ -143,6 +143,7 @@ enum SystemProcess {
         _ arguments: [String],
         workingDirectory: URL? = nil,
         environment: [String: String] = [:],
+        customEnvironment: [String: String]? = nil,
         outputLimit: Int = 64 * 1024 * 1024
     ) async throws -> String {
         try await run(
@@ -150,6 +151,7 @@ enum SystemProcess {
             arguments,
             workingDirectory: workingDirectory,
             environment: environment,
+            customEnvironment: customEnvironment,
             outputLimit: outputLimit
         ).stdoutString
     }
@@ -426,7 +428,6 @@ enum HTTPAuthorization {
         let token = Data("\(credential.user):\(credential.password)".utf8).base64EncodedString()
         return "Basic \(token)"
     }
-
 }
 
 enum Hashing {
@@ -449,7 +450,6 @@ enum Hashing {
         }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
-
 }
 
 private let defaultParallelism = max(4, min(32, ProcessInfo.processInfo.activeProcessorCount * 4))
