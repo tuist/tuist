@@ -6,16 +6,23 @@ import Mockable
 import OpenAPIRuntime
 import Path
 import TuistHTTP
+import XCResultParser
 
-/// Coverage a client uploaded to object storage instead of sending inline with the run: the key
-/// the server handed out for the run's id, and whether the run left tests out on purpose.
-public struct XcodeCoverageUpload: Equatable, Sendable {
-    public let storageKey: String
+/// A run's coverage as the client sends it: measured by `tool` (`llvm-cov` over the test
+/// products, or `xccov`'s report as the fallback), inline as `files` when small, or already in
+/// object storage under `storageKey`, the key the server handed out for the run's id.
+public struct TestRunCoverage: Equatable, Sendable {
+    public let tool: String
+    /// Whether the run left tests out on purpose.
     public let partial: Bool
+    public let files: [XcodeCoverageFile]?
+    public let storageKey: String?
 
-    public init(storageKey: String, partial: Bool) {
-        self.storageKey = storageKey
+    public init(tool: String, partial: Bool, files: [XcodeCoverageFile]? = nil, storageKey: String? = nil) {
+        self.tool = tool
         self.partial = partial
+        self.files = files
+        self.storageKey = storageKey
     }
 }
 

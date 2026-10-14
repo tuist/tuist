@@ -118,7 +118,7 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any,
+                coverage: .any,
                 coverageEnabled: .any
             )
             .willReturn(
@@ -203,7 +203,7 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any,
+                coverage: .any,
                 coverageEnabled: .any
             )
             .called(1)
@@ -342,7 +342,7 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any,
+                coverage: .any,
                 coverageEnabled: .any
             )
             .called(1)
@@ -420,7 +420,7 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any,
+                coverage: .any,
                 coverageEnabled: .any
             )
             .called(1)
@@ -501,7 +501,7 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any,
+                coverage: .any,
                 coverageEnabled: .any
             )
             .called(1)
@@ -568,7 +568,7 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any,
+                coverage: .any,
                 coverageEnabled: .any
             )
             .called(1)
@@ -659,7 +659,7 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any,
+                coverage: .any,
                 coverageEnabled: .any
             )
             .willReturn(
@@ -804,7 +804,7 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any,
+                coverage: .any,
                 coverageEnabled: .any
             )
             .willReturn(
@@ -905,7 +905,7 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any,
+                coverage: .any,
                 coverageEnabled: .any
             )
             .called(1)
@@ -918,7 +918,7 @@ struct UploadResultBundleServiceTests {
         Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
-        let coverage = XcodeCoverageReport(partial: true, files: [])
+        let coverage = TestRunCoverage(tool: "llvm-cov", partial: true, files: [])
         given(xcResultService)
             .coveredFilePaths(path: .value(xcresultPath))
             .willReturn(["/tmp/project/Sources/A.swift"])
@@ -931,8 +931,8 @@ struct UploadResultBundleServiceTests {
                 partial: true,
                 // B.swift is tracked but the run did not cover it.
                 files: [XcodeCoverageSourceFile(path: "Sources/A.swift", gitBlobId: "aaa")]
-            )), fullHandle: .any, serverURL: .any)
-            .willReturn(PreparedCoverage(inline: coverage, upload: nil, testRunId: nil))
+            )), fullHandle: .any, serverURL: .any, testRunId: .any)
+            .willReturn(PreparedCoverage(coverage: coverage, testRunId: nil))
 
         _ = try await subject.uploadTestSummary(
             testSummary: TestSummary(testPlanName: nil, status: .passed, duration: 10, testModules: []),
@@ -949,7 +949,7 @@ struct UploadResultBundleServiceTests {
                 fullHandle: .any,
                 serverURL: .any,
                 id: .any,
-                testSummary: .matching { $0.coverage == coverage },
+                testSummary: .any,
                 buildRunId: .any,
                 gitBranch: .any,
                 gitCommitSHA: .any,
@@ -969,7 +969,7 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any,
+                coverage: .value(coverage),
                 coverageEnabled: .value(true)
             )
             .called(1)
@@ -987,8 +987,14 @@ struct UploadResultBundleServiceTests {
             .sourceFileBlobIds(workingDirectory: .any, pathExtensions: .any)
             .willReturn(["Sources/A.swift": "aaa"])
         given(coverageUploadService)
-            .prepare(resultBundlePath: .any, manifest: .matching { !$0.partial }, fullHandle: .any, serverURL: .any)
-            .willReturn(PreparedCoverage(inline: XcodeCoverageReport(partial: false, files: []), upload: nil, testRunId: nil))
+            .prepare(
+                resultBundlePath: .any,
+                manifest: .matching { !$0.partial },
+                fullHandle: .any,
+                serverURL: .any,
+                testRunId: .any
+            )
+            .willReturn(PreparedCoverage(coverage: TestRunCoverage(tool: "xccov", partial: false, files: []), testRunId: nil))
 
         let storage = RunMetadataStorage()
         await storage.update(skippedQuarantinedTestIdentifiers: ["AppTests/FlakyTests"])
@@ -1005,7 +1011,13 @@ struct UploadResultBundleServiceTests {
         }
 
         verify(coverageUploadService)
-            .prepare(resultBundlePath: .any, manifest: .matching { !$0.partial }, fullHandle: .any, serverURL: .any)
+            .prepare(
+                resultBundlePath: .any,
+                manifest: .matching { !$0.partial },
+                fullHandle: .any,
+                serverURL: .any,
+                testRunId: .any
+            )
             .called(1)
     }
 
@@ -1085,7 +1097,7 @@ struct UploadResultBundleServiceTests {
                 macOSVersion: .any, xcodeVersion: .any, ciRunId: .any,
                 ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
                 shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
-                stressNewTests: .any, gitHistory: .any, coverageUpload: .any,
+                stressNewTests: .any, gitHistory: .any, coverage: .any,
                 coverageEnabled: .value(false)
             )
             .called(1)
@@ -1129,8 +1141,8 @@ struct UploadResultBundleServiceTests {
             .coveredFilePaths(path: .any)
             .willReturn(["/build-machine/checkout/Sources/A.swift"])
         given(coverageUploadService)
-            .prepare(resultBundlePath: .any, manifest: .value(manifest), fullHandle: .any, serverURL: .any)
-            .willReturn(PreparedCoverage(inline: XcodeCoverageReport(partial: false, files: []), upload: nil, testRunId: nil))
+            .prepare(resultBundlePath: .any, manifest: .value(manifest), fullHandle: .any, serverURL: .any, testRunId: .any)
+            .willReturn(PreparedCoverage(coverage: TestRunCoverage(tool: "xccov", partial: false, files: []), testRunId: nil))
 
         let storage = RunMetadataStorage()
         await storage.update(coverageBuildSources: CoverageBuildSources(
@@ -1149,7 +1161,7 @@ struct UploadResultBundleServiceTests {
         }
 
         verify(coverageUploadService)
-            .prepare(resultBundlePath: .any, manifest: .value(manifest), fullHandle: .any, serverURL: .any)
+            .prepare(resultBundlePath: .any, manifest: .value(manifest), fullHandle: .any, serverURL: .any, testRunId: .any)
             .called(1)
         // The current checkout may be at other content than what was compiled.
         verify(gitController)
@@ -1169,8 +1181,14 @@ struct UploadResultBundleServiceTests {
             .sourceFileBlobIds(workingDirectory: .any, pathExtensions: .any)
             .willReturn(["Sources/A.swift": "aaa"])
         given(coverageUploadService)
-            .prepare(resultBundlePath: .any, manifest: .matching { $0.files.isEmpty }, fullHandle: .any, serverURL: .any)
-            .willReturn(PreparedCoverage(inline: XcodeCoverageReport(partial: false, files: []), upload: nil, testRunId: nil))
+            .prepare(
+                resultBundlePath: .any,
+                manifest: .matching { $0.files.isEmpty },
+                fullHandle: .any,
+                serverURL: .any,
+                testRunId: .any
+            )
+            .willReturn(PreparedCoverage(coverage: TestRunCoverage(tool: "xccov", partial: false, files: []), testRunId: nil))
 
         _ = try await subject.uploadTestSummary(
             testSummary: TestSummary(testPlanName: nil, status: .passed, duration: 10, testModules: []),
@@ -1226,8 +1244,106 @@ struct UploadResultBundleServiceTests {
             files: [XcodeCoverageSourceFile(path: "Sources/A.swift", gitBlobId: "aaa")]
         ))
         verify(coverageUploadService)
-            .prepare(resultBundlePath: .any, manifest: .any, fullHandle: .any, serverURL: .any)
+            .prepare(resultBundlePath: .any, manifest: .any, fullHandle: .any, serverURL: .any, testRunId: .any)
             .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadResultBundle_sendsTheExportedCoverageWithTheRunAndSaysSoInTheManifest() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.writeText("", at: xcresultPath.appending(component: "Info.plist"))
+        try await fileSystem.writeText(
+            #"{"path":"/tmp/project/Sources/A.swift","targets":["A.framework"],"is_test":false,"covered_lines":1,"executable_lines":1,"line_numbers":[1],"execution_counts":[1],"functions":[]}"#
+                + "\n",
+            at: xcresultPath.appending(component: CoverageExport.fileName)
+        )
+        let manifestPath = xcresultPath.appending(component: XcodeCoverageManifest.fileName)
+        let coverage = TestRunCoverage(
+            tool: "llvm-cov",
+            partial: false,
+            storageKey: "tuist/tuist/runs/run/coverage.ndjson.deflate"
+        )
+        given(gitController)
+            .sourceFileBlobIds(workingDirectory: .any, pathExtensions: .any)
+            .willReturn(["Sources/A.swift": "aaa"])
+        given(coverageUploadService)
+            .prepare(resultBundlePath: .value(xcresultPath), manifest: .any, fullHandle: .any, serverURL: .any, testRunId: .any)
+            .willProduce { _, _, _, _, testRunId in PreparedCoverage(coverage: coverage, testRunId: testRunId) }
+        given(analyticsArtifactUploadService)
+            .uploadResultBundle(.any, fullHandle: .any, commandEventId: .any, serverURL: .any)
+            .willReturn()
+
+        _ = try await subject.uploadResultBundle(
+            resultBundlePath: xcresultPath,
+            config: .test(fullHandle: "tuist/tuist"),
+            quarantinedTests: [],
+            shardPlanId: nil,
+            shardIndex: nil
+        )
+
+        // The file list came from the export, not from xccov.
+        verify(xcResultService).coveredFilePaths(path: .any).called(0)
+        let manifest = try JSONDecoder().decode(
+            XcodeCoverageManifest.self,
+            from: Data(try await fileSystem.readTextFile(at: manifestPath).utf8)
+        )
+        #expect(manifest == XcodeCoverageManifest(
+            rootDirectories: ["/tmp/project", "/private/tmp/project"],
+            partial: false,
+            files: [XcodeCoverageSourceFile(path: "Sources/A.swift", gitBlobId: "aaa")],
+            clientReported: true
+        ))
+        // The upload was made under the run's id, which the bundle and the run share.
+        var runIds: Set<String> = []
+        verify(analyticsArtifactUploadService)
+            .uploadResultBundle(
+                .any,
+                fullHandle: .any,
+                commandEventId: .matching { runIds.insert($0).inserted || true },
+                serverURL: .any
+            )
+            .called(1)
+        verify(coverageUploadService)
+            .prepare(
+                resultBundlePath: .any,
+                manifest: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                testRunId: .matching { $0 != nil && runIds.contains($0!) }
+            )
+            .called(1)
+        verify(createTestService)
+            .createTest(
+                fullHandle: .any,
+                serverURL: .any,
+                id: .matching { $0 != nil && runIds.contains($0!) },
+                testSummary: .any,
+                buildRunId: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                xcodeVersion: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any,
+                gitHistory: .any,
+                coverage: .value(coverage),
+                coverageEnabled: .any
+            )
+            .called(1)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -1293,7 +1409,7 @@ struct UploadResultBundleServiceTests {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any,
+                coverage: .any,
                 coverageEnabled: .any
             )
             .called(1)

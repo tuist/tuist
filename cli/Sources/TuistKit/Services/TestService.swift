@@ -126,6 +126,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let derivedDataLocator: DerivedDataLocating
     private let testExecutionModeResolver: TestExecutionModeResolving
     private let testCoverageEvidenceService: TestCoverageEvidenceServicing
+    private let coverageExportService: CoverageExportServicing
     private let createTestService: CreateTestServicing
     private let gitHistoryService: GitHistoryServicing
     private let machineEnvironment: MachineEnvironmentRetrieving
@@ -173,6 +174,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         testExecutionModeResolver: TestExecutionModeResolving = TestExecutionModeResolver(),
         testCoverageEvidenceService: TestCoverageEvidenceServicing = TestCoverageEvidenceService(),
+        coverageExportService: CoverageExportServicing = CoverageExportService(),
         createTestService: CreateTestServicing = CreateTestService(),
         gitHistoryService: GitHistoryServicing = GitHistoryService(),
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
@@ -207,6 +209,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.derivedDataLocator = derivedDataLocator
         self.testExecutionModeResolver = testExecutionModeResolver
         self.testCoverageEvidenceService = testCoverageEvidenceService
+        self.coverageExportService = coverageExportService
         self.createTestService = createTestService
         self.gitHistoryService = gitHistoryService
         self.machineEnvironment = machineEnvironment
@@ -2288,15 +2291,23 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        // What TestCoverageAttribution recorded is reduced as soon as the run ends, before a stress
-        // pass runs tests over the same derived data and replaces the profile the reduction reads.
+        // What TestCoverageAttribution recorded is reduced, and the run's coverage exported, as
+        // soon as the run ends, before a stress pass runs tests over the same derived data and
+        // replaces the profile both read.
         let evidenceSession = action == .build ? nil : await testCoverageEvidenceService.prepare(platform: evidencePlatform)
         let recordCoverageEvidence = {
-            guard let evidenceSession else { return }
-            _ = await testCoverageEvidenceService.record(
-                session: evidenceSession,
+            if let evidenceSession {
+                _ = await testCoverageEvidenceService.record(
+                    session: evidenceSession,
+                    resultBundlePath: resultBundlePath,
+                    derivedDataDirectory: projectDerivedDataDirectory
+                )
+            }
+            guard action != .build else { return }
+            _ = await coverageExportService.export(
                 resultBundlePath: resultBundlePath,
-                derivedDataDirectory: projectDerivedDataDirectory
+                derivedDataDirectory: projectDerivedDataDirectory,
+                config: config
             )
         }
 
@@ -2770,7 +2781,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             skipTestIdentifiers: [],
             stressNewTests: nil,
             gitHistory: gitHistory?.payload,
-            coverageUpload: nil,
+            coverage: nil,
             coverageEnabled: coverageEnabled
         )
 

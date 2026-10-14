@@ -18,7 +18,7 @@ defmodule TuistWeb.API.Schemas.Tests.Coverage do
     properties: %{
       tool: %Schema{
         type: :string,
-        description: "The tool that measured the coverage, such as `cover` for Mix or `xccov` for Xcode."
+        description: "The tool that measured the coverage, such as `cover` for Mix or `llvm-cov` (`xccov` from older clients) for Xcode."
       },
       tool_version: %Schema{
         type: :string,

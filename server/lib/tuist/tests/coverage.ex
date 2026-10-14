@@ -2,12 +2,19 @@ defmodule Tuist.Tests.Coverage do
   @moduledoc """
   Code coverage for test runs, in a model shared by every build system.
 
-  Xcode coverage is read from the run's result bundle by the shared Swift
-  parser (`xccov view --report` for targets and functions, `xccov view
-  --archive` for per-line execution counts), wherever the bundle is processed:
-  on the server's macOS processors for uploaded bundles, or on the client when
-  it processes the bundle itself. The client ties the files to the repository
-  with the Git blob each had, which only the checkout knows. Mix coverage is
+  Xcode coverage is measured on the client: `llvm-cov export` over the test
+  products with the run's merged profile, which reports code `xccov` leaves
+  out (the binary cache's, and sources compiled with a coverage prefix map),
+  with `xccov view --report` only for which target compiled each file. It
+  arrives as the `coverage` block with `tool` `llvm-cov`, whichever processing
+  mode the run used. Older clients, and runs the client could not export, keep
+  the previous path: the shared Swift parser reads the bundle (`xccov view
+  --report` for targets and functions, `xccov view --archive` for per-line
+  execution counts) wherever the bundle is processed, on the server's macOS
+  processors for uploaded bundles (unless the bundle's manifest says the
+  client reported the coverage), or on the client in local mode. The client
+  ties the files to the repository with the Git blob each had, which only the
+  checkout knows. Mix coverage is
   read by `tuist_ex` from Erlang's `cover` once the suite finished, and arrives
   in the same per-file shape: an OTP application is a target, and the files
   under the project's test paths are test code. JaCoCo (Gradle)

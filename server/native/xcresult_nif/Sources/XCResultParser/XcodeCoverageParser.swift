@@ -10,6 +10,12 @@ public protocol XcodeCoverageParsing: Sendable {
     /// did not enable it. Reads the archive's file list alone, so it is cheap next to ``parse``.
     func coveredFilePaths(resultBundlePath: AbsolutePath) async throws -> [String]?
 
+    /// The targets the bundle reports coverage for: each with the product the test action built
+    /// and the source files it compiled, spelled the way the compiler recorded them. Nil when
+    /// `xcodebuild` wrote no coverage. Reads the report's outline only, not its functions, so it
+    /// is cheap next to ``parse``.
+    func coverageTargets(resultBundlePath: AbsolutePath) async throws -> [XcodeCoverageTarget]?
+
     /// Reads the bundle's coverage report and archive into one entry per source file, tied to
     /// the repository through `manifest`, and writes them to `output` as one JSON object per line
     /// (``XcodeCoverageFile``) while the bundle is read, so memory stays flat in the number of
@@ -19,6 +25,29 @@ public protocol XcodeCoverageParsing: Sendable {
         manifest: XcodeCoverageManifest,
         into output: AbsolutePath
     ) async throws -> XcodeCoverageSummary?
+}
+
+/// A target as the bundle's coverage report lists it.
+public struct XcodeCoverageTarget: Equatable, Sendable {
+    public let name: String
+    /// The binary the test action built for the target, which xccov read the coverage from:
+    /// a Mach-O image for an app, a test bundle or a dynamic framework, an archive or an object
+    /// file for a static target.
+    public let buildProductPath: String?
+    /// The source files the target compiled, as the compiler recorded them.
+    public let files: [String]
+
+    public init(name: String, buildProductPath: String?, files: [String]) {
+        self.name = name
+        self.buildProductPath = buildProductPath
+        self.files = files
+    }
+
+    /// Whether the target is a test bundle, so its files that no other target compiled are test
+    /// code.
+    public var isTest: Bool {
+        XcodeCoverageParser.isTestBundle(buildProductPath)
+    }
 }
 
 /// What a streamed parse says about the bundle as a whole.
@@ -52,6 +81,25 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
     public func coveredFilePaths(resultBundlePath: AbsolutePath) async throws -> [String]? {
         try await xccov(["view", "--archive", "--file-list"], bundle: resultBundlePath).map { data in
             String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline).map(String.init)
+        }
+    }
+
+    public func coverageTargets(resultBundlePath: AbsolutePath) async throws -> [XcodeCoverageTarget]? {
+        try await fileSystem.runInTemporaryDirectory(prefix: "xcode-coverage") { temporaryDirectory -> [XcodeCoverageTarget]? in
+            let bundlePath = try await xcresultPath(for: resultBundlePath, temporaryDirectory: temporaryDirectory)
+            let reportPath = temporaryDirectory.appending(component: "report.json")
+            guard try await xccov(["view", "--report", "--json"], bundle: bundlePath, to: reportPath) else { return nil }
+            let decoder = JSONDecoder()
+            var targets: [XcodeCoverageTarget] = []
+            try JSONStreamScanner.forEachElement(ofArrayAt: "targets", in: URL(fileURLWithPath: reportPath.pathString)) { element in
+                let target = try decoder.decode(XccovTargetOutline.self, from: element)
+                targets.append(XcodeCoverageTarget(
+                    name: target.name,
+                    buildProductPath: target.buildProductPath,
+                    files: target.files.map(\.path)
+                ))
+            }
+            return targets
         }
     }
 
@@ -244,7 +292,7 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
     /// Whether the binary belongs to a test bundle. Only the innermost bundle counts: a framework
     /// embedded in a test bundle (`AppTests.xctest/Frameworks/Lib.framework/Lib`) is product code,
     /// while a test bundle inside an app (`App.app/PlugIns/AppTests.xctest/AppTests`) is a test.
-    static func isTestBundle(_ buildProductPath: String?) -> Bool {
+    public static func isTestBundle(_ buildProductPath: String?) -> Bool {
         let bundleExtensions: Set<String> = ["app", "appex", "bundle", "framework", "xctest"]
         let innermostBundle = (buildProductPath ?? "").split(separator: "/").reversed().first { component in
             bundleExtensions.contains((component as NSString).pathExtension)
@@ -254,13 +302,13 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
 
     /// Directories package managers and builds check dependencies out into, for a checkout Git
     /// cannot vouch for.
-    static func isDependencyPath(_ path: String) -> Bool {
+    public static func isDependencyPath(_ path: String) -> Bool {
         let dependencyDirectories: Set<String> = [".build", "DerivedData", "SourcePackages", "Pods", "Carthage"]
         return path.split(separator: "/").contains { dependencyDirectories.contains(String($0)) }
     }
 
     /// Longest first, so a root nested in another one wins.
-    static func roots(_ rootDirectories: [String]) -> [String] {
+    public static func roots(_ rootDirectories: [String]) -> [String] {
         rootDirectories
             .map { $0.count > 1 && $0.hasSuffix("/") ? String($0.dropLast()) : $0 }
             .filter { $0.hasPrefix("/") }
@@ -270,7 +318,7 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
     /// Plain string prefixes: the manifest already lists every spelling of the root the build
     /// could have used, and whoever processes the bundle may not have the checkout to resolve
     /// anything against.
-    static func relativize(_ path: String, to roots: [String]) -> String {
+    public static func relativize(_ path: String, to roots: [String]) -> String {
         for root in roots {
             let prefix = root == "/" ? root : root + "/"
             if path.hasPrefix(prefix), path.count > prefix.count {

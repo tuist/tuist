@@ -22,15 +22,30 @@ public struct XcodeCoverageManifest: Codable, Equatable, Sendable {
     /// were built.
     public let files: [XcodeCoverageSourceFile]
 
+    /// Whether the client measured the run's coverage itself (with `llvm-cov` over the test
+    /// products) and sent it with the run. Whoever processes the bundle then leaves its own
+    /// coverage alone and uses the manifest only to tie the coverage evidence to the repository.
+    public let clientReported: Bool
+
     enum CodingKeys: String, CodingKey {
         case partial, files
         case rootDirectories = "root_directories"
+        case clientReported = "client_reported"
     }
 
-    public init(rootDirectories: [String], partial: Bool, files: [XcodeCoverageSourceFile]) {
+    public init(rootDirectories: [String], partial: Bool, files: [XcodeCoverageSourceFile], clientReported: Bool = false) {
         self.rootDirectories = rootDirectories
         self.partial = partial
         self.files = files
+        self.clientReported = clientReported
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        rootDirectories = try container.decode([String].self, forKey: .rootDirectories)
+        partial = try container.decode(Bool.self, forKey: .partial)
+        files = try container.decode([XcodeCoverageSourceFile].self, forKey: .files)
+        clientReported = try container.decodeIfPresent(Bool.self, forKey: .clientReported) ?? false
     }
 }
 

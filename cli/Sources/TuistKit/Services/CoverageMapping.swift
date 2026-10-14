@@ -85,6 +85,42 @@ struct CoverageMapping {
         self.init(covmap: covmap, covfun: covfun)
     }
 
+    /// The mappings of the object files in the static archive at `path` (BSD `ar`: a 60-byte
+    /// header per member, a `#1/<length>` name carried in the member's data, an even-byte pad
+    /// after each member), leaving out members that are not Mach-O, such as the symbol table.
+    static func mappings(archivePath path: String) -> [CoverageMapping] {
+        guard let archive = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe),
+              archive.count >= 8, archive.prefix(8).elementsEqual("!<arch>\n".utf8)
+        else { return [] }
+        var mappings: [CoverageMapping] = []
+        var offset = 8
+        while offset + 60 <= archive.count {
+            let header = archive.subdata(in: archive.startIndex + offset ..< archive.startIndex + offset + 60)
+            let name = String(decoding: header.prefix(16), as: UTF8.self).trimmingCharacters(in: .whitespaces)
+            guard let size = Int(String(decoding: header[header.startIndex + 48 ..< header.startIndex + 58], as: UTF8.self)
+                .trimmingCharacters(in: .whitespaces))
+            else { break }
+            var start = offset + 60
+            var length = size
+            if name.hasPrefix("#1/"), let nameLength = Int(name.dropFirst(3)) {
+                start += nameLength
+                length -= nameLength
+            }
+            guard length >= 0, start + length <= archive.count else { break }
+            let member = archive.subdata(in: archive.startIndex + start ..< archive.startIndex + start + length)
+            if member.count >= 4, (member.load(at: 0) as UInt32) == 0xFEED_FACF {
+                let sections = sections(of: member, named: ["__llvm_covmap", "__llvm_covfun"])
+                if let covmap = sections["__llvm_covmap"], let covfun = sections["__llvm_covfun"],
+                   let mapping = CoverageMapping(covmap: covmap, covfun: covfun)
+                {
+                    mappings.append(mapping)
+                }
+            }
+            offset = (offset + 60 + size + 1) & ~1
+        }
+        return mappings
+    }
+
     init?(covmap: Data, covfun: Data) {
         var indexByFile: [String: Int] = [:]
         var files: [String] = []
