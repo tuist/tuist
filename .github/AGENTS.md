@@ -35,7 +35,11 @@ when authentication succeeds. Main builds publish the tested artifacts to the
 private Tuist project's `nightly` preview track after distinct build, test and
 language-specific lint jobs pass; pull requests never publish. The single
 `atlas-mobile.yml` pipeline's automatic path filters include only `atlas-native/**`
-and all jobs skip draft pull requests. Mobile artifacts are debug Android APKs and
+and all jobs skip draft pull requests. Rust auth dependencies are resolved during
+Once graph loading, so SwiftLint jobs install Rust as well as SwiftLint/Once.
+The composite materializes locked third-party sources before graph validation;
+core test jobs run both navigation and authentication suites.
+Mobile artifacts are debug Android APKs and
 arm64 iOS simulator bundles, not store releases. The CLI is uploaded as a
 host-labeled archive that preserves its executable permission, not a Tuist preview.
 The Tuist project must be connected to `tuist/tuist` for GitHub OIDC access.
