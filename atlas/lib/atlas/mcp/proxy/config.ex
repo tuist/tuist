@@ -18,6 +18,7 @@ defmodule Atlas.MCP.Proxy.Config do
       :name,
       :url,
       :auth_type,
+      :bearer_token,
       :authorization_url,
       :token_url,
       :registration_url,
