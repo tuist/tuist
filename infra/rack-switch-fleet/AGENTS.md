@@ -244,6 +244,18 @@ pieces worth testing on their own are in `lib/`. Rendering needs `jq`,
 normalising is `awk`, and the diff is `diff -u`, so there is no interpreter to
 install and nothing to build.
 
+A render's cost is the number of `jq` and `yq` processes it starts, so a
+function reads the fields it needs from the site in one `jq` call (joined with
+`\x1f` and split with `read`) rather than one call per field, per node or per
+port, and reads the tuist chart's values file with one `yq` call. `render`
+runs the site-wide checks once (`fleet_check_site`) and the edge checks once
+(`fleet_edge_check`), and sets `FLEET_SITE_CHECKED` and `FLEET_EDGE_CHECKED`
+to the site file so each device's and file's render skips them; when they fail
+it leaves the variables empty and every render runs and reports them as
+before. `fleet_render_k8s` takes the switch's rendered configuration as an
+optional third argument and digests it for `configRevision` instead of
+rendering it again.
+
 ## What the site definition is for
 
 `sites/ber1.json` holds the rack, not the switches: the management prefix and
