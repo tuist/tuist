@@ -141,11 +141,10 @@ func (d *Driver) openLUKS(ctx context.Context, v volume, loop string, unformatte
 			return err
 		}
 	}
-	// Bypassing dm-crypt's workqueues does the crypto inline on the submitting
-	// CPU, which removes most of its added latency on NVMe.
-	if _, err := d.run(ctx, key, "cryptsetup", "open", "--type", "luks2",
-		"--perf-no_read_workqueue", "--perf-no_write_workqueue",
-		"--key-file=-", loop, v.mapper); err != nil {
+	// dm-crypt's default workqueues spread the cipher across CPUs. Bypassing
+	// them (--perf-no_*_workqueue) pins a volume's crypto to one core and
+	// measured a 70% drop in sequential throughput for 6us at queue depth 1.
+	if _, err := d.run(ctx, key, "cryptsetup", "open", "--type", "luks2", "--key-file=-", loop, v.mapper); err != nil {
 		return err
 	}
 	if luks && stored == 0 {

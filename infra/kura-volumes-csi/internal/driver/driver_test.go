@@ -323,7 +323,7 @@ func (e *env) formatCalls(attach bool, luks bool) []call {
 const luksFormatCmd = "cryptsetup luksFormat --type luks2 --cipher aes-xts-plain64 --key-size 512 --pbkdf pbkdf2 --pbkdf-force-iterations 1000 --batch-mode --key-file=- " + testLoop
 
 func (e *env) openCall() call {
-	return call{cmd: "cryptsetup open --type luks2 --perf-no_read_workqueue --perf-no_write_workqueue --key-file=- " + testLoop + " kura-" + testVolumeID, stdin: testKey}
+	return call{cmd: "cryptsetup open --type luks2 --key-file=- " + testLoop + " kura-" + testVolumeID, stdin: testKey}
 }
 
 func (e *env) mkfsAndMountCalls(format bool) []call {
