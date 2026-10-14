@@ -77,6 +77,14 @@ struct CoverageMapping {
         }
     }
 
+    /// The same mapping with each file's path transformed: what maps the aliases Xcode's prefix
+    /// mapping recorded back to this build's directories.
+    func remappingFiles(_ transform: (String) -> String) -> CoverageMapping {
+        var mapping = self
+        mapping.files = files.map(transform)
+        return mapping
+    }
+
     /// The mapping of the image at `path`, or nil when it has none or it cannot be read.
     init?(imagePath path: String) {
         guard let image = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe) else { return nil }
