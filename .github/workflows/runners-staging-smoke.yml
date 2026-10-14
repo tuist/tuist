@@ -214,6 +214,9 @@ jobs:
           exit "${failed}"
 
       - name: Host, private networks and link-local unreachable
+        # Runs even when a reachability check fails: a missing carve-out
+        # must not hide what the guest can still reach.
+        if: always()
         run: |
           set -uo pipefail
           gateway=$(route -n get default | awk '/gateway/{print $2}')
