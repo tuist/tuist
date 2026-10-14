@@ -35,13 +35,15 @@ jobs:
           echo "SYSTEM DB:"
           sudo sqlite3 -readonly /Library/Application\ Support/com.apple.TCC/TCC.db "SELECT service, client, client_type, auth_value, auth_reason FROM access WHERE service IN ('kTCCServiceMicrophone','kTCCServiceCamera','kTCCServiceScreenCapture') ORDER BY 1,2;" || true
       - name: Generate and build
+        env:
+          MISE_GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if ! command -v mise >/dev/null; then curl -fsSL https://mise.run | sh; fi
           export PATH="$HOME/.local/bin:$PATH"
           cp -R repro-sim-media/MediaRepro "$RUNNER_TEMP/MediaRepro"
           cd "$RUNNER_TEMP/MediaRepro"
-          mise x tuist@latest -- tuist generate --no-open
+          mise x tuist@4.212.0 -- tuist generate --no-open
           xcodebuild build-for-testing -project MediaRepro.xcodeproj -scheme MediaRepro -destination 'generic/platform=iOS Simulator' -quiet
       - name: Boot simulator
         run: |
