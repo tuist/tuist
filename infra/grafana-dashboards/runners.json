@@ -1680,6 +1680,57 @@
         "type": "timeseries"
       },
       {
+        "datasource": "$datasource",
+        "description": "Idle runners a pool gave up ahead of its scale-down cooldown because a sibling pool on the same fleet (fleet_selector, e.g. the BER1 rack) had queued jobs whose Pods the scheduler refused for insufficient resources. Emitted by the runners-controller (tuist_runners_pool_preempted_pods_total); each retired Pod also carries a RunnerPodPreemptedForSiblingDemand event naming the starved pool. Occasional bursts after another pool's spike are expected. A steady rate means the fleet is too small for the mix of pools sharing it.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "bars",
+              "fillOpacity": 60,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              }
+            },
+            "unit": "none"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 67
+        },
+        "id": 135,
+        "options": {
+          "legend": {
+            "calcs": ["sum"],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (fleet_selector, pool) (increase(tuist_runners_pool_preempted_pods_total{env=\"$env\"}[$__interval]))",
+            "legendFormat": "{{fleet_selector}} / {{pool}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Idle runners preempted for a starved sibling pool",
+        "type": "timeseries"
+      },
+      {
         "id": 520,
         "type": "row",
         "title": "Cache volumes (fast-forward last-writer-wins)",

@@ -691,7 +691,7 @@ func TestAutoscaler_FilteredZeroCapacityFallsBackToPerPoolTarget(t *testing.T) {
 	signals := scaling.Signals{Fleet: pool.Name, Claimed: 7}
 	knobs := scaling.PolicyKnobs{MinWarmPoolFloor: 1, MaxReplicas: 30}
 
-	got := r.allocate(context.Background(), pool, signals, knobs, 8, logr.Discard())
+	got, _ := r.allocate(context.Background(), pool, signals, knobs, 8, logr.Discard())
 	if got != 8 {
 		t.Fatalf("allocate with every node filtered = %d, want per-pool fallback 8", got)
 	}
