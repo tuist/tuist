@@ -5,6 +5,7 @@ on:
     branches: [codex/swifterpm-content-manifest-cache]
 
 permissions:
+  actions: read
   contents: read
   id-token: write
 
@@ -20,12 +21,14 @@ env:
 
 jobs:
   profile:
-    name: Profile ${{ matrix.variant }}
+    name: Profile ${{ matrix.variant }} fresh ${{ matrix.repetition }}
     runs-on: tuist-macos-27-0-volumes
     timeout-minutes: 60
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
+        repetition: [1, 2]
         variant: [baseline, candidate]
     env:
       VALIDATION_VARIANT: ${{ matrix.variant }}
@@ -44,12 +47,11 @@ jobs:
           tuist auth login
           tuist setup
       - uses: actions/download-artifact@v4
-        if: false
         with:
           name: state-${{ matrix.variant }}
           path: .validation-transfer
           github-token: ${{ github.token }}
-          run-id: 38533876876
+          run-id: 38535813199
       - name: Profile real installation
         id: profile
         run: bash .github/scripts/swifterpm-content-cache-validation.sh
@@ -64,7 +66,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: evidence-${{ matrix.variant }}-${{ github.run_attempt }}
+          name: evidence-${{ matrix.variant }}-${{ matrix.repetition }}
           path: .validation-evidence/
           include-hidden-files: true
           retention-days: 14
