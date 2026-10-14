@@ -18,17 +18,29 @@ enum Environment {
     @TaskLocal
     static var keychainCredentials: KeychainCredentialCache?
 
+    @TaskLocal
+    static var warningHandler: (@Sendable (String) -> Void)? = {
+        FileHandle.standardError.write(Data("Warning: \($0)\n".utf8))
+    }
+
+    static func withWarnings<T>(quiet: Bool, operation: () async throws -> T) async rethrows -> T {
+        try await $warningHandler.withValue(quiet ? nil : warningHandler) { try await operation() }
+    }
+
     static var isCI: Bool {
         ["GITHUB_RUN_ID", "CI", "BUILD_NUMBER"].contains { current[$0] != nil }
     }
 
     static func withNetrc<T>(
         _ netrc: Netrc,
+        quiet: Bool = false,
         operation: () async throws -> T
     ) async throws -> T {
-        try await Environment.$netrc.withValue(netrc) {
-            try await Environment.$keychainCredentials.withValue(KeychainCredentialCache()) {
-                try await operation()
+        try await withWarnings(quiet: quiet) {
+            try await Environment.$netrc.withValue(netrc) {
+                try await Environment.$keychainCredentials.withValue(KeychainCredentialCache()) {
+                    try await operation()
+                }
             }
         }
     }

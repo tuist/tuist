@@ -723,6 +723,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .tuist:
                 [
+                    .target(name: Module.swifterPMCore.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.loader.targetName),
                     .target(name: Module.configLoader.targetName),

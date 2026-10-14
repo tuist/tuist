@@ -151,7 +151,7 @@ enum RegistryAuthorization {
     static func header(
         for url: URL,
         registryConfig: RegistryConfig,
-        keychain: (URL) async throws -> RegistryCredential? = { try await KeychainAuthorization.credential(for: $0) }
+        keychain: (URL) async throws -> RegistryCredential? = { try await KeychainAuthorization.registryCredential(for: $0) }
     ) async throws -> String? {
         let environment = Environment.current
         let token = nonEmpty(environment["SWIFTPM_REGISTRY_TOKEN"])
@@ -239,17 +239,69 @@ enum RegistryAuthorization {
 }
 
 actor KeychainCredentialCache {
-    private var reads: [String: Task<RegistryCredential?, any Error>] = [:]
+    private struct PendingRead {
+        let generation: UUID
+        let task: Task<Void, Never>
+        var waiters: [UUID: CheckedContinuation<RegistryCredential?, any Error>]
+    }
+
+    private var results: [String: Result<RegistryCredential?, any Error>] = [:]
+    private var pending: [String: PendingRead] = [:]
+
+    var pendingWaiterCount: Int { pending.values.reduce(0) { $0 + $1.waiters.count } }
 
     func credential(
         for url: URL,
         read: @escaping @Sendable (URL) async throws -> RegistryCredential?
     ) async throws -> RegistryCredential? {
         let key = [url.scheme ?? "https", url.host?.lowercased() ?? "", url.port.map(String.init) ?? ""].joined(separator: ":")
-        if let existing = reads[key] { return try await existing.value }
-        let task = Task { try await read(url) }
-        reads[key] = task
-        return try await task.value
+        let waiter = UUID()
+        let credential = try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                if let result = results[key] {
+                    continuation.resume(with: result)
+                } else if pending[key] != nil {
+                    pending[key]?.waiters[waiter] = continuation
+                } else {
+                    let generation = UUID()
+                    let task = Task {
+                        let result: Result<RegistryCredential?, any Error>
+                        do {
+                            let credential = try await read(url)
+                            try Task.checkCancellation()
+                            result = .success(credential)
+                        } catch {
+                            result = .failure(error)
+                        }
+                        complete(key: key, generation: generation, result: result)
+                    }
+                    pending[key] = PendingRead(generation: generation, task: task, waiters: [waiter: continuation])
+                }
+            }
+        } onCancel: {
+            Task { await self.cancel(key: key, waiter: waiter) }
+        }
+        try Task.checkCancellation()
+        return credential
+    }
+
+    private func complete(key: String, generation: UUID, result: Result<RegistryCredential?, any Error>) {
+        guard let entry = pending[key], entry.generation == generation else { return }
+        pending[key] = nil
+        results[key] = result
+        for continuation in entry.waiters.values {
+            continuation.resume(with: result)
+        }
+    }
+
+    private func cancel(key: String, waiter: UUID) {
+        guard let continuation = pending[key]?.waiters.removeValue(forKey: waiter) else { return }
+        continuation.resume(throwing: CancellationError())
+        if let entry = pending[key], entry.waiters.isEmpty {
+            pending[key] = nil
+            entry.task.cancel()
+        }
     }
 }
 
@@ -271,9 +323,29 @@ enum KeychainAuthorization {
 
     private static func uncachedCredential(for url: URL) async throws -> RegistryCredential? {
         #if canImport(Security)
-            if Environment.isCI || isatty(STDIN_FILENO) == 0 {
-                return try await KeychainCredentialReader.credential(for: url)
+            try Task.checkCancellation()
+            let credential = try synchronousCredential(for: url)
+            try Task.checkCancellation()
+            return credential
+        #else
+            return nil
+        #endif
+    }
+
+    static func synchronousCredential(for url: URL) throws -> RegistryCredential? {
+        #if canImport(Security)
+            return try KeychainCredentialReader.withInteractionPolicy(
+                headless: Environment.isCI || isatty(STDIN_FILENO) == 0, host: url.host
+            ) {
+                try readCredential(for: url)
             }
+        #else
+            return nil
+        #endif
+    }
+
+    private static func readCredential(for url: URL) throws -> RegistryCredential? {
+        #if canImport(Security)
             guard let searchQuery = query(for: url, includeData: false) else { return nil }
             var items: CFTypeRef?
             let status = SecItemCopyMatching(searchQuery as CFDictionary, &items)
@@ -323,21 +395,41 @@ enum KeychainAuthorization {
     static func httpCredential(
         for url: URL,
         read: (URL) async throws -> RegistryCredential? = { try await credential(for: $0) },
-        warning: (String) -> Void = { FileHandle.standardError.write(Data("Warning: \($0)\n".utf8)) }
+        warning: (String) -> Void = { Environment.warningHandler?($0) }
     ) async throws -> RegistryCredential? {
         do {
             return try await read(url)
         } catch {
+            if error is CancellationError { throw error }
+            try Task.checkCancellation()
             #if canImport(Security)
                 if let failure = error as? AccessFailure {
-                    warning("\(failure) Trying the HTTP download without keychain credentials.")
+                    warning(
+                        "cannot read keychain credentials for \(url.host ?? "the download host") (OSStatus \(failure.status)). "
+                            + "Unlock the keychain or configure host-scoped credentials. Trying the HTTP download without keychain credentials."
+                    )
                     return nil
                 }
             #endif
-            // Reader startup and decoding errors must not block public downloads or
-            // expose captured credential output through an arbitrary error message.
+            // Report only a redacted diagnostic so public downloads can continue.
             warning(
                 "keychain lookup failed for \(url.host ?? "the download host"). Trying the HTTP download without keychain credentials."
+            )
+            return nil
+        }
+    }
+
+    static func registryCredential(
+        for url: URL,
+        read: (URL) async throws -> RegistryCredential? = { try await credential(for: $0) },
+        warning: (String) -> Void = { Environment.warningHandler?($0) }
+    ) async throws -> RegistryCredential? {
+        do {
+            return try await read(url)
+        } catch is KeychainCredentialReader.InfrastructureFailure {
+            try Task.checkCancellation()
+            warning(
+                "noninteractive keychain lookup unavailable for \(url.host ?? "the registry"). Trying an unauthenticated registry request."
             )
             return nil
         }
@@ -357,7 +449,7 @@ enum KeychainAuthorization {
             var description: String {
                 "cannot read keychain credentials for \(host ?? "the download host") (OSStatus \(status)). "
                     + "Unlock the keychain or use host-scoped netrc credentials. "
-                    + "For headless use, prefer netrc; do not authorize the generic Swift interpreter just to grant Tuist access. For registries, pass --netrc --netrc-file <path> "
+                    + "For registries, pass --netrc --netrc-file <path> "
                     + "and configure the authentication type in registries.json."
             }
         }
