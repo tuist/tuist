@@ -50,6 +50,7 @@ defmodule Tuist.Kubernetes.Client do
   def patch(path, operations, opts \\ []) when is_binary(path) and is_list(operations) do
     request(:patch, path,
       opts: opts,
+      timeout: opts[:timeout],
       body: JSON.encode!(operations),
       headers: [{"content-type", "application/json-patch+json"}]
     )

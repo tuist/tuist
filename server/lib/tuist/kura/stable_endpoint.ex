@@ -102,6 +102,23 @@ defmodule Tuist.Kura.StableEndpoint do
     end)
   end
 
+  @doc "Synchronize a newly active instance until its stable route is observed, without waiting for the minute tick."
+  def await_ready(server_id) do
+    server = Repo.preload(Repo.get(Server, server_id), :account)
+
+    with %Server{status: :active, move_phase: :none, provisioner_node_ref: ref} when is_binary(ref) <- server,
+         region = Regions.get(server.region),
+         %{"stableAdvertise" => true, "stableHost" => host} <- intent(server, region),
+         false <- ready?(server, host) do
+      case KubernetesController.sync_stable_endpoint(server, region) do
+        {:error, _reason} -> :pending
+        _ -> if ready?(Repo.get!(Server, server.id), host), do: :done, else: :pending
+      end
+    else
+      _ -> :done
+    end
+  end
+
   def observe(region, name, instance) do
     status = get_in(instance, ["status", "stableEndpoint"]) || %{}
     spec = instance["spec"] || %{}

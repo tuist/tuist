@@ -272,6 +272,22 @@ defmodule Tuist.Kubernetes.ClientTest do
                )
     end
 
+    test "patch bounds stable-intent writes and disables transport retries" do
+      expect(Req, :request, fn opts ->
+        assert opts[:method] == :patch
+        assert opts[:receive_timeout] == 3_000
+        assert opts[:retry] == false
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      assert {:ok, %{}} =
+               Client.patch("/apis/example.test/v1/widgets/one", [],
+                 mode: :kubeconfig,
+                 kubeconfig: kubeconfig(%{token: "region-token"}),
+                 timeout: 3_000
+               )
+    end
+
     @tag :tmp_dir
     test "get leaves Req's defaults alone when no timeout is given", %{tmp_dir: tmp_dir} do
       token_path = Path.join(tmp_dir, "token")
