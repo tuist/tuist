@@ -3931,7 +3931,8 @@ limit in the summary, which is what the on-call needs to pick the lever:
     with pressure normal and the headroom unused.
 - `reapi_write_decode`: the same budget on the remote-execution surface:
   decoding a write's messages, decoding a compressed `BatchUpdateBlobs` item,
-  or a write's reply outgrowing the write's own reservation. It
+  or a write whose reply the floor cannot cover, refused before it stores
+  anything. It
   answers gRPC `RESOURCE_EXHAUSTED`, which Bazel retries, so this counter is
   the only place it shows, and a REAPI-heavy pod firing on it continuously is
   backpressure from a small floor rather than loss. If that proves to be steady
@@ -4022,10 +4023,11 @@ per-request budget refusals under `reapi_materialization`, so a single
 oversized batch on such a pod can cross the threshold on an idle pool. Check
 `kura_memory_transient_reserved_bytes` against capacity before acting.
 
-Writes no longer shed under this kind. The reply of a `BatchUpdateBlobs`,
-`UpdateActionResult` or `SpliceBlob` is carried on the write's own decode
-reservation, and a compressed `BatchUpdateBlobs` item the pool cannot decode
-is filed under `reapi_write_decode`. Older pods still file both as
+Writes no longer shed under this kind. A `BatchUpdateBlobs`,
+`UpdateActionResult` or `SpliceBlob` reserves its reply from the floor before
+it persists and is refused before storing anything when the floor cannot
+cover it, and a compressed `BatchUpdateBlobs` item the pool cannot decode is
+refused too. Both are filed under `reapi_write_decode`. Older pods still file both as
 `reapi_materialization`. There, a write burst filling the floor refuses the
 replies of writes it has already stored, so the client uploads them again.
 The tell is `kura_memory_actions_total_total` in the shed window:

@@ -32,11 +32,11 @@ impl ForegroundFileCacheReservation {
         self.policy = policy;
     }
 
-    pub(crate) fn try_split_off_permit(
+    pub(crate) fn try_reserve_reply(
         &mut self,
         bytes: u64,
     ) -> Result<Option<crate::memory::MemoryPermit>, ()> {
-        self.memory.try_split_off_permit(bytes)
+        self.memory.try_reserve_reply(bytes)
     }
 }
 

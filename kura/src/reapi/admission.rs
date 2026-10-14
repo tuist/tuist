@@ -230,20 +230,26 @@ impl GrpcWriteAdmission {
             })
     }
 
-    /// Hands `bytes` of this write's reservation to its reply. The reply of a
-    /// stored write is far smaller than what decoding it reserved, so carrying
-    /// it here means a full pool cannot refuse the acknowledgement of a write
-    /// that already went through. The reply never holds more than the request
-    /// did.
-    pub(super) fn try_split_off_response_permit(
-        &self,
-        bytes: u64,
-    ) -> Result<Option<MemoryPermit>, ()> {
-        self.reservation
+    /// Reserves this write's reply before the write persists, so a stored
+    /// write is never refused for its acknowledgement. The reply holds floor
+    /// memory only, this reservation's floor bytes first: it lives until the
+    /// client has read it, so it must not pin the ceiling headroom write
+    /// decoding borrows. A floor that cannot cover it refuses the write before
+    /// anything is stored.
+    pub(super) fn try_reserve_reply(&self, bytes: u64) -> Result<Option<MemoryPermit>, Status> {
+        let mut reservation = self
+            .reservation
             .lock()
-            .map_err(|_| ())?
+            .map_err(|_| Status::internal("gRPC write memory admission lock was poisoned"))?;
+        reservation
             .file_cache
-            .try_split_off_permit(bytes)
+            .try_reserve_reply(bytes)
+            .map_err(|_| {
+                self.metrics.record_decode_rejected();
+                write_admission_rejected(
+                    "server is limiting concurrent remote-execution writes; retry the write",
+                )
+            })
     }
 
     pub(super) fn try_configure_staging(

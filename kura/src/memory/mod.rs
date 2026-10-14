@@ -1695,34 +1695,50 @@ mod tests {
         assert!(held.try_resize(0).is_ok());
     }
 
+    // A reply's permit outlives its request for as long as the client takes to
+    // read it, so it holds floor memory only and the headroom the request
+    // borrowed goes back with the request, however long the reply is held.
     #[test]
-    fn a_split_off_permit_keeps_floor_bytes_and_leaves_borrowed_headroom_with_the_request() {
+    fn a_reply_reservation_holds_floor_memory_only() {
         let (controller, anon_budget, _) = elastic_controller(None);
         let mebibyte = 1024 * 1024_u64;
 
+        // The request holds 1 MiB of floor and 3 MiB borrowed above it, and
+        // the floor pool has 1 MiB left.
         let mut held = controller
-            .try_reserve_foreground_memory(anon_budget - mebibyte)
+            .try_reserve_foreground_memory(anon_budget - 2 * mebibyte)
             .unwrap();
         let mut request = controller.try_reserve_elastic_foreground_memory(0).unwrap();
         request.try_resize(mebibyte).unwrap();
         request.try_resize(4 * mebibyte).unwrap();
-        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
-        assert_eq!(controller.elastic_transient_reserved_bytes(), 3 * mebibyte);
-
-        assert!(request.try_split_off_permit(5 * mebibyte).is_err());
-        let reply = request
-            .try_split_off_permit(2 * mebibyte)
-            .unwrap()
-            .expect("a non-empty split holds a permit");
-        drop(request);
-        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
-        assert_eq!(controller.elastic_transient_reserved_bytes(), mebibyte);
-
-        drop(reply);
-        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
         assert_eq!(
             controller.transient_reserved_bytes(),
             anon_budget - mebibyte
+        );
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 3 * mebibyte);
+
+        // More than the request's floor bytes and the pool's remainder is
+        // refused, and the request keeps what it held.
+        assert!(request.try_reserve_reply(3 * mebibyte).is_err());
+        assert_eq!(
+            controller.transient_reserved_bytes(),
+            anon_budget - mebibyte
+        );
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 3 * mebibyte);
+
+        let reply = request
+            .try_reserve_reply(2 * mebibyte)
+            .unwrap()
+            .expect("a non-empty reply holds a permit");
+        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
+        drop(request);
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
+
+        drop(reply);
+        assert_eq!(
+            controller.transient_reserved_bytes(),
+            anon_budget - 2 * mebibyte
         );
         assert!(held.try_resize(0).is_ok());
     }

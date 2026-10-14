@@ -225,13 +225,17 @@ impl ForegroundMemoryReservation {
         self.transient.try_resize_foreground(requested_bytes)
     }
 
-    /// Moves `bytes` of this reservation into a permit that can outlive it.
-    pub(crate) fn try_split_off_permit(&mut self, bytes: u64) -> Result<Option<MemoryPermit>, ()> {
+    /// Reserves a reply for the work this reservation admitted. A reply's
+    /// permit lives until the client has read it, which nothing server-side
+    /// bounds, so it holds floor-derived memory only: this reservation's own
+    /// floor bytes first, then the floor pool. The ceiling headroom this
+    /// reservation borrowed goes back with it.
+    pub(crate) fn try_reserve_reply(&mut self, bytes: u64) -> Result<Option<MemoryPermit>, ()> {
         if bytes == 0 {
             return Ok(None);
         }
         Ok(Some(MemoryPermit {
-            _transient: self.transient.try_split_off(bytes)?,
+            _transient: self.transient.try_split_off_floor_backed(bytes)?,
         }))
     }
 }
@@ -289,41 +293,47 @@ impl Drop for ForegroundWaiter {
 }
 
 impl TransientMemoryReservation {
-    /// Moves `bytes` of this reservation into a new one, floor-derived bytes
-    /// first, so what outlives this reservation holds protected memory and the
-    /// borrowed headroom goes back with it. Never acquires: the new reservation
-    /// holds only bytes this one already held.
-    fn try_split_off(&mut self, bytes: u64) -> Result<Self, ()> {
+    /// A floor-backed reservation of `bytes`: this reservation's floor-derived
+    /// bytes first, the floor pool for the rest, and never borrowed ceiling
+    /// headroom. Leaves this reservation untouched when the floor cannot cover
+    /// it.
+    fn try_split_off_floor_backed(&mut self, bytes: u64) -> Result<Self, ()> {
         let requested = usize::try_from(bytes).map_err(|_| ())?;
         let floor_held = self
             .permit
             .as_ref()
             .map_or(0, OwnedSemaphorePermit::num_permits);
-        let elastic_held = self
-            .elastic_permit
-            .as_ref()
-            .map_or(0, OwnedSemaphorePermit::num_permits);
-        if bytes > self.bytes || requested > floor_held.saturating_add(elastic_held) {
-            return Err(());
-        }
-        let from_floor = requested.min(floor_held);
-        let from_elastic = requested - from_floor;
-        let permit = match from_floor {
+        let from_self = requested.min(floor_held);
+        let from_pool = requested - from_self;
+        let mut permit = match from_pool {
             0 => None,
-            permits => self.permit.as_mut().and_then(|held| held.split(permits)),
+            permits => {
+                if !self
+                    .controller
+                    .allow_transient_admission(AdmissionClass::Foreground)
+                {
+                    return Err(());
+                }
+                let permits = u32::try_from(permits).map_err(|_| ())?;
+                Some(self.controller.inner.pools.try_acquire_transient(permits)?)
+            }
         };
-        let elastic_permit = match from_elastic {
-            0 => None,
-            permits => self
-                .elastic_permit
+        if from_self > 0 {
+            let split = self
+                .permit
                 .as_mut()
-                .and_then(|held| held.split(permits)),
-        };
-        self.bytes -= bytes;
+                .and_then(|held| held.split(from_self))
+                .ok_or(())?;
+            match permit.as_mut() {
+                Some(permit) => permit.merge(split),
+                None => permit = Some(split),
+            }
+            self.bytes -= from_self as u64;
+        }
         Ok(Self {
             controller: self.controller.clone(),
             permit,
-            elastic_permit,
+            elastic_permit: None,
             elasticity: TransientElasticity::Fixed,
             bytes,
         })
