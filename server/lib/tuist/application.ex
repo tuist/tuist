@@ -364,6 +364,7 @@ defmodule Tuist.Application do
           {Cachex, [:tuist, []]},
           Tuist.Authentication.TokenVerificationCache,
           Tuist.Authentication.SubjectCache,
+          Tuist.OpenGraphImages,
           TuistWeb.PublicOverviewCache,
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
