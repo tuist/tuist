@@ -263,7 +263,7 @@ func checkCommit(mode, acknowledged string, canPublish bool, warnings io.Writer)
 		return errCommitUnsupported
 	}
 	if mode == "true" && !canPublish {
-		fmt.Fprintln(warnings, "::warning::Cache volume commit was requested, but this job is not authorized to save changes. Check the volume's Writer branches policy and attach it in a new job after granting access.")
+		fmt.Fprintln(warnings, "::warning::Cache volume commit was requested, but this job is not authorized to save changes. Check the runner profile's Cache saving policy and attach it in a new job after granting access.")
 	}
 	return nil
 }

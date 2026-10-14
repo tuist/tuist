@@ -108,27 +108,32 @@ triggered by these events:
 | Buildkite | Webhook, schedule |
 | GitLab CI | Push, schedule, web |
 
-Without an additional writer-branch grant, other jobs, including pull requests, merge requests and tags, can use the cache,
+Unless the runner profile allows them to save, other jobs, including pull requests, merge requests and tags, can use the cache,
 but their changes are discarded. Concurrent jobs work independently; changes
 from different jobs are not merged. Never cache credentials or irreplaceable data.
 
-### Commit controls and writer branches
+### Commit controls and cache saving
 
 The GitHub action accepts `commit: auto` (the default), `commit: 'false'` (discard
 this job's changes), and `commit: 'true'` (request a save). Both `auto` and `true`
-remain subject to the server's writer policy and successful job completion;
+remain subject to the runner profile's cache saving policy and successful job completion;
 `true` cannot grant a branch permission or save a failed job. If the job lacks permission at attachment, the action emits a warning and its changes are discarded.
 
-Account administrators can open a GitHub custom volume under **Runners → Volumes**
-and edit **Writer branches**. Default-branch publishing remains enabled. Up to
-20 additional exact branch names can publish from verified same-repository
-pull-request runs. These additional grants do not authorize push, schedule or
-manual-dispatch runs: GitHub's workflow-run branch name cannot distinguish a
-branch from a same-named tag. Fork PRs and `pull_request_target` cannot publish.
-Wildcards are not supported. Buildkite, GitLab and built-in macOS volume policies
-are unchanged. Removing a branch revokes only pending saves authorized by that
-grant. Default-branch saves and retained grants continue. Adding or reordering
-branches does not revoke saves; additions apply only to new volume attachments.
+Account administrators configure **Cache saving** on each runner profile under
+**Runners → Profiles**. The policy applies to every custom volume attached by
+GitHub Actions jobs that run on the profile, including volumes created later:
+
+- **Default branch** (the default): only the default-branch events above save.
+- **Additional branches**: up to 20 exact branch names. Pull requests from these
+  branches in the same repository also save. Wildcards are not supported. Push,
+  schedule and manual-dispatch runs on these branches do not save.
+- **Save from any branch**: push, schedule, manual-dispatch and pull-request jobs
+  from any branch or tag in the repository save.
+
+Fork pull requests and `pull_request_target` never save. Buildkite, GitLab and
+built-in macOS volume policies are unchanged. Narrowing the policy or deleting
+the profile revokes pending saves it no longer allows; default-branch saves
+continue. Widening the policy applies to new volume attachments.
 
 
 ## Capacity and retention {#capacity-and-retention}

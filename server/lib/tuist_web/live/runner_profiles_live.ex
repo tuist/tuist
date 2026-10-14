@@ -64,6 +64,8 @@ defmodule TuistWeb.RunnerProfilesLive do
          |> assign(:form_vcpus, profile.vcpus)
          |> assign(:form_memory_gb, profile.memory_gb)
          |> assign(:form_xcode_version, profile.xcode_version)
+         |> assign(:form_cache_any_branch_writes, profile.cache_any_branch_writes)
+         |> assign(:form_cache_writer_branches, Enum.join(profile.cache_writer_branches, "\n"))
          |> assign(:form_error, nil)
          |> push_event("open-modal", %{id: @modal_id})}
     end
@@ -84,6 +86,17 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   def handle_event("update_form_name", %{"value" => name}, socket) do
     {:noreply, socket |> assign(:form_name, name) |> assign(:form_error, nil)}
+  end
+
+  def handle_event("toggle_cache_any_branch_writes", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:form_cache_any_branch_writes, not socket.assigns.form_cache_any_branch_writes)
+     |> assign(:form_error, nil)}
+  end
+
+  def handle_event("update_cache_writer_branches", %{"cache_writer_branches" => value}, socket) when is_binary(value) do
+    {:noreply, socket |> assign(:form_cache_writer_branches, value) |> assign(:form_error, nil)}
   end
 
   def handle_event("select_platform", params, socket) do
@@ -132,7 +145,13 @@ defmodule TuistWeb.RunnerProfilesLive do
       "name" => assigns.form_name,
       "platform" => assigns.form_platform,
       "vcpus" => assigns.form_vcpus,
-      "memory_gb" => assigns.form_memory_gb
+      "memory_gb" => assigns.form_memory_gb,
+      "cache_any_branch_writes" => assigns.form_cache_any_branch_writes,
+      "cache_writer_branches" =>
+        assigns.form_cache_writer_branches
+        |> String.split("\n")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
     }
 
     attrs =
@@ -255,6 +274,8 @@ defmodule TuistWeb.RunnerProfilesLive do
     socket
     |> assign(:form_mode, :new)
     |> assign(:form_name, "")
+    |> assign(:form_cache_any_branch_writes, false)
+    |> assign(:form_cache_writer_branches, "")
     |> assign(:form_error, nil)
     |> set_platform_defaults("linux")
   end
@@ -324,6 +345,21 @@ defmodule TuistWeb.RunnerProfilesLive do
       _ -> dgettext("dashboard_runners", "Never")
     end
   end
+
+  @doc """
+  Which branches save cache volume changes for jobs on the profile.
+  """
+  def cache_saving_label(%Profile{cache_any_branch_writes: true}), do: dgettext("dashboard_runners", "Any branch")
+  def cache_saving_label(%Profile{cache_writer_branches: []}), do: dgettext("dashboard_runners", "Default branch")
+
+  def cache_saving_label(%Profile{cache_writer_branches: branches}),
+    do:
+      dngettext(
+        "dashboard_runners",
+        "Default branch and %{count} more",
+        "Default branch and %{count} more",
+        length(branches)
+      )
 
   @doc """
   Platform a profile runs on. Reads off the stored `platform` field.

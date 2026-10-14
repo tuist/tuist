@@ -78,13 +78,18 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
          event when is_binary(event) <- run["event"] do
       same_repository = get_in(run, ["head_repository", "id"]) == id
       trusted = same_repository and branch == default and event in ["push", "schedule", "workflow_dispatch"]
+      writer_branch = github_writer_branch(run, id, same_repository)
 
       {:ok,
        %{
          repository_id: id,
          trusted: trusted,
          same_repository: same_repository,
-         writer_branch: github_writer_branch(run, id, same_repository)
+         writer_branch: writer_branch,
+         # Forks, pull_request_target and other events never qualify, even when
+         # the runner profile lets any branch save.
+         any_branch_writer:
+           same_repository and (event in ["push", "schedule", "workflow_dispatch"] or is_binary(writer_branch))
        }}
     else
       _ -> {:error, :unavailable}

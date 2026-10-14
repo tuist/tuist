@@ -108,6 +108,55 @@ defmodule Tuist.Runners.ProfilesTest do
       assert updated.vcpus == 1
       assert updated.memory_gb == 2
     end
+
+    test "stores a normalized cache writer policy", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+      assert profile.cache_writer_branches == []
+      refute profile.cache_any_branch_writes
+
+      assert {:ok, updated} =
+               Profiles.update(profile, %{
+                 "cache_writer_branches" => ["release/1.0", "feature", "feature"],
+                 "cache_any_branch_writes" => true
+               })
+
+      assert updated.cache_writer_branches == ["feature", "release/1.0"]
+      assert updated.cache_any_branch_writes
+    end
+
+    test "rejects wildcards, invalid refs and more than the branch limit", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+
+      for value <- [
+            "main",
+            ["*"],
+            ["a\nb"],
+            ["a..b"],
+            ["x.lock"],
+            [String.duplicate("a", 201)],
+            Enum.map(1..21, &"branch-#{&1}")
+          ] do
+        assert {:error, %Ecto.Changeset{errors: errors}} =
+                 Profiles.update(profile, %{"cache_writer_branches" => value})
+
+        assert errors[:cache_writer_branches]
+      end
+    end
+  end
+
+  describe "lock_for_dispatch_label/2" do
+    test "resolves profile labels and ignores legacy pool and other account labels", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      other = AccountsFixtures.account_fixture()
+
+      Tuist.Repo.transaction(fn ->
+        assert Profiles.lock_for_dispatch_label(account.id, Profile.dispatch_label(profile)).id == profile.id
+        assert is_nil(Profiles.lock_for_dispatch_label(other.id, Profile.dispatch_label(profile)))
+        assert is_nil(Profiles.lock_for_dispatch_label(account.id, "shape-linux-4vcpu-16gb"))
+        assert is_nil(Profiles.lock_for_dispatch_label(account.id, ""))
+        assert is_nil(Profiles.lock_for_dispatch_label(account.id, nil))
+      end)
+    end
   end
 
   describe "match_for_dispatch/2" do

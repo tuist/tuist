@@ -18,6 +18,8 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Runners.CacheVolumes.Usage
   alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.WorkflowJob
@@ -123,6 +125,9 @@ defmodule Tuist.Runners.CacheVolumes do
         "cache-volume:#{job.account_id}:#{attrs.pod_uid}"
       ])
 
+      # Lock the profile before the volume, in the same order as policy changes,
+      # so their revocation sees every use granted under the previous policy.
+      grant = writer_grant(identity, writer_profile(job, identity))
       ensure_job_capacity!(job, identity, attrs)
       now = DateTime.utc_now()
       timestamp = DateTime.truncate(now, :second)
@@ -166,7 +171,8 @@ defmodule Tuist.Runners.CacheVolumes do
           workflow_run_id: job.workflow_run_id,
           commit_mode: attrs.commit_mode,
           writer_branch: if(identity.trusted, do: nil, else: Map.get(identity, :writer_branch)),
-          can_publish: attrs.commit_mode != "false" and writer_allowed?(volume, identity),
+          writer_profile_id: granting_profile_id(grant),
+          can_publish: attrs.commit_mode != "false" and grant != :denied,
           inserted_at: timestamp,
           updated_at: timestamp
         })
@@ -210,54 +216,64 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
-  defp writer_allowed?(volume, identity) do
-    identity.trusted or
-      (identity.provider == "github" and Map.get(identity, :same_repository, false) and
-         is_binary(Map.get(identity, :writer_branch)) and identity.writer_branch in volume.writer_branches)
+  # Default-branch jobs always write. The job's runner profile can also let
+  # verified same-repository GitHub jobs from other branches write.
+  defp writer_grant(%{trusted: true}, _profile), do: :default_branch
+
+  defp writer_grant(identity, %Profile{} = profile) do
+    if profile_allows?(profile, identity), do: {:profile, profile.id}, else: :denied
   end
 
-  def update_writer_branches(account_id, id, branches) do
-    Repo.transaction(fn ->
-      volume = Repo.one(from(v in Volume, where: v.account_id == ^account_id and v.id == ^id, lock: "FOR UPDATE"))
+  defp writer_grant(_identity, nil), do: :denied
 
-      if is_nil(volume) or not is_nil(volume.builtin_name) or volume.provider != "github",
-        do: Repo.rollback(:not_found)
+  defp granting_profile_id({:profile, id}), do: id
+  defp granting_profile_id(_grant), do: nil
 
-      if not valid_writer_branches?(branches), do: Repo.rollback(:invalid_parameters)
+  defp profile_allows?(%Profile{cache_any_branch_writes: true}, identity),
+    do: Map.get(identity, :any_branch_writer, false)
 
-      branches = branches |> Enum.uniq() |> Enum.sort()
-
-      if Enum.sort(volume.writer_branches) == branches do
-        volume
-      else
-        # Only removed additional grants are revoked. Default-branch writers
-        # have no writer_branch; additions never upgrade existing private clones.
-        removed_branches = volume.writer_branches -- branches
-
-        Repo.update_all(
-          from(u in Usage,
-            where:
-              u.volume_id == ^id and u.status not in ["published", "discarded"] and
-                u.writer_branch in ^removed_branches
-          ),
-          set: [can_publish: false]
-        )
-
-        Repo.update!(Ecto.Changeset.change(volume, writer_branches: branches))
-      end
-    end)
+  defp profile_allows?(%Profile{cache_writer_branches: branches}, identity) do
+    Map.get(identity, :same_repository, false) and is_binary(Map.get(identity, :writer_branch)) and
+      identity.writer_branch in branches
   end
 
-  defp valid_writer_branches?(branches) when is_list(branches) do
-    length(branches) <= 20 and
-      Enum.all?(branches, fn branch ->
-        is_binary(branch) and byte_size(branch) in 1..200 and
-          Regex.match?(~r/\A[a-zA-Z0-9][a-zA-Z0-9_.\/-]*\z/, branch) and
-          not String.contains?(branch, ["..", "//"]) and not String.ends_with?(branch, ["/", ".", ".lock"])
-      end)
-  end
+  defp writer_profile(job, %{trusted: false, provider: "github"}),
+    do: Profiles.lock_for_dispatch_label(job.account_id, Map.get(job, :requested_dispatch_label))
 
-  defp valid_writer_branches?(_), do: false
+  defp writer_profile(_job, _identity), do: nil
+
+  @doc """
+  Revokes pending saves granted by a runner profile whose policy no longer
+  allows them. Call inside the transaction that updated or deleted the profile
+  row, after the row was written. Default-branch saves are never revoked, and
+  policy additions only affect new attachments.
+  """
+  def revoke_profile_writers(%Profile{cache_any_branch_writes: true}), do: :ok
+
+  def revoke_profile_writers(%Profile{id: id, cache_writer_branches: branches}),
+    do: revoke_writers(from(u in Usage, where: is_nil(u.writer_branch) or u.writer_branch not in ^branches), id)
+
+  def revoke_profile_writers({:deleted, %Profile{id: id}}), do: revoke_writers(Usage, id)
+
+  defp revoke_writers(query, profile_id) do
+    revoked =
+      from(u in query,
+        where: u.writer_profile_id == ^profile_id and u.can_publish and u.status not in ["published", "discarded"]
+      )
+
+    # Publication reads can_publish under the volume lock.
+    Repo.all(
+      from(v in Volume,
+        where: v.id in subquery(from(u in revoked, select: u.volume_id)),
+        order_by: v.id,
+        lock: "FOR UPDATE",
+        select: v.id
+      )
+    )
+
+    Repo.update_all(revoked, set: [can_publish: false])
+    :ok
+  end
 
   defp ensure_job_capacity!(job, identity, attrs) do
     count =

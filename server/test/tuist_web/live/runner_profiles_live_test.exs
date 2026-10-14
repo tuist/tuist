@@ -154,5 +154,47 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
 
       assert %{name: "default", vcpus: 8, memory_gb: 32} = Profiles.get_by_name(account, "default")
     end
+
+    test "edits the cache saving policy and shows it in the table", %{conn: conn, account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/profiles")
+      assert html =~ "Default branch"
+
+      render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+
+      render_hook(lv, "update_cache_writer_branches", %{"cache_writer_branches" => " release/1.0\n\nfeature \n"})
+
+      html = render_hook(lv, "save_profile", %{})
+
+      assert %{cache_writer_branches: ["feature", "release/1.0"], cache_any_branch_writes: false} =
+               Profiles.get_by_name(account, "ci")
+
+      assert html =~ "Default branch and 2 more"
+
+      render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      assert render(lv) =~ "release/1.0"
+      render_hook(lv, "toggle_cache_any_branch_writes", %{})
+      refute has_element?(lv, "#runner-profile-cache-writer-branches")
+      html = render_hook(lv, "save_profile", %{})
+
+      assert %{cache_writer_branches: ["feature", "release/1.0"], cache_any_branch_writes: true} =
+               Profiles.get_by_name(account, "ci")
+
+      assert html =~ "Any branch"
+    end
+
+    test "surfaces invalid cache writer branches without saving them", %{conn: conn, account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+
+      render_hook(lv, "update_cache_writer_branches", %{"cache_writer_branches" => "feature/*"})
+
+      html = render_hook(lv, "save_profile", %{})
+
+      assert html =~ "must be exact branch names without wildcards"
+      assert %{cache_writer_branches: []} = Profiles.get_by_name(account, "ci")
+    end
   end
 end
