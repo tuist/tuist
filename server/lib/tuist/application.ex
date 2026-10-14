@@ -336,6 +336,8 @@ defmodule Tuist.Application do
           Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
           Supervisor.child_spec(Buffer, id: Buffer),
           Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
+          Supervisor.child_spec(Tuist.Cargo.Build.Buffer, id: Tuist.Cargo.Build.Buffer),
+          Supervisor.child_spec(Tuist.Cargo.Compilation.Buffer, id: Tuist.Cargo.Compilation.Buffer),
           Supervisor.child_spec(Tuist.Mix.Build.Buffer, id: Tuist.Mix.Build.Buffer),
           Supervisor.child_spec(Tuist.Mix.Diagnostic.Buffer, id: Tuist.Mix.Diagnostic.Buffer),
           Supervisor.child_spec(Tuist.Mix.CompiledFile.Buffer, id: Tuist.Mix.CompiledFile.Buffer),

@@ -35,7 +35,7 @@ defmodule Tuist.Projects.Project do
     # window independently of oban_jobs retention. Set internally, not via the
     # public changeset.
     field :last_reported_at, :utc_datetime
-    field :build_system, Ecto.Enum, values: [xcode: 0, gradle: 1, bazel: 2, once: 3, mix: 4], default: :xcode
+    field :build_system, Ecto.Enum, values: [xcode: 0, gradle: 1, bazel: 2, once: 3, mix: 4, cargo: 5], default: :xcode
 
     field :bundle_size_approval_policy, Ecto.Enum,
       values: [everyone: 0, selected: 1],
@@ -88,7 +88,7 @@ defmodule Tuist.Projects.Project do
     |> validate_required([:token, :account_id, :name])
     |> validate_name()
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
-    |> validate_inclusion(:build_system, [:xcode, :gradle, :bazel, :once, :mix])
+    |> validate_inclusion(:build_system, [:xcode, :gradle, :bazel, :once, :mix, :cargo])
   end
 
   def update_changeset(project, attrs) do
@@ -126,7 +126,7 @@ defmodule Tuist.Projects.Project do
     |> validate_number(:flaky_cooldown_days, greater_than: 0)
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
-    |> validate_inclusion(:build_system, [:xcode, :gradle, :bazel, :once, :mix])
+    |> validate_inclusion(:build_system, [:xcode, :gradle, :bazel, :once, :mix, :cargo])
     |> validate_inclusion(:bundle_size_approval_policy, [:everyone, :selected])
   end
 
@@ -147,6 +147,9 @@ defmodule Tuist.Projects.Project do
 
   def mix_project?(%__MODULE__{build_system: :mix}), do: true
   def mix_project?(_), do: false
+
+  def cargo_project?(%__MODULE__{build_system: :cargo}), do: true
+  def cargo_project?(_), do: false
 
   def once_project?(%__MODULE__{build_system: :once}), do: true
   def once_project?(_), do: false

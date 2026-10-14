@@ -2795,14 +2795,15 @@ defmodule Tuist.TestsTest do
       assert merged_test.status == "in_progress"
     end
 
-    test "the last shard completes the run even when its own shard row is not read back" do
+    test "the last shard completes the run even with uppercase client UUIDs and without reading its own row" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
       plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      client_id = String.upcase(UUIDv7.generate())
 
       {:ok, first_test} =
         Tests.create_test(%{
-          id: UUIDv7.generate(),
+          id: client_id,
           project_id: project.id,
           account_id: account.id,
           duration: 300,
@@ -2814,6 +2815,8 @@ defmodule Tuist.TestsTest do
         })
 
       assert first_test.status == "in_progress"
+
+      assert first_test.id == String.downcase(client_id)
 
       # The row a shard writes for itself is not reliably observable by the
       # read that immediately follows it, so the last shard to report has to
@@ -2834,6 +2837,39 @@ defmodule Tuist.TestsTest do
         })
 
       assert merged_test.status == "success"
+    end
+
+    test "completes runs whose historical shard rows contain uppercase UUID strings" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      stub(IngestRepo, :insert_all, fn schema, rows ->
+        rows =
+          if schema == ShardRun do
+            Enum.map(rows, &Map.update!(&1, :test_run_id, fn id -> String.upcase(id) end))
+          else
+            rows
+          end
+
+        Mimic.call_original(IngestRepo, :insert_all, [schema, rows])
+      end)
+
+      attrs = %{
+        project_id: project.id,
+        account_id: account.id,
+        duration: 100,
+        status: "success",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        shard_plan_id: plan.id
+      }
+
+      {:ok, first} = Tests.create_test(Map.merge(attrs, %{id: UUIDv7.generate(), shard_index: 0}))
+      assert first.status == "in_progress"
+      {:ok, last} = Tests.create_test(Map.merge(attrs, %{id: UUIDv7.generate(), shard_index: 1}))
+      assert last.id == first.id
+      assert last.status == "success"
     end
 
     test "a failing shard fails the run before the remaining shards report" do
