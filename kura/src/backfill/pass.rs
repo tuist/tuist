@@ -2436,7 +2436,7 @@ mod tests {
         assert!(claim_set.is_empty());
 
         // The newer segmented entry (fetched before the trade turned) landed;
-        // The older one remains capacity-skipped.
+        // the older one was capacity-skipped.
         assert!(
             fetch_manifest(&local, ArtifactProducer::Gradle, "newer")
                 .await
@@ -2521,7 +2521,6 @@ mod tests {
         assert!(claim_set.is_empty());
 
         // Listing the older tuple must not strip the newer queued claim.
-        // the older one was capacity-skipped.
         assert!(
             fetch_manifest(&local, ArtifactProducer::Gradle, "newer")
                 .await
@@ -2532,7 +2531,7 @@ mod tests {
                 .await
                 .is_none()
         );
-        // Non-ring kinds continued past capacity completion to the bound.
+        // Non-ring kinds continue despite the declined segmented tuple.
         assert!(
             fetch_manifest(&local, ArtifactProducer::Xcode, "inl")
                 .await
