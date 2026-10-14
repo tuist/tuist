@@ -220,9 +220,9 @@ type PowerOutletRef struct {
 	CredentialsSecretRef *corev1.LocalObjectReference `json:"credentialsSecretRef,omitempty"`
 }
 
-// RackHostOutletDraw is an outlet's meter reading. A field the device does not
-// report is unset.
-type RackHostOutletDraw struct {
+// OutletDraw is an outlet's meter reading. A field the device does not report
+// is unset.
+type OutletDraw struct {
 	// ActivePowerWatts is the real power drawn, in watts.
 	// +optional
 	ActivePowerWatts *resource.Quantity `json:"activePowerWatts,omitempty"`
@@ -249,11 +249,12 @@ type RackHostStatus struct {
 	// +optional
 	Power string `json:"power,omitempty"`
 
-	// OutletDraw is what the outlet's meter read on the last observation. Unset
-	// when the outlet could not be read or its driver has no meter. The
-	// HostDrawing condition says what it means for the host.
+	// OutletDraw is what the outlet's meter last read: the outlet's entry in its
+	// RackPDU's status, or the endpoint's own meter for an outlet of its own.
+	// Unset when there is no recent reading. The HostDrawing condition says
+	// what it means for the host.
 	// +optional
-	OutletDraw *RackHostOutletDraw `json:"outletDraw,omitempty"`
+	OutletDraw *OutletDraw `json:"outletDraw,omitempty"`
 
 	// LastPowerAction / LastPowerActionTime record the last action the
 	// operator took on the outlet (`on`, `off`, `cycle`), so a host that

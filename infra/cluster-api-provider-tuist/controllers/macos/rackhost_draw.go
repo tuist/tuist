@@ -3,11 +3,15 @@ package macos
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
+	"strconv"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
@@ -67,9 +71,17 @@ func outletDraw(ctx context.Context, driver power.Driver, outlet power.Outlet, s
 }
 
 // observeDraw records the outlet's meter on the host: its reading in status,
-// and what it means in HostDrawing.
+// and what it means in HostDrawing. An outlet of a RackPDU is read from the
+// PDU's status, which its controller fills for every outlet on the card; an
+// endpoint of the host's own is read here.
 func (r *RackHostReconciler) observeDraw(ctx context.Context, host *infrav1.RackHost, driver power.Driver, outlet power.Outlet, state power.State) {
-	draw, m, err := outletDraw(ctx, driver, outlet, state)
+	var m power.Measures
+	var err error
+	if host.Spec.Power != nil && host.Spec.Power.PDU != "" {
+		state, m, err = r.pduOutletReading(ctx, host)
+	} else {
+		m, err = power.ReadMeasures(ctx, driver, outlet)
+	}
 	if err != nil {
 		host.Status.OutletDraw = nil
 		if errors.Is(err, power.ErrMeasuresUnsupported) {
@@ -80,6 +92,7 @@ func (r *RackHostReconciler) observeDraw(ctx context.Context, host *infrav1.Rack
 		return
 	}
 	host.Status.OutletDraw = outletDrawStatus(m)
+	draw := power.Classify(state, m)
 
 	wasPoweredOff := conditions.GetReason(host, HostDrawingCondition) == PoweredOffAtOutletReason
 	switch draw {
@@ -104,14 +117,40 @@ func (r *RackHostReconciler) observeDraw(ctx context.Context, host *infrav1.Rack
 	}
 }
 
+// rackPDUOutletReadingMaxAge is how old a RackPDU's reading of its outlets may
+// be for a host to use it: three of its controller's resyncs, past which the
+// card has stopped being read.
+const rackPDUOutletReadingMaxAge = 3 * rackPDUResyncInterval
+
+// pduOutletReading is the host's outlet as its RackPDU's status last read it.
+func (r *RackHostReconciler) pduOutletReading(ctx context.Context, host *infrav1.RackHost) (power.State, power.Measures, error) {
+	name, number := host.Spec.Power.PDU, host.Spec.Power.Outlet
+	pdu := &infrav1.RackPDU{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: host.Namespace, Name: name}, pdu); err != nil {
+		return power.StateUnknown, power.Measures{}, err
+	}
+	if at := pdu.Status.OutletsReadAt; at == nil || time.Since(at.Time) > rackPDUOutletReadingMaxAge {
+		return power.StateUnknown, power.Measures{}, fmt.Errorf("RackPDU %s has not read its outlets in the last %s", name, rackPDUOutletReadingMaxAge)
+	}
+	n, _ := strconv.Atoi(number)
+	state, m, ok := rackPDUOutletReading(pdu, n)
+	switch {
+	case !ok:
+		return power.StateUnknown, power.Measures{}, fmt.Errorf("RackPDU %s reports no outlet %s", name, number)
+	case m.ActivePower == nil && m.ApparentPower == nil:
+		return power.StateUnknown, power.Measures{}, fmt.Errorf("RackPDU %s could not read outlet %s's meter", name, number)
+	}
+	return state, m, nil
+}
+
 // markOutletDrawUnread drops the reading of an outlet that could not be read.
 func markOutletDrawUnread(host *infrav1.RackHost) {
 	host.Status.OutletDraw = nil
 	conditions.MarkUnknown(host, HostDrawingCondition, OutletDrawUnknownReason, "the outlet could not be read")
 }
 
-func outletDrawStatus(m power.Measures) *infrav1.RackHostOutletDraw {
-	return &infrav1.RackHostOutletDraw{
+func outletDrawStatus(m power.Measures) *infrav1.OutletDraw {
+	return &infrav1.OutletDraw{
 		ActivePowerWatts: measureQuantity(m.ActivePower),
 		ApparentPowerVA:  measureQuantity(m.ApparentPower),
 		CurrentAmps:      measureQuantity(m.Current),
@@ -128,7 +167,7 @@ func measureQuantity(v *float64) *resource.Quantity {
 }
 
 func recordRackHostDrawMetrics(host *infrav1.RackHost, labels []string) {
-	var draw infrav1.RackHostOutletDraw
+	var draw infrav1.OutletDraw
 	if host.Status.OutletDraw != nil {
 		draw = *host.Status.OutletDraw
 	}
@@ -144,7 +183,7 @@ func recordRackHostDrawMetrics(host *infrav1.RackHost, labels []string) {
 			reading.gauge.DeletePartialMatch(prometheus.Labels{"host": host.Name})
 			continue
 		}
-		reading.gauge.WithLabelValues(labels...).Set(reading.value.AsApproximateFloat64())
+		reading.gauge.WithLabelValues(labels...).Set(quantityFloat(*reading.value))
 	}
 
 	cond := conditions.Get(host, HostDrawingCondition)

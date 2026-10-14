@@ -359,9 +359,10 @@ spec:
                   type: string
                 outletDraw:
                   description: |-
-                    OutletDraw is what the outlet's meter read on the last observation. Unset
-                    when the outlet could not be read or its driver has no meter. The
-                    HostDrawing condition says what it means for the host.
+                    OutletDraw is what the outlet's meter last read: the outlet's entry in its
+                    RackPDU's status, or the endpoint's own meter for an outlet of its own.
+                    Unset when there is no recent reading. The HostDrawing condition says
+                    what it means for the host.
                   properties:
                     activePowerWatts:
                       anyOf:
