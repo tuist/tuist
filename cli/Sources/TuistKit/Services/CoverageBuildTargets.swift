@@ -40,11 +40,20 @@ enum CoverageBuildTargets {
                 return CoverageBuildTarget(
                     name: target.productNameWithExtension,
                     isTest: target.product.testsBundle,
-                    files: target.sources.map(\.path.pathString).sorted(),
+                    files: files(of: target),
                     binaries: replaced ? binaries(of: xcframeworks[target.productName]) : []
                 )
             }
             .sorted { $0.name < $1.name }
+    }
+
+    /// The sources a target compiles: the ones it lists, and those of its buildable folders, which
+    /// the graph resolved; only the files the compiler instruments.
+    static func files(of target: Target) -> [String] {
+        let sources = target.sources.map(\.path) + target.buildableFolders.flatMap { $0.resolvedFiles.map(\.path) }
+        return Set(sources.filter { UploadResultBundleService.coverageSourceExtensions.contains($0.extension ?? "") })
+            .map(\.pathString)
+            .sorted()
     }
 
     /// One slice per library of the xcframework, each with its binary inside.

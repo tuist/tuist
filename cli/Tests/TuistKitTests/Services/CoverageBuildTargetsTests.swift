@@ -9,7 +9,20 @@ struct CoverageBuildTargetsTests {
     @Test func listsTheSchemesClosureWithCachedTargetsSlices() throws {
         let projectPath = try AbsolutePath(validating: "/repo/App")
         let app = Target.test(name: "App", product: .app, sources: [SourceFile(path: "/repo/App/Sources/App.swift")])
-        let lib = Target.test(name: "Lib", product: .staticFramework, sources: [SourceFile(path: "/repo/App/Lib/Lib.swift")])
+        // `Lib` keeps its sources in a buildable folder, as Xcode 16 synchronized groups do.
+        let lib = Target.test(
+            name: "Lib",
+            product: .staticFramework,
+            sources: [],
+            buildableFolders: [BuildableFolder(
+                path: "/repo/App/Lib",
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: [
+                    BuildableFolderFile(path: "/repo/App/Lib/Lib.swift", compilerFlags: nil),
+                    BuildableFolderFile(path: "/repo/App/Lib/Lib.docc", compilerFlags: nil),
+                ]
+            )]
+        )
         let tests = Target.test(
             name: "AppTests",
             product: .unitTests,
