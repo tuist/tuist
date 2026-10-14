@@ -58,12 +58,13 @@ enum PinnedSourceSnapshot {
             workingDirectory: destination, customEnvironment: environment
         )) != nil else { return }
         let configuration = try await SystemProcess.output(
-            "/usr/bin/git", ["config", "--null", "--blob", "\(revision):.gitmodules", "--get-regexp", #"submodule\..*\.path"#],
+            "/usr/bin/git", ["config", "--null", "--blob", "\(revision):.gitmodules", "--list"],
             workingDirectory: destination, customEnvironment: environment
         )
         for entry in configuration.split(separator: "\0") {
             guard let separator = entry.firstIndex(of: "\n") else { continue }
             let key = String(entry[..<separator])
+            guard key.hasPrefix("submodule."), key.hasSuffix(".path") else { continue }
             let name = String(key.dropFirst("submodule.".count).dropLast(".path".count))
             let path = String(entry[entry.index(after: separator)...])
             let child = destination.appendingPathComponent(path).standardizedFileURL

@@ -186,16 +186,6 @@ resolve_package() {
     resolve
 }
 
-only_native_cache_warnings() {
-  local line
-  while IFS= read -r line || [[ -n "${line}" ]]; do
-    case "${line}" in
-      ""|"warning: keeping native checkout for "*"; could not cache pinned sources: "*) ;;
-      *) return 1 ;;
-    esac
-  done
-}
-
 canonical_path() {
   local path="$1"
   mkdir -p "${path}"
@@ -1729,7 +1719,7 @@ Describe "swifterpm resolve against real-world manifests"
   It "resolves Firefox iOS root Package.swift and emits a SwiftPM-acceptable lockfile"
     When call scenario_resolves_firefox_ios
     The status should be success
-    The stderr should satisfy only_native_cache_warnings
+    The stderr should be blank
     The output should match pattern "pins=*"
     The output should include "force-resolve=ok"
   End
@@ -1737,7 +1727,7 @@ Describe "swifterpm resolve against real-world manifests"
   It "resolves Pocket Casts iOS Modules/Package.swift and emits a SwiftPM-acceptable lockfile"
     When call scenario_resolves_pocket_casts_ios
     The status should be success
-    The stderr should satisfy only_native_cache_warnings
+    The stderr should be blank
     The output should match pattern "pins=*"
     The output should include "force-resolve=ok"
   End
@@ -1745,7 +1735,7 @@ Describe "swifterpm resolve against real-world manifests"
   It "resolves the large external dependencies fixture and preserves its lockfile"
     When call scenario_resolves_locked_swifterpm_fixture "ExternalDependenciesLarge" "69"
     The status should be success
-    The stderr should satisfy only_native_cache_warnings
+    The stderr should be blank
     The output should include "pins=69"
     The output should include "package-resolved=match"
     The output should include "skip-update-resolve=ok"
@@ -1754,7 +1744,7 @@ Describe "swifterpm resolve against real-world manifests"
   It "resolves the larger external dependencies fixture and preserves its lockfile"
     When call scenario_resolves_locked_swifterpm_fixture "ExternalDependenciesLarger" "102" "AdaSDK"
     The status should be success
-    The stderr should satisfy only_native_cache_warnings
+    The stderr should be blank
     The output should include "pins=102"
     The output should include "package-resolved=match"
     The output should include "skip-update-resolve=ok"

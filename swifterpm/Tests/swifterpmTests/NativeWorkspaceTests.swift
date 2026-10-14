@@ -60,6 +60,70 @@ struct NativeWorkspaceTests {
             .readFile(at: destination.appendingPathComponent("Package.swift").absolutePath) != Data("wrong manifest".utf8))
     }
 
+    @Test(.inTemporaryDirectory, arguments: [
+        "",
+        "# No submodules\n",
+        "[submodule \"unused\"]\n\turl = https://example.com/unused.git\n",
+    ])
+    func gitmodulesWithoutPathsPublishesCacheAndRestoresFreshWorkspace(contents: String) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let scratch = root.appendingPathComponent("scratch")
+        let checkout = scratch.appendingPathComponent("checkouts/Dependency")
+        _ = try await repository(at: checkout)
+        try await fileSystem.atomicWrite(contents, to: checkout.appendingPathComponent(".gitmodules"))
+        try await git(checkout, ["add", ".gitmodules"])
+        try await git(checkout, ["-c", "user.name=Tests", "-c", "user.email=tests@example.com", "commit", "-qm", "gitmodules"])
+        let revision = try await git(checkout, ["rev-parse", "HEAD"]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let pin = ResolvedPin(
+            identity: "dependency", kind: "remoteSourceControl", location: "https://example.com/Dependency.git",
+            state: .init(branch: nil, revision: revision, version: "1.0.0")
+        )
+        let resolved = ResolvedPins(originHash: nil, pins: [pin], version: 3)
+        let cache = try await Cache(root: root.appendingPathComponent("cache"))
+        try await WorkspaceRestorer.cacheNativeSourceCheckouts(
+            scratchDir: scratch, cache: cache, mirrors: MirrorConfig(), resolved: resolved
+        )
+        let cached = try cache.sourcePath(pin: pin)
+        #expect(try await fileSystem
+            .readFile(at: cached.appendingPathComponent(".gitmodules").absolutePath) == Data(contents.utf8))
+        #expect(try await fileSystem.readFile(
+            at: cached.appendingPathComponent(WorkspaceRestorer.sourceRevisionMarkerFilename).absolutePath
+        ) == Data(revision.utf8))
+        #expect(!fileSystem.existsIncludingSymlinks(cached.appendingPathComponent(".git")))
+        try await ResolvedFile.write(packageDir: root, resolved: resolved, mirrors: MirrorConfig())
+        try await fileSystem.removePath(scratch)
+        #expect(try await !PackageResolver.shouldUseNativeColdPath(
+            packageDir: root, cacheRoot: cache.root, registryConfig: RegistryConfig()
+        ))
+        try await WorkspaceRestorer.restorePackage(
+            scratchDir: scratch, cache: cache, registryConfig: RegistryConfig(), mirrors: MirrorConfig(),
+            resolved: resolved, progress: nil
+        )
+        #expect(try await fileSystem
+            .readFile(at: checkout.appendingPathComponent(".gitmodules").absolutePath) == Data(contents.utf8))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func malformedGitmodulesStillRejectsSnapshot() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let repo = root.appendingPathComponent("Dependency")
+        _ = try await repository(at: repo)
+        try await fileSystem.atomicWrite("[submodule \"broken\"\n", to: repo.appendingPathComponent(".gitmodules"))
+        try await git(repo, ["add", ".gitmodules"])
+        try await git(
+            repo,
+            ["-c", "user.name=Tests", "-c", "user.email=tests@example.com", "commit", "-qm", "malformed gitmodules"]
+        )
+        let revision = try await git(repo, ["rev-parse", "HEAD"]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let staging = root.appendingPathComponent("staging")
+        try await fileSystem.makeDirectory(at: staging.absolutePath, options: [.createTargetParentDirectories])
+        await #expect(throws: (any Error).self) {
+            try await PinnedSourceSnapshot.write(
+                from: repo, revision: revision, to: staging.appendingPathComponent("package"), staging: staging
+            )
+        }
+    }
+
     @Test(.inTemporaryDirectory, arguments: [false, true], [false, true])
     func ownedDirtyNativeCheckoutPublishesCanonicalSources(legacyDestination: Bool, localSourceControl: Bool) async throws {
         let root = try #require(FileSystem.temporaryTestDirectory).fileURL
@@ -162,6 +226,12 @@ struct NativeWorkspaceTests {
         let repo = root.appendingPathComponent("Dependency")
         let submodule = root.appendingPathComponent("Submodule")
         _ = try await repository(at: submodule)
+        try await fileSystem.atomicWrite("", to: submodule.appendingPathComponent(".gitmodules"))
+        try await git(submodule, ["add", ".gitmodules"])
+        try await git(
+            submodule,
+            ["-c", "user.name=Tests", "-c", "user.email=tests@example.com", "commit", "-qm", "empty gitmodules"]
+        )
         _ = try await repository(at: repo)
         try await git(repo, ["-c", "protocol.file.allow=always", "submodule", "add", submodule.path, "vendor"])
         try await git(repo, ["-c", "user.name=Tests", "-c", "user.email=tests@example.com", "commit", "-m", "submodule"])
