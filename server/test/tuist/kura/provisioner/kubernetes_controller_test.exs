@@ -2104,6 +2104,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute revision(region_with_storage_class("hcloud-volumes")) =~ "+encrypted-volumes-v1"
     end
 
+    test "gives the reconciler the revision it renders for a flagged account" do
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> true end)
+      region = region_with_storage_class("scw-local-nvme")
+
+      assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region) == revision(region)
+    end
+
     test "keeps the node-local NVMe class on regions that opt out of encrypted volumes" do
       stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> true end)
       region = region_with_storage_class("scw-local-nvme")
