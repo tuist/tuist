@@ -602,8 +602,9 @@ defmodule Tuist.Runners.Jobs do
 
     rows =
       candidates
-      |> Enum.map(&current(&1.workflow_job_id))
-      |> Enum.reject(&is_nil/1)
+      |> Enum.map(& &1.workflow_job_id)
+      |> Enum.chunk_every(1_000)
+      |> Enum.flat_map(&latest_rows/1)
       |> Enum.filter(&(&1.status in @non_terminal_statuses))
       |> Enum.map(fn job ->
         job
@@ -618,6 +619,16 @@ defmodule Tuist.Runners.Jobs do
 
     {count, _} = IngestRepo.insert_all(Job, rows)
     count
+  end
+
+  # The latest row of each job, one query for the batch. A job holds one
+  # row per unmerged transition, so the read stays a handful of rows per job.
+  defp latest_rows(workflow_job_ids) do
+    Job
+    |> where([j], j.workflow_job_id in ^workflow_job_ids)
+    |> ClickHouseRepo.all()
+    |> Enum.group_by(& &1.workflow_job_id)
+    |> Enum.map(fn {_workflow_job_id, rows} -> Enum.max_by(rows, & &1.updated_at, DateTime) end)
   end
 
   defp to_utc_datetime(nil), do: nil

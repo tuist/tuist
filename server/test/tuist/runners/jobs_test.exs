@@ -1593,6 +1593,42 @@ defmodule Tuist.Runners.JobsTest do
       assert job.completed_at == last_update
     end
 
+    test "closes several untracked rows from each job's latest replica row" do
+      account = account_fixture()
+      enqueued_at = DateTime.add(DateTime.utc_now(), -3, :day)
+      claimed_at = DateTime.add(enqueued_at, 5, :minute)
+      requeued_at = DateTime.add(enqueued_at, 10, :minute)
+
+      base = %{
+        account_id: account.id,
+        fleet_name: "fleet-repair5",
+        repository: "acme/cli",
+        enqueued_at: enqueued_at
+      }
+
+      {3, _} =
+        IngestRepo.insert_all(Job, [
+          Map.merge(base, %{workflow_job_id: 7374, status: "claimed", pod_name: "pod-1", updated_at: claimed_at}),
+          Map.merge(base, %{workflow_job_id: 7374, status: "queued", pod_name: "", updated_at: requeued_at}),
+          Map.merge(base, %{workflow_job_id: 7375, status: "running", pod_name: "pod-2", updated_at: claimed_at})
+        ])
+
+      assert %{closed: 2} =
+               Jobs.repair_replica_divergence(
+                 DateTime.add(DateTime.utc_now(), 1, :minute),
+                 DateTime.add(DateTime.utc_now(), -7, :day),
+                 close_untracked: true
+               )
+
+      assert {:ok, requeued} = Jobs.get_for_account(account.id, 7374)
+      assert {requeued.status, requeued.conclusion, requeued.pod_name} == {"completed", "stale", ""}
+      assert requeued.completed_at == requeued_at
+
+      assert {:ok, running} = Jobs.get_for_account(account.id, 7375)
+      assert {running.status, running.conclusion, running.pod_name} == {"completed", "stale", "pod-2"}
+      assert running.completed_at == claimed_at
+    end
+
     test "does not close an untracked row enqueued after the untracked cutoff" do
       account = account_fixture()
 
