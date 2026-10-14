@@ -1,0 +1,119 @@
+name: Simulator media repro
+
+on:
+  push:
+    branches:
+      - claude/sim-mic-tcc-repro
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: Repro on ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [tuist-ber1-smoke, macos-26]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Host facts
+        run: |
+          set -x
+          sw_vers
+          xcodebuild -version
+          xcrun simctl list runtimes
+          system_profiler SPDisplaysDataType SPAudioDataType SPCameraDataType 2>&1 | head -60
+          csrutil status || true
+          db="$HOME/Library/Application Support/com.apple.TCC/TCC.db"
+          echo "USER DB: $db"
+          sqlite3 -readonly "$db" "SELECT service, client, client_type, auth_value, auth_reason FROM access WHERE service IN ('kTCCServiceMicrophone','kTCCServiceCamera','kTCCServiceScreenCapture') ORDER BY 1,2;" || true
+          echo "SYSTEM DB:"
+          sudo sqlite3 -readonly /Library/Application\ Support/com.apple.TCC/TCC.db "SELECT service, client, client_type, auth_value, auth_reason FROM access WHERE service IN ('kTCCServiceMicrophone','kTCCServiceCamera','kTCCServiceScreenCapture') ORDER BY 1,2;" || true
+      - name: Generate and build
+        run: |
+          set -euo pipefail
+          if ! command -v mise >/dev/null; then curl -fsSL https://mise.run | sh; fi
+          export PATH="$HOME/.local/bin:$PATH"
+          cp -R repro-sim-media/MediaRepro "$RUNNER_TEMP/MediaRepro"
+          cd "$RUNNER_TEMP/MediaRepro"
+          mise x tuist@latest -- tuist generate --no-open
+          xcodebuild build-for-testing -project MediaRepro.xcodeproj -scheme MediaRepro -destination 'generic/platform=iOS Simulator' -quiet
+      - name: Boot simulator
+        run: |
+          set -euo pipefail
+          udid=$(xcrun simctl list devices available -j | jq -r '[.devices | to_entries | sort_by(.key)[] | select(.key | test("iOS")) | .value[] | select(.name | test("^iPhone"))] | last | .udid')
+          echo "UDID=$udid" >> "$GITHUB_ENV"
+          xcrun simctl list devices available | grep "$udid"
+          xcrun simctl boot "$udid" || true
+          xcrun simctl bootstatus "$udid" -b
+          for service in microphone camera; do xcrun simctl privacy "$udid" grant "$service" dev.tuist.MediaRepro || true; done
+      - name: Start TCC log stream and sampler
+        run: |
+          mkdir -p "$RUNNER_TEMP/diag/samples"
+          nohup /usr/bin/log stream --level debug --style compact --predicate 'subsystem == "com.apple.TCC"' > "$RUNNER_TEMP/diag/tcc.log" 2>&1 &
+          cat > "$RUNNER_TEMP/sampler.sh" <<'EOF'
+          #!/bin/bash
+          out="$1"
+          while :; do
+            for pid in $(pgrep -x MediaRepro); do
+              [ -e "$out/seen-$pid" ] || { date +%s > "$out/seen-$pid"; continue; }
+              [ -e "$out/MediaRepro-$pid.txt" ] && continue
+              if [ $(( $(date +%s) - $(cat "$out/seen-$pid") )) -ge 25 ]; then
+                sample "$pid" 3 -file "$out/MediaRepro-$pid.txt" >/dev/null 2>&1 &
+              fi
+            done
+            sleep 2
+          done
+          EOF
+          chmod +x "$RUNNER_TEMP/sampler.sh"
+          nohup "$RUNNER_TEMP/sampler.sh" "$RUNNER_TEMP/diag/samples" >/dev/null 2>&1 &
+      - name: Run UI tests (image as is)
+        continue-on-error: true
+        run: |
+          cd "$RUNNER_TEMP/MediaRepro"
+          set -o pipefail
+          echo "phase-a $(date -u +%FT%TZ)" >> "$RUNNER_TEMP/diag/phases"
+          xcodebuild test-without-building -project MediaRepro.xcodeproj -scheme MediaRepro -destination "id=$UDID" \
+            -resultBundlePath "$RUNNER_TEMP/diag/phase-a.xcresult" -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
+            2>&1 | tee "$RUNNER_TEMP/diag/phase-a.log" | grep -E "REPRO|Test Case|error:|MediaRepro:" || true
+      - name: Approve the simulator's microphone access in the user TCC database
+        run: |
+          set -euo pipefail
+          db="$HOME/Library/Application Support/com.apple.TCC/TCC.db"
+          sqlite3 -cmd ".timeout 10000" "$db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceMicrophone', 'com.apple.CoreSimulator.SimulatorTrampoline', 0, 2, 3, 1, NULL, NULL, 'UNUSED', NULL, 0, CAST(strftime('%s','now') AS INTEGER));"
+          sqlite3 -readonly "$db" "SELECT service, client, client_type, auth_value, auth_reason FROM access WHERE service = 'kTCCServiceMicrophone';"
+      - name: Run UI tests (microphone approved)
+        continue-on-error: true
+        run: |
+          cd "$RUNNER_TEMP/MediaRepro"
+          set -o pipefail
+          echo "phase-b $(date -u +%FT%TZ)" >> "$RUNNER_TEMP/diag/phases"
+          xcodebuild test-without-building -project MediaRepro.xcodeproj -scheme MediaRepro -destination "id=$UDID" \
+            -resultBundlePath "$RUNNER_TEMP/diag/phase-b.xcresult" -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
+            2>&1 | tee "$RUNNER_TEMP/diag/phase-b.log" | grep -E "REPRO|Test Case|error:|MediaRepro:" || true
+      - name: Diagnostics
+        if: always()
+        run: |
+          cat "$RUNNER_TEMP/diag/phases" || true
+          echo "== TCC log: microphone / camera / prompts =="
+          grep -i -E "Microphone|Camera|prompt|SimulatorTrampoline|MediaRepro" "$RUNNER_TEMP/diag/tcc.log" | cut -c1-400 | head -150 || true
+          echo "== samples =="
+          for f in "$RUNNER_TEMP"/diag/samples/MediaRepro-*.txt; do
+            [ -f "$f" ] || continue
+            echo "---- $f"
+            awk '/Call graph:/{p=1} p' "$f" | grep -E "Thread_|main-thread|com.apple.main-thread|AVAudio|AudioUnit|AURemote|tcc|TCC|AVCapture|xpc|semaphore|mach_msg|dispatch_sync|AudioSession" | head -40
+          done
+          sqlite3 -readonly "$HOME/Library/Application Support/com.apple.TCC/TCC.db" "SELECT service, client, client_type, auth_value, auth_reason FROM access WHERE service IN ('kTCCServiceMicrophone','kTCCServiceCamera') ORDER BY 1,2;" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diag-${{ matrix.runner }}
+          path: |
+            ${{ runner.temp }}/diag/*.log
+            ${{ runner.temp }}/diag/phases
+            ${{ runner.temp }}/diag/samples/*.txt
