@@ -25,7 +25,7 @@ use crate::{
     file_cache::{
         FOREGROUND_STAGING_WINDOW_BYTES, FileCachePolicy, ForegroundFileCacheReservation,
     },
-    memory::{MemoryController, MemoryPressure},
+    memory::{MemoryController, MemoryPermit, MemoryPressure},
     metrics::GrpcWriteAdmissionMetrics,
     state::SharedState,
 };
@@ -228,6 +228,22 @@ impl GrpcWriteAdmission {
                     "server is limiting concurrent remote-execution write decoding; retry the write",
                 )
             })
+    }
+
+    /// Hands `bytes` of this write's reservation to its reply. The reply of a
+    /// stored write is far smaller than what decoding it reserved, so carrying
+    /// it here means a full pool cannot refuse the acknowledgement of a write
+    /// that already went through. The reply never holds more than the request
+    /// did.
+    pub(super) fn try_split_off_response_permit(
+        &self,
+        bytes: u64,
+    ) -> Result<Option<MemoryPermit>, ()> {
+        self.reservation
+            .lock()
+            .map_err(|_| ())?
+            .file_cache
+            .try_split_off_permit(bytes)
     }
 
     pub(super) fn try_configure_staging(

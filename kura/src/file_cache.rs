@@ -31,6 +31,13 @@ impl ForegroundFileCacheReservation {
     pub(crate) fn set_policy(&mut self, policy: FileCachePolicy) {
         self.policy = policy;
     }
+
+    pub(crate) fn try_split_off_permit(
+        &mut self,
+        bytes: u64,
+    ) -> Result<Option<crate::memory::MemoryPermit>, ()> {
+        self.memory.try_split_off_permit(bytes)
+    }
 }
 
 impl FileCachePolicy {

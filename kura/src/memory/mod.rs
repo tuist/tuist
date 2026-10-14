@@ -1696,6 +1696,38 @@ mod tests {
     }
 
     #[test]
+    fn a_split_off_permit_keeps_floor_bytes_and_leaves_borrowed_headroom_with_the_request() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+        let mebibyte = 1024 * 1024_u64;
+
+        let mut held = controller
+            .try_reserve_foreground_memory(anon_budget - mebibyte)
+            .unwrap();
+        let mut request = controller.try_reserve_elastic_foreground_memory(0).unwrap();
+        request.try_resize(mebibyte).unwrap();
+        request.try_resize(4 * mebibyte).unwrap();
+        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 3 * mebibyte);
+
+        assert!(request.try_split_off_permit(5 * mebibyte).is_err());
+        let reply = request
+            .try_split_off_permit(2 * mebibyte)
+            .unwrap()
+            .expect("a non-empty split holds a permit");
+        drop(request);
+        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
+        assert_eq!(controller.elastic_transient_reserved_bytes(), mebibyte);
+
+        drop(reply);
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+        assert_eq!(
+            controller.transient_reserved_bytes(),
+            anon_budget - mebibyte
+        );
+        assert!(held.try_resize(0).is_ok());
+    }
+
+    #[test]
     fn borrowing_stops_above_normal_pressure() {
         let (controller, anon_budget, _) = elastic_controller(Some(MemoryPressure::Constrained));
 

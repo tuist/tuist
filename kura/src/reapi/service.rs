@@ -75,6 +75,17 @@ const DEFAULT_INSTANCE_NAME: &str = "default";
 const BYTESTREAM_RESPONSE_LIVE_CHUNK_COUNT: usize = 2;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
 
+fn retain_response_permit<T>(
+    response: &mut Response<T>,
+    permit: Option<crate::memory::MemoryPermit>,
+) {
+    if let Some(permit) = permit {
+        response.extensions_mut().insert(
+            crate::memory::ResponseTransportGuard::from_materialization_permits(vec![permit]),
+        );
+    }
+}
+
 fn record_materialization_rejection(state: &SharedState, kind: &'static str) {
     state
         .metrics
@@ -331,12 +342,12 @@ impl ReapiService {
         }
     }
 
-    /// Try-only, deliberately. Every caller reaches here holding admission from
-    /// another path -- the action-result handler holds its materialization
-    /// budget, the write handlers their gRPC decode reservation -- and all of it
-    /// draws on the same transient pool. Waiting for that pool while holding
-    /// part of it is hold-and-wait. `AtomicMaterializationBudget::reserve` is
-    /// the shape that can wait: one acquisition, taken before anything is held.
+    /// Try-only, deliberately. The action-result handler reaches here holding
+    /// its materialization budget, which draws on the same transient pool, and
+    /// waiting for that pool while holding part of it is hold-and-wait.
+    /// `AtomicMaterializationBudget::reserve` is the shape that can wait: one
+    /// acquisition, taken before anything is held. Writes carry their replies
+    /// on their own admission instead (`retain_write_response_materialization`).
     fn retain_unary_response_materialization<T: Message>(
         &self,
         response: &mut Response<T>,
@@ -360,11 +371,40 @@ impl ReapiService {
                     "{label} was rejected because the concurrent REAPI response materialization pool is exhausted"
                 ))
             })?;
-        if let Some(permit) = permit {
-            response.extensions_mut().insert(
-                crate::memory::ResponseTransportGuard::from_materialization_permits(vec![permit]),
-            );
-        }
+        retain_response_permit(response, permit);
+        Ok(())
+    }
+
+    /// The reply of a write, which has been stored by the time it answers. It
+    /// is carried on the write's own admission rather than drawn from the pool:
+    /// that pool is exactly what a write burst fills, and refusing the reply
+    /// makes the client upload a stored write again. Only a reply larger than
+    /// the request's reservation reaches the pool, and a refusal there is write
+    /// backpressure, not a read shed.
+    fn retain_write_response_materialization<T: Message>(
+        &self,
+        response: &mut Response<T>,
+        admission: &GrpcWriteAdmission,
+        label: &str,
+    ) -> Result<(), Status> {
+        let retained_bytes = response.get_ref().encoded_len().saturating_mul(2);
+        let permit = match admission.try_split_off_response_permit(retained_bytes as u64) {
+            Ok(permit) => permit,
+            Err(()) => self
+                .state
+                .memory
+                .try_acquire_reapi_materialization(retained_bytes)
+                .map_err(|_| {
+                    self.state
+                        .metrics
+                        .grpc_write_admission_metrics()
+                        .record_decode_rejected();
+                    Status::resource_exhausted(format!(
+                        "{label} was rejected because it outgrew the write's memory admission and the response materialization pool is exhausted"
+                    ))
+                })?,
+        };
+        retain_response_permit(response, permit);
         Ok(())
     }
 
@@ -2133,7 +2173,7 @@ impl ActionCache for ReapiService {
         let branch = ref_metadata(&request, "x-tuist-branch", "x-tuist-branch-bin");
         let trunk = ref_metadata(&request, "x-tuist-trunk-branch", "x-tuist-trunk-branch-bin");
         let (metadata, mut extensions, mut message) = request.into_parts();
-        let _memory_admission = extensions
+        let memory_admission = extensions
             .remove::<GrpcWriteAdmission>()
             .expect("write decode admission was checked before authorization");
         let namespace_id = namespace_from_instance(&message.instance_name);
@@ -2192,7 +2232,11 @@ impl ActionCache for ReapiService {
                 .record_artifact_write(ArtifactProducer::Reapi, "damped", 0);
         }
         let mut response = Response::new(action_result);
-        self.retain_unary_response_materialization(&mut response, "action result response")?;
+        self.retain_write_response_materialization(
+            &mut response,
+            &memory_admission,
+            "action result response",
+        )?;
         // Book usage only after the response is fully built. Every applied
         // update is billed: an action result is a mutable entry whose content
         // changes across updates, so there is no CAS-style "already present"
@@ -2288,7 +2332,7 @@ impl ContentAddressableStorage for ReapiService {
         };
         self.authorize_request(&request, auth).await?;
         let (metadata, mut extensions, message) = request.into_parts();
-        let _memory_admission = extensions
+        let memory_admission = extensions
             .remove::<GrpcWriteAdmission>()
             .expect("write decode admission was checked before authorization");
         let namespace_id = namespace_from_instance(&message.instance_name);
@@ -2343,7 +2387,11 @@ impl ContentAddressableStorage for ReapiService {
         }
 
         let mut response = Response::new(reapi::BatchUpdateBlobsResponse { responses });
-        self.retain_unary_response_materialization(&mut response, "batch update response")?;
+        self.retain_write_response_materialization(
+            &mut response,
+            &memory_admission,
+            "batch update response",
+        )?;
         if stored_any {
             self.record_reapi_upload(&metadata, namespace_id, stored_bytes);
         }
@@ -2579,7 +2627,7 @@ impl ContentAddressableStorage for ReapiService {
         )
         .await?;
         let (metadata, mut extensions, mut message) = request.into_parts();
-        let _memory_admission = extensions
+        let memory_admission = extensions
             .remove::<GrpcWriteAdmission>()
             .expect("splice decode admission was checked before authorization");
         let namespace_id = namespace_from_instance(&message.instance_name);
@@ -2612,7 +2660,11 @@ impl ContentAddressableStorage for ReapiService {
             let mut response = Response::new(reapi::SpliceBlobResponse {
                 blob_digest: Some(blob_digest),
             });
-            self.retain_unary_response_materialization(&mut response, "splice blob response")?;
+            self.retain_write_response_materialization(
+                &mut response,
+                &memory_admission,
+                "splice blob response",
+            )?;
             return Ok(response);
         }
         if message.chunking_function != reapi::chunking_function::Value::FastCdc2020 as i32 {
@@ -2691,7 +2743,11 @@ impl ContentAddressableStorage for ReapiService {
         let mut response = Response::new(reapi::SpliceBlobResponse {
             blob_digest: Some(blob_digest),
         });
-        self.retain_unary_response_materialization(&mut response, "splice blob response")?;
+        self.retain_write_response_materialization(
+            &mut response,
+            &memory_admission,
+            "splice blob response",
+        )?;
         Ok(response)
     }
 }
@@ -4186,12 +4242,16 @@ async fn update_batch_blob(
             let admission = match state.memory.try_acquire_reapi_materialization(declared) {
                 Ok(admission) => admission,
                 Err(()) => {
-                    let kind = if declared > state.memory.reapi_materialization_limit_bytes() {
-                        shed_kind::REAPI_REQUEST_BUDGET
+                    // Decoding an upload is write decoding: a full pool here is
+                    // write backpressure, filed apart from the read sheds.
+                    if declared > state.memory.reapi_materialization_limit_bytes() {
+                        record_materialization_rejection(state, shed_kind::REAPI_REQUEST_BUDGET);
                     } else {
-                        shed_kind::REAPI_MATERIALIZATION
-                    };
-                    record_materialization_rejection(state, kind);
+                        state
+                            .metrics
+                            .grpc_write_admission_metrics()
+                            .record_decode_rejected();
+                    }
                     return rejected(
                         Some(digest),
                         rpc_status(
@@ -12587,6 +12647,209 @@ mod tests {
         .await
         .expect("every decode permit should be released with the response");
 
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    /// Publishes a memory floor whose derived transient pool is
+    /// `floor_pool_bytes`, below the ceiling headroom, which is the shape every
+    /// governed production instance has: writes may borrow above the floor,
+    /// responses may not.
+    fn with_floor_pool(config: &mut crate::config::Config, floor_pool_bytes: u64) {
+        let probe_floor_bytes = u64::MAX / 2;
+        config.memory_floor_bytes = Some(probe_floor_bytes);
+        let untracked_bytes = probe_floor_bytes
+            - config
+                .anon_admission_budget_bytes()
+                .expect("a published floor sizes the pool");
+        config.memory_floor_bytes = Some(untracked_bytes + floor_pool_bytes);
+    }
+
+    fn hold_floor_pool(
+        memory: &crate::memory::MemoryController,
+    ) -> Vec<crate::memory::MemoryPermit> {
+        let limit = memory.reapi_materialization_limit_bytes();
+        let held = (0..memory.transient_capacity_bytes() as usize / limit)
+            .map(|_| {
+                memory
+                    .try_acquire_reapi_materialization(limit)
+                    .expect("an idle floor pool admits")
+                    .expect("a non-empty reservation holds a permit")
+            })
+            .collect();
+        assert_eq!(
+            memory.transient_reserved_bytes(),
+            memory.transient_capacity_bytes()
+        );
+        held
+    }
+
+    fn rendered_counter(context: &TestContext, series: &str) -> u64 {
+        context
+            .state
+            .metrics
+            .render()
+            .lines()
+            .find_map(|line| {
+                line.strip_prefix(series)
+                    .and_then(|value| value.trim().parse::<u64>().ok())
+            })
+            .unwrap_or(0)
+    }
+
+    fn assert_decode_borrowed_ceiling_headroom(context: &TestContext) {
+        assert!(
+            rendered_counter(
+                context,
+                "kura_memory_actions_total_total{action=\"transient_ceiling_headroom_borrowed\"}"
+            ) > 0,
+            "the write should have decoded on borrowed headroom above the full floor"
+        );
+    }
+
+    // A write that decoded on borrowed headroom because the floor pool was full
+    // has stored its blobs by the time it answers, so its reply must not be
+    // refused for want of floor memory: a refusal makes the client upload an
+    // already-stored batch again.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn batch_update_acknowledges_stored_blobs_while_the_floor_pool_is_full() {
+        use reapi::content_addressable_storage_client::ContentAddressableStorageClient;
+
+        let context = test_context(|config| with_floor_pool(config, 64 * 1024 * 1024)).await;
+        let (channel, shutdown_tx, server) = connect_test_routes(context.state.clone()).await;
+        let mut client = ContentAddressableStorageClient::new(channel);
+        let floor = hold_floor_pool(&context.state.memory);
+
+        let blob = b"stored while the floor pool is full".to_vec();
+        let response = client
+            .batch_update_blobs(reapi::BatchUpdateBlobsRequest {
+                instance_name: "ios".into(),
+                requests: vec![reapi::batch_update_blobs_request::Request {
+                    digest: Some(digest_of(&blob)),
+                    data: blob.clone(),
+                    compressor: 0,
+                }],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+            })
+            .await
+            .expect("a stored batch should be acknowledged")
+            .into_inner();
+
+        assert_eq!(
+            response
+                .responses
+                .iter()
+                .map(|response| response.status.as_ref().map(|status| status.code))
+                .collect::<Vec<_>>(),
+            vec![Some(0)]
+        );
+        let key = blob_key(&digest_key(&digest_of(&blob)).expect("digest key"));
+        assert!(
+            context
+                .state
+                .store
+                .manifest_for_key(ArtifactProducer::Reapi, "ios", &key)
+                .expect("manifest lookup")
+                .is_some()
+        );
+        assert_decode_borrowed_ceiling_headroom(&context);
+        assert_materialization_metrics(&context, 0, 0, 0);
+
+        drop(floor);
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn update_action_result_acknowledges_the_stored_entry_while_the_floor_pool_is_full() {
+        use reapi::action_cache_client::ActionCacheClient;
+
+        let context = test_context(|config| with_floor_pool(config, 64 * 1024 * 1024)).await;
+        let (channel, shutdown_tx, server) = connect_test_routes(context.state.clone()).await;
+        let mut client = ActionCacheClient::new(channel);
+        let floor = hold_floor_pool(&context.state.memory);
+
+        let action_digest = digest_of(b"action stored while the floor pool is full");
+        let action_result = reapi::ActionResult {
+            stdout_raw: b"compiled".to_vec(),
+            ..Default::default()
+        };
+        let response = client
+            .update_action_result(reapi::UpdateActionResultRequest {
+                instance_name: "ios".into(),
+                action_digest: Some(action_digest.clone()),
+                action_result: Some(action_result.clone()),
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            })
+            .await
+            .expect("a stored action result should be acknowledged")
+            .into_inner();
+
+        assert_eq!(response, action_result);
+        let key = action_cache_key(&digest_key(&action_digest).expect("digest key"));
+        assert!(
+            context
+                .state
+                .store
+                .manifest_for_key(ArtifactProducer::Reapi, "ios", &key)
+                .expect("manifest lookup")
+                .is_some()
+        );
+        assert_decode_borrowed_ceiling_headroom(&context);
+        assert_materialization_metrics(&context, 0, 0, 0);
+
+        drop(floor);
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    // Decoding a compressed upload item is write decoding, so a full pool
+    // refusing it is write backpressure. Counting it as a response
+    // materialization shed pages the remote-execution reads alert for uploads.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn batch_update_counts_a_refused_compressed_item_as_write_decode_backpressure() {
+        use reapi::content_addressable_storage_client::ContentAddressableStorageClient;
+
+        let context = test_context(|config| with_floor_pool(config, 64 * 1024 * 1024)).await;
+        let (channel, shutdown_tx, server) = connect_test_routes(context.state.clone()).await;
+        let mut client = ContentAddressableStorageClient::new(channel);
+        let floor = hold_floor_pool(&context.state.memory);
+
+        let blob = vec![0x42_u8; 64 * 1024];
+        let encoded = zstd::stream::encode_all(blob.as_slice(), 3).expect("encode");
+        let response = client
+            .batch_update_blobs(reapi::BatchUpdateBlobsRequest {
+                instance_name: "ios".into(),
+                requests: vec![reapi::batch_update_blobs_request::Request {
+                    digest: Some(digest_of(&blob)),
+                    data: encoded,
+                    compressor: reapi::compressor::Value::Zstd as i32,
+                }],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+            })
+            .await
+            .expect("a refused item should be answered per item")
+            .into_inner();
+
+        assert_eq!(
+            response
+                .responses
+                .iter()
+                .map(|response| response.status.as_ref().map(|status| status.code))
+                .collect::<Vec<_>>(),
+            vec![Some(tonic::Code::ResourceExhausted as i32)]
+        );
+        assert_eq!(
+            rendered_counter(
+                &context,
+                "kura_capacity_sheds_total_total{kind=\"reapi_write_decode\"}"
+            ),
+            1
+        );
+        assert_materialization_metrics(&context, 0, 0, 0);
+
+        drop(floor);
         let _ = shutdown_tx.send(());
         let _ = server.await;
     }

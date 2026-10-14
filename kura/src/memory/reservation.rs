@@ -224,6 +224,16 @@ impl ForegroundMemoryReservation {
     pub(crate) fn try_resize(&mut self, requested_bytes: u64) -> Result<(), ()> {
         self.transient.try_resize_foreground(requested_bytes)
     }
+
+    /// Moves `bytes` of this reservation into a permit that can outlive it.
+    pub(crate) fn try_split_off_permit(&mut self, bytes: u64) -> Result<Option<MemoryPermit>, ()> {
+        if bytes == 0 {
+            return Ok(None);
+        }
+        Ok(Some(MemoryPermit {
+            _transient: self.transient.try_split_off(bytes)?,
+        }))
+    }
 }
 
 pub(super) struct ForegroundWaiter {
@@ -279,6 +289,46 @@ impl Drop for ForegroundWaiter {
 }
 
 impl TransientMemoryReservation {
+    /// Moves `bytes` of this reservation into a new one, floor-derived bytes
+    /// first, so what outlives this reservation holds protected memory and the
+    /// borrowed headroom goes back with it. Never acquires: the new reservation
+    /// holds only bytes this one already held.
+    fn try_split_off(&mut self, bytes: u64) -> Result<Self, ()> {
+        let requested = usize::try_from(bytes).map_err(|_| ())?;
+        let floor_held = self
+            .permit
+            .as_ref()
+            .map_or(0, OwnedSemaphorePermit::num_permits);
+        let elastic_held = self
+            .elastic_permit
+            .as_ref()
+            .map_or(0, OwnedSemaphorePermit::num_permits);
+        if bytes > self.bytes || requested > floor_held.saturating_add(elastic_held) {
+            return Err(());
+        }
+        let from_floor = requested.min(floor_held);
+        let from_elastic = requested - from_floor;
+        let permit = match from_floor {
+            0 => None,
+            permits => self.permit.as_mut().and_then(|held| held.split(permits)),
+        };
+        let elastic_permit = match from_elastic {
+            0 => None,
+            permits => self
+                .elastic_permit
+                .as_mut()
+                .and_then(|held| held.split(permits)),
+        };
+        self.bytes -= bytes;
+        Ok(Self {
+            controller: self.controller.clone(),
+            permit,
+            elastic_permit,
+            elasticity: TransientElasticity::Fixed,
+            bytes,
+        })
+    }
+
     fn try_resize_foreground(&mut self, requested_bytes: u64) -> Result<(), ()> {
         if requested_bytes > self.bytes {
             if !self
