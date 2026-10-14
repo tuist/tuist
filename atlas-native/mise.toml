@@ -1,5 +1,5 @@
 [tools]
-"github:tuist/once" = "0.67.1"
+"github:tuist/once" = "0.68.2"
 rust = "1.96.0"
 kotlin = "2.4.10"
 "github:ktlint/ktlint" = { version = "1.7.1", asset_pattern = "ktlint-*.zip" }

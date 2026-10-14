@@ -20,6 +20,12 @@ credentials in Keychain; Android opens the system browser and encrypts credentia
 with an Android Keystore key. Saved sessions are restored on launch. Self-hosted
 servers require HTTPS and OAuth discovery/dynamic registration support.
 
+Both native login screens follow Tuist's welcome layout, backdrop, spacing,
+button treatments and rounded bottom panel, customized with Atlas's mark and
+azure palette. They offer Atlas-hosted and self-hosted browser sign-in; provider
+selection happens on the server's login page. Light and dark assets share a
+checked-in generator under `resources/`.
+
 Selecting a section still opens its Atlas page in the system browser, which may
 ask for a separate browser sign-in. Native OAuth tokens do not create browser
 cookies. The app does not yet fetch workspace data or provide offline editing;
@@ -39,7 +45,11 @@ mise install rust github:tuist/once
 ONCE_CACHE_PROVIDER=local mise run check
 ```
 
-The toolchain pins Once 0.67.1, Rust 1.96.0, Kotlin 2.4.10 and ktlint 1.7.1.
+The toolchain pins Once 0.68.2, Rust 1.96.0, Kotlin 2.4.10 and ktlint 1.7.1.
+The preparation workaround is still required: this Once release does not include
+[automatic source materialization](https://github.com/tuist/once/pull/390) yet.
+Once that fix ships, remove the preparation task, its task dependencies and CI
+step, and the three `vendor_dir` attributes together.
 SwiftLint uses the monorepo's pinned version. To test changes to
 Once itself, invoke the executable built from a local Once checkout in this
 workspace in place of `mise exec -- once`.

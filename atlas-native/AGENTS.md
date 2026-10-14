@@ -22,6 +22,12 @@ may require a separate browser sign-in. OAuth tokens are not browser cookies.
 - `core/include/`: authored C header and Clang module map imported by Swift.
 - `android/`: Kotlin UI, JNI adapter, Android manifest and resources.
 - `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge tests.
+  The signed-out screen matches Tuist's login layout with Atlas's azure palette,
+  mark, and supported hosted/self-hosted actions. Keep native browser auth separate
+  from presentation; restore sessions automatically rather than exposing a debug
+  restore button.
+- `resources/`: shared login-asset generation; see `resources/AGENTS.md`. Checked-in
+  light/dark backgrounds and marks feed the iOS asset catalog and Android resources.
 - `mise.toml` / `mise.lock`: pinned Once, Rust, Kotlin and ktlint toolchains.
   ktlint uses an explicit GitHub backend and locked archive, compatible with the
   repository's pinned CI Mise version. Do not rely on a backend name that only
@@ -69,7 +75,7 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
   not through an app-wide lock that would block unrelated future API requests.
 - iOS uses ThisDeviceOnly Keychain entries and a simulator-specific Keychain entitlement;
   device builds must derive their entitlement from the actual signing team/profile.
-  Once 0.67.1's iOS XCTest agent is unhosted and cannot access app Keychain; test
+  Once's iOS XCTest agent is unhosted and cannot access app Keychain; test
   storage request/failure semantics with a per-test adapter, not mutable global stubs.
   Android uses AES-GCM with Android Keystore
   keys and backup-disabled encrypted preferences. Native code must successfully persist
@@ -77,6 +83,8 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
   failures, and discard rejected registrations so the next login can register again.
 - `mise run prepare:rust` materializes locked third-party sources in ignored `.once/vendor`.
   Build/test tasks depend on it; run it before invoking Once directly on a clean checkout.
+  Once 0.68.2 does not yet include the source-materialization fix in tuist/once#390;
+  keep this required workaround until a published Once version includes that fix.
   The Android task exposes API-26 NDK clang and LLVM tools to Cargo build scripts through
   declared `build_script_tools`, so their contents participate in cache identity.
 - The Android package, Kotlin class/method names and JNI exported symbols must

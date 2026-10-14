@@ -46,7 +46,7 @@ Run `ONCE_CACHE_PROVIDER=local mise run test:core` and `mise run lint:rust` from
 refresh without network access or environment changes. Swift tests exercise the
 owned-string bridge, Keychain query/accessibility configuration, update/delete
 semantics, and secure-storage failure handling through a process-local adapter.
-Once 0.67.1 runs iOS tests in an unhosted XCTest agent without Keychain access;
+Once runs iOS tests in an unhosted XCTest agent without Keychain access;
 app-hosted tests are not implemented in that release. The simulator app has its
 own Keychain entitlement. Real device/browser login and secure-storage smoke
 checks remain part of preview validation.

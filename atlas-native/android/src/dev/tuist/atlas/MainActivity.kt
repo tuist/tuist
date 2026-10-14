@@ -61,6 +61,18 @@ class MainActivity : Activity() {
             authentication.authorizationURL = null
             openBrowser(Uri.parse(url))
         }
+        if (authentication.server == null) {
+            setContentView(
+                AtlasLoginView(
+                    this,
+                    authentication.busy,
+                    authentication.errorMessage,
+                    hosted = { authentication.signIn("https://atlas.tuist.dev", false) },
+                    selfHosted = { selfHostedPrompt() },
+                ),
+            )
+            return
+        }
         val content =
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -88,11 +100,7 @@ class MainActivity : Activity() {
             )
         }
         val server = authentication.server
-        if (server == null) {
-            button("Sign in to Atlas") { authentication.signIn("https://atlas.tuist.dev", false) }
-            button("Self-hosted server") { selfHostedPrompt() }
-            button("Restore saved session") { authentication.restore() }
-        } else {
+        if (server != null) {
             content.addView(TextView(this).apply { text = Uri.parse(server).host })
             AtlasCore().sections().forEach { section ->
                 button(section.title) {
