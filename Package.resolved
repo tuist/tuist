@@ -1,5 +1,5 @@
 {
-  "originHash" : "dff0b889c1b02206ebd1335c1d0147c5ec9f47a60fdab5238691ac11318a9145",
+  "originHash" : "9bb123430114ca73a2c2cfd2caf2d626371ddd02e08e5d6ea08495d9e814332e",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -68,7 +68,7 @@
       "identity" : "apple.swift-collections",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-collections.git",
+      "originalLocation" : "https://github.com/apple/swift-collections",
       "state" : {
         "version" : "1.2.1"
       }
@@ -95,7 +95,7 @@
       "identity" : "apple.swift-http-types",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-http-types",
+      "originalLocation" : "https://github.com/apple/swift-http-types.git",
       "state" : {
         "version" : "1.8.0"
       }
@@ -104,7 +104,7 @@
       "identity" : "apple.swift-log",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-log.git",
+      "originalLocation" : "https://github.com/apple/swift-log",
       "state" : {
         "version" : "1.13.2"
       }
@@ -202,7 +202,7 @@
       "identity" : "apple.swift-system",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-system.git",
+      "originalLocation" : "https://github.com/apple/swift-system",
       "state" : {
         "version" : "1.8.1"
       }
@@ -616,7 +616,7 @@
       "identity" : "swiftlang.swift-syntax",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/swiftlang/swift-syntax",
+      "originalLocation" : "https://github.com/swiftlang/swift-syntax.git",
       "state" : {
         "version" : "603.0.2"
       }
@@ -693,7 +693,7 @@
       "identity" : "tuist.Path",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/tuist/Path.git",
+      "originalLocation" : "https://github.com/tuist/Path",
       "state" : {
         "version" : "0.3.8"
       }
