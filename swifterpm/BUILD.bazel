@@ -34,6 +34,7 @@ swift_test(
     deps = [
         "@swiftpkg_filesystem//:FileSystemTesting",
         ":swifterpm_sources",
+        "@swiftpkg_filesystem//:FileSystemTesting",
         "@swift_argument_parser//:ArgumentParser",
         "@swiftpkg_swift_subprocess//:Subprocess",
         "@swiftpkg_filesystem//:FileSystem",

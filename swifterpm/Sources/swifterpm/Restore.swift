@@ -265,7 +265,7 @@ enum WorkspaceRestorer {
                 try await HTTPClient.download(
                     url: remoteURL,
                     destination: archivePath,
-                    headers: await HTTPClient.binaryArtifactHeaders(for: remoteURL)
+                    headers: try await HTTPClient.binaryArtifactHeaders(for: remoteURL)
                 )
 
                 let actualChecksum = try Hashing.sha256Hex(fileAt: archivePath)
