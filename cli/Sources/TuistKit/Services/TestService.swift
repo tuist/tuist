@@ -1872,8 +1872,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
     }
 
     /// The scheme's test targets a run executes every test of. Only these can have their selective-testing
-    /// hashes stored: a target the run narrowed to some of its classes or methods, or left out through
-    /// `-only-testing`, would otherwise be skipped by later runs without its other tests ever passing.
+    /// hashes stored: a target the run narrowed to some of its tests, or left out through `-only-testing`,
+    /// would otherwise be skipped by later runs without its other tests ever passing.
+    ///
+    /// With `--test-targets` or a passthrough `-only-testing`, a target counts only when it is selected whole
+    /// and no other selection narrows it. Identifiers are split on their first `/` rather than parsed, so
+    /// nested suites such as `Target/Outer/Inner/test()` still narrow their target.
     private func fullyRunTestTargetNames(
         scheme: Scheme,
         requestedTestTargets: [TestIdentifier],
@@ -1881,24 +1885,33 @@ public struct TestService { // swiftlint:disable:this type_body_length
         action: XcodeBuildTestAction,
         passthroughXcodeBuildArguments: [String]
     ) -> Set<String> {
-        var targetNames = requestedTestTargets.isEmpty
-            ? Set(
-                testActionTargetReferences(
-                    scheme: scheme,
-                    testPlanConfiguration: testPlanConfiguration,
-                    action: action
-                ).map(\.name)
-            ).subtracting(passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments))
-            : Set(requestedTestTargets.filter { $0.class == nil }.map(\.target))
+        let schemeTargetNames = Set(
+            testActionTargetReferences(
+                scheme: scheme,
+                testPlanConfiguration: testPlanConfiguration,
+                action: action
+            ).map(\.name)
+        ).subtracting(passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments))
 
-        let passthroughOnlyTesting = XcodeBuildTestCommandService
-            .testIdentifiers(for: "-only-testing", in: passthroughXcodeBuildArguments)
-            .compactMap { try? TestIdentifier(string: $0) }
-        if !passthroughOnlyTesting.isEmpty {
-            targetNames.formIntersection(passthroughOnlyTesting.filter { $0.class == nil }.map(\.target))
+        let selections = requestedTestTargets.map(\.description)
+            + XcodeBuildTestCommandService.testIdentifiers(for: "-only-testing", in: passthroughXcodeBuildArguments)
+        guard !selections.isEmpty else { return schemeTargetNames }
+
+        var wholeTargetNames = Set<String>()
+        var narrowedTargetNames = Set<String>()
+        for selection in selections {
+            let components = selection.split(separator: "/", maxSplits: 1)
+            guard let targetName = components.first.map(String.init) else { continue }
+            if components.count == 1 {
+                wholeTargetNames.insert(targetName)
+            } else {
+                narrowedTargetNames.insert(targetName)
+            }
         }
 
-        return targetNames
+        return schemeTargetNames
+            .intersection(wholeTargetNames)
+            .subtracting(narrowedTargetNames)
     }
 
     private func passthroughSkippedTestTargetNames(_ arguments: [String]) -> Set<String> {
