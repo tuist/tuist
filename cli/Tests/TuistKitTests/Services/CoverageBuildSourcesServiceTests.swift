@@ -49,7 +49,7 @@ struct CoverageBuildSourcesServiceTests {
         let storage = RunMetadataStorage()
         await storage.restoreCoverageBuildSources(from: testProductsPath)
         #expect(await storage.coverageBuildSources == CoverageBuildSources(
-            rootDirectories: ["/build-machine/checkout"],
+            rootDirectories: ["/build-machine/checkout", "/TUIST_SOURCE_ROOT"],
             files: ["Sources/A.swift": "aaa"]
         ))
     }
@@ -79,7 +79,7 @@ struct CoverageBuildSourcesServiceTests {
         }
 
         let expected = CoverageBuildSources(
-            rootDirectories: ["/checkout"],
+            rootDirectories: ["/checkout", "/TUIST_SOURCE_ROOT"],
             files: [:],
             targets: [CoverageBuildTarget(
                 name: "Lib.framework",

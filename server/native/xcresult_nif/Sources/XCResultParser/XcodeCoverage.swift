@@ -10,6 +10,11 @@ import Foundation
 public struct XcodeCoverageManifest: Codable, Equatable, Sendable {
     public static let fileName = "tuist_coverage_manifest.json"
 
+    /// The root a binary built for the cache records its sources under (`-coverage-prefix-map
+    /// <checkout>=/TUIST_SOURCE_ROOT`), the same on every machine; listed among every manifest's
+    /// root directories so such paths tie to the repository like the checkout's own.
+    public static let sourceRootPlaceholder = "/TUIST_SOURCE_ROOT"
+
     /// Every absolute spelling of the checkout's root. The compiler records the one the build
     /// used, which is not always the canonical one (`/tmp` and `/private/tmp` on macOS).
     public let rootDirectories: [String]

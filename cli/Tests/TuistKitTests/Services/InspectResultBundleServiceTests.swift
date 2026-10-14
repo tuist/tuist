@@ -927,7 +927,7 @@ struct UploadResultBundleServiceTests {
             .willReturn(["Sources/B.swift": "bbb", "Sources/A.swift": "aaa"])
         given(coverageUploadService)
             .prepare(resultBundlePath: .value(xcresultPath), manifest: .value(XcodeCoverageManifest(
-                rootDirectories: ["/tmp/project", "/private/tmp/project"],
+                rootDirectories: ["/tmp/project", "/private/tmp/project", "/TUIST_SOURCE_ROOT"],
                 partial: true,
                 // B.swift is tracked but the run did not cover it.
                 files: [XcodeCoverageSourceFile(path: "Sources/A.swift", gitBlobId: "aaa")]
@@ -1133,7 +1133,7 @@ struct UploadResultBundleServiceTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         let manifest = XcodeCoverageManifest(
-            rootDirectories: ["/build-machine/checkout", "/tmp/project", "/private/tmp/project"],
+            rootDirectories: ["/build-machine/checkout", "/tmp/project", "/private/tmp/project", "/TUIST_SOURCE_ROOT"],
             partial: false,
             files: [XcodeCoverageSourceFile(path: "Sources/A.swift", gitBlobId: "compiled")]
         )
@@ -1239,7 +1239,7 @@ struct UploadResultBundleServiceTests {
             from: Data(try await fileSystem.readTextFile(at: manifestPath).utf8)
         )
         #expect(manifest == XcodeCoverageManifest(
-            rootDirectories: ["/tmp/project", "/private/tmp/project"],
+            rootDirectories: ["/tmp/project", "/private/tmp/project", "/TUIST_SOURCE_ROOT"],
             partial: false,
             files: [XcodeCoverageSourceFile(path: "Sources/A.swift", gitBlobId: "aaa")]
         ))
@@ -1291,7 +1291,7 @@ struct UploadResultBundleServiceTests {
             from: Data(try await fileSystem.readTextFile(at: manifestPath).utf8)
         )
         #expect(manifest == XcodeCoverageManifest(
-            rootDirectories: ["/tmp/project", "/private/tmp/project"],
+            rootDirectories: ["/tmp/project", "/private/tmp/project", "/TUIST_SOURCE_ROOT"],
             partial: false,
             files: [XcodeCoverageSourceFile(path: "Sources/A.swift", gitBlobId: "aaa")],
             clientReported: true

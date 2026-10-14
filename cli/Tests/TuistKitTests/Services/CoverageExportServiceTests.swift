@@ -328,4 +328,73 @@ struct CoverageExportServiceTests {
         #expect(CoverageExportService.platform(ofProductsDirectory: "Debug-watchos") == ("watchos", false))
         #expect(CoverageExportService.platform(ofProductsDirectory: "Debug-xrsimulator") == ("xros", true))
     }
+
+    @Test(.inTemporaryDirectory) func mapsRecordedAliasesBackThroughTheTargetsPrefixMap() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let intermediates = directory.appending(
+            components: "Build",
+            "Intermediates.noindex",
+            "App.build",
+            "Debug-iphonesimulator"
+        )
+        for (target, map) in [
+            ("Lib", ["/^src": "/checkout/Lib", "/^built": "/dd/Build/Products"]),
+            ("Other", ["/^src": "/checkout/Other"]),
+        ] {
+            let targetDirectory = intermediates.appending(component: "\(target).build")
+            try FileManager.default.createDirectory(atPath: targetDirectory.pathString, withIntermediateDirectories: true)
+            try JSONEncoder().encode(map)
+                .write(to: URL(fileURLWithPath: targetDirectory.appending(component: "compilation-prefix-map.json").pathString))
+        }
+        try FileManager.default.createDirectory(
+            atPath: directory.appending(components: "existing").pathString,
+            withIntermediateDirectories: true
+        )
+
+        let maps = CompilationPrefixMaps(derivedDataDirectory: directory)
+
+        #expect(maps.remap("/^src/A.swift", target: "Lib") == "/checkout/Lib/A.swift")
+        #expect(maps.remap("/^src/A.swift", target: "Other") == "/checkout/Other/A.swift")
+        // A target without a map of its own goes through the first map that knows the alias.
+        #expect(maps.remap("/^src/A.swift", target: "LibTests") == "/checkout/Lib/A.swift")
+        #expect(maps.remap("/^sdk/usr/include/x.h", target: "Lib") == "/^sdk/usr/include/x.h")
+        #expect(maps.remap("/checkout/Lib/A.swift", target: "Lib") == "/checkout/Lib/A.swift")
+        #expect(CompilationPrefixMaps(derivedDataDirectory: nil).remap("/^src/A.swift", target: "Lib") == "/^src/A.swift")
+
+        // Among several maps for an alias, the one whose result exists wins.
+        let existing = CompilationPrefixMaps(mapsByTarget: [
+            "A": ["/^src": "/nowhere"],
+            "B": ["/^src": directory.pathString],
+        ])
+        #expect(existing.remap("/^src/existing", target: "C") == directory.appending(component: "existing").pathString)
+
+        #expect(CompilationPrefixMaps.targetName(ofProduct: "/p/Lib.framework/Versions/A/Lib") == "Lib")
+        #expect(CompilationPrefixMaps.targetName(ofProduct: "/p/libLib.a") == "Lib")
+        #expect(CompilationPrefixMaps.targetName(ofProduct: "/p/App.app/Contents/MacOS/App") == "App")
+        #expect(CompilationPrefixMaps.targetName(ofProduct: "/p/AppTests.xctest/AppTests") == "AppTests")
+    }
+
+    @Test(.inTemporaryDirectory) func writesMappedFilesUnderThePathTheyMapBackTo() async throws {
+        let report = try write(
+            "SF:/^src/Lib/A.swift\nDA:1,1\nend_of_record\nSF:/^src/Lib/A.swift\nDA:1,1\nend_of_record\n",
+            named: "0.lcov"
+        )
+        let output = try #require(FileSystem.temporaryTestDirectory).appending(component: CoverageExport.fileName)
+        let attribution = CoverageExport.Attribution(targets: [
+            XcodeCoverageTarget(name: "Lib.framework", buildProductPath: nil, files: ["/checkout/Lib/A.swift"]),
+        ])
+
+        try await CoverageExport.write(
+            reports: [report],
+            attribution: attribution,
+            spans: FunctionSpans(),
+            demangle: { _ in [:] },
+            remap: { path, _ in path.replacingOccurrences(of: "/^src", with: "/checkout") },
+            to: output
+        )
+
+        let files = try XcodeCoverageParser.readFiles(at: output)
+        #expect(files.map(\.path) == ["/checkout/Lib/A.swift"])
+        #expect(files[0].targets == ["Lib.framework"])
+    }
 }

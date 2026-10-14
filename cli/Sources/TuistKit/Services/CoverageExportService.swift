@@ -82,15 +82,27 @@ public struct CoverageExportService: CoverageExportServicing {
                 return nil
             }
             let output = resultBundlePath.appending(component: CoverageExport.fileName)
+            let prefixMaps = CompilationPrefixMaps(derivedDataDirectory: derivedDataDirectory)
+            let targetNames = products.map { CompilationPrefixMaps.targetName(ofProduct: $0.path) }
             try await fileSystem.runInTemporaryDirectory(prefix: "tuist-coverage-export") { directory in
                 async let reports = export(products: products, profile: profile, into: directory)
                 let spans = await Self.spans(of: products)
                 let exported = try await reports
                 try await CoverageExport.write(
                     reports: products.map { exported[$0.path]! },
-                    attribution: CoverageExport.Attribution(targets: targets),
+                    attribution: CoverageExport.Attribution(targets: targets.map { target in
+                        XcodeCoverageTarget(
+                            name: target.name,
+                            buildProductPath: target.buildProductPath,
+                            files: target.files.map { prefixMaps.remap(
+                                $0,
+                                target: CompilationPrefixMaps.targetName(ofProduct: target.name)
+                            ) }
+                        )
+                    }),
                     spans: spans,
                     demangle: demangle,
+                    remap: { path, report in prefixMaps.remap(path, target: targetNames[report]) },
                     to: output
                 )
             }
@@ -546,6 +558,7 @@ public enum CoverageExport {
         attribution: Attribution,
         spans: FunctionSpans,
         demangle: ([String]) async throws -> [String: String],
+        remap: (_ path: String, _ report: Int) -> String = { path, _ in path },
         to output: AbsolutePath
     ) async throws {
         guard FileManager.default.createFile(atPath: output.pathString, contents: nil) else {
@@ -555,11 +568,14 @@ public enum CoverageExport {
         defer { try? handle.close() }
         let encoder = JSONEncoder()
         var emitted: Set<String> = []
-        for report in reports {
+        for (index, report) in reports.enumerated() {
             let demangled = try await demangle(functionNames(in: report))
             try forEachRecord(in: report) { record in
-                guard emitted.insert(record.path).inserted else { return }
-                let file = Self.file(record, attribution: attribution, spans: spans, demangled: demangled)
+                // Xcode's prefix mapping records `/^src/…`; the file is emitted under the path it
+                // maps back to, while the mapping's spans know it by the recorded one.
+                let path = remap(record.path, index)
+                guard emitted.insert(path).inserted else { return }
+                let file = Self.file(record, path: path, attribution: attribution, spans: spans, demangled: demangled)
                 try autoreleasepool {
                     try handle.write(contentsOf: try encoder.encode(file))
                     try handle.write(contentsOf: Data([UInt8(ascii: "\n")]))
@@ -570,13 +586,15 @@ public enum CoverageExport {
 
     static func file(
         _ record: LCOVRecord,
+        path: String? = nil,
         attribution: Attribution,
         spans: FunctionSpans,
         demangled: [String: String]
     ) -> XcodeCoverageFile {
+        let path = path ?? record.path
         let lines = record.lines.sorted { $0.line < $1.line }
         let counts = lines.map { count($0.count) }
-        let (targets, isTest) = attribution.targets(of: record.path)
+        let (targets, isTest) = attribution.targets(of: path)
         let starts = record.functions.map(\.line).sorted()
         let functions = record.functions.sorted { ($0.line, $0.name) < ($1.line, $1.name) }.map { function in
             let span = spans.span(file: record.path, function: function.name)
@@ -597,7 +615,7 @@ public enum CoverageExport {
         }
         // Test code is left out of every figure, so only its counts travel.
         return XcodeCoverageFile(
-            path: record.path,
+            path: path,
             gitBlobId: nil,
             targets: targets,
             isTest: isTest,
@@ -689,5 +707,77 @@ public enum CoverageExport {
             pending += chunk[lineStart...]
         }
         if !pending.isEmpty { try body(Substring(String(decoding: pending, as: UTF8.self))) }
+    }
+}
+
+/// The reverse of Xcode's prefix mapping, per target: `compilation-prefix-map.json` in each
+/// target's intermediates (`Build/Intermediates.noindex/<project>.build/<configuration>/
+/// <target>.build/`) maps the aliases the compiler recorded (`/^src`, `/^root`, `/^built`, …)
+/// back to the directories of this build. A coverage build maps only when the project opted in
+/// (`enableCoveragePrefixMapping`), since `xccov` drops mapped files.
+struct CompilationPrefixMaps {
+    /// Each target's entries, longest alias first, so the most specific one wins.
+    private(set) var mapsByTarget: [String: [(alias: String, path: String)]] = [:]
+
+    init(mapsByTarget: [String: [String: String]]) {
+        self.mapsByTarget = mapsByTarget.mapValues { map in
+            map.map { (alias: $0.key, path: $0.value) }.sorted { $0.alias.count > $1.alias.count }
+        }
+    }
+
+    init(derivedDataDirectory: AbsolutePath?) {
+        guard let derivedDataDirectory else {
+            self.init(mapsByTarget: [:])
+            return
+        }
+        let intermediates = derivedDataDirectory.appending(components: "Build", "Intermediates.noindex")
+        var maps: [String: [String: String]] = [:]
+        for project in (try? FileManager.default.contentsOfDirectory(atPath: intermediates.pathString)) ?? []
+            where project.hasSuffix(".build")
+        {
+            let projectDirectory = intermediates.appending(component: project)
+            for configuration in (try? FileManager.default.contentsOfDirectory(atPath: projectDirectory.pathString)) ?? [] {
+                let configurationDirectory = projectDirectory.appending(component: configuration)
+                for target in (try? FileManager.default.contentsOfDirectory(atPath: configurationDirectory.pathString)) ?? []
+                    where target.hasSuffix(".build")
+                {
+                    let file = configurationDirectory.appending(components: target, "compilation-prefix-map.json")
+                    guard let data = try? Data(contentsOf: URL(fileURLWithPath: file.pathString)),
+                          let map = try? JSONDecoder().decode([String: String].self, from: data)
+                    else { continue }
+                    maps[String(target.dropLast(".build".count)), default: [:]].merge(map) { first, _ in first }
+                }
+            }
+        }
+        self.init(mapsByTarget: maps)
+    }
+
+    /// The name of the target a product was built from: the product's file name without its
+    /// extension (`Lib` for `Lib.framework/Versions/A/Lib`, `libLib.a`, `App.app/App`).
+    static func targetName(ofProduct path: String) -> String {
+        let components = path.split(separator: "/").map(String.init)
+        let bundle = components.last { component in
+            ["app", "appex", "framework", "xctest", "bundle", "a", "o", "dylib"].contains((component as NSString).pathExtension)
+        } ?? components.last ?? path
+        var name = (bundle as NSString).deletingPathExtension
+        if (bundle as NSString).pathExtension == "a", name.hasPrefix("lib") { name = String(name.dropFirst(3)) }
+        return name
+    }
+
+    /// `path` with its alias replaced: through the target's own map when it knows the alias,
+    /// else through the first map whose result exists on disk, else the first that knows it. A
+    /// path without an alias, or one no map knows, is returned as is.
+    func remap(_ path: String, target: String) -> String {
+        guard path.hasPrefix("/^") else { return path }
+        if let own = mapsByTarget[target], let remapped = Self.remap(path, through: own) { return remapped }
+        let candidates = mapsByTarget.sorted { $0.key < $1.key }.compactMap { Self.remap(path, through: $0.value) }
+        return candidates.first { FileManager.default.fileExists(atPath: $0) } ?? candidates.first ?? path
+    }
+
+    private static func remap(_ path: String, through entries: [(alias: String, path: String)]) -> String? {
+        for entry in entries where path == entry.alias || path.hasPrefix(entry.alias + "/") {
+            return entry.path + path.dropFirst(entry.alias.count)
+        }
+        return nil
     }
 }

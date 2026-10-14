@@ -621,11 +621,13 @@ extension UploadResultBundleService {
     /// Every spelling of the root the covered files use. The compiler records the path the build
     /// was invoked through, which is not always the one Git reports: `/tmp` is `/private/tmp` on
     /// macOS, and a checkout can be reached through a symlink. A file whose canonical path is under
-    /// the root contributes the prefix it was recorded with.
+    /// the root contributes the prefix it was recorded with. A binary from the cache records its
+    /// files under the placeholder instead of any checkout.
     static func rootSpellings(of root: AbsolutePath, coveredFilePaths: [String]) -> [String] {
         let canonicalRoot = canonical(root.pathString)
         var spellings = [root.pathString]
         if canonicalRoot != root.pathString { spellings.append(canonicalRoot) }
+        spellings.append(XcodeCoverageManifest.sourceRootPlaceholder)
 
         for path in coveredFilePaths where path.hasPrefix("/") && !spellings.contains(where: { path.hasPrefix($0 + "/") }) {
             let resolved = canonical(path)
