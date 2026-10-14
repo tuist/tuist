@@ -72,7 +72,7 @@ private-network guide above.
 | `ScalewayAppleSiliconMachine` | One Mac mini. Has the Scaleway server type, zone, OS, per-host pod CIDR, fleet name (ties Machines on the same fleet to one shared SSH key), and kubelet version. SSH and bootstrap material are operator-managed — no Secret refs in the spec. |
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
 | `RackAppleSiliconMachine` | One Mac mini we own as a node: the RackHost it is (`host`), sizing and fleet. Its RackHost keeps it and the Machine that owns it. |
-| `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, node sizing, parked. Its controller keeps the host's Machine. Nothing running on the host reads it. |
+| `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, node sizing, parked. Status carries its outlet's state and draw. Its controller keeps the host's Machine. Nothing running on the host reads it. |
 | `RackPDU` | One switched PDU in a rack we operate, rendered from the site definition in `infra/rack-switch-fleet`: model, the MAC its address is reserved against, address, chain, `managedBy`, the outlets' startup state. Its controller adopts the card and owns its credentials, certificate pin and egress Service. See "RackPDU" below. |
 | `RackATS` | One automatic transfer switch (EATS16N) in a rack we operate, rendered from the site definition: model, MAC, address, `managedBy`, `preferredSource`. Its controller adopts the card like a RackPDU's, keeps the preferred source, and every minute records which source powers the load and each source's state in status, metrics and events. See "RackATS" below. |
 | `RackLinuxMachine` | One rack Linux node, created by the operator with its CAPI Machine under its host's name: the host it is, the name it joined under, its converge state. |
@@ -429,6 +429,19 @@ mode behind it:
   went off before powering back on: a cycle that silently failed to cut power
   would return success, and the caller would wait out a boot that never happened
   and count the recovery as attempted.
+- **A cycle cannot start a mini that has never booted.** `pmset autorestart 1`
+  is set by our bootstrap, and a new Apple silicon mini does not start on AC
+  without it, so a mini that arrives plugged in and off stays off through every
+  cycle. Its outlet's meter (`power.Meter`, the G4's
+  `outlets/<n>/measures`) tells it apart: an empty outlet reads exactly 0 W and
+  0 VA, a mini plugged in and off about 0.1 W and 4 to 6 VA (its PSU's input
+  filter), a sleeping one 2 to 3 W, a running one 20 to 55 W. `power.Classify`
+  splits them at 1 VA and 1 W. While a host reads plugged in and off, the
+  bootstrap-failure path skips its cycle with a `PowerButtonNeeded` event
+  instead of cycling. On 2026-10-14 `ber1-runner-b04` to `b09` had sat for two
+  and a half days in a loop of five-minute SSH timeouts and cycles that could
+  never start them. A meter that cannot be read does not withhold the cycle,
+  and Shelly reports no apparent power, so its outlets never read as off.
 - **Giving up quarantines the host.** The Scaleway kind's bootstrap-exhaustion
   path releases the host so a *different* mini is ordered. A rack host's
   machine has no other box, so after `--bootstrap-max-attempts` the machine
@@ -1057,7 +1070,7 @@ and its Node through the Machine's owner reference.
 
 ```bash
 kubectl get rh                      # address, machine, power, quarantined, parked
-kubectl get rh -o wide              # + serial and site
+kubectl get rh -o wide              # + serial, site and the outlet's watts
 kubectl get rasm                    # the machines, with the host each is
 kubectl delete rh <name>            # retire a host the values no longer declare
 ```
@@ -1090,6 +1103,19 @@ running perfectly, but it means the fleet has lost its only remote repair for
 that box, and it is worth catching before the reboot is needed rather than at
 the moment it cannot be done. `capt_rackhost_quarantined` is 1 while a host's
 bootstrap is held off.
+
+**A mini plugged in and powered off** reports `HostDrawing=False` with reason
+`PoweredOffAtOutlet`, a `PoweredOffAtOutlet` event when it starts, and
+`capt_rackhost_powered_off_at_outlet 1`. Someone at the rack has to press its
+power button; no outlet action will start it. The other reasons are
+`NoLoadOnOutlet` (nothing plugged in, or the host is on another outlet) and
+`OutletOff`; `Drawing` is True, and `OutletDrawUnknown` is an outlet whose meter
+could not be read or does not tell an off mini from an empty outlet. The last
+reading is in `status.outletDraw` (`kubectl get rh -o wide` shows its watts)
+and in `capt_rackhost_outlet_active_power_watts`,
+`capt_rackhost_outlet_apparent_power_va` and
+`capt_rackhost_outlet_current_amps`, which publish no series when there is no
+reading.
 
 **A quarantine expires on its own** after `--rackhost-quarantine-retry-after`
 (default 30m), and bootstrap starts over with a `QuarantineExpired` event.

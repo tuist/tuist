@@ -13,6 +13,10 @@
 // abstraction, so each kind of PDU is a Driver rather than a change to the
 // machine controller: `eaton` for the rack's Eaton Rack PDU G4s, `shelly` for
 // home and office prototypes.
+//
+// A driver that is also a Meter reads an outlet's draw, which tells a mini
+// that is plugged in and off (one bootstrap has never set autorestart on, which
+// no cycle starts) from an empty outlet and a running host. See Classify.
 package power
 
 import (
