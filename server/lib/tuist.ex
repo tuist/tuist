@@ -237,6 +237,7 @@ defmodule Tuist do
       PubSub,
       KeyValueStore,
       KeyValueStore.LoadLimiter,
+      ReportActor,
       ClickHouseRepo,
       ClickHouseFlop,
       ClickHouseTimeSeries,

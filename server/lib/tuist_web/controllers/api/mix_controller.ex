@@ -8,7 +8,9 @@ defmodule TuistWeb.API.MixController do
   alias Tuist.VCS.RemoteURL
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.ReportActor
   alias TuistWeb.Authentication
+  alias TuistWeb.Plugs.ReportActorPlug
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -17,6 +19,7 @@ defmodule TuistWeb.API.MixController do
 
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :build)
+  plug(ReportActorPlug when action == :create_build)
 
   tags ["Mix"]
 
@@ -32,6 +35,7 @@ defmodule TuistWeb.API.MixController do
     summary: "Create a Mix (Elixir) compile build.",
     operation_id: "createMixBuild",
     parameters: [
+      "x-tuist-actor-id": ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -292,7 +296,8 @@ defmodule TuistWeb.API.MixController do
          %Schema{
            type: :object,
            properties: %{
-             id: %Schema{type: :string, format: :uuid, description: "The build ID."}
+             id: %Schema{type: :string, format: :uuid, description: "The build ID."},
+             actor: ReportActor
            },
            required: [:id]
          }},
@@ -311,7 +316,7 @@ defmodule TuistWeb.API.MixController do
 
         conn
         |> put_status(:created)
-        |> json(%{id: build_id})
+        |> json(%{id: build_id, actor: ReportActorPlug.actor(conn)})
 
       {:error, _reason} ->
         conn
@@ -340,5 +345,6 @@ defmodule TuistWeb.API.MixController do
       steps: body[:steps] || [],
       machine_metrics: body[:machine_metrics] || []
     })
+    |> Map.merge(Tuist.ReportActor.attributes(conn))
   end
 end

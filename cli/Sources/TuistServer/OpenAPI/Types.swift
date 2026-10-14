@@ -6460,6 +6460,8 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/RunsBuild`.
         public struct RunsBuild: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunsBuild/actor`.
+            public var actor: Components.Schemas.ReportActor?
             /// The duration of the build run in milliseconds
             ///
             /// - Remark: Generated from `#/components/schemas/RunsBuild/duration`.
@@ -6502,6 +6504,7 @@ public enum Components {
             /// Creates a new `RunsBuild`.
             ///
             /// - Parameters:
+            ///   - actor:
             ///   - duration: The duration of the build run in milliseconds
             ///   - id: The unique identifier of the build run
             ///   - project_id: The ID of the Tuist project associated with this build run
@@ -6509,6 +6512,7 @@ public enum Components {
             ///   - _type: The type of the run, which is 'build' in this case
             ///   - url: The URL to access the build run
             public init(
+                actor: Components.Schemas.ReportActor? = nil,
                 duration: Swift.Int,
                 id: Swift.String,
                 project_id: Swift.Int,
@@ -6516,6 +6520,7 @@ public enum Components {
                 _type: Components.Schemas.RunsBuild._typePayload,
                 url: Swift.String
             ) {
+                self.actor = actor
                 self.duration = duration
                 self.id = id
                 self.project_id = project_id
@@ -6524,6 +6529,7 @@ public enum Components {
                 self.url = url
             }
             public enum CodingKeys: String, CodingKey {
+                case actor
                 case duration
                 case id
                 case project_id
@@ -11903,6 +11909,8 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/RunsTest`.
         public struct RunsTest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunsTest/actor`.
+            public var actor: Components.Schemas.ReportActor?
             /// The duration of the test run in milliseconds
             ///
             /// - Remark: Generated from `#/components/schemas/RunsTest/duration`.
@@ -11917,6 +11925,8 @@ public enum Components {
             public var project_id: Swift.Int
             /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload`.
             public struct test_case_runsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload/actor`.
+                public var actor: Components.Schemas.ReportActor?
                 /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload/argumentsPayload`.
                 public struct argumentsPayloadPayload: Codable, Hashable, Sendable {
                     /// The UUID of the argument.
@@ -11971,18 +11981,21 @@ public enum Components {
                 /// Creates a new `test_case_runsPayloadPayload`.
                 ///
                 /// - Parameters:
+                ///   - actor:
                 ///   - arguments: The argument variants (for parameterized tests).
                 ///   - id: The UUID of the test case run.
                 ///   - module_name: The module name of the test case.
                 ///   - name: The name of the test case.
                 ///   - suite_name: The suite name of the test case.
                 public init(
+                    actor: Components.Schemas.ReportActor? = nil,
                     arguments: Components.Schemas.RunsTest.test_case_runsPayloadPayload.argumentsPayload? = nil,
                     id: Swift.String,
                     module_name: Swift.String,
                     name: Swift.String,
                     suite_name: Swift.String
                 ) {
+                    self.actor = actor
                     self.arguments = arguments
                     self.id = id
                     self.module_name = module_name
@@ -11990,6 +12003,7 @@ public enum Components {
                     self.suite_name = suite_name
                 }
                 public enum CodingKeys: String, CodingKey {
+                    case actor
                     case arguments
                     case id
                     case module_name
@@ -12022,6 +12036,7 @@ public enum Components {
             /// Creates a new `RunsTest`.
             ///
             /// - Parameters:
+            ///   - actor:
             ///   - duration: The duration of the test run in milliseconds
             ///   - id: The unique identifier of the test run
             ///   - project_id: The ID of the Tuist project associated with this test run
@@ -12029,6 +12044,7 @@ public enum Components {
             ///   - _type: The type of the run, which is 'test' in this case
             ///   - url: The URL to access the test run
             public init(
+                actor: Components.Schemas.ReportActor? = nil,
                 duration: Swift.Int,
                 id: Swift.String,
                 project_id: Swift.Int,
@@ -12036,6 +12052,7 @@ public enum Components {
                 _type: Components.Schemas.RunsTest._typePayload,
                 url: Swift.String
             ) {
+                self.actor = actor
                 self.duration = duration
                 self.id = id
                 self.project_id = project_id
@@ -12044,6 +12061,7 @@ public enum Components {
                 self.url = url
             }
             public enum CodingKeys: String, CodingKey {
+                case actor
                 case duration
                 case id
                 case project_id
@@ -12214,6 +12232,8 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/CommandEvent`.
         public struct CommandEvent: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CommandEvent/actor`.
+            public var actor: Components.Schemas.ReportActor?
             /// The unique identifier of the command event.
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEvent/id`.
@@ -12237,18 +12257,21 @@ public enum Components {
             /// Creates a new `CommandEvent`.
             ///
             /// - Parameters:
+            ///   - actor:
             ///   - id: The unique identifier of the command event.
             ///   - name: The name of the command
             ///   - project_id: The project identifier
             ///   - test_run_url: The URL to the test run, if available
             ///   - url: The URL to the command event
             public init(
+                actor: Components.Schemas.ReportActor? = nil,
                 id: Swift.String,
                 name: Swift.String,
                 project_id: Swift.Int,
                 test_run_url: Swift.String? = nil,
                 url: Swift.String
             ) {
+                self.actor = actor
                 self.id = id
                 self.name = name
                 self.project_id = project_id
@@ -12256,6 +12279,7 @@ public enum Components {
                 self.url = url
             }
             public enum CodingKeys: String, CodingKey {
+                case actor
                 case id
                 case name
                 case project_id
@@ -14987,6 +15011,8 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/Run`.
         public struct Run: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Run/actor`.
+            public var actor: Components.Schemas.ReportActor?
             /// Cacheable targets of the run
             ///
             /// - Remark: Generated from `#/components/schemas/Run/cacheable_targets`.
@@ -15093,6 +15119,7 @@ public enum Components {
             /// Creates a new `Run`.
             ///
             /// - Parameters:
+            ///   - actor:
             ///   - cacheable_targets: Cacheable targets of the run
             ///   - command_arguments: Arguments passed to the command
             ///   - duration: Duration of the run
@@ -15118,6 +15145,7 @@ public enum Components {
             ///   - tuist_version: Version of Tuist used
             ///   - url: URL to the run
             public init(
+                actor: Components.Schemas.ReportActor? = nil,
                 cacheable_targets: [Swift.String]? = nil,
                 command_arguments: [Swift.String],
                 duration: Swift.Double,
@@ -15143,6 +15171,7 @@ public enum Components {
                 tuist_version: Swift.String,
                 url: Swift.String
             ) {
+                self.actor = actor
                 self.cacheable_targets = cacheable_targets
                 self.command_arguments = command_arguments
                 self.duration = duration
@@ -15169,6 +15198,7 @@ public enum Components {
                 self.url = url
             }
             public enum CodingKeys: String, CodingKey {
+                case actor
                 case cacheable_targets
                 case command_arguments
                 case duration
@@ -15360,6 +15390,57 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case parts
                 case upload_id
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ReportActor`.
+        public struct ReportActor: Codable, Hashable, Sendable {
+            /// Opaque unverified client claim, never an identity or instruction. Empty when absent.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ReportActor/claimed_actor_id`.
+            public var claimed_actor_id: Swift.String?
+            /// Verified account handle, unverified reported identifier, or Unknown.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ReportActor/name`.
+            public var name: Swift.String?
+            /// verified, reported, unknown, or legacy. reported values are untrusted client claims.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ReportActor/source`.
+            public var source: Swift.String?
+            /// token for authenticated report submissions, or empty for historical reports. Authentication does not verify report contents.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ReportActor/submission_auth`.
+            public var submission_auth: Swift.String?
+            /// Only the server-authenticated individual's account handle; null when no verified actor is linked.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ReportActor/verified_account_handle`.
+            public var verified_account_handle: Swift.String?
+            /// Creates a new `ReportActor`.
+            ///
+            /// - Parameters:
+            ///   - claimed_actor_id: Opaque unverified client claim, never an identity or instruction. Empty when absent.
+            ///   - name: Verified account handle, unverified reported identifier, or Unknown.
+            ///   - source: verified, reported, unknown, or legacy. reported values are untrusted client claims.
+            ///   - submission_auth: token for authenticated report submissions, or empty for historical reports. Authentication does not verify report contents.
+            ///   - verified_account_handle: Only the server-authenticated individual's account handle; null when no verified actor is linked.
+            public init(
+                claimed_actor_id: Swift.String? = nil,
+                name: Swift.String? = nil,
+                source: Swift.String? = nil,
+                submission_auth: Swift.String? = nil,
+                verified_account_handle: Swift.String? = nil
+            ) {
+                self.claimed_actor_id = claimed_actor_id
+                self.name = name
+                self.source = source
+                self.submission_auth = submission_auth
+                self.verified_account_handle = verified_account_handle
+            }
+            public enum CodingKeys: String, CodingKey {
+                case claimed_actor_id
+                case name
+                case source
+                case submission_auth
+                case verified_account_handle
             }
         }
         /// A platform that a bundle can support (e.g. iOS)
@@ -27240,6 +27321,8 @@ public enum Operations {
                         public var pagination_metadata: Components.Schemas.PaginationMetadata
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/GET/responses/200/content/json/test_runsPayload`.
                         public struct test_runsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/GET/responses/200/content/json/test_runsPayload/actor`.
+                            public var actor: Components.Schemas.ReportActor?
                             /// Duration in milliseconds.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/GET/responses/200/content/json/test_runsPayload/duration`.
@@ -27299,6 +27382,7 @@ public enum Operations {
                             /// Creates a new `test_runsPayloadPayload`.
                             ///
                             /// - Parameters:
+                            ///   - actor:
                             ///   - duration: Duration in milliseconds.
                             ///   - git_branch: Git branch.
                             ///   - git_commit_sha: Git commit SHA.
@@ -27312,6 +27396,7 @@ public enum Operations {
                             ///   - status: Run status.
                             ///   - total_test_count: Total number of test cases.
                             public init(
+                                actor: Components.Schemas.ReportActor? = nil,
                                 duration: Swift.Int,
                                 git_branch: Swift.String? = nil,
                                 git_commit_sha: Swift.String? = nil,
@@ -27325,6 +27410,7 @@ public enum Operations {
                                 status: Operations.listTestRuns.Output.Ok.Body.jsonPayload.test_runsPayloadPayload.statusPayload,
                                 total_test_count: Swift.Int? = nil
                             ) {
+                                self.actor = actor
                                 self.duration = duration
                                 self.git_branch = git_branch
                                 self.git_commit_sha = git_commit_sha
@@ -27339,6 +27425,7 @@ public enum Operations {
                                 self.total_test_count = total_test_count
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case actor
                                 case duration
                                 case git_branch
                                 case git_commit_sha
@@ -27669,12 +27756,21 @@ public enum Operations {
             public var path: Operations.createTest.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/header`.
             public struct Headers: Sendable, Hashable {
+                /// Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/header/x-tuist-actor-id`.
+                public var x_hyphen_tuist_hyphen_actor_hyphen_id: Swift.String?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createTest.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
+                ///   - x_hyphen_tuist_hyphen_actor_hyphen_id: Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createTest.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    x_hyphen_tuist_hyphen_actor_hyphen_id: Swift.String? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createTest.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.x_hyphen_tuist_hyphen_actor_hyphen_id = x_hyphen_tuist_hyphen_actor_hyphen_id
                     self.accept = accept
                 }
             }
@@ -30483,6 +30579,8 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/actor`.
+                        public var actor: Components.Schemas.ReportActor?
                         /// Local cache hits.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cacheable_task_local_hits_count`.
@@ -30635,6 +30733,7 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - actor:
                         ///   - cacheable_task_local_hits_count: Local cache hits.
                         ///   - cacheable_task_remote_hits_count: Remote cache hits.
                         ///   - cacheable_tasks_count: Total cacheable tasks.
@@ -30659,6 +30758,7 @@ public enum Operations {
                         ///   - url: URL to view the build in the dashboard.
                         ///   - xcode_version: Xcode version.
                         public init(
+                            actor: Components.Schemas.ReportActor? = nil,
                             cacheable_task_local_hits_count: Swift.Int,
                             cacheable_task_remote_hits_count: Swift.Int,
                             cacheable_tasks_count: Swift.Int,
@@ -30683,6 +30783,7 @@ public enum Operations {
                             url: Swift.String,
                             xcode_version: Swift.String? = nil
                         ) {
+                            self.actor = actor
                             self.cacheable_task_local_hits_count = cacheable_task_local_hits_count
                             self.cacheable_task_remote_hits_count = cacheable_task_remote_hits_count
                             self.cacheable_tasks_count = cacheable_tasks_count
@@ -30708,6 +30809,7 @@ public enum Operations {
                             self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case actor
                             case cacheable_task_local_hits_count
                             case cacheable_task_remote_hits_count
                             case cacheable_tasks_count
@@ -36035,12 +36137,21 @@ public enum Operations {
             public var query: Operations.createCommandEvent.Input.Query
             /// - Remark: Generated from `#/paths/api/analytics/POST/header`.
             public struct Headers: Sendable, Hashable {
+                /// Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.
+                ///
+                /// - Remark: Generated from `#/paths/api/analytics/POST/header/x-tuist-actor-id`.
+                public var x_hyphen_tuist_hyphen_actor_hyphen_id: Swift.String?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createCommandEvent.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
+                ///   - x_hyphen_tuist_hyphen_actor_hyphen_id: Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createCommandEvent.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    x_hyphen_tuist_hyphen_actor_hyphen_id: Swift.String? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createCommandEvent.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.x_hyphen_tuist_hyphen_actor_hyphen_id = x_hyphen_tuist_hyphen_actor_hyphen_id
                     self.accept = accept
                 }
             }
@@ -41098,12 +41209,21 @@ public enum Operations {
             public var path: Operations.createRun.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/header`.
             public struct Headers: Sendable, Hashable {
+                /// Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/header/x-tuist-actor-id`.
+                public var x_hyphen_tuist_hyphen_actor_hyphen_id: Swift.String?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createRun.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
+                ///   - x_hyphen_tuist_hyphen_actor_hyphen_id: Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createRun.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    x_hyphen_tuist_hyphen_actor_hyphen_id: Swift.String? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createRun.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.x_hyphen_tuist_hyphen_actor_hyphen_id = x_hyphen_tuist_hyphen_actor_hyphen_id
                     self.accept = accept
                 }
             }
@@ -45426,12 +45546,21 @@ public enum Operations {
             public var path: Operations.createMixBuild.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/header`.
             public struct Headers: Sendable, Hashable {
+                /// Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/header/x-tuist-actor-id`.
+                public var x_hyphen_tuist_hyphen_actor_hyphen_id: Swift.String?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createMixBuild.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
+                ///   - x_hyphen_tuist_hyphen_actor_hyphen_id: Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createMixBuild.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    x_hyphen_tuist_hyphen_actor_hyphen_id: Swift.String? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createMixBuild.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.x_hyphen_tuist_hyphen_actor_hyphen_id = x_hyphen_tuist_hyphen_actor_hyphen_id
                     self.accept = accept
                 }
             }
@@ -46064,6 +46193,8 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/responses/201/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/responses/201/content/json/actor`.
+                        public var actor: Components.Schemas.ReportActor?
                         /// The build ID.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/responses/201/content/json/id`.
@@ -46071,11 +46202,17 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - actor:
                         ///   - id: The build ID.
-                        public init(id: Swift.String) {
+                        public init(
+                            actor: Components.Schemas.ReportActor? = nil,
+                            id: Swift.String
+                        ) {
+                            self.actor = actor
                             self.id = id
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case actor
                             case id
                         }
                     }
@@ -46410,6 +46547,8 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/actor`.
+                        public var actor: Components.Schemas.ReportActor?
                         /// Local cache hits.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cacheable_task_local_hits_count`.
@@ -46562,6 +46701,7 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - actor:
                         ///   - cacheable_task_local_hits_count: Local cache hits.
                         ///   - cacheable_task_remote_hits_count: Remote cache hits.
                         ///   - cacheable_tasks_count: Total cacheable tasks.
@@ -46586,6 +46726,7 @@ public enum Operations {
                         ///   - url: URL to view the build in the dashboard.
                         ///   - xcode_version: Xcode version.
                         public init(
+                            actor: Components.Schemas.ReportActor? = nil,
                             cacheable_task_local_hits_count: Swift.Int,
                             cacheable_task_remote_hits_count: Swift.Int,
                             cacheable_tasks_count: Swift.Int,
@@ -46610,6 +46751,7 @@ public enum Operations {
                             url: Swift.String,
                             xcode_version: Swift.String? = nil
                         ) {
+                            self.actor = actor
                             self.cacheable_task_local_hits_count = cacheable_task_local_hits_count
                             self.cacheable_task_remote_hits_count = cacheable_task_remote_hits_count
                             self.cacheable_tasks_count = cacheable_tasks_count
@@ -46635,6 +46777,7 @@ public enum Operations {
                             self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case actor
                             case cacheable_task_local_hits_count
                             case cacheable_task_remote_hits_count
                             case cacheable_tasks_count
@@ -54353,6 +54496,8 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload`.
                         public struct buildsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/actor`.
+                            public var actor: Components.Schemas.ReportActor?
                             /// Local cache hits.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/cacheable_task_local_hits_count`.
@@ -54514,6 +54659,7 @@ public enum Operations {
                             /// Creates a new `buildsPayloadPayload`.
                             ///
                             /// - Parameters:
+                            ///   - actor:
                             ///   - cacheable_task_local_hits_count: Local cache hits.
                             ///   - cacheable_task_remote_hits_count: Remote cache hits.
                             ///   - cacheable_tasks_count: Total cacheable tasks.
@@ -54535,6 +54681,7 @@ public enum Operations {
                             ///   - url: URL to view the build in the dashboard.
                             ///   - xcode_version: Xcode version.
                             public init(
+                                actor: Components.Schemas.ReportActor? = nil,
                                 cacheable_task_local_hits_count: Swift.Int,
                                 cacheable_task_remote_hits_count: Swift.Int,
                                 cacheable_tasks_count: Swift.Int,
@@ -54556,6 +54703,7 @@ public enum Operations {
                                 url: Swift.String,
                                 xcode_version: Swift.String? = nil
                             ) {
+                                self.actor = actor
                                 self.cacheable_task_local_hits_count = cacheable_task_local_hits_count
                                 self.cacheable_task_remote_hits_count = cacheable_task_remote_hits_count
                                 self.cacheable_tasks_count = cacheable_tasks_count
@@ -54578,6 +54726,7 @@ public enum Operations {
                                 self.xcode_version = xcode_version
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case actor
                                 case cacheable_task_local_hits_count
                                 case cacheable_task_remote_hits_count
                                 case cacheable_tasks_count
@@ -54867,12 +55016,21 @@ public enum Operations {
             public var path: Operations.createBuild.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/header`.
             public struct Headers: Sendable, Hashable {
+                /// Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/header/x-tuist-actor-id`.
+                public var x_hyphen_tuist_hyphen_actor_hyphen_id: Swift.String?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createBuild.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
+                ///   - x_hyphen_tuist_hyphen_actor_hyphen_id: Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createBuild.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    x_hyphen_tuist_hyphen_actor_hyphen_id: Swift.String? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createBuild.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.x_hyphen_tuist_hyphen_actor_hyphen_id = x_hyphen_tuist_hyphen_actor_hyphen_id
                     self.accept = accept
                 }
             }
@@ -65431,6 +65589,8 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/GET/responses/200/content/json/actor`.
+                        public var actor: Components.Schemas.ReportActor?
                         /// Average test case duration in milliseconds.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/GET/responses/200/content/json/avg_test_duration`.
@@ -65510,6 +65670,7 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - actor:
                         ///   - avg_test_duration: Average test case duration in milliseconds.
                         ///   - device_name: Human-readable device name.
                         ///   - duration: Duration in milliseconds.
@@ -65528,6 +65689,7 @@ public enum Operations {
                         ///   - total_test_count: Total number of test cases.
                         ///   - xcode_version: Xcode version.
                         public init(
+                            actor: Components.Schemas.ReportActor? = nil,
                             avg_test_duration: Swift.Int,
                             device_name: Swift.String? = nil,
                             duration: Swift.Int,
@@ -65546,6 +65708,7 @@ public enum Operations {
                             total_test_count: Swift.Int,
                             xcode_version: Swift.String? = nil
                         ) {
+                            self.actor = actor
                             self.avg_test_duration = avg_test_duration
                             self.device_name = device_name
                             self.duration = duration
@@ -65565,6 +65728,7 @@ public enum Operations {
                             self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case actor
                             case avg_test_duration
                             case device_name
                             case duration
@@ -71334,6 +71498,8 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload`.
                         public struct buildsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/actor`.
+                            public var actor: Components.Schemas.ReportActor?
                             /// Local cache hits.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/cacheable_task_local_hits_count`.
@@ -71495,6 +71661,7 @@ public enum Operations {
                             /// Creates a new `buildsPayloadPayload`.
                             ///
                             /// - Parameters:
+                            ///   - actor:
                             ///   - cacheable_task_local_hits_count: Local cache hits.
                             ///   - cacheable_task_remote_hits_count: Remote cache hits.
                             ///   - cacheable_tasks_count: Total cacheable tasks.
@@ -71516,6 +71683,7 @@ public enum Operations {
                             ///   - url: URL to view the build in the dashboard.
                             ///   - xcode_version: Xcode version.
                             public init(
+                                actor: Components.Schemas.ReportActor? = nil,
                                 cacheable_task_local_hits_count: Swift.Int,
                                 cacheable_task_remote_hits_count: Swift.Int,
                                 cacheable_tasks_count: Swift.Int,
@@ -71537,6 +71705,7 @@ public enum Operations {
                                 url: Swift.String,
                                 xcode_version: Swift.String? = nil
                             ) {
+                                self.actor = actor
                                 self.cacheable_task_local_hits_count = cacheable_task_local_hits_count
                                 self.cacheable_task_remote_hits_count = cacheable_task_remote_hits_count
                                 self.cacheable_tasks_count = cacheable_tasks_count
@@ -71559,6 +71728,7 @@ public enum Operations {
                                 self.xcode_version = xcode_version
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case actor
                                 case cacheable_task_local_hits_count
                                 case cacheable_task_remote_hits_count
                                 case cacheable_tasks_count
@@ -71848,12 +72018,21 @@ public enum Operations {
             public var path: Operations.createBuild_space__lpar_2_rpar_.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/header`.
             public struct Headers: Sendable, Hashable {
+                /// Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/header/x-tuist-actor-id`.
+                public var x_hyphen_tuist_hyphen_actor_hyphen_id: Swift.String?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createBuild_space__lpar_2_rpar_.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
+                ///   - x_hyphen_tuist_hyphen_actor_hyphen_id: Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createBuild_space__lpar_2_rpar_.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    x_hyphen_tuist_hyphen_actor_hyphen_id: Swift.String? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createBuild_space__lpar_2_rpar_.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.x_hyphen_tuist_hyphen_actor_hyphen_id = x_hyphen_tuist_hyphen_actor_hyphen_id
                     self.accept = accept
                 }
             }
@@ -85377,30 +85556,34 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/artifact_transforms`.
-                        public var artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]?
-                        /// Bytes of task outputs downloaded from the remote cache by the build.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_download_bytes`.
-                        public var cache_download_bytes: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_hit_rate`.
-                        public var cache_hit_rate: Swift.Double?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_cache_hit_count`.
+                        public var tasks_cache_hit_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/git_branch`.
+                        public var git_branch: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/root_project_name`.
+                        public var root_project_name: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_up_to_date_count`.
+                        public var tasks_up_to_date_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/inserted_at`.
+                        public var inserted_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/java_version`.
+                        public var java_version: Swift.String?
                         /// Bytes of task outputs uploaded to the remote cache by the build.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_upload_bytes`.
                         public var cache_upload_bytes: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
-                        public var cacheable_tasks_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_entry_size`.
                         public var configuration_cache_entry_size: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_invalidation_reasons`.
-                        public var configuration_cache_invalidation_reasons: [Swift.String]?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_load_duration_ms`.
                         public var configuration_cache_load_duration_ms: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_status`.
-                        public var configuration_cache_status: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_operations`.
-                        public var configuration_operations: [OpenAPIRuntime.OpenAPIObjectContainer]?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                            case failure = "failure"
+                            case cancelled = "cancelled"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/status`.
+                        public var status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.statusPayload?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/custom_metadata`.
                         public struct custom_metadataPayload: Codable, Hashable, Sendable {
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/custom_metadata/tags`.
@@ -85444,36 +85627,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/custom_metadata`.
                         public var custom_metadata: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/duration_ms`.
-                        public var duration_ms: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/git_branch`.
-                        public var git_branch: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/git_commit_sha`.
-                        public var git_commit_sha: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/git_ref`.
-                        public var git_ref: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/gradle_version`.
-                        public var gradle_version: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/id`.
-                        public var id: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/inserted_at`.
-                        public var inserted_at: Foundation.Date?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/is_ci`.
-                        public var is_ci: Swift.Bool?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/java_version`.
-                        public var java_version: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/requested_tasks`.
-                        public var requested_tasks: [Swift.String]?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/root_project_name`.
-                        public var root_project_name: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/status`.
-                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                            case success = "success"
-                            case failure = "failure"
-                            case cancelled = "cancelled"
-                        }
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/status`.
-                        public var status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.statusPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_skipped_count`.
+                        public var tasks_skipped_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_local_hit_count`.
+                        public var tasks_local_hit_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload`.
                         public struct tasksPayloadPayload: Codable, Hashable, Sendable {
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/cache_artifact_size`.
@@ -85622,157 +85779,185 @@ public enum Operations {
                         public typealias tasksPayload = [Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks`.
                         public var tasks: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayload?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_cache_hit_count`.
-                        public var tasks_cache_hit_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
+                        public var cacheable_tasks_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_status`.
+                        public var configuration_cache_status: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/git_ref`.
+                        public var git_ref: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_invalidation_reasons`.
+                        public var configuration_cache_invalidation_reasons: [Swift.String]?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_executed_count`.
                         public var tasks_executed_count: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_failed_count`.
-                        public var tasks_failed_count: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_local_hit_count`.
-                        public var tasks_local_hit_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/requested_tasks`.
+                        public var requested_tasks: [Swift.String]?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/artifact_transforms`.
+                        public var artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_hit_rate`.
+                        public var cache_hit_rate: Swift.Double?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_operations`.
+                        public var configuration_operations: [OpenAPIRuntime.OpenAPIObjectContainer]?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_no_source_count`.
                         public var tasks_no_source_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/actor`.
+                        public var actor: Components.Schemas.ReportActor?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/id`.
+                        public var id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_failed_count`.
+                        public var tasks_failed_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_remote_hit_count`.
                         public var tasks_remote_hit_count: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_skipped_count`.
-                        public var tasks_skipped_count: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_up_to_date_count`.
-                        public var tasks_up_to_date_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/duration_ms`.
+                        public var duration_ms: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/gradle_version`.
+                        public var gradle_version: Swift.String?
+                        /// Bytes of task outputs downloaded from the remote cache by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_download_bytes`.
+                        public var cache_download_bytes: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/git_commit_sha`.
+                        public var git_commit_sha: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/is_ci`.
+                        public var is_ci: Swift.Bool?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - artifact_transforms:
-                        ///   - cache_download_bytes: Bytes of task outputs downloaded from the remote cache by the build.
-                        ///   - cache_hit_rate:
-                        ///   - cache_upload_bytes: Bytes of task outputs uploaded to the remote cache by the build.
-                        ///   - cacheable_tasks_count:
-                        ///   - configuration_cache_entry_size:
-                        ///   - configuration_cache_invalidation_reasons:
-                        ///   - configuration_cache_load_duration_ms:
-                        ///   - configuration_cache_status:
-                        ///   - configuration_operations:
-                        ///   - custom_metadata:
-                        ///   - duration_ms:
-                        ///   - git_branch:
-                        ///   - git_commit_sha:
-                        ///   - git_ref:
-                        ///   - gradle_version:
-                        ///   - id:
-                        ///   - inserted_at:
-                        ///   - is_ci:
-                        ///   - java_version:
-                        ///   - requested_tasks:
-                        ///   - root_project_name:
-                        ///   - status:
-                        ///   - tasks:
                         ///   - tasks_cache_hit_count:
-                        ///   - tasks_executed_count:
-                        ///   - tasks_failed_count:
-                        ///   - tasks_local_hit_count:
-                        ///   - tasks_no_source_count:
-                        ///   - tasks_remote_hit_count:
-                        ///   - tasks_skipped_count:
+                        ///   - git_branch:
+                        ///   - root_project_name:
                         ///   - tasks_up_to_date_count:
+                        ///   - inserted_at:
+                        ///   - java_version:
+                        ///   - cache_upload_bytes: Bytes of task outputs uploaded to the remote cache by the build.
+                        ///   - configuration_cache_entry_size:
+                        ///   - configuration_cache_load_duration_ms:
+                        ///   - status:
+                        ///   - custom_metadata:
+                        ///   - tasks_skipped_count:
+                        ///   - tasks_local_hit_count:
+                        ///   - tasks:
+                        ///   - cacheable_tasks_count:
+                        ///   - configuration_cache_status:
+                        ///   - git_ref:
+                        ///   - configuration_cache_invalidation_reasons:
+                        ///   - tasks_executed_count:
+                        ///   - requested_tasks:
+                        ///   - artifact_transforms:
+                        ///   - cache_hit_rate:
+                        ///   - configuration_operations:
+                        ///   - tasks_no_source_count:
+                        ///   - actor:
+                        ///   - id:
+                        ///   - tasks_failed_count:
+                        ///   - tasks_remote_hit_count:
+                        ///   - duration_ms:
+                        ///   - gradle_version:
+                        ///   - cache_download_bytes: Bytes of task outputs downloaded from the remote cache by the build.
+                        ///   - git_commit_sha:
+                        ///   - is_ci:
                         public init(
-                            artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]? = nil,
-                            cache_download_bytes: Swift.Int? = nil,
-                            cache_hit_rate: Swift.Double? = nil,
-                            cache_upload_bytes: Swift.Int? = nil,
-                            cacheable_tasks_count: Swift.Int? = nil,
-                            configuration_cache_entry_size: Swift.Int? = nil,
-                            configuration_cache_invalidation_reasons: [Swift.String]? = nil,
-                            configuration_cache_load_duration_ms: Swift.Int? = nil,
-                            configuration_cache_status: Swift.String? = nil,
-                            configuration_operations: [OpenAPIRuntime.OpenAPIObjectContainer]? = nil,
-                            custom_metadata: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload? = nil,
-                            duration_ms: Swift.Int? = nil,
-                            git_branch: Swift.String? = nil,
-                            git_commit_sha: Swift.String? = nil,
-                            git_ref: Swift.String? = nil,
-                            gradle_version: Swift.String? = nil,
-                            id: Swift.String? = nil,
-                            inserted_at: Foundation.Date? = nil,
-                            is_ci: Swift.Bool? = nil,
-                            java_version: Swift.String? = nil,
-                            requested_tasks: [Swift.String]? = nil,
-                            root_project_name: Swift.String? = nil,
-                            status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.statusPayload? = nil,
-                            tasks: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayload? = nil,
                             tasks_cache_hit_count: Swift.Int? = nil,
-                            tasks_executed_count: Swift.Int? = nil,
-                            tasks_failed_count: Swift.Int? = nil,
-                            tasks_local_hit_count: Swift.Int? = nil,
-                            tasks_no_source_count: Swift.Int? = nil,
-                            tasks_remote_hit_count: Swift.Int? = nil,
+                            git_branch: Swift.String? = nil,
+                            root_project_name: Swift.String? = nil,
+                            tasks_up_to_date_count: Swift.Int? = nil,
+                            inserted_at: Foundation.Date? = nil,
+                            java_version: Swift.String? = nil,
+                            cache_upload_bytes: Swift.Int? = nil,
+                            configuration_cache_entry_size: Swift.Int? = nil,
+                            configuration_cache_load_duration_ms: Swift.Int? = nil,
+                            status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.statusPayload? = nil,
+                            custom_metadata: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload? = nil,
                             tasks_skipped_count: Swift.Int? = nil,
-                            tasks_up_to_date_count: Swift.Int? = nil
+                            tasks_local_hit_count: Swift.Int? = nil,
+                            tasks: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayload? = nil,
+                            cacheable_tasks_count: Swift.Int? = nil,
+                            configuration_cache_status: Swift.String? = nil,
+                            git_ref: Swift.String? = nil,
+                            configuration_cache_invalidation_reasons: [Swift.String]? = nil,
+                            tasks_executed_count: Swift.Int? = nil,
+                            requested_tasks: [Swift.String]? = nil,
+                            artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]? = nil,
+                            cache_hit_rate: Swift.Double? = nil,
+                            configuration_operations: [OpenAPIRuntime.OpenAPIObjectContainer]? = nil,
+                            tasks_no_source_count: Swift.Int? = nil,
+                            actor: Components.Schemas.ReportActor? = nil,
+                            id: Swift.String? = nil,
+                            tasks_failed_count: Swift.Int? = nil,
+                            tasks_remote_hit_count: Swift.Int? = nil,
+                            duration_ms: Swift.Int? = nil,
+                            gradle_version: Swift.String? = nil,
+                            cache_download_bytes: Swift.Int? = nil,
+                            git_commit_sha: Swift.String? = nil,
+                            is_ci: Swift.Bool? = nil
                         ) {
-                            self.artifact_transforms = artifact_transforms
-                            self.cache_download_bytes = cache_download_bytes
-                            self.cache_hit_rate = cache_hit_rate
-                            self.cache_upload_bytes = cache_upload_bytes
-                            self.cacheable_tasks_count = cacheable_tasks_count
-                            self.configuration_cache_entry_size = configuration_cache_entry_size
-                            self.configuration_cache_invalidation_reasons = configuration_cache_invalidation_reasons
-                            self.configuration_cache_load_duration_ms = configuration_cache_load_duration_ms
-                            self.configuration_cache_status = configuration_cache_status
-                            self.configuration_operations = configuration_operations
-                            self.custom_metadata = custom_metadata
-                            self.duration_ms = duration_ms
-                            self.git_branch = git_branch
-                            self.git_commit_sha = git_commit_sha
-                            self.git_ref = git_ref
-                            self.gradle_version = gradle_version
-                            self.id = id
-                            self.inserted_at = inserted_at
-                            self.is_ci = is_ci
-                            self.java_version = java_version
-                            self.requested_tasks = requested_tasks
-                            self.root_project_name = root_project_name
-                            self.status = status
-                            self.tasks = tasks
                             self.tasks_cache_hit_count = tasks_cache_hit_count
-                            self.tasks_executed_count = tasks_executed_count
-                            self.tasks_failed_count = tasks_failed_count
-                            self.tasks_local_hit_count = tasks_local_hit_count
-                            self.tasks_no_source_count = tasks_no_source_count
-                            self.tasks_remote_hit_count = tasks_remote_hit_count
-                            self.tasks_skipped_count = tasks_skipped_count
+                            self.git_branch = git_branch
+                            self.root_project_name = root_project_name
                             self.tasks_up_to_date_count = tasks_up_to_date_count
+                            self.inserted_at = inserted_at
+                            self.java_version = java_version
+                            self.cache_upload_bytes = cache_upload_bytes
+                            self.configuration_cache_entry_size = configuration_cache_entry_size
+                            self.configuration_cache_load_duration_ms = configuration_cache_load_duration_ms
+                            self.status = status
+                            self.custom_metadata = custom_metadata
+                            self.tasks_skipped_count = tasks_skipped_count
+                            self.tasks_local_hit_count = tasks_local_hit_count
+                            self.tasks = tasks
+                            self.cacheable_tasks_count = cacheable_tasks_count
+                            self.configuration_cache_status = configuration_cache_status
+                            self.git_ref = git_ref
+                            self.configuration_cache_invalidation_reasons = configuration_cache_invalidation_reasons
+                            self.tasks_executed_count = tasks_executed_count
+                            self.requested_tasks = requested_tasks
+                            self.artifact_transforms = artifact_transforms
+                            self.cache_hit_rate = cache_hit_rate
+                            self.configuration_operations = configuration_operations
+                            self.tasks_no_source_count = tasks_no_source_count
+                            self.actor = actor
+                            self.id = id
+                            self.tasks_failed_count = tasks_failed_count
+                            self.tasks_remote_hit_count = tasks_remote_hit_count
+                            self.duration_ms = duration_ms
+                            self.gradle_version = gradle_version
+                            self.cache_download_bytes = cache_download_bytes
+                            self.git_commit_sha = git_commit_sha
+                            self.is_ci = is_ci
                         }
                         public enum CodingKeys: String, CodingKey {
-                            case artifact_transforms
-                            case cache_download_bytes
-                            case cache_hit_rate
-                            case cache_upload_bytes
-                            case cacheable_tasks_count
-                            case configuration_cache_entry_size
-                            case configuration_cache_invalidation_reasons
-                            case configuration_cache_load_duration_ms
-                            case configuration_cache_status
-                            case configuration_operations
-                            case custom_metadata
-                            case duration_ms
-                            case git_branch
-                            case git_commit_sha
-                            case git_ref
-                            case gradle_version
-                            case id
-                            case inserted_at
-                            case is_ci
-                            case java_version
-                            case requested_tasks
-                            case root_project_name
-                            case status
-                            case tasks
                             case tasks_cache_hit_count
-                            case tasks_executed_count
-                            case tasks_failed_count
-                            case tasks_local_hit_count
-                            case tasks_no_source_count
-                            case tasks_remote_hit_count
-                            case tasks_skipped_count
+                            case git_branch
+                            case root_project_name
                             case tasks_up_to_date_count
+                            case inserted_at
+                            case java_version
+                            case cache_upload_bytes
+                            case configuration_cache_entry_size
+                            case configuration_cache_load_duration_ms
+                            case status
+                            case custom_metadata
+                            case tasks_skipped_count
+                            case tasks_local_hit_count
+                            case tasks
+                            case cacheable_tasks_count
+                            case configuration_cache_status
+                            case git_ref
+                            case configuration_cache_invalidation_reasons
+                            case tasks_executed_count
+                            case requested_tasks
+                            case artifact_transforms
+                            case cache_hit_rate
+                            case configuration_operations
+                            case tasks_no_source_count
+                            case actor
+                            case id
+                            case tasks_failed_count
+                            case tasks_remote_hit_count
+                            case duration_ms
+                            case gradle_version
+                            case cache_download_bytes
+                            case git_commit_sha
+                            case is_ci
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/application\/json`.
@@ -90778,6 +90963,8 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload`.
                         public struct buildsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/actor`.
+                            public var actor: Components.Schemas.ReportActor?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/cache_hit_rate`.
                             public var cache_hit_rate: Swift.Double?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/cacheable_tasks_count`.
@@ -90874,6 +91061,7 @@ public enum Operations {
                             /// Creates a new `buildsPayloadPayload`.
                             ///
                             /// - Parameters:
+                            ///   - actor:
                             ///   - cache_hit_rate:
                             ///   - cacheable_tasks_count:
                             ///   - configuration_cache_entry_size:
@@ -90898,6 +91086,7 @@ public enum Operations {
                             ///   - tasks_remote_hit_count:
                             ///   - tasks_up_to_date_count:
                             public init(
+                                actor: Components.Schemas.ReportActor? = nil,
                                 cache_hit_rate: Swift.Double? = nil,
                                 cacheable_tasks_count: Swift.Int? = nil,
                                 configuration_cache_entry_size: Swift.Int? = nil,
@@ -90922,6 +91111,7 @@ public enum Operations {
                                 tasks_remote_hit_count: Swift.Int? = nil,
                                 tasks_up_to_date_count: Swift.Int? = nil
                             ) {
+                                self.actor = actor
                                 self.cache_hit_rate = cache_hit_rate
                                 self.cacheable_tasks_count = cacheable_tasks_count
                                 self.configuration_cache_entry_size = configuration_cache_entry_size
@@ -90947,6 +91137,7 @@ public enum Operations {
                                 self.tasks_up_to_date_count = tasks_up_to_date_count
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case actor
                                 case cache_hit_rate
                                 case cacheable_tasks_count
                                 case configuration_cache_entry_size
@@ -91239,12 +91430,21 @@ public enum Operations {
             public var path: Operations.createGradleBuild.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/header`.
             public struct Headers: Sendable, Hashable {
+                /// Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/header/x-tuist-actor-id`.
+                public var x_hyphen_tuist_hyphen_actor_hyphen_id: Swift.String?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createGradleBuild.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
+                ///   - x_hyphen_tuist_hyphen_actor_hyphen_id: Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createGradleBuild.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    x_hyphen_tuist_hyphen_actor_hyphen_id: Swift.String? = nil,
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createGradleBuild.AcceptableContentType>] = .defaultValues()
+                ) {
+                    self.x_hyphen_tuist_hyphen_actor_hyphen_id = x_hyphen_tuist_hyphen_actor_hyphen_id
                     self.accept = accept
                 }
             }
@@ -91898,6 +92098,8 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/responses/201/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/responses/201/content/json/actor`.
+                        public var actor: Components.Schemas.ReportActor?
                         /// The build ID.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/responses/201/content/json/id`.
@@ -91905,11 +92107,17 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - actor:
                         ///   - id: The build ID.
-                        public init(id: Swift.String) {
+                        public init(
+                            actor: Components.Schemas.ReportActor? = nil,
+                            id: Swift.String
+                        ) {
+                            self.actor = actor
                             self.id = id
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case actor
                             case id
                         }
                     }

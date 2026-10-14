@@ -16,6 +16,7 @@ defmodule TuistWeb.API.BuildsController do
   alias TuistWeb.API.Schemas.Builds.Build
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
+  alias TuistWeb.API.Schemas.ReportActor
   alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
 
@@ -26,6 +27,7 @@ defmodule TuistWeb.API.BuildsController do
 
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :build)
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
 
   tags ["Builds"]
 
@@ -127,6 +129,7 @@ defmodule TuistWeb.API.BuildsController do
                  type: :object,
                  properties: %{
                    id: %Schema{type: :string, format: :uuid, description: "The build ID."},
+                   actor: ReportActor,
                    duration: %Schema{type: :integer, description: "Build duration in milliseconds."},
                    status: %Schema{
                      type: :string,
@@ -211,9 +214,10 @@ defmodule TuistWeb.API.BuildsController do
 
     json(conn, %{
       builds:
-        Enum.map(builds, fn build ->
+        Enum.map(Tuist.ReportActor.preload(builds), fn build ->
           %{
             id: build.id,
+            actor: Tuist.ReportActor.actor(build),
             duration: build.duration,
             status: build.status,
             category: if(build.category != "", do: build.category),
@@ -282,6 +286,7 @@ defmodule TuistWeb.API.BuildsController do
            type: :object,
            properties: %{
              id: %Schema{type: :string, format: :uuid, description: "The build ID."},
+             actor: ReportActor,
              duration: %Schema{type: :integer, description: "Build duration in milliseconds."},
              status: %Schema{type: :string, enum: ["success", "failure"], description: "Build status."},
              category: %Schema{
@@ -364,6 +369,7 @@ defmodule TuistWeb.API.BuildsController do
 
           json(conn, %{
             id: build.id,
+            actor: build |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
             duration: build.duration,
             status: build.status,
             category: if(build.category != "", do: build.category),
@@ -467,6 +473,7 @@ defmodule TuistWeb.API.BuildsController do
   operation(:create,
     summary: "Create a new build.",
     parameters: [
+      "x-tuist-actor-id": ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -888,6 +895,7 @@ defmodule TuistWeb.API.BuildsController do
       body_params
       |> Map.put(:project, selected_project)
       |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
+      |> Map.merge(Tuist.ReportActor.attributes(conn))
 
     case get_or_create_build(run_params) do
       {:ok, build} ->
@@ -905,6 +913,7 @@ defmodule TuistWeb.API.BuildsController do
         |> json(%{
           type: "build",
           id: build.id,
+          actor: build |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
           status: build.status,
           duration: build.duration,
           project_id: build.project_id,
@@ -937,6 +946,9 @@ defmodule TuistWeb.API.BuildsController do
           configuration: Map.get(params, :configuration),
           project_id: params.project.id,
           account_id: params.ran_by_account.id,
+          actor_account_id: params.actor_account_id,
+          claimed_actor_id: params.claimed_actor_id,
+          submission_auth: params.submission_auth,
           status: Map.get(params, :status, "success"),
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
@@ -974,6 +986,9 @@ defmodule TuistWeb.API.BuildsController do
               project_id: params.project.id,
               xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false),
               build_metadata: %{
+                actor_account_id: params.actor_account_id,
+                claimed_actor_id: params.claimed_actor_id,
+                submission_auth: params.submission_auth,
                 macos_version: Map.get(params, :macos_version),
                 xcode_version: Map.get(params, :xcode_version),
                 is_ci: Map.get(params, :is_ci),

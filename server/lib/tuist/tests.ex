@@ -184,6 +184,7 @@ defmodule Tuist.Tests do
   # ClickHouse table (Ecto metadata + association loaders). Used to scrub the
   # struct when re-inserting an updated row via `IngestRepo.insert_all/2`.
   @test_struct_non_field_keys [
+    :actor_account,
     :__meta__,
     :ran_by_account,
     :build_run,
@@ -2430,6 +2431,9 @@ defmodule Tuist.Tests do
           is_ci: test.is_ci,
           scheme: test.scheme,
           account_id: test.account_id,
+          actor_account_id: Map.get(test, :actor_account_id, 0),
+          claimed_actor_id: Map.get(test, :claimed_actor_id, ""),
+          submission_auth: Map.get(test, :submission_auth, ""),
           ran_at: test.ran_at,
           git_branch: test.git_branch,
           is_default_branch: is_default_branch,
@@ -4078,6 +4082,9 @@ defmodule Tuist.Tests do
       is_ci,
       scheme,
       account_id,
+      actor_account_id,
+      claimed_actor_id,
+      submission_auth,
       ran_at,
       git_branch,
       is_default_branch,
@@ -4104,6 +4111,9 @@ defmodule Tuist.Tests do
       is_ci,
       scheme,
       account_id,
+      actor_account_id,
+      claimed_actor_id,
+      submission_auth,
       ran_at,
       git_branch,
       #{default_branch_match_expr},

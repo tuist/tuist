@@ -3129,6 +3129,11 @@ public struct Client: APIProtocol {
                     method: .post
                 )
                 suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsURI(
+                    in: &request.headerFields,
+                    name: "x-tuist-actor-id",
+                    value: input.headers.x_hyphen_tuist_hyphen_actor_hyphen_id
+                )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
                     contentTypes: input.headers.accept
@@ -6086,6 +6091,11 @@ public struct Client: APIProtocol {
                     method: .post
                 )
                 suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsURI(
+                    in: &request.headerFields,
+                    name: "x-tuist-actor-id",
+                    value: input.headers.x_hyphen_tuist_hyphen_actor_hyphen_id
+                )
                 try converter.setQueryItemAsURI(
                     in: &request,
                     style: .form,
@@ -7794,6 +7804,11 @@ public struct Client: APIProtocol {
                     method: .post
                 )
                 suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsURI(
+                    in: &request.headerFields,
+                    name: "x-tuist-actor-id",
+                    value: input.headers.x_hyphen_tuist_hyphen_actor_hyphen_id
+                )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
                     contentTypes: input.headers.accept
@@ -8978,6 +8993,11 @@ public struct Client: APIProtocol {
                     method: .post
                 )
                 suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsURI(
+                    in: &request.headerFields,
+                    name: "x-tuist-actor-id",
+                    value: input.headers.x_hyphen_tuist_hyphen_actor_hyphen_id
+                )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
                     contentTypes: input.headers.accept
@@ -12155,6 +12175,11 @@ public struct Client: APIProtocol {
                     method: .post
                 )
                 suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsURI(
+                    in: &request.headerFields,
+                    name: "x-tuist-actor-id",
+                    value: input.headers.x_hyphen_tuist_hyphen_actor_hyphen_id
+                )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
                     contentTypes: input.headers.accept
@@ -18444,6 +18469,11 @@ public struct Client: APIProtocol {
                     method: .post
                 )
                 suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsURI(
+                    in: &request.headerFields,
+                    name: "x-tuist-actor-id",
+                    value: input.headers.x_hyphen_tuist_hyphen_actor_hyphen_id
+                )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
                     contentTypes: input.headers.accept
@@ -25303,6 +25333,11 @@ public struct Client: APIProtocol {
                     method: .post
                 )
                 suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsURI(
+                    in: &request.headerFields,
+                    name: "x-tuist-actor-id",
+                    value: input.headers.x_hyphen_tuist_hyphen_actor_hyphen_id
+                )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
                     contentTypes: input.headers.accept
