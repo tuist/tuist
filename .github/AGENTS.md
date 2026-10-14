@@ -129,13 +129,14 @@ key; SwifterPM downloads retain their authentication environment. Keep meaningfu
 package inputs visible, and always measure fresh-runner reuse: a volume hit
 alone is not evidence that manifest evaluation was skipped.
 
-After mounting `.build`, run `scripts/retain-swiftpm-manifest-cache.sh` to keep
-native SwiftPM's per-user `manifests` cache inside the workspace volume. Fresh
-checkout mtimes still make SwifterPM evaluate the root and local packages;
-retaining SwiftPM's compiled manifest cache avoids rebuilding those inputs.
-Keep SwiftPM configuration, security and authentication directories outside
-the volume. The helper preserves any pre-existing runner cache in `RUNNER_TEMP`
-and is idempotent. Forks keep their existing unmounted cache layout.
+Attach `~/Library/Caches/org.swift.swiftpm/manifests` directly as a third volume
+before any SwiftPM commands populate it. Its key is shared across jobs for the
+same Xcode version. Fresh checkout mtimes still make SwifterPM evaluate the root
+and local packages; retaining SwiftPM's native manifest cache avoids rebuilding
+those inputs. Keep SwiftPM configuration, security and authentication directories
+outside the volume. Forks keep their existing unmounted cache layout. Use the
+action's normal absent-or-empty path contract instead of relocating cache data
+with workflow scripts.
 
 By default, pull requests consume private snapshots without publishing. A volume
 admin can grant a same-repository PR branch writer permission for a dedicated
@@ -143,8 +144,8 @@ experiment, paired with explicit `commit: 'true'`; grants apply to new attachmen
 Ordinary CLI jobs keep the default policy. First successful permitted jobs seed
 these new keys; measure subsequent jobs only after publication. The
 full-host M4 profile has less concurrency than the ordinary macOS pool, so track
-queue time separately from dependency-install time. The two volumes publish
-independently; always run the installer even when both attachments are hits.
+queue time separately from dependency-install time. The three volumes publish
+independently; always run the installer even when all attachments are hits.
 
 ## Bazel and Mix cache volumes
 
