@@ -36,17 +36,15 @@ public struct XcodeCoverageTarget: Equatable, Sendable {
     public let buildProductPath: String?
     /// The source files the target compiled, as the compiler recorded them.
     public let files: [String]
+    /// Whether the target is a test bundle, so its files that no other target compiled are test
+    /// code: told by the caller, or from the product when it has one.
+    public let isTest: Bool
 
-    public init(name: String, buildProductPath: String?, files: [String]) {
+    public init(name: String, buildProductPath: String?, files: [String], isTest: Bool? = nil) {
         self.name = name
         self.buildProductPath = buildProductPath
         self.files = files
-    }
-
-    /// Whether the target is a test bundle, so its files that no other target compiled are test
-    /// code.
-    public var isTest: Bool {
-        XcodeCoverageParser.isTestBundle(buildProductPath)
+        self.isTest = isTest ?? XcodeCoverageParser.isTestBundle(buildProductPath)
     }
 }
 

@@ -428,4 +428,41 @@ struct CoverageExportServiceTests {
         #expect(CoverageExportService.newest([old], writtenAfter: runStartedAt) == nil)
         #expect(CoverageExportService.newest([], writtenAfter: runStartedAt) == nil)
     }
+
+    @Test(.inTemporaryDirectory) func attributesFilesWhateverSpellingTheCompilerRecorded() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let real = directory.appending(component: "checkout")
+        try FileManager.default.createDirectory(
+            atPath: real.appending(component: "Sources").pathString,
+            withIntermediateDirectories: true
+        )
+        let link = directory.appending(component: "link")
+        try FileManager.default.createSymbolicLink(atPath: link.pathString, withDestinationPath: "checkout")
+        let attribution = CoverageExport.Attribution(targets: [
+            XcodeCoverageTarget(
+                name: "Lib.framework",
+                buildProductPath: nil,
+                files: [real.appending(components: "Sources", "A.swift").pathString]
+            ),
+            XcodeCoverageTarget(
+                name: "LibTests.xctest",
+                buildProductPath: nil,
+                files: [real.appending(components: "Sources", "A.swift").pathString],
+                isTest: true
+            ),
+        ])
+
+        // The compiler saw the checkout through the link; a file the checkout no longer has still matches.
+        #expect(attribution.targets(of: link.appending(components: "Sources", "A.swift").pathString).targets == ["Lib.framework"])
+        #expect(attribution.targets(of: link.appending(components: "Sources", "Gone", "B.swift").pathString).targets.isEmpty)
+        let gone = CoverageExport.Attribution(targets: [
+            XcodeCoverageTarget(
+                name: "Lib.framework",
+                buildProductPath: nil,
+                files: [real.appending(components: "Sources", "Gone", "B.swift").pathString]
+            ),
+        ])
+        #expect(gone.targets(of: link.appending(components: "Sources", "Gone", "B.swift").pathString)
+            .targets == ["Lib.framework"])
+    }
 }

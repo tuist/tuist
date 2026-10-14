@@ -104,7 +104,8 @@ public struct CoverageExportService: CoverageExportServicing {
                             files: target.files.map { prefixMaps.remap(
                                 $0,
                                 target: CompilationPrefixMaps.targetName(ofProduct: target.name)
-                            ) }
+                            ) },
+                            isTest: target.isTest
                         )
                     }),
                     spans: spans,
@@ -203,7 +204,7 @@ public struct CoverageExportService: CoverageExportServicing {
             let files = target.files.flatMap { file -> [String] in
                 file.hasPrefix("/") ? [file] : sources.rootDirectories.map { "\($0)/\(file)" }
             }
-            return XcodeCoverageTarget(name: target.name, buildProductPath: product, files: files)
+            return XcodeCoverageTarget(name: target.name, buildProductPath: product, files: files, isTest: target.isTest)
         }
     }
 
@@ -499,16 +500,23 @@ struct FunctionSpans: Sendable {
 public enum CoverageExport {
     public static let fileName = "tuist_coverage_export.ndjson"
 
-    /// Which targets compiled each file, from the bundle's coverage report.
+    /// Which targets compiled each file, from the build's graph or the bundle's coverage report.
+    /// Paths are matched by their canonical form: the compiler records the path the build was
+    /// invoked through (`/tmp/…`), which is not always the one the graph or Git has
+    /// (`/private/tmp/…`, a checkout behind a symlink).
     struct Attribution {
         private var targetsByPath: [String: [String]] = [:]
         private var testTargets: Set<String> = []
+        private let canonicalizer = PathCanonicalizer()
 
         init(targets: [XcodeCoverageTarget]) {
             for target in targets {
                 if target.isTest { testTargets.insert(target.name) }
-                for path in target.files where !(targetsByPath[path] ?? []).contains(target.name) {
-                    targetsByPath[path, default: []].append(target.name)
+                for path in target.files {
+                    let canonical = canonicalizer.canonical(path)
+                    if !(targetsByPath[canonical] ?? []).contains(target.name) {
+                        targetsByPath[canonical, default: []].append(target.name)
+                    }
                 }
             }
         }
@@ -516,9 +524,38 @@ public enum CoverageExport {
         /// The non-test targets that compiled the file, or the test bundles when only those did,
         /// in which case the file is test code.
         func targets(of path: String) -> (targets: [String], isTest: Bool) {
-            let targets = targetsByPath[path] ?? []
+            let targets = targetsByPath[canonicalizer.canonical(path)] ?? []
             let productTargets = targets.filter { !testTargets.contains($0) }
             return (productTargets.isEmpty ? targets : productTargets, !targets.isEmpty && productTargets.isEmpty)
+        }
+    }
+
+    /// `realpath` of a path's directory, remembered per directory since the files of a build
+    /// share a few of them; a directory that no longer exists resolves through its longest
+    /// existing ancestor, so a file the build names but the checkout lost still canonicalizes.
+    final class PathCanonicalizer {
+        private var directories: [String: String] = [:]
+
+        func canonical(_ path: String) -> String {
+            let directory = (path as NSString).deletingLastPathComponent
+            guard !directory.isEmpty, directory != "/" else { return path }
+            return canonicalDirectory(directory) + "/" + (path as NSString).lastPathComponent
+        }
+
+        private func canonicalDirectory(_ directory: String) -> String {
+            if let known = directories[directory] { return known }
+            let resolved: String
+            if let pointer = realpath(directory, nil) {
+                resolved = String(cString: pointer)
+                free(pointer)
+            } else {
+                let parent = (directory as NSString).deletingLastPathComponent
+                resolved = parent.isEmpty || parent == "/" || parent == directory
+                    ? directory
+                    : canonicalDirectory(parent) + "/" + (directory as NSString).lastPathComponent
+            }
+            directories[directory] = resolved
+            return resolved
         }
     }
 
