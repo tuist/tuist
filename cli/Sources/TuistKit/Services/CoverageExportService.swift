@@ -229,18 +229,11 @@ public struct CoverageExportService: CoverageExportServicing {
     /// test bundle that runs inside an app into the app's `PlugIns` (`Contents/PlugIns` on macOS),
     /// not next to it.
     static func product(named name: String, in directory: AbsolutePath) -> AbsolutePath? {
-        let direct = directory.appending(component: name)
-        if FileManager.default.fileExists(atPath: direct.pathString) { return direct }
         let apps = ((try? FileManager.default.contentsOfDirectory(atPath: directory.pathString)) ?? [])
-            .filter { $0.hasSuffix(".app") }
-            .sorted()
-        for app in apps {
-            for plugins in [["Contents", "PlugIns"], ["PlugIns"]] {
-                let hosted = directory.appending(components: [app] + plugins + [name])
-                if FileManager.default.fileExists(atPath: hosted.pathString) { return hosted }
-            }
-        }
-        return nil
+            .filter { $0.hasSuffix(".app") }.sorted()
+        let candidates = [[name]] + apps.flatMap { [[$0, "Contents", "PlugIns", name], [$0, "PlugIns", name]] }
+        return candidates.map { directory.appending(components: $0) }
+            .first { FileManager.default.fileExists(atPath: $0.pathString) }
     }
 
     /// The binary inside a product: the file itself, or a bundle's executable by its
