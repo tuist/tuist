@@ -56,7 +56,6 @@ jobs:
         run: |
           if [ -z "$ROUNDS" ]; then
             ROUNDS='[
-              {"shape": "8vcpu-19gb", "guests": 2},
               {"shape": "16vcpu-48gb", "guests": 1}
             ]'
           fi
