@@ -2,6 +2,9 @@
 
 This directory contains database migrations and other private assets.
 
+## Origin integration
+- `docs/en/guides/integrations/gitforge/origin.md` documents native-Origin comments, minimum app scopes, HTTPS callbacks/webhooks, result upload prerequisites, and independent environment credentials. Installation does not start CI; mirrors and GitHub OIDC remain on the GitHub integration. `origin_app_installations` stores account-owned installation/app/namespace IDs, not receipts or private keys.
+
 ## Responsibilities
 - Explicit client actor-claim configuration and privacy/legacy-server compatibility are documented in the English Xcode, Gradle, and Elixir build-insights guides. Claims are off by default; Xcode post-actions need their own environment configuration. This header does not imply report persistence, dashboard support, or new authorization; the endpoint scrubs it from Sentry contexts.
 - Grafana build-health setup, metric definitions, reporting limitations, and alert routing are documented in `docs/en/guides/integrations/grafana.md`. Keep this guide aligned with the Grafana plugin readme and link it in `lib/tuist/docs_sidebar.ex`.

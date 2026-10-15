@@ -111,7 +111,7 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
 - `mix.exs` - Elixir project configuration
 - `package.json` - JS dependencies (aube)
 - `config/` - Phoenix configuration
-- `fnox.toml` - Dev secrets sourced from 1Password (Development vault) at runtime via fnox
+- `fnox.toml` - Dev secrets sourced from 1Password (Development vault) at runtime via fnox, including `ORIGIN_APP/app_id` and the independent `ORIGIN_APP/private_key` signing key. Store the registered App ID beside its matching key; never hardcode an Origin private key.
 
 ## Testing Guidelines
 - Tests use ExUnit; files follow `test/**/module_name_test.exs`.
