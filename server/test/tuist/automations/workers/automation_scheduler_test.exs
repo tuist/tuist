@@ -4,6 +4,7 @@ defmodule Tuist.Automations.Workers.AutomationSchedulerTest do
   alias Tuist.Automations
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.Automations.Workers.AutomationScheduler
+  alias Tuist.Automations.Workers.BuildAlertEvaluationWorker
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -13,6 +14,19 @@ defmodule Tuist.Automations.Workers.AutomationSchedulerTest do
     assert :ok = AutomationScheduler.perform(%Oban.Job{args: %{}})
 
     assert_enqueued(worker: AlertEvaluationWorker, args: %{alert_id: alert.id})
+  end
+
+  test "build evaluations use a dedicated queue rather than blocking test alerts" do
+    alert =
+      AutomationsFixtures.automation_alert_fixture(
+        monitor_type: "cache_key_consistency",
+        trigger_config: %{},
+        trigger_actions: [%{"type" => "send_slack", "channel" => "C1", "message" => "{{build.summary}}"}]
+      )
+
+    assert :ok = AutomationScheduler.perform(%Oban.Job{args: %{}})
+    assert_enqueued(worker: BuildAlertEvaluationWorker, queue: :build_automation_evaluations, args: %{alert_id: alert.id})
+    refute_enqueued(worker: AlertEvaluationWorker, args: %{alert_id: alert.id})
   end
 
   test "does not schedule established rolling scoped-monitor alerts" do

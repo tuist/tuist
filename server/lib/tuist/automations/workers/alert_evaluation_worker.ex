@@ -7,6 +7,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
+  alias Tuist.Automations.Builds
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.ClickHouseRepo
   alias Tuist.Projects
@@ -51,6 +52,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
         cond do
           not alert.enabled ->
             :ok
+
+          Builds.monitor?(alert) ->
+            Builds.evaluate(alert)
 
           not trigger_window_supported?(alert) ->
             :ok

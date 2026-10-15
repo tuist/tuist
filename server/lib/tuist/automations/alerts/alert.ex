@@ -8,7 +8,7 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   @event_driven_monitor_types ~w(test_updated)
   @recovery_ledger_monitor_types ~w(flakiness_rate flaky_run_count reliability_rate)
-  @monitor_types @recovery_ledger_monitor_types ++ @event_driven_monitor_types
+  @monitor_types @recovery_ledger_monitor_types ++ @event_driven_monitor_types ++ ~w(cache_key_consistency)
   @comparisons ~w(gte gt lt lte)
   @valid_states ~w(enabled muted skipped)
   @test_updated_events ~w(
@@ -101,6 +101,7 @@ defmodule Tuist.Automations.Alerts.Alert do
   @foreign_key_type UUIDv7
 
   schema "automation_alerts" do
+    field :build_scan_state, :map, default: %{}
     field :name, :string
     field :enabled, :boolean, default: true
     field :monitor_type, :string
@@ -261,6 +262,7 @@ defmodule Tuist.Automations.Alerts.Alert do
         "flaky_run_count" -> validate_flaky_run_count_config(changeset, trigger_config)
         "reliability_rate" -> validate_reliability_rate_config(changeset, trigger_config)
         "test_updated" -> validate_test_updated_config(changeset, trigger_config)
+        "cache_key_consistency" -> validate_build_config(changeset, trigger_config)
         _ -> changeset
       end
 
@@ -269,6 +271,30 @@ defmodule Tuist.Automations.Alerts.Alert do
     |> validate_existing_matches(trigger_config, monitor_type)
     |> validate_state_filter(trigger_config, :trigger_config)
     |> validate_recovery_config()
+  end
+
+  defp validate_build_config(changeset, config) do
+    changeset = validate_length(changeset, :name, max: 100)
+
+    changeset =
+      if config == %{},
+        do: changeset,
+        else: add_error(changeset, :trigger_config, "cache key consistency does not accept condition options")
+
+    changeset =
+      if get_field(changeset, :recovery_enabled),
+        do: add_error(changeset, :recovery_enabled, "cache key findings do not automatically recover"),
+        else: changeset
+
+    case get_field(changeset, :trigger_actions) do
+      [%{"type" => "send_slack", "message" => message}] when is_binary(message) ->
+        if byte_size(message) <= 1000,
+          do: changeset,
+          else: add_error(changeset, :trigger_actions, "build notification messages must be at most 1000 bytes")
+
+      _ ->
+        add_error(changeset, :trigger_actions, "build automations require one Slack notification action")
+    end
   end
 
   defp validate_existing_matches(changeset, config, monitor_type) do

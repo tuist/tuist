@@ -3,6 +3,7 @@
 This area owns the OpenAPI spec and schema definitions for the server API.
 
 ## Responsibilities
+- Automation monitor responses are open strings. Build cache-key consistency requests use an empty condition, one Slack action, and no recovery; do not expose test thresholds/state controls for this monitor.
 - Define the OpenAPI spec (`TuistWeb.API.Spec`) and security schemes.
 - Provide schema modules used by the API controllers and docs.
 

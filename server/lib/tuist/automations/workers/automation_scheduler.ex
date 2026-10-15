@@ -8,7 +8,9 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
   import Ecto.Query
 
   alias Tuist.Automations.Alerts.Alert
+  alias Tuist.Automations.Builds
   alias Tuist.Automations.Workers.AlertEvaluationWorker
+  alias Tuist.Automations.Workers.BuildAlertEvaluationWorker
   alias Tuist.Repo
 
   @impl Oban.Worker
@@ -25,9 +27,11 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
         # per-alert `period` guarantees we wait at least `cadence` seconds
         # before re-scheduling, regardless of how quickly the previous run
         # finished.
+        worker = if Builds.monitor?(alert), do: BuildAlertEvaluationWorker, else: AlertEvaluationWorker
+
         {:ok, _job} =
           %{alert_id: alert.id}
-          |> AlertEvaluationWorker.new(
+          |> worker.new(
             unique: [
               keys: [:alert_id],
               period: Alert.cadence_seconds(alert.cadence),

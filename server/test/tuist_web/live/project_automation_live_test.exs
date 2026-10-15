@@ -36,6 +36,51 @@ defmodule TuistWeb.ProjectAutomationLiveTest do
            ]
   end
 
+  test "shows cache-key evidence and links to both builds", context do
+    {:ok, automation} =
+      Automations.create_alert(%{
+        project_id: context.project.id,
+        name: "Cache key consistency",
+        monitor_type: "cache_key_consistency",
+        trigger_actions: [%{"type" => "send_slack", "channel" => "C1", "message" => "{{build.summary}}"}]
+      })
+
+    first = UUIDv7.generate()
+    second = UUIDv7.generate()
+
+    Tuist.Automations.Builds.persist(automation, [
+      %{
+        source: "xcode_compilation",
+        unit_key: "Compile Core.swift",
+        unit_name: "Compile Core.swift",
+        commit_sha: "abcdef0123456789",
+        first_key: "hash-a",
+        second_key: "hash-b",
+        first_run: first,
+        second_run: second
+      }
+    ])
+
+    {:ok, lv, html} = open(context.conn, context.organization, context.project, automation)
+    assert html =~ "Cache key findings"
+    assert html =~ "hash-a"
+    assert html =~ "hash-b"
+
+    assert has_element?(
+             lv,
+             "a[href='/#{context.organization.account.name}/#{context.project.name}/builds/build-runs/#{first}']",
+             "Build A"
+           )
+
+    assert has_element?(
+             lv,
+             "a[href='/#{context.organization.account.name}/#{context.project.name}/builds/build-runs/#{second}']",
+             "Build B"
+           )
+
+    assert render_hook(lv, "show_more_build_findings", %{}) =~ "Compile Core.swift"
+  end
+
   test "shows the current configuration and edit history", %{
     conn: conn,
     organization: organization,

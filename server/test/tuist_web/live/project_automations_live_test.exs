@@ -241,6 +241,56 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
     live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
   end
 
+  describe "build automations" do
+    test "creates, edits and disables a rule separately from test automations", context do
+      {:ok, lv, html} = open(context.conn, context.organization, context.project)
+      assert html =~ "Build automations"
+      render_hook(lv, "open_build_automation_modal", %{})
+      assert render_hook(lv, "save_build_automation", %{}) =~ "Enter a name and select a Slack channel"
+      assert Automations.list_alerts(context.project.id) == []
+
+      {:ok, token} =
+        Tuist.Slack.sign_channel_result(%{
+          channel_id: "C1",
+          channel_name: "builds",
+          webhook_url: "https://hooks.slack.com/services/T/B/test"
+        })
+
+      render_hook(lv, "build_automation_channel_selected", %{"channel_token" => token})
+      render_hook(lv, "save_build_automation", %{})
+      assert [automation] = Automations.list_alerts(context.project.id)
+      assert automation.monitor_type == "cache_key_consistency"
+      assert automation.trigger_config == %{}
+      assert has_element?(lv, "#build-automations-table", "Cache key consistency")
+      refute has_element?(lv, "#automations-table", "Cache key consistency")
+
+      render_hook(lv, "edit_build_automation", %{"id" => automation.id})
+      render_hook(lv, "update_build_automation_name", %{"value" => "Cache portability"})
+      render_hook(lv, "save_build_automation", %{})
+      assert {:ok, %{name: "Cache portability"}} = Automations.get_alert(automation.id)
+      render_hook(lv, "toggle_automation_enabled", %{"id" => automation.id})
+      assert {:ok, %{enabled: false}} = Automations.get_alert(automation.id)
+    end
+
+    test "regular members cannot forge build rule creation", context do
+      user = AccountsFixtures.user_fixture()
+      Accounts.add_user_to_organization(user, context.organization, role: :user)
+      {:ok, lv, _} = open(log_in_user(build_conn(), user), context.organization, context.project)
+      render_hook(lv, "open_build_automation_modal", %{})
+
+      {:ok, token} =
+        Tuist.Slack.sign_channel_result(%{
+          channel_id: "C1",
+          channel_name: "builds",
+          webhook_url: "https://hooks.slack.com/services/T/B/test"
+        })
+
+      render_hook(lv, "build_automation_channel_selected", %{"channel_token" => token})
+      render_hook(lv, "save_build_automation", %{})
+      assert Automations.list_alerts(context.project.id) == []
+    end
+  end
+
   describe "page rendering" do
     test "shows the empty state when no automations exist", %{conn: conn, organization: organization, project: project} do
       {:ok, _lv, html} = open(conn, organization, project)

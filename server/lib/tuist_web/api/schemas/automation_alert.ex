@@ -18,8 +18,8 @@ defmodule TuistWeb.API.Schemas.AutomationAlert do
       enabled: %Schema{type: :boolean},
       monitor_type: %Schema{
         type: :string,
-        enum: ["flakiness_rate", "flaky_run_count", "reliability_rate"],
-        description: "The monitor type that evaluates the condition."
+        description:
+          "The monitor type: flakiness_rate, flaky_run_count, reliability_rate, test_updated, or cache_key_consistency."
       },
       trigger_config: %Schema{type: :object, description: "Monitor-specific trigger parameters (e.g. threshold, window)."},
       cadence: %Schema{type: :string, description: "Evaluation cadence (e.g. \"5m\")."},

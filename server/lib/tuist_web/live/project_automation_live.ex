@@ -9,6 +9,7 @@ defmodule TuistWeb.ProjectAutomationLive do
   alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Automations
+  alias Tuist.Automations.Builds
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.ProjectAutomationsLive
 
@@ -35,6 +36,7 @@ defmodule TuistWeb.ProjectAutomationLive do
        |> assign(:automation, automation)
        |> assign(:revisions, revisions)
        |> assign(:has_more_revisions?, has_more_revisions?)
+       |> assign(:build_findings, if(Builds.monitor?(automation), do: Builds.list_findings(automation.id), else: []))
        |> assign(
          :head_title,
          "#{automation.name} · #{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist"
@@ -56,6 +58,20 @@ defmodule TuistWeb.ProjectAutomationLive do
      socket
      |> update(:revisions, &(&1 ++ revisions))
      |> assign(:has_more_revisions?, has_more_revisions?)}
+  end
+
+  def handle_event("show_more_build_findings", _params, socket) do
+    if length(socket.assigns.build_findings) > 20 do
+      before_id = Enum.at(socket.assigns.build_findings, 19).id
+      page = Builds.list_findings(socket.assigns.automation.id, before_id)
+      {:noreply, assign(socket, build_findings: page)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def finding_run_url(project, account, evidence, field) do
+    "/#{account.name}/#{project.name}" <> Builds.run_path(evidence["source"], evidence[field])
   end
 
   def automation_actions_summary(%{trigger_actions: actions}), do: actions_summary(actions)
