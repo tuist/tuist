@@ -107,9 +107,9 @@ jobs:
       - name: Tabulate
         run: |
           {
-            echo "| Shape | Slot | Guest vCPU | Guest GiB | CLI build (s) | TuistApp test (s) | TuistApp exit | Avg CPU % | Time at >=90% CPU | Peak mem GiB |"
-            echo "|---|---|---|---|---|---|---|---|---|---|"
-            jq -rs 'sort_by(.shape, .slot)[] | "| \(.shape) | \(.slot) | \(.guest_vcpus) | \(.guest_memory_gib) | \(.cli_build_seconds) | \(.app_test_seconds) | \(.app_test_exit) | \(.avg_cpu_percent) | \(.pegged_percent)% | \(.peak_memory_gib) |"' results/*.json
+            echo "| Shape | Slot | Guest vCPU | Guest GiB | CLI builds (s) | CLI median (s) | TuistApp test (s) | TuistApp exit | Build avg CPU % | Build time at >=90% CPU | Peak mem GiB |"
+            echo "|---|---|---|---|---|---|---|---|---|---|---|"
+            jq -rs 'sort_by(.shape, .slot)[] | "| \(.shape) | \(.slot) | \(.guest_vcpus) | \(.guest_memory_gib) | \(.cli_build_seconds // [] | map(tostring) | join(" / ")) | \(.cli_build_seconds // [] | sort | if length > 0 then .[length / 2 | floor] else null end) | \(.app_test_seconds) | \(.app_test_exit) | \(.avg_cpu_percent) | \(.pegged_percent)% | \(.peak_memory_gib) |"' results/*.json
           } >> "$GITHUB_STEP_SUMMARY"
           jq -s . results/*.json > results.json
       - uses: actions/upload-artifact@v4

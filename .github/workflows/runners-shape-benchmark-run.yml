@@ -82,25 +82,39 @@ jobs:
           chmod +x "$RUNNER_TEMP/sampler.sh"
           nohup "$RUNNER_TEMP/sampler.sh" "$RUNNER_TEMP/samples.txt" >/dev/null 2>&1 &
           echo $! > "$RUNNER_TEMP/sampler.pid"
+      # Three cold builds per guest, each into an empty DerivedData, so one VM
+      # boot yields three samples. Each build's window is kept so the CPU
+      # figures cover the builds alone.
       - name: Build the CLI cold
         run: |
-          tuist generate tuist --no-binary-cache --no-open
-          start=$(date +%s)
-          set +e
-          xcodebuild build -workspace Tuist.xcworkspace -scheme tuist -destination 'platform=macOS' \
-            -derivedDataPath "$RUNNER_TEMP/dd-cli" \
-            COMPILATION_CACHE_ENABLE_CACHING=NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            | tail -n 20
-          rc=${PIPESTATUS[0]}
-          echo "cli_build_seconds=$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/result.env"
-          exit "$rc"
+          tuist generate tuist --cache-profile none --no-open
+          times=()
+          for i in 1 2 3; do
+            rm -rf "$RUNNER_TEMP/dd-cli"
+            start=$(date +%s)
+            rc=0
+            xcodebuild build -workspace Tuist.xcworkspace -scheme tuist -destination 'platform=macOS,arch=arm64' \
+              -derivedDataPath "$RUNNER_TEMP/dd-cli" \
+              COMPILATION_CACHE_ENABLE_CACHING=NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+              > "$RUNNER_TEMP/cli-build-$i.log" 2>&1 || rc=$?
+            end=$(date +%s)
+            tail -n 5 "$RUNNER_TEMP/cli-build-$i.log"
+            if [ "$rc" -ne 0 ]; then
+              tail -n 60 "$RUNNER_TEMP/cli-build-$i.log"
+              exit "$rc"
+            fi
+            echo "$start $end" >> "$RUNNER_TEMP/build-windows.txt"
+            times+=("$(( end - start ))")
+            echo "build $i: $(( end - start ))s"
+          done
+          echo "cli_build_seconds=[$(IFS=,; echo "${times[*]}")]" >> "$RUNNER_TEMP/result.env"
       - name: Build and test TuistApp cold
         if: ${{ inputs.app_tests }}
         continue-on-error: true
         run: |
           start=$(date +%s)
           set +e
-          tuist test TuistApp --no-selective-testing --no-binary-cache -- \
+          tuist test TuistApp --no-selective-testing --cache-profile none -- \
             COMPILATION_CACHE_ENABLE_CACHING=NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             | tail -n 40
           rc=${PIPESTATUS[0]}
@@ -115,9 +129,14 @@ jobs:
           kill "$(cat "$RUNNER_TEMP/sampler.pid")" 2>/dev/null || true
           # shellcheck disable=SC1090
           source "$RUNNER_TEMP/result.env"
-          read -r avg pegged peak < <(awk '
-            {n++; s+=$2; if ($2 >= 90) p++; if ($3 > m) m=$3}
-            END {if (n) printf "%.0f %.0f %.1f", s/n, p*100/n, m; else print "0 0 0"}' "$RUNNER_TEMP/samples.txt" 2>/dev/null)
+          # CPU over the CLI builds' windows, peak memory over the whole job.
+          stats=$(awk '
+            NR == FNR {ws[NR] = $1; we[NR] = $2; nw = NR; next}
+            {if ($3 > m) m = $3
+             for (i = 1; i <= nw; i++) if ($1 >= ws[i] && $1 <= we[i]) {n++; s += $2; if ($2 >= 90) p++; break}}
+            END {if (n) printf "%.0f %.0f %.1f\n", s/n, p*100/n, m; else printf "null null %.1f\n", m}' \
+            "$RUNNER_TEMP/build-windows.txt" "$RUNNER_TEMP/samples.txt" 2>/dev/null || echo "null null null")
+          read -r avg pegged peak <<< "$stats"
           mkdir -p bench
           cat > "bench/$SHAPE-$SLOT.json" <<EOF
           {
