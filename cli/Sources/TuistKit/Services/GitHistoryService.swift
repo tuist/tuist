@@ -11,7 +11,7 @@ import TuistSupport
 /// A run's Git history as collected from the checkout: the payload sent with the run, the
 /// commits to upload to the server's graph, the remote that names the repository, and the
 /// settings that bounded both.
-public struct CollectedGitHistory: Equatable {
+public struct CollectedGitHistory: Equatable, Sendable {
     public let payload: TestRunGitHistory
     public let history: GitHistory
     public let branch: String?
@@ -24,13 +24,23 @@ public struct CollectedGitHistory: Equatable {
 }
 
 /// Collects a run's Git history from the checkout, within the limits the server sets, and uploads
-/// what the server's graph lacks once the run exists: the commits, and the commit's file listing
-/// when the checkout is clean. Both are best effort: a run is never lost to a history problem,
-/// and whatever could not be collected is reported with the run so the server can complete it
-/// from the VCS provider.
+/// what the server's graph lacks: the commits and branch heads before the server is asked anything
+/// that reads the graph (`publish`), and the commit's file listing once the run exists, when the
+/// checkout is clean. A process collects and publishes a checkout's history once
+/// (`GitHistoryCache`). Both are best effort: a run is never lost to a history problem, and
+/// whatever could not be collected is reported with the run so the server can complete it from
+/// the VCS provider.
 @Mockable
 public protocol GitHistoryServicing {
     func collect(
+        gitInfo: GitInfo,
+        workingDirectory: AbsolutePath,
+        fullHandle: String,
+        serverURL: URL
+    ) async -> CollectedGitHistory?
+
+    /// Collects the history and uploads its commits and branch heads, once per process.
+    func publish(
         gitInfo: GitInfo,
         workingDirectory: AbsolutePath,
         fullHandle: String,
@@ -47,6 +57,7 @@ public struct GitHistoryService: GitHistoryServicing {
     private let uploadCommitsService: UploadCommitsServicing
     private let missingListingsService: FindMissingCommitListingsServicing
     private let uploadListingService: UploadCommitListingServicing
+    private let cache: GitHistoryCache
 
     public init(
         gitController: GitControlling = GitController(),
@@ -54,7 +65,8 @@ public struct GitHistoryService: GitHistoryServicing {
         missingCommitsService: FindMissingCommitsServicing = FindMissingCommitsService(),
         uploadCommitsService: UploadCommitsServicing = UploadCommitsService(),
         missingListingsService: FindMissingCommitListingsServicing = FindMissingCommitListingsService(),
-        uploadListingService: UploadCommitListingServicing = UploadCommitListingService()
+        uploadListingService: UploadCommitListingServicing = UploadCommitListingService(),
+        cache: GitHistoryCache = .shared
     ) {
         self.gitController = gitController
         self.settingsService = settingsService
@@ -62,6 +74,7 @@ public struct GitHistoryService: GitHistoryServicing {
         self.uploadCommitsService = uploadCommitsService
         self.missingListingsService = missingListingsService
         self.uploadListingService = uploadListingService
+        self.cache = cache
     }
 
     /// History is collected on CI, where it places runs on the default branch's history, and locally
@@ -109,6 +122,45 @@ public struct GitHistoryService: GitHistoryServicing {
         serverURL: URL
     ) async -> CollectedGitHistory? {
         guard Self.enabled else { return nil }
+        let key = GitHistoryCache.key(
+            workingDirectory: workingDirectory,
+            sha: gitInfo.sha,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+        if let collected = await cache.collected(key) { return collected }
+        let collected = await collectFromCheckout(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+        await cache.store(collected, key: key)
+        return collected
+    }
+
+    public func publish(
+        gitInfo: GitInfo,
+        workingDirectory: AbsolutePath,
+        fullHandle: String,
+        serverURL: URL
+    ) async -> CollectedGitHistory? {
+        let collected = await collect(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+        await publishCommits(collected, workingDirectory: workingDirectory, fullHandle: fullHandle, serverURL: serverURL)
+        return collected
+    }
+
+    private func collectFromCheckout(
+        gitInfo: GitInfo,
+        workingDirectory: AbsolutePath,
+        fullHandle: String,
+        serverURL: URL
+    ) async -> CollectedGitHistory {
         let observedAt = Date()
 
         // Without a repository there is nothing to collect, but the run still says so, and keeps
@@ -226,15 +278,10 @@ public struct GitHistoryService: GitHistoryServicing {
         fullHandle: String,
         serverURL: URL
     ) async {
-        guard let collected, let repositoryURL = collected.repositoryURL, !repositoryURL.isEmpty else { return }
+        await publishCommits(collected, workingDirectory: workingDirectory, fullHandle: fullHandle, serverURL: serverURL)
 
-        do {
-            try await uploadCommits(collected, repositoryURL: repositoryURL, fullHandle: fullHandle, serverURL: serverURL)
-        } catch {
-            Self.warn("The run's Git history could not be uploaded: \(error.localizedDescription)")
-        }
-
-        guard Self.coverageEnabled else { return }
+        guard Self.coverageEnabled, let collected, let repositoryURL = collected.repositoryURL, !repositoryURL.isEmpty
+        else { return }
         do {
             try await uploadListing(
                 collected,
@@ -246,6 +293,30 @@ public struct GitHistoryService: GitHistoryServicing {
         } catch {
             AlertController.current
                 .warning(.alert("The commit's file listing could not be uploaded: \(error.localizedDescription)"))
+        }
+    }
+
+    /// Uploads the commits and branch heads unless this process already did, and records it only
+    /// once they are up, so a failed attempt is retried when the run is reported.
+    private func publishCommits(
+        _ collected: CollectedGitHistory?,
+        workingDirectory: AbsolutePath,
+        fullHandle: String,
+        serverURL: URL
+    ) async {
+        guard let collected, let repositoryURL = collected.repositoryURL, !repositoryURL.isEmpty else { return }
+        let key = GitHistoryCache.key(
+            workingDirectory: workingDirectory,
+            sha: collected.history.headSHA,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+        guard await !cache.isPublished(key) else { return }
+        do {
+            try await uploadCommits(collected, repositoryURL: repositoryURL, fullHandle: fullHandle, serverURL: serverURL)
+            await cache.markPublished(key)
+        } catch {
+            Self.warn("The run's Git history could not be uploaded: \(error.localizedDescription)")
         }
     }
 
@@ -356,4 +427,27 @@ public struct GitHistoryService: GitHistoryServicing {
             )
         }
     }
+}
+
+/// The history a process collected per checkout and commit, and whether its commits are up, so the
+/// stress gate's early upload and the run's report share one collection and one upload.
+public actor GitHistoryCache {
+    public static let shared = GitHistoryCache()
+
+    private var collected: [String: CollectedGitHistory] = [:]
+    private var published: Set<String> = []
+
+    public init() {}
+
+    static func key(workingDirectory: AbsolutePath, sha: String?, fullHandle: String, serverURL: URL) -> String {
+        [serverURL.absoluteString, fullHandle, workingDirectory.pathString, sha ?? ""].joined(separator: "\n")
+    }
+
+    func collected(_ key: String) -> CollectedGitHistory? { collected[key] }
+
+    func store(_ history: CollectedGitHistory, key: String) { collected[key] = history }
+
+    func isPublished(_ key: String) -> Bool { published.contains(key) }
+
+    func markPublished(_ key: String) { published.insert(key) }
 }
