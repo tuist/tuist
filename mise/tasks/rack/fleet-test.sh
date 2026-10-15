@@ -8,7 +8,8 @@
 # all of them side by side: each file works on its own copy of the fleet (see
 # tests/helpers.bash), and most of the suite's time is fake switches waiting
 # out the session driver's quiet window rather than work. A file's output is
-# printed whole once it finishes, in the order the files are named.
+# printed whole once it finishes, in the order the files are named, with
+# what a failing test printed.
 #
 #   mise run rack:fleet-test               # every file
 #   mise run rack:fleet-test render edge   # what a change to the site definition touches
@@ -41,7 +42,7 @@ for i in "${!files[@]}"; do
   (
     start=$SECONDS
     status=0
-    bats "${files[$i]}" > "$out/$i" 2>&1 || status=$?
+    bats --print-output-on-failure "${files[$i]}" > "$out/$i" 2>&1 || status=$?
     echo $(( SECONDS - start )) > "$out/$i.seconds"
     exit "$status"
   ) &
