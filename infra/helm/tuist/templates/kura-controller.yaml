@@ -258,6 +258,14 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [list]
+  # The Kura volume key endpoint authenticates the CSI node plugin's projected
+  # token and resolves the requested volume to its claim and node.
+  - apiGroups: [authentication.k8s.io]
+    resources: [tokenreviews]
+    verbs: [create]
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

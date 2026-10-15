@@ -560,6 +560,9 @@ defmodule Tuist.Kura.Regions do
       # The node's XFS /data, through the same local-path class as the other
       # bare-metal pools.
       storage_class: "scw-local-nvme",
+      # No kura-volumes node plugin runs on the rack: no release a deploy waits
+      # on may run a pod on a rack node.
+      encrypted_volumes: false,
       storage_size: "50Gi",
       runner_platforms: [:macos],
       data_plane: :private_gateway,
@@ -999,6 +1002,7 @@ defmodule Tuist.Kura.Regions do
         peer_public_host_template: String.replace(@managed_region_peer_public_host_template, "{env_suffix}", host_suffix),
         ingress_class_name: spec.ingress_class_name,
         storage_class: Map.get(spec, :storage_class, @managed_region_storage_class),
+        encrypted_volumes: Map.get(spec, :encrypted_volumes, true),
         gateway: Map.get(spec, :gateway, :hetzner),
         # The region's public peer failover IP (bare-metal regions only): the
         # stable IP self-hosted nodes resolve `peer.<host>` to, kept routed to a
@@ -1114,6 +1118,7 @@ defmodule Tuist.Kura.Regions do
         country: Map.get(spec, :country),
         subdivision: Map.get(spec, :subdivision),
         storage_class: spec.storage_class,
+        encrypted_volumes: Map.get(spec, :encrypted_volumes, true),
         storage_size: Map.get(spec, :storage_size),
         storage_governed: Map.get(spec, :storage_governed, false),
         memory_governed: Map.get(spec, :memory_governed, false),

@@ -61,6 +61,9 @@ server:
   # key in the server-config Secret with it. Rollback is a revert; the
   # existing `dsn` field on the same item stays put.
   config:
+    # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
+    kuraVolumeRootKeys:
+      enabled: true
     externalSecrets:
       fields:
         sentryDsn: dsn_atlas
@@ -435,6 +438,13 @@ kuraController:
 egressTreeAgent:
   enabled: true
   nodePools: [kura-ca-east]
+
+# The kura-volumes.tuist.dev CSI driver and kura-encrypted-nvme StorageClass
+# on the Kura cache pools. Inert until the :kura_encrypted_volumes
+# feature flag places an account's instances on the class. The deploy workflows pin kuraVolumesCSI.image.tag to
+# the Kura controller's `sha-` build.
+kuraVolumesCSI:
+  enabled: true
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Hard pod anti-affinity keeps the instances

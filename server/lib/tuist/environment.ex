@@ -2057,6 +2057,69 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Root keys that wrap Kura volume tenant keys (`TUIST_KURA_VOLUME_ROOT_KEYS`),
+  as `[{key_id, key}]`: a comma-separated list of `<key_id>:<base64 32-byte key>`.
+  The first entry wraps new tenant keys and every entry can unwrap, so a root
+  key is rotated by prepending its replacement.
+
+  Unset outside canary and production, a single `dev` key is derived from the
+  secret key base so local volumes work without configuration. Unset in canary
+  or production, or set to anything malformed, it is empty and volume keys are
+  not issued.
+  """
+  def kura_volume_root_keys(secrets \\ secrets()) do
+    case get([:kura, :volume_root_keys], secrets) do
+      value when is_binary(value) and value != "" -> parse_kura_volume_root_keys(value)
+      _ -> fallback_kura_volume_root_keys(secrets)
+    end
+  end
+
+  @doc false
+  def parse_kura_volume_root_keys(value) do
+    entries = value |> String.split(",", trim: true) |> Enum.map(&parse_kura_volume_root_key/1)
+    ids = for {:ok, {id, _key}} <- entries, do: id
+
+    if entries != [] and Enum.all?(entries, &match?({:ok, _}, &1)) and length(Enum.uniq(ids)) == length(ids) do
+      Enum.map(entries, fn {:ok, entry} -> entry end)
+    else
+      []
+    end
+  end
+
+  defp parse_kura_volume_root_key(entry) do
+    with [id, encoded] when id != "" <- entry |> String.trim() |> String.split(":", parts: 2),
+         {:ok, <<_::binary-size(32)>> = key} <- Base.decode64(String.trim(encoded)) do
+      {:ok, {id, key}}
+    else
+      _ -> :error
+    end
+  end
+
+  defp fallback_kura_volume_root_keys(secrets) do
+    case {env(), secret_key_base(secrets)} do
+      {env, _} when env in [:can, :prod] ->
+        []
+
+      {_env, base} when is_binary(base) and base != "" ->
+        [{"dev", :crypto.hash(:sha256, "kura-volume-root-key/dev|" <> base)}]
+
+      _ ->
+        []
+    end
+  end
+
+  @doc """
+  Username of the ServiceAccount the Kura volumes CSI node plugin presents to
+  `POST /_internal/kura/volume-keys` (`TUIST_KURA_VOLUMES_CSI_NODE_USERNAME`).
+  """
+  def kura_volumes_csi_node_username do
+    case System.get_env("TUIST_KURA_VOLUMES_CSI_NODE_USERNAME") do
+      username when is_binary(username) and username != "" -> username
+      _ -> "system:serviceaccount:kura-volumes:kura-volumes-csi-node"
+    end
+  end
+
   @doc false
   def parse_runners_site_pools(value) do
     value

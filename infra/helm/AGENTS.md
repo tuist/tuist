@@ -16,6 +16,20 @@ runs the mixed-version latency expression through promtool.
 
 ## Conventions
 
+- `kuraVolumesCSI` deploys the `kura-volumes.tuist.dev` CSI driver
+  (`templates/kura-volumes-csi.yaml`, see `../kura-volumes-csi/AGENTS.md`) and
+  the `kura-encrypted-nvme` StorageClass. Its node plugin runs on the pools
+  `tuist.kuraCachePools` lists, the same list the quota exporter uses, and
+  never on rack nodes. The `kura-volumes` namespace and the
+  `kura-volumes-csi-node` ServiceAccount are fixed: the server's key endpoint
+  authorizes by that TokenReview username. `kuraVolumesCSI.image.tag` pins a
+  `sha-` build (set by the deploy workflows) and is required. An account's
+  instances move onto the class only under the `:kura_encrypted_volumes`
+  feature flag. Volume keys are wrapped by the
+  root keys `server.config.kuraVolumeRootKeys.enabled` syncs from the env's
+  `KURA_VOLUME_ROOT_KEYS` 1Password item (`value`); canary and production
+  issue no keys without it.
+
 - Production enables the Kura authority controller independently of instance
   activation. Keep it enabled once any instance has a serving rollback floor;
   disabling it expires live grants. See

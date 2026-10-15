@@ -24,6 +24,9 @@ func TestNodeLocalTolerationsAdoption(t *testing.T) {
 		{name: "existing replica does not roll", storage: "scw-local-nvme", existingImage: "ghcr.io/tuist/kura:0.9.0"},
 		{name: "next image adopts protection", storage: "scw-local-nvme", existingImage: "ghcr.io/tuist/kura:0.8.0", wantProtected: true},
 		{name: "protection survives reconciliation", storage: "scw-local-nvme", existingImage: "ghcr.io/tuist/kura:0.9.0", retained: true, wantProtected: true},
+		{name: "new encrypted local replica", storage: "kura-encrypted-nvme", wantProtected: true},
+		{name: "existing encrypted replica does not roll", storage: "kura-encrypted-nvme", existingImage: "ghcr.io/tuist/kura:0.9.0"},
+		{name: "encrypted protection survives reconciliation", storage: "kura-encrypted-nvme", existingImage: "ghcr.io/tuist/kura:0.9.0", retained: true, wantProtected: true},
 		{name: "network volume keeps eviction", storage: "hcloud-volumes"},
 		{name: "unspecified storage keeps eviction"},
 	} {

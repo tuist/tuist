@@ -194,6 +194,47 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  TokenReview for a token that must claim `audience`, returning the
+  authenticated user's `username`, `uid`, and `extra` (for a pod-bound
+  ServiceAccount token, `extra` carries the node it was issued on under
+  `authentication.kubernetes.io/node-name`). Unlike `create_token_review/2`,
+  this does not narrow the principal to a ServiceAccount; the caller compares
+  the username itself.
+
+  Returns `{:error, :unauthenticated}` when the token is rejected or does not
+  claim `audience`.
+  """
+  def create_bound_token_review(token, audience, opts \\ []) when is_binary(token) and is_binary(audience) do
+    body =
+      JSON.encode!(%{
+        "apiVersion" => "authentication.k8s.io/v1",
+        "kind" => "TokenReview",
+        "spec" => %{"token" => token, "audiences" => [audience]}
+      })
+
+    case request(:post, "/apis/authentication.k8s.io/v1/tokenreviews",
+           opts: opts,
+           body: body,
+           headers: [{"content-type", "application/json"}],
+           timeout: opts[:timeout]
+         ) do
+      {:ok, %{"status" => %{"authenticated" => true, "user" => %{"username" => username} = user} = status}}
+      when is_binary(username) ->
+        if audience in (status["audiences"] || [audience]) do
+          {:ok, %{username: username, uid: user["uid"], extra: Map.get(user, "extra") || %{}}}
+        else
+          {:error, :unauthenticated}
+        end
+
+      {:ok, %{"status" => _status}} ->
+        {:error, :unauthenticated}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  @doc """
   TokenReview variant for the runners-controller calling the
   `desired_replicas` endpoint. Unlike `create_token_review/1`, this
   does NOT require the `tuist-runners-dispatch` audience — the
@@ -324,6 +365,15 @@ defmodule Tuist.Kubernetes.Client do
   """
   def get_persistent_volume_claim(namespace, name, opts \\ []) when is_binary(namespace) and is_binary(name) do
     get("/api/v1/namespaces/#{namespace}/persistentvolumeclaims/#{name}", opts)
+  end
+
+  @doc """
+  GETs a PersistentVolume by name. The Kura volume key endpoint reads a
+  volume's CSI driver, node affinity, and claim to decide whether the calling
+  node may open it. The server SA needs `persistentvolumes: [get]`.
+  """
+  def get_persistent_volume(name, opts \\ []) when is_binary(name) do
+    get("/api/v1/persistentvolumes/#{name}", opts)
   end
 
   @doc """

@@ -24,6 +24,7 @@ use (
 	./infra/egress-tree-agent
 	./infra/hetzner-robot-controller
 	./infra/kura-controller
+	./infra/kura-volumes-csi
 	./infra/linux-runner-image
 	./infra/macos-host-bootstrap
 	./infra/macos-host-sensors

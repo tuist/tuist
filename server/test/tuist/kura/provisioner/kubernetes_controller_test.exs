@@ -17,6 +17,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   setup do
     stub(Tuist.FeatureFlags, :kura_positive_fence_enabled?, fn _account -> false end)
+    stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> false end)
     stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> false end)
 
     stub(Identity, :endpoint_migration_enabled?, fn _account -> false end)
@@ -2070,6 +2071,75 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         storage_size: "10Gi"
       }
     }
+  end
+
+  describe "manifest/6 storage class" do
+    setup do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "00000000-0000-0000-0000-000000000001" end)
+      :ok
+    end
+
+    test "keeps the node-local NVMe class for accounts without encrypted volumes" do
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> false end)
+
+      assert storage_class_name(region_with_storage_class("scw-local-nvme")) == "scw-local-nvme"
+    end
+
+    test "builds node-local NVMe instances on encrypted volumes for flagged accounts" do
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn %{name: "tuist"} -> true end)
+
+      assert storage_class_name(region_with_storage_class("scw-local-nvme")) == "kura-encrypted-nvme"
+      assert storage_class_name(region_with_storage_class("scw-bssd")) == "scw-bssd"
+      assert storage_class_name(region_with_storage_class("hcloud-volumes")) == "hcloud-volumes"
+    end
+
+    test "re-applies a flagged account's node-local instance by moving its manifest revision" do
+      region = region_with_storage_class("scw-local-nvme")
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> false end)
+      before = revision(region)
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> true end)
+
+      assert revision(region) == before <> "+encrypted-volumes-v1"
+      refute revision(region_with_storage_class("hcloud-volumes")) =~ "+encrypted-volumes-v1"
+    end
+
+    test "gives the reconciler the revision it renders for a flagged account" do
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> true end)
+      region = region_with_storage_class("scw-local-nvme")
+
+      assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region) == revision(region)
+    end
+
+    test "keeps the node-local NVMe class on regions that opt out of encrypted volumes" do
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> true end)
+      region = region_with_storage_class("scw-local-nvme")
+      region = %{region | provisioner_config: Map.put(region.provisioner_config, :encrypted_volumes, false)}
+
+      assert storage_class_name(region) == "scw-local-nvme"
+      refute revision(region) =~ "+encrypted-volumes-v1"
+    end
+
+    test "keeps the BER1 rack on the node-local NVMe class" do
+      assert %Regions{provisioner_config: %{encrypted_volumes: false}} = Regions.get("ber1-runners")
+    end
+
+    defp region_with_storage_class(storage_class) do
+      region = scaleway_region()
+      %{region | provisioner_config: Map.put(region.provisioner_config, :storage_class, storage_class)}
+    end
+
+    defp storage_class_name(region) do
+      render(region)["spec"]["storageClassName"]
+    end
+
+    defp revision(region) do
+      render(region)["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"]
+    end
+
+    defp render(region) do
+      KubernetesController.manifest("kura-tuist-scw-fr-par", "0.5.2", %{name: "tuist"}, region, %Server{})
+    end
   end
 
   describe "manifest/6 for a private runner-cache region" do
