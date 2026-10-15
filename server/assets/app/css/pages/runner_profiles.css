@@ -224,11 +224,6 @@
       }
     }
 
-    & [data-part="section-panel"] > [data-part="hint"] {
-      color: var(--noora-surface-label-tertiary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-    }
-
     & [data-part="section-panel"] > .noora-button {
       align-self: flex-start;
     }
