@@ -196,7 +196,7 @@
                 <span data-part="section-heading">
                   <span data-part="title">{dgettext("dashboard_runners", "Save cache from")}</span>
                   <span :if={not @form_cache_saving_expanded} data-part="summary">
-                    {cache_saving_summary(@form_cache_writer_branches)}
+                    {cache_saving_summary(shown_cache_writer_branches(assigns))}
                   </span>
                 </span>
                 <span data-part="section-chevron"><.chevron_down /></span>
