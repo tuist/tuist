@@ -36,6 +36,13 @@ data class TestReport(
     @SerializedName("shard_plan_id") val shardPlanId: String? = null,
     @SerializedName("shard_index") val shardIndex: Int? = null,
     @SerializedName("stress_new_tests") val stressNewTests: StressNewTestsReport? = null,
+    @SerializedName("base_branch") val baseBranch: String? = null,
+    @SerializedName("merge_base_sha") val mergeBaseSha: String? = null,
+    @SerializedName("is_pull_request") val isPullRequest: Boolean? = null,
+    @SerializedName("pull_request_number") val pullRequestNumber: Int? = null,
+    @SerializedName("git_object_format") val gitObjectFormat: String? = null,
+    @SerializedName("history_source") val historySource: String? = null,
+    @SerializedName("history_fallback_reason") val historyFallbackReason: String? = null,
     @SerializedName("test_modules") val testModules: List<TestModule>
 )
 
@@ -175,7 +182,8 @@ internal class TestReportCollector {
         gradleBuildId: String?,
         shardPlanId: String? = null,
         shardIndex: Int? = null,
-        stressNewTests: StressNewTestsReport? = null
+        stressNewTests: StressNewTestsReport? = null,
+        gitHistory: TestRunGitHistory? = null
     ): TestReport {
         val testModules = attemptsByModule.map { (moduleName, attempts) ->
             val testCases = buildTestCases(attempts).map { withStressReruns(it, moduleName, stressNewTests) }
@@ -219,6 +227,13 @@ internal class TestReportCollector {
             shardPlanId = shardPlanId,
             shardIndex = shardIndex,
             stressNewTests = stressNewTests,
+            baseBranch = gitHistory?.baseBranch,
+            mergeBaseSha = gitHistory?.mergeBaseSha,
+            isPullRequest = gitHistory?.isPullRequest,
+            pullRequestNumber = gitHistory?.pullRequestNumber,
+            gitObjectFormat = gitHistory?.objectFormat,
+            historySource = gitHistory?.source,
+            historyFallbackReason = gitHistory?.fallbackReason,
             testModules = testModules
         )
     }
@@ -505,10 +520,20 @@ abstract class TuistTestInsightsService :
         val totalDurationMs = latestEndTime - earliestStartTime
         val gradleBuildId = buildInsightsService?.buildId
         val reportGitInfoProvider = reportGitInfoProvider()
+        val isCi = ciDetector.isCi()
+
+        // Read at report time, which is execution time: the history is never a configuration input.
+        val gitHistoryService = GitHistoryService(httpClient = httpClient, baseUrl = parameters.url.get())
+        val gitHistory = try {
+            gitHistoryService.collect(reportGitInfoProvider, projectDir, isCi)
+        } catch (e: Exception) {
+            logger.info("Tuist: The run's Git history could not be collected: ${e.message}")
+            null
+        }
 
         val report = collector.buildReport(
             totalDurationMs = totalDurationMs,
-            isCi = ciDetector.isCi(),
+            isCi = isCi,
             scheme = parameters.rootProjectName.orNull,
             gitBranch = reportGitInfoProvider.branch(),
             gitCommitSha = reportGitInfoProvider.commitSha(),
@@ -517,7 +542,8 @@ abstract class TuistTestInsightsService :
             gradleBuildId = gradleBuildId,
             shardPlanId = shardPlanId,
             shardIndex = shardIndex,
-            stressNewTests = stressNewTestsReport
+            stressNewTests = stressNewTestsReport,
+            gitHistory = gitHistory?.payload
         )
 
         val response = httpClient.execute { config ->
@@ -558,6 +584,7 @@ abstract class TuistTestInsightsService :
 
         if (response != null) {
             logger.lifecycle("Tuist: Test insights reported successfully (test run ${response.id})")
+            gitHistoryService.upload(gitHistory)
         } else {
             logger.warn("Tuist: Failed to report test insights.")
         }
