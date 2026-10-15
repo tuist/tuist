@@ -941,7 +941,9 @@ The lifecycle is `capt_rackats_ready`, `capt_rackats_adopted`,
 `capt_rackats_drifted` and `capt_rackats_certificate_changed`. The transfer
 counter counts what the controller saw between reads a minute apart: a
 transfer and its return within one minute is not counted, and the counter
-restarts with the operator. There are no alert rules yet; the ones to add:
+restarts with the operator. Lost redundancy, an unpowered load and a switch
+that is not observed are live rules (group `Rack`, documented in
+`infra/helm/k8s-monitoring/alerts.md`); the rest of this table is not yet:
 
 | Alert | Expression |
 |---|---|

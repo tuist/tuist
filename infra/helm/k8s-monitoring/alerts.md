@@ -3477,12 +3477,94 @@ failing or stopped. An idle M5 Pro mini holds a 1000 rpm target and meets it,
 so the ratio sits at 1 in steady state. The `> 0` filter keeps a zero target
 from dividing.
 
+### Rack unreachable
+
+```promql
+count(
+  up{job="integrations/node_exporter", cluster="tuist-production", instance=~"ber1-.*"} == 1
+) or vector(0)
+```
+
+- Threshold: `< 1`
+- Pending period: 5 minutes
+- Severity: critical
+- Already created: rule `ag1ayfrpautq8b`, folder `Alerts`, group `Rack`
+- Summary: `No BER1 rack host has reported metrics for 5 minutes`
+
+The rack's Linux hosts push their metrics over the tailnet through the Cogent
+uplink, so losing the uplink, both edges or the rack's power silences all of
+them at once. Silence normally reads as healthy in this folder (no data is
+OK), which is why the count falls back to `vector(0)`: no reporting host is a
+firing alert, not an absent one.
+
+Read it together with the rules that look at the rack from the cluster in
+Hetzner rather than from inside it, [Rack node not Ready](#rack-node-not-ready)
+and [Rack host has no remote power control](#rack-host-has-no-remote-power-control).
+All three firing together means the rack is cut off; this one alone means the
+metrics path (alloy-rack or alloy-receiver) is broken.
+
+### Rack transfer switch lost redundancy
+
+```promql
+max by (cluster, env, site, ats) (capt_rackats_redundant{cluster="tuist-production"})
+```
+
+- Threshold: `< 1`
+- Pending period: 5 minutes
+- Severity: critical
+- Already created: rule `bg1aygufcosu8c`, folder `Alerts`, group `Rack`
+- Summary: `Rack transfer switch {{ $labels.ats }} has lost a power source`
+
+The load behind the ATS is one feed failure away from going dark.
+`capt_rackats_input_good{source}` names the source that is gone and
+`capt_rackats_input_voltage_volts` shows its voltage. Pulling a feed cord on
+site trips it too.
+
+### Rack load not powered
+
+```promql
+min by (cluster, env, site, ats) (capt_rackats_active_source{cluster="tuist-production"})
+```
+
+- Threshold: `< 1`
+- Pending period: 1 minute
+- Severity: critical
+- Already created: rule `eg1ayh5vsx88wa`, folder `Alerts`, group `Rack`
+- Summary: `Rack transfer switch {{ $labels.ats }} reports its load unpowered`
+
+`capt_rackats_active_source` is 0 when neither source powers the load. It is
+absent while the card does not say which source is active, so a card that stops
+answering is covered by
+[Rack power equipment not observed](#rack-power-equipment-not-observed) instead.
+
+### Rack switch disconnected
+
+```promql
+max by (cluster, env, switch) (rack_switch_up{cluster="tuist-production"})
+```
+
+- Threshold: `< 1`
+- Pending period: 5 minutes
+- Severity: critical
+- Already created: rule `bg1ayhwzn979cc`, folder `Alerts`, group `Rack`
+- Summary: `Rack switch {{ $labels.switch }} is not connected to the Omada
+  controller`
+
+`rack_switch_up` is the Omada controller's view, read by rack-switch-controller.
+A ToR down halves the rack's paths, and `ber1-tor-a` also carries the Cogent
+handoff. Every switch at once usually means Omada cannot reach the rack.
+
+The `cluster` matcher is load-bearing: staging still runs a
+rack-switch-controller that reports the same switches.
+
 ### Keep the probe timing labels unaggregated
 
-Adaptive Metrics must not aggregate `instance`, `job`, `probe` or `phase` away
-from `probe_duration_seconds`, `probe_http_duration_seconds` or
-`probe_http_content_length`. Add all three to the exclusion list under
-**Metrics > Adaptive Metrics** in Grafana Cloud.
+Adaptive Metrics must not aggregate `instance`, `job`, `probe`, `target` or
+`phase` away from `probe_success`, `probe_duration_seconds`,
+`probe_http_duration_seconds`, `probe_icmp_duration_seconds` or
+`probe_http_content_length`. A `probe_` prefix exemption (2026-10-15) keeps the
+recommender from proposing it; a rule applied before the exemption existed has
+to be deleted from the rule set by hand.
 
 Without those labels the metrics cannot answer which location is slow or
 whether a page got heavier, which is the only external page-timing signal we
@@ -6022,6 +6104,95 @@ host, check `launchctl print system/dev.tuist.host-sensors` and
 
 A mini whose node_exporter is unreachable drops out of this rule too, because
 the series is gone rather than old.
+
+### Rack node not Ready
+
+```promql
+max by (cluster, env, node) (
+  kube_node_status_condition{
+    cluster="tuist-production",
+    condition="Ready",
+    status="true",
+    node=~"ber1-.*|.*-rack-fleet-ber1-.*"
+  }
+)
+```
+
+- Threshold: `< 1`
+- Pending period: 10 minutes
+- Severity: warning
+- Already created: rule `dg1ayg4nysge8c`, folder `Alerts`, group `Rack`
+- Summary: `Rack node {{ $labels.node }} has not been Ready for 10 minutes`
+
+Read from the production apiserver in Hetzner, so it keeps working when the
+rack's own metrics are gone. A mini reboots back to a heartbeat in about 35
+seconds, so 10 minutes is a real outage, but an OS reinstall (about 22 minutes)
+trips it.
+
+### Rack host has no remote power control
+
+```promql
+max by (cluster, env, site, host) (capt_rackhost_power_reachable{cluster="tuist-production"})
+or
+max by (cluster, env, site, host) (capt_racklinuxhost_power_reachable{cluster="tuist-production"})
+```
+
+- Threshold: `< 1`
+- Pending period: 10 minutes
+- Severity: warning
+- Already created: rule `bg1ayghfc7ojkc`, folder `Alerts`, group `Rack`
+- Summary: `Rack host {{ $labels.host }} cannot be power-cycled remotely`
+
+The operator could not read the host's PDU outlet. The host may be running
+fine, but the fleet has lost its only remote repair for it. This is the
+signal `infra/cluster-api-provider-tuist/AGENTS.md` recommends over
+`capt_rackpdu_ready`, which is re-read only every 10 minutes and missed a
+six-minute chain failure on 2026-10-06. Every host at once means the operator
+cannot reach the rack's PDUs over the tailnet, which is a connectivity problem.
+
+### Rack power equipment not observed
+
+```promql
+label_replace(label_replace(
+  max by (cluster, env, site, ats) (capt_rackats_observed{cluster="tuist-production"}),
+  "device", "$1", "ats", "(.*)"), "kind", "transfer switch", "", "")
+or
+label_replace(label_replace(
+  max by (cluster, env, site, pdu) (capt_rackpdu_ready{cluster="tuist-production"}),
+  "device", "$1", "pdu", "(.*)"), "kind", "PDU", "", "")
+```
+
+- Threshold: `< 1`
+- Pending period: 15 minutes
+- Severity: warning
+- Already created: rule `eg1ayhkb0bfnkc`, folder `Alerts`, group `Rack`
+- Summary: `Rack {{ $labels.kind }} {{ $labels.device }} has not been read
+  successfully for 15 minutes`
+
+While an ATS is not observed its redundancy and active-source series are
+absent, so the two power rules above cannot fire for it. The RackATS or
+RackPDU `Ready` reason says why.
+
+### Rack switch telemetry stale
+
+```promql
+max by (cluster, env) (
+  time() - rack_switch_telemetry_last_success_timestamp_seconds{cluster="tuist-production"}
+)
+```
+
+- Threshold: `> 600`
+- Pending period: 10 minutes
+- Severity: warning
+- Already created: rule `cg1ayi9dqmebka`, folder `Alerts`, group `Rack`
+- Summary: `rack-switch-controller has not read the rack switches from Omada
+  for over 10 minutes`
+
+A failed read drops every switch reading and leaves only the last-success
+timestamp, so `rack_switch_up` is absent and
+[Rack switch disconnected](#rack-switch-disconnected) reads as no data.
+`rack_switch_telemetry_errors_total{stage}` says which read is failing. If the
+controller pod itself is gone this rule goes quiet too.
 
 ### Tuist license expires within 30 days
 

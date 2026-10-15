@@ -1,0 +1,889 @@
+{
+  "apiVersion": "dashboard.grafana.app/v1",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "tuist-ber1-rack"
+  },
+  "spec": {
+    "uid": "tuist-ber1-rack",
+    "title": "BER1 Rack",
+    "tags": [
+      "tuist",
+      "rack",
+      "ber1"
+    ],
+    "editable": true,
+    "graphTooltip": 1,
+    "schemaVersion": 39,
+    "refresh": "1m",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "utc",
+    "fiscalYearStartMonth": 0,
+    "weekStart": "",
+    "annotations": {
+      "list": []
+    },
+    "links": [],
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": false,
+            "text": "grafanacloud-prom",
+            "value": "grafanacloud-prom"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "label": "Data Source",
+          "multi": false,
+          "name": "datasource",
+          "options": [],
+          "query": "prometheus",
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "type": "datasource"
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 100,
+        "type": "row",
+        "title": "Uplink (Cogent, wan0 on the active edge)",
+        "collapsed": false,
+        "panels": [],
+        "gridPos": {
+          "x": 0,
+          "y": 0,
+          "w": 24,
+          "h": 1
+        }
+      },
+      {
+        "id": 1,
+        "type": "timeseries",
+        "title": "Uplink throughput",
+        "description": "wan0 is the Cogent VLAN bond on the edges. Only the VRRP master carries traffic, so the sum over both edges is the link. Receive is download into the rack, transmit is upload. The commit is 1 Gbps on a 10G port.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "x": 0,
+          "y": 1,
+          "w": 16,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bps",
+            "custom": {
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(node_network_receive_bytes_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m])) * 8",
+            "legendFormat": "download",
+            "refId": "A",
+            "range": true,
+            "instant": false
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(node_network_transmit_bytes_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m])) * 8",
+            "legendFormat": "upload",
+            "refId": "B",
+            "range": true,
+            "instant": false
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "type": "stat",
+        "title": "95th percentile, last 30 days",
+        "description": "Cogent bills the 95th percentile of 5-minute samples against the 1 Gbps commit. A rolling 30 days, not the billing month.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "x": 16,
+          "y": 1,
+          "w": 8,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bps",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 800000000
+                },
+                {
+                  "color": "red",
+                  "value": 1000000000
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center",
+          "textMode": "value_and_name",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "quantile_over_time(0.95, (sum(rate(node_network_receive_bytes_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m])) * 8)[30d:5m])",
+            "legendFormat": "download",
+            "refId": "A",
+            "range": false,
+            "instant": true
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "quantile_over_time(0.95, (sum(rate(node_network_transmit_bytes_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m])) * 8)[30d:5m])",
+            "legendFormat": "upload",
+            "refId": "B",
+            "range": false,
+            "instant": true
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "type": "timeseries",
+        "title": "Traffic by edge (which one is active)",
+        "description": "Traffic moves to the other edge when VRRP fails over.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "x": 0,
+          "y": 9,
+          "w": 12,
+          "h": 7
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bps",
+            "custom": {
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (instance) (rate(node_network_transmit_bytes_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m]) + rate(node_network_receive_bytes_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m])) * 8",
+            "legendFormat": "{{instance}}",
+            "refId": "A",
+            "range": true,
+            "instant": false
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "type": "timeseries",
+        "title": "wan0 errors and drops",
+        "description": "",
+        "datasource": "$datasource",
+        "gridPos": {
+          "x": 12,
+          "y": 9,
+          "w": 12,
+          "h": 7
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "pps",
+            "custom": {
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (instance) (rate(node_network_receive_errs_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m]) + rate(node_network_transmit_errs_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m]))",
+            "legendFormat": "errors {{instance}}",
+            "refId": "A",
+            "range": true,
+            "instant": false
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (instance) (rate(node_network_receive_drop_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m]) + rate(node_network_transmit_drop_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m]))",
+            "legendFormat": "drops {{instance}}",
+            "refId": "B",
+            "range": true,
+            "instant": false
+          }
+        ]
+      },
+      {
+        "id": 101,
+        "type": "row",
+        "title": "Path from the rack",
+        "collapsed": false,
+        "panels": [],
+        "gridPos": {
+          "x": 0,
+          "y": 16,
+          "w": 24,
+          "h": 1
+        }
+      },
+      {
+        "id": 5,
+        "type": "stat",
+        "title": "Probe success",
+        "description": "Probed every 30 s from each rack Linux host. Any HTTP status counts: what is measured is reaching the service.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "x": 0,
+          "y": 17,
+          "w": 24,
+          "h": 4
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "green",
+                  "value": 1
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center",
+          "textMode": "value_and_name",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "min by (target) (probe_success{job=\"rack-path\"})",
+            "legendFormat": "{{target}}",
+            "refId": "A",
+            "range": false,
+            "instant": true
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "type": "timeseries",
+        "title": "Round trip (ICMP)",
+        "description": "cogent-gateway is the first hop; anycast-reference is 1.1.1.1. A rise on both points at the uplink, on the reference only at Cogent's network beyond the gateway.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "x": 0,
+          "y": 21,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "avg by (target) (probe_icmp_duration_seconds{job=\"rack-path\", phase=\"rtt\"})",
+            "legendFormat": "{{target}}",
+            "refId": "A",
+            "range": true,
+            "instant": false
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "type": "timeseries",
+        "title": "HTTPS probe duration",
+        "description": "DNS, connect, TLS and first byte to the services jobs pull from. probe_http_duration_seconds{phase} splits it.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "x": 12,
+          "y": 21,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "avg by (target) (probe_duration_seconds{job=\"rack-path\", target!~\"cogent-gateway|anycast-reference\"})",
+            "legendFormat": "{{target}}",
+            "refId": "A",
+            "range": true,
+            "instant": false
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "type": "timeseries",
+        "title": "ICMP loss (15m)",
+        "description": "",
+        "datasource": "$datasource",
+        "gridPos": {
+          "x": 0,
+          "y": 29,
+          "w": 24,
+          "h": 6
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "custom": {
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "1 - avg by (target) (avg_over_time(probe_success{job=\"rack-path\", target=~\"cogent-gateway|anycast-reference\"}[15m]))",
+            "legendFormat": "{{target}}",
+            "refId": "A",
+            "range": true,
+            "instant": false
+          }
+        ]
+      },
+      {
+        "id": 102,
+        "type": "row",
+        "title": "Minis",
+        "collapsed": false,
+        "panels": [],
+        "gridPos": {
+          "x": 0,
+          "y": 35,
+          "w": 24,
+          "h": 1
+        }
+      },
+      {
+        "id": 9,
+        "type": "timeseries",
+        "title": "Hottest die sensor",
+        "description": "",
+        "datasource": "$datasource",
+        "gridPos": {
+          "x": 0,
+          "y": 36,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "celsius",
+            "custom": {
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (instance) (macos_sensor_temperature_celsius{rack_host=\"true\", sensor=~\"PMU tdie.*\"})",
+            "legendFormat": "{{instance}}",
+            "refId": "A",
+            "range": true,
+            "instant": false
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "type": "timeseries",
+        "title": "Thermal pressure",
+        "description": "0 nominal, 1 moderate, 2 heavy, 3 trapping, 4 sleeping.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "x": 12,
+          "y": 36,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "custom": {
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (instance) (macos_thermal_pressure_level{rack_host=\"true\"})",
+            "legendFormat": "{{instance}}",
+            "refId": "A",
+            "range": true,
+            "instant": false
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "type": "timeseries",
+        "title": "Fan speed",
+        "description": "",
+        "datasource": "$datasource",
+        "gridPos": {
+          "x": 0,
+          "y": 44,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "rotrpm",
+            "custom": {
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (instance) (macos_fan_speed_rpm{rack_host=\"true\"})",
+            "legendFormat": "{{instance}}",
+            "refId": "A",
+            "range": true,
+            "instant": false
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "type": "timeseries",
+        "title": "Outlet power by host",
+        "description": "",
+        "datasource": "$datasource",
+        "gridPos": {
+          "x": 12,
+          "y": 44,
+          "w": 12,
+          "h": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "watt",
+            "custom": {
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (host) (capt_rackhost_outlet_active_power_watts{cluster=\"tuist-production\"})",
+            "legendFormat": "{{host}}",
+            "refId": "A",
+            "range": true,
+            "instant": false
+          }
+        ]
+      },
+      {
+        "id": 103,
+        "type": "row",
+        "title": "Power and switches",
+        "collapsed": false,
+        "panels": [],
+        "gridPos": {
+          "x": 0,
+          "y": 52,
+          "w": 24,
+          "h": 1
+        }
+      },
+      {
+        "id": 13,
+        "type": "stat",
+        "title": "Transfer switch redundancy",
+        "description": "",
+        "datasource": "$datasource",
+        "gridPos": {
+          "x": 0,
+          "y": 53,
+          "w": 8,
+          "h": 4
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "green",
+                  "value": 1
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center",
+          "textMode": "value_and_name",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (ats) (capt_rackats_redundant{cluster=\"tuist-production\"})",
+            "legendFormat": "{{ats}}",
+            "refId": "A",
+            "range": false,
+            "instant": true
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "type": "stat",
+        "title": "Switches connected",
+        "description": "",
+        "datasource": "$datasource",
+        "gridPos": {
+          "x": 8,
+          "y": 53,
+          "w": 8,
+          "h": 4
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "green",
+                  "value": 1
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center",
+          "textMode": "value_and_name",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (switch) (rack_switch_up{cluster=\"tuist-production\"})",
+            "legendFormat": "{{switch}}",
+            "refId": "A",
+            "range": false,
+            "instant": true
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "type": "stat",
+        "title": "Remote power reachable",
+        "description": "",
+        "datasource": "$datasource",
+        "gridPos": {
+          "x": 16,
+          "y": 53,
+          "w": 8,
+          "h": 4
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "blue",
+                  "value": null
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center",
+          "textMode": "value_and_name",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(max by (host) (capt_rackhost_power_reachable{cluster=\"tuist-production\"}))",
+            "legendFormat": "minis",
+            "refId": "A",
+            "range": false,
+            "instant": true
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "count(max by (host) (capt_rackhost_power_reachable{cluster=\"tuist-production\"}))",
+            "legendFormat": "of",
+            "refId": "B",
+            "range": false,
+            "instant": true
+          }
+        ]
+      }
+    ]
+  }
+}

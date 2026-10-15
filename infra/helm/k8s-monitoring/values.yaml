@@ -711,12 +711,14 @@ k8s-monitoring:
           - node_thermal_zone_temp
       # The allow-list above keeps node_cpu_seconds_total for all CPU modes
       # and every node_network_* series for every interface, but the
-      # dashboards/alerts only read mode="idle" and physical devices
-      # (device=~"e(n|th).*"). Drop the unqueried CPU modes and the virtual
-      # interfaces (the per-pod lxc* veths are the largest node-exporter
-      # series source left after the curated allow-list). The network rule
-      # matches all kept node_network_* metrics generically so the NIC
-      # link-state signals added above are trimmed to physical NICs too.
+      # dashboards/alerts only read mode="idle", physical devices
+      # (device=~"e(n|th).*") and a rack edge's bonds (wan0 is the uplink,
+      # machines0 the minis' segment, vrrp0 the edges' link to each other).
+      # Drop the unqueried CPU modes and the other virtual interfaces (the
+      # per-pod lxc* veths are the largest node-exporter series source left
+      # after the curated allow-list). The network rule matches all kept
+      # node_network_* metrics generically so the NIC link-state signals
+      # added above are trimmed to the same devices.
       # extraMetricProcessingRules runs after the allow-list keep, so it trims
       # within the kept set.
       extraMetricProcessingRules: |
@@ -729,7 +731,7 @@ k8s-monitoring:
         rule {
           source_labels = ["__name__", "device"]
           separator = ";"
-          regex = "node_network_.*;(en|eth).*"
+          regex = "node_network_.*;((en|eth).*|(wan|machines|vrrp)[0-9]+)"
           target_label = "__tmp_keep_net_iface"
           replacement = "true"
           action = "replace"
@@ -2443,6 +2445,80 @@ k8s-monitoring:
           }
           {{- .Values.hostMetrics.linuxHosts.extraMetricProcessingRules | trim | nindent 2 }}
           forward_to = [prometheus.remote_write.tuist_alloy_receiver.receiver]
+        }
+
+        // The rack's view of its uplink and of the services its jobs pull
+        // from, probed from inside the rack: round trip to the Cogent gateway
+        // and to an anycast reference, and connect, TLS and first-byte
+        // timings to GitHub, GitHub's registry, Tigris and the Tuist edge.
+        // Any status counts as a response; what is measured is the path.
+        prometheus.exporter.blackbox "rack_path" {
+          config = "{ modules: { icmp: { prober: icmp, timeout: 5s, icmp: { preferred_ip_protocol: ip4, ip_protocol_fallback: false } }, https: { prober: http, timeout: 10s, http: { preferred_ip_protocol: ip4, ip_protocol_fallback: false, no_follow_redirects: true, valid_status_codes: [200, 301, 302, 307, 308, 400, 401, 403, 404] } } } }"
+
+          target {
+            name    = "cogent-gateway"
+            address = "149.6.170.30"
+            module  = "icmp"
+          }
+
+          target {
+            name    = "anycast-reference"
+            address = "1.1.1.1"
+            module  = "icmp"
+          }
+
+          target {
+            name    = "github"
+            address = "https://github.com"
+            module  = "https"
+          }
+
+          target {
+            name    = "ghcr"
+            address = "https://ghcr.io/v2/"
+            module  = "https"
+          }
+
+          target {
+            name    = "tigris"
+            address = "https://t3.storage.dev"
+            module  = "https"
+          }
+
+          target {
+            name    = "tuist"
+            address = "https://tuist.dev"
+            module  = "https"
+          }
+        }
+
+        discovery.relabel "rack_path" {
+          targets = prometheus.exporter.blackbox.rack_path.targets
+          rule {
+            source_labels = ["job"]
+            regex = "(?:.*/)?([^/]+)"
+            target_label = "target"
+          }
+          rule {
+            target_label = "job"
+            replacement = "rack-path"
+          }
+          rule {
+            target_label = "instance"
+            replacement = sys.env("HOSTNAME")
+          }
+          rule {
+            target_label = "rack_host"
+            replacement = "true"
+          }
+        }
+
+        prometheus.scrape "rack_path" {
+          targets = discovery.relabel.rack_path.output
+          forward_to = [prometheus.remote_write.tuist_alloy_receiver.receiver]
+          job_name = "rack-path"
+          scrape_interval = "30s"
+          scrape_timeout = "15s"
         }
 
         prometheus.remote_write "tuist_alloy_receiver" {
