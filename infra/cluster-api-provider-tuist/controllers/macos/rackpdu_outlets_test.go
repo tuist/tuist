@@ -122,3 +122,39 @@ func TestAHostIgnoresAStaleRackPDUReading(t *testing.T) {
 		t.Fatalf("OutletDraw = %+v, want none from a stale reading", host.Status.OutletDraw)
 	}
 }
+
+// On 2026-10-15 five hosts' own outlet reads failed for three minutes while
+// ber1-pdu-b's reading of the same outlets stayed current, and their
+// HostDrawing went Unknown with it.
+func TestAFailedOutletReadKeepsTheRackPDUsReading(t *testing.T) {
+	r := newRackHostReconciler(t, nil, pduHost("mini-01"), pduWithOutlet3(runningMini, time.Now()), pduCredentials())
+	r.Power = eatonRegistry(erroringDriver{})
+
+	reconcileHost(t, r, "mini-01")
+
+	host := readHost(t, r, "mini-01")
+	if cond := conditionOf(host, PowerReachableCondition); cond == nil || cond.Status != corev1.ConditionFalse {
+		t.Fatalf("PowerReachable = %+v, want False for a failed read", cond)
+	}
+	if cond := conditionOf(host, HostDrawingCondition); cond == nil || cond.Status != corev1.ConditionTrue {
+		t.Fatalf("HostDrawing = %+v, want True from the PDU's reading", cond)
+	}
+	if host.Status.OutletDraw == nil || host.Status.OutletDraw.ActivePowerWatts.String() != "38" {
+		t.Fatalf("OutletDraw = %+v, want the PDU's 38 W", host.Status.OutletDraw)
+	}
+}
+
+// An outlet of the host's own has no other reading to fall back on.
+func TestAFailedReadOfAnOutletOfItsOwnLeavesTheDrawUnknown(t *testing.T) {
+	r := newRackHostReconciler(t, erroringDriver{}, rackHost("mini-01"))
+
+	reconcileHost(t, r, "mini-01")
+
+	host := readHost(t, r, "mini-01")
+	if cond := conditionOf(host, HostDrawingCondition); cond == nil || cond.Status != corev1.ConditionUnknown {
+		t.Fatalf("HostDrawing = %+v, want Unknown", cond)
+	}
+	if host.Status.OutletDraw != nil {
+		t.Fatalf("OutletDraw = %+v, want none", host.Status.OutletDraw)
+	}
+}
