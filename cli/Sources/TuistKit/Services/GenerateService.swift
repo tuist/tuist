@@ -31,7 +31,7 @@ public struct GenerateService {
     private let installService: InstallServicing
     private let outdatedDependenciesChecker: OutdatedDependenciesChecking
     private let generationMetadataStore: GenerationMetadataStoring
-    private let cacheInstallationChecker: XcodeCacheInstallationChecking
+    private let cacheInstallationChecker: XcodeCacheInstallationStoring
 
     public init(
         cacheStorageFactory: CacheStorageFactorying,
@@ -42,7 +42,7 @@ public struct GenerateService {
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(),
         generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore(),
-        cacheInstallationChecker: XcodeCacheInstallationChecking = XcodeCacheInstallationStore()
+        cacheInstallationChecker: XcodeCacheInstallationStoring = XcodeCacheInstallationStore()
     ) {
         self.init(
             cacheStorageFactory: cacheStorageFactory,
@@ -70,7 +70,7 @@ public struct GenerateService {
         installService: InstallServicing,
         outdatedDependenciesChecker: OutdatedDependenciesChecking,
         generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore(),
-        cacheInstallationChecker: XcodeCacheInstallationChecking = XcodeCacheInstallationStore()
+        cacheInstallationChecker: XcodeCacheInstallationStoring = XcodeCacheInstallationStore()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -173,8 +173,8 @@ public struct GenerateService {
               !["TUIST_CAS_PLUGIN_PATH", "TUIST_CAS_PROXY_PATH", "TUIST_CAS_PROXY_SOCKET", "TUIST_CAS_PROXY_REGISTRY"]
               .contains(where: { !(Environment.current.variables[$0] ?? "").isEmpty })
         else { return }
-        if let warning = cacheInstallationChecker.warning(
-            developerDirectory: try? await XcodeController.current.developerDirectory().url,
+        if let warning = await cacheInstallationChecker.warning(
+            developerDirectory: try? await XcodeController.current.developerDirectory(),
             xcodeBuildVersion: try? await XcodeController.current.selectedBuildVersion(),
             tuistVersion: Constants.version
         ) {

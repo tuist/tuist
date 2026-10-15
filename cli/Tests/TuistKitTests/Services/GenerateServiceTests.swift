@@ -30,7 +30,7 @@ struct GenerateServiceTests {
     private var clock: StubClock!
     private var configLoader: MockConfigLoading!
     private var generationMetadataStore: MockGenerationMetadataStoring!
-    private let cacheInstallationChecker = MockXcodeCacheInstallationChecking()
+    private let cacheInstallationChecker = MockXcodeCacheInstallationStoring()
 
     init() {
         opener = .init()
@@ -94,7 +94,7 @@ struct GenerateServiceTests {
 
         verify(cacheInstallationChecker)
             .warning(
-                developerDirectory: .value(URL(fileURLWithPath: "/Applications/Xcode.app/Contents/Developer")),
+                developerDirectory: .value("/Applications/Xcode.app/Contents/Developer"),
                 xcodeBuildVersion: .value("17F113"),
                 tuistVersion: .value(Constants.version)
             )

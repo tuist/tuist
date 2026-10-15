@@ -155,6 +155,8 @@ var tuistHTTPDependencies: [Target.Dependency] = [
     .product(name: "HTTPTypes", package: "apple.swift-http-types"),
 ]
 var tuistCASDependencies: [Target.Dependency] = [
+    fileSystemDependency,
+    pathDependency,
     swiftToolsSupportDependency,
     "TuistServer",
     "TuistHTTP",

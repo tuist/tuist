@@ -1,322 +1,334 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Path
 import Testing
 @testable import TuistCAS
 
 struct XcodeCacheInstallationStoreTests {
     @Test(.inTemporaryDirectory)
-    func the_same_setup_version_does_not_warn() throws {
-        let fixture = try Fixture()
-        try fixture.record()
+    func the_same_setup_version_does_not_warn() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record()
 
-        #expect(fixture.warning() == nil)
+        #expect(await fixture.warning() == nil)
     }
 
     @Test(.inTemporaryDirectory)
-    func an_older_setup_warns_even_when_plugin_and_proxy_files_are_unchanged() throws {
-        let fixture = try Fixture()
-        try fixture.record(version: "4.212.0")
+    func an_older_setup_warns_even_when_plugin_files_are_unchanged() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record(version: "4.212.0")
 
-        let warning = try #require(fixture.warning())
+        let warning = try #require(await fixture.warning())
         #expect(warning.contains("Tuist 4.212.0"))
         #expect(warning.contains("current Tuist 4.213.0"))
         #expect(warning.contains("set up with an older Tuist"))
     }
 
     @Test(.inTemporaryDirectory)
-    func an_older_checkout_does_not_request_a_downgrade() throws {
-        let fixture = try Fixture()
-        try fixture.record(version: "4.214.0")
+    func an_older_checkout_does_not_request_a_downgrade() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record(version: "4.214.0")
 
-        #expect(fixture.warning() == nil)
+        #expect(await fixture.warning() == nil)
     }
 
     @Test(.inTemporaryDirectory)
-    func prerelease_versions_are_ordered_before_suppressing_downgrades() throws {
-        let fixture = try Fixture()
-        try fixture.record(version: "4.213.0-rc.1")
+    func prerelease_versions_are_ordered_before_suppressing_downgrades() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record(version: "4.213.0-rc.1")
 
-        #expect(fixture.warning(version: "4.213.0-canary.31") == nil)
-        #expect(fixture.warning(version: "4.213.0") != nil)
+        #expect(await fixture.warning(version: "4.213.0-canary.31") == nil)
+        #expect(await fixture.warning(version: "4.213.0") != nil)
     }
 
     @Test(.inTemporaryDirectory)
-    func an_unparseable_version_does_not_silently_suppress_warnings() throws {
-        let fixture = try Fixture()
-        try fixture.record(version: "unknown")
+    func an_unparseable_version_does_not_silently_suppress_warnings() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record(version: "unknown")
 
-        #expect(try #require(fixture.warning()).contains("version could not be compared"))
+        #expect(try #require(await fixture.warning()).contains("version could not be compared"))
     }
 
     @Test(.inTemporaryDirectory)
-    func an_older_setup_cannot_reuse_a_newer_manifest_to_suppress_a_warning() throws {
-        let fixture = try Fixture()
-        try fixture.record(version: "4.214.0")
-        let olderTuist = fixture.root.appendingPathComponent("older-tuist")
-        try Data("older CLI".utf8).write(to: olderTuist)
-        try fixture.writeAgent(program: olderTuist)
+    func an_older_setup_cannot_reuse_a_newer_manifest_to_suppress_a_warning() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record(version: "4.214.0")
+        let olderTuist = fixture.root.appending(component: "older-tuist")
+        try await fixture.fileSystem.writeText("older CLI", at: olderTuist)
+        try await fixture.writeAgent(program: olderTuist)
 
-        let warning = try #require(fixture.warning())
+        let warning = try #require(await fixture.warning())
         #expect(warning.contains("legacy or changed setup"))
         #expect(!warning.contains("last set up with Tuist 4.214.0"))
     }
 
     @Test(.inTemporaryDirectory)
-    func rewriting_the_agent_with_the_same_program_invalidates_the_record() throws {
-        let fixture = try Fixture()
-        try fixture.record(version: "4.214.0")
-        try fixture.writeAgent()
+    func rewriting_the_agent_with_the_same_program_invalidates_the_record() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record(version: "4.214.0")
+        try await fixture.writeAgent()
 
-        #expect(try #require(fixture.warning()).contains("legacy or changed setup"))
+        #expect(try #require(await fixture.warning()).contains("legacy or changed setup"))
     }
 
     @Test(.inTemporaryDirectory)
-    func replacing_the_launching_cli_in_place_invalidates_the_record() throws {
-        let fixture = try Fixture()
-        try fixture.record(version: "4.214.0")
-        try FileManager.default.setAttributes(
-            [.modificationDate: Date(timeIntervalSince1970: 100)], ofItemAtPath: fixture.program.path
+    func replacing_the_launching_cli_in_place_invalidates_the_record() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record(version: "4.214.0")
+        try await fixture.fileSystem.setFileTimes(
+            of: fixture.program, lastAccessDate: nil, lastModificationDate: Date(timeIntervalSince1970: 100)
         )
 
-        #expect(try #require(fixture.warning()).contains("legacy or changed setup"))
+        #expect(try #require(await fixture.warning()).contains("legacy or changed setup"))
     }
 
     @Test(.inTemporaryDirectory)
-    func stale_metadata_does_not_hide_the_launch_agents_actual_xcode() throws {
-        let fixture = try Fixture()
-        try fixture.record(version: "4.214.0")
-        try fixture.writeAgent(xcode: fixture.root.appendingPathComponent("OtherXcode"))
+    func stale_metadata_does_not_hide_the_launch_agents_actual_xcode() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record(version: "4.214.0")
+        try await fixture.writeAgent(xcode: fixture.root.appending(component: "OtherXcode"))
 
-        let warning = try #require(fixture.warning())
+        let warning = try #require(await fixture.warning())
         #expect(warning.contains("legacy or changed setup"))
         #expect(warning.contains("different Xcode"))
     }
 
     @Test(.inTemporaryDirectory)
-    func a_different_xcode_warns_even_when_the_installed_tuist_is_newer() throws {
-        let fixture = try Fixture()
-        try fixture.record(version: "4.214.0")
+    func a_different_xcode_warns_even_when_the_installed_tuist_is_newer() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record(version: "4.214.0")
 
-        let warning = try #require(fixture.warning(developerDirectory: fixture.root.appendingPathComponent("OtherXcode")))
+        let warning = try #require(await fixture.warning(developerDirectory: fixture.root.appending(component: "OtherXcode")))
         #expect(warning.contains("different Xcode"))
     }
 
     @Test(.inTemporaryDirectory)
-    func an_in_place_xcode_update_warns_even_with_a_newer_setup() throws {
-        let fixture = try Fixture()
-        try fixture.record(version: "4.214.0")
+    func an_in_place_xcode_update_warns_even_with_a_newer_setup() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record(version: "4.214.0")
 
-        #expect(try #require(fixture.warning(buildVersion: "17G200")).contains("setup-time Xcode build differs"))
+        #expect(try #require(await fixture.warning(buildVersion: "17G200")).contains("setup-time Xcode build differs"))
     }
 
     @Test(.inTemporaryDirectory)
-    func an_unknown_setup_time_xcode_build_is_not_assumed_current() throws {
-        let fixture = try Fixture()
-        try fixture.store.record(
-            plugin: fixture.installedPlugin,
-            proxy: fixture.proxy,
-            xcodeBuildVersion: nil,
-            tuistVersion: "4.213.0"
-        )
+    func an_unknown_setup_time_xcode_build_is_not_assumed_current() async throws {
+        let fixture = try await Fixture()
+        try await fixture.store.record(pluginInstalled: true, xcodeBuildVersion: nil, tuistVersion: "4.213.0")
 
-        #expect(try #require(fixture.warning()).contains("Xcode build differs or was not recorded"))
+        #expect(try #require(await fixture.warning()).contains("Xcode build differs or was not recorded"))
     }
 
     @Test(.inTemporaryDirectory)
-    func xcode_symlinks_do_not_cause_a_false_warning() throws {
-        let fixture = try Fixture()
-        let xcode = fixture.root.appendingPathComponent("SelectedXcode")
-        try FileManager.default.createDirectory(at: fixture.xcode, withIntermediateDirectories: true)
-        try FileManager.default.createSymbolicLink(at: xcode, withDestinationURL: fixture.xcode)
-        try fixture.record()
+    func a_machine_without_setup_is_not_warned_or_modified() async throws {
+        let fixture = try await Fixture()
+        try await fixture.fileSystem.remove(fixture.installedPlugin)
+        try await fixture.fileSystem.remove(fixture.launchAgent)
 
-        #expect(fixture.warning(developerDirectory: xcode) == nil)
+        #expect(await fixture.warning() == nil)
+        #expect(try await !fixture.fileSystem.exists(fixture.manifest))
     }
 
     @Test(.inTemporaryDirectory)
-    func a_machine_without_setup_is_not_warned_or_modified() throws {
-        let fixture = try Fixture()
-        try FileManager.default.removeItem(at: fixture.installedPlugin)
-        try FileManager.default.removeItem(at: fixture.launchAgent)
+    func intentional_teardown_does_not_warn_about_the_retained_plugin() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record()
+        try await fixture.store.invalidate()
+        try await fixture.fileSystem.remove(fixture.launchAgent)
 
-        #expect(fixture.warning() == nil)
-        #expect(!FileManager.default.fileExists(atPath: fixture.manifest.path))
+        #expect(try await fixture.fileSystem.exists(fixture.installedPlugin))
+        #expect(await fixture.warning() == nil)
     }
 
     @Test(.inTemporaryDirectory)
-    func intentional_teardown_does_not_warn_about_the_retained_plugin() throws {
-        let fixture = try Fixture()
-        try fixture.record()
-        try FileManager.default.removeItem(at: fixture.launchAgent)
-        try fixture.store.invalidate()
+    func legacy_installs_report_an_unknown_setup_version() async throws {
+        let fixture = try await Fixture()
 
-        #expect(FileManager.default.fileExists(atPath: fixture.installedPlugin.path))
-        #expect(fixture.warning() == nil)
+        #expect(try #require(await fixture.warning()).contains("legacy or changed setup"))
     }
 
     @Test(.inTemporaryDirectory)
-    func legacy_installs_report_an_unknown_setup_version() throws {
-        let fixture = try Fixture()
+    func corrupt_metadata_falls_back_to_the_launch_agent() async throws {
+        let fixture = try await Fixture()
+        try await fixture.fileSystem.writeText("not JSON", at: fixture.manifest)
 
-        #expect(try #require(fixture.warning()).contains("legacy or changed setup"))
-    }
-
-    @Test(.inTemporaryDirectory)
-    func corrupt_metadata_falls_back_to_the_launch_agent() throws {
-        let fixture = try Fixture()
-        try Data("not JSON".utf8).write(to: fixture.manifest)
-
-        #expect(try #require(fixture.warning()).contains("legacy or changed setup"))
-        #expect(try #require(fixture.warning(developerDirectory: fixture.root.appendingPathComponent("OtherXcode")))
+        #expect(try #require(await fixture.warning()).contains("legacy or changed setup"))
+        #expect(try #require(await fixture.warning(developerDirectory: fixture.root.appending(component: "OtherXcode")))
             .contains("different Xcode"))
     }
 
     @Test(.inTemporaryDirectory)
-    func removed_proxy_installations_are_reported() throws {
-        let fixture = try Fixture()
-        try fixture.record()
-        try FileManager.default.removeItem(at: fixture.proxy)
+    func a_removed_launching_cli_is_reported_even_if_metadata_is_stale() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record()
+        try await fixture.fileSystem.remove(fixture.program)
 
-        #expect(try #require(fixture.warning()).contains("installation has been removed"))
+        #expect(try #require(await fixture.warning())
+            .contains("Tuist installation used to launch the cache proxy has been removed"))
     }
 
     @Test(.inTemporaryDirectory)
-    func a_removed_launching_cli_is_reported_even_if_metadata_is_stale() throws {
-        let fixture = try Fixture()
-        try fixture.record()
-        try FileManager.default.removeItem(at: fixture.program)
+    func a_missing_launch_agent_is_reported_when_setup_was_not_torn_down() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record()
+        try await fixture.fileSystem.remove(fixture.launchAgent)
 
-        #expect(try #require(fixture.warning()).contains("Tuist installation used to launch the cache proxy has been removed"))
-    }
-
-    @Test(.inTemporaryDirectory)
-    func a_missing_launch_agent_is_reported_when_setup_was_not_torn_down() throws {
-        let fixture = try Fixture()
-        try fixture.record()
-        try FileManager.default.removeItem(at: fixture.launchAgent)
-
-        #expect(try #require(fixture.warning()).contains("LaunchAgent is missing"))
+        #expect(try #require(await fixture.warning()).contains("LaunchAgent is missing"))
     }
 
     @Test(.inTemporaryDirectory, arguments: ["not a plist", "<?xml version=\"1.0\"?><plist><dict/></plist>"])
-    func an_invalid_launch_agent_is_reported(configuration: String) throws {
-        let fixture = try Fixture()
-        try Data(configuration.utf8).write(to: fixture.launchAgent)
+    func an_invalid_launch_agent_is_reported(configuration: String) async throws {
+        let fixture = try await Fixture()
+        try await fixture.fileSystem.writeText(configuration, at: fixture.launchAgent)
 
-        #expect(try #require(fixture.warning()).contains("LaunchAgent configuration could not be read"))
+        #expect(try #require(await fixture.warning()).contains("LaunchAgent configuration could not be read"))
     }
 
     @Test(.inTemporaryDirectory)
-    func a_missing_installed_plugin_is_reported() throws {
-        let fixture = try Fixture()
-        try fixture.record()
-        try FileManager.default.removeItem(at: fixture.installedPlugin)
+    func a_missing_installed_plugin_is_reported() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record()
+        try await fixture.fileSystem.remove(fixture.installedPlugin)
 
-        #expect(try #require(fixture.warning()).contains("installed cache plugin is missing"))
+        #expect(try #require(await fixture.warning()).contains("installed cache plugin is missing"))
     }
 
     @Test(.inTemporaryDirectory)
-    func setup_without_a_shipped_plugin_does_not_report_a_missing_plugin() throws {
-        let fixture = try Fixture()
-        try FileManager.default.removeItem(at: fixture.installedPlugin)
-        try fixture.store.record(plugin: nil, proxy: fixture.proxy, xcodeBuildVersion: "17F113", tuistVersion: "4.213.0")
+    func setup_without_a_shipped_plugin_does_not_report_a_missing_plugin() async throws {
+        let fixture = try await Fixture()
+        try await fixture.fileSystem.remove(fixture.installedPlugin)
+        try await fixture.store.record(pluginInstalled: false, xcodeBuildVersion: "17F113", tuistVersion: "4.213.0")
 
-        #expect(fixture.warning() == nil)
+        #expect(await fixture.warning() == nil)
     }
 
     @Test(.inTemporaryDirectory)
-    func checking_a_stale_installation_does_not_write_any_files() throws {
-        let fixture = try Fixture()
-        try fixture.record(version: "4.212.0")
-        let before = try fixture.files()
+    func checking_a_stale_installation_does_not_write_any_files() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record(version: "4.212.0")
+        let before = try await fixture.files()
 
-        #expect(fixture.warning() != nil)
-        #expect(try fixture.files() == before)
+        #expect(await fixture.warning() != nil)
+        #expect(try await fixture.files() == before)
     }
 
     @Test(.inTemporaryDirectory)
-    func successful_setup_records_configuration_without_copying_credentials() throws {
-        let fixture = try Fixture()
-        try fixture.record()
-        let data = try Data(contentsOf: fixture.manifest)
-        let installation = try JSONDecoder().decode(XcodeCacheInstallationStore.Installation.self, from: data)
+    func successful_setup_records_configuration_without_copying_credentials() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record()
+        let installation: XcodeCacheInstallationStore.Installation = try await fixture.fileSystem
+            .readJSONFile(at: fixture.manifest)
 
         #expect(installation.tuistVersion == "4.213.0")
-        #expect(installation.launchAgentProgram == fixture.program.resolvingSymlinksInPath().path)
-        #expect(installation.proxyPath == fixture.proxy.resolvingSymlinksInPath().path)
-        #expect(installation.developerDirectory == fixture.xcode.resolvingSymlinksInPath().path)
         #expect(installation.xcodeBuildVersion == "17F113")
         #expect(installation.pluginInstalled)
-        let metadata = try #require(String(data: data, encoding: .utf8))
-        #expect(!metadata.contains("secret-token"))
+        #expect(try await fixture.fileSystem.readTextFile(at: fixture.manifest).contains("secret-token") == false)
     }
 
     @Test(.inTemporaryDirectory)
-    func failed_recording_after_invalidation_cannot_resurrect_old_metadata() throws {
-        let fixture = try Fixture()
-        try fixture.record(version: "4.214.0")
-        try fixture.store.invalidate()
-        try FileManager.default.removeItem(at: fixture.launchAgent)
+    func failed_recording_after_invalidation_cannot_resurrect_old_metadata() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record(version: "4.214.0")
+        try await fixture.store.invalidate()
+        try await fixture.fileSystem.remove(fixture.launchAgent)
 
-        #expect(throws: (any Error).self) { try fixture.record() }
-        #expect(!FileManager.default.fileExists(atPath: fixture.manifest.path))
-        try fixture.store.invalidate()
+        await #expect(throws: (any Error).self) { try await fixture.record() }
+        #expect(try await !fixture.fileSystem.exists(fixture.manifest))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func invalidating_a_missing_manifest_does_not_fail() async throws {
+        let fixture = try await Fixture()
+
+        try await fixture.store.invalidate()
+        try await fixture.store.invalidate()
+
+        #expect(try await !fixture.fileSystem.exists(fixture.manifest))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func a_failed_metadata_write_cannot_leave_a_trusted_previous_record() async throws {
+        let fixture = try await Fixture()
+        try await fixture.record(version: "4.214.0")
+        try await fixture.store.invalidate()
+        try await fixture.fileSystem.makeDirectory(at: fixture.manifest)
+
+        await #expect(throws: (any Error).self) { try await fixture.record() }
+        #expect(try #require(await fixture.warning()).contains("legacy or changed setup"))
     }
 }
 
 private struct Fixture {
-    let root: URL
+    let root: AbsolutePath
+    let fileSystem = FileSystem()
     let store: XcodeCacheInstallationStore
-    let installedPlugin: URL
-    let proxy: URL
-    let program: URL
-    let launchAgent: URL
-    let manifest: URL
-    let xcode: URL
+    let installedPlugin: AbsolutePath
+    let program: AbsolutePath
+    let launchAgent: AbsolutePath
+    let manifest: AbsolutePath
+    let xcode: AbsolutePath
 
-    init() throws {
-        root = try #require(FileSystem.temporaryTestDirectory).url
-        installedPlugin = root.appendingPathComponent("libtuist_cas_plugin.dylib")
-        proxy = root.appendingPathComponent("tuist-cas-proxy")
-        program = root.appendingPathComponent("tuist")
-        launchAgent = root.appendingPathComponent("proxy.plist")
-        manifest = root.appendingPathComponent("cas-install.json")
-        xcode = root.appendingPathComponent("Xcode")
-        store = XcodeCacheInstallationStore(directory: root, launchAgent: launchAgent)
-        for path in [installedPlugin, proxy, program] {
-            try Data("component".utf8).write(to: path)
+    init() async throws {
+        root = try #require(FileSystem.temporaryTestDirectory)
+        installedPlugin = root.appending(component: "libtuist_cas_plugin.dylib")
+        program = root.appending(component: "tuist")
+        launchAgent = root.appending(component: "proxy.plist")
+        manifest = root.appending(component: "cas-install.json")
+        xcode = root.appending(component: "Xcode")
+        store = XcodeCacheInstallationStore(fileSystem: fileSystem, directory: root, launchAgentPath: launchAgent)
+        for path in [installedPlugin, program] {
+            try await fileSystem.writeText("component", at: path)
         }
-        try writeAgent()
+        try await writeAgent()
     }
 
-    func writeAgent(program: URL? = nil, xcode: URL? = nil) throws {
-        let previousDate = (try? FileManager.default.attributesOfItem(atPath: launchAgent.path)[.modificationDate]) as? Date
-        let plist: [String: Any] = [
-            "Program": (program ?? self.program).path,
-            "EnvironmentVariables": ["DEVELOPER_DIR": (xcode ?? self.xcode).path, "TUIST_TOKEN": "secret-token"],
-        ]
-        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: launchAgent)
+    func writeAgent(program: AbsolutePath? = nil, xcode: AbsolutePath? = nil) async throws {
+        let previousDate = try await fileSystem.fileMetadata(at: launchAgent)?.lastModificationDate
+        let agent = LaunchAgentFixture(
+            program: program ?? self.program,
+            environmentVariables: ["DEVELOPER_DIR": (xcode ?? self.xcode).pathString, "TUIST_TOKEN": "secret-token"]
+        )
+        try await fileSystem.writeAsPlist(agent, at: launchAgent)
         if let previousDate {
-            try FileManager.default.setAttributes(
-                [.modificationDate: previousDate.addingTimeInterval(2)],
-                ofItemAtPath: launchAgent.path
+            try await fileSystem.setFileTimes(
+                of: launchAgent,
+                lastAccessDate: nil,
+                lastModificationDate: previousDate.addingTimeInterval(2)
             )
         }
     }
 
-    func record(version: String = "4.213.0") throws {
-        try store.record(plugin: installedPlugin, proxy: proxy, xcodeBuildVersion: "17F113", tuistVersion: version)
+    func record(version: String = "4.213.0") async throws {
+        try await store.record(pluginInstalled: true, xcodeBuildVersion: "17F113", tuistVersion: version)
     }
 
-    func warning(version: String = "4.213.0", developerDirectory: URL? = nil, buildVersion: String = "17F113") -> String? {
-        store.warning(developerDirectory: developerDirectory ?? xcode, xcodeBuildVersion: buildVersion, tuistVersion: version)
+    func warning(
+        version: String = "4.213.0",
+        developerDirectory: AbsolutePath? = nil,
+        buildVersion: String = "17F113"
+    ) async -> String? {
+        await store.warning(
+            developerDirectory: developerDirectory ?? xcode,
+            xcodeBuildVersion: buildVersion,
+            tuistVersion: version
+        )
     }
 
-    func files() throws -> [String: Data] {
-        try Dictionary(uniqueKeysWithValues: FileManager.default.contentsOfDirectory(
-            at: root,
-            includingPropertiesForKeys: nil
-        ).map { ($0.lastPathComponent, try Data(contentsOf: $0)) })
+    func files() async throws -> [AbsolutePath: Data] {
+        var files: [AbsolutePath: Data] = [:]
+        for path in try await fileSystem.glob(directory: root, include: ["*"]).collect() {
+            files[path] = try await fileSystem.readFile(at: path)
+        }
+        return files
+    }
+}
+
+private struct LaunchAgentFixture: Encodable {
+    let program: AbsolutePath
+    let environmentVariables: [String: String]
+
+    enum CodingKeys: String, CodingKey {
+        case program = "Program"
+        case environmentVariables = "EnvironmentVariables"
     }
 }
