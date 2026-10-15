@@ -4295,6 +4295,13 @@ public struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
+                    name: "track",
+                    value: input.query.track
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
                     name: "specifier",
                     value: input.query.specifier
                 )

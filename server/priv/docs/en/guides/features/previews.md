@@ -94,6 +94,26 @@ This is useful for:
 >
 > Only people with access to the organization the project belongs to can access the previews. We plan to add support for expiring links.
 
+## Release notes {#release-notes}
+
+Use tracks for environment groups and release notes for the purpose of an individual build:
+
+```bash
+tuist share App --track QA --release-notes "Fix sign-in and improve the checkout flow"
+```
+
+Release notes are optional plain text, up to 10,000 characters. They appear in the web and iOS preview lists and on the preview detail page. Multiline notes are supported, for example `--release-notes "$(< release-notes.txt)"`. They do not change the app's display name or its track.
+
+### Compatibility {#preview-metadata-compatibility}
+
+Release notes are additive metadata, not part of a preview's identity. Uploads from old and new clients still group into the same preview across platforms. The first nonblank notes are retained: a later upload can fill notes that were previously absent, but cannot overwrite existing notes. Omitting `release_notes`, sending `null`, or sending an empty or whitespace-only string never clears notes. Existing previews are not backfilled and remain valid without notes.
+
+The list API's optional `track` query parameter matches a whole track name, case-insensitively, consistent with existing track storage. Omit it or send an empty value (`?track=`) to list all tracks. Track names remain open strings, not a fixed list of values. The iOS app's **All tracks** action omits the filter.
+
+Old clients can continue uploading and listing previews without sending either field. New clients accept older responses that omit track or notes, and ignore unknown response properties added by future servers. API integrations should likewise ignore unknown response properties so additive metadata remains compatible.
+
+Self-hosted deployments need a server version that supports release notes and track filtering, together with an updated CLI and app, to use these features. Older servers may ignore notes or unknown query parameters. If a server returns previews from another track despite an active filter, the iOS app reports that filtering is unsupported rather than presenting misleading results. The macOS app first requests the latest compatible preview per app; on older servers that select distinct apps before applying platform filters, it falls back to paginated history without imposing a cutoff that could hide an available build.
+
 ## Tuist macOS app {#tuist-macos-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
@@ -118,7 +138,7 @@ When you now click on "Run" in the Preview page, the macOS app will automaticall
     </a>
 </div>
 
-Similarly to the macOS app, the Tuist iOS apps streamlines accessing and running your previews.
+Similarly to the macOS app, the Tuist iOS apps streamlines accessing and running your previews. Each preview shows its track, and the filter button lets you enter an exact track name or return to all tracks. The filter applies across pages, not just to the previews already loaded.
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 

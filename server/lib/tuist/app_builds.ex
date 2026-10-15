@@ -34,6 +34,9 @@ defmodule Tuist.AppBuilds do
       ) do
     track = Map.get(attrs, :track) || ""
 
+    release_notes = normalize_release_notes(Map.get(attrs, :release_notes))
+    attrs = Map.put(attrs, :release_notes, release_notes)
+
     preview =
       from(p in Preview)
       |> where([p], p.project_id == ^project_id)
@@ -66,7 +69,7 @@ defmodule Tuist.AppBuilds do
         {:ok, created, :created}
       end
     else
-      {:ok, preview, :reused}
+      reuse_preview_with_release_notes(preview, release_notes)
     end
   end
 
@@ -225,7 +228,8 @@ defmodule Tuist.AppBuilds do
 
     if distinct_bundle_identifier do
       preview_ids =
-        from(p in Preview)
+        query
+        |> exclude(:preload)
         |> Flop.query(%Flop{filters: filters}, for: Preview)
         |> order_by({^order_direction, ^order_by})
         |> distinct([p], p.bundle_identifier)
@@ -379,5 +383,32 @@ defmodule Tuist.AppBuilds do
     # dispatcher can resolve the owning account before the row is gone for good.
     Tuist.Webhooks.Dispatcher.dispatch_preview_deleted(preview)
     deleted
+  end
+
+  defp normalize_release_notes(notes) when is_binary(notes) do
+    if String.trim(notes) == "", do: nil, else: notes
+  end
+
+  defp normalize_release_notes(notes), do: notes
+
+  defp reuse_preview_with_release_notes(preview, nil), do: {:ok, preview, :reused}
+
+  defp reuse_preview_with_release_notes(preview, notes) do
+    changeset = Preview.create_changeset(preview, %{release_notes: notes})
+
+    if changeset.valid? do
+      query =
+        from(p in Preview,
+          where: p.id == ^preview.id and is_nil(p.release_notes),
+          select: p
+        )
+
+      case Repo.update_all(query, set: [release_notes: notes, updated_at: DateTime.utc_now(:second)]) do
+        {1, [updated]} -> {:ok, updated, :reused}
+        {0, []} -> {:ok, Repo.reload!(preview), :reused}
+      end
+    else
+      {:error, changeset}
+    end
   end
 end

@@ -124,6 +124,46 @@ defmodule Tuist.AppBuildsTest do
   end
 
   describe "find_or_create_preview/1" do
+    test "mixed clients share one preview and the first nonblank notes are retained" do
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        release_notes: "Fix sign-in"
+      }
+
+      assert {:ok, first, :created} = AppBuilds.find_or_create_preview(Map.delete(attrs, :release_notes))
+      assert first.release_notes == nil
+      assert {:ok, annotated, :reused} = AppBuilds.find_or_create_preview(attrs)
+      assert first.id == annotated.id
+      assert annotated.release_notes == "Fix sign-in"
+
+      for legacy_attrs <- [
+            Map.delete(attrs, :release_notes),
+            %{attrs | release_notes: nil},
+            %{attrs | release_notes: ""},
+            %{attrs | release_notes: "  \n"},
+            %{attrs | release_notes: "Fix checkout"}
+          ] do
+        assert {:ok, reused, :reused} = AppBuilds.find_or_create_preview(legacy_attrs)
+        assert reused.id == first.id
+        assert reused.release_notes == "Fix sign-in"
+      end
+
+      assert length(Repo.all(Preview)) == 1
+    end
+
+    test "rejects release notes longer than 10000 characters" do
+      changeset = Preview.create_changeset(%Preview{}, %{project_id: 1, release_notes: String.duplicate("a", 10_001)})
+      refute changeset.valid?
+      assert Keyword.has_key?(changeset.errors, :release_notes)
+    end
+
     test "creates a new preview when none exists" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -748,6 +788,39 @@ defmodule Tuist.AppBuildsTest do
   end
 
   describe "list_previews/1" do
+    test "selects the latest compatible platform before distinct bundle identifiers" do
+      project = ProjectsFixtures.project_fixture()
+
+      compatible =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          supported_platforms: [:ios_simulator],
+          inserted_at: ~U[2026-01-01 00:00:00Z]
+        )
+
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        supported_platforms: [:ios],
+        inserted_at: ~U[2026-01-02 00:00:00Z]
+      )
+
+      {previews, _meta} =
+        AppBuilds.list_previews(
+          %{
+            page: 1,
+            page_size: 20,
+            filters: [%{field: :project_id, op: :==, value: project.id}],
+            order_by: [:inserted_at],
+            order_directions: [:desc]
+          },
+          distinct: [:bundle_identifier],
+          supported_platforms: [:ios_simulator],
+          preload: [:app_builds]
+        )
+
+      assert Enum.map(previews, & &1.id) == [compatible.id]
+    end
+
     test "returns previews" do
       # Given
       project = ProjectsFixtures.project_fixture()

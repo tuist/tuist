@@ -96,6 +96,12 @@ defmodule TuistWeb.API.PreviewsController do
              type: :string,
              description: "The track for the preview (e.g., 'beta', 'nightly')."
            },
+           release_notes: %Schema{
+             type: :string,
+             nullable: true,
+             maxLength: 10_000,
+             description: "Optional plain-text release notes describing this preview build."
+           },
            build_version: %Schema{
              type: :string,
              description: "The build version of the app (CFBundleVersion for Apple platforms, versionCode for Android)."
@@ -167,7 +173,8 @@ defmodule TuistWeb.API.PreviewsController do
         git_branch: Map.get(body_params, :git_branch),
         git_ref: Map.get(body_params, :git_ref),
         supported_platforms: [],
-        track: Map.get(body_params, :track)
+        track: Map.get(body_params, :track),
+        release_notes: Map.get(body_params, :release_notes)
       })
 
     # `preview.created` fires here — at the moment the preview row is
@@ -524,6 +531,12 @@ defmodule TuistWeb.API.PreviewsController do
         type: :string,
         description: "The display name of previews."
       ],
+      track: [
+        in: :query,
+        type: :string,
+        description:
+          "Only return previews on this track (case-insensitive). Omit or pass an empty value to return all tracks."
+      ],
       specifier: [
         in: :query,
         type: :string,
@@ -727,7 +740,10 @@ defmodule TuistWeb.API.PreviewsController do
         display_name -> [%{field: :display_name, op: :==, value: display_name} | filters]
       end
 
-    filters
+    case Map.get(params, :track) do
+      track when track in [nil, ""] -> filters
+      track -> [%{field: :track, op: :==, value: track} | filters]
+    end
   end
 
   operation(:upload_icon,
@@ -914,6 +930,7 @@ defmodule TuistWeb.API.PreviewsController do
       git_commit_sha: preview.git_commit_sha,
       git_branch: preview.git_branch,
       track: preview.track,
+      release_notes: preview.release_notes,
       builds: builds,
       supported_platforms: preview.supported_platforms,
       inserted_at: preview.inserted_at,

@@ -7911,6 +7911,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/qr_code_url`.
             public var qr_code_url: Swift.String
+            /// Optional plain-text release notes describing this preview build
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/release_notes`.
+            public var release_notes: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Preview/supported_platforms`.
             public var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]
             /// The track for the preview (e.g., 'beta', 'nightly')
@@ -7940,6 +7944,7 @@ public enum Components {
             ///   - id: Unique identifier of the preview.
             ///   - inserted_at: The date and time when the preview was inserted
             ///   - qr_code_url: The URL for the QR code image to dowload the preview
+            ///   - release_notes: Optional plain-text release notes describing this preview build
             ///   - supported_platforms:
             ///   - track: The track for the preview (e.g., 'beta', 'nightly')
             ///   - url: The URL to download the preview
@@ -7957,6 +7962,7 @@ public enum Components {
                 id: Swift.String,
                 inserted_at: Swift.String,
                 qr_code_url: Swift.String,
+                release_notes: Swift.String? = nil,
                 supported_platforms: [Components.Schemas.PreviewSupportedPlatform],
                 track: Swift.String? = nil,
                 url: Swift.String,
@@ -7974,6 +7980,7 @@ public enum Components {
                 self.id = id
                 self.inserted_at = inserted_at
                 self.qr_code_url = qr_code_url
+                self.release_notes = release_notes
                 self.supported_platforms = supported_platforms
                 self.track = track
                 self.url = url
@@ -7992,6 +7999,7 @@ public enum Components {
                 case id
                 case inserted_at
                 case qr_code_url
+                case release_notes
                 case supported_platforms
                 case track
                 case url
@@ -31797,6 +31805,10 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/display_name`.
                 public var display_name: Swift.String?
+                /// Only return previews on this track (case-insensitive). Omit or pass an empty value to return all tracks.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/track`.
+                public var track: Swift.String?
                 /// The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/specifier`.
@@ -31825,6 +31837,7 @@ public enum Operations {
                 ///
                 /// - Parameters:
                 ///   - display_name: The display name of previews.
+                ///   - track: Only return previews on this track (case-insensitive). Omit or pass an empty value to return all tracks.
                 ///   - specifier: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
                 ///   - supported_platforms:
                 ///   - page_size:
@@ -31832,6 +31845,7 @@ public enum Operations {
                 ///   - distinct_field: Distinct fields – no two previews will be returned with this field having the same value.
                 public init(
                     display_name: Swift.String? = nil,
+                    track: Swift.String? = nil,
                     specifier: Swift.String? = nil,
                     supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
                     page_size: Swift.Int? = nil,
@@ -31839,6 +31853,7 @@ public enum Operations {
                     distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload? = nil
                 ) {
                     self.display_name = display_name
+                    self.track = track
                     self.specifier = specifier
                     self.supported_platforms = supported_platforms
                     self.page_size = page_size
@@ -58085,6 +58100,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/git_ref`.
                     public var git_ref: Swift.String?
+                    /// Optional plain-text release notes describing this preview build.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/release_notes`.
+                    public var release_notes: Swift.String?
                     /// The supported platforms of the preview.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/supported_platforms`.
@@ -58119,6 +58138,7 @@ public enum Operations {
                     ///   - git_branch: The git branch associated with the preview.
                     ///   - git_commit_sha: The git commit SHA associated with the preview.
                     ///   - git_ref: The git ref associated with the preview.
+                    ///   - release_notes: Optional plain-text release notes describing this preview build.
                     ///   - supported_platforms: The supported platforms of the preview.
                     ///   - track: The track for the preview (e.g., 'beta', 'nightly').
                     ///   - _type: The type of the preview to upload.
@@ -58131,6 +58151,7 @@ public enum Operations {
                         git_branch: Swift.String? = nil,
                         git_commit_sha: Swift.String? = nil,
                         git_ref: Swift.String? = nil,
+                        release_notes: Swift.String? = nil,
                         supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
                         track: Swift.String? = nil,
                         _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload? = nil,
@@ -58143,6 +58164,7 @@ public enum Operations {
                         self.git_branch = git_branch
                         self.git_commit_sha = git_commit_sha
                         self.git_ref = git_ref
+                        self.release_notes = release_notes
                         self.supported_platforms = supported_platforms
                         self.track = track
                         self._type = _type
@@ -58156,6 +58178,7 @@ public enum Operations {
                         case git_branch
                         case git_commit_sha
                         case git_ref
+                        case release_notes
                         case supported_platforms
                         case track
                         case _type = "type"

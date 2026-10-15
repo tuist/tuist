@@ -3076,6 +3076,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        release_notes:
+          description: Optional plain-text release notes describing this preview build
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         supported_platforms:
           items:
             $ref: '#/components/schemas/PreviewSupportedPlatform'
@@ -15067,6 +15073,14 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Only return previews on this track (case-insensitive). Omit or pass an empty value to return all tracks.
+          in: query
+          name: track
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
           in: query
           name: specifier
@@ -24124,6 +24138,13 @@ paths:
                   x-validate:
                 git_ref:
                   description: The git ref associated with the preview.
+                  type: string
+                  x-struct:
+                  x-validate:
+                release_notes:
+                  description: Optional plain-text release notes describing this preview build.
+                  maxLength: 10000
+                  nullable: true
                   type: string
                   x-struct:
                   x-validate:

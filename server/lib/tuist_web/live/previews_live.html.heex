@@ -69,7 +69,10 @@
           }
         >
           <:col :let={preview} label={dgettext("dashboard_previews", "Name")}>
-            <.text_and_description_cell label={preview.display_name} />
+            <.text_and_description_cell
+              label={preview.display_name}
+              description={preview.release_notes && String.slice(preview.release_notes, 0, 160)}
+            />
           </:col>
           <:col :let={preview} label={dgettext("dashboard_previews", "Platforms")}>
             <div data-part="platforms">
