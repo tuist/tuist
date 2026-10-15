@@ -53,6 +53,11 @@ permissions:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   TUIST_ENABLE_CACHING: true
+  # Coverage builds keep Xcode's prefix mapping, so the compilation cache replays
+  # across runners; the CLI maps the covered paths back (llvm-cov export plus each
+  # target's compilation-prefix-map.json). xccov and Xcode's coverage UI still drop
+  # mapped files, which is why it is an opt-in.
+  TUIST_ENABLE_COVERAGE_PREFIX_MAPPING: true
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_GITHUB_SLSA: 0
   # Xcode code coverage is in early access behind this client flag.
@@ -157,7 +162,7 @@ jobs:
       # and plain increments lose counts, which xccov turns into negative,
       # wrapped region counts and lines reported covered that never ran.
       - name: Run tests with coverage
-        run: tuist test TuistUnitTests --no-selective-testing --no-binary-cache -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES 'OTHER_SWIFT_FLAGS=$(inherited) -Xllvm -instrprof-atomic-counter-update-all'
+        run: tuist test TuistUnitTests --no-selective-testing --no-binary-cache -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES
 
   app-tests:
     name: App Tests
@@ -208,7 +213,7 @@ jobs:
         run: tuist install --force-resolved-versions
       # Atomic counters for the same reason as the CLI's run.
       - name: Run tests with coverage
-        run: tuist test TuistApp --no-selective-testing --no-binary-cache -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES 'OTHER_SWIFT_FLAGS=$(inherited) -Xllvm -instrprof-atomic-counter-update-all' CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        run: tuist test TuistApp --no-selective-testing --no-binary-cache -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
   # Only a complete commit joins the coverage trend. A CLI release older than
   # `tuist coverage complete` skips the signal, and the commit stays in progress.
