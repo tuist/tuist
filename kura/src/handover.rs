@@ -787,10 +787,7 @@ mod tests {
 
         let source = test_context(|_| {}).await;
         let target = test_context(|config| config.cas_capacity_bytes = Some(1)).await;
-        for (ctx, key, version) in [
-            (&source, "newer", 1000),
-            (&source, "older", 400),
-        ] {
+        for (ctx, key, version) in [(&source, "newer", 1000), (&source, "older", 400)] {
             ctx.state
                 .store
                 .apply_replicated_artifact_from_bytes(

@@ -45,6 +45,12 @@ and checks its count against the matching fully verified receipts, then reads
 the newest retained body after promotion. Reads on a full
 serving ring can trigger eviction, so walking it after promotion is not a frozen
 corpus check. It does not require evicted uploads to survive.
+Add `KURA_E2E_RETAINED_RECENCY=1` to that full-ring workload to inject an old
+segmented record into the source through the peer protocol. Assert that ordinary
+replication leaves it absent on the full standby before requesting handover,
+then require matching full-corpus receipts and byte-exact reads of the repaired
+record after promotion. This isolates recency selection from storage admission;
+it must not change either replica's configured capacity to make repair pass.
 `resume.mjs` interrupts the local authority API, holds an admitted upload across
 expiry and supplies explicit fencing/resumption grants; it verifies drained
 publication, recovery when a replacement grant arrives after expiry, retained
@@ -62,7 +68,7 @@ Its source has a 3 GiB ring and the destination a 4 GiB ring in a bounded 6 GiB
 tmpfs, initially pressured with a 2.25 GiB filler. Restoring free bytes alone
 does not guarantee that equal-sized fragmented rings can converge; the extra
 destination capacity makes the successful recovery case explicit without
-bypassing the production capacity guard.
+bypassing ring capacity or quota-aware disk admission.
 Capture the expected pressure corpus only after both receipts exist, while the
 source hold prevents read-time promotion and eviction. A pre-hold walk of a full
 ring can evict records it counted earlier and is not the retained barrier.
