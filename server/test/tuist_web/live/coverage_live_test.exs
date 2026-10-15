@@ -417,7 +417,7 @@ defmodule TuistWeb.CoverageLiveTest do
         |> element("#coverage-recent-runs-table")
         |> render()
         |> Floki.parse_fragment!()
-        |> Floki.find("tbody tr td:first-child")
+        |> Floki.find("tbody tr td:first-child [data-part='label']")
         |> Enum.map(&(&1 |> Floki.text() |> String.trim()))
 
       assert labels == ["mix test · clickhouse-current", "mix test"]
