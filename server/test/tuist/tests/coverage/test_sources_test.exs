@@ -8,8 +8,10 @@ defmodule Tuist.Tests.Coverage.TestSourcesTest do
   alias Tuist.Tests.CoverageTestSource
   alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
 
   setup do
     account = AccountsFixtures.user_fixture(preload: [:account]).account
@@ -74,6 +76,28 @@ defmodule Tuist.Tests.Coverage.TestSourcesTest do
         select: fragment("toString(?)", r.test_case_id)
       )
     )
+  end
+
+  test "records no version from a run whose target linked code taken from the cache without counters", %{
+    project: project,
+    account: account,
+    repository_id: repository_id
+  } do
+    run = run(project, account, %{recompute: false})
+    event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run.id)
+
+    XcodeFixtures.xcode_target_fixture(command_event_id: event.id, name: "Math", binary_cache_hit: :local)
+
+    XcodeFixtures.xcode_target_fixture(
+      command_event_id: event.id,
+      name: "AppTests",
+      product: "unit_tests",
+      dependencies: ["Math"]
+    )
+
+    CoverageFixtures.recompute_commit(run)
+
+    assert versions(project, repository_id) == []
   end
 
   test "a fingerprint is the files and their blobs, whatever their order" do

@@ -23,6 +23,7 @@ defmodule Tuist.Tests.Coverage.TargetSourcesTest do
   # A run of TextKitTests at `sha`, its hashes landing before its commit folds.
   defp run(project, account, sha, attrs \\ %{}) do
     {status, attrs} = Map.pop(attrs, :status, "success")
+    {cache, attrs} = Map.pop(attrs, :cache, [])
 
     run =
       CoverageFixtures.run_with_coverage(
@@ -55,12 +56,40 @@ defmodule Tuist.Tests.Coverage.TargetSourcesTest do
     XcodeFixtures.xcode_target_fixture(
       command_event_id: event.id,
       name: "TextKitTests",
+      product: "unit_tests",
+      dependencies: Enum.map(cache, &elem(&1, 0)),
       selective_testing_hash: "text",
       selective_testing_hit: :miss
     )
 
+    # The targets the test target links, taken from the binary cache with or without coverage counters.
+    for {name, instrumented} <- cache do
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: name,
+        binary_cache_hit: :local,
+        binary_cache_instrumented: instrumented
+      )
+    end
+
     CoverageFixtures.recompute_commit(run)
     run
+  end
+
+  test "records no run where the target linked code taken from the cache without counters", %{
+    project: project,
+    account: account,
+    repository_id: repository_id
+  } do
+    run(project, account, "c1", %{cache: [{"TextKit", nil}]})
+    assert TargetSources.latest(project.id, repository_id, [{"TextKitTests", "text"}]) == %{}
+
+    instrumented = run(project, account, "c2", %{cache: [{"TextKit", true}]})
+
+    assert %{{"TextKitTests", "text"} => %{sha: "c2", run_id: run_id}} =
+             TargetSources.latest(project.id, repository_id, [{"TextKitTests", "text"}])
+
+    assert run_id == instrumented.id
   end
 
   test "records the latest run that executed the target whole and passed it", %{

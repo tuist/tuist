@@ -20,6 +20,7 @@ defmodule Tuist.Tests.Coverage.TargetSources do
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.Xcode
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageTargetSource
@@ -38,10 +39,15 @@ defmodule Tuist.Tests.Coverage.TargetSources do
     by_id = Map.new(runs, &{&1.test_run_id, &1})
     run_ids = Map.keys(by_id)
 
+    # A target that linked code the run couldn't measure executed its tests
+    # over counters that weren't there, so the run says nothing about them.
+    uninstrumented = Instrumentation.uninstrumented_test_targets(project_id, runs)
+
     hashes =
       project_id
       |> Xcode.selective_testing_hashes(run_ids)
       |> Enum.reject(&(&1.name in narrowed_targets(by_id[&1.test_run_id])))
+      |> Enum.reject(&MapSet.member?(uninstrumented, {&1.test_run_id, &1.name}))
 
     evidenced = evidenced_targets(project_id, run_ids, hashes)
     failed = failed_targets(project_id, run_ids, hashes)

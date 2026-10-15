@@ -29,6 +29,7 @@ defmodule Tuist.Tests.Coverage.TestSources do
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Evidence
+  alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.TargetSources
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
@@ -56,10 +57,14 @@ defmodule Tuist.Tests.Coverage.TestSources do
   @doc "Records the test versions of the commit's runs (`Tuist.Tests.Coverage.Commits.runs/2`)."
   def record(project_id, runs) do
     now = NaiveDateTime.utc_now()
+    runs = Enum.filter(runs, &(Map.get(&1, :git_repository_id) not in [nil, 0]))
+    # A test whose target linked code the run couldn't measure has no version
+    # worth keeping from it: the files it executed there went uncounted.
+    uninstrumented = Instrumentation.uninstrumented_test_targets(project_id, runs)
 
     # A run at a time: a full run holds a row per test.
-    for run <- runs, Map.get(run, :git_repository_id) not in [nil, 0] do
-      rows = rows(project_id, run, now)
+    for run <- runs do
+      rows = rows(project_id, run, now, uninstrumented)
       recorded = recorded(project_id, run, Enum.map(rows, & &1.test_case_id))
 
       rows
@@ -154,7 +159,7 @@ defmodule Tuist.Tests.Coverage.TestSources do
     length(project_ids)
   end
 
-  defp rows(project_id, run, now) do
+  defp rows(project_id, run, now, uninstrumented) do
     run_id = run.test_run_id
 
     case evidence(project_id, run_id) do
@@ -166,6 +171,7 @@ defmodule Tuist.Tests.Coverage.TestSources do
         by_scope = Enum.group_by(evidence, &{elem(&1, 0), elem(&1, 1)}, &{elem(&1, 2), elem(&1, 3)})
 
         for test <- test_cases(project_id, run_id),
+            not MapSet.member?(uninstrumented, {run_id, test.module_name}),
             own = Map.get(by_scope, {"test", Evidence.test_scope_id(test.module_name, test.suite_name, test.name)}),
             own != nil do
           suite =

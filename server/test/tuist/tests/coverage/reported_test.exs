@@ -10,6 +10,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.GapReasons
   alias Tuist.Tests.Coverage.History
+  alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -264,6 +265,28 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     binary_cache(project, head, ["Alamofire"], external_hash: "alamofire-revision")
 
     assert %{kind: "measured", gap_reasons: 0} = Reported.compute(project, "head")
+  end
+
+  test "a scheme whose runs took binaries built with coverage counters from the cache is measured", %{
+    project: project,
+    account: account
+  } do
+    head = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
+    binary_cache(project, head, ["Core"], binary_cache_instrumented: true)
+
+    assert %{kind: "measured", gap_reasons: 0} = Reported.compute(project, "head")
+  end
+
+  test "a target a full run of the scheme built from source is measured, one every run took without counters is a gap",
+       %{project: project, account: account} do
+    cached = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head", partial: true})
+    binary_cache(project, cached, ["Core", "Net"])
+    full = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
+    binary_cache(project, full, ["Net"])
+
+    assert Instrumentation.incomplete_targets(project.id, Commits.runs(project.id, "head")) == %{"App" => ["Net"]}
+    assert %{kind: "partial"} = reported = Reported.compute(project, "head")
+    assert :uninstrumented_code in reasons(reported)
   end
 
   test "a scheme with a run that ran every test from sources is measured, whatever its other runs took from the cache",
