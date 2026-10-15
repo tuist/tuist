@@ -200,8 +200,6 @@ jobs:
         env:
           # Xcode code coverage is in early access behind this client flag.
           TUIST_FEATURE_FLAG_COVERAGE: "1"
-          # Keep prefix mapping on for the coverage build; see coverage.yml.
-          TUIST_ENABLE_COVERAGE_PREFIX_MAPPING: true
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
