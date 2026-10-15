@@ -173,6 +173,8 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       render_hook(lv, "add_cache_writer_branch", %{"branch" => " release/* "})
       render_hook(lv, "add_cache_writer_branch", %{"branch" => "feature"})
       html = render_hook(lv, "remove_cache_writer_branch", %{"data" => "main"})
+      refute html =~ ~s(data-part="summary")
+      html = render_hook(lv, "toggle_cache_saving_section", %{})
       assert html =~ ~r/data-part="summary">\s*release\/\*, feature\s*</
       assert html =~ "Use default branch"
       render_hook(lv, "save_profile", %{})
