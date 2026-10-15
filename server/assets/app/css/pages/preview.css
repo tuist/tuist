@@ -10,10 +10,10 @@
   }
 
   & [data-part="release-notes"] {
-    overflow-wrap: anywhere;
-    white-space: pre-wrap;
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-body-medium);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   & > [data-part="action-buttons"] {
