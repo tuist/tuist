@@ -233,16 +233,19 @@ public struct CoverageExportService: CoverageExportServicing {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: path.pathString, isDirectory: &isDirectory) else { return nil }
         guard isDirectory.boolValue else { return path.pathString }
-        let plists = ["Contents/Info.plist", "Info.plist", "Versions/Current/Resources/Info.plist", "Resources/Info.plist"]
+        let plists = [
+            ["Contents", "Info.plist"],
+            ["Info.plist"],
+            ["Versions", "Current", "Resources", "Info.plist"],
+            ["Resources", "Info.plist"],
+        ]
         let executable = plists.lazy
-            .compactMap {
-                try? Data(contentsOf: URL(fileURLWithPath: path.appending(try! RelativePath(validating: $0)).pathString))
-            }
+            .compactMap { try? Data(contentsOf: URL(fileURLWithPath: path.appending(components: $0).pathString)) }
             .compactMap { try? PropertyListSerialization.propertyList(from: $0, format: nil) as? [String: Any] }
             .compactMap { $0["CFBundleExecutable"] as? String }
             .first ?? path.basenameWithoutExt
-        for location in ["Contents/MacOS/\(executable)", "Versions/Current/\(executable)", executable] {
-            let candidate = path.appending(try! RelativePath(validating: location))
+        for location in [["Contents", "MacOS", executable], ["Versions", "Current", executable], [executable]] {
+            let candidate = path.appending(components: location)
             if FileManager.default.fileExists(atPath: candidate.pathString) { return candidate.pathString }
         }
         return nil

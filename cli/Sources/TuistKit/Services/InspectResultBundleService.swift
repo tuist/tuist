@@ -257,6 +257,81 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         return test
     }
 
+    private func uploadAttachments(
+        for testCase: TestCase,
+        fullHandle: String,
+        serverURL: URL,
+        testCaseRunsByIdentity: [String: Components.Schemas.RunsTest.test_case_runsPayloadPayload]
+    ) async {
+        guard !testCase.attachments.isEmpty else { return }
+
+        let identityKey = testCaseRunIdentityKey(
+            moduleName: testCase.module ?? "",
+            suiteName: testCase.testSuite ?? "",
+            name: testCase.name
+        )
+        guard let run = testCaseRunsByIdentity[identityKey] else { return }
+
+        await testCase.attachments.forEach(context: .serial) { attachment in
+            do {
+                let argumentId: String? = attachment.argumentName.flatMap { argName in
+                    run.arguments?.first(where: { $0.name == argName })?.id
+                }
+                let testCaseRunAttachmentId = try await createTestCaseRunAttachmentService.createAttachment(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    testCaseRunId: run.id,
+                    fileName: attachment.fileName,
+                    filePath: attachment.filePath,
+                    repetitionNumber: attachment.repetitionNumber,
+                    testCaseRunArgumentId: argumentId
+                )
+                if let crashReport = testCase.crashReport,
+                   crashReport.filePath == attachment.filePath
+                {
+                    try await createCrashReportService.createCrashReport(
+                        fullHandle: fullHandle,
+                        serverURL: serverURL,
+                        crashReport: crashReport,
+                        testCaseRunId: run.id,
+                        testCaseRunAttachmentId: testCaseRunAttachmentId
+                    )
+                }
+                try await fileSystem.remove(attachment.filePath)
+            } catch {
+                Logger.current
+                    .warning("Failed to upload attachment \(attachment.fileName): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func writeQuarantinedTests(
+        _ quarantinedTests: [TestIdentifier],
+        to resultBundlePath: AbsolutePath
+    ) async throws {
+        let entries = quarantinedTests.map { test in
+            QuarantinedTestEntry(
+                target: test.target,
+                class: test.class,
+                method: test.method
+            )
+        }
+        let filePath = resultBundlePath.appending(component: "quarantined_tests.json")
+        try await fileSystem.writeAsJSON(entries, at: filePath)
+    }
+
+    private func rootDirectory() async throws -> AbsolutePath? {
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
+        if await gitController.isInGitRepository(workingDirectory: workingDirectory) {
+            return try await gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
+        } else {
+            return try await rootDirectoryLocator.locate(from: workingDirectory)
+        }
+    }
+}
+
+extension UploadResultBundleService {
     public func uploadResultBundle(
         resultBundlePath: AbsolutePath,
         config: Tuist,
@@ -422,81 +497,6 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         return test
     }
 
-    private func uploadAttachments(
-        for testCase: TestCase,
-        fullHandle: String,
-        serverURL: URL,
-        testCaseRunsByIdentity: [String: Components.Schemas.RunsTest.test_case_runsPayloadPayload]
-    ) async {
-        guard !testCase.attachments.isEmpty else { return }
-
-        let identityKey = testCaseRunIdentityKey(
-            moduleName: testCase.module ?? "",
-            suiteName: testCase.testSuite ?? "",
-            name: testCase.name
-        )
-        guard let run = testCaseRunsByIdentity[identityKey] else { return }
-
-        await testCase.attachments.forEach(context: .serial) { attachment in
-            do {
-                let argumentId: String? = attachment.argumentName.flatMap { argName in
-                    run.arguments?.first(where: { $0.name == argName })?.id
-                }
-                let testCaseRunAttachmentId = try await createTestCaseRunAttachmentService.createAttachment(
-                    fullHandle: fullHandle,
-                    serverURL: serverURL,
-                    testCaseRunId: run.id,
-                    fileName: attachment.fileName,
-                    filePath: attachment.filePath,
-                    repetitionNumber: attachment.repetitionNumber,
-                    testCaseRunArgumentId: argumentId
-                )
-                if let crashReport = testCase.crashReport,
-                   crashReport.filePath == attachment.filePath
-                {
-                    try await createCrashReportService.createCrashReport(
-                        fullHandle: fullHandle,
-                        serverURL: serverURL,
-                        crashReport: crashReport,
-                        testCaseRunId: run.id,
-                        testCaseRunAttachmentId: testCaseRunAttachmentId
-                    )
-                }
-                try await fileSystem.remove(attachment.filePath)
-            } catch {
-                Logger.current
-                    .warning("Failed to upload attachment \(attachment.fileName): \(error.localizedDescription)")
-            }
-        }
-    }
-
-    private func writeQuarantinedTests(
-        _ quarantinedTests: [TestIdentifier],
-        to resultBundlePath: AbsolutePath
-    ) async throws {
-        let entries = quarantinedTests.map { test in
-            QuarantinedTestEntry(
-                target: test.target,
-                class: test.class,
-                method: test.method
-            )
-        }
-        let filePath = resultBundlePath.appending(component: "quarantined_tests.json")
-        try await fileSystem.writeAsJSON(entries, at: filePath)
-    }
-
-    private func rootDirectory() async throws -> AbsolutePath? {
-        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-        let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
-        if await gitController.isInGitRepository(workingDirectory: workingDirectory) {
-            return try await gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
-        } else {
-            return try await rootDirectoryLocator.locate(from: workingDirectory)
-        }
-    }
-}
-
-extension UploadResultBundleService {
     private func testCaseRunsByIdentity(
         testCaseRuns: [Components.Schemas.RunsTest.test_case_runsPayloadPayload]
     ) -> [String: Components.Schemas.RunsTest.test_case_runsPayloadPayload] {
