@@ -4,7 +4,7 @@
     import TuistHTTP
     import TuistSimulator
 
-    public enum ListPreviewsDistinctField {
+    public enum ListPreviewsDistinctField: Equatable {
         case bundleIdentifier
     }
 
@@ -13,6 +13,7 @@
         func listPreviews(
             displayName: String?,
             specifier: String?,
+            track: String?,
             supportedPlatforms: [DestinationType],
             page: Int?,
             pageSize: Int?,
@@ -55,6 +56,7 @@
         public func listPreviews(
             displayName: String?,
             specifier: String?,
+            track: String? = nil,
             supportedPlatforms: [DestinationType],
             page: Int?,
             pageSize: Int?,
@@ -72,6 +74,7 @@
                     ),
                     query: .init(
                         display_name: displayName,
+                        track: track,
                         specifier: specifier,
                         supported_platforms: supportedPlatforms.map(Components.Schemas.PreviewSupportedPlatform.init),
                         page_size: pageSize,
