@@ -188,6 +188,18 @@ it without changing what's pushed; the whole transport is controller-side only,
 so `HostConfigHash` is unchanged and an already-terminal CR only retries once
 its cooldown elapses (or `Status.FailureReason` is cleared by hand).
 
+Both legs are bounded. The reconcile context has no deadline, so an unbounded
+push holds that Machine's reconcile until the operator restarts, and the host
+silently keeps its old config. `DialAuth` gives the handshake 30s after the
+TCP connect (`ClientConfig.Timeout` covers only the connect, and launchd
+accepts `:22` before sshd runs, so a wedged host completes TCP and never sends
+a banner). That failure leaves no fingerprint, so it falls back to the tailnet
+like a connect failure. `UpdateTartKubelet` gives the whole update 15 minutes
+and closes the client when it lapses, since session setup and uploads do not
+watch the context. On 2026-10-14 one production mini sat on its pre-update
+config for 1h45 behind a reconcile that never returned, until the leader was
+restarted.
+
 ### Host observability
 
 Two agents ride the operator image onto every mini, both installed by
