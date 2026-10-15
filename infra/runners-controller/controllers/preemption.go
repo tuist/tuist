@@ -44,14 +44,18 @@ type preemptionPool struct {
 	cost      int64
 	queued    int32
 	allocated int32
-	replicas  int32
+	// replicas is the size a cut is taken from: the smaller of spec.replicas
+	// and the pool's alive Pods.
+	replicas int32
 
 	// rejected counts alive Pods the scheduler refused for capacity for at
 	// least preemptionWait.
 	rejected int32
 	// idleBound counts alive, bound, unclaimed Pods, warm or still booting.
 	idleBound int32
-	// freeing counts bound Pods whose seat is already being released.
+	// freeing is how many seats the pool holds above spec.replicas, counting
+	// recently deleted Pods still on their node. Those seats return to the
+	// fleet; a seat whose Pod the pool is replacing does not.
 	freeing int32
 	// preemptible are warm idle Pods past preemptionGrace, oldest warm first.
 	preemptible []*corev1.Pod
@@ -162,18 +166,23 @@ func classifyForPreemption(member fleetMember, replicas int32, pods []corev1.Pod
 		cost:      member.cost,
 		queued:    member.queued,
 		allocated: member.allocated,
-		replicas:  replicas,
 	}
 
+	var alive, seated int32
+	var marked []*corev1.Pod
 	for i := range pods {
 		pod := &pods[i]
 		bound := pod.Spec.NodeName != ""
 
 		if !isAlive(pod) {
 			if bound && !pod.DeletionTimestamp.IsZero() && now.Sub(pod.DeletionTimestamp.Time) < preemptionSettle {
-				p.freeing++
+				seated++
 			}
 			continue
+		}
+		alive++
+		if bound {
+			seated++
 		}
 
 		if !bound {
@@ -190,16 +199,31 @@ func classifyForPreemption(member fleetMember, replicas int32, pods []corev1.Pod
 			continue
 		}
 		p.idleBound++
-		if _, marked := preemptionMark(pod, now); marked {
-			p.freeing++
-			continue
-		}
 		if isStaleRunner(pod, member.pool) || !isWarmCapacity(pod, member.pool) {
 			continue
 		}
-		if since, ok := warmSince(pod); ok && now.Sub(since) >= preemptionGrace {
-			p.preemptible = append(p.preemptible, pod)
+		since, ok := warmSince(pod)
+		if !ok || now.Sub(since) < preemptionGrace {
+			continue
 		}
+		if _, isMarked := preemptionMark(pod, now); isMarked {
+			marked = append(marked, pod)
+			continue
+		}
+		p.preemptible = append(p.preemptible, pod)
+	}
+
+	p.replicas = replicas
+	if alive < replicas {
+		p.replicas = alive
+	}
+	if released := seated - replicas; released > 0 {
+		p.freeing = released
+	}
+	// A marked runner above spec.replicas is already on its way out. One the
+	// pool is keeping (its reap lost a race) can be chosen again.
+	if alive <= replicas {
+		p.preemptible = append(p.preemptible, marked...)
 	}
 
 	sort.SliceStable(p.preemptible, func(a, b int) bool {
@@ -246,12 +270,17 @@ func (r *AutoscalerReconciler) preemptForStarvedSiblings(
 	}
 
 	inputs := make([]*preemptionPool, 0, len(fleet.members))
+	var mine *preemptionPool
 	for name, member := range fleet.members {
 		replicas := member.pool.Spec.Replicas
 		if name == pool.Name {
 			replicas = pool.Spec.Replicas
 		}
-		inputs = append(inputs, classifyForPreemption(member, replicas, byPool[name], now))
+		input := classifyForPreemption(member, replicas, byPool[name], now)
+		if name == pool.Name {
+			mine = input
+		}
+		inputs = append(inputs, input)
 	}
 
 	chosen, starved := planPreemption(pool.Name, inputs)
@@ -274,7 +303,7 @@ func (r *AutoscalerReconciler) preemptForStarvedSiblings(
 	}
 
 	current := pool.Spec.Replicas
-	target := current - int32(len(chosen))
+	target := mine.replicas - int32(len(chosen))
 	if err := r.applyReplicas(ctx, pool, target); err != nil {
 		return false, fmt.Errorf("lower replicas for preemption: %w", err)
 	}

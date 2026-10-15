@@ -76,13 +76,18 @@ independent workqueues:
     there (`runner_site` accounts, or the pool's own dispatch label), and
     the site spillover worker moves queued jobs off a site that is down.
   - Demand is counted in the allocator's per-Pod cost, minus seats
-    already on their way back (Pods marked or deleted within
-    `preemptionSettle`), so consecutive ticks do not over-preempt while a
-    Tart VM tears down.
+    already on their way back, so consecutive ticks do not over-preempt
+    while a Tart VM tears down. A pool returns the seats it holds above
+    its `spec.replicas`, counting Pods deleted within `preemptionSettle`
+    that are still on their node. A Pod that finished its job is not
+    counted: its pool is already replacing it, and the replacement takes
+    the seat.
   - Victims are pools above their allocation that are not starved
     themselves. They give up Pods one per pool per round in name order,
-    so every pool's reconcile computes the same split. A victim never
-    drops below its allocation, so `minWarmPoolFloor` yields exactly as
+    so every pool's reconcile computes the same split. The cut is taken
+    from the smaller of `spec.replicas` and the Pods that exist, so a
+    pool still recreating Pods retires every runner it marked. A victim
+    never drops below its allocation, so `minWarmPoolFloor` yields exactly as
     the allocator already decides: floors are funded only after every
     pool's real load, so a queued job outranks a sibling's warm floor.
   - Only warm idle runners (`isIdle` + `isWarmCapacity`, the same

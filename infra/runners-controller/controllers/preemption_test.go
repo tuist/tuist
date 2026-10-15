@@ -240,8 +240,8 @@ func TestClassifyForPreemption(t *testing.T) {
 	if got.idleBound != 5 {
 		t.Errorf("idleBound = %d, want 5 (both warm, just-warm, booting, marked)", got.idleBound)
 	}
-	if got.freeing != 2 {
-		t.Errorf("freeing = %d, want 2 (marked + deleting)", got.freeing)
+	if got.freeing != 1 {
+		t.Errorf("freeing = %d, want 1 (7 seats held, including the deleting Pod, against 6 replicas)", got.freeing)
 	}
 	if got.rejected != 1 {
 		t.Errorf("rejected = %d, want 1 (only a capacity refusal past the wait)", got.rejected)
@@ -514,5 +514,82 @@ func TestReconcile_ExpiredPreemptionMarkIsAnOrdinaryScaleDown(t *testing.T) {
 	}
 	if got := preemptedCounter(t, rackFleet, poolName); got != 0 {
 		t.Errorf("preempted counter = %v, want 0", got)
+	}
+}
+
+// The cut is taken from the Pods that exist, not from spec.replicas: a pool
+// still recreating Pods would otherwise keep some of the runners it marked.
+func TestPreemption_RetiresEveryMarkedRunnerWhenThePoolHasAReplicaGap(t *testing.T) {
+	r, c := rackFixture(t, 4, 5*time.Minute)
+	ctx := context.Background()
+	key := client.ObjectKey{Name: "macos-ber1-27-0", Namespace: "tuist-runners"}
+	t.Cleanup(func() { metrics.Clear(key.Name) })
+
+	xcode := &tuistv1.RunnerPool{}
+	if err := c.Get(ctx, key, xcode); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	xcode.Spec.Replicas = 9
+	if err := c.Update(ctx, xcode); err != nil {
+		t.Fatalf("update pool: %v", err)
+	}
+
+	reconcileOnce(t, r, key.Name)
+	if marked := markedPods(t, c, key.Name); len(marked) != 4 {
+		t.Fatalf("marked = %v, want the 4 idle runners", marked)
+	}
+
+	pools := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      c.Scheme(),
+		DispatchURL: "http://dispatch",
+		Now:         func() time.Time { return preemptionNow },
+	}
+	if _, err := pools.Reconcile(ctx, ctrl.Request{NamespacedName: key}); err != nil {
+		t.Fatalf("reconcile pool: %v", err)
+	}
+
+	if marked := markedPods(t, c, key.Name); len(marked) != 0 {
+		t.Fatalf("marked runners left after the reap = %v, want none", marked)
+	}
+	got := &tuistv1.RunnerPool{}
+	_ = c.Get(ctx, key, got)
+	if got.Spec.Replicas != 3 {
+		t.Fatalf("Replicas = %d, want 3 (7 Pods minus the 4 preempted)", got.Spec.Replicas)
+	}
+}
+
+// A runner whose job ended is replaced at once by its pool, so its seat is
+// not coming back to the fleet and must not cancel a sibling's starvation.
+func TestPreemption_ReplacedRunnerIsNotFreeCapacity(t *testing.T) {
+	victim := darwinRackPool("macos-ber1-26-6", 4)
+	busy := darwinRackPool("macos-ber1-27-0", 3)
+	smoke := darwinRackPool("ber1", 1)
+
+	finished := busyDarwinPod("finished", busy.Name, "b01")
+	finished.DeletionTimestamp = ptr.To(metav1.NewTime(preemptionNow.Add(-5 * time.Second)))
+	finished.Finalizers = []string{"tart-kubelet.tuist.dev/vm-cleanup"}
+	replacement := newRunnerPod("replacement", busy.Spec.Image, corev1.PodPending, busy.Name)
+	busyPods := []corev1.Pod{
+		*busyDarwinPod("busy-a", busy.Name, "b02"),
+		*busyDarwinPod("busy-b", busy.Name, "b03"),
+		*finished,
+		*replacement,
+	}
+	victimPods := []corev1.Pod{
+		*warmDarwinPod("idle-a", victim.Name, "b04", 10*time.Minute),
+		*warmDarwinPod("idle-b", victim.Name, "b05", 10*time.Minute),
+	}
+	smokePods := []corev1.Pod{*rejectedPod("pending", smoke.Name, time.Minute, insufficientCPU)}
+
+	inputs := []*preemptionPool{
+		classifyForPreemption(fleetMember{pool: victim, cost: 1, allocated: 1}, victim.Spec.Replicas, victimPods, preemptionNow),
+		classifyForPreemption(fleetMember{pool: busy, cost: 1, allocated: 3}, busy.Spec.Replicas, busyPods, preemptionNow),
+		classifyForPreemption(fleetMember{pool: smoke, cost: 1, queued: 1, allocated: 1}, smoke.Spec.Replicas, smokePods, preemptionNow),
+	}
+
+	chosen, starved := planPreemption(victim.Name, inputs)
+	if len(chosen) != 1 || strings.Join(starved, ",") != "ber1" {
+		t.Fatalf("chosen %d for %v, want 1 for ber1 (the finished runner's seat goes to its replacement)", len(chosen), starved)
 	}
 }
