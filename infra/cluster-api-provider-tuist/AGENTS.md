@@ -374,6 +374,13 @@ and the Mac fleets' dashboards and alerts select a fleet by it: the PN VLAN
 alert in `infra/helm/k8s-monitoring/alerts.md` excludes rack minis by
 `-rack-fleet-`.
 
+**The Machine carries the host's site** as `node.cluster.x-k8s.io/rack-site`
+(`infrav1.RackSiteNodeLabel`), and so does a rack Linux host's. Cluster API
+syncs labels in that domain from a Machine to its Node, kube-state-metrics
+allowlists it, and the Racks dashboard reads a node's site from
+`kube_node_labels` rather than from its name. A host with no `location.site`
+gets no label.
+
 **The fleet's MachineHealthCheck remediates through the host.** A check only
 marks a Machine (`OwnerRemediated=False`); its owner remediates it. The
 RackHost controller deletes a Machine so marked and makes a new one, which
@@ -941,7 +948,9 @@ The lifecycle is `capt_rackats_ready`, `capt_rackats_adopted`,
 `capt_rackats_drifted` and `capt_rackats_certificate_changed`. The transfer
 counter counts what the controller saw between reads a minute apart: a
 transfer and its return within one minute is not counted, and the counter
-restarts with the operator. There are no alert rules yet; the ones to add:
+restarts with the operator. Lost redundancy, an unpowered load and a switch
+that is not observed are live rules (group `Rack`, documented in
+`infra/helm/k8s-monitoring/alerts.md`); the rest of this table is not yet:
 
 | Alert | Expression |
 |---|---|
