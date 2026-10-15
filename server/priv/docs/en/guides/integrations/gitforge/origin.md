@@ -15,13 +15,11 @@ This is a Git forge integration, not Cursor Cloud Agent compute or the Cursor pl
 
 An administrator of the Tuist account should open **Settings → Integrations**, choose **Connect** in the Origin card, and approve access in Cursor. Choose the Origin account or namespace and repositories that Tuist should access, then return to Tuist. The connection belongs to the Tuist account, not an individual project.
 
-Choose **Add new project connection** to open the repository selection modal. Select an unconnected Tuist project and one of the repositories discovered from the connected Origin account, then choose **Create Connection**. If multiple Origin accounts are connected, choose the account first. Known GitHub mirrors are excluded from the repository choices. Tuist verifies native pull-request access again before connecting the project and adopts the repository's default branch.
+Choose **Add new project connection** to open the repository selection modal. Select an unconnected Tuist project and one of the repositories discovered from the connected Origin account, then choose **Create Connection**. If multiple Origin accounts are connected, choose the account first. Only native Origin repositories are available for connection. Tuist verifies pull-request access again before connecting the project and adopts the repository's default branch.
 
 Use **Manage integration** to open Cursor's consent flow in a new tab and adjust repository access or connect another Origin account. Repository-loading failures show **Retry**, separate from a successful empty repository list.
 
-Use an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> to authenticate result uploads. The Origin integration does not enable GitHub OIDC authentication.
-
-GitHub mirrors must use the <.localized_link href="/guides/integrations/gitforge/github">GitHub integration</.localized_link>. Origin installation tokens cannot comment on mirrored pull requests.
+Use an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> to authenticate result uploads.
 
 ## Reports and permissions {#reports-and-permissions}
 
@@ -32,7 +30,7 @@ The app requests these scopes:
 
 Repository metadata access is granted automatically during installation. Tuist explicitly includes `repository:metadata:read` when minting narrowed installation tokens so it can read the repository metadata required for project linking. Tuist does not need code access, merge permissions, check-run permissions, or user delegation for comments.
 
-Report uploads must include the Origin clone URL, Git ref, and full commit SHA. Both current clone URL forms are recognized: `https://origin.cursor.com/owner/repository.git` and the legacy `https://origin.cursor.com/git/owner/repository.git`. A branch ref or `refs/pull/<number>/...` must resolve to a single open pull request whose current head SHA matches the uploaded commit. Reports for superseded commits are skipped. Commit SHAs and failure locations are shown as code in Origin comments rather than constructing unverified GitHub-style browser links; links to Tuist reports and previews remain available.
+Report uploads must include the Origin clone URL, Git ref, and full commit SHA. Both current clone URL forms are recognized: `https://origin.cursor.com/owner/repository.git` and the legacy `https://origin.cursor.com/git/owner/repository.git`. A branch ref or `refs/pull/<number>/...` must resolve to a single open pull request whose current head SHA matches the uploaded commit. Reports for superseded commits are skipped. Commit SHAs and failure locations are shown as code in Origin comments; links to Tuist reports and previews remain available.
 
 Removing a project connection stops its reporting. **Disconnect** removes the installation's Tuist-side association and its project connections; it does not uninstall the app in Cursor. Uninstall the app in Cursor to revoke its access there.
 
