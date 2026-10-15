@@ -177,8 +177,23 @@ defmodule Tuist.Runners.Profiles do
       |> stringify_keys()
       |> Map.drop(["name", "account_id", "platform"])
 
-    changeset = Profile.changeset(profile, attrs, catalog_opts_for(platform))
+    profile
+    |> Profile.changeset(attrs, catalog_opts_for(platform))
+    |> update_revoking_writers()
+  end
 
+  @doc """
+  Replace the branches whose jobs save the profile's cache volumes. `nil`
+  follows each repository's default branch. Narrowing the list revokes pending
+  saves it no longer allows.
+  """
+  def update_cache_writer_branches(%Profile{} = profile, branches) do
+    profile
+    |> Profile.cache_writer_changeset(%{cache_writer_branches: branches})
+    |> update_revoking_writers()
+  end
+
+  defp update_revoking_writers(changeset) do
     if Map.has_key?(changeset.changes, :cache_writer_branches) do
       Repo.transaction(fn ->
         with {:ok, profile} <- Repo.update(changeset),

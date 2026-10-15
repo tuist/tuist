@@ -137,6 +137,17 @@ or deleting the profile discards pending changes the new list no longer allows;
 a deleted profile falls back to the default branch. Buildkite and GitLab CI
 always save from the default branch.
 
+You can also manage the list from the CLI:
+
+```bash
+tuist runner profile list
+tuist runner profile update ci --save-cache-from main --save-cache-from "release/*"
+tuist runner profile update ci --save-cache-from-default-branch
+```
+
+The same settings are available through the `updateRunnerProfile` API operation and
+the `update_runner_profile_cache_branches` MCP tool.
+
 ### Skip or request a save {#skip-or-request-a-save}
 
 The GitHub action accepts `commit: auto` (the default), `commit: 'false'` (discard

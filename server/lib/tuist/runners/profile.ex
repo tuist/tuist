@@ -108,9 +108,7 @@ defmodule Tuist.Runners.Profile do
         message: "a profile with this name already exists in this account"
       )
       |> foreign_key_constraint(:account_id)
-      |> update_change(:cache_writer_branches, &normalize_cache_writer_branches/1)
-      |> validate_length(:cache_writer_branches, max: @max_cache_writer_branches)
-      |> validate_change(:cache_writer_branches, &validate_cache_writer_branches/2)
+      |> validate_cache_writer_branches()
 
     case get_field(changeset, :platform) do
       :linux ->
@@ -127,6 +125,23 @@ defmodule Tuist.Runners.Profile do
       _ ->
         changeset
     end
+  end
+
+  @doc """
+  Changeset for the cache writer branches alone. Unlike `changeset/3` it does
+  not validate the profile's shape against the current catalog.
+  """
+  def cache_writer_changeset(profile, attrs) do
+    profile
+    |> cast(attrs, [:cache_writer_branches])
+    |> validate_cache_writer_branches()
+  end
+
+  defp validate_cache_writer_branches(changeset) do
+    changeset
+    |> update_change(:cache_writer_branches, &normalize_cache_writer_branches/1)
+    |> validate_length(:cache_writer_branches, max: @max_cache_writer_branches)
+    |> validate_change(:cache_writer_branches, &validate_cache_writer_branches/2)
   end
 
   defp normalize_name(nil), do: nil

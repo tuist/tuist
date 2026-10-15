@@ -259,6 +259,7 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `list_runner_job_logs` | List up to 500 captured log lines for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
 | `list_runner_workflows` | List continuous-integration workflow rollups for an account. | `account_handle` |
 | `list_runner_profiles` | List continuous-integration runner profiles for an account. Requires the same administrator permission as the dashboard settings page. | `account_handle` |
+| `update_runner_profile_cache_branches` | Replace the branch names or `*` patterns whose GitHub Actions jobs on a runner profile save custom cache volume changes. Pass `null` to follow each repository's default branch. Requires the same administrator permission. | `account_handle`, `profile_name`, `cache_writer_branches` |
 
 Runner volume tools expose the same data as the Volumes dashboard. Read tools
 require runner access; clearing requires account administration and user confirmation.

@@ -6,6 +6,8 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.Webhooks
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Authentication
@@ -117,6 +119,82 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
     assert [%{"id" => id, "signing_secret_last_four" => "abcd"}] = response["endpoints"]
     assert id == endpoint.id
     refute inspect(response) =~ "plaintext-signing-secret"
+  end
+
+  describe "runner profile cache branches" do
+    setup %{user: user, account: account} do
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+      Tuist.Repo.insert!(%Profile{account_id: account.id, name: "ci", platform: :linux, vcpus: 7, memory_gb: 13})
+      %{user: user}
+    end
+
+    test "lists and updates which branches save a profile's cache volumes", %{conn: conn, user: user, account: account} do
+      conn = Authentication.put_current_user(conn, user)
+
+      response = conn |> get(~p"/api/accounts/#{account.name}/runners/profiles") |> json_response(:ok)
+      assert %{"cache_writer_branches" => nil} = Enum.find(response["profiles"], &(&1["name"] == "ci"))
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{cache_writer_branches: ["main", "release/*"]})
+        |> json_response(:ok)
+
+      assert %{"name" => "ci", "cache_writer_branches" => ["main", "release/*"]} = response
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{cache_writer_branches: nil})
+        |> json_response(:ok)
+
+      assert %{"cache_writer_branches" => nil} = response
+      assert %{cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{cache_writer_branches: ["*"]})
+      |> json_response(:ok)
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{follow_default_branch: true})
+        |> json_response(:ok)
+
+      assert %{"cache_writer_branches" => nil} = response
+    end
+
+    test "rejects invalid branches and unknown profiles", %{conn: conn, user: user, account: account} do
+      conn = conn |> Authentication.put_current_user(user) |> put_req_header("content-type", "application/json")
+
+      assert %{"message" => "Use up to 20 branch names" <> _} =
+               conn
+               |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{cache_writer_branches: ["a b"]})
+               |> json_response(:unprocessable_entity)
+
+      assert %{"message" => "Pass cache_writer_branches or follow_default_branch: true."} =
+               conn
+               |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{})
+               |> json_response(:unprocessable_entity)
+
+      assert %{"message" => "The runner profile was not found."} =
+               conn
+               |> patch(~p"/api/accounts/#{account.name}/runners/profiles/missing", %{cache_writer_branches: ["main"]})
+               |> json_response(:not_found)
+
+      assert %{cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
+    end
+
+    test "requires account administration", %{conn: conn, account: account} do
+      conn
+      |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:read"]})
+      |> put_req_header("content-type", "application/json")
+      |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{cache_writer_branches: ["*"]})
+      |> json_response(:forbidden)
+
+      assert %{cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
+    end
   end
 
   defp runner_job do
