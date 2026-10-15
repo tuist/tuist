@@ -260,6 +260,17 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert reasons(reported) == [:unbuilt_file_unknown, :uninstrumented_code]
   end
 
+  test "a run that took only resource bundles and macros from the binary cache is measured", %{
+    project: project,
+    account: account
+  } do
+    head = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
+    binary_cache(project, head, ["CoreResources"], product: "bundle")
+    binary_cache(project, head, ["CoreMacros"], product: "macro")
+
+    assert %{kind: "measured", gap_reasons: 0} = Reported.compute(project, "head")
+  end
+
   test "a run that took only remote packages from the binary cache is measured", %{project: project, account: account} do
     head = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
     binary_cache(project, head, ["Alamofire"], external_hash: "alamofire-revision")

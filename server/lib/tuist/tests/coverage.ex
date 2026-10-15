@@ -116,7 +116,7 @@ defmodule Tuist.Tests.Coverage do
   end
 
   # A remote package's targets carry its revision as their external hash, and
-  # `Coverage.Xcode.uninstrumented_runs/2` leaves them out.
+  # `Coverage.Xcode.uninstrumented_targets/2` leaves them out.
   defp binary_cache_hit?(xcode_graph) do
     xcode_graph
     |> field(:projects, [])

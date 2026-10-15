@@ -14,13 +14,17 @@ defmodule Tuist.Tests.Coverage.Xcode do
   alias Tuist.Xcode.XcodeTarget
 
   @test_products ["unit_tests", "ui_tests"]
+  # Products with no code a test could execute: a resource bundle holds none, and
+  # a macro's runs at compile time. Taken from the cache, they hide nothing.
+  @uncounted_products ["bundle", "macro"]
 
   @doc """
   The repository targets each run took from the binary cache without coverage
   counters, as `%{test_run_id => [target name]}`; a run that took none has no
   entry. A remote package's targets carry its revision as their
   `external_hash`, and no coverage is kept outside the repository anyway; a
-  local package has none, so it counts. A hit the client reported as
+  local package has none, so it counts. Resource bundles and macros hold no
+  code a test executes and never count. A hit the client reported as
   instrumented (`binary_cache_instrumented`) carries counters and is left out;
   a client that reports nothing leaves its hits counting as plain.
   """
@@ -37,7 +41,8 @@ defmodule Tuist.Tests.Coverage.Xcode do
         from(t in XcodeTarget,
           where:
             t.command_event_id in ^ids and fragment("? != 'miss'", t.binary_cache_hit) and t.external_hash == "" and
-              fragment("ifNull(?, false) = false", t.binary_cache_instrumented),
+              fragment("ifNull(?, false) = false", t.binary_cache_instrumented) and
+              t.product not in ^@uncounted_products,
           distinct: true,
           select: {t.command_event_id, t.name}
         )
@@ -86,12 +91,15 @@ defmodule Tuist.Tests.Coverage.Xcode do
     end)
     |> Enum.group_by(& &1.command_event_id)
     |> Enum.flat_map(fn {event, targets} ->
-      plain = targets |> Enum.filter(&(&1.plain in [true, 1])) |> MapSet.new(& &1.name)
+      plain =
+        targets
+        |> Enum.filter(&(&1.plain in [true, 1] and &1.product not in @uncounted_products))
+        |> MapSet.new(& &1.name)
+
       dependencies = Map.new(targets, &{&1.name, &1.dependencies})
 
       targets
-      |> Enum.filter(&(&1.product in @test_products))
-      |> Enum.filter(&links_plain?(&1.name, dependencies, plain))
+      |> Enum.filter(&(&1.product in @test_products and links_plain?(&1.name, dependencies, plain)))
       |> Enum.map(&{events[event], &1.name})
     end)
     |> MapSet.new()

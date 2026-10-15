@@ -46,8 +46,9 @@ defmodule Tuist.Tests.Coverage.TargetSources do
     hashes =
       project_id
       |> Xcode.selective_testing_hashes(run_ids)
-      |> Enum.reject(&(&1.name in narrowed_targets(by_id[&1.test_run_id])))
-      |> Enum.reject(&MapSet.member?(uninstrumented, {&1.test_run_id, &1.name}))
+      |> Enum.reject(
+        &(&1.name in narrowed_targets(by_id[&1.test_run_id]) or MapSet.member?(uninstrumented, {&1.test_run_id, &1.name}))
+      )
 
     evidenced = evidenced_targets(project_id, run_ids, hashes)
     failed = failed_targets(project_id, run_ids, hashes)
