@@ -1006,6 +1006,14 @@ xcresultProcessor:
     # forwards to Grafana Cloud with the ones it already holds.
     - name: TUIST_LOKI_URL
       value: http://tuist-alloy-receiver-production.taild6d7bb.ts.net:3100
+    # The shadow ClickHouse mirror reaches the in-cluster server over the
+    # tailnet proxy, where a query takes about 100x longer than from the pod
+    # network. At the default of 5 connections the pool had requests waiting in
+    # 9% of samples (0.04% on the Linux pods), and stalls under daytime load or
+    # right after a deploy outlasted the mirror's retries, losing test-table
+    # rows. The more connections, the fewer stalls outlast the retries.
+    - name: TUIST_CLICKHOUSE_SHADOW_POOL_SIZE
+      value: "15"
 
 # Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
 # Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to
