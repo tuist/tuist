@@ -1041,7 +1041,7 @@ msgstr ""
 msgid "Open Source"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:79
+#: lib/tuist_web/live/integrations_live.html.heex:330
 #: lib/tuist_web/live/ops_account_helpers.ex:12
 #, elixir-autogen, elixir-format
 msgid "Organization"
@@ -3068,6 +3068,11 @@ msgstr ""
 #: lib/tuist_web/live/ops_account_live.html.heex:871
 #, elixir-autogen, elixir-format
 msgid "Start open source plan"
+msgstr ""
+
+#: lib/tuist_web/controllers/origin_app_setup_controller.ex:73
+#, elixir-autogen, elixir-format
+msgid "Invalid Origin installation request. Please try again."
 msgstr ""
 
 #: lib/tuist_web/live/mix_cache_live.html.heex:62
