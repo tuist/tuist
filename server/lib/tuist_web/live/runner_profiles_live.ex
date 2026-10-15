@@ -125,7 +125,7 @@ defmodule TuistWeb.RunnerProfilesLive do
   end
 
   def handle_event("remove_cache_writer_branch", %{"data" => branch}, socket) do
-    branches = List.delete(shown_cache_writer_branches(socket.assigns), branch)
+    branches = with [] <- List.delete(shown_cache_writer_branches(socket.assigns), branch), do: nil
     {:noreply, socket |> assign(:form_cache_writer_branches, branches) |> assign(:form_cache_branch_error, nil)}
   end
 
@@ -390,7 +390,6 @@ defmodule TuistWeb.RunnerProfilesLive do
   Summary of the branches being edited, shown on the collapsed section.
   """
   def cache_saving_summary(nil), do: dgettext("dashboard_runners", "Default branch")
-  def cache_saving_summary([]), do: dgettext("dashboard_runners", "No branches")
 
   def cache_saving_summary(branches) do
     if "*" in branches do

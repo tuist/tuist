@@ -120,7 +120,7 @@ defmodule Tuist.Runners.ProfilesTest do
 
       assert updated.cache_writer_branches == ["release/*", "main", "*"]
       assert {:ok, %{cache_writer_branches: nil}} = Profiles.update(updated, %{"cache_writer_branches" => nil})
-      assert {:ok, %{cache_writer_branches: []}} = Profiles.update(profile, %{"cache_writer_branches" => []})
+      assert {:ok, %{cache_writer_branches: nil}} = Profiles.update(updated, %{"cache_writer_branches" => []})
     end
 
     test "rejects invalid refs and more than the branch limit", %{account: account} do

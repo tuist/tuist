@@ -183,8 +183,8 @@ defmodule Tuist.Runners.Profiles do
   end
 
   @doc """
-  Replace the branches whose jobs save the profile's cache volumes. `nil`
-  follows each repository's default branch. Narrowing the list revokes pending
+  Replace the branches whose jobs save the profile's cache volumes. An empty
+  list follows each repository's default branch. Narrowing the list revokes pending
   saves it no longer allows.
   """
   def update_cache_writer_branches(%Profile{} = profile, branches) do

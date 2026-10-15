@@ -128,8 +128,8 @@ remove branches to replace it with up to 20 branch names. Use `*` as a wildcard:
 `release/*` matches `release/1.0`, and `*` matches every branch. Successful push,
 schedule and manual-dispatch jobs, and pull requests from the same repository,
 save their changes when their branch matches. On push and manual-dispatch runs, a
-tag with a matching name also matches. An empty list means no job saves, and
-**Use default branch** returns to following the default branch.
+tag with a matching name also matches. Removing every branch, or **Use default
+branch**, returns to following the default branch.
 
 Jobs on other branches can still use the cache, but their changes are discarded.
 Fork pull requests and `pull_request_target` jobs never save. Changing the list
@@ -142,8 +142,10 @@ You can also manage the list from the CLI:
 ```bash
 tuist runner profile list
 tuist runner profile update ci --save-cache-from main --save-cache-from "release/*"
-tuist runner profile update ci --save-cache-from-default-branch
+tuist runner profile update ci
 ```
+
+Running `update` without `--save-cache-from` returns the profile to the default branch.
 
 The same settings are available through the `updateRunnerProfile` API operation and
 the `update_runner_profile_cache_branches` MCP tool.

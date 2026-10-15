@@ -120,9 +120,8 @@ defmodule TuistWeb.API.RunnersController do
       cache_writer_branches: %Schema{
         type: :array,
         items: %Schema{type: :string},
-        nullable: true,
         description:
-          "Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. null follows each repository's default branch."
+          "Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch."
       },
       inserted_at: %Schema{type: :string, format: "date-time"},
       updated_at: %Schema{type: :string, format: "date-time"}
@@ -474,7 +473,7 @@ defmodule TuistWeb.API.RunnersController do
   operation(:update_profile,
     summary: "Update which branches save a runner profile's cache volumes.",
     description:
-      "Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. Pass `follow_default_branch: true` (or `cache_writer_branches: null`) to follow each repository's default branch instead. Narrowing the list discards pending saves it no longer allows.",
+      "Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. An empty list follows each repository's default branch. Narrowing the list discards pending saves it no longer allows.",
     operation_id: "updateRunnerProfile",
     parameters:
       @account_parameters ++
@@ -494,17 +493,14 @@ defmodule TuistWeb.API.RunnersController do
            cache_writer_branches: %Schema{
              type: :array,
              items: %Schema{type: :string},
-             nullable: true,
-             description: "Branch names or * patterns. null follows each repository's default branch."
-           },
-           follow_default_branch: %Schema{
-             type: :boolean,
-             description: "Set to true to follow each repository's default branch instead of a list."
+             description: "Branch names or * patterns. An empty list follows each repository's default branch."
            }
-         }
+         },
+         required: [:cache_writer_branches]
        }},
     responses: %{
       ok: {"Updated runner profile", "application/json", @profile_schema},
+      bad_request: {"Missing or malformed fields", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
       not_found: {"The profile was not found or runners are not enabled", "application/json", Error},
       unprocessable_entity: {"Invalid branch names", "application/json", Error},
@@ -518,8 +514,7 @@ defmodule TuistWeb.API.RunnersController do
       ) do
     with true <- FeatureFlags.runners_enabled?(account),
          %Profile{} = profile <- Profiles.get_by_name(account, name),
-         {:ok, branches} <- requested_cache_writer_branches(body),
-         {:ok, profile} <- Profiles.update_cache_writer_branches(profile, branches) do
+         {:ok, profile} <- Profiles.update_cache_writer_branches(profile, body.cache_writer_branches) do
       json(conn, serialize_profile(profile))
     else
       false ->
@@ -527,11 +522,6 @@ defmodule TuistWeb.API.RunnersController do
 
       nil ->
         conn |> put_status(:not_found) |> json(%{message: "The runner profile was not found."})
-
-      {:error, :missing_cache_writer_branches} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{message: "Pass cache_writer_branches or follow_default_branch: true."})
 
       {:error, %Ecto.Changeset{}} ->
         conn
@@ -542,10 +532,6 @@ defmodule TuistWeb.API.RunnersController do
         })
     end
   end
-
-  defp requested_cache_writer_branches(%{follow_default_branch: true}), do: {:ok, nil}
-  defp requested_cache_writer_branches(%{cache_writer_branches: branches}), do: {:ok, branches}
-  defp requested_cache_writer_branches(_body), do: {:error, :missing_cache_writer_branches}
 
   defp page_params(params) do
     page = params |> Map.get(:page, 1) |> max(1)
@@ -631,18 +617,9 @@ defmodule TuistWeb.API.RunnersController do
       ])
 
   defp serialize_profile(profile) do
-    Map.take(profile, [
-      :id,
-      :name,
-      :platform,
-      :vcpus,
-      :memory_gb,
-      :xcode_version,
-      :protected,
-      :cache_writer_branches,
-      :inserted_at,
-      :updated_at
-    ])
+    profile
+    |> Map.take([:id, :name, :platform, :vcpus, :memory_gb, :xcode_version, :protected, :inserted_at, :updated_at])
+    |> Map.put(:cache_writer_branches, profile.cache_writer_branches || [])
   end
 
   defp with_runner_job(conn, account, workflow_job_id, fun) do

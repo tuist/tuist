@@ -75,8 +75,8 @@ Once you add or remove a branch, the list holds up to 20 branch names. `*`
 matches any characters, so `release/*` covers `release/1.0` and `*` covers every
 branch. Successful push, schedule and manual-dispatch jobs, and pull requests
 from the same repository, save their changes when their branch matches. On push
-and manual-dispatch runs, a tag with a matching name also matches. An empty list
-means no job saves. **Use default branch** returns to following the default branch.
+and manual-dispatch runs, a tag with a matching name also matches. Removing every
+branch, or **Use default branch**, returns to following the default branch.
 
 Fork pull requests and `pull_request_target` never save. Buildkite, GitLab and
 built-in macOS volume policies are unchanged. Changing the list or deleting the

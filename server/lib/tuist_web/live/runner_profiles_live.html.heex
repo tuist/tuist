@@ -216,12 +216,6 @@
                     on_dismiss="remove_cache_writer_branch"
                     dismiss_value={branch}
                   />
-                  <span
-                    :if={@form_cache_writer_branches == []}
-                    data-part="empty-branches"
-                  >
-                    {dgettext("dashboard_runners", "No branches save their changes.")}
-                  </span>
                 </div>
                 <.form
                   for={%{}}

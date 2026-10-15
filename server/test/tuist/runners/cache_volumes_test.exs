@@ -1222,7 +1222,8 @@ defmodule Tuist.Runners.CacheVolumesTest do
                CacheVolumes.allocate_for_job(job, branch_identity(nil), attrs("pull-request-target"))
 
       set_policy(profile, %{cache_writer_branches: []})
-      assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("none"))
+      assert is_nil(Repo.get!(Profile, profile.id).cache_writer_branches)
+      assert {:ok, %{can_publish: true}} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("default"))
     end
 
     test "jobs outside the profile never receive its grants", %{

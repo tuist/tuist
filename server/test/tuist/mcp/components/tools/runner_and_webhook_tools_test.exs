@@ -133,7 +133,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
       assert %{"content" => [%{"text" => text}]} =
                ListRunnerProfiles.call(conn, %{"account_handle" => account.name})
 
-      assert %{"name" => "ci", "cache_writer_branches" => nil} =
+      assert %{"name" => "ci", "cache_writer_branches" => []} =
                Enum.find(JSON.decode!(text)["profiles"], &(&1["name"] == "ci"))
 
       arguments = %{"account_handle" => account.name, "profile_name" => "ci"}
@@ -148,9 +148,9 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
       assert Repo.get!(Profile, profile.id).cache_writer_branches == ["main", "release/*"]
 
       assert %{"content" => [%{"text" => text}]} =
-               UpdateRunnerProfileCacheBranches.call(conn, Map.put(arguments, "cache_writer_branches", nil))
+               UpdateRunnerProfileCacheBranches.call(conn, Map.put(arguments, "cache_writer_branches", []))
 
-      assert %{"cache_writer_branches" => nil} = JSON.decode!(text)
+      assert %{"cache_writer_branches" => []} = JSON.decode!(text)
 
       assert %{"isError" => true, "content" => [%{"text" => "Use up to 20 branch names" <> _}]} =
                UpdateRunnerProfileCacheBranches.call(conn, Map.put(arguments, "cache_writer_branches", ["a b"]))

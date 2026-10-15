@@ -119,10 +119,10 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "xcode_version" => %{"type" => ["string", "null"]},
         "protected" => %{"type" => "boolean"},
         "cache_writer_branches" => %{
-          "type" => ["array", "null"],
+          "type" => "array",
           "items" => %{"type" => "string"},
           "description" =>
-            "Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. null follows each repository's default branch."
+            "Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch."
         },
         "inserted_at" => %{"type" => "string"},
         "updated_at" => %{"type" => "string"}
@@ -250,7 +250,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
       memory_gb: profile.memory_gb,
       xcode_version: profile.xcode_version,
       protected: profile.protected,
-      cache_writer_branches: profile.cache_writer_branches,
+      cache_writer_branches: profile.cache_writer_branches || [],
       inserted_at: Formatter.iso8601(profile.inserted_at),
       updated_at: Formatter.iso8601(profile.updated_at)
     }
@@ -567,9 +567,9 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfileCacheBranches do
           "description" => "The profile name, without the runs-on label prefix."
         },
         "cache_writer_branches" => %{
-          "type" => ["array", "null"],
+          "type" => "array",
           "items" => %{"type" => "string"},
-          "description" => "Branch names or * patterns. null follows each repository's default branch."
+          "description" => "Branch names or * patterns. An empty list follows each repository's default branch."
         }
       },
       "required" => ["account_handle", "profile_name", "cache_writer_branches"],
@@ -585,7 +585,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfileCacheBranches do
   @impl EMCP.Tool
   def description,
     do:
-      ~s(Replace the branch names or * patterns whose GitHub Actions jobs on a runner profile save custom cache volume changes, for example ["main", "release/*"] or ["*"] for every branch. Pass null to follow each repository's default branch. Narrowing the list discards pending saves it no longer allows. Requires account administration.)
+      ~s(Replace the branch names or * patterns whose GitHub Actions jobs on a runner profile save custom cache volume changes, for example ["main", "release/*"] or ["*"] for every branch. Pass an empty list to follow each repository's default branch. Narrowing the list discards pending saves it no longer allows. Requires account administration.)
 
   @impl EMCP.Tool
   def call(conn, arguments) do

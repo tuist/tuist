@@ -189,10 +189,13 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       assert %{cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
 
       render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
-      html = render_hook(lv, "remove_cache_writer_branch", %{"data" => "main"})
-      assert html =~ ~r/data-part="summary">\s*No branches\s*</
+      render_hook(lv, "add_cache_writer_branch", %{"branch" => "release/*"})
+      render_hook(lv, "remove_cache_writer_branch", %{"data" => "main"})
+      html = render_hook(lv, "remove_cache_writer_branch", %{"data" => "release/*"})
+      assert html =~ ~r/data-part="summary">\s*Default branch\s*</
+      assert html =~ ~r/class="noora-tag"[^>]*>\s*<span data-part="label">main</
       render_hook(lv, "save_profile", %{})
-      assert %{cache_writer_branches: []} = Profiles.get_by_name(account, "ci")
+      assert %{cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
     end
 
     test "rejects invalid cache writer branches before adding them", %{conn: conn, account: account} do

@@ -148,7 +148,14 @@ defmodule Tuist.Runners.Profile do
   defp normalize_name(name) when is_binary(name), do: name |> String.trim() |> String.downcase()
 
   defp normalize_cache_writer_branches(nil), do: nil
-  defp normalize_cache_writer_branches(branches), do: branches |> Enum.map(&String.trim/1) |> Enum.uniq()
+
+  # An empty list follows each repository's default branch, like nil.
+  defp normalize_cache_writer_branches(branches) do
+    case branches |> Enum.map(&String.trim/1) |> Enum.uniq() do
+      [] -> nil
+      branches -> branches
+    end
+  end
 
   defp validate_cache_writer_branches(field, branches) do
     if Enum.all?(branches, &valid_cache_writer_branch?/1),
