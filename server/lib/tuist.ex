@@ -103,6 +103,8 @@ defmodule Tuist do
       Mix.CompiledFile,
       Mix.Step,
       Mix.Timeline,
+      Mix.Cache,
+      Mix.CacheEvent,
       Bazel,
       Bazel.Invocation,
       Bazel.Profile,

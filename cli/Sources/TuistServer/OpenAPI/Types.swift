@@ -45653,6 +45653,142 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/custom_metadata`.
                     public var custom_metadata: Operations.createMixBuild.Input.Body.jsonPayload.custom_metadataPayload?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload`.
+                    public struct dependency_cachePayloadPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/dependency`.
+                        public var dependency: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/duration_ms`.
+                        public var duration_ms: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/key`.
+                        public var key: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/outcome`.
+                        @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case local_hit = "local_hit"
+                            case remote_hit = "remote_hit"
+                            case miss = "miss"
+                            case bypass = "bypass"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/outcome`.
+                        public var outcome: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayloadPayload.outcomePayload
+                        /// Successful read bytes. Remote CAS payload bytes or local artifact and manifest copy bytes, identified by read_source.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/read_bytes`.
+                        public var read_bytes: Swift.Int?
+                        /// Successful client transfer or local restore duration in microseconds. Local restores include verification and installation; remote transfers exclude installation.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/read_duration_us`.
+                        public var read_duration_us: Swift.Int?
+                        /// Read measurement provenance; legacy observations may omit it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/read_source`.
+                        @frozen public enum read_sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case local = "local"
+                            case remote = "remote"
+                        }
+                        /// Read measurement provenance; legacy observations may omit it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/read_source`.
+                        public var read_source: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayloadPayload.read_sourcePayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/reason`.
+                        @frozen public enum reasonPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case _empty = ""
+                            case not_enabled = "not_enabled"
+                            case local_dependency = "local_dependency"
+                            case custom_compiler = "custom_compiler"
+                            case unmodeled_input = "unmodeled_input"
+                            case inputs_changed = "inputs_changed"
+                            case store_failed = "store_failed"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/reason`.
+                        public var reason: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayloadPayload.reasonPayload?
+                        /// Estimated compilation time avoided on a hit, from the original compilation. Not elapsed build time saved.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/saved_duration_ms`.
+                        public var saved_duration_ms: Swift.Int?
+                        /// Successful write bytes. Remote CAS payload bytes or local artifact and manifest copy bytes, identified by write_source.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/write_bytes`.
+                        public var write_bytes: Swift.Int?
+                        /// Successful client transfer or local publication duration in microseconds. Local publications include snapshot verification. Excludes compilation.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/write_duration_us`.
+                        public var write_duration_us: Swift.Int?
+                        /// Write measurement provenance; legacy observations may omit it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/write_source`.
+                        @frozen public enum write_sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case local = "local"
+                            case remote = "remote"
+                        }
+                        /// Write measurement provenance; legacy observations may omit it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/write_source`.
+                        public var write_source: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayloadPayload.write_sourcePayload?
+                        /// Creates a new `dependency_cachePayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - dependency:
+                        ///   - duration_ms:
+                        ///   - key:
+                        ///   - outcome:
+                        ///   - read_bytes: Successful read bytes. Remote CAS payload bytes or local artifact and manifest copy bytes, identified by read_source.
+                        ///   - read_duration_us: Successful client transfer or local restore duration in microseconds. Local restores include verification and installation; remote transfers exclude installation.
+                        ///   - read_source: Read measurement provenance; legacy observations may omit it.
+                        ///   - reason:
+                        ///   - saved_duration_ms: Estimated compilation time avoided on a hit, from the original compilation. Not elapsed build time saved.
+                        ///   - write_bytes: Successful write bytes. Remote CAS payload bytes or local artifact and manifest copy bytes, identified by write_source.
+                        ///   - write_duration_us: Successful client transfer or local publication duration in microseconds. Local publications include snapshot verification. Excludes compilation.
+                        ///   - write_source: Write measurement provenance; legacy observations may omit it.
+                        public init(
+                            dependency: Swift.String,
+                            duration_ms: Swift.Int,
+                            key: Swift.String? = nil,
+                            outcome: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayloadPayload.outcomePayload,
+                            read_bytes: Swift.Int? = nil,
+                            read_duration_us: Swift.Int? = nil,
+                            read_source: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayloadPayload.read_sourcePayload? = nil,
+                            reason: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayloadPayload.reasonPayload? = nil,
+                            saved_duration_ms: Swift.Int? = nil,
+                            write_bytes: Swift.Int? = nil,
+                            write_duration_us: Swift.Int? = nil,
+                            write_source: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayloadPayload.write_sourcePayload? = nil
+                        ) {
+                            self.dependency = dependency
+                            self.duration_ms = duration_ms
+                            self.key = key
+                            self.outcome = outcome
+                            self.read_bytes = read_bytes
+                            self.read_duration_us = read_duration_us
+                            self.read_source = read_source
+                            self.reason = reason
+                            self.saved_duration_ms = saved_duration_ms
+                            self.write_bytes = write_bytes
+                            self.write_duration_us = write_duration_us
+                            self.write_source = write_source
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case dependency
+                            case duration_ms
+                            case key
+                            case outcome
+                            case read_bytes
+                            case read_duration_us
+                            case read_source
+                            case reason
+                            case saved_duration_ms
+                            case write_bytes
+                            case write_duration_us
+                            case write_source
+                        }
+                    }
+                    /// Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cache`.
+                    public typealias dependency_cachePayload = [Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayloadPayload]
+                    /// Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cache`.
+                    public var dependency_cache: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayload?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/diagnosticsPayload`.
                     public struct diagnosticsPayloadPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/diagnosticsPayload/column`.
@@ -46085,6 +46221,7 @@ public enum Operations {
                     ///   - ci_run_id: The CI run identifier.
                     ///   - contract_version: Version of the client-server analytics contract the caller was built against.
                     ///   - custom_metadata: Custom metadata for the build run.
+                    ///   - dependency_cache: Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
                     ///   - diagnostics: Compile-time diagnostics emitted during the build.
                     ///   - duration_ms: Total compile duration in milliseconds.
                     ///   - elixir_version: The Elixir version used to compile (e.g., "1.20.2").
@@ -46108,6 +46245,7 @@ public enum Operations {
                         ci_run_id: Swift.String? = nil,
                         contract_version: Swift.String? = nil,
                         custom_metadata: Operations.createMixBuild.Input.Body.jsonPayload.custom_metadataPayload? = nil,
+                        dependency_cache: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayload? = nil,
                         diagnostics: Operations.createMixBuild.Input.Body.jsonPayload.diagnosticsPayload? = nil,
                         duration_ms: Swift.Int,
                         elixir_version: Swift.String? = nil,
@@ -46131,6 +46269,7 @@ public enum Operations {
                         self.ci_run_id = ci_run_id
                         self.contract_version = contract_version
                         self.custom_metadata = custom_metadata
+                        self.dependency_cache = dependency_cache
                         self.diagnostics = diagnostics
                         self.duration_ms = duration_ms
                         self.elixir_version = elixir_version
@@ -46155,6 +46294,7 @@ public enum Operations {
                         case ci_run_id
                         case contract_version
                         case custom_metadata
+                        case dependency_cache
                         case diagnostics
                         case duration_ms
                         case elixir_version

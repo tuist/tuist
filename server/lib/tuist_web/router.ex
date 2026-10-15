@@ -1496,6 +1496,7 @@ defmodule TuistWeb.Router do
       live "/module-cache/modules/:module", ModuleCacheModuleLive, metadata: @public_project_route_metadata
       live "/xcode-cache", XcodeCacheLive, metadata: @public_project_route_metadata
       live "/gradle-cache", GradleCacheLive, metadata: @public_project_route_metadata
+      live "/mix-cache", MixCacheLive, metadata: @public_project_route_metadata
       live "/builds/tasks", GradleTasksLive, :tasks, metadata: @public_project_route_metadata
       live "/builds/tasks/:name", GradleTasksLive, :task, metadata: @public_project_route_metadata
       live "/bazel-cache", BazelCacheLive, metadata: @public_project_route_metadata

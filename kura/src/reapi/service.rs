@@ -427,7 +427,7 @@ impl ReapiService {
         let context =
             reapi_cache_event_context(metadata, namespace_id, &self.state.config.tenant_id);
         if context.is_none() {
-            // Analytics is configured but this request carries no usable Bazel
+            // Analytics is configured but this request carries no usable Bazel/Mix
             // RequestMetadata, so every cache observation on it is discarded.
             // Counting the discard keeps it apart from "no traffic at all":
             // without this, a fleet serving cache hits and a fleet dropping
@@ -4689,7 +4689,7 @@ fn reapi_request_metadata(metadata: &tonic::metadata::MetadataMap) -> ReapiReque
     let client_kind = metadata
         .tool_details
         .map(|details| details.tool_name)
-        .filter(|name| name == "bazel")
+        .filter(|name| name == "bazel" || name == "mix")
         .unwrap_or_else(|| "other".into());
 
     ReapiRequestMetadata {
@@ -4707,14 +4707,16 @@ fn reapi_cache_event_context(
     fallback_tenant_id: &str,
 ) -> Option<Arc<ReapiCacheAnalyticsContext>> {
     let attribution = reapi_request_metadata(metadata);
-    if attribution.client_kind != "bazel" {
-        return None;
-    }
+    let client_kind = match attribution.client_kind.as_str() {
+        "bazel" => "bazel",
+        "mix" => "mix",
+        _ => return None,
+    };
 
     Some(Arc::new(ReapiCacheAnalyticsContext {
         account_handle: usage_tenant_id(metadata, fallback_tenant_id),
         project_handle: namespace_id.to_owned(),
-        client_kind: "bazel",
+        client_kind,
         invocation_id: attribution.invocation_id,
         action_mnemonic: attribution.action_mnemonic,
         target_label: attribution.target_label,
@@ -6277,6 +6279,32 @@ mod tests {
         assert_eq!(extracted.action_mnemonic, "SwiftCompile");
         assert_eq!(extracted.target_label, "//app:app");
         assert_eq!(extracted.configuration_id, "config-1");
+    }
+
+    #[test]
+    fn attributes_mix_to_the_shared_reapi_analytics_pipeline() {
+        let mut request = Request::new(());
+        let metadata = reapi::RequestMetadata {
+            tool_details: Some(reapi::ToolDetails {
+                tool_name: "mix".into(),
+                tool_version: "0.1.0".into(),
+            }),
+            tool_invocation_id: "mix-build-id".into(),
+            action_mnemonic: "MixCompile".into(),
+            target_id: "jason".into(),
+            ..Default::default()
+        };
+        request.metadata_mut().insert_bin(
+            REAPI_REQUEST_METADATA_HEADER,
+            tonic::metadata::MetadataValue::from_bytes(&metadata.encode_to_vec()),
+        );
+        let context = reapi_cache_event_context(request.metadata(), "elixir", "acme")
+            .expect("Mix requests carry the same cache attribution as Bazel");
+        assert_eq!(context.client_kind, "mix");
+        assert_eq!(context.invocation_id, "mix-build-id");
+        assert_eq!(context.account_handle, "acme");
+        assert_eq!(context.project_handle, "elixir");
+        assert_eq!(context.target_label, "jason");
     }
 
     #[test]
