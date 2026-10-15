@@ -22,6 +22,7 @@
         case executablePathMissing
         case mostRecentActivityLogNotFound(AbsolutePath)
         case mostRecentResultBundleNotFound(AbsolutePath)
+        case resultBundleNotFinalized(AbsolutePath)
 
         var errorDescription: String? {
             switch self {
@@ -33,6 +34,9 @@
             case let .mostRecentResultBundleNotFound(derivedDataPath):
                 return
                     "We couldn't find the most recent result bundle in the derived data directory at \(derivedDataPath.pathString)"
+            case let .resultBundleNotFinalized(resultBundlePath):
+                return
+                    "Xcode didn't finish writing the result bundle at \(resultBundlePath.pathString) in time. Run 'tuist inspect test --result-bundle-path \(resultBundlePath.pathString)' to upload it once Xcode is done."
             }
         }
     }
@@ -45,6 +49,7 @@
         private let uploadResultBundleService: UploadResultBundleServicing
         private let configLoader: ConfigLoading
         private let backgroundProcessRunner: BackgroundProcessRunning
+        private let resultBundleFinalizationTimeout: Duration
 
         init(
             derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
@@ -53,7 +58,8 @@
             xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
             uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
             configLoader: ConfigLoading = ConfigLoader(),
-            backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner()
+            backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
+            resultBundleFinalizationTimeout: Duration = .seconds(30)
         ) {
             self.derivedDataLocator = derivedDataLocator
             self.fileSystem = fileSystem
@@ -62,6 +68,7 @@
             self.uploadResultBundleService = uploadResultBundleService
             self.configLoader = configLoader
             self.backgroundProcessRunner = backgroundProcessRunner
+            self.resultBundleFinalizationTimeout = resultBundleFinalizationTimeout
         }
 
         func run(
@@ -92,6 +99,10 @@
                 basePath: path,
                 derivedDataPath: derivedDataPath
             )
+
+            if Environment.current.workspacePath != nil {
+                try await waitForResultBundleToBeFinalized(resolvedResultBundlePath)
+            }
 
             let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: path)
             let config = try await configLoader.loadConfig(path: projectPath)
@@ -227,6 +238,25 @@
             }
             Logger.current.debug("Inspect test: using result bundle at \(xcResultPath.pathString)")
             return (xcResultPath, projectDerivedDataDirectory)
+        }
+
+        /// Xcode runs the test action's post-actions before it moves the bundle out of its `Staging` directory and writes the
+        /// root `Info.plist`, so the bundle is only readable once that file exists.
+        private func waitForResultBundleToBeFinalized(_ resultBundlePath: AbsolutePath) async throws {
+            let infoPlistPath = resultBundlePath.appending(component: "Info.plist")
+            if try await fileSystem.exists(infoPlistPath) { return }
+            Logger.current.debug("Inspect test: waiting for Xcode to finalize \(resultBundlePath.pathString)")
+            try await withTimeout(
+                resultBundleFinalizationTimeout,
+                onTimeout: {
+                    throw InspectTestCommandServiceError.resultBundleNotFinalized(resultBundlePath)
+                },
+                action: {
+                    while try await !fileSystem.exists(infoPlistPath) {
+                        try await Task.sleep(for: .milliseconds(100))
+                    }
+                }
+            )
         }
     }
 #endif
