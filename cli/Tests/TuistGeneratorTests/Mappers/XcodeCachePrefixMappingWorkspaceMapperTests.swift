@@ -388,7 +388,7 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
 
         // Then
         for project in mapped.projects {
-            #expect(project.settings.base["TUIST_SOURCE_PACKAGES_DIR"] == .string("$(OBJROOT)/../../SourcePackages"))
+            #expect(project.settings.base["TUIST_SOURCE_PACKAGES_DIR"] == .string("$(INDEX_DATA_STORE_DIR)/../../SourcePackages"))
             #expect(project.settings.base["SWIFT_OTHER_PREFIX_MAPPINGS"] == .array(["$(inherited)"] + packagesMappings))
             #expect(project.settings.base["CLANG_OTHER_PREFIX_MAPPINGS"] == .array(["$(inherited)"] + packagesMappings))
         }
@@ -418,7 +418,7 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         // xcodebuild invocations with `-xcconfig`.
 
         TUIST_PREFIX_MAPPING_ROOT_DIR = /Users/dev/app
-        TUIST_SOURCE_PACKAGES_DIR = $(OBJROOT)/../../SourcePackages
+        TUIST_SOURCE_PACKAGES_DIR = $(INDEX_DATA_STORE_DIR)/../../SourcePackages
         TUIST_PREFIX_MAPPING_FOR_COVERAGE_ = YES
         TUIST_PREFIX_MAPPING_FOR_COVERAGE_NO = YES
         TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES = NO

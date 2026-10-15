@@ -36,7 +36,7 @@ import XcodeGraph
 /// splits a list element at spaces.
 ///
 /// Packages added through `Project.packages` are checked out by Xcode into the
-/// `SourcePackages` directory next to the build directory, mapped to `/^packages`. Xcode
+/// `SourcePackages` directory of the workspace's DerivedData, mapped to `/^packages`. Xcode
 /// builds them from their manifests, so their targets don't read the projects' settings:
 /// Xcode 27 only passes `SWIFT_ENABLE_COMPILE_CACHE` down to them. The mapper writes the
 /// same mappings into `XcodeCachePackagesXCConfig`, whose settings reach every target of
@@ -48,9 +48,10 @@ public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
     static let enablePrefixMappingSettings = ["SWIFT_ENABLE_PREFIX_MAPPING", "CLANG_ENABLE_PREFIX_MAPPING"]
     static let rootDirectorySetting = "TUIST_PREFIX_MAPPING_ROOT_DIR"
     static let sourcePackagesDirectorySetting = "TUIST_SOURCE_PACKAGES_DIR"
-    /// Xcode checks packages out into `<DerivedData>/SourcePackages`, next to `Build`,
-    /// and `OBJROOT` is `<DerivedData>/Build/Intermediates.noindex`.
-    static let sourcePackagesDirectory = "$(OBJROOT)/../../SourcePackages"
+    /// Xcode checks packages out into `<DerivedData>/SourcePackages`, next to
+    /// `<DerivedData>/Index.noindex/DataStore`. `OBJROOT` and `SYMROOT` don't anchor it:
+    /// archives move them below `Build/Intermediates.noindex/ArchiveIntermediates/<scheme>`.
+    static let sourcePackagesDirectory = "$(INDEX_DATA_STORE_DIR)/../../SourcePackages"
 
     private let tuist: Tuist
     private let rootDirectoryLocator: RootDirectoryLocating
