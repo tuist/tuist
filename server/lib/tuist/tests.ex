@@ -289,7 +289,7 @@ defmodule Tuist.Tests do
         query =
           from(t in Test,
             where: t.id == ^uuid,
-            order_by: [desc: t.inserted_at],
+            order_by: [desc: t.inserted_at, desc: t.is_flaky],
             limit: 1
           )
 
@@ -339,7 +339,7 @@ defmodule Tuist.Tests do
     query =
       from(t in Test,
         where: t.build_run_id == ^build_run_id,
-        order_by: [desc: t.ran_at, desc: t.inserted_at],
+        order_by: [desc: t.ran_at, desc: t.inserted_at, desc: t.is_flaky],
         limit: 1
       )
 
@@ -353,7 +353,7 @@ defmodule Tuist.Tests do
     query =
       from(t in Test,
         where: t.gradle_build_id == ^gradle_build_id,
-        order_by: [desc: t.ran_at, desc: t.inserted_at],
+        order_by: [desc: t.ran_at, desc: t.inserted_at, desc: t.is_flaky],
         limit: 1
       )
 
@@ -552,7 +552,7 @@ defmodule Tuist.Tests do
           Coverage.Evidence.test_states(test.project_id, Map.get(attrs, :coverage_evidence))
         )
 
-      run_test_followups(test, test_case_runs)
+      run_test_followups(test, test_case_runs, shard_plan)
 
       if test.status == "failure",
         do:
@@ -663,7 +663,7 @@ defmodule Tuist.Tests do
     end)
   end
 
-  defp run_test_followups(test, test_case_runs) do
+  defp run_test_followups(test, test_case_runs, shard_plan) do
     flaky? = flaky_run?(test, test_case_runs)
 
     test_case_ids =
@@ -673,7 +673,7 @@ defmodule Tuist.Tests do
       |> Enum.uniq()
 
     Tuist.Tasks.run_async(fn ->
-      enrich(test, "flaky run flag", fn -> mark_test_run_as_flaky(test, flaky?) end)
+      enrich(test, "flaky run flag", fn -> mark_test_run_as_flaky(test, flaky?, shard_plan) end)
 
       enrich(test, "flaky alert evaluations", fn ->
         Automations.enqueue_flaky_alert_evaluations(test.project_id, test_case_ids)
@@ -862,7 +862,11 @@ defmodule Tuist.Tests do
             merged_test
             |> Map.put(:status, merged_status)
             |> Map.put(:duration, merged_duration)
-            |> Map.put(:is_flaky, merged_test.is_flaky or flaky_run?(merged_test, test_case_runs))
+            |> Map.put(
+              :is_flaky,
+              merged_test.is_flaky or flaky_run?(merged_test, test_case_runs) or
+                (merged_test.is_ci and has_any_flaky_test_case?(test_modules))
+            )
             |> Map.put(:inserted_at, NaiveDateTime.utc_now())
             |> Map.merge(StressNewTests.merge_run_attrs(existing_test, stress_new_tests))
 
@@ -886,7 +890,7 @@ defmodule Tuist.Tests do
                 updated_test.id
               )
 
-          run_test_followups(updated_test, test_case_runs)
+          run_test_followups(updated_test, test_case_runs, shard_plan)
 
           {:ok, %{updated_test | test_case_runs: test_case_runs}}
       end
@@ -932,7 +936,7 @@ defmodule Tuist.Tests do
       from(test in Test,
         where: test.project_id == ^project_id,
         where: test.id == ^test_run_id,
-        order_by: [desc: test.inserted_at],
+        order_by: [desc: test.inserted_at, desc: test.is_flaky],
         limit: 1
       )
     )
@@ -1034,20 +1038,12 @@ defmodule Tuist.Tests do
   defp flaky_run?(%{is_ci: true}, test_case_runs), do: Enum.any?(test_case_runs, & &1.is_flaky)
   defp flaky_run?(_test, _test_case_runs), do: false
 
-  defp mark_test_run_as_flaky(test, false), do: test
-  defp mark_test_run_as_flaky(%{is_flaky: true} = test, _flaky?), do: test
+  defp mark_test_run_as_flaky(test, false, _shard_plan), do: test
+  defp mark_test_run_as_flaky(%{is_flaky: true} = test, _flaky?, _shard_plan), do: test
 
-  defp mark_test_run_as_flaky(test, true) do
-    updated_test = %{test | is_flaky: true}
-
-    attrs =
-      updated_test
-      |> Map.from_struct()
-      |> Map.drop(@test_struct_non_field_keys)
-
-    # Amend only this version; a fresh timestamp could roll back a newer shard merge.
-    IngestRepo.insert_all(Test, [attrs])
-    updated_test
+  defp mark_test_run_as_flaky(test, true, shard_plan) do
+    # Keep the parent's exact version and writer so the original cannot flush after this amendment.
+    insert_test_run(%{test | is_flaky: true}, shard_plan)
   end
 
   defp has_any_flaky_test_case?(test_modules) do
@@ -4660,7 +4656,7 @@ defmodule Tuist.Tests do
     latest_candidate_runs =
       candidate_ids
       |> all_by_uuid_chunks(fn ids ->
-        from(t in Test, where: t.id in ^ids, order_by: [asc: t.id, desc: t.inserted_at])
+        from(t in Test, where: t.id in ^ids, order_by: [asc: t.id, desc: t.inserted_at, desc: t.is_flaky])
       end)
       |> Enum.uniq_by(& &1.id)
 

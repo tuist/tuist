@@ -238,6 +238,84 @@ defmodule Tuist.Tests.IngestionTest do
     refute ClickHouseRepo.one(from(t in Test, hints: ["FINAL"], where: t.id == ^local.id, select: t.is_flaky))
   end
 
+  for flush_mode <- [:one_block, :separate_blocks] do
+    @flush_mode flush_mode
+    test "unsharded flag amendments follow their buffered parent with #{flush_mode}", %{attrs: attrs} do
+      attrs = cross_run_attrs(attrs)
+      assert {:ok, _passing} = Tests.create_test(attrs)
+      queue = start_supervised!({Agent, fn -> [] end})
+
+      stub(Test.Buffer, :insert, fn row ->
+        Agent.update(queue, &[row | &1])
+        {:ok, row}
+      end)
+
+      assert {:ok, failed} = Tests.create_test(failing_run_attrs(attrs))
+      queued = queue |> Agent.get(&Enum.reverse/1) |> Enum.map(&Map.take(Map.from_struct(&1), Test.__schema__(:fields)))
+      assert Enum.map(queued, & &1.is_flaky) == [false, true]
+      assert Enum.map(queued, & &1.inserted_at) == [failed.inserted_at, failed.inserted_at]
+
+      if @flush_mode == :one_block do
+        IngestRepo.insert_all(Test, queued)
+      else
+        Enum.each(queued, &IngestRepo.insert_all(Test, [&1]))
+      end
+
+      assert ClickHouseRepo.one(from(t in Test, hints: ["FINAL"], where: t.id == ^failed.id, select: t.is_flaky))
+    end
+  end
+
+  test "a later shard preserves an equal-version flag amendment in its merge base", %{attrs: attrs, project: project} do
+    plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+    attrs = Map.merge(attrs, %{is_ci: true, shard_plan_id: plan.id, shard_index: 0, test_modules: []})
+    assert {:ok, first} = Tests.create_test(attrs)
+    amendment = %{first | is_flaky: true}
+    IngestRepo.insert_all(Test, [Map.take(Map.from_struct(amendment), Test.__schema__(:fields))])
+    owner = self()
+
+    stub(ClickHouseRepo, :one, fn query ->
+      if query.from.source == {"test_runs", Test} do
+        order =
+          for %{expr: expr} <- query.order_bys,
+              {direction, {{:., _, [_, field]}, _, []}} <- expr,
+              do: {direction, field}
+
+        send(owner, {:merge_order, order})
+      end
+
+      Mimic.call_original(ClickHouseRepo, :one, [query])
+    end)
+
+    assert {:ok, second} = Tests.create_test(%{attrs | id: UUIDv7.generate(), shard_index: 1})
+    assert_receive {:merge_order, order}, 5_000
+    assert order == [desc: :inserted_at, desc: :is_flaky]
+    assert second.is_flaky
+    assert ClickHouseRepo.one(from(t in Test, hints: ["FINAL"], where: t.id == ^second.id, select: t.is_flaky))
+  end
+
+  test "a later shard keeps raw duplicate-identity retry flakiness", %{attrs: attrs, project: project} do
+    plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+    assert {:ok, _first} =
+             Tests.create_test(Map.merge(attrs, %{is_ci: true, shard_plan_id: plan.id, shard_index: 0, test_modules: []}))
+
+    [module] = attrs.test_modules
+    [flaky_case] = module.test_cases
+    clean_duplicate = %{flaky_case | repetitions: []}
+
+    attrs =
+      Map.merge(attrs, %{
+        id: UUIDv7.generate(),
+        is_ci: true,
+        shard_plan_id: plan.id,
+        shard_index: 1,
+        test_modules: [%{module | test_cases: [flaky_case, clean_duplicate]}]
+      })
+
+    assert {:ok, second} = Tests.create_test(attrs)
+    assert second.is_flaky
+  end
+
   test "a later shard folds its flag into exactly one primary write", %{attrs: attrs, project: project} do
     plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
     first_attrs = Map.merge(attrs, %{shard_plan_id: plan.id, shard_index: 0, is_ci: true, test_modules: []})
