@@ -120,6 +120,35 @@ struct XcodeCacheSettingsProjectMapperTests {
         ])
     }
 
+    @Test(.withMockedXcodeController, arguments: [false, true])
+    func map_whenCachingPrefixMappingDisabled_keepsCachingAndUserSettings(enableCoveragePrefixMapping: Bool) async throws {
+        try stubXcodeVersion(Version(27, 0, 0))
+        let tuist = Tuist(
+            project: .generated(.test(generationOptions: .test(
+                enableCaching: true,
+                enableCachingPrefixMapping: false,
+                enableCoveragePrefixMapping: enableCoveragePrefixMapping
+            ))),
+            fullHandle: nil,
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let userSettings: SettingsDictionary = [
+            "SWIFT_ENABLE_PREFIX_MAPPING": "YES",
+            "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "NO",
+            "SWIFT_OTHER_PREFIX_MAPPINGS": .array(["/custom=/^custom"]),
+            "USER_SETTING": "value",
+        ]
+        let project = Project.test(settings: .test(base: userSettings))
+
+        let (mapped, sideEffects) = try await XcodeCacheSettingsProjectMapper(tuist: tuist).map(project: project)
+
+        var expected = userSettings
+        expected["COMPILATION_CACHE_ENABLE_CACHING"] = "YES"
+        #expect(mapped.settings.base == expected)
+        #expect(sideEffects.isEmpty)
+    }
+
     @Test(.inTemporaryDirectory, .withMockedXcodeController)
     func map_whenProjectOptsOut_preservesItsSharedSourceNamespace() async throws {
         try stubXcodeVersion(Version(27, 0, 0))

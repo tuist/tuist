@@ -124,10 +124,17 @@ extension Tuist {
         /// namespace instead of `/^src`. Per-project mapping remains enabled by default.
         public var enableCaching: Bool
 
+        /// Controls whether Tuist adds compilation-cache prefix mappings on Xcode 27 and later.
+        /// Defaults to `true` and requires `enableCaching`. Set to `false` to keep unmapped source paths
+        /// when CI uses compilation caching but local builds do not. Compilation-cache keys then depend
+        /// on checkout and build-directory paths. Explicit mappings in project settings are preserved.
+        public var enableCachingPrefixMapping: Bool
+
         /// Keeps compilation-cache prefix mapping enabled for coverage builds on Xcode 27 and later.
         /// Defaults to `false` because `xccov` cannot resolve the mapped source paths.
         /// Enable only when reading coverage with a tool such as `llvm-cov` and remapping paths using
-        /// each binary's target-specific `compilation-prefix-map.json`. Requires `enableCaching`.
+        /// each binary's target-specific `compilation-prefix-map.json`.
+        /// Requires both `enableCaching` and `enableCachingPrefixMapping`.
         public var enableCoveragePrefixMapping: Bool
 
         /// When enabled, generates the Swift Package Registry configuration file during project generation.
@@ -180,6 +187,50 @@ extension Tuist {
             onOutdatedDependencies: OutdatedDependenciesAction = .warn,
             projectFormat: ProjectFormat = .pbxproj
         ) -> Self {
+            options(
+                disablePackageVersionLocking: disablePackageVersionLocking,
+                staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
+                defaultConfiguration: defaultConfiguration,
+                optionalAuthentication: optionalAuthentication,
+                buildInsightsDisabled: buildInsightsDisabled,
+                testInsightsDisabled: testInsightsDisabled,
+                disableSandbox: disableSandbox,
+                includeGenerateScheme: includeGenerateScheme,
+                enableCaching: enableCaching,
+                enableCachingPrefixMapping: true,
+                enableCoveragePrefixMapping: enableCoveragePrefixMapping,
+                registryEnabled: registryEnabled,
+                additionalPackageResolutionArguments: additionalPackageResolutionArguments,
+                warningsAsErrors: warningsAsErrors,
+                defaultSwiftVersion: defaultSwiftVersion,
+                manifestEnvironment: manifestEnvironment,
+                onOutdatedDependencies: onOutdatedDependencies,
+                projectFormat: projectFormat
+            )
+        }
+
+        /// Creates generation options with an explicit compilation-cache prefix-mapping policy.
+        @_disfavoredOverload
+        public static func options(
+            disablePackageVersionLocking: Bool = false,
+            staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
+            defaultConfiguration: String? = nil,
+            optionalAuthentication: Bool = false,
+            buildInsightsDisabled: Bool = false,
+            testInsightsDisabled: Bool = false,
+            disableSandbox: Bool = true,
+            includeGenerateScheme: Bool = true,
+            enableCaching: Bool = false,
+            enableCachingPrefixMapping: Bool,
+            enableCoveragePrefixMapping: Bool = false,
+            registryEnabled: Bool = false,
+            additionalPackageResolutionArguments: [String] = [],
+            warningsAsErrors: WarningsAsErrors = .none,
+            defaultSwiftVersion: String = "5",
+            manifestEnvironment: [String] = [],
+            onOutdatedDependencies: OutdatedDependenciesAction = .warn,
+            projectFormat: ProjectFormat = .pbxproj
+        ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: false,
                 disablePackageVersionLocking: disablePackageVersionLocking,
@@ -194,6 +245,7 @@ extension Tuist {
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching,
+                enableCachingPrefixMapping: enableCachingPrefixMapping,
                 enableCoveragePrefixMapping: enableCoveragePrefixMapping,
                 registryEnabled: registryEnabled,
                 warningsAsErrors: warningsAsErrors,
@@ -237,6 +289,7 @@ extension Tuist {
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching,
+                enableCachingPrefixMapping: true,
                 enableCoveragePrefixMapping: false,
                 registryEnabled: false,
                 warningsAsErrors: .none,
@@ -275,6 +328,7 @@ extension Tuist {
                 disableSandbox: true,
                 includeGenerateScheme: false,
                 enableCaching: false,
+                enableCachingPrefixMapping: true,
                 enableCoveragePrefixMapping: false,
                 registryEnabled: false,
                 warningsAsErrors: .none,
@@ -284,5 +338,40 @@ extension Tuist {
                 projectFormat: .pbxproj
             )
         }
+    }
+}
+
+extension Tuist.GenerationOptions {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            resolveDependenciesWithSystemScm: try container.decode(Bool.self, forKey: .resolveDependenciesWithSystemScm),
+            disablePackageVersionLocking: try container.decode(Bool.self, forKey: .disablePackageVersionLocking),
+            clonedSourcePackagesDirPath: try container.decodeIfPresent(Path.self, forKey: .clonedSourcePackagesDirPath),
+            additionalPackageResolutionArguments: try container.decode(
+                [String].self,
+                forKey: .additionalPackageResolutionArguments
+            ),
+            staticSideEffectsWarningTargets: try container.decode(
+                StaticSideEffectsWarningTargets.self,
+                forKey: .staticSideEffectsWarningTargets
+            ),
+            enforceExplicitDependencies: try container.decode(Bool.self, forKey: .enforceExplicitDependencies),
+            defaultConfiguration: try container.decodeIfPresent(String.self, forKey: .defaultConfiguration),
+            optionalAuthentication: try container.decode(Bool.self, forKey: .optionalAuthentication),
+            buildInsightsDisabled: try container.decode(Bool.self, forKey: .buildInsightsDisabled),
+            testInsightsDisabled: try container.decode(Bool.self, forKey: .testInsightsDisabled),
+            disableSandbox: try container.decode(Bool.self, forKey: .disableSandbox),
+            includeGenerateScheme: try container.decode(Bool.self, forKey: .includeGenerateScheme),
+            enableCaching: try container.decode(Bool.self, forKey: .enableCaching),
+            enableCachingPrefixMapping: try container.decodeIfPresent(Bool.self, forKey: .enableCachingPrefixMapping) ?? true,
+            enableCoveragePrefixMapping: try container.decode(Bool.self, forKey: .enableCoveragePrefixMapping),
+            registryEnabled: try container.decode(Bool.self, forKey: .registryEnabled),
+            warningsAsErrors: try container.decode(WarningsAsErrors.self, forKey: .warningsAsErrors),
+            defaultSwiftVersion: try container.decode(String.self, forKey: .defaultSwiftVersion),
+            manifestEnvironment: try container.decode([String].self, forKey: .manifestEnvironment),
+            onOutdatedDependencies: try container.decode(OutdatedDependenciesAction.self, forKey: .onOutdatedDependencies),
+            projectFormat: try container.decode(ProjectFormat.self, forKey: .projectFormat)
+        )
     }
 }

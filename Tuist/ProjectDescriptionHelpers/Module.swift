@@ -1946,6 +1946,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.hasher.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.loader.targetName),

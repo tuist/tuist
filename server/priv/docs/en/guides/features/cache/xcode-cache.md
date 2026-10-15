@@ -129,6 +129,49 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 > )
 > ```
 
+### Keeping unmapped paths with compilation caching {#keeping-unmapped-paths}
+
+On Xcode 27 and later, `enableCaching: true` also enables Tuist's prefix mappings. These change paths embedded in binaries, including Swift's `#filePath` and C's `__FILE__`, and participate in module-cache and selective-testing hashes. If CI enables compilation caching but developers disable it, the generated mapping settings differ and the module-cache hashes differ too.
+
+Prefer keeping `enableCaching: true` in both environments and configuring <.localized_link href="#cache-upload-policy">read-only local access</.localized_link> if you only want to prevent local uploads. If local builds must disable compilation caching, opt out of Tuist's prefix mappings on CI as well:
+
+```swift
+let tuist = Tuist(
+    project: .tuist(
+        generationOptions: .options(
+            enableCaching: Environment.isCI,
+            enableCachingPrefixMapping: false
+        )
+    )
+)
+```
+
+`enableCachingPrefixMapping` defaults to `true`, preserving existing projects. Setting it to `false` prevents Tuist from injecting the Swift and Clang prefix-mapping switches, coverage-mapping helper settings, and workspace directory mappings. Compilation caching remains enabled wherever `enableCaching` is `true`, but its keys now depend on checkout and build-directory paths, reducing compilation reuse across machines. This avoids the mapping-related module-cache hash differences without treating mapped and unmapped products as equivalent. Other differences in settings or compiler flags can still produce different module hashes.
+
+There is also an existing remote-cache flag-shape limitation that this option does not change: CAS plugin flag injection can leave an inherited-only `OTHER_SWIFT_FLAGS` setting when none was declared. That setting is hashed differently from an absent setting. When comparing caching on and off with remote caching, declare the same project-base `OTHER_SWIFT_FLAGS` containing `$(inherited)` in both environments:
+
+```swift
+let settings = Settings.settings(base: [
+    "OTHER_SWIFT_FLAGS": ["$(inherited)"],
+])
+```
+
+SwiftPM-generated external projects need the same declaration; setting it only on first-party projects is insufficient because dependency hashes propagate to their consumers. Add it to your package manifest's existing `PackageSettings.baseSettings` (merging with your other settings), inside the `#if TUIST` block:
+
+```swift
+let packageSettings = PackageSettings(
+    baseSettings: .settings(base: [
+        "OTHER_SWIFT_FLAGS": ["$(inherited)"],
+    ])
+)
+```
+
+This also lets package targets inherit the project's CAS flags. Keep these settings consistent across environments and refresh dependencies with `tuist install` after changing package settings. The prefix-mapping option removes only mapping-related hash differences; it does not guarantee identical hashes for arbitrary CI and local configurations.
+
+This is an explicit migration: disabling mappings changes the hashes and compilation-cache keys of previously mapped CI builds, so warm the module cache again after adopting the option. Unchanged manifests retain their existing mapping settings and hashing behavior. Using this new manifest option requires a Tuist version that supports it; older released CLIs cannot compile a manifest that references the new argument.
+
+The option only controls mappings injected by Tuist; it does not force compiler prefix mapping off when explicitly enabled elsewhere. Explicit mappings in manifests, xcconfig files, build-command overrides, or the build environment remain authoritative and can still change source paths and hashes. If your own mappings reference `TUIST_PREFIX_MAPPING_ROOT_DIR`, define that setting yourself because Tuist no longer injects it when opting out. Use this option to share module hashes only when both environments actually build with unmapped paths. Do not reproduce Tuist's internal settings to force equal hashes between mapped and unmapped builds.
+
 ### Coverage with prefix mapping {#coverage-with-prefix-mapping}
 
 By default, generated projects disable prefix mapping for coverage builds to keep Xcode's coverage reports and `xccov` working. If your team reads coverage with `llvm-cov` and remaps source paths itself, you can keep coverage compilations shareable across checkouts:
@@ -144,7 +187,7 @@ let tuist = Tuist(
 )
 ```
 
-This option applies on Xcode 27 and later and requires `enableCaching`. It does not add an `llvm-cov` reader or fix `xccov`: Xcode's coverage report can still omit sources with mapped paths. Tuist's coverage upload also reads the Xcode result bundle, so this opt-in is not compatible with that coverage pipeline. Use it only when processing coverage independently. Mapped `#filePath` values can also affect tests that locate fixtures relative to source files; resolve fixtures through explicit runtime checkout paths instead. Pair each instrumented binary with its target's `$(TARGET_TEMP_DIR)/compilation-prefix-map.json`, which maps virtual prefixes back to local directories. Do not reuse one target's map for every binary when per-project mapping is enabled.
+This option applies on Xcode 27 and later and requires both `enableCaching` and `enableCachingPrefixMapping`. It has no effect when Tuist's compilation-cache prefix mapping is disabled. It does not add an `llvm-cov` reader or fix `xccov`: Xcode's coverage report can still omit sources with mapped paths. Tuist's coverage upload also reads the Xcode result bundle, so this opt-in is not compatible with that coverage pipeline. Use it only when processing coverage independently. Mapped `#filePath` values can also affect tests that locate fixtures relative to source files; resolve fixtures through explicit runtime checkout paths instead. Pair each instrumented binary with its target's `$(TARGET_TEMP_DIR)/compilation-prefix-map.json`, which maps virtual prefixes back to local directories. Do not reuse one target's map for every binary when per-project mapping is enabled.
 
 The coverage-prefix settings participate in binary-cache and selective-testing hashes because they control paths written into coverage artifacts. Changing this option invalidates those hashes even for ordinary builds. Keep the value consistent between developers and CI jobs if they should share binary caches and selective-testing results.
 
@@ -231,12 +274,12 @@ While no build is running, Tuist checks each of the project's stores every 10 mi
 
 ### Module cache hashes {#module-cache-hashes}
 
-Compilation cache settings aren't part of <.localized_link href="/guides/features/projects/hashing">module cache hashes</.localized_link>. Tuist leaves every `COMPILATION_CACHE_*` build setting, and every `-cas-plugin-option` flag with its value, out of the hash. Turning `enableCaching` on or off, or changing the upload policy, keeps your targets' hashes, so the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> binaries you already warmed stay valid. You can compare builds with and without the Xcode cache against the same module cache.
+Compilation cache settings aren't part of <.localized_link href="/guides/features/projects/hashing">module cache hashes</.localized_link>. Tuist leaves every `COMPILATION_CACHE_*` build setting, and every `-cas-plugin-option` flag with its value, out of the hash. Changing these cache-routing settings or the upload policy does not itself invalidate the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link>. On Xcode 27 and later, however, `enableCaching` also controls prefix mapping by default, and those mapping settings do affect hashes, as described below.
 
 > [!NOTE]
 > **Prefix mapping settings are hashed**
 >
-> On Xcode 27 and later, `enableCaching: true` also sets `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`, and the `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*` settings. These settings are part of module cache hashes, so on Xcode 27 and later, turning `enableCaching` on or off changes your targets' hashes.
+> On Xcode 27 and later, `enableCaching: true` also sets `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`, and the `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*` settings. These settings are part of module cache hashes, so on Xcode 27 and later, turning `enableCaching` on or off changes your targets' hashes by default. Set `enableCachingPrefixMapping: false` in both environments to avoid the mapping-related differences, accepting path-dependent compilation-cache keys.
 
 ### Reusing parts of large outputs {#reusing-parts-of-large-outputs}
 

@@ -662,6 +662,13 @@ struct CachedModulesDebuggingGraphMapperTests {
         #expect(withProjectMappings.contains("\"/^derived\" \"\(projectPath.pathString)/intermediates\""))
         #expect(withProjectMappings.contains("\"/^built\" \"\(projectPath.pathString)/products\""))
 
+        environment.removeValue(forKey: "SWIFT_ENABLE_PREFIX_MAPPING")
+        environment.removeValue(forKey: "CLANG_ENABLE_PREFIX_MAPPING")
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment, workingDirectory: projectPath)
+        let withoutPrefixMapping = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        #expect(withoutPrefixMapping.hasPrefix("command source -s 0 "))
+        #expect(!withoutPrefixMapping.contains("target.source-map"))
+
         environment["COMPILATION_CACHE_ENABLE_CACHING"] = "NO"
         _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment, workingDirectory: projectPath)
         let withoutCaching = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
