@@ -202,6 +202,7 @@
         "infra/runner-payload/**/*",
         "infra/runner-image/dispatch-poll.sh",
         "infra/runner-image/metrics-poll.sh",
+        "infra/runner-image/payload-interface",
         "infra/runner-image/buildkite-hooks/**/*",
         "infra/runner-image/cmd/**/*",
         "infra/runner-image/go.mod",

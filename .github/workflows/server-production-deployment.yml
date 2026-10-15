@@ -956,6 +956,7 @@ jobs:
           printf '%s' "$GITHUB_TOKEN" | oras login ghcr.io --username tuist-bot --password-stdin
           oras push "ghcr.io/tuist/tuist-runner-payload:${VERSION}" \
             --artifact-type application/vnd.tuist.runner-payload.v1 \
+            --annotation org.opencontainers.image.source=https://github.com/tuist/tuist \
             runner-payload.tar.gz:application/vnd.tuist.runner-payload.v1.tar+gzip
 
   publish-releases:
