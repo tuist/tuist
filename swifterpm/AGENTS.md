@@ -17,6 +17,7 @@
 
 - Prefer provider archives, then shallow Git fetches. If Git reports that the server does not support shallow clients, retry the same location and pinned revision without `--depth`; do not retry unrelated fetch failures or switch transports.
 - `RestoreTests` exercises this fallback offline using a loopback smart-HTTP Git fixture without the `shallow` capability.
+- Unit tests calling `restorePackage` to evaluate fixture manifests must pass `disableSandbox: true`: Bazel's macOS test sandbox cannot launch a nested `sandbox-exec`. Keep the production sandbox default unchanged.
 
 ## End-to-end tests
 

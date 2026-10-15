@@ -97,7 +97,7 @@ struct NativeWorkspaceTests {
         ))
         try await WorkspaceRestorer.restorePackage(
             scratchDir: scratch, cache: cache, registryConfig: RegistryConfig(), mirrors: MirrorConfig(),
-            resolved: resolved, progress: nil
+            resolved: resolved, progress: nil, disableSandbox: true
         )
         #expect(try await fileSystem
             .readFile(at: checkout.appendingPathComponent(".gitmodules").absolutePath) == Data(contents.utf8))
