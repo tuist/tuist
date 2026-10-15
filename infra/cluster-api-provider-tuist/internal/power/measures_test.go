@@ -12,7 +12,8 @@ func watts(v float64) *float64 { return &v }
 
 // The readings are ber1-pdu-b's on 2026-10-14: outlets 6 to 11 with minis
 // plugged in and never started, outlet 12 empty, and running and sleeping
-// minis on the others.
+// minis on the others; and on 2026-10-15, the lowest an idle node read and a
+// loaded one whose active power read above its apparent power.
 func TestClassifyTellsAnOffMiniFromAnEmptyOutletAndARunningOne(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -25,6 +26,8 @@ func TestClassifyTellsAnOffMiniFromAnEmptyOutletAndARunningOne(t *testing.T) {
 		{"plugged in, off, larger filter", StateOn, Measures{ActivePower: watts(0.1), ApparentPower: watts(6.2)}, DrawPoweredOff},
 		{"asleep", StateOn, Measures{ActivePower: watts(2.4), ApparentPower: watts(7)}, DrawDrawing},
 		{"running", StateOn, Measures{ActivePower: watts(38), ApparentPower: watts(41)}, DrawDrawing},
+		{"idle node, lowest reading", StateOn, Measures{ActivePower: watts(2.258), ApparentPower: watts(7.6)}, DrawDrawing},
+		{"loaded, active above apparent", StateOn, Measures{ActivePower: watts(19.742), ApparentPower: watts(16.315)}, DrawDrawing},
 		{"switched off", StateOff, Measures{ActivePower: watts(0), ApparentPower: watts(0)}, DrawOutletOff},
 		{"unreadable outlet", StateUnknown, Measures{ActivePower: watts(38), ApparentPower: watts(41)}, DrawUnknown},
 		{"no apparent power and no draw", StateOn, Measures{ActivePower: watts(0.1)}, DrawUnknown},

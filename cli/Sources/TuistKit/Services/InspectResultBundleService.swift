@@ -62,7 +62,8 @@ public protocol UploadResultBundleServicing {
         onlyTestIdentifiers: [String],
         skipTestIdentifiers: [String],
         stressNewTests: Components.Schemas.StressNewTestsResult?,
-        stressResultBundlePaths: [AbsolutePath]
+        stressResultBundlePaths: [AbsolutePath],
+        scheme: String?
     ) async throws -> Components.Schemas.RunsTest
 }
 
@@ -351,7 +352,8 @@ extension UploadResultBundleService {
         onlyTestIdentifiers: [String] = [],
         skipTestIdentifiers: [String] = [],
         stressNewTests: Components.Schemas.StressNewTestsResult? = nil,
-        stressResultBundlePaths: [AbsolutePath] = []
+        stressResultBundlePaths: [AbsolutePath] = [],
+        scheme: String? = nil
     ) async throws -> Components.Schemas.RunsTest {
         guard let fullHandle = config.fullHandle else {
             throw UploadResultBundleServiceError.missingFullHandle
@@ -480,8 +482,10 @@ extension UploadResultBundleService {
             fullHandle: fullHandle,
             serverURL: serverURL,
             id: testRunId,
+            // The scheme the run was asked for, so the coverage published with the run carries it:
+            // the server reads the rest off the bundle later, and the coverage is published now.
             testSummary: TestSummary(
-                testPlanName: nil,
+                testPlanName: scheme,
                 status: .processing,
                 duration: 0,
                 testModules: []

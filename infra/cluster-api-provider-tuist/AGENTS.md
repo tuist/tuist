@@ -374,6 +374,13 @@ and the Mac fleets' dashboards and alerts select a fleet by it: the PN VLAN
 alert in `infra/helm/k8s-monitoring/alerts.md` excludes rack minis by
 `-rack-fleet-`.
 
+**The Machine carries the host's site** as `node.cluster.x-k8s.io/rack-site`
+(`infrav1.RackSiteNodeLabel`), and so does a rack Linux host's. Cluster API
+syncs labels in that domain from a Machine to its Node, kube-state-metrics
+allowlists it, and the Racks dashboard reads a node's site from
+`kube_node_labels` rather than from its name. A host with no `location.site`
+gets no label.
+
 **The fleet's MachineHealthCheck remediates through the host.** A check only
 marks a Machine (`OwnerRemediated=False`); its owner remediates it. The
 RackHost controller deletes a Machine so marked and makes a new one, which
@@ -435,14 +442,18 @@ mode behind it:
   cycle. Its outlet's meter (`power.Meter`, the G4's
   `outlets/<n>/measures`) tells it apart: an empty outlet reads exactly 0 W and
   0 VA, a mini plugged in and off about 0.1 W and 4 to 6 VA (its PSU's input
-  filter), a sleeping one 2 to 3 W, a running one 20 to 55 W. `power.Classify`
-  splits them at 1 VA and 1 W. While a host reads plugged in and off, the
+  filter), one running as an idle node 2.3 to 4 W (about what a sleeping one
+  reads), and up to about 85 W under load. `power.Classify` splits them at
+  1 VA and 1 W. The card's active and apparent power are not one sample: under
+  load it has read active power 25 W above apparent, so nothing should take a
+  power factor from them. While a host reads plugged in and off, the
   bootstrap-failure path skips its cycle with a `PowerButtonNeeded` event
   instead of cycling. It reads the outlet itself at that moment rather than
   the RackPDU's status, which can be ten minutes old. On 2026-10-14
   `ber1-runner-b04` to `b09` had sat for two and a half days in a loop of
-  five-minute SSH timeouts and cycles that could never start them. A meter that cannot be read does not withhold the cycle,
-  and Shelly reports no apparent power, so its outlets never read as off.
+  five-minute SSH timeouts and cycles that could never start them. A meter
+  that cannot be read does not withhold the cycle, and Shelly reports no
+  apparent power, so its outlets never read as off.
 - **Giving up quarantines the host.** The Scaleway kind's bootstrap-exhaustion
   path releases the host so a *different* mini is ordered. A rack host's
   machine has no other box, so after `--bootstrap-max-attempts` the machine
@@ -783,7 +794,9 @@ keeps its state and has no reading; a pass that could not read the card drops
 them all, and their series with them. The readings say nothing about what is
 on an outlet: a RackHost on the PDU takes its outlet's entry and interprets
 it for a mini (`HostDrawing`, below), and ignores one older than three resyncs
-(30 minutes). Nothing names the outlets of the Linux nodes and switches yet,
+(30 minutes). It keeps using that reading when its own read of the outlet's
+state fails (`PowerReachable=False`): on 2026-10-15 five hosts' reads failed
+for three minutes while the PDU's stayed current. Nothing names the outlets of the Linux nodes and switches yet,
 so their series are told apart by outlet number alone.
 
 **The administrator login for people** is `admin` with the password
@@ -935,7 +948,9 @@ The lifecycle is `capt_rackats_ready`, `capt_rackats_adopted`,
 `capt_rackats_drifted` and `capt_rackats_certificate_changed`. The transfer
 counter counts what the controller saw between reads a minute apart: a
 transfer and its return within one minute is not counted, and the counter
-restarts with the operator. There are no alert rules yet; the ones to add:
+restarts with the operator. Lost redundancy, an unpowered load and a switch
+that is not observed are live rules (group `Rack`, documented in
+`infra/helm/k8s-monitoring/alerts.md`); the rest of this table is not yet:
 
 | Alert | Expression |
 |---|---|

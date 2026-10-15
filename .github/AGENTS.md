@@ -4,6 +4,12 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+Helm CI also watches hosted dashboard changes. Monitoring cost-control tests
+start the production Alloy image to compile log selectors, exercise rendered
+remote-write rules against a local Prometheus receiver, and check all migrated
+latency queries across mixed-version rollout states. These checks need no cloud
+credentials and must never write to the production telemetry destinations.
+
 The existing runner-image release workflow runs the portable TCC report tests
 on PRs with read-only permissions and without persisted checkout credentials
 or the release token. Release planning is disabled on PRs and depends on the
@@ -110,6 +116,20 @@ The barrier reads only its own workflow run attempt and fails if its peer fails
 or does not attach within 25 minutes. Keep it outside the timed install command.
 Rerun both jobs together: a failed-job-only retry cannot prove overlap with a
 writer from an earlier attempt.
+
+Kura's clients test shard also runs the portable Xcode lookup fixture lifecycle
+regressions in `kura/spec/e2e/xcode_lookups_lifecycle_spec.sh`. These validate
+cleanup and deletion guards without Xcode or a cache service; actual compiler
+replay remains an opt-in Apple silicon test.
+
+## SwifterPM E2E credentials
+
+`swifterpm.yml` passes its read-only job token to the E2E task's HTTPS GitHub
+credential helper. The fixtures deliberately isolate HOME and disable global/system
+Git configuration, so checkout's local authentication does not reach their native
+SwiftPM fetches. Keep the credential in the job environment, outside cached paths;
+never persist it or extend its host scope beyond github.com.
+
 ## Bazel and Mix cache volumes
 
 Kura's `.bazelrc` configures repository downloads and disk action caching under
@@ -133,7 +153,7 @@ for current and oldest-supported ClickHouse, with references scoped to the GitHu
 run, attempt, and variant. Each shard owns fresh PostgreSQL and ClickHouse databases.
 Only the build job compiles, so it stays on `tuist-linux-large` while the shards
 run on the default `tuist-linux` shape.
-Bootstrap only `tuist_ex` and download with `mix tuist.test --prepare-only`;
+Bootstrap `tuist_ex` and its dependencies with `mix deps.compile tuist_ex --include-children`, then download with `mix tuist.test --prepare-only`; include children for coverage completion as well so cold jobs have gRPC/Protobuf available.
 `tuist_ex` exchanges the job's GitHub OpenID Connect token itself, so there is no
 login step. Run `db:reset`
 in a separate process before `mix tuist.test --no-download --warnings-as-errors`,

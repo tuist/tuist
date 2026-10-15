@@ -291,6 +291,48 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     assert has_element?(lv, "#coverage-runs-table", "No run matches these filters")
   end
 
+  test "names Mix runs and their Command filter options after the command", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    project = project |> Ecto.Changeset.change(build_system: :mix) |> Tuist.Repo.update!()
+    now = NaiveDateTime.utc_now()
+
+    for {scheme, offset} <- [{"", -600}, {"clickhouse-current", -300}] do
+      CoverageFixtures.run_with_coverage(project, organization.account, [file("lib/a.ex", [1, 0])], %{
+        git_commit_sha: "c",
+        build_system: "mix",
+        scheme: scheme,
+        ran_at: NaiveDateTime.add(now, offset)
+      })
+    end
+
+    path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits/c"
+
+    labels = fn lv ->
+      lv
+      |> element("#coverage-runs-table")
+      |> render()
+      |> Floki.parse_fragment!()
+      |> Floki.find("tbody tr td:first-child [data-part='label']")
+      |> Enum.map(&(&1 |> Floki.text() |> String.trim()))
+    end
+
+    {:ok, lv, _html} = live(conn, path <> "?tab=runs")
+    assert labels.(lv) == ["mix test · clickhouse-current", "mix test"]
+
+    {:ok, lv, _html} =
+      live(conn, path <> "?tab=runs&filter_run_scheme_op=%3D%3D&filter_run_scheme_val=clickhouse-current")
+
+    assert has_element?(
+             lv,
+             "[data-part='item'][data-value='clickhouse-current'][data-label='mix test · clickhouse-current']"
+           )
+
+    assert labels.(lv) == ["mix test · clickhouse-current"]
+  end
+
   test "opens a file of the commit on its own page, at that commit", %{conn: conn, base: base} do
     {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=files")
     from = URI.encode_www_form("#{base}/commits/b?tab=files")

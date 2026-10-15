@@ -13,6 +13,7 @@ defmodule Tuist.Mix do
   alias Tuist.Builds.BuildMachineMetric
   alias Tuist.ClickHouseRepo
   alias Tuist.Mix.Build
+  alias Tuist.Mix.Cache
   alias Tuist.Mix.CompiledFile
   alias Tuist.Mix.Diagnostic
   alias Tuist.Mix.Step
@@ -258,7 +259,8 @@ defmodule Tuist.Mix do
            BuildRun.validate_custom_metadata(
              Map.get(attrs, :custom_tags, []),
              Map.get(attrs, :custom_values, %{})
-           ) do
+           ),
+         :ok <- Cache.validate(Map.get(attrs, :dependency_cache, [])) do
       insert_build(attrs)
     end
   end
@@ -284,6 +286,7 @@ defmodule Tuist.Mix do
 
     insert_compiled_files(build_id, attrs.project_id, attrs |> Map.get(:files, []) |> Enum.take(@max_files), now)
     insert_steps(build_id, attrs.project_id, attrs |> Map.get(:steps, []) |> Enum.take(@max_steps), now)
+    Cache.insert(attrs, now)
 
     {:ok, build_id}
   end

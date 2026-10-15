@@ -10,29 +10,17 @@
 Tuist's Hex package can send build analytics to Tuist. Build times, the dependency graph between your files, and how both evolve over time give you what you need to optimize your build graph and make the most of all the cores available in the environment where the compilation takes place.
 
 > [!IMPORTANT] REQUIREMENTS
-> - The <.localized_link href="/guides/install-hex-package">Hex package</.localized_link> installed and configured
+> - Complete <.localized_link href="/guides/get-started/elixir-project">Get started with Elixir</.localized_link>
 
 ## Report your builds {#report-your-builds}
 
-Run `mix tuist.compile` instead of `mix compile`. It takes the same arguments and reports the build when it finishes:
+The shared setup installs the compile integration. Keep using your usual commands:
 
 ```bash
-mix tuist.compile --force
+mix compile
 ```
 
-To report every build without anyone having to remember a different command, alias it in your `mix.exs`:
-
-```elixir
-def project do
-  [
-    app: :my_app,
-    aliases: [compile: "tuist.compile"],
-    tuist: [project: "account/project"]
-  ]
-end
-```
-
-The alias covers `mix compile` and every compile that another task triggers, such as `mix test` or `mix phx.server`. A compile that finds nothing to do is not reported, so the dashboard only lists builds that did work.
+The integration covers `mix compile` and every compile that another task triggers, such as `mix test` or `mix phx.server`. A compile that finds nothing to do is not reported, so the dashboard only lists builds that did work.
 
 ## Report actor claim {#report-actor-claim}
 

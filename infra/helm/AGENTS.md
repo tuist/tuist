@@ -9,6 +9,11 @@ This node covers Helm assets under `infra/helm/`.
 - Atlas standalone and managed deployment: see `atlas/AGENTS.md`.
 - Standalone app charts with their own release boundary, such as Noora Storybook and Slack
 
+Monitoring cost controls must preserve metric identity and operator audit records.
+See `k8s-monitoring/README.md` for the staged Kura and API-server migrations.
+Helm CI starts the production Alloy log pipeline to compile LogQL selectors and
+runs the mixed-version latency expression through promtool.
+
 ## Conventions
 
 - Production enables the Kura authority controller independently of instance

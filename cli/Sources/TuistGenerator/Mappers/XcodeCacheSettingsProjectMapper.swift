@@ -52,13 +52,15 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         // compiler version already invalidated the cache.
         //
         // The compiler writes the mapped paths (`/^src/…`, `/^root/…`) into the
-        // coverage mapping too, and nothing maps them back, so xccov drops every
-        // source compiled with them from the report. A coverage build therefore
-        // compiles unmapped: `SWIFT_ENABLE_PREFIX_MAPPING` and
+        // coverage mapping too, and xccov drops every source compiled with them
+        // from the report. Tuist's own upload maps them back (it exports with
+        // llvm-cov and reads each target's compilation-prefix-map.json), but Xcode's
+        // coverage UI, xccov and tooling built on it don't, so a coverage build
+        // compiles unmapped by default: `SWIFT_ENABLE_PREFIX_MAPPING` and
         // `CLANG_ENABLE_PREFIX_MAPPING` gate every other mapping, and they resolve
         // through `CLANG_COVERAGE_MAPPING`, which Xcode turns on for test actions
-        // that gather coverage. Teams that remap coverage themselves (for example,
-        // with llvm-cov) can explicitly keep those builds path-independent.
+        // that gather coverage. A project that only needs Tuist's coverage keeps
+        // those builds path-independent with `enableCoveragePrefixMapping`.
         if await Self.isPrefixMappingSupported() {
             baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
             // A shared source namespace can opt out of per-project /^src aliases.

@@ -264,6 +264,85 @@ defmodule TuistWeb.API.MixController do
                required: [:category, :title, :start_offset_ms, :duration_ms]
              }
            },
+           dependency_cache: %Schema{
+             type: :array,
+             maxItems: 5_000,
+             description: "Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 dependency: %Schema{type: :string, minLength: 1, maxLength: @max_name},
+                 outcome: %Schema{type: :string, enum: ["local_hit", "remote_hit", "miss", "bypass"]},
+                 reason: %Schema{
+                   type: :string,
+                   enum: [
+                     "",
+                     "not_enabled",
+                     "local_dependency",
+                     "custom_compiler",
+                     "unmodeled_input",
+                     "inputs_changed",
+                     "store_failed"
+                   ]
+                 },
+                 key: %Schema{type: :string, pattern: "^([a-f0-9]{64})?$"},
+                 duration_ms: %Schema{type: :integer, minimum: 0, maximum: @uint32},
+                 read_bytes: %Schema{
+                   type: :integer,
+                   nullable: true,
+                   minimum: 0,
+                   maximum: @int64,
+                   description:
+                     "Successful read bytes. Remote CAS payload bytes or local artifact and manifest copy bytes, identified by read_source."
+                 },
+                 write_bytes: %Schema{
+                   type: :integer,
+                   nullable: true,
+                   minimum: 0,
+                   maximum: @int64,
+                   description:
+                     "Successful write bytes. Remote CAS payload bytes or local artifact and manifest copy bytes, identified by write_source."
+                 },
+                 read_duration_us: %Schema{
+                   type: :integer,
+                   nullable: true,
+                   minimum: 0,
+                   maximum: @int64,
+                   description:
+                     "Successful client transfer or local restore duration in microseconds. Local restores include verification and installation; remote transfers exclude installation."
+                 },
+                 write_duration_us: %Schema{
+                   type: :integer,
+                   nullable: true,
+                   minimum: 0,
+                   maximum: @int64,
+                   description:
+                     "Successful client transfer or local publication duration in microseconds. Local publications include snapshot verification. Excludes compilation."
+                 },
+                 read_source: %Schema{
+                   type: :string,
+                   nullable: true,
+                   enum: ["local", "remote"],
+                   description: "Read measurement provenance; legacy observations may omit it."
+                 },
+                 write_source: %Schema{
+                   type: :string,
+                   nullable: true,
+                   enum: ["local", "remote"],
+                   description: "Write measurement provenance; legacy observations may omit it."
+                 },
+                 saved_duration_ms: %Schema{
+                   type: :integer,
+                   nullable: true,
+                   minimum: 0,
+                   maximum: @uint32,
+                   description:
+                     "Estimated compilation time avoided on a hit, from the original compilation. Not elapsed build time saved."
+                 }
+               },
+               required: [:dependency, :outcome, :duration_ms]
+             }
+           },
            diagnostics: %Schema{
              type: :array,
              maxItems: @limits.diagnostics,
@@ -320,6 +399,11 @@ defmodule TuistWeb.API.MixController do
         |> put_status(:created)
         |> json(%{id: build_id})
 
+      {:error, :invalid_dependency_cache} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "The dependency cache data is invalid."})
+
       {:error, _reason} ->
         conn
         |> put_status(:bad_request)
@@ -352,7 +436,8 @@ defmodule TuistWeb.API.MixController do
       diagnostics: body[:diagnostics] || [],
       files: body[:files] || [],
       steps: body[:steps] || [],
-      machine_metrics: body[:machine_metrics] || []
+      machine_metrics: body[:machine_metrics] || [],
+      dependency_cache: body[:dependency_cache] || []
     })
     |> Map.merge(Tuist.ReportActor.attributes(conn))
   end

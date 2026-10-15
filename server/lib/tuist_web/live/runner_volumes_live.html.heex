@@ -540,53 +540,6 @@
       </.card>
     </div>
   </.async_result>
-  <.card
-    :if={@selected && @selected.provider == "github" && is_nil(@selected.builtin_name)}
-    title={dgettext("dashboard_runners", "Writer branches")}
-    icon="database"
-  >
-    <.card_section>
-      <p>
-        {dgettext(
-          "dashboard_runners",
-          "Successful default-branch jobs can save changes. Allow additional branches below; other jobs can use the cache without saving changes."
-        )}
-      </p>
-      <.form
-        :if={@can_manage}
-        for={%{}}
-        id="volume-writer-policy"
-        phx-submit="save_writer_branches"
-      >
-        <.text_area
-          id="volume-writer-branches"
-          name="writer_branches"
-          label={dgettext("dashboard_runners", "Additional writer branches")}
-          value={Enum.join(@selected.writer_branches, "\n")}
-          rows={3}
-          max_length={4200}
-          show_character_count={false}
-          placeholder={dgettext("dashboard_runners", "One exact branch name per line")}
-        />
-        <p>
-          {dgettext(
-            "dashboard_runners",
-            "Applies to verified pull requests from branches in this repository. Forks cannot save changes. Removing a branch revokes its pending saves; default-branch saves continue."
-          )}
-        </p>
-        <.button
-          type="submit"
-          variant="primary"
-          label={dgettext("dashboard_runners", "Save writer branches")}
-        />
-      </.form>
-      <p :if={!@can_manage}>
-        {if @selected.writer_branches == [],
-          do: dgettext("dashboard_runners", "Default branch only"),
-          else: Enum.join(@selected.writer_branches, ", ")}
-      </p>
-    </.card_section>
-  </.card>
   <.modal
     id="volume-confirm-delete"
     title={dgettext("dashboard_runners", "Clear volume")}

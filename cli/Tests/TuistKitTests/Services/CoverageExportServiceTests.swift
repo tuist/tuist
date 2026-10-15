@@ -320,6 +320,44 @@ struct CoverageExportServiceTests {
         #expect(targets.map(\.isTest) == [false, true, false, false, false])
     }
 
+    @Test(.inTemporaryDirectory) func readsTheDebugDylibAndTheHostedTestBundle() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let products = directory.appending(components: "Build", "Products", "Debug")
+        let app = products.appending(component: "App.app")
+        let hostedTests = app.appending(components: "Contents", "PlugIns", "AppTests.xctest")
+        for (bundle, executable, binaries) in [
+            (app, "App", ["App", "App.debug.dylib"]),
+            (hostedTests, "AppTests", ["AppTests"]),
+        ] {
+            let contents = bundle.appending(component: "Contents")
+            try FileManager.default.createDirectory(
+                atPath: contents.appending(component: "MacOS").pathString, withIntermediateDirectories: true
+            )
+            try Data("<plist version=\"1.0\"><dict><key>CFBundleExecutable</key><string>\(executable)</string></dict></plist>"
+                .utf8)
+                .write(to: URL(fileURLWithPath: contents.appending(component: "Info.plist").pathString))
+            for binary in binaries {
+                try Data([0xCF, 0xFA, 0xED, 0xFE])
+                    .write(to: URL(fileURLWithPath: contents.appending(components: "MacOS", binary).pathString))
+            }
+        }
+        let sources = CoverageBuildSources(
+            rootDirectories: ["/repo"],
+            files: [:],
+            targets: [
+                CoverageBuildTarget(name: "App.app", isTest: false, files: ["Sources/App.swift"]),
+                CoverageBuildTarget(name: "AppTests.xctest", isTest: true, files: ["Tests/AppTests.swift"]),
+            ]
+        )
+
+        let targets = CoverageExportService.targets(sources, productRoots: [directory.appending(components: "Build", "Products")])
+
+        #expect(targets.map(\.buildProductPath) == [
+            app.appending(components: "Contents", "MacOS", "App.debug.dylib").pathString,
+            hostedTests.appending(components: "Contents", "MacOS", "AppTests").pathString,
+        ])
+    }
+
     @Test func readsThePlatformOffTheProductsDirectoryName() {
         #expect(CoverageExportService.platform(ofProductsDirectory: "Debug") == ("macos", false))
         #expect(CoverageExportService.platform(ofProductsDirectory: "Debug-iphonesimulator") == ("ios", true))
@@ -371,6 +409,7 @@ struct CoverageExportServiceTests {
         #expect(CompilationPrefixMaps.targetName(ofProduct: "/p/Lib.framework/Versions/A/Lib") == "Lib")
         #expect(CompilationPrefixMaps.targetName(ofProduct: "/p/libLib.a") == "Lib")
         #expect(CompilationPrefixMaps.targetName(ofProduct: "/p/App.app/Contents/MacOS/App") == "App")
+        #expect(CompilationPrefixMaps.targetName(ofProduct: "/p/App.app/Contents/MacOS/App.debug.dylib") == "App")
         #expect(CompilationPrefixMaps.targetName(ofProduct: "/p/AppTests.xctest/AppTests") == "AppTests")
     }
 
