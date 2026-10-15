@@ -55,6 +55,32 @@ defmodule TuistWeb.PreviewsLiveTest do
     assert has_element?(lv, "span", "AppTwo")
   end
 
+  test "keeps release notes out of preview cards and table rows", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    notes = "Detailed QA instructions belong on the preview detail page"
+
+    preview =
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        display_name: "Atlas",
+        track: "QA",
+        release_notes: notes,
+        supported_platforms: [:ios]
+      )
+
+    {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews")
+
+    assert has_element?(lv, "[data-part='latest-app-previews'] .tuist-app-preview", "Atlas")
+    assert has_element?(lv, "#previews-table", "Atlas")
+    assert has_element?(lv, "#previews-table td:nth-child(3) [data-part='label']", "Qa")
+    assert has_element?(lv, "#previews-table [data-part='row-link'][href$='/previews/#{preview.id}']")
+    refute html =~ notes
+    refute has_element?(lv, "[data-part='release-notes']")
+  end
+
   test "ignores a stale pagination cursor on initial load", %{
     conn: conn,
     organization: organization,

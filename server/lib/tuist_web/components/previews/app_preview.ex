@@ -35,9 +35,6 @@ defmodule TuistWeb.Previews.AppPreview do
             {@preview.display_name}
           </span>
         <% end %>
-        <span :if={@preview.release_notes not in [nil, ""]} data-part="release-notes">
-          {String.slice(@preview.release_notes, 0, 160)}
-        </span>
         <div data-part="extra-metadata">
           <%= for platform <- Enum.sort(@preview.supported_platforms) do %>
             <.platform_badge platform={platform} />

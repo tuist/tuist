@@ -102,7 +102,7 @@ Use tracks for environment groups and release notes for the purpose of an indivi
 tuist share App --track QA --release-notes "Fix sign-in and improve the checkout flow"
 ```
 
-Release notes are optional plain text, up to 10,000 characters. They appear in the web and iOS preview lists and on the preview detail page. Multiline notes are supported, for example `--release-notes "$(< release-notes.txt)"`. They do not change the app's display name or its track.
+Release notes are optional plain text, up to 10,000 characters. They appear on the web and iOS preview detail pages. Preview lists keep track and build metadata visible without showing release notes. Multiline notes are supported, for example `--release-notes "$(< release-notes.txt)"`. They do not change the app's display name or its track.
 
 ### Compatibility {#preview-metadata-compatibility}
 

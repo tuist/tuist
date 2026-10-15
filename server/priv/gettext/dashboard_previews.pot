@@ -23,12 +23,12 @@ msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:154
 #: lib/tuist_web/live/previews_live.ex:180
-#: lib/tuist_web/live/previews_live.html.heex:87
+#: lib/tuist_web/live/previews_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Branch"
 msgstr ""
 
-#: lib/tuist_web/live/previews_live.html.heex:96
+#: lib/tuist_web/live/previews_live.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "Built at"
 msgstr ""
@@ -39,7 +39,7 @@ msgid "Bundle identifier"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:161
-#: lib/tuist_web/live/previews_live.html.heex:90
+#: lib/tuist_web/live/previews_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
 msgstr ""
@@ -96,7 +96,7 @@ msgstr ""
 msgid "Or run using CLI"
 msgstr ""
 
-#: lib/tuist_web/live/previews_live.html.heex:77
+#: lib/tuist_web/live/previews_live.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Platforms"
 msgstr ""
@@ -121,7 +121,7 @@ msgstr ""
 msgid "Ran at"
 msgstr ""
 
-#: lib/tuist_web/live/previews_live.html.heex:93
+#: lib/tuist_web/live/previews_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "Ran by"
 msgstr ""
@@ -189,7 +189,7 @@ msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:169
 #: lib/tuist_web/live/previews_live.ex:172
-#: lib/tuist_web/live/previews_live.html.heex:84
+#: lib/tuist_web/live/previews_live.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Track"
 msgstr ""
