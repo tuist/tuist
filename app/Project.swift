@@ -195,6 +195,7 @@ let project = Project(
                 .target(name: "TuistPreviews"),
                 .target(name: "TuistAppStorage"),
                 .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistSimulator", path: "../"),
                 .external(name: "Mockable"),
             ]
         ),

@@ -161,30 +161,35 @@ final class PreviewsViewModel: Sendable {
     private func loadProjects() async throws {
         projects = try await listProjectsService.listProjects(serverURL: serverEnvironmentService.url())
 
-        if let selectedProjectFullHandle = try? appStorage.get(SelectedProjectFullHandleKey.self),
-           let storedProject = projects.first(where: { $0.fullName == selectedProjectFullHandle })
-        {
-            selectedProject = storedProject
-            try await loadPreviews(for: storedProject)
-        } else if let firstProject = projects.first {
-            selectedProject = firstProject
-            try await loadPreviews(for: firstProject)
+        let storedProjectFullHandle = try? appStorage.get(SelectedProjectFullHandleKey.self)
+        guard let project = projects.first(where: { $0.fullName == storedProjectFullHandle }) ?? projects.first else { return }
+        if selectedProject?.fullName != project.fullName {
+            selectedTrack = nil
+            previews = []
         }
+        selectedProject = project
+        try await loadPreviews(for: project)
     }
 
     private func loadPreviewsPage(for project: ServerProject, page: Int) async throws {
         let requestID = loadID
-        let previewsPage = try await listPreviewsService.listPreviews(
-            displayName: nil,
-            specifier: nil,
-            track: selectedTrack,
-            supportedPlatforms: [],
-            page: page,
-            pageSize: 20,
-            distinctField: nil,
-            fullHandle: project.fullName,
-            serverURL: serverEnvironmentService.url()
-        )
+        let previewsPage: ServerPreviewsPage
+        do {
+            previewsPage = try await listPreviewsService.listPreviews(
+                displayName: nil,
+                specifier: nil,
+                track: selectedTrack,
+                supportedPlatforms: [],
+                page: page,
+                pageSize: 20,
+                distinctField: nil,
+                fullHandle: project.fullName,
+                serverURL: serverEnvironmentService.url()
+            )
+        } catch {
+            guard requestID == loadID else { return }
+            throw error
+        }
 
         guard requestID == loadID else { return }
         if let selectedTrack,
