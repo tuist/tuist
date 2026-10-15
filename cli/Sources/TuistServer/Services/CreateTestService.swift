@@ -34,7 +34,7 @@ import TuistHTTP
             skipTestIdentifiers: [String],
             stressNewTests: Components.Schemas.StressNewTestsResult?,
             gitHistory: TestRunGitHistory?,
-            coverageUpload: XcodeCoverageUpload?,
+            coverage: TestRunCoverage?,
             coverageEnabled: Bool?
         ) async throws -> Components.Schemas.RunsTest
     }
@@ -94,7 +94,7 @@ import TuistHTTP
             skipTestIdentifiers: [String],
             stressNewTests: Components.Schemas.StressNewTestsResult? = nil,
             gitHistory: TestRunGitHistory? = nil,
-            coverageUpload: XcodeCoverageUpload? = nil,
+            coverage: TestRunCoverage? = nil,
             coverageEnabled: Bool? = nil
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
@@ -274,7 +274,6 @@ import TuistHTTP
                     body: .json(
                         .init(
                             git_branch: gitBranch,
-                            xcode_coverage_storage_key: coverageUpload?.storageKey,
                             execution_mode: testSummary.executionMode.flatMap { .init(rawValue: $0) },
                             git_object_format: history.objectFormat,
                             scheme: testSummary.testPlanName,
@@ -289,6 +288,7 @@ import TuistHTTP
                             coverage_evidence: testSummary.coverageEvidencePayload,
                             git_dirty: gitHistory?.dirty,
                             history_source: history.source,
+                            coverage: coveragePayload(coverage, toolVersion: xcodeVersion),
                             build_run_id: buildRunId,
                             skip_test_identifiers: skipTestIdentifiers,
                             git_ref: gitRef,
@@ -300,10 +300,8 @@ import TuistHTTP
                             pull_request_number: gitHistory?.pullRequestNumber,
                             coverage_enabled: coverageEnabled,
                             stress_new_tests: stressNewTests,
-                            xcode_coverage_partial: coverageUpload?.partial,
                             macos_version: macOSVersion,
                             id: id,
-                            xcode_coverage: xcodeCoveragePayload(testSummary.coverage),
                             shard_plan_id: shardPlanId,
                             duration: testSummary.duration ?? 0,
                             xcode_version: xcodeVersion,
@@ -492,16 +490,18 @@ import TuistHTTP
     // run page reads failures from. Without it a stressed test keeps its status and duration
     // and loses what it said when it broke.
 
-    private func xcodeCoveragePayload(_ report: XcodeCoverageReport?) -> Components.Schemas.XcodeCoverage? {
-        report.map { report in
-            Components.Schemas.XcodeCoverage(
-                files: report.files.map { file in
-                    Components.Schemas.XcodeCoverage.filesPayloadPayload(
+    /// The build-system-neutral coverage block: the tool that measured the run, the Xcode that
+    /// provides it as the version, and the files inline or the key of their upload.
+    private func coveragePayload(_ coverage: TestRunCoverage?, toolVersion: String?) -> Components.Schemas.Coverage? {
+        coverage.map { coverage in
+            Components.Schemas.Coverage(
+                files: coverage.files?.map { file in
+                    Components.Schemas.Coverage.filesPayloadPayload(
                         covered_lines: file.coveredLines,
                         executable_lines: file.executableLines,
                         execution_counts: file.executionCounts,
                         functions: file.functions.map { function in
-                            Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayloadPayload(
+                            Components.Schemas.Coverage.filesPayloadPayload.functionsPayloadPayload(
                                 covered_lines: function.coveredLines,
                                 executable_lines: function.executableLines,
                                 execution_count: function.executionCount,
@@ -516,7 +516,10 @@ import TuistHTTP
                         targets: file.targets
                     )
                 },
-                partial: report.partial
+                partial: coverage.partial,
+                storage_key: coverage.storageKey,
+                tool: coverage.tool,
+                tool_version: toolVersion
             )
         }
     }

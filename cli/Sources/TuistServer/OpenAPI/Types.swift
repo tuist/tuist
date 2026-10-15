@@ -11617,7 +11617,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Coverage/storage_key`.
             public var storage_key: Swift.String?
-            /// The tool that measured the coverage, such as `cover` for Mix or `xccov` for Xcode.
+            /// The tool that measured the coverage, such as `cover` for Mix or `llvm-cov` (`xccov` from older clients) for Xcode.
             ///
             /// - Remark: Generated from `#/components/schemas/Coverage/tool`.
             public var tool: Swift.String
@@ -11631,7 +11631,7 @@ public enum Components {
             ///   - files:
             ///   - partial: Whether the run left tests out on purpose (filters, selective testing), so its coverage describes only the tests that ran.
             ///   - storage_key: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; sent instead of `files` when the coverage is too large to send inline.
-            ///   - tool: The tool that measured the coverage, such as `cover` for Mix or `xccov` for Xcode.
+            ///   - tool: The tool that measured the coverage, such as `cover` for Mix or `llvm-cov` (`xccov` from older clients) for Xcode.
             ///   - tool_version: The version of the tool, or of the runtime that provides it, so only like figures are compared.
             public init(
                 files: Components.Schemas.Coverage.filesPayload? = nil,
