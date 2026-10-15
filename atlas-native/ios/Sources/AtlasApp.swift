@@ -30,7 +30,7 @@ struct AtlasApp: App {
                     }
                 }
                 Section("Workspace") {
-                    ForEach(AtlasCore.sections()) { section in
+                    ForEach(AtlasCore.sections().filter { !$0.url.path.hasPrefix("/settings/") }) { section in
                         Link(destination: authentication.destination(section.url)) {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(section.title)
@@ -47,13 +47,27 @@ struct AtlasApp: App {
                     Text("Sections currently open in your browser, which may ask you to sign in separately.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    Button("Sign out", role: .destructive) { authentication.signOut() }
                 }
                 if let message = authentication.errorMessage {
                     Text(message).foregroundStyle(.red)
                 }
             }
             .navigationTitle("Atlas")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        if let server = authentication.server {
+                            AtlasSettingsView(
+                                server: server,
+                                accounts: AtlasAIAccounts(request: authentication.aiAccounts),
+                                signOut: authentication.signOut
+                            )
+                        }
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
+                    }
+                }
+            }
         }
     }
 }

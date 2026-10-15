@@ -77,7 +77,7 @@ class AtlasSecureStorage(
     }
 }
 
-private class AuthFailure(
+class AuthFailure(
     val kind: String,
     message: String,
 ) : Exception(message)
@@ -94,9 +94,12 @@ class AtlasAuthentication(
     var listener: (() -> Unit)? = null
     var authorizationURL: String? = null
     private var deferredCallback: String? = null
+    private var apiRequests = 0
+    private var closing = false
 
     fun close() {
-        worker.shutdown()
+        closing = true
+        if (apiRequests == 0) worker.shutdown()
         listener = null
     }
 
@@ -162,6 +165,37 @@ class AtlasAuthentication(
         }
     }
 
+    fun aiAccounts(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) {
+        apiRequests += 1
+        busy = true
+        listener?.invoke()
+        worker.execute {
+            val result =
+                try {
+                    val saved = storage.load("session") ?: throw AuthFailure("sign_in_required", "Sign in to Atlas again.")
+                    val restored = command(JSONObject().put("operation", "restore").put("session", saved))
+                    // Commit rotated credentials even when the following API request fails.
+                    storage.save("session", restored)
+                    val request = JSONObject(action.toString()).put("operation", "ai_accounts").put("session", restored)
+                    Result.success(command(request))
+                } catch (error: AuthFailure) {
+                    Result.failure(error)
+                } catch (_: Exception) {
+                    Result.failure(IllegalStateException("Could not access secure Atlas credentials. Try again."))
+                }
+            main.post {
+                apiRequests -= 1
+                busy = apiRequests > 0
+                completion(result)
+                listener?.invoke()
+                if (closing && apiRequests == 0) worker.shutdown()
+            }
+        }
+    }
+
     private fun accept(session: JSONObject) {
         storage.save("session", session)
         val address = session.getJSONObject("registration").getString("server")
@@ -198,7 +232,7 @@ class AtlasAuthentication(
                 failure = "Could not access secure Atlas credentials. Try again."
             }
             main.post {
-                busy = false
+                busy = apiRequests > 0
                 errorMessage = failure
                 listener?.invoke()
                 deferredCallback?.let { url ->

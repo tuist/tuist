@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="dev.tuist.atlas.preview">
+    <application android:label="Atlas Settings Preview" android:theme="@style/AtlasTheme" android:allowBackup="false">
+        <activity android:name="dev.tuist.atlas.preview.SettingsPreviewActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

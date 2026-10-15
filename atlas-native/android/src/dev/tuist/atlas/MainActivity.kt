@@ -7,6 +7,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
+import android.view.Menu
+import android.view.MenuItem
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
@@ -17,12 +19,15 @@ import android.widget.Toast
 
 class MainActivity : Activity() {
     private lateinit var authentication: AtlasAuthentication
+    private var settings: AtlasAIAccountsScreen? = null
+    private var restoreSettings = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         title = getString(R.string.app_name)
         authentication = (lastNonConfigurationInstance as? AtlasAuthentication) ?: AtlasAuthentication(this)
-        if (savedInstanceState == null && intent.data == null) authentication.restore()
+        restoreSettings = savedInstanceState?.getBoolean("settings") == true
+        if (lastNonConfigurationInstance == null && intent.data == null) authentication.restore()
         if (savedInstanceState == null) handleCallback(intent)
     }
 
@@ -39,7 +44,13 @@ class MainActivity : Activity() {
         super.onStop()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("settings", settings != null)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onDestroy() {
+        settings?.close()
         if (!isChangingConfigurations) authentication.close()
         super.onDestroy()
     }
@@ -61,7 +72,11 @@ class MainActivity : Activity() {
             authentication.authorizationURL = null
             openBrowser(Uri.parse(url))
         }
+        invalidateOptionsMenu()
         if (authentication.server == null) {
+            settings?.close()
+            settings = null
+            actionBar?.setDisplayHomeAsUpEnabled(false)
             setContentView(
                 AtlasLoginView(
                     this,
@@ -73,6 +88,13 @@ class MainActivity : Activity() {
             )
             return
         }
+        if (settings != null) return
+        if (restoreSettings) {
+            restoreSettings = false
+            showSettings()
+            return
+        }
+        title = getString(R.string.app_name)
         val content =
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -102,33 +124,41 @@ class MainActivity : Activity() {
         val server = authentication.server
         if (server != null) {
             content.addView(TextView(this).apply { text = Uri.parse(server).host })
-            AtlasCore().sections().forEach { section ->
-                button(section.title) {
-                    val origin = Uri.parse(server)
-                    val destination =
-                        Uri
-                            .parse(
-                                section.url,
-                            ).buildUpon()
-                            .scheme(origin.scheme)
-                            .encodedAuthority(origin.encodedAuthority)
-                            .build()
-                    openBrowser(destination)
+            AtlasCore()
+                .sections()
+                .filter {
+                    !Uri
+                        .parse(it.url)
+                        .path
+                        .orEmpty()
+                        .startsWith("/settings/")
+                }.forEach { section ->
+                    button(section.title) {
+                        val origin = Uri.parse(server)
+                        val destination =
+                            Uri
+                                .parse(
+                                    section.url,
+                                ).buildUpon()
+                                .scheme(origin.scheme)
+                                .encodedAuthority(origin.encodedAuthority)
+                                .build()
+                        openBrowser(destination)
+                    }
+                    content.addView(
+                        TextView(this).apply {
+                            text = section.description
+                            textSize = 16f
+                            setPadding(0, 0, 0, 32)
+                        },
+                    )
                 }
-                content.addView(
-                    TextView(this).apply {
-                        text = section.description
-                        textSize = 16f
-                        setPadding(0, 0, 0, 32)
-                    },
-                )
-            }
             content.addView(
                 TextView(this).apply {
                     text = "Sections currently open in your browser, which may ask you to sign in separately."
                 },
             )
-            button("Sign out") { authentication.signOut() }
+            button("Settings") { showSettings() }
         }
         if (authentication.busy) content.addView(TextView(this).apply { text = "Signing in…" })
         authentication.errorMessage?.let { message -> content.addView(TextView(this).apply { text = message }) }
@@ -146,6 +176,61 @@ class MainActivity : Activity() {
                 addView(content, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             },
         )
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menu.add(0, 1, 0, "Settings").apply {
+            setIcon(android.R.drawable.ic_menu_preferences)
+            setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+        }
+        return true
+    }
+
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        menu.findItem(1)?.isVisible = authentication.server != null && settings == null
+        return super.onPrepareOptionsMenu(menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean =
+        when (item.itemId) {
+            1 -> {
+                showSettings()
+                true
+            }
+            android.R.id.home -> {
+                leaveSettings()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    override fun onBackPressed() {
+        if (settings != null) leaveSettings() else super.onBackPressed()
+    }
+
+    private fun showSettings() {
+        val server = authentication.server ?: return
+        val screen =
+            AtlasAIAccountsScreen(this, server, authentication::aiAccounts, ::openBrowser) {
+                settings?.close()
+                settings = null
+                actionBar?.setDisplayHomeAsUpEnabled(false)
+                authentication.signOut()
+            }
+        settings = screen
+        actionBar?.setDisplayHomeAsUpEnabled(true)
+        invalidateOptionsMenu()
+        setContentView(screen.view)
+        screen.load()
+    }
+
+    private fun leaveSettings() {
+        if (settings?.back() == true) return
+        settings?.close()
+        settings = null
+        actionBar?.setDisplayHomeAsUpEnabled(false)
+        render()
     }
 
     private fun selfHostedPrompt() {

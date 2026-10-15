@@ -28,7 +28,7 @@ pub static SECTIONS: &[Section] = &[
     },
     Section {
         id: "ai-providers",
-        title: c"AI providers",
+        title: c"AI accounts",
         description: c"Connect your personal Claude and ChatGPT accounts",
         url: c"https://atlas.tuist.dev/settings/llm-providers",
     },
@@ -80,6 +80,15 @@ mod tests {
             );
             assert!(SECTIONS[..index].iter().all(|other| other.id != section.id));
         }
+    }
+
+    #[test]
+    fn section_titles_match_the_dashboard() {
+        let titles: Vec<_> = SECTIONS
+            .iter()
+            .map(|section| section.title.to_str().unwrap())
+            .collect();
+        assert_eq!(titles, ["Accounts", "Tasks", "Notes", "AI accounts"]);
     }
 
     #[test]

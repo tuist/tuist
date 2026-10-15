@@ -6,7 +6,7 @@ uses Kotlin with platform widgets, and iOS uses SwiftUI. Native views must not d
 strings or routes. Authentication networking and OAuth state live in the independent
 Rust `auth/` crate (see `auth/AGENTS.md`); native adapters own browser presentation
 and secure persistence. Workspace sections still open in the system browser and
-may require a separate browser sign-in. OAuth tokens are not browser cookies.
+may require a separate browser sign-in. Personal settings are native and use the authenticated API on the selected server. OAuth tokens are not browser cookies.
 
 ## Layout
 
@@ -26,6 +26,7 @@ may require a separate browser sign-in. OAuth tokens are not browser cookies.
   the shared Tuist mark used by Atlas's web login, and supported hosted/self-hosted actions. Keep native browser auth separate
   from presentation; restore sessions automatically rather than exposing a debug
   restore button.
+- `previews/`: isolated native Settings screenshot harnesses and UI tests; see `previews/AGENTS.md`.
 - `resources/`: shared login-asset generation; see `resources/AGENTS.md`. Checked-in
   light/dark backgrounds and marks feed the iOS asset catalog and Android resources.
 - `mise.toml` / `mise.lock`: pinned Once, Rust, Kotlin and ktlint toolchains.
@@ -62,9 +63,12 @@ Once's required APK signing. Local setups need `ANDROID_DEBUG_KEYSTORE` or
 Silicon macOS, Xcode, and an installed iOS simulator runtime. Do not switch this workspace to Gradle,
 SwiftPM, or generated Xcode projects to work around Once build failures.
 
-## Personal AI provider settings
+## AI account settings
 
-- The shared catalog exposes `AI providers` at `/settings/llm-providers` on the selected Atlas server. iOS, Android, and CLI share this destination; configuration currently opens in the system browser like the other workspace sections and may require a separate sign-in. Provider credentials stay encrypted on Atlas, not in native preferences or model tool arguments. A native API-backed settings screen and user-triggered agent execution are separate follow-up features.
+- iOS opens native Settings from the workspace toolbar, using SwiftUI Form, NavigationLink, SecureField, and confirmation dialogs. Android opens native Settings from the workspace button, using the platform Toolbar, two-line list rows, password EditText, and AlertDialog. Settings includes the selected server, an AI accounts section for Claude and ChatGPT, and sign-out. Mobile apps exclude settings destinations from the browser-only workspace list; the shared catalog/CLI keep the existing `/settings/llm-providers` web destination.
+- `ios/Sources/AtlasAIAccounts.swift` and `android/src/dev/tuist/atlas/AtlasAIAccounts.kt` own metadata/form/device-login presentation. All authenticated requests go through the existing auth coordinator and the fixed-route Rust `auth/src/accounts.rs` bridge, never directly from views or via browser cookies. Persist rotated Atlas OAuth credentials before API calls; serialize refresh and sign-out. Provider credentials stay encrypted on Atlas, not in native preferences or model tool arguments. Clear Claude input on submit/dismiss and disable Android form-state saving/autofill.
+- Native setup supports Claude create/update, ChatGPT start/poll/cancel, and confirmed disconnect. Poll no faster than the returned interval, stop on completion/expiry, ignore stale results, and cancel on leaving the ChatGPT page, including an in-flight start. Cancellation preserves existing credentials. Real-account ChatGPT sign-in still needs an authorized Atlas client. User-triggered agent execution remains separate follow-up work.
+- Reproducible fixture-backed screenshots and the iOS UI test use separate [preview targets](previews/AGENTS.md). These render production views without authenticating or making account-management requests. Never ship preview fixture sources or authentication bypasses in production apps. Clearly label screenshot evidence as preview-backed.
 
 ## Boundaries
 
@@ -76,10 +80,12 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
   Keep UTF-8 decoding and boundary checks covered by tests.
 - Rust auth calls are synchronous and bounded; invoke them from a background executor,
   never the UI thread. Serialize session changes/refresh rotation in native coordinators,
-  not through an app-wide lock that would block unrelated future API requests.
+  and persist rotations before requests. Account-management calls currently share
+  that coordinator's serial queue with sign-out; do not extend it into a global
+  lock for unrelated future networking.
 - iOS uses ThisDeviceOnly Keychain entries and a simulator-specific Keychain entitlement;
   device builds must derive their entitlement from the actual signing team/profile.
-  Once's iOS XCTest agent is unhosted and cannot access app Keychain; test
+  The Swift Testing XCTest agent is unhosted and cannot access app Keychain; test
   storage request/failure semantics with a per-test adapter, not mutable global stubs.
   Android uses AES-GCM with Android Keystore
   keys and backup-disabled encrypted preferences. Native code must successfully persist
@@ -87,6 +93,7 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
   failures, and discard rejected registrations so the next login can register again.
 - `mise run prepare:rust` materializes locked third-party sources in ignored `.once/vendor`.
   Build/test tasks depend on it; run it before invoking Once directly on a clean checkout.
+  Run vendor preparation serially, not concurrently with builds that read that directory.
   Once 0.68.2 does not yet include the source-materialization fix in tuist/once#390;
   keep this required workaround until a published Once version includes that fix.
   The Android task exposes API-26 NDK clang and LLVM tools to Cargo build scripts through
