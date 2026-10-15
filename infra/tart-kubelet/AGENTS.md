@@ -16,6 +16,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   Enable through `runnersFleet.customCacheVolumes.enabled` after validation.
 - Requests travel through a per-Pod UID virtio-fs mailbox. Read bounded regular
   files through os.Root; derive node, pod and platform from trusted host state.
+  Publish responses by writing `<request>.response.tmp` and hard-linking it to
+  `<request>.response`: guests never read a partial response, and an existing
+  path (including a guest symlink) is never followed or replaced.
 - Publication requires API pod absence, stopped Tart VM, guest clean-detach
   proof, userspace APFS verification on an unmounted device and server publication eligibility. A webhook
   or terminal pod phase alone never fences writers.
