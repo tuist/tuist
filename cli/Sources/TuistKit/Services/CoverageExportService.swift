@@ -186,10 +186,12 @@ public struct CoverageExportService: CoverageExportServicing {
             return modificationDate(lhs.directory) < modificationDate(rhs.directory)
         }?.directory
         let platform: (name: String, simulator: Bool)? = productsDirectory.map { Self.platform(ofProductsDirectory: $0.basename) }
+        let apps = productsDirectory.flatMap { try? FileManager.default.contentsOfDirectory(atPath: $0.pathString) }?
+            .filter { $0.hasSuffix(".app") }.sorted() ?? []
 
         return sources.targets.map { target in
             var product: String?
-            if let productsDirectory, let path = Self.product(named: target.name, in: productsDirectory) {
+            if let productsDirectory, let path = Self.product(named: target.name, in: productsDirectory, apps: apps) {
                 product = executable(inProduct: path)
             }
             if product == nil, let platform {
@@ -225,12 +227,10 @@ public struct CoverageExportService: CoverageExportServicing {
         }
     }
 
-    /// A product by name in the products directory, or hosted in one of its apps: Xcode builds a
-    /// test bundle that runs inside an app into the app's `PlugIns` (`Contents/PlugIns` on macOS),
-    /// not next to it.
-    static func product(named name: String, in directory: AbsolutePath) -> AbsolutePath? {
-        let apps = ((try? FileManager.default.contentsOfDirectory(atPath: directory.pathString)) ?? [])
-            .filter { $0.hasSuffix(".app") }.sorted()
+    /// A product by name in the products directory, or hosted in one of its apps (`apps`, by
+    /// bundle name): Xcode builds a test bundle that runs inside an app into the app's `PlugIns`
+    /// (`Contents/PlugIns` on macOS), not next to it.
+    static func product(named name: String, in directory: AbsolutePath, apps: [String]) -> AbsolutePath? {
         let candidates = [[name]] + apps.flatMap { [[$0, "Contents", "PlugIns", name], [$0, "PlugIns", name]] }
         return candidates.map { directory.appending(components: $0) }
             .first { FileManager.default.fileExists(atPath: $0.pathString) }
