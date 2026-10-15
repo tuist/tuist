@@ -55,6 +55,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :run)
   plug :bad_request_when_project_authenticated_from_non_ci_environment when action in [:create]
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
 
   tags ["Analytics"]
 
@@ -62,6 +63,7 @@ defmodule TuistWeb.API.AnalyticsController do
     summary: "Create a a new command analytics event",
     operation_id: "createCommandEvent",
     parameters: [
+      "x-tuist-actor-id": TuistWeb.API.Schemas.ReportActor.header(),
       project_id: [
         in: :query,
         type: :string,
@@ -542,7 +544,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
     test_run_id =
       if body_params.name == "test" and is_nil(test_run_id) and should_create_test_run do
-        case create_test_run_from_command_event(body_params, selected_project) do
+        case create_test_run_from_command_event(body_params, selected_project, Tuist.ReportActor.attributes(conn)) do
           {:ok, test_run} -> test_run.id
           {:error, _} -> nil
         end
@@ -585,6 +587,7 @@ defmodule TuistWeb.API.AnalyticsController do
         build_run_id: build_run_id,
         test_run_id: test_run_id
       }
+      |> Map.merge(Tuist.ReportActor.attributes(conn))
       |> CommandEvents.create_command_event()
       |> case do
         {:ok, command_event} ->
@@ -647,6 +650,7 @@ defmodule TuistWeb.API.AnalyticsController do
     |> put_status(:ok)
     |> json(%{
       id: command_event.id,
+      actor: command_event |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
       project_id: command_event.project_id,
       name: command_event.name,
       url: url,
@@ -723,10 +727,10 @@ defmodule TuistWeb.API.AnalyticsController do
     end
   end
 
-  defp create_test_run_from_command_event(body_params, project) do
+  defp create_test_run_from_command_event(body_params, project, actor) do
     scheme = extract_scheme_from_command_arguments(Map.get(body_params, :command_arguments, []))
 
-    Tests.create_test(%{
+    attrs = %{
       id: UUIDv7.generate(),
       duration: body_params.duration,
       macos_version: body_params.macos_version,
@@ -743,7 +747,9 @@ defmodule TuistWeb.API.AnalyticsController do
       ran_at: date(body_params),
       test_modules: [],
       test_cases: []
-    })
+    }
+
+    Tests.create_test(Map.merge(attrs, actor))
   end
 
   defp extract_scheme_from_command_arguments([_test_command, scheme_or_flag | _rest]) when is_binary(scheme_or_flag) do

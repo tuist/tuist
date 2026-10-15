@@ -14,6 +14,7 @@ defmodule TuistWeb.API.TestsController do
   alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
+  alias TuistWeb.API.Schemas.ReportActor
   alias TuistWeb.API.Schemas.Tests.Coverage, as: CoverageSchema
   alias TuistWeb.API.Schemas.Tests.StressNewTestsResult
   alias TuistWeb.API.Schemas.Tests.Test
@@ -29,6 +30,7 @@ defmodule TuistWeb.API.TestsController do
 
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :test)
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
 
   tags ["Tests"]
 
@@ -107,6 +109,7 @@ defmodule TuistWeb.API.TestsController do
                  type: :object,
                  properties: %{
                    id: %Schema{type: :string, format: :uuid, description: "The test run ID."},
+                   actor: ReportActor,
                    duration: %Schema{type: :integer, description: "Duration in milliseconds."},
                    status: %Schema{type: :string, enum: ["success", "failure", "skipped"], description: "Run status."},
                    is_ci: %Schema{type: :boolean, description: "Whether the run was on CI."},
@@ -164,11 +167,12 @@ defmodule TuistWeb.API.TestsController do
 
         json(conn, %{
           test_runs:
-            Enum.map(test_runs, fn run ->
+            Enum.map(Tuist.ReportActor.preload(test_runs), fn run ->
               run_metrics = Map.get(metrics_map, run.id, %{})
 
               %{
                 id: run.id,
+                actor: Tuist.ReportActor.actor(run),
                 duration: run.duration,
                 status: to_string(run.status),
                 is_ci: run.is_ci,
@@ -206,6 +210,7 @@ defmodule TuistWeb.API.TestsController do
   operation(:create,
     summary: "Create a new test run.",
     parameters: [
+      "x-tuist-actor-id": ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -694,6 +699,7 @@ defmodule TuistWeb.API.TestsController do
       body_params
       |> Map.put(:project, selected_project)
       |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
+      |> Map.merge(Tuist.ReportActor.attributes(conn))
 
     case get_or_create_test(run_params) do
       {:ok, test_run} ->
@@ -760,6 +766,9 @@ defmodule TuistWeb.API.TestsController do
               execution_mode: test_run.execution_mode,
               coverage_enabled: test_run.coverage_enabled,
               account_id: test_run.account_id,
+              actor_account_id: test_run.actor_account_id,
+              claimed_actor_id: test_run.claimed_actor_id,
+              submission_auth: test_run.submission_auth,
               project_id: selected_project.id,
               account_handle: selected_project.account.name,
               project_handle: selected_project.name,
@@ -799,11 +808,14 @@ defmodule TuistWeb.API.TestsController do
   end
 
   defp respond_to_test_creation(conn, test_run, selected_project, :ok) do
+    actor = test_run |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor()
+
     conn
     |> put_status(:ok)
     |> json(%{
       type: "test",
       id: test_run.id,
+      actor: actor,
       duration: test_run.duration,
       project_id: test_run.project_id,
       url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}"),
@@ -811,6 +823,7 @@ defmodule TuistWeb.API.TestsController do
         Enum.map(test_run.test_case_runs, fn run ->
           result = %{
             id: run.id,
+            actor: actor,
             name: run.name,
             module_name: run.module_name,
             suite_name: run.suite_name
@@ -883,6 +896,7 @@ defmodule TuistWeb.API.TestsController do
            type: :object,
            properties: %{
              id: %Schema{type: :string, format: :uuid, description: "The test run ID."},
+             actor: ReportActor,
              status: %Schema{type: :string, enum: ["success", "failure", "skipped"], description: "Run status."},
              duration: %Schema{type: :integer, description: "Duration in milliseconds."},
              is_ci: %Schema{type: :boolean, description: "Whether the run was on CI."},
@@ -930,6 +944,7 @@ defmodule TuistWeb.API.TestsController do
 
         json(conn, %{
           id: run.id,
+          actor: run |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
           status: to_string(run.status),
           duration: run.duration,
           is_ci: run.is_ci,
@@ -1001,6 +1016,9 @@ defmodule TuistWeb.API.TestsController do
           scheme: Map.get(params, :scheme),
           project_id: params.project.id,
           account_id: params.ran_by_account.id,
+          actor_account_id: params.actor_account_id,
+          claimed_actor_id: params.claimed_actor_id,
+          submission_auth: params.submission_auth,
           status: Map.get(params, :status),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),

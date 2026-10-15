@@ -29,7 +29,7 @@ defmodule TuistWeb.API.TestsControllerTest do
 
       stub(Tests, :list_test_runs, fn _attrs ->
         {[
-           %{
+           %Test{
              id: test_run_id,
              duration: 5000,
              status: :success,
@@ -226,7 +226,7 @@ defmodule TuistWeb.API.TestsControllerTest do
 
       stub(Tests, :list_test_runs, fn _attrs ->
         {[
-           %{
+           %Test{
              id: test_run_id,
              duration: 1000,
              status: :success,

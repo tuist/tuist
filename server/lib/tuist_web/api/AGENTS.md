@@ -5,6 +5,7 @@ This area owns the OpenAPI spec and schema definitions for the server API.
 ## Responsibilities
 - Define the OpenAPI spec (`TuistWeb.API.Spec`) and security schemes.
 - Provide schema modules used by the API controllers and docs.
+- `Schemas.ReportActor` is additive response metadata. Keep provenance/source strings open for older generated clients, claims visibly unverified, and `actor` optional. Regenerate Swift contracts through `mise run generate-api-cli-code`; actor fields are server-derived, not request-body inputs.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.

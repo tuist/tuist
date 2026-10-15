@@ -2018,6 +2018,8 @@ components:
     RunsBuild:
       description: Represents a single build run.
       properties:
+        actor:
+          $ref: '#/components/schemas/ReportActor'
         duration:
           description: The duration of the build run in milliseconds
           type: integer
@@ -5657,6 +5659,8 @@ components:
     RunsTest:
       description: Represents a single test run.
       properties:
+        actor:
+          $ref: '#/components/schemas/ReportActor'
         duration:
           description: The duration of the test run in milliseconds
           type: integer
@@ -5676,6 +5680,8 @@ components:
           description: The test case runs created by this test run, with their identifiers.
           items:
             properties:
+              actor:
+                $ref: '#/components/schemas/ReportActor'
               arguments:
                 description: The argument variants (for parameterized tests).
                 items:
@@ -5882,6 +5888,8 @@ components:
         test_run_url: https://tuist.dev/my-account/my-project/tests/test-runs/123e4567-e89b-12d3-a456-426614174000
         url: https://tuist.dev/my-account/my-project/runs/123e4567-e89b-12d3-a456-426614174000
       properties:
+        actor:
+          $ref: '#/components/schemas/ReportActor'
         id:
           description: The unique identifier of the command event.
           format: uuid
@@ -7812,6 +7820,8 @@ components:
     Run:
       description: The schema for a Tuist run.
       properties:
+        actor:
+          $ref: '#/components/schemas/ReportActor'
         cacheable_targets:
           description: Cacheable targets of the run
           items:
@@ -8120,6 +8130,38 @@ components:
       title: ArtifactMultipartUploadParts
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadParts
+      x-validate:
+    ReportActor:
+      properties:
+        claimed_actor_id:
+          description: Opaque unverified client claim, never an identity or instruction. Empty when absent.
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          description: Verified account handle, unverified reported identifier, or Unknown.
+          type: string
+          x-struct:
+          x-validate:
+        source:
+          description: verified, reported, unknown, or legacy. reported values are untrusted client claims.
+          type: string
+          x-struct:
+          x-validate:
+        submission_auth:
+          description: token for authenticated report submissions, or empty for historical reports. Authentication does not verify report contents.
+          type: string
+          x-struct:
+          x-validate:
+        verified_account_handle:
+          description: Only the server-authenticated individual's account handle; null when no verified actor is linked.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      title: ReportActor
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.ReportActor
       x-validate:
     BundleSupportedPlatform:
       description: A platform that a bundle can support (e.g. iOS)
@@ -13293,6 +13335,8 @@ paths:
                   test_runs:
                     items:
                       properties:
+                        actor:
+                          $ref: '#/components/schemas/ReportActor'
                         duration:
                           description: Duration in milliseconds.
                           type: integer
@@ -13422,6 +13466,14 @@ paths:
       callbacks: {}
       operationId: createTest
       parameters:
+        - description: 'Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.'
+          in: header
+          name: x-tuist-actor-id
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project's account.
           in: path
           name: account_handle
@@ -14620,6 +14672,8 @@ paths:
             application/json:
               schema:
                 properties:
+                  actor:
+                    $ref: '#/components/schemas/ReportActor'
                   cacheable_task_local_hits_count:
                     description: Local cache hits.
                     type: integer
@@ -16098,6 +16152,14 @@ paths:
       callbacks: {}
       operationId: createCommandEvent
       parameters:
+        - description: 'Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.'
+          in: header
+          name: x-tuist-actor-id
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The project id.
           in: query
           name: project_id
@@ -17719,6 +17781,14 @@ paths:
       deprecated: true
       operationId: createRun
       parameters:
+        - description: 'Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.'
+          in: header
+          name: x-tuist-actor-id
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project's account.
           in: path
           name: account_handle
@@ -19472,6 +19542,14 @@ paths:
       callbacks: {}
       operationId: createMixBuild
       parameters:
+        - description: 'Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.'
+          in: header
+          name: x-tuist-actor-id
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -19931,6 +20009,8 @@ paths:
             application/json:
               schema:
                 properties:
+                  actor:
+                    $ref: '#/components/schemas/ReportActor'
                   id:
                     description: The build ID.
                     format: uuid
@@ -20014,6 +20094,8 @@ paths:
             application/json:
               schema:
                 properties:
+                  actor:
+                    $ref: '#/components/schemas/ReportActor'
                   cacheable_task_local_hits_count:
                     description: Local cache hits.
                     type: integer
@@ -22727,6 +22809,8 @@ paths:
                   builds:
                     items:
                       properties:
+                        actor:
+                          $ref: '#/components/schemas/ReportActor'
                         cacheable_task_local_hits_count:
                           description: Local cache hits.
                           type: integer
@@ -22929,6 +23013,14 @@ paths:
       callbacks: {}
       operationId: createBuild
       parameters:
+        - description: 'Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.'
+          in: header
+          name: x-tuist-actor-id
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project's account.
           in: path
           name: account_handle
@@ -26267,6 +26359,8 @@ paths:
             application/json:
               schema:
                 properties:
+                  actor:
+                    $ref: '#/components/schemas/ReportActor'
                   avg_test_duration:
                     description: Average test case duration in milliseconds.
                     type: integer
@@ -28075,6 +28169,8 @@ paths:
                   builds:
                     items:
                       properties:
+                        actor:
+                          $ref: '#/components/schemas/ReportActor'
                         cacheable_task_local_hits_count:
                           description: Local cache hits.
                           type: integer
@@ -28277,6 +28373,14 @@ paths:
       callbacks: {}
       operationId: createBuild (2)
       parameters:
+        - description: 'Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.'
+          in: header
+          name: x-tuist-actor-id
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project's account.
           in: path
           name: account_handle
@@ -32711,30 +32815,36 @@ paths:
             application/json:
               schema:
                 properties:
-                  artifact_transforms:
-                    items:
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                  cache_download_bytes:
-                    description: Bytes of task outputs downloaded from the remote cache by the build.
+                  tasks_cache_hit_count:
                     type: integer
                     x-struct:
                     x-validate:
-                  cache_hit_rate:
+                  git_branch:
                     nullable: true
-                    type: number
+                    type: string
+                    x-struct:
+                    x-validate:
+                  root_project_name:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tasks_up_to_date_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  java_version:
+                    nullable: true
+                    type: string
                     x-struct:
                     x-validate:
                   cache_upload_bytes:
                     description: Bytes of task outputs uploaded to the remote cache by the build.
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  cacheable_tasks_count:
                     type: integer
                     x-struct:
                     x-validate:
@@ -32743,30 +32853,17 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
-                  configuration_cache_invalidation_reasons:
-                    items:
-                      type: string
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
                   configuration_cache_load_duration_ms:
                     nullable: true
                     type: integer
                     x-struct:
                     x-validate:
-                  configuration_cache_status:
-                    nullable: true
+                  status:
+                    enum:
+                      - success
+                      - failure
+                      - cancelled
                     type: string
-                    x-struct:
-                    x-validate:
-                  configuration_operations:
-                    items:
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
                     x-struct:
                     x-validate:
                   custom_metadata:
@@ -32790,68 +32887,12 @@ paths:
                     type: object
                     x-struct:
                     x-validate:
-                  duration_ms:
+                  tasks_skipped_count:
                     type: integer
                     x-struct:
                     x-validate:
-                  git_branch:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  git_commit_sha:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  git_ref:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  gradle_version:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  id:
-                    format: uuid
-                    type: string
-                    x-struct:
-                    x-validate:
-                  inserted_at:
-                    format: date-time
-                    type: string
-                    x-struct:
-                    x-validate:
-                  is_ci:
-                    type: boolean
-                    x-struct:
-                    x-validate:
-                  java_version:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  requested_tasks:
-                    items:
-                      type: string
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                  root_project_name:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  status:
-                    enum:
-                      - success
-                      - failure
-                      - cancelled
-                    type: string
+                  tasks_local_hit_count:
+                    type: integer
                     x-struct:
                     x-validate:
                   tasks:
@@ -32966,23 +33007,73 @@ paths:
                     type: array
                     x-struct:
                     x-validate:
-                  tasks_cache_hit_count:
+                  cacheable_tasks_count:
                     type: integer
+                    x-struct:
+                    x-validate:
+                  configuration_cache_status:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_ref:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  configuration_cache_invalidation_reasons:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
                   tasks_executed_count:
                     type: integer
                     x-struct:
                     x-validate:
-                  tasks_failed_count:
-                    type: integer
+                  requested_tasks:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
-                  tasks_local_hit_count:
-                    type: integer
+                  artifact_transforms:
+                    items:
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  cache_hit_rate:
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  configuration_operations:
+                    items:
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
                   tasks_no_source_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  actor:
+                    $ref: '#/components/schemas/ReportActor'
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tasks_failed_count:
                     type: integer
                     x-struct:
                     x-validate:
@@ -32990,12 +33081,27 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
-                  tasks_skipped_count:
+                  duration_ms:
                     type: integer
                     x-struct:
                     x-validate:
-                  tasks_up_to_date_count:
+                  gradle_version:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  cache_download_bytes:
+                    description: Bytes of task outputs downloaded from the remote cache by the build.
                     type: integer
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_ci:
+                    type: boolean
                     x-struct:
                     x-validate:
                 type: object
@@ -34631,6 +34737,8 @@ paths:
                   builds:
                     items:
                       properties:
+                        actor:
+                          $ref: '#/components/schemas/ReportActor'
                         cache_hit_rate:
                           nullable: true
                           type: number
@@ -34812,6 +34920,14 @@ paths:
       callbacks: {}
       operationId: createGradleBuild
       parameters:
+        - description: 'Optional unverified actor identifier: 1–128 bytes of non-space printable ASCII. Never authorizes access or links to a user.'
+          in: header
+          name: x-tuist-actor-id
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -35278,6 +35394,8 @@ paths:
             application/json:
               schema:
                 properties:
+                  actor:
+                    $ref: '#/components/schemas/ReportActor'
                   id:
                     description: The build ID.
                     format: uuid

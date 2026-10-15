@@ -9,6 +9,8 @@ defmodule TuistWeb.API.GradleController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.GradleExecution
   alias TuistWeb.API.Schemas.PaginationMetadata
+  alias TuistWeb.API.Schemas.ReportActor
+  alias TuistWeb.Plugs.ReportActorPlug
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -17,6 +19,7 @@ defmodule TuistWeb.API.GradleController do
 
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :build)
+  plug(ReportActorPlug when action == :create_build)
 
   tags ["Gradle"]
 
@@ -24,6 +27,7 @@ defmodule TuistWeb.API.GradleController do
     summary: "Create a Gradle build with task data.",
     operation_id: "createGradleBuild",
     parameters: [
+      "x-tuist-actor-id": ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -231,7 +235,8 @@ defmodule TuistWeb.API.GradleController do
          %Schema{
            type: :object,
            properties: %{
-             id: %Schema{type: :string, format: :uuid, description: "The build ID."}
+             id: %Schema{type: :string, format: :uuid, description: "The build ID."},
+             actor: ReportActor
            },
            required: [:id]
          }},
@@ -248,7 +253,7 @@ defmodule TuistWeb.API.GradleController do
 
         conn
         |> put_status(:created)
-        |> json(%{id: build_id})
+        |> json(%{id: build_id, actor: ReportActorPlug.actor(conn)})
 
       {:error, _reason} ->
         conn
@@ -264,6 +269,9 @@ defmodule TuistWeb.API.GradleController do
       id: body[:id] || UUIDv7.generate(),
       project_id: project.id,
       account_id: TuistWeb.Authentication.authenticated_subject_account(conn).id,
+      actor_account_id: conn.assigns.report_actor.actor_account_id,
+      claimed_actor_id: conn.assigns.report_actor.claimed_actor_id,
+      submission_auth: conn.assigns.report_actor.submission_auth,
       duration_ms: body.duration_ms,
       started_at: body[:started_at],
       status: body.status,
@@ -381,6 +389,7 @@ defmodule TuistWeb.API.GradleController do
                  type: :object,
                  properties: %{
                    id: %Schema{type: :string, format: :uuid},
+                   actor: ReportActor,
                    duration_ms: %Schema{type: :integer},
                    status: %Schema{type: :string, enum: ["success", "failure", "cancelled"]},
                    gradle_version: %Schema{type: :string, nullable: true},
@@ -459,9 +468,10 @@ defmodule TuistWeb.API.GradleController do
 
     json(conn, %{
       builds:
-        Enum.map(builds, fn build ->
+        Enum.map(Tuist.ReportActor.preload(builds), fn build ->
           %{
             id: build.id,
+            actor: Tuist.ReportActor.actor(build),
             duration_ms: build.duration_ms,
             status: build.status,
             gradle_version: build.gradle_version,
@@ -527,6 +537,7 @@ defmodule TuistWeb.API.GradleController do
            type: :object,
            properties: %{
              id: %Schema{type: :string, format: :uuid},
+             actor: ReportActor,
              duration_ms: %Schema{type: :integer},
              status: %Schema{type: :string, enum: ["success", "failure", "cancelled"]},
              gradle_version: %Schema{type: :string, nullable: true},
@@ -612,6 +623,7 @@ defmodule TuistWeb.API.GradleController do
 
           json(conn, %{
             id: build.id,
+            actor: build |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
             duration_ms: build.duration_ms,
             status: build.status,
             gradle_version: build.gradle_version,
