@@ -1270,6 +1270,48 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert main.can_publish
     end
 
+    test "custom lists revoke pending saves allocated before uses recorded their profile", %{
+      job: job,
+      account: account,
+      profile: profile
+    } do
+      {:ok, legacy} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("legacy"))
+
+      Repo.update!(
+        Ecto.Changeset.change(Repo.get!(Usage, legacy.id),
+          writer_profile_id: nil,
+          writer_branch: nil,
+          writer_default_branch: false
+        )
+      )
+
+      pool_job = %{
+        job
+        | workflow_job_id: System.unique_integer([:positive]),
+          requested_dispatch_label: "shape-linux-4vcpu-16gb"
+      }
+
+      {:ok, unrelated} = CacheVolumes.allocate_for_job(pool_job, main_identity(), attrs("pool"))
+
+      for executed <- [job, pool_job] do
+        Repo.insert!(%WorkflowJob{
+          workflow_job_id: executed.workflow_job_id,
+          workflow_run_id: executed.workflow_run_id,
+          account_id: account.id,
+          fleet_name: "test",
+          status: "running",
+          requested_dispatch_label: executed.requested_dispatch_label,
+          enqueued_at: DateTime.utc_now()
+        })
+      end
+
+      set_policy(profile, %{cache_writer_branches: ["release/*"]})
+      refute Repo.get!(Usage, legacy.id).can_publish
+      assert Repo.get!(Usage, unrelated.id).can_publish
+      complete(job)
+      assert {:ok, %{action: "delete"}} = publish_report("node", legacy.id)
+    end
+
     test "additions and reordering keep pending saves; deleting the profile falls back to the default branch",
          %{job: job, account: account, profile: profile} do
       legacy = %{job | requested_dispatch_label: ""}

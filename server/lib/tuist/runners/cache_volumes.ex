@@ -256,7 +256,7 @@ defmodule Tuist.Runners.CacheVolumes do
   def revoke_profile_writers({:deleted, %Profile{} = profile}),
     do: revoke_profile_writers(%{profile | cache_writer_branches: nil})
 
-  def revoke_profile_writers(%Profile{id: id, cache_writer_branches: patterns}) do
+  def revoke_profile_writers(%Profile{id: id, cache_writer_branches: patterns} = profile) do
     revoked =
       from(u in Usage,
         where: u.writer_profile_id == ^id and u.can_publish and u.status not in ["published", "discarded"]
@@ -264,6 +264,7 @@ defmodule Tuist.Runners.CacheVolumes do
       |> Repo.all()
       |> Enum.reject(&writer_allowed?(patterns, &1))
       |> Enum.map(& &1.id)
+      |> Enum.concat(unrecorded_profile_writers(profile))
 
     if revoked != [] do
       # Publication reads can_publish under the volume lock.
@@ -283,6 +284,29 @@ defmodule Tuist.Runners.CacheVolumes do
     end
 
     :ok
+  end
+
+  # Uses allocated before uses recorded their profile, including by older pods
+  # during a rollout, were default-branch grants without a recorded branch. A
+  # custom list cannot match them, so it revokes them.
+  defp unrecorded_profile_writers(%Profile{cache_writer_branches: nil}), do: []
+
+  defp unrecorded_profile_writers(%Profile{account_id: account_id} = profile) do
+    label = Profile.dispatch_label(profile)
+
+    Repo.all(
+      from(u in Usage,
+        join: v in Volume,
+        on: v.id == u.volume_id,
+        join: j in WorkflowJob,
+        on: j.workflow_job_id == u.workflow_job_id and j.account_id == v.account_id,
+        where:
+          is_nil(u.writer_profile_id) and u.can_publish and u.status not in ["published", "discarded"] and
+            v.account_id == ^account_id and v.provider == "github" and is_nil(v.builtin_name) and
+            j.requested_dispatch_label == ^label,
+        select: u.id
+      )
+    )
   end
 
   defp writer_allowed?(nil, use), do: use.writer_default_branch
