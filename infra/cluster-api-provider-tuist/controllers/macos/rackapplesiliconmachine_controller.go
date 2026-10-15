@@ -569,9 +569,9 @@ func (r *RackAppleSiliconMachineReconciler) handleBootstrapFailure(
 	machine.Status.BootstrapAttempts++
 	attempts := machine.Status.BootstrapAttempts
 
-	conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapFailed",
+	conditions.MarkFalse(machine, BootstrappedCondition, bootstrapFailureReason(cause),
 		clusterv1.ConditionSeverityWarning, "%v", cause)
-	r.Recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapFailed",
+	r.Recorder.Eventf(machine, corev1.EventTypeWarning, bootstrapFailureReason(cause),
 		"%v (attempt %d on %s, will retry)", cause, attempts, host.Name)
 
 	switch {
@@ -599,6 +599,13 @@ func (r *RackAppleSiliconMachineReconciler) handleBootstrapFailure(
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapExhausted",
 			"Quarantined %s after %d bootstrap failures; bootstrap starts over when the quarantine expires", host.Name, attempts)
 
+	case r.BootstrapRebootAfter > 0 && attempts >= r.BootstrapRebootAfter && bootstrap.RestartUnsafe(cause):
+		// A power cycle would leave a FileVault host at the unlock screen with
+		// no sshd, the restart bootstrap itself refused.
+		if attempts == r.BootstrapRebootAfter {
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "RebootForRecoverySkipped",
+				"Not cycling %s's outlet: FileVault is on, so the host would not come back over SSH", host.Name)
+		}
 	case r.BootstrapRebootAfter > 0 && attempts >= r.BootstrapRebootAfter && !machine.Status.BootstrapRebootIssued:
 		if m, off := r.poweredOffAtOutlet(ctx, host); off {
 			// The flag stays clear, so a host that is started but still fails
