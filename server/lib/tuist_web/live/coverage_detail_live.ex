@@ -510,7 +510,7 @@ defmodule TuistWeb.CoverageDetailLive do
         display_name: scheme_label(project),
         type: :option,
         options: schemes,
-        options_display_names: %{},
+        options_display_names: Map.new(schemes, &{&1, test_run_label(project, &1)}),
         operator: :==,
         value: nil,
         searchable: true

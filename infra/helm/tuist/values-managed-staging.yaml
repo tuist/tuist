@@ -97,6 +97,8 @@ server:
   # key in the server-config Secret with it. Rollback is a revert; the
   # existing `dsn` field on the same item stays put.
   config:
+    originAppKey:
+      enabled: true
     externalSecrets:
       fields:
         sentryDsn: dsn_atlas

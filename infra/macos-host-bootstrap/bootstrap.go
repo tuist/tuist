@@ -20,7 +20,10 @@
 //  1. Wait for SSH (host has just booted from the provider's image).
 //  2. Grant the SSH user passwordless sudo using UserPassword.
 //  3. Configure GUI auto-login via /etc/kcpassword + autoLoginUser
-//     so Virtualization.framework has a live console session.
+//     so Virtualization.framework has a live console session. A host
+//     still without an Aqua session for the user is restarted once and
+//     fails bootstrap if the session does not come up (see
+//     ensureGUISession).
 //  4. Set the macOS hostname to NodeName.
 //  5. Install Tart by extracting the operator-pinned tart.app tarball
 //     to /usr/local/lib/tart.app + wrapper at /usr/local/bin/tart.
@@ -463,7 +466,8 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer client.Close()
+	// A closure: ensureGUISession may restart the host and hand back a new client.
+	defer func() { client.Close() }()
 
 	// No fingerprint on this path: the key belongs to whichever box answered,
 	// and pinning it would refuse the right one when it takes the address.
@@ -485,6 +489,15 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := installSetupAssistantSuppression(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("suppress setup assistant: %w", err)
+	}
+	// After auto-login and Setup Assistant suppression, which the session a
+	// restart brings up depends on, and before anything that would make the
+	// host look like a working Node without one.
+	guiHost := newSSHGUISessionHost(client, cfg.IP, cfg.SSHUser, signer, hk)
+	guiErr := ensureGUISession(ctx, guiHost, cfg.SSHUser, defaultGUISessionWait)
+	client = guiHost.client
+	if guiErr != nil {
+		return hk.Observed(), fmt.Errorf("gui session: %w", guiErr)
 	}
 	if err := installSSHReachability(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("install ssh reachability: %w", err)
@@ -594,7 +607,21 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 // On the update path KnownHostFingerprint is normally already set (the
 // bootstrap reconcile populated it), so this is a verification rather
 // than a capture.
-func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
+//
+// The whole update is bounded by hostConfigUpdateTimeout. The caller's
+// reconcile context has no deadline, and a host can complete the handshake
+// and then never answer, which would hold that Machine's reconcile until
+// the operator restarts. Session setup and uploads do not watch the context,
+// so the deadline closes the client to unblock them.
+func UpdateTartKubelet(ctx context.Context, cfg Config) (fingerprint string, err error) {
+	ctx, cancel := context.WithTimeout(ctx, hostConfigUpdateTimeout)
+	defer cancel()
+	defer func() {
+		if err != nil && ctx.Err() != nil {
+			err = fmt.Errorf("host config update gave up after %s: %w", hostConfigUpdateTimeout, err)
+		}
+	}()
+
 	signer, err := ssh.ParsePrivateKey(cfg.SSHPrivateKey)
 	if err != nil {
 		return "", fmt.Errorf("parse ssh key: %w", err)
@@ -605,6 +632,8 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 		return "", err
 	}
 	defer client.Close()
+	stop := context.AfterFunc(ctx, func() { _ = client.Close() })
+	defer stop()
 
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh kubeconfig: %w", err)
@@ -1256,6 +1285,18 @@ func (h *HostKeyState) Callback() ssh.HostKeyCallback {
 	}
 }
 
+// sshPort is the port every dial targets.
+var sshPort = "22"
+
+// sshHandshakeTimeout bounds the SSH version exchange, key exchange and auth
+// after the TCP connect.
+var sshHandshakeTimeout = 30 * time.Second
+
+// hostConfigUpdateTimeout bounds one UpdateTartKubelet. A full update uploads
+// a few binaries and waits at most a couple of minutes on the host, so this
+// only ever cuts off a host that has stopped answering.
+var hostConfigUpdateTimeout = 15 * time.Minute
+
 func Dial(ip, user string, signer ssh.Signer, hk *HostKeyState) (*ssh.Client, error) {
 	return DialAuth(ip, user, []ssh.AuthMethod{ssh.PublicKeys(signer)}, hk)
 }
@@ -1265,6 +1306,10 @@ func Dial(ip, user string, signer ssh.Signer, hk *HostKeyState) (*ssh.Client, er
 // signer, e.g. SSH agent auth where the keys live in 1Password and
 // the agent socket signs on demand. Same host-key TOFU semantics as
 // Dial.
+//
+// ClientConfig.Timeout covers only the TCP connect. launchd owns a Mac mini's
+// :22 and accepts the connection before sshd runs, so a wedged host completes
+// TCP and never sends a banner; the handshake gets its own deadline.
 func DialAuth(ip, user string, auth []ssh.AuthMethod, hk *HostKeyState) (*ssh.Client, error) {
 	cfg := &ssh.ClientConfig{
 		User:            user,
@@ -1272,7 +1317,25 @@ func DialAuth(ip, user string, auth []ssh.AuthMethod, hk *HostKeyState) (*ssh.Cl
 		HostKeyCallback: hk.Callback(),
 		Timeout:         15 * time.Second,
 	}
-	return ssh.Dial("tcp", ip+":22", cfg)
+	addr := net.JoinHostPort(ip, sshPort)
+	conn, err := net.DialTimeout("tcp", addr, cfg.Timeout)
+	if err != nil {
+		return nil, err
+	}
+	if err := conn.SetDeadline(time.Now().Add(sshHandshakeTimeout)); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	c, chans, reqs, err := ssh.NewClientConn(conn, addr, cfg)
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		_ = c.Close()
+		return nil, err
+	}
+	return ssh.NewClient(c, chans, reqs), nil
 }
 
 func WaitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *HostKeyState) error {
@@ -1403,7 +1466,7 @@ if [ "$(sudo od -An -v -tx1 -N 8 /etc/kcpassword 2>/dev/null | tr -d ' \n')" = "
 fi
 
 if [ "$session_up" = "0" ]; then
-  echo "WARN: Aqua session for %[1]s did not appear after loginwindow kick; bootstrap continues — VM-start preflight will retry"
+  echo "WARN: Aqua session for %[1]s did not appear after loginwindow kick; bootstrap restarts the host to apply auto-login"
 fi
 `, user, encoded)
 }
@@ -1771,13 +1834,14 @@ pass out quick proto tcp from <vm_sources> to %s port 4000 keep state
 			return "", fmt.Errorf("vm cache pn cidr %q is not an IPv4 CIDR: %v", cfg.VMCachePNCIDR, err)
 		}
 		carveOut += fmt.Sprintf(`
-# Runner-cache Private Network carve-out: VMs dial per-account Kura
-# NodePorts published by the kura node pool on the Scaleway Private
-# Network (the endpoint dispatch hands out on node-port regions).
-# 30000:32767 is Kubernetes' default NodePort range. The kura-side
-# NetworkPolicies admit only this subnet, and Kura's app-layer JWT
-# tenant check is the per-account boundary.
-pass out quick proto tcp from <vm_sources> to %s port 30000:32767 keep state
+# Runner-cache Private Network carve-out: VMs dial the kura node pool on
+# the Scaleway Private Network. Dispatch hands out the regional gateway's
+# HTTPS hostname, which resolves to its PN address (443), and jobs handed
+# the former node-address URL dial per-account NodePorts (30000:32767,
+# Kubernetes' default range). The kura-side NetworkPolicies admit only
+# this subnet, and Kura's app-layer JWT tenant check is the per-account
+# boundary.
+pass out quick proto tcp from <vm_sources> to %s port { 443, 30000:32767 } keep state
 `, cfg.VMCachePNCIDR)
 	}
 
@@ -1911,7 +1975,107 @@ sudo launchctl bootout system/dev.tuist.pfctl-runners 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
 `
 	script = strings.Replace(script, "@CARVEOUT@", carveOut, 1)
-	return script, nil
+	return script + renderVMGuardScript(strings.ReplaceAll(carveOut, "pass out quick", "pass in quick")), nil
+}
+
+// vmPrivateDestinations is everything a guest has no business reaching:
+// RFC 1918, the tailnet's CGNAT range, link-local (cloud metadata) and
+// multicast. The host's own addresses are blocked separately with `self`.
+const vmPrivateDestinations = "10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16, 224.0.0.0/4"
+
+// renderVMGuardScript installs the VM egress filter where it can see a
+// guest's address. The `tuist.runners` rules above are all `out` and keyed on
+// the 192.168.64.x source, but the host NATs that source to its own address
+// on the default-route interface before pf filters the packet there (pf
+// filters translated packets), so on that path they match nothing and the
+// guest reaches the host's LAN, its own listeners and, on a rack, every other
+// machine on the segment. A guest's packet arrives `in` on the vmnet bridge
+// with its own source, before it is routed or translated, which is where the
+// SSH ingress guard already filters it (verified from a runner VM on
+// ber1-proto-01), so the same filter is applied there.
+//
+// The guests' DHCP and DNS are the host's, on the vmnet gateway, so those two
+// pass first. Every host address (static `self`, re-expanded by the re-arm) is
+// dropped next, ahead of the carve-outs, because a carve-out range can hold
+// one of them (the host's PN address is in the PN CIDR). Then the carve-outs,
+// the `tuist.runners` ones turned inbound, and a drop for everything else
+// private. Public destinations pass.
+//
+// vmnet also gives every guest a link-local and a ULA IPv6 address, outside
+// the IPv4 guest range, and the host's listeners bind both families. pf
+// cannot tell a guest's IPv6 source from the host's own, so the IPv6 rules key
+// on the vmnet bridges instead: bridge100 and up (bridge0 is Thunderbolt
+// Bridge). A rule on a bridge that does not exist yet loads and matches once it
+// appears. DNS stays open, because the guest's first resolver is the host's
+// link-local address. ICMPv6 is left alone for neighbour discovery.
+//
+// The host dials its guests too (tart-kubelet's metrics forwarder and VNC
+// relays), from its bridge address, which is inside the guest range. Those
+// connections match no pass rule on the way out, so they leave no state, and
+// the guest's reply would arrive inbound to a host address and hit the drop.
+// The outbound pass gives them that state. It only matches the host's own
+// packets: a guest's packet is filtered inbound on the bridge first.
+//
+// Same sub-anchor trick and re-arm as installSSHIngressGuard: a
+// `com.apple/` sub-anchor is live the moment it is loaded, and the re-arm
+// restores it within a minute of a reboot or a flush.
+func renderVMGuardScript(carveOutIn string) string {
+	return fmt.Sprintf(`
+sudo tee /etc/pf.anchors/tuist.vmguard >/dev/null <<'PFCONF'
+# Tuist runner VM egress guard, on the vmnet bridge, before NAT.
+vm_bridges = "{ bridge100, bridge101, bridge102, bridge103 }"
+table <vm_sources> persist { 192.168.64.0/22 }
+table <vm_private_dst> persist { %s }
+pass out quick from <vm_sources> to <vm_sources> flags any keep state
+pass in quick proto udp from <vm_sources> to <vm_sources> port { 53, 67 } keep state
+pass in quick proto tcp from <vm_sources> to <vm_sources> port 53 keep state
+block drop in quick from <vm_sources> to self
+%s
+block drop in quick from <vm_sources> to <vm_private_dst>
+pass in quick on $vm_bridges inet6 proto { tcp, udp } to self port 53 keep state
+block drop in quick on $vm_bridges inet6 proto { tcp, udp } to self
+block drop in quick on $vm_bridges inet6 proto { tcp, udp } to { fc00::/7, fe80::/10, ff00::/8 }
+PFCONF
+
+sudo tee /usr/local/bin/tuist-pf-vmguard >/dev/null <<'VMGUARD'
+#!/bin/sh
+# Re-loads the VM egress guard into the com.apple/tuist.vmguard pf sub-anchor
+# (see renderVMGuardScript in macos-host-bootstrap). Every run re-expands
+# 'self' to the host's current addresses, so it reloads even when the file is
+# unchanged.
+set -u
+[ -f /etc/pf.anchors/tuist.vmguard ] || exit 0
+pfctl -a "com.apple/tuist.vmguard" -f /etc/pf.anchors/tuist.vmguard
+VMGUARD
+sudo chmod 0755 /usr/local/bin/tuist-pf-vmguard
+sudo pfctl -E 2>/dev/null || true
+sudo /usr/local/bin/tuist-pf-vmguard
+
+sudo tee /Library/LaunchDaemons/dev.tuist.pfctl-vmguard.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.pfctl-vmguard</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tuist-pf-vmguard</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>StandardErrorPath</key>
+  <string>/var/log/tuist-pf-vmguard.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.pfctl-vmguard.plist
+sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-vmguard.plist
+sudo launchctl bootout system/dev.tuist.pfctl-vmguard 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-vmguard.plist
+`, vmPrivateDestinations, carveOutIn)
 }
 
 // renderVMNATScript builds the VM->cache NAT helper + its launchd
@@ -2785,6 +2949,7 @@ sudo tee /etc/pf.anchors/tuist.sshguard >/dev/null <<PFCONF
 
 table <ssh_allowed> persist { 100.64.0.0/10${SESSION_ENTRY}%s }
 table <vm_ssh_sources> persist { 192.168.64.0/22 }
+table <vm_ssh_private> persist { %s }
 
 # The reachability watchdog probes 127.0.0.1:22 every minute; a
 # blocked loopback reads as a permanent wedge to it.
@@ -2803,6 +2968,9 @@ pass in quick proto tcp from <ssh_allowed> to any port 22 flags any keep state
 # resolves to an empty table on macOS and would match nothing.
 block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22
 block drop in quick proto tcp from <vm_ssh_sources> to self port 22
+# Nor to a private network: the VM egress guard drops those too, but the
+# pass below is quick, so whichever anchor pf evaluates first decides.
+block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_private> port 22
 pass in quick proto tcp from <vm_ssh_sources> to any port 22 flags any keep state
 
 block drop in quick proto tcp to any port 22
@@ -2850,7 +3018,7 @@ sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist
 sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist
 sudo launchctl bootout system/dev.tuist.pfctl-sshguard 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist
-`, allow), nil
+`, allow, vmPrivateDestinations), nil
 }
 
 // renderNodeExporterScript is the static SSH script that installs the

@@ -140,7 +140,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         Client.patch(
           "/apis/kura.tuist.dev/v1alpha1/namespaces/#{@namespace}/kurainstances/#{name}",
           operations,
-          kubernetes_client_opts(region)
+          Keyword.put(kubernetes_client_opts(region), :timeout, 3_000)
         )
       end
     end

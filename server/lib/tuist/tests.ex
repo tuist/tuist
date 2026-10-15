@@ -289,7 +289,7 @@ defmodule Tuist.Tests do
         query =
           from(t in Test,
             where: t.id == ^uuid,
-            order_by: [desc: t.inserted_at],
+            order_by: [desc: t.inserted_at, desc: t.is_flaky],
             limit: 1
           )
 
@@ -339,7 +339,7 @@ defmodule Tuist.Tests do
     query =
       from(t in Test,
         where: t.build_run_id == ^build_run_id,
-        order_by: [desc: t.ran_at, desc: t.inserted_at],
+        order_by: [desc: t.ran_at, desc: t.inserted_at, desc: t.is_flaky],
         limit: 1
       )
 
@@ -353,7 +353,7 @@ defmodule Tuist.Tests do
     query =
       from(t in Test,
         where: t.gradle_build_id == ^gradle_build_id,
-        order_by: [desc: t.ran_at, desc: t.inserted_at],
+        order_by: [desc: t.ran_at, desc: t.inserted_at, desc: t.is_flaky],
         limit: 1
       )
 
@@ -543,7 +543,7 @@ defmodule Tuist.Tests do
       expected_shards = (shard_plan && shard_plan.shard_count) || 1
       record_coverage_data(test, attrs, coverage, shard_index, expected_shards)
 
-      {test_case_ids_with_flaky_run, test_case_runs} =
+      {_newly_flaky_test_case_ids, test_case_runs} =
         create_test_modules(
           test,
           test_modules,
@@ -552,19 +552,7 @@ defmodule Tuist.Tests do
           Coverage.Evidence.test_states(test.project_id, Map.get(attrs, :coverage_evidence))
         )
 
-      Tuist.Tasks.run_async(fn ->
-        mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
-
-        project = Tuist.Projects.get_project_by_id(test.project_id)
-
-        if project do
-          Tuist.PubSub.broadcast(
-            test,
-            "#{project.account.name}/#{project.name}",
-            :test_created
-          )
-        end
-      end)
+      run_test_followups(test, test_case_runs, shard_plan)
 
       if test.status == "failure",
         do:
@@ -672,6 +660,30 @@ defmodule Tuist.Tests do
 
     enrich(test, "coverage evidence", fn ->
       Coverage.Evidence.record(test, Map.get(attrs, :coverage_evidence), shard_index)
+    end)
+  end
+
+  defp run_test_followups(test, test_case_runs, shard_plan) do
+    flaky? = flaky_run?(test, test_case_runs)
+
+    test_case_ids =
+      test_case_runs
+      |> Enum.map(& &1.test_case_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    Tuist.Tasks.run_async(fn ->
+      enrich(test, "flaky alert evaluations", fn ->
+        Automations.enqueue_flaky_alert_evaluations(test.project_id, test_case_ids)
+      end)
+
+      enrich(test, "test-created notification", fn ->
+        if project = Tuist.Projects.get_project_by_id(test.project_id) do
+          Tuist.PubSub.broadcast(test, "#{project.account.name}/#{project.name}", :test_created)
+        end
+      end)
+
+      enrich(test, "flaky run flag", fn -> mark_test_run_as_flaky(test, flaky?, shard_plan) end)
     end)
   end
 
@@ -784,7 +796,7 @@ defmodule Tuist.Tests do
               Coverage.Evidence.merge_status(existing_test.coverage_evidence_status, attrs.coverage_evidence_status)
             )
 
-          {test_case_ids_with_flaky_run, test_case_runs} =
+          {_newly_flaky_test_case_ids, test_case_runs} =
             OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
               create_test_modules(
                 merged_test,
@@ -850,13 +862,18 @@ defmodule Tuist.Tests do
             merged_test
             |> Map.put(:status, merged_status)
             |> Map.put(:duration, merged_duration)
+            |> Map.put(
+              :is_flaky,
+              merged_test.is_flaky or flaky_run?(merged_test, test_case_runs) or
+                (merged_test.is_ci and has_any_flaky_test_case?(test_modules))
+            )
+            |> Map.put(:inserted_at, NaiveDateTime.utc_now())
             |> Map.merge(StressNewTests.merge_run_attrs(existing_test, stress_new_tests))
 
           update_attrs =
             updated_test
             |> Map.from_struct()
             |> Map.drop(@test_struct_non_field_keys)
-            |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
           IngestRepo.insert_all(Test, [update_attrs])
 
@@ -873,19 +890,7 @@ defmodule Tuist.Tests do
                 updated_test.id
               )
 
-          Tuist.Tasks.run_async(fn ->
-            mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
-
-            project = Tuist.Projects.get_project_by_id(updated_test.project_id)
-
-            if project do
-              Tuist.PubSub.broadcast(
-                updated_test,
-                "#{project.account.name}/#{project.name}",
-                :test_created
-              )
-            end
-          end)
+          run_test_followups(updated_test, test_case_runs, shard_plan)
 
           {:ok, %{updated_test | test_case_runs: test_case_runs}}
       end
@@ -931,7 +936,7 @@ defmodule Tuist.Tests do
       from(test in Test,
         where: test.project_id == ^project_id,
         where: test.id == ^test_run_id,
-        order_by: [desc: test.inserted_at],
+        order_by: [desc: test.inserted_at, desc: test.is_flaky],
         limit: 1
       )
     )
@@ -1030,30 +1035,15 @@ defmodule Tuist.Tests do
   defp shard_run_ran_at(%DateTime{} = ran_at), do: DateTime.to_naive(ran_at)
   defp shard_run_ran_at(ran_at), do: ran_at
 
-  defp mark_test_run_as_flaky(test, []), do: test
-  defp mark_test_run_as_flaky(%{is_flaky: true} = test, _flaky_ids), do: test
+  defp flaky_run?(%{is_ci: true}, test_case_runs), do: Enum.any?(test_case_runs, & &1.is_flaky)
+  defp flaky_run?(_test, _test_case_runs), do: false
 
-  defp mark_test_run_as_flaky(test, _flaky_ids) do
-    updated_test = %{test | is_flaky: true}
+  defp mark_test_run_as_flaky(test, false, _shard_plan), do: test
+  defp mark_test_run_as_flaky(%{is_flaky: true} = test, _flaky?, _shard_plan), do: test
 
-    attrs =
-      updated_test
-      |> Map.from_struct()
-      |> Map.drop(@test_struct_non_field_keys)
-      |> Map.put(:inserted_at, NaiveDateTime.utc_now())
-
-    IngestRepo.insert_all(Test, [attrs])
-    updated_test
-  end
-
-  defp enqueue_flaky_alert_evaluations(test, test_case_runs) do
-    test_case_ids =
-      test_case_runs
-      |> Enum.map(& &1.test_case_id)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.uniq()
-
-    Automations.enqueue_flaky_alert_evaluations(test.project_id, test_case_ids)
+  defp mark_test_run_as_flaky(test, true, shard_plan) do
+    # Keep the parent's exact version and writer so the original cannot flush after this amendment.
+    insert_test_run(%{test | is_flaky: true}, shard_plan)
   end
 
   defp has_any_flaky_test_case?(test_modules) do
@@ -1151,7 +1141,7 @@ defmodule Tuist.Tests do
       |> Enum.reject(&Map.has_key?(existing_data, &1))
       |> MapSet.new()
 
-    Tuist.Tasks.run_async(fn -> TestCase.Buffer.insert_all(test_cases) end)
+    TestCase.Buffer.insert_all(test_cases)
 
     test_case_id_map =
       Map.new(test_cases, fn tc ->
@@ -2050,16 +2040,6 @@ defmodule Tuist.Tests do
       {flaky_ids, acc_test_case_runs ++ test_case_runs}
     end)
     |> tap(fn _ -> flush_test_case_run_buffers() end)
-    |> tap(fn {_flaky_ids, all_test_case_runs} ->
-      # Hoisted out of the per-module async block: the alert-lookup query
-      # depends only on project_id, so a run with N modules was hitting
-      # Postgres N times for the same result and starving the pool. One call
-      # per ingest, with the downstream AutomationScheduler still dedup'ing
-      # by cadence.
-      Tuist.Tasks.run_async(fn ->
-        enqueue_flaky_alert_evaluations(test, all_test_case_runs)
-      end)
-    end)
   end
 
   # One flush for the whole run rather than one per module.
@@ -2524,17 +2504,15 @@ defmodule Tuist.Tests do
       TestCaseRunArgument.Buffer.insert_all(all_arguments)
     end
 
-    Tuist.Tasks.run_async(fn ->
-      TestCaseFailure.Buffer.insert_all(all_failures)
+    TestCaseFailure.Buffer.insert_all(all_failures)
 
-      if Enum.any?(all_repetitions) do
-        TestCaseRunRepetition.Buffer.insert_all(all_repetitions)
-      end
+    if Enum.any?(all_repetitions) do
+      TestCaseRunRepetition.Buffer.insert_all(all_repetitions)
+    end
 
-      if Enum.any?(all_attachments) do
-        TestCaseRunAttachment.Buffer.insert_all(all_attachments)
-      end
-    end)
+    if Enum.any?(all_attachments) do
+      TestCaseRunAttachment.Buffer.insert_all(all_attachments)
+    end
 
     # The audit-log row and the outbound webhook fire on the same set:
     # a test case whose row didn't exist before *and* whose run is the
@@ -4729,7 +4707,7 @@ defmodule Tuist.Tests do
     latest_candidate_runs =
       candidate_ids
       |> all_by_uuid_chunks(fn ids ->
-        from(t in Test, where: t.id in ^ids, order_by: [asc: t.id, desc: t.inserted_at])
+        from(t in Test, where: t.id in ^ids, order_by: [asc: t.id, desc: t.inserted_at, desc: t.is_flaky])
       end)
       |> Enum.uniq_by(& &1.id)
 

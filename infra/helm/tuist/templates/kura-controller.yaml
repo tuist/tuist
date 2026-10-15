@@ -258,6 +258,12 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [list]
+  # Capacity admission charges a node-local volume no claim is bound to any
+  # more, such as a quarantined replica's retained volume, against the node and
+  # region whose disk it still holds.
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [list]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

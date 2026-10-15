@@ -2,6 +2,10 @@
 
 This context owns VCS models and GitHub App integrations.
 
+## Origin reporting
+- Shared report rendering supports GitHub and native Origin through separate clients and account-owned installation records. See `../origin/AGENTS.md` for Origin authentication and lifecycle handling.
+- A failed comment-list request must propagate an error to Oban, not masquerade as an empty list and create a duplicate report. Match both the provider's app identity and the Tuist report prefix before updating.
+
 ## Responsibilities
 - Model VCS entities (comments, users, installations, repositories).
 - GitHub Enterprise installations retain `client_url` as the canonical browser/instance identity. Optional `api_url` is a full REST base URL for server-side transport only; resolve it with `VCS.installation_api_url/1`. Nil preserves existing URL derivation. Keep URL validation, signed registration state, and data-export documentation aligned.

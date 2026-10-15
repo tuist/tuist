@@ -126,6 +126,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let derivedDataLocator: DerivedDataLocating
     private let testExecutionModeResolver: TestExecutionModeResolving
     private let testCoverageEvidenceService: TestCoverageEvidenceServicing
+    private let coverageExportService: CoverageExportServicing
     private let createTestService: CreateTestServicing
     private let gitHistoryService: GitHistoryServicing
     private let machineEnvironment: MachineEnvironmentRetrieving
@@ -173,6 +174,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         testExecutionModeResolver: TestExecutionModeResolving = TestExecutionModeResolver(),
         testCoverageEvidenceService: TestCoverageEvidenceServicing = TestCoverageEvidenceService(),
+        coverageExportService: CoverageExportServicing = CoverageExportService(),
         createTestService: CreateTestServicing = CreateTestService(),
         gitHistoryService: GitHistoryServicing = GitHistoryService(),
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
@@ -207,6 +209,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.derivedDataLocator = derivedDataLocator
         self.testExecutionModeResolver = testExecutionModeResolver
         self.testCoverageEvidenceService = testCoverageEvidenceService
+        self.coverageExportService = coverageExportService
         self.createTestService = createTestService
         self.gitHistoryService = gitHistoryService
         self.machineEnvironment = machineEnvironment
@@ -525,6 +528,18 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 action: action
             )
         }
+
+        // The schemes' targets and files, for the coverage export to attribute what it measures;
+        // from the graph before the binary cache replaced any target with its xcframework, and
+        // before the targets' sources were stripped (`initialGraph` keeps no sources).
+        await coverageBuildSourcesService.record(
+            config: config,
+            targets: CoverageBuildTargets.targets(
+                schemes: schemes,
+                graph: mapperEnvironment.initialGraphWithSources ?? mapperEnvironment.initialGraph ?? graph,
+                generatedGraph: graph
+            )
+        )
 
         if !shouldRunTest(
             for: schemes,
@@ -1557,6 +1572,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 if runningMultipleSchemes, let testSchemeResultBundlePath {
                     perSchemeResultBundlePaths.append(testSchemeResultBundlePath)
                 }
+                let fullyRunTargetNames = fullyRunTestTargetNames(
+                    scheme: testScheme,
+                    requestedTestTargets: testSchemeRun.testTargets,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: action,
+                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+                )
 
                 do {
                     try await self.testScheme(
@@ -1604,6 +1626,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         quarantinedTests: quarantinedTests
                     )
                     passingTestTargets += failure.passingTestTargets
+                        .filter { fullyRunTargetNames.contains($0.target.name) }
                     if failure.onlyQuarantinedTestsFailed {
                         continue
                     }
@@ -1611,19 +1634,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 }
 
                 if action != .build {
-                    let runTestTargetNames = testSchemeRun.testTargets.isEmpty
-                        ? Set(
-                            testActionTargetReferences(
-                                scheme: testScheme,
-                                testPlanConfiguration: testPlanConfiguration,
-                                action: action
-                            ).map(\.name)
-                        ).subtracting(passthroughSkippedTargetNames)
-                        : Set(testSchemeRun.testTargets.map(\.target))
                     passingTestTargets += testActionTargets(
                         for: [testScheme], testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
                     )
-                    .filter { runTestTargetNames.contains($0.target.name) }
+                    .filter { fullyRunTargetNames.contains($0.target.name) }
                 }
             }
         } catch {
@@ -1870,6 +1884,49 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         return true
+    }
+
+    /// The scheme's test targets a run executes every test of. Only these can have their selective-testing
+    /// hashes stored: a target the run narrowed to some of its tests, or left out through `-only-testing`,
+    /// would otherwise be skipped by later runs without its other tests ever passing.
+    ///
+    /// With `--test-targets` or a passthrough `-only-testing`, a target counts only when it is selected whole
+    /// and no other selection narrows it. Identifiers are split on their first `/` rather than parsed, so
+    /// nested suites such as `Target/Outer/Inner/test()` still narrow their target.
+    private func fullyRunTestTargetNames(
+        scheme: Scheme,
+        requestedTestTargets: [TestIdentifier],
+        testPlanConfiguration: TestPlanConfiguration?,
+        action: XcodeBuildTestAction,
+        passthroughXcodeBuildArguments: [String]
+    ) -> Set<String> {
+        let schemeTargetNames = Set(
+            testActionTargetReferences(
+                scheme: scheme,
+                testPlanConfiguration: testPlanConfiguration,
+                action: action
+            ).map(\.name)
+        ).subtracting(passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments))
+
+        let selections = requestedTestTargets.map(\.description)
+            + XcodeBuildTestCommandService.testIdentifiers(for: "-only-testing", in: passthroughXcodeBuildArguments)
+        guard !selections.isEmpty else { return schemeTargetNames }
+
+        var wholeTargetNames = Set<String>()
+        var narrowedTargetNames = Set<String>()
+        for selection in selections {
+            let components = selection.split(separator: "/", maxSplits: 1)
+            guard let targetName = components.first.map(String.init) else { continue }
+            if components.count == 1 {
+                wholeTargetNames.insert(targetName)
+            } else {
+                narrowedTargetNames.insert(targetName)
+            }
+        }
+
+        return schemeTargetNames
+            .intersection(wholeTargetNames)
+            .subtracting(narrowedTargetNames)
     }
 
     private func passthroughSkippedTestTargetNames(_ arguments: [String]) -> Set<String> {
@@ -2246,15 +2303,25 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        // What TestCoverageAttribution recorded is reduced as soon as the run ends, before a stress
-        // pass runs tests over the same derived data and replaces the profile the reduction reads.
+        // What TestCoverageAttribution recorded is reduced, and the run's coverage exported, as
+        // soon as the run ends, before a stress pass runs tests over the same derived data and
+        // replaces the profile both read.
         let evidenceSession = action == .build ? nil : await testCoverageEvidenceService.prepare(platform: evidencePlatform)
+        let runStartedAt = Date()
         let recordCoverageEvidence = {
-            guard let evidenceSession else { return }
-            _ = await testCoverageEvidenceService.record(
-                session: evidenceSession,
+            if let evidenceSession {
+                _ = await testCoverageEvidenceService.record(
+                    session: evidenceSession,
+                    resultBundlePath: resultBundlePath,
+                    derivedDataDirectory: projectDerivedDataDirectory
+                )
+            }
+            guard action != .build else { return }
+            _ = await coverageExportService.export(
                 resultBundlePath: resultBundlePath,
-                derivedDataDirectory: projectDerivedDataDirectory
+                derivedDataDirectory: projectDerivedDataDirectory,
+                config: config,
+                runStartedAt: runStartedAt
             )
         }
 
@@ -2596,7 +2663,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     onlyTestIdentifiers: onlyTestIdentifiers,
                     skipTestIdentifiers: skipTestIdentifiers,
                     stressNewTests: stressNewTests?.serverPayload,
-                    stressResultBundlePaths: stressNewTests?.resultBundlePaths ?? []
+                    stressResultBundlePaths: stressNewTests?.resultBundlePaths ?? [],
+                    scheme: scheme
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
@@ -2728,7 +2796,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             skipTestIdentifiers: [],
             stressNewTests: nil,
             gitHistory: gitHistory?.payload,
-            coverageUpload: nil,
+            coverage: nil,
             coverageEnabled: coverageEnabled
         )
 

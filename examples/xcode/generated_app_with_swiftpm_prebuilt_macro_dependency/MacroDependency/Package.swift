@@ -25,5 +25,9 @@ let package = Package(
             name: "MacroDependency",
             dependencies: ["MacroDependencyMacros"]
         ),
+        .testTarget(
+            name: "MacroDependencyTests",
+            dependencies: ["MacroDependency"]
+        ),
     ]
 )

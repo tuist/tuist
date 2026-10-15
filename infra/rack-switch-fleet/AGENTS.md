@@ -503,7 +503,15 @@ An outlet's number is the card's (`/powerDistributions/1/outlets/<n>`), and
 it is the printed label's: outlet `n` reports `identification.physicalName`
 `An`, read off `ber1-pdu-b` on 2026-10-05, the letter being the PDU's one
 input. Its `measures` give each outlet's draw, which tells which outlets have
-a load without switching anything. The even outlets are hybrid C13/C19
+a load without switching anything. The CAPI provider's RackPDU controller reads
+every outlet's into the RackPDU's `status.outlets[]` and the
+`capt_rackpdu_outlet_*` metrics, whatever is plugged in. Only a RackHost names
+its outlet, so only a mini's reading is tied to a node: its `HostDrawing`
+condition tells an empty outlet (0 VA) from a mini plugged in and powered off
+(about 0.1 W and 4 to 6 VA), whose power button someone has to press, since an
+outlet cycle does not start a mini our bootstrap has not set
+`pmset autorestart 1` on. The ToR's, edge's and storage node's outlets are
+read but stay unnamed, since outlets are not modelled here. The even outlets are hybrid C13/C19
 sockets, so every outlet takes the minis' C14 cord.
 
 **Cord colour is the chain.** Chain B's mini cords are blue, and chain A's are

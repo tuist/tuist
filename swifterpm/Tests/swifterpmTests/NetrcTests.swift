@@ -47,7 +47,7 @@ struct NetrcTests {
 
         #expect(
             machines == [
-                NetrcMachine(name: "registry.example.com", login: "user", password: "se#cret")
+                NetrcMachine(name: "registry.example.com", login: "user", password: "se#cret"),
             ])
     }
 
@@ -89,7 +89,8 @@ struct NetrcTests {
             )
 
             let netrc = try await Netrc.resolve(
-                SwifterPMNetrcConfiguration(path: netrcFile), environment: [:])
+                SwifterPMNetrcConfiguration(path: netrcFile), environment: [:]
+            )
             let credential = netrc.credential(
                 for: try #require(URL(string: "https://registry.example.com")))
 
@@ -202,7 +203,8 @@ struct NetrcTests {
             )
 
             let netrc = try await Netrc.resolve(
-                SwifterPMNetrcConfiguration(), environment: ["HOME": root.path])
+                SwifterPMNetrcConfiguration(), environment: ["HOME": root.path]
+            )
 
             #expect(
                 netrc.credential(for: try #require(URL(string: "https://registry.example.com")))?
@@ -288,8 +290,8 @@ struct NetrcTests {
                 )
                 let url = try #require(URL(string: "https://registry.example.com"))
                 try await Environment.withNetrc(netrc) {
-                    let http = await HTTPAuthorization.header(for: url)
-                    let registry = await RegistryAuthorization.header(
+                    let http = try await HTTPAuthorization.header(for: url)
+                    let registry = try await RegistryAuthorization.header(
                         for: url, registryConfig: config,
                         keychain: { _ in Issue.record("keychain consulted despite --netrc"); return nil }
                     )
@@ -309,7 +311,8 @@ struct NetrcTests {
 
             await #expect(throws: (any Error).self) {
                 try await Netrc.resolve(
-                    SwifterPMNetrcConfiguration(path: missing), environment: [:])
+                    SwifterPMNetrcConfiguration(path: missing), environment: [:]
+                )
             }
         }
     }
@@ -318,7 +321,8 @@ struct NetrcTests {
     func resolveIgnoresAMissingHomeNetrcFile() async throws {
         try await withTemporaryDirectory { root in
             _ = try await Netrc.resolve(
-                SwifterPMNetrcConfiguration(), environment: ["HOME": root.path])
+                SwifterPMNetrcConfiguration(), environment: ["HOME": root.path]
+            )
         }
     }
 
@@ -332,7 +336,8 @@ struct NetrcTests {
 
             await #expect(throws: (any Error).self) {
                 try await Netrc.resolve(
-                    SwifterPMNetrcConfiguration(isEnabled: false, path: netrcFile), environment: [:])
+                    SwifterPMNetrcConfiguration(isEnabled: false, path: netrcFile), environment: [:]
+                )
             }
         }
     }
@@ -346,11 +351,13 @@ struct NetrcTests {
             try await fileSystem.atomicWrite("machine example.com login a password b", to: netrcFile)
 
             let file = try await Netrc.resolve(
-                SwifterPMNetrcConfiguration(path: netrcFile, forcesNetrc: true), environment: [:])
+                SwifterPMNetrcConfiguration(path: netrcFile, forcesNetrc: true), environment: [:]
+            )
             #expect(file.swiftPackageArguments == ["--netrc-file", netrcFile.path, "--netrc"])
 
             let disabled = try await Netrc.resolve(
-                SwifterPMNetrcConfiguration(isEnabled: false), environment: [:])
+                SwifterPMNetrcConfiguration(isEnabled: false), environment: [:]
+            )
             #expect(disabled.swiftPackageArguments == ["--disable-netrc"])
 
             let independentlyDisabled = try await Netrc.resolve(
@@ -359,11 +366,13 @@ struct NetrcTests {
             #expect(independentlyDisabled.swiftPackageArguments == ["--disable-netrc", "--netrc", "--disable-keychain"])
 
             let defaults = try await Netrc.resolve(
-                SwifterPMNetrcConfiguration(), environment: [:])
+                SwifterPMNetrcConfiguration(), environment: [:]
+            )
             #expect(defaults.swiftPackageArguments.isEmpty)
 
             let keychainDisabled = try await Netrc.resolve(
-                SwifterPMNetrcConfiguration(disableKeychain: true), environment: [:])
+                SwifterPMNetrcConfiguration(disableKeychain: true), environment: [:]
+            )
             #expect(keychainDisabled.swiftPackageArguments == ["--disable-keychain"])
         }
     }
@@ -378,7 +387,8 @@ struct NetrcTests {
         #expect(!enabled.keychainDisabled)
 
         let disabled = try await Netrc.resolve(
-            SwifterPMNetrcConfiguration(disableKeychain: true), environment: [:])
+            SwifterPMNetrcConfiguration(disableKeychain: true), environment: [:]
+        )
         #expect(disabled.keychainDisabled)
     }
 
@@ -388,7 +398,7 @@ struct NetrcTests {
         let fileNetrc = RegistryCredential(user: "u", password: "file")
         let keychain = RegistryCredential(user: "u", password: "keychain")
 
-        let environmentWins = await RegistryAuthorization.prioritizedCredential(
+        let environmentWins = try await RegistryAuthorization.prioritizedCredential(
             environmentNetrcIsConfigured: true,
             environmentNetrc: environmentNetrc,
             fileNetrc: fileNetrc,
@@ -397,12 +407,13 @@ struct NetrcTests {
         )
         #expect(environmentWins?.password == "environment")
 
-        let keychainWins = await RegistryAuthorization.prioritizedCredential(
+        let keychainWins = try await RegistryAuthorization.prioritizedCredential(
             environmentNetrcIsConfigured: false,
-            environmentNetrc: nil, fileNetrc: fileNetrc, usesKeychain: true, keychain: { keychain })
+            environmentNetrc: nil, fileNetrc: fileNetrc, usesKeychain: true, keychain: { keychain }
+        )
         #expect(keychainWins?.password == "keychain")
 
-        let forced = await RegistryAuthorization.prioritizedCredential(
+        let forced = try await RegistryAuthorization.prioritizedCredential(
             environmentNetrcIsConfigured: false,
             environmentNetrc: nil,
             fileNetrc: fileNetrc,
@@ -411,13 +422,13 @@ struct NetrcTests {
         )
         #expect(forced?.password == "file")
 
-        let keychainMiss = await RegistryAuthorization.prioritizedCredential(
+        let keychainMiss = try await RegistryAuthorization.prioritizedCredential(
             environmentNetrcIsConfigured: false,
             environmentNetrc: nil, fileNetrc: fileNetrc, usesKeychain: true, keychain: { nil }
         )
         #expect(keychainMiss == nil)
 
-        let inlineMiss = await RegistryAuthorization.prioritizedCredential(
+        let inlineMiss = try await RegistryAuthorization.prioritizedCredential(
             environmentNetrcIsConfigured: true,
             environmentNetrc: nil, fileNetrc: fileNetrc, usesKeychain: true,
             keychain: { Issue.record("keychain consulted despite inline provider"); return keychain }
@@ -439,11 +450,12 @@ struct NetrcTests {
                 defaultRegistryURL: "https://registry.example.com"
             )
             let netrc = try await Netrc.resolve(
-                SwifterPMNetrcConfiguration(path: netrcFile, forcesNetrc: true), environment: [:])
+                SwifterPMNetrcConfiguration(path: netrcFile, forcesNetrc: true), environment: [:]
+            )
 
             let header = try await Environment.$values.withValue([:]) {
                 try await Environment.withNetrc(netrc) {
-                    await RegistryAuthorization.header(
+                    try await RegistryAuthorization.header(
                         for: try #require(URL(string: "https://registry.example.com")),
                         registryConfig: config
                     )
@@ -463,11 +475,12 @@ struct NetrcTests {
                 to: netrcFile
             )
             let netrc = try await Netrc.resolve(
-                SwifterPMNetrcConfiguration(path: netrcFile), environment: [:])
+                SwifterPMNetrcConfiguration(path: netrcFile), environment: [:]
+            )
 
             let header = try await Environment.$values.withValue(["GITHUB_TOKEN": "ambient"]) {
                 try await Environment.withNetrc(netrc) {
-                    await HTTPAuthorization.header(
+                    try await HTTPAuthorization.header(
                         for: try #require(
                             URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1"))
                     )

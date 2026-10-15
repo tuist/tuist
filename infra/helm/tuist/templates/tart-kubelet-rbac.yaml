@@ -55,6 +55,11 @@ rules:
   - apiGroups: [""]
     resources: [serviceaccounts/token]
     verbs: [create]
+  # A joining host reads the RunnerPools its fleet serves to pull their
+  # images before it takes Pods (tart-kubelet's podagent.Prewarmer).
+  - apiGroups: ["tuist.dev"]
+    resources: [runnerpools]
+    verbs: [get, list]
   # Emit Events on Pod failures so `kubectl describe pod` shows them.
   - apiGroups: [""]
     resources: [events]

@@ -731,6 +731,13 @@ server:
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
       enabled: false
+    # Origin app identity. Enable only after the registered App ID and its
+    # signing key exist together in the environment's vault.
+    originAppKey:
+      enabled: false
+      item: ORIGIN_APP
+      appIdField: app_id
+      field: private_key
     # Private half of the keypair cache tokens are signed with, so that a cache
     # node given the public half reads them without calling back here. Off until
     # a pair exists in the environment's vault: cache tokens are then signed by
@@ -3830,7 +3837,9 @@ observability:
 # Enable in one cluster only after validation. No PVCs or Kubernetes API token.
 kuraActivation:
   enabled: false
-  ingressClassName: nginx
+  # Both protocols must share this load balancer. The main nginx class sends
+  # Connection: close upstream, which Go correctly rejects on HTTP/2.
+  ingressClassName: nginx-grpc
   servers:
     production: https://tuist.dev
     canary: https://canary.tuist.dev

@@ -10,7 +10,7 @@
 Flaky tests are tests that produce different results (pass or fail) when run multiple times with the same code. They erode trust in your test suite and waste developer time investigating false failures. Tuist automatically detects flaky tests and helps you track them over time.
 
 > [!IMPORTANT] REQUIREMENTS
-> - <.localized_link href="/guides/features/test-insights/elixir">Test insights</.localized_link> must be configured
+> - Complete the <.localized_link href="/guides/get-started/elixir-project">shared Elixir setup</.localized_link> to report your test runs
 
 ![Flaky tests of a Phoenix application](/images/guides/features/elixir/flaky-tests.png)
 
@@ -22,10 +22,10 @@ Tuist detects flaky tests in two ways:
 
 ExUnit runs every test once, so a test that fails intermittently looks the same as one that is broken. With retries enabled, the Hex package runs the tests that failed again, up to the number of times you set. A test that passes on a retry is reported as flaky, and the run succeeds if every failed test eventually passes.
 
-Retries are off by default. Enable them for the whole project in your `mix.exs`:
+Retries are off by default. Add `test_retries` to your existing Tuist options in `mix.exs` to enable them:
 
 ```elixir
-tuist: [project: "account/project", test_retries: 2]
+tuist: [project: "account/project", cache: true, test_retries: 2]
 ```
 
 Or for a single run, with a flag or an environment variable:

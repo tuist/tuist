@@ -61,4 +61,23 @@ jobs:
           github_token: ${{ github.token }}
       - name: E2E
         working-directory: swifterpm
+        env:
+          SWIFTERPM_E2E_GIT_TOKEN: ${{ github.token }}
         run: mise run test:e2e -- --config=ci
+      - name: Diagnose public Git access
+        if: failure()
+        shell: bash
+        run: |
+          directory=$(mktemp -d)
+          trap 'rm -rf "$directory"' EXIT
+          mkdir -p "$directory/home"
+          swift --version
+          git --version
+          curl --silent --show-error --max-time 30 --output /dev/null \
+            --write-out 'Anonymous Git HTTP status: %{http_code}\n' \
+            'https://github.com/apple/swift-atomics.git/info/refs?service=git-upload-pack' || true
+          (
+            cd "$directory"
+            env HOME="$directory/home" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 \
+              git -c credential.helper= ls-remote https://github.com/apple/swift-atomics.git HEAD
+          ) || true
