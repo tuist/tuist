@@ -410,10 +410,13 @@ private struct CacheDebuggerSettingsRenderer {
 
     /// Without the CAS, LLDB cannot load the modules that cached compilations reference by CAS ID, so it cannot
     /// reconstruct Swift types and expressions fail. Xcode does not configure it.
+    ///
+    /// Xcode does not export the default `COMPILATION_CACHE_CAS_PATH`, `$(DERIVED_DATA_DIR)/CompilationCache.noindex`,
+    /// to scheme actions. `-derivedDataPath` builds keep the cache next to `Build`.
     private var compilationCacheUpdateScript: String {
         """
         if [ "${COMPILATION_CACHE_ENABLE_CACHING:-NO}" = "YES" ]; then
-          cas_root="${COMPILATION_CACHE_CAS_PATH:-${BUILD_DIR%%/Build/*}/CompilationCache.noindex}"
+          cas_root="${COMPILATION_CACHE_CAS_PATH:-${DERIVED_DATA_DIR:-${BUILD_DIR%%/Build/*}}/CompilationCache.noindex}"
           if [ "${COMPILATION_CACHE_ENABLE_PLUGIN:-NO}" = "YES" ]; then
             lldb_setting symbols.cas-path "$cas_root/plugin"
             lldb_setting symbols.cas-plugin-path "${COMPILATION_CACHE_PLUGIN_PATH:-${DEVELOPER_DIR:-}/usr/lib/libToolchainCASPlugin.dylib}"

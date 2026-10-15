@@ -817,7 +817,8 @@ struct CachedModulesDebuggingGraphMapperTests {
         let scriptPath = projectPath.appending(component: "debugger.sh")
         try await FileSystem().writeText(#require(runAction.preActions.first?.scriptText), at: scriptPath)
         let initPath = try #require(runAction.customLLDBInitFile)
-        let derivedData = projectPath.appending(components: "DerivedData", "App")
+        let derivedData = projectPath.appending(component: "DerivedData")
+        let projectDerivedData = derivedData.appending(component: "App-abc")
         // The script runs `/usr/bin/python3`, an `xcrun` shim that fails when `DEVELOPER_DIR` does not exist.
         let developer = try runProcess("/usr/bin/xcode-select", arguments: ["-p"], environment: ["PATH": "/usr/bin:/bin"])
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -828,7 +829,8 @@ struct CachedModulesDebuggingGraphMapperTests {
             "COMPILATION_CACHE_CAS_PATH": projectPath.appending(component: "Shared cache").pathString,
             "COMPILATION_CACHE_REMOTE_SERVICE_PATH": "/tmp/cas.sock",
             "OTHER_SWIFT_FLAGS": "-cas-plugin-option upload=NO",
-            "BUILD_DIR": derivedData.appending(components: "Build", "Products").pathString,
+            "DERIVED_DATA_DIR": derivedData.pathString,
+            "BUILD_DIR": projectDerivedData.appending(components: "Build", "Products").pathString,
             "DEVELOPER_DIR": developer,
         ]
 
@@ -842,9 +844,16 @@ struct CachedModulesDebuggingGraphMapperTests {
 
         environment["COMPILATION_CACHE_CAS_PATH"] = nil
         _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment)
-        let withoutCASPath = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
-        #expect(withoutCASPath.hasPrefix(
+        let withDerivedDataDirectory = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        #expect(withDerivedDataDirectory.hasPrefix(
             "settings set symbols.cas-path \"\(derivedData.pathString)/CompilationCache.noindex/plugin\"\n"
+        ))
+
+        environment["DERIVED_DATA_DIR"] = nil
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment)
+        let withBuildDirectory = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        #expect(withBuildDirectory.hasPrefix(
+            "settings set symbols.cas-path \"\(projectDerivedData.pathString)/CompilationCache.noindex/plugin\"\n"
         ))
     }
 
