@@ -17,3 +17,4 @@ This module provides automation workflows and helpers used by CLI commands.
 ## Invariants
 - Device discovery relies on `xcrun devicectl` JSON output.
 - Unit/UI test targets are tagged `tuist:prunable` to enable pruning.
+- `XcodeBuildController.run(arguments:)` sets `XCODE_XCCONFIG_FILE` to the `XcodeCachePackagesXCConfig` of the `-workspace` it builds when that file exists and the variable is unset. That is how the Xcode cache prefix mappings reach the targets of `Project.packages` in Tuist's own builds.

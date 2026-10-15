@@ -148,6 +148,18 @@ This option applies on Xcode 27 and later and requires `enableCaching`. It does 
 
 The coverage-prefix settings participate in binary-cache and selective-testing hashes because they control paths written into coverage artifacts. Changing this option invalidates those hashes even for ordinary builds. Keep the value consistent between developers and CI jobs if they should share binary caches and selective-testing results.
 
+### Packages added through `Project.packages` {#project-packages}
+
+Xcode builds the packages added through `Project.packages` from their own manifests, so they don't read the build settings of generated projects. Without prefix mapping, their compilations, and those of the targets that import them, only hit the cache from the same checkout.
+
+On Xcode 27 and later, with `enableCaching`, `tuist generate` writes the prefix mapping settings for these packages to `<Workspace>.xcworkspace/xcshareddata/tuist/xcode-cache.xcconfig`. `tuist xcodebuild`, `tuist build`, and `tuist test` apply it through the `XCODE_XCCONFIG_FILE` environment variable, unless that variable is already set. When you run `xcodebuild` directly, pass the file with `-xcconfig`:
+
+```bash
+xcodebuild build -workspace App.xcworkspace -scheme App -xcconfig App.xcworkspace/xcshareddata/tuist/xcode-cache.xcconfig
+```
+
+Builds started from Xcode don't apply the file, so package compilations there keep path-dependent cache keys. The mappings expect the packages in Xcode's default checkout location, next to the build directory; with `-clonedSourcePackagesDirPath`, package sources stay unmapped. Packages integrated through `Tuist/Package.swift` don't need the file.
+
 ### Debugging generated projects {#debugging-generated-projects}
 
 With `enableCaching: true`, Tuist configures LLDB source maps for Run and Test actions. When an action has a custom LLDB initializer, Tuist writes its resolved source map first, then sources the custom initializer so it can extend or override the map. Otherwise it loads `~/.lldbinit-Xcode` if the file exists, falling back to `~/.lldbinit`, before replacing the source map. It loads only one home file, restoring per-user debugger setup without double sourcing. The replacement removes stale mappings from previous runs and takes precedence over home-file source maps; put source-map entries that should survive in the action's custom initializer. Other home settings are preserved. Tuist's cache-specific module search paths, loader settings, and Clang flags are applied afterwards and take precedence over user values for those settings. Home-file errors remain visible without stopping later commands from loading, and commands are not echoed. This initializer preservation also applies when Tuist configures debugging for binaries restored from the module cache, even without `enableCaching` and on earlier Xcode versions.

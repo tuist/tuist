@@ -526,6 +526,59 @@ struct XcodeBuildControllerTests {
             passthroughXcodeBuildArguments: ["-xctestrun", xctestrunPath.pathString]
         )
     }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_whenWorkspaceHasXcodeCachePackagesXCConfig_passesIt() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcworkspacePath = temporaryDirectory.appending(component: "Project.xcworkspace")
+        let xcconfigPath = XcodeCachePackagesXCConfig.path(xcWorkspacePath: xcworkspacePath)
+        try await FileSystem().makeDirectory(at: xcconfigPath.parentDirectory)
+        try await FileSystem().writeText("", at: xcconfigPath)
+        let arguments = ["build", "-workspace", xcworkspacePath.pathString, "-scheme", "App"]
+        commandRunner.succeedCommand(["/usr/bin/xcrun", "xcodebuild"] + arguments)
+
+        // When
+        try await subject.run(arguments: arguments)
+
+        // Then
+        #expect(commandRunner.env["XCODE_XCCONFIG_FILE"] == xcconfigPath.pathString)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_whenXcodeXCConfigFileIsSet_keepsIt() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        environment.variables["XCODE_XCCONFIG_FILE"] = "/tmp/Custom.xcconfig"
+        let xcworkspacePath = temporaryDirectory.appending(component: "Project.xcworkspace")
+        let xcconfigPath = XcodeCachePackagesXCConfig.path(xcWorkspacePath: xcworkspacePath)
+        try await FileSystem().makeDirectory(at: xcconfigPath.parentDirectory)
+        try await FileSystem().writeText("", at: xcconfigPath)
+        let arguments = ["build", "-workspace", xcworkspacePath.pathString, "-scheme", "App"]
+        commandRunner.succeedCommand(["/usr/bin/xcrun", "xcodebuild"] + arguments)
+
+        // When
+        try await subject.run(arguments: arguments)
+
+        // Then
+        #expect(commandRunner.env["XCODE_XCCONFIG_FILE"] == "/tmp/Custom.xcconfig")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_whenWorkspaceHasNoXcodeCachePackagesXCConfig_doesNotSetXCConfigFile() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcworkspacePath = temporaryDirectory.appending(component: "Project.xcworkspace")
+        let arguments = ["build", "-workspace", xcworkspacePath.pathString, "-scheme", "App"]
+        commandRunner.succeedCommand(["/usr/bin/xcrun", "xcodebuild"] + arguments)
+
+        // When
+        try await subject.run(arguments: arguments)
+
+        // Then
+        #expect(commandRunner.env["XCODE_XCCONFIG_FILE"] == nil)
+    }
 }
 
 extension AsyncSequence {
