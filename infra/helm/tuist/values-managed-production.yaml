@@ -1302,8 +1302,9 @@ ovhFleets:
       item: OVH_FLEET_SSH
 
 # BER1 rack fleet: leased M5 Pro Mac minis (Z1UD001N2: 18-core CPU, 64 GB,
-# 10GbE, 2 TB), three three-up trays on chain B (ber1-tor-b and ber1-pdu-b),
-# behind the rack's two edges. Declared here because the rack
+# 10GbE, 2 TB), three three-up trays behind the rack's two edges: tray-b1 and
+# tray-b2 on chain B (ber1-tor-b and ber1-pdu-b), tray-b3 on chain A
+# (ber1-tor-a and ber1-pdu-a). Declared here because the rack
 # is in production (kubernetes.namespace in
 # infra/rack-switch-fleet/sites/ber1.json); no other env may declare it too.
 #
@@ -1325,10 +1326,10 @@ rackFleet:
     - 10.10.0.11/32
   # Each address is the host's reservation on the machines segment, which the
   # edges' DHCP hands it against the MAC recorded in the site definition, and
-  # which both edges advertise to the tailnet as a /32. Each outlet is on the
-  # RackPDU ber1-pdu-b, which infra/rack-switch-fleet renders from the site
-  # definition and its controller adopts. A host's outlet and its ToR port are
-  # on the same chain, which the site's render checks.
+  # which both edges advertise to the tailnet as a /32. Each outlet is on a
+  # RackPDU, ber1-pdu-a or ber1-pdu-b, which infra/rack-switch-fleet renders
+  # from the site definition and its controller adopts. A host's outlet and its
+  # ToR port are on the same chain, which the site's render checks.
   hosts:
     - name: ber1-runner-b01
       serial: K9YLWQHQM2
@@ -1390,24 +1391,24 @@ rackFleet:
       rack: prep
       shelf: tray-b3
       power:
-        pdu: ber1-pdu-b
-        outlet: "9"
+        pdu: ber1-pdu-a
+        outlet: "1"
     - name: ber1-runner-b08
       serial: J64HHMX93T
       address: 10.10.0.108
       rack: prep
       shelf: tray-b3
       power:
-        pdu: ber1-pdu-b
-        outlet: "10"
+        pdu: ber1-pdu-a
+        outlet: "2"
     - name: ber1-runner-b09
       serial: C0YKJG7JLH
       address: 10.10.0.109
       rack: prep
       shelf: tray-b3
       power:
-        pdu: ber1-pdu-b
-        outlet: "11"
+        pdu: ber1-pdu-a
+        outlet: "3"
   machine:
     # The production M4 Pro hosts' shape (macosFleet.machineGroups m4 in
     # values-managed-production.yaml), so a rack runner is the runner customers
