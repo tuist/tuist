@@ -552,9 +552,33 @@ A power node may carry `mac`, its management card's MAC in lower case, like a
 switch. The edge's DHCP reserves the node's `mgmt_address` against it, so a
 factory card, which asks for DHCP, lands on its address with the edge as its
 router and nobody at it; an unknown MAC still gets the provisioning range. A
-node without one (today `ber1-pdu-b`, until someone reads it off the unit) is
+node without one (today `ber1-pdu-a`, whose label shows only its serial) is
 rendered all the same, gets no reservation, and its RackPDU reports
 `AddressReserved=False`.
+
+**A card whose MAC nobody could read off the unit** is cabled to its
+management port anyway, and the edge's DHCP log gives its MAC:
+
+1. The card asks for DHCP and takes a provisioning address (`.100` to `.150`
+   of `management.edge.provisioning`, a one-hour lease). The controller does
+   not find it there: it dials only `spec.address`, and the edges advertise,
+   and the tailnet policy grants, only the power nodes' management /32s.
+2. Read the MAC from the switches' dnsmasq on the edge holding the management
+   address (`kubectl -n omada logs rack-edge-<site>-<edge> -c dhcp`). Each
+   Eaton card names itself: a PDU's vendor class is `Eaton Rack PDU Network
+   Management Controller` and its host name `enmc2-<MAC>`, a transfer switch's
+   `Eaton Gigabit Network Card 3` and `ups-<MAC>`. With every other power node's
+   MAC recorded, the one Eaton client in the provisioning range is the card
+   on the port.
+3. Record the MAC as the node's `mac`, render, and merge. The edge rollout
+   restarts dnsmasq with the reservation, and at the card's next renewal, at
+   most 30 minutes later, dnsmasq refuses its provisioning address (`DHCPNAK
+   ... static lease available`, its answer to a client renewing one address
+   while another is reserved for it). The card starts over and gets
+   `mgmt_address`. No restart of the card is needed. To move it sooner,
+   bounce its port on `ber1-mgmt` from the Omada controller.
+4. Check the controller adopted the card it expected: `kubectl get rackpdu
+   <name> -o wide` (or `rackats`) shows the serial the card reports.
 
 ### RackATS objects
 

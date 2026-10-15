@@ -2932,7 +2932,7 @@ STUB
     [[ "$(tagged_on 10 <<<"$output")" == *"1/0/25, "*"1/0/26, "* ]]
     [ "$(tagged_on 10 <<<"$output")" = "$(tagged_on 4000 <<<"$output")" ]
     # on ToR A the chain A minis and the storage node sit on the segment
-    [ "$(awk '/^interface /{port = $2 " " $3} /allowed vlan 10 untagged/ {printf "%s, ", $3}' <<<"$output")" = "1/0/2, 1/0/3, 1/0/4, 1/0/27, " ]
+    [ "$(awk '/^interface /{port = $3} /allowed vlan 10 untagged/ {printf "%s, ", port}' <<<"$output")" = "1/0/2, 1/0/3, 1/0/4, 1/0/27, " ]
     run fleet_render "$SITE_FILE" ber1-mgmt
     [[ "$output" != *"vlan 10"* ]]
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-tor-b | yq -o=json '.spec.config' | jq -c '[(.ports[] | select(.port == 2) | {nativeVlan, taggedVlans}), ([.vlans[].id])]'"
