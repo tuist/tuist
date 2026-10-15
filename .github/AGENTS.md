@@ -4,6 +4,12 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+Helm CI also watches hosted dashboard changes. Monitoring cost-control tests
+start the production Alloy image to compile log selectors, exercise rendered
+remote-write rules against a local Prometheus receiver, and check all migrated
+latency queries across mixed-version rollout states. These checks need no cloud
+credentials and must never write to the production telemetry destinations.
+
 The existing runner-image release workflow runs the portable TCC report tests
 on PRs with read-only permissions and without persisted checkout credentials
 or the release token. Release planning is disabled on PRs and depends on the

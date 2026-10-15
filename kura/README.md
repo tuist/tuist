@@ -418,6 +418,17 @@ Watch `kura_memory_transient_{capacity,reserved}_bytes`, `kura_memory_elastic_tr
 
 ## 📊 Observability
 
+Public request latency exports both route-specific
+`kura_public_request_latency_seconds` and transport-only
+`kura_public_request_latency_by_transport_seconds` histograms with identical
+bucket boundaries. The route family carries `latency_aggregate="true"` to
+identify runtimes that also export the complete aggregate. Self-hosted scrapers
+will see this additional label; existing queries that sum by their desired
+labels keep working, but recording rules with explicit label lists should be
+checked during an upgrade. Hosted filtering and mixed-version fallback are
+staged separately; see the [monitoring rollout guide](../infra/helm/k8s-monitoring/README.md)
+and [bounded resource qualification](docs/metrics-cost-controls.md).
+
 Optional connectivity diagnostics emit bounded resolver and DNS/TCP/HTTP-header
 observations to ordinary Kura JSON logs. `KURA_CONNECTIVITY_PROFILE` accepts only
 `production`, `staging`, or `canary` and is disabled when unset or invalid. The
