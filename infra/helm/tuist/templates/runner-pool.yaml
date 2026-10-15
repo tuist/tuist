@@ -96,6 +96,9 @@ spec:
     minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
     maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
     scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
+    {{- if hasKey $autoscaling "holdRecentPeak" }}
+    holdRecentPeak: {{ $autoscaling.holdRecentPeak }}
+    {{- end }}
   {{- end }}
   {{- with $pool.rollout }}
   rollout:
@@ -443,6 +446,9 @@ spec:
     minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
     maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
     scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
+    {{- if hasKey $autoscaling "holdRecentPeak" }}
+    holdRecentPeak: {{ $autoscaling.holdRecentPeak }}
+    {{- end }}
   {{- end }}
   {{- with $pool.rollout }}
   rollout:

@@ -185,6 +185,39 @@ func TestAutoscaler_ScalesDownAfterCooldown(t *testing.T) {
 	}
 }
 
+func TestAutoscaler_HoldRecentPeakFalseReleasesABurstPool(t *testing.T) {
+	tests := []struct {
+		name string
+		hold *bool
+		want int32
+	}{
+		{name: "default holds the last hour's peak", hold: nil, want: 11},
+		{name: "false sizes to current load", hold: ptr.To(false), want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool := newAutoscalerPool("smoke", 11, &tuistv1.RunnerPoolAutoscaling{
+				Enabled:          true,
+				MinWarmPoolFloor: ptr.To[int32](0),
+				MaxReplicas:      18,
+				HoldRecentPeak:   tt.hold,
+			})
+			r, server := setupReconciler(t, pool, scaling.Signals{Fleet: "smoke", P95ConcurrentLastHour: 11})
+			defer server.Close()
+
+			reconcileOnce(t, r, "smoke")
+
+			got := &tuistv1.RunnerPool{}
+			if err := r.Get(context.Background(), client.ObjectKeyFromObject(pool), got); err != nil {
+				t.Fatalf("get pool: %v", err)
+			}
+			if got.Spec.Replicas != tt.want {
+				t.Errorf("Replicas = %d, want %d", got.Spec.Replicas, tt.want)
+			}
+		})
+	}
+}
+
 func TestAutoscaler_DefersScaleDownDuringCooldown(t *testing.T) {
 	tenSecondsAgo := metav1.NewTime(time.Date(2026, 5, 14, 11, 59, 50, 0, time.UTC))
 	pool := newAutoscalerPool("linux", 10, &tuistv1.RunnerPoolAutoscaling{
@@ -719,7 +752,7 @@ func TestAutoscaler_FilteredZeroCapacityFallsBackToPerPoolTarget(t *testing.T) {
 	signals := scaling.Signals{Fleet: pool.Name, Claimed: 7}
 	knobs := scaling.PolicyKnobs{MinWarmPoolFloor: 1, MaxReplicas: 30}
 
-	got := r.allocate(context.Background(), pool, signals, knobs, 8, logr.Discard())
+	got, _ := r.allocate(context.Background(), pool, signals, knobs, 8, logr.Discard())
 	if got != 8 {
 		t.Fatalf("allocate with every node filtered = %d, want per-pool fallback 8", got)
 	}
