@@ -120,4 +120,4 @@ This area owns LiveView pages and components for the web UI.
 
 - Gradle cache savings query the immediately preceding equal-duration range with identical filters for a neutral comparison. Keep missing previous reports distinct from recorded zero; zero baselines use absolute change without division.
 
-- Runner volume writer-branch forms apply only to GitHub custom volumes. Reauthorize account-update on every save, scope the selected volume to the account, and distinguish invalid input from denied/missing access. Only removing a branch revokes its pending saves.
+- Cache saving policy is edited on runner profiles, not volumes. The profile modal content renders through a portal, so drive its cache branch form with `render_hook` in tests.

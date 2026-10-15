@@ -9168,6 +9168,15 @@ components:
       x-validate:
     RunnerProfile:
       properties:
+        cache_writer_branches:
+          description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         id:
           type: integer
           x-struct:
@@ -9217,6 +9226,7 @@ components:
         - vcpus
         - memory_gb
         - protected
+        - cache_writer_branches
         - inserted_at
         - updated_at
       title: RunnerProfile
@@ -13014,6 +13024,15 @@ paths:
                   profiles:
                     items:
                       properties:
+                        cache_writer_branches:
+                          description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
                         id:
                           type: integer
                           x-struct:
@@ -13063,6 +13082,7 @@ paths:
                         - vcpus
                         - memory_gb
                         - protected
+                        - cache_writer_branches
                         - inserted_at
                         - updated_at
                       title: RunnerProfile
@@ -27944,6 +27964,169 @@ paths:
       summary: Upload a crash report for a test case run.
       tags:
         - Tests
+  /api/accounts/{account_handle}/runners/profiles/{profile_name}:
+    patch:
+      callbacks: {}
+      description: Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. An empty list follows each repository's default branch. Narrowing the list discards pending saves it no longer allows.
+      operationId: updateRunnerProfile
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The profile name, without the runs-on label prefix.
+          in: path
+          name: profile_name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                cache_writer_branches:
+                  description: Branch names or * patterns. An empty list follows each repository's default branch.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+              required:
+                - cache_writer_branches
+              type: object
+              x-struct:
+              x-validate:
+        description: Profile changes
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  cache_writer_branches:
+                    description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  id:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  memory_gb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  name:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  platform:
+                    enum:
+                      - linux
+                      - macos
+                    type: string
+                    x-struct:
+                    x-validate:
+                  protected:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  vcpus:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  xcode_version:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - name
+                  - platform
+                  - vcpus
+                  - memory_gb
+                  - protected
+                  - cache_writer_branches
+                  - inserted_at
+                  - updated_at
+                title: RunnerProfile
+                type: object
+                x-struct:
+                x-validate:
+          description: Updated runner profile
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or malformed fields
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The profile was not found or runners are not enabled
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid branch names
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Update which branches save a runner profile's cache volumes.
+      tags:
+        - Runners
   /api/projects/{account_handle}/{project_handle}/builds:
     get:
       callbacks: {}
