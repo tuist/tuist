@@ -1,0 +1,137 @@
+name: Runners Shape Benchmark Run
+
+# One shape of runners-shape-benchmark.yml: the same cold workloads in both
+# of the host's guest slots at once.
+
+on:
+  workflow_call:
+    inputs:
+      runs_on:
+        type: string
+        required: true
+      shape:
+        type: string
+        required: true
+      app_tests:
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    name: ${{ inputs.shape }} slot ${{ matrix.slot }}
+    runs-on: ${{ inputs.runs_on }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        slot: [1, 2]
+    env:
+      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      MISE_GITHUB_ATTESTATIONS: 0
+      MISE_LOCKED: 1
+      TUIST_ENABLE_CACHING: "false"
+      SHAPE: ${{ inputs.shape }}
+      SLOT: ${{ matrix.slot }}
+    steps:
+      - name: Describe the guest
+        run: |
+          {
+            echo "guest_vcpus=$(sysctl -n hw.ncpu)"
+            echo "guest_memory_gib=$(( $(sysctl -n hw.memsize) / 1073741824 ))"
+          } >> "$RUNNER_TEMP/result.env"
+          cat "$RUNNER_TEMP/result.env"
+          sysctl -n machdep.cpu.brand_string
+      - uses: actions/checkout@v4
+      - name: Skip Xcode macro and package validation
+        run: |
+          defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+          defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Install Tuist dependencies
+        run: tuist install --force-resolved-versions
+      - name: Start the resource sampler
+        run: |
+          cat > "$RUNNER_TEMP/sampler.sh" <<'EOF'
+          #!/bin/bash
+          # Every 5s: epoch, CPU as a share of all vCPUs, and
+          # active+wired+compressed memory in GiB.
+          ncpu=$(sysctl -n hw.ncpu)
+          page=$(sysctl -n hw.pagesize)
+          while :; do
+            cpu=$(ps -A -o %cpu= | awk -v n="$ncpu" '{s+=$1} END {printf "%.1f", s/n}')
+            mem=$(vm_stat | awk -v p="$page" '
+              /Pages active/ {gsub(/\./, "", $3); a=$3}
+              /Pages wired down/ {gsub(/\./, "", $4); w=$4}
+              /occupied by compressor/ {gsub(/\./, "", $5); c=$5}
+              END {printf "%.2f", (a+w+c)*p/1073741824}')
+            echo "$(date +%s) $cpu $mem" >> "$1"
+            sleep 5
+          done
+          EOF
+          chmod +x "$RUNNER_TEMP/sampler.sh"
+          nohup "$RUNNER_TEMP/sampler.sh" "$RUNNER_TEMP/samples.txt" >/dev/null 2>&1 &
+          echo $! > "$RUNNER_TEMP/sampler.pid"
+      - name: Build the CLI cold
+        run: |
+          tuist generate tuist --no-binary-cache --no-open
+          start=$(date +%s)
+          set +e
+          xcodebuild build -workspace Tuist.xcworkspace -scheme tuist -destination 'platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/dd-cli" \
+            COMPILATION_CACHE_ENABLE_CACHING=NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            | tail -n 20
+          rc=${PIPESTATUS[0]}
+          echo "cli_build_seconds=$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/result.env"
+          exit "$rc"
+      - name: Build and test TuistApp cold
+        if: ${{ inputs.app_tests }}
+        continue-on-error: true
+        run: |
+          start=$(date +%s)
+          set +e
+          tuist test TuistApp --no-selective-testing --no-binary-cache -- \
+            COMPILATION_CACHE_ENABLE_CACHING=NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            | tail -n 40
+          rc=${PIPESTATUS[0]}
+          {
+            echo "app_test_seconds=$(( $(date +%s) - start ))"
+            echo "app_test_exit=$rc"
+          } >> "$RUNNER_TEMP/result.env"
+          exit "$rc"
+      - name: Record the result
+        if: always()
+        run: |
+          kill "$(cat "$RUNNER_TEMP/sampler.pid")" 2>/dev/null || true
+          # shellcheck disable=SC1090
+          source "$RUNNER_TEMP/result.env"
+          read -r avg pegged peak < <(awk '
+            {n++; s+=$2; if ($2 >= 90) p++; if ($3 > m) m=$3}
+            END {if (n) printf "%.0f %.0f %.1f", s/n, p*100/n, m; else print "0 0 0"}' "$RUNNER_TEMP/samples.txt" 2>/dev/null)
+          mkdir -p bench
+          cat > "bench/$SHAPE-$SLOT.json" <<EOF
+          {
+            "shape": "$SHAPE",
+            "slot": $SLOT,
+            "guest_vcpus": ${guest_vcpus:-null},
+            "guest_memory_gib": ${guest_memory_gib:-null},
+            "cli_build_seconds": ${cli_build_seconds:-null},
+            "app_test_seconds": ${app_test_seconds:-null},
+            "app_test_exit": ${app_test_exit:-null},
+            "avg_cpu_percent": ${avg},
+            "pegged_percent": ${pegged},
+            "peak_memory_gib": ${peak}
+          }
+          EOF
+          cat "bench/$SHAPE-$SLOT.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-${{ inputs.shape }}-${{ matrix.slot }}
+          path: bench/*.json

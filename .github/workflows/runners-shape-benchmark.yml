@@ -1,0 +1,93 @@
+name: Runners Shape Benchmark
+
+# Compares macOS runner shapes on the rack's M5 Pro (ber1-runner-b01, lent to
+# staging). Each shape runs the same cold workloads in both guest slots at
+# once, so the two guests contend for the host the way they do in production,
+# and the shapes run one after another so they never share the host.
+#
+# Each label is a staging Runner Profile on the tuist account (Xcode 27.0),
+# which the `runner_site` flag routes to b01's pools for that shape. Staging
+# profiles keep production out of it: production also receives tuist/tuist's
+# webhooks, and resolves the rack pools' own dispatch labels to its own rack.
+#
+# Dispatch it a few times. Every run records each job's wall-clock times and
+# in-guest CPU and memory, and the report job tabulates them.
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_tests:
+        description: Also build and test TuistApp on the simulator, which is the memory-heavy workload
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runners-shape-benchmark
+  cancel-in-progress: false
+
+jobs:
+  shape-6vcpu-14gb:
+    if: github.repository == 'tuist/tuist'
+    uses: ./.github/workflows/runners-shape-benchmark-run.yml
+    with:
+      runs_on: tuist-staging-bench-6-14
+      shape: 6vcpu-14gb
+      app_tests: ${{ inputs.app_tests }}
+    secrets: inherit
+
+  shape-8vcpu-19gb:
+    needs: shape-6vcpu-14gb
+    if: ${{ !cancelled() && github.repository == 'tuist/tuist' }}
+    uses: ./.github/workflows/runners-shape-benchmark-run.yml
+    with:
+      runs_on: tuist-staging-bench-8-19
+      shape: 8vcpu-19gb
+      app_tests: ${{ inputs.app_tests }}
+    secrets: inherit
+
+  shape-8vcpu-24gb:
+    needs: shape-8vcpu-19gb
+    if: ${{ !cancelled() && github.repository == 'tuist/tuist' }}
+    uses: ./.github/workflows/runners-shape-benchmark-run.yml
+    with:
+      runs_on: tuist-staging-bench-8-24
+      shape: 8vcpu-24gb
+      app_tests: ${{ inputs.app_tests }}
+    secrets: inherit
+
+  shape-6vcpu-24gb:
+    needs: shape-8vcpu-24gb
+    if: ${{ !cancelled() && github.repository == 'tuist/tuist' }}
+    uses: ./.github/workflows/runners-shape-benchmark-run.yml
+    with:
+      runs_on: tuist-staging-bench-6-24
+      shape: 6vcpu-24gb
+      app_tests: ${{ inputs.app_tests }}
+    secrets: inherit
+
+  report:
+    needs: [shape-6vcpu-14gb, shape-8vcpu-19gb, shape-8vcpu-24gb, shape-6vcpu-24gb]
+    if: ${{ !cancelled() && github.repository == 'tuist/tuist' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bench-*
+          path: results
+          merge-multiple: true
+      - name: Tabulate
+        run: |
+          {
+            echo "| Shape | Slot | Guest vCPU | Guest GiB | CLI build (s) | TuistApp test (s) | TuistApp exit | Avg CPU % | Time at >=90% CPU | Peak mem GiB |"
+            echo "|---|---|---|---|---|---|---|---|---|---|"
+            jq -rs 'sort_by(.shape, .slot)[] | "| \(.shape) | \(.slot) | \(.guest_vcpus) | \(.guest_memory_gib) | \(.cli_build_seconds) | \(.app_test_seconds) | \(.app_test_exit) | \(.avg_cpu_percent) | \(.pegged_percent)% | \(.peak_memory_gib) |"' results/*.json
+          } >> "$GITHUB_STEP_SUMMARY"
+          jq -s . results/*.json > results.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runners-shape-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
+          path: results.json

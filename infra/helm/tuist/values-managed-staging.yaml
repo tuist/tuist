@@ -876,6 +876,18 @@ runnersFleet:
     # `hostCPU: 8` leaves 2 cores for the host's system services.
     hostCPU: 8
     hostMemoryMB: 14336
+  # The common catalog plus the shapes .github/workflows/runners-shape-benchmark.yml
+  # compares on the rack's M5 Pro (6 vs 8 vCPU, 14 vs 19 vs 24 GB). They run
+  # only on ber1-runner-b01 (`rackFleet.runners.shapes` below), which
+  # production sizes for them. On the M2-L fleet they render with no
+  # autoscaling, so they stay at zero replicas there.
+  shapes:
+    - vcpus: 6
+      memoryGb: 14
+      default: true
+    - { vcpus: 6, memoryGb: 24 }
+    - { vcpus: 8, memoryGb: 19 }
+    - { vcpus: 8, memoryGb: 24 }
   # Cluster-internal CIDR ranges the runner namespace's
   # NetworkPolicy blocks egress to. **Pod-network only** — the
   # Tart VM's traffic is not subject to this policy (vmnet bypasses
@@ -1084,3 +1096,19 @@ rackFleet:
       enabled: true
       minWarmPoolFloor: 0
       maxReplicas: 2
+    shapes:
+      6vcpu-24gb:
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 0
+          maxReplicas: 2
+      8vcpu-19gb:
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 0
+          maxReplicas: 2
+      8vcpu-24gb:
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 0
+          maxReplicas: 2
