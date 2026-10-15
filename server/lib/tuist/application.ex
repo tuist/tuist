@@ -431,9 +431,6 @@ defmodule Tuist.Application do
     )
   end
 
-  # Only in the tree while a destination is configured, which is only during
-  # the migration off ClickHouse Cloud (spec #73). Its absence is what makes
-  # the write mirroring in `Tuist.IngestRepo` inert everywhere else.
   defp redis_children do
     if Environment.redis_url() do
       [
@@ -446,6 +443,9 @@ defmodule Tuist.Application do
     end
   end
 
+  # Only in the tree while a destination is configured, which is only during
+  # the migration off ClickHouse Cloud (spec #73). Its absence is what makes
+  # the write mirroring in `Tuist.IngestRepo` inert everywhere else.
   defp shadow_ingest_children do
     if Environment.clickhouse_bare_metal_url() do
       [

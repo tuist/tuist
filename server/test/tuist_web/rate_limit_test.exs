@@ -52,9 +52,9 @@ defmodule TuistWeb.RateLimitTest do
     test "availability traffic uses a divided local budget when Valkey exits" do
       window = to_timeout(minute: 1)
       stub(Environment, :redis_url, fn -> "redis://example" end)
-      expect(PersistentFixedWindow, :hit, fn "key", ^window, 100, 1 -> exit(:noproc) end)
-      expect(InMemory, :hit, fn "fallback:key", ^window, 20, 1 -> {:allow, 1} end)
-      assert RateLimit.hit("key", limit: 100, window: window, failure_policy: :local) == {:allow, 1}
+      key = "local:#{UUIDv7.generate()}"
+      stub(PersistentFixedWindow, :hit, fn ^key, ^window, 100, 1 -> exit(:noproc) end)
+      assert RateLimit.hit(key, limit: 100, window: window, failure_policy: :local) == {:allow, 1}
     end
 
     test "an outage budget smaller than the replica allowance denies instead of multiplying the limit" do
@@ -65,13 +65,13 @@ defmodule TuistWeb.RateLimitTest do
       assert RateLimit.hit("key", limit: 1, window: window, failure_policy: :local) == {:deny, window}
     end
 
-    test "availability token buckets divide both capacity and refill on failure" do
+    test "token buckets deny on failure even if a caller requests local fallback" do
       stub(Environment, :redis_url, fn -> "redis://example" end)
       expect(PersistentTokenBucket, :hit, fn "key", 10, 100, 1 -> exit(:noproc) end)
-      expect(InMemory, :hit_token_bucket, fn "fallback:key", 2.0, 20, 1 -> {:allow, 19} end)
+      reject(InMemory, :hit_token_bucket, 4)
 
       assert RateLimit.hit("key", algorithm: :token_bucket, capacity: 100, refill_rate: 10, failure_policy: :local) ==
-               {:allow, 19}
+               {:deny, 100}
     end
 
     test "uses the token-bucket in-memory limiter when Valkey is not configured" do
