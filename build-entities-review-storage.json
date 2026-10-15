@@ -1,0 +1,230 @@
+{
+  "scope": "Synthetic local storage only; no production writes or load. No shared process/cache reset.",
+  "port": 18337,
+  "private_config": "/var/folders/cg/tfs066650fnc6hrrf5d0gx6m0000gn/T/tuist-build-entities-review-storage-zlw2w7hq/config.xml",
+  "rows_per_kind": 10000,
+  "identities_per_kind": 1000,
+  "limitations": "Stopped merges quantify initial parts, not steady-state compaction. Synthetic paths/branches and high within-batch identity reuse compress differently from customer data. These byte rates are not production capacity sign-off.",
+  "scenarios": [
+    {
+      "batch_size": 1000,
+      "tables": [
+        {
+          "table": "build_entities",
+          "physical_rows": 50000,
+          "compressed_column_bytes": 2192040,
+          "uncompressed_column_bytes": 6912870,
+          "bytes_on_disk": 2227710
+        },
+        {
+          "table": "build_entity_observations",
+          "physical_rows": 50000,
+          "compressed_column_bytes": 4517833,
+          "uncompressed_column_bytes": 15404870,
+          "bytes_on_disk": 4579817
+        }
+      ],
+      "per_kind": [
+        {
+          "table": "build_entity_observations",
+          "system": "gradle",
+          "kind": "task",
+          "physical_rows": 10000,
+          "bytes_on_disk": 924522
+        },
+        {
+          "table": "build_entity_observations",
+          "system": "mix",
+          "kind": "file",
+          "physical_rows": 10000,
+          "bytes_on_disk": 922740
+        },
+        {
+          "table": "build_entity_observations",
+          "system": "mix",
+          "kind": "module",
+          "physical_rows": 10000,
+          "bytes_on_disk": 923678
+        },
+        {
+          "table": "build_entity_observations",
+          "system": "once",
+          "kind": "action",
+          "physical_rows": 10000,
+          "bytes_on_disk": 923700
+        },
+        {
+          "table": "build_entity_observations",
+          "system": "xcode",
+          "kind": "module",
+          "physical_rows": 10000,
+          "bytes_on_disk": 885177
+        },
+        {
+          "table": "build_entities",
+          "system": "gradle",
+          "kind": "task",
+          "physical_rows": 10000,
+          "bytes_on_disk": 449636
+        },
+        {
+          "table": "build_entities",
+          "system": "mix",
+          "kind": "file",
+          "physical_rows": 10000,
+          "bytes_on_disk": 448774
+        },
+        {
+          "table": "build_entities",
+          "system": "mix",
+          "kind": "module",
+          "physical_rows": 10000,
+          "bytes_on_disk": 448288
+        },
+        {
+          "table": "build_entities",
+          "system": "once",
+          "kind": "action",
+          "physical_rows": 10000,
+          "bytes_on_disk": 440659
+        },
+        {
+          "table": "build_entities",
+          "system": "xcode",
+          "kind": "module",
+          "physical_rows": 10000,
+          "bytes_on_disk": 440353
+        }
+      ],
+      "illustrative_fleet_daily_bytes_at_synthetic_per_kind_byte_rates": 2773841782
+    },
+    {
+      "batch_size": 10000,
+      "tables": [
+        {
+          "table": "build_entities",
+          "physical_rows": 5000,
+          "compressed_column_bytes": 219150,
+          "uncompressed_column_bytes": 691287,
+          "bytes_on_disk": 222717
+        },
+        {
+          "table": "build_entity_observations",
+          "physical_rows": 50000,
+          "compressed_column_bytes": 3671528,
+          "uncompressed_column_bytes": 15397337,
+          "bytes_on_disk": 3677840
+        }
+      ],
+      "per_kind": [
+        {
+          "table": "build_entity_observations",
+          "system": "gradle",
+          "kind": "task",
+          "physical_rows": 10000,
+          "bytes_on_disk": 745391
+        },
+        {
+          "table": "build_entity_observations",
+          "system": "mix",
+          "kind": "file",
+          "physical_rows": 10000,
+          "bytes_on_disk": 740727
+        },
+        {
+          "table": "build_entity_observations",
+          "system": "mix",
+          "kind": "module",
+          "physical_rows": 10000,
+          "bytes_on_disk": 740153
+        },
+        {
+          "table": "build_entity_observations",
+          "system": "once",
+          "kind": "action",
+          "physical_rows": 10000,
+          "bytes_on_disk": 743604
+        },
+        {
+          "table": "build_entity_observations",
+          "system": "xcode",
+          "kind": "module",
+          "physical_rows": 10000,
+          "bytes_on_disk": 707965
+        },
+        {
+          "table": "build_entities",
+          "system": "gradle",
+          "kind": "task",
+          "physical_rows": 1000,
+          "bytes_on_disk": 44970
+        },
+        {
+          "table": "build_entities",
+          "system": "mix",
+          "kind": "file",
+          "physical_rows": 1000,
+          "bytes_on_disk": 44850
+        },
+        {
+          "table": "build_entities",
+          "system": "mix",
+          "kind": "module",
+          "physical_rows": 1000,
+          "bytes_on_disk": 44805
+        },
+        {
+          "table": "build_entities",
+          "system": "once",
+          "kind": "action",
+          "physical_rows": 1000,
+          "bytes_on_disk": 44080
+        },
+        {
+          "table": "build_entities",
+          "system": "xcode",
+          "kind": "module",
+          "physical_rows": 1000,
+          "bytes_on_disk": 44012
+        }
+      ],
+      "illustrative_fleet_daily_bytes_at_synthetic_per_kind_byte_rates": 1579538488
+    }
+  ],
+  "production_read_only_snapshot": {
+    "sampled_utc": "2026-10-15 14:48\u201314:51",
+    "window": "independent rolling 24-hour samples",
+    "scope": "Read-only aggregate counts only; no production DDL, writes, deployment, cache reset or load generation.",
+    "native_xcode_targets": 53649171,
+    "eligible_or_upper_bound_observations": [
+      {
+        "system": "gradle",
+        "kind": "task",
+        "rows": 5208291
+      },
+      {
+        "system": "xcode",
+        "kind": "module",
+        "rows": 15182081
+      },
+      {
+        "system": "mix",
+        "kind": "file",
+        "rows": 97257
+      },
+      {
+        "system": "mix",
+        "kind": "module",
+        "rows": 127977
+      },
+      {
+        "system": "once",
+        "kind": "action",
+        "rows": 108571
+      }
+    ],
+    "observation_rows_if_all_projects_enrolled": 20724177,
+    "catalog_state_rows_upper_bound_if_all_projects_enrolled": 20724177,
+    "limitations": "Not actual feature writes: feature is undeployed/default-off. Once is an upper bound before terminal-run/target-mapping eligibility. Catalog output groups duplicate identities within each insertion batch; it is at most one state row per observation. Counts include native retries. Snapshot times differ by up to two minutes."
+  }
+}
