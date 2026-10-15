@@ -15,7 +15,7 @@ defmodule Tuist.Origin.Signatures do
          [header | _] = String.split(token, "."),
          {:ok, header} <- Base.url_decode64(header, padding: false),
          {:ok, %{"alg" => "EdDSA", "typ" => "origin-installation-receipt+jwt", "kid" => kid}} <-
-           Jason.decode(header),
+           JSON.decode(header),
          {:ok, keys} <- keys(),
          {:ok, key} <- receipt_key(keys, kid),
          {true, %{fields: claims}, _} <-
@@ -63,18 +63,22 @@ defmodule Tuist.Origin.Signatures do
   end
 
   defp valid_claims?(claims, state) do
+    claims["iss"] == @issuer and claims["aud"] == Environment.origin_app_id() and
+      claims["state"] == state and valid_timestamps?(claims) and
+      is_binary(claims["sub"]) and claims["sub"] != "" and is_binary(claims["namespace_id"])
+  end
+
+  defp valid_timestamps?(claims) do
     now = System.system_time(:second)
 
-    claims["iss"] == @issuer and claims["aud"] == Environment.origin_app_id() and
-      claims["state"] == state and is_integer(claims["exp"]) and claims["exp"] > now and
-      is_integer(claims["iat"]) and claims["iat"] <= now + 60 and
-      is_binary(claims["sub"]) and claims["sub"] != "" and is_binary(claims["namespace_id"])
+    is_integer(claims["exp"]) and claims["exp"] > now and
+      is_integer(claims["iat"]) and claims["iat"] <= now + 60
   end
 
   defp keys do
     KeyValueStore.get_or_update(
       :origin_signing_keys,
-      [ttl: :timer.minutes(1)],
+      [ttl: to_timeout(minute: 1)],
       &Client.signing_keys/0
     )
   end
@@ -99,9 +103,8 @@ defmodule Tuist.Origin.Signatures do
   end
 
   defp verify_ed25519(%{"kty" => "OKP", "crv" => "Ed25519", "x" => x}, digest, signature) do
-    with {:ok, key} <- Base.url_decode64(x, padding: false) do
-      :crypto.verify(:eddsa, :none, digest, signature, [key, :ed25519])
-    else
+    case Base.url_decode64(x, padding: false) do
+      {:ok, key} -> :crypto.verify(:eddsa, :none, digest, signature, [key, :ed25519])
       _ -> false
     end
   rescue

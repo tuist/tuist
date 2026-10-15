@@ -165,35 +165,26 @@ defmodule Tuist.Origin.Client do
 
   defp pages(path, token, field, params \\ [], seen \\ MapSet.new()) do
     with {:ok, body} <- request(:get, path, token, params: [pageSize: 100] ++ params),
-         values when is_list(values) <- body[field] do
-      case body["nextPageToken"] do
-        next when next in [nil, ""] ->
-          {:ok, values}
-
-        next when is_binary(next) ->
-          if MapSet.member?(seen, next) do
-            {:error, :invalid_origin_pagination}
-          else
-            with {:ok, rest} <-
-                   pages(
-                     path,
-                     token,
-                     field,
-                     Keyword.put(params, :pageToken, next),
-                     MapSet.put(seen, next)
-                   ) do
-              {:ok, values ++ rest}
-            end
-          end
-
-        _ ->
-          {:error, :invalid_origin_response}
-      end
+         values when is_list(values) <- body[field],
+         {:ok, rest} <- next_page(path, token, field, params, body["nextPageToken"], seen) do
+      {:ok, values ++ rest}
     else
       {:error, _} = error -> error
       _ -> {:error, :invalid_origin_response}
     end
   end
+
+  defp next_page(_path, _token, _field, _params, next, _seen) when next in [nil, ""], do: {:ok, []}
+
+  defp next_page(path, token, field, params, next, seen) when is_binary(next) do
+    if MapSet.member?(seen, next) do
+      {:error, :invalid_origin_pagination}
+    else
+      pages(path, token, field, Keyword.put(params, :pageToken, next), MapSet.put(seen, next))
+    end
+  end
+
+  defp next_page(_path, _token, _field, _params, _next, _seen), do: {:error, :invalid_origin_response}
 
   defp request(method, path, token, options \\ []) do
     case Req.request(

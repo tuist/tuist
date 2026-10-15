@@ -1,6 +1,7 @@
 defmodule TuistWeb.Plugs.OriginWebhookPlug do
   @moduledoc "Bounded raw-body Origin webhook verification and durable lifecycle dispatch."
   @behaviour Plug
+
   import Plug.Conn
 
   alias Tuist.Environment
@@ -30,7 +31,7 @@ defmodule TuistWeb.Plugs.OriginWebhookPlug do
             "appId" => app_id,
             "deliveryId" => delivery_id,
             "event" => %{"type" => type}
-          } = envelope} <- Jason.decode(body),
+          } = envelope} <- JSON.decode(body),
          true <- app_id == Environment.origin_app_id() and delivery_id == headers["webhook-id"],
          true <- is_binary(delivery_id) and is_binary(type) do
       dispatch(conn, delivery_id, envelope["installationId"], type)
@@ -53,6 +54,5 @@ defmodule TuistWeb.Plugs.OriginWebhookPlug do
   defp dispatch(conn, _delivery_id, _installation_id, "installation." <> _event),
     do: conn |> send_resp(401, "Missing installation") |> halt()
 
-  defp dispatch(conn, _delivery_id, _installation_id, _type),
-    do: conn |> send_resp(204, "") |> halt()
+  defp dispatch(conn, _delivery_id, _installation_id, _type), do: conn |> send_resp(204, "") |> halt()
 end

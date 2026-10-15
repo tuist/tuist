@@ -791,8 +791,7 @@ defmodule Tuist.Projects do
         join: pc in VCSConnection,
         on: pc.project_id == p.id,
         where: pc.provider == ^provider,
-        where:
-          fragment("lower(?) = lower(?)", pc.repository_full_handle, ^vcs_repository_full_handle),
+        where: fragment("lower(?) = lower(?)", pc.repository_full_handle, ^vcs_repository_full_handle),
         order_by: [asc: p.id],
         preload: ^preload
     )
@@ -801,11 +800,7 @@ defmodule Tuist.Projects do
   @doc """
   Get a specific project by name and VCS repository handle.
   """
-  def project_by_name_and_vcs_repository_full_handle(
-        project_name,
-        vcs_repository_full_handle,
-        opts \\ []
-      ) do
+  def project_by_name_and_vcs_repository_full_handle(project_name, vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
     provider = Keyword.get(opts, :provider, :github)
 
@@ -815,8 +810,7 @@ defmodule Tuist.Projects do
           join: pc in VCSConnection,
           on: pc.project_id == p.id,
           where: pc.provider == ^provider,
-          where:
-            pc.repository_full_handle == ^vcs_repository_full_handle and p.name == ^project_name,
+          where: pc.repository_full_handle == ^vcs_repository_full_handle and p.name == ^project_name,
           preload: ^preload
       )
 

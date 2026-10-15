@@ -1,6 +1,7 @@
 defmodule TuistWeb.Plugs.OriginWebhookPlugTest do
   use ExUnit.Case, async: true
   use Mimic
+
   import Plug.Test
 
   alias Tuist.Environment
@@ -31,7 +32,7 @@ defmodule TuistWeb.Plugs.OriginWebhookPlugTest do
     end)
 
     conn =
-      conn(:post, "/webhooks/origin", body) |> Plug.Conn.put_req_header("webhook-id", "whd_test")
+      :post |> conn("/webhooks/origin", body) |> Plug.Conn.put_req_header("webhook-id", "whd_test")
 
     assert %{status: 202, halted: true} = OriginWebhookPlug.call(conn, [])
   end
@@ -41,7 +42,8 @@ defmodule TuistWeb.Plugs.OriginWebhookPlugTest do
     stub(Oban, :insert, fn _ -> {:error, :database_unavailable} end)
 
     conn =
-      conn(:post, "/webhooks/origin", delivery())
+      :post
+      |> conn("/webhooks/origin", delivery())
       |> Plug.Conn.put_req_header("webhook-id", "whd_test")
 
     assert %{status: 503} = OriginWebhookPlug.call(conn, [])
@@ -71,10 +73,11 @@ defmodule TuistWeb.Plugs.OriginWebhookPlugTest do
   test "unsigned routing headers cannot override the signed event type" do
     stub(Signatures, :verify_webhook, fn _, _ -> :ok end)
     reject(&Oban.insert/1)
-    body = delivery() |> Jason.decode!() |> put_in(["event", "type"], "ping") |> Jason.encode!()
+    body = delivery() |> JSON.decode!() |> put_in(["event", "type"], "ping") |> JSON.encode!()
 
     conn =
-      conn(:post, "/webhooks/origin", body)
+      :post
+      |> conn("/webhooks/origin", body)
       |> Plug.Conn.put_req_header("webhook-id", "whd_test")
       |> Plug.Conn.put_req_header("webhook-event-type", "installation.deleted")
 
@@ -84,10 +87,10 @@ defmodule TuistWeb.Plugs.OriginWebhookPlugTest do
   test "accepts Origin's signed app-level ping without an installation" do
     stub(Signatures, :verify_webhook, fn _, _ -> :ok end)
     reject(&Oban.insert/1)
-    body = Jason.encode!(%{appId: "app_tuist", deliveryId: "whd_test", event: %{type: "ping"}})
+    body = JSON.encode!(%{appId: "app_tuist", deliveryId: "whd_test", event: %{type: "ping"}})
 
     conn =
-      conn(:post, "/webhooks/origin", body) |> Plug.Conn.put_req_header("webhook-id", "whd_test")
+      :post |> conn("/webhooks/origin", body) |> Plug.Conn.put_req_header("webhook-id", "whd_test")
 
     assert %{status: 204} = OriginWebhookPlug.call(conn, [])
   end
@@ -98,7 +101,7 @@ defmodule TuistWeb.Plugs.OriginWebhookPlugTest do
   end
 
   defp delivery(app_id \\ "app_tuist") do
-    Jason.encode!(%{
+    JSON.encode!(%{
       appId: app_id,
       deliveryId: "whd_test",
       installationId: "i_test",

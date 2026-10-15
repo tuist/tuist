@@ -7,10 +7,10 @@ defmodule TuistWeb.OriginAppSetupControllerTest do
   alias Tuist.Origin
   alias Tuist.Origin.Client
   alias Tuist.Origin.Signatures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.BadRequestError
   alias TuistWeb.OriginAppSetupController
-  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
     user = AccountsFixtures.user_fixture()
@@ -55,7 +55,8 @@ defmodule TuistWeb.OriginAppSetupControllerTest do
     user: user
   } do
     conn =
-      OriginAppSetupController.start(conn, %{"account_id" => to_string(account.id)})
+      conn
+      |> OriginAppSetupController.start(%{"account_id" => to_string(account.id)})
       |> browser_request(user)
 
     session = get_session(conn, :origin_installation)
@@ -103,7 +104,8 @@ defmodule TuistWeb.OriginAppSetupControllerTest do
     end
 
     started =
-      OriginAppSetupController.start(conn, %{"account_id" => to_string(account.id)})
+      conn
+      |> OriginAppSetupController.start(%{"account_id" => to_string(account.id)})
       |> browser_request(user)
 
     session = get_session(started, :origin_installation)
@@ -137,14 +139,17 @@ defmodule TuistWeb.OriginAppSetupControllerTest do
     end
 
     assert_raise BadRequestError, fn ->
-      OriginAppSetupController.start(build_conn() |> init_test_session(%{}), %{
+      build_conn()
+      |> init_test_session(%{})
+      |> OriginAppSetupController.start(%{
         "account_id" => to_string(other.account.id)
       })
     end
   end
 
   defp browser_request(conn, user) do
-    authenticated_conn(user)
+    user
+    |> authenticated_conn()
     |> put_session(:origin_installation, get_session(conn, :origin_installation))
   end
 

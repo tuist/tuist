@@ -48,6 +48,19 @@ defmodule Tuist.Origin.SignaturesTest do
     end
   end
 
+  test "rejects missing, non-integer, and future receipt timestamps", %{key: key, claims: claims} do
+    for {field, value} <- [
+          {"exp", nil},
+          {"exp", to_string(claims["exp"])},
+          {"iat", nil},
+          {"iat", to_string(claims["iat"])},
+          {"iat", claims["iat"] + 120}
+        ] do
+      assert {:error, :invalid_origin_receipt} =
+               Signatures.verify_receipt(receipt(key, Map.put(claims, field, value)), "browser_state")
+    end
+  end
+
   test "rejects signatures from the app's key instead of Cursor's key", %{claims: claims} do
     app_key = JOSE.JWK.generate_key({:okp, :Ed25519})
 

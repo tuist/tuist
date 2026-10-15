@@ -1,6 +1,7 @@
 defmodule Tuist.Origin.Installation do
   @moduledoc "Durable, account-owned Origin app installation. App keys remain deployment secrets."
   use Ecto.Schema
+
   import Ecto.Changeset
 
   alias Tuist.Accounts.Account

@@ -328,10 +328,7 @@ defmodule Tuist.VCS do
   def get_repository_content(params, opts \\ [])
   def get_repository_content(%{provider: :origin}, _opts), do: {:error, :unsupported_vcs}
 
-  def get_repository_content(
-        %{repository_full_handle: repository_full_handle, provider: provider, token: token},
-        opts
-      ) do
+  def get_repository_content(%{repository_full_handle: repository_full_handle, provider: provider, token: token}, opts) do
     client = get_client_for_provider(provider)
 
     client.get_repository_content(
@@ -421,9 +418,7 @@ defmodule Tuist.VCS do
 
   defp normalize_scp_url(url), do: Regex.replace(~r/^git@([^:]+):/, url, "https://\\1/")
 
-  defp get_app_installation_for_repository(
-         %{project: project, repository_full_handle: handle} = params
-       ) do
+  defp get_app_installation_for_repository(%{project: project, repository_full_handle: handle} = params) do
     case Repo.preload(project, :vcs_connection).vcs_connection do
       %{provider: :origin} -> Origin.installation_for_repository(project, handle)
       _ -> get_github_app_installation_for_repository(params)
@@ -434,15 +429,17 @@ defmodule Tuist.VCS do
   defp comment_client(%GitHubAppInstallation{}), do: Client
 
   defp report_pull_request(%OriginInstallation{} = installation, handle, ref, sha, remote) do
-    with {:ok, :origin} <- get_provider_from_repository_url(remote) do
-      OriginClient.get_pull_request_number(%{
-        installation: installation,
-        repository_full_handle: handle,
-        git_ref: ref,
-        git_commit_sha: sha
-      })
-    else
-      _ -> {:error, :not_pull_request}
+    case get_provider_from_repository_url(remote) do
+      {:ok, :origin} ->
+        OriginClient.get_pull_request_number(%{
+          installation: installation,
+          repository_full_handle: handle,
+          git_ref: ref,
+          git_commit_sha: sha
+        })
+
+      _ ->
+        {:error, :not_pull_request}
     end
   end
 
@@ -457,10 +454,7 @@ defmodule Tuist.VCS do
     end
   end
 
-  defp get_github_app_installation_for_repository(%{
-         repository_full_handle: repository_full_handle,
-         project: project
-       }) do
+  defp get_github_app_installation_for_repository(%{repository_full_handle: repository_full_handle, project: project}) do
     project = Repo.preload(project, vcs_connection: :github_app_installation)
 
     with %{
@@ -529,12 +523,7 @@ defmodule Tuist.VCS do
   @doc """
   Creates a comment on a VCS issue/pull request.
   """
-  def create_comment(%{
-        repository_full_handle: repository_full_handle,
-        git_ref: git_ref,
-        body: body,
-        project: project
-      }) do
+  def create_comment(%{repository_full_handle: repository_full_handle, git_ref: git_ref, body: body, project: project}) do
     with issue_id when is_integer(issue_id) <- pull_request_number_from_git_ref(git_ref),
          {:ok, installation} <-
            get_app_installation_for_repository(%{
