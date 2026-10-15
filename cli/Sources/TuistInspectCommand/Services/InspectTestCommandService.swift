@@ -166,7 +166,8 @@
                 onlyTestIdentifiers: [],
                 skipTestIdentifiers: [],
                 stressNewTests: nil,
-                stressResultBundlePaths: []
+                stressResultBundlePaths: [],
+                scheme: nil
             )
 
             AlertController.current.success(

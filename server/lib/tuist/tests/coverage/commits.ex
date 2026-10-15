@@ -294,7 +294,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.is_ci and t.id in subquery(covered),
           group_by: t.id,
           having: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == true,
-          select: fragment("any(?)", t.scheme)
+          select: fragment("argMax(?, ?)", t.scheme, t.inserted_at)
         ),
         settings: [select_sequential_consistency: 1]
       )
@@ -401,7 +401,7 @@ defmodule Tuist.Tests.Coverage.Commits do
         order_by: [asc: min(t.ran_at)],
         select: %{
           test_run_id: t.id,
-          scheme: fragment("any(?)", t.scheme),
+          scheme: fragment("argMax(?, ?)", t.scheme, t.inserted_at),
           git_repository_id: fragment("argMax(?, ?)", t.git_repository_id, t.inserted_at),
           git_branch: fragment("any(?)", t.git_branch),
           is_pull_request: fragment("argMax(?, ?)", t.is_pull_request, t.inserted_at),
@@ -775,7 +775,7 @@ defmodule Tuist.Tests.Coverage.Commits do
         group_by: t.id,
         select: %{
           id: t.id,
-          scheme: fragment("any(?)", t.scheme),
+          scheme: fragment("argMax(?, ?)", t.scheme, t.inserted_at),
           build_system: fragment("any(?)", t.build_system),
           git_commit_sha: fragment("any(?)", t.git_commit_sha),
           git_repository_id: fragment("argMax(?, ?)", t.git_repository_id, t.inserted_at),
@@ -798,7 +798,12 @@ defmodule Tuist.Tests.Coverage.Commits do
         where: t.git_dirty == false,
         select: %{
           test_run_id: c.test_run_id,
-          scheme: c.scheme,
+          # The run's, not the published totals': a client that processed the bundle itself
+          # publishes its coverage with the run's creation, before the processor has read the
+          # scheme off the bundle, and the recompute that follows the processing reads it here.
+          # The run's rows are read by their latest version for the same reason: the row the
+          # creation wrote carries no scheme, and `any` could pick it.
+          scheme: t.scheme,
           build_system: c.build_system,
           partial: c.partial,
           git_commit_sha: t.git_commit_sha,

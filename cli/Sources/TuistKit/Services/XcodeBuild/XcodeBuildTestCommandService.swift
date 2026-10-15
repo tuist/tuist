@@ -585,7 +585,8 @@ extension XcodeBuildTestCommandService {
                     onlyTestIdentifiers: onlyTestIdentifiers,
                     skipTestIdentifiers: skipTestIdentifiers,
                     stressNewTests: stressNewTests?.serverPayload,
-                    stressResultBundlePaths: stressNewTests?.resultBundlePaths ?? []
+                    stressResultBundlePaths: stressNewTests?.resultBundlePaths ?? [],
+                    scheme: scheme
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(

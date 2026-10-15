@@ -300,7 +300,8 @@ struct InspectTestCommandServiceTests {
                 onlyTestIdentifiers: .any,
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
-                stressResultBundlePaths: .any
+                stressResultBundlePaths: .any,
+                scheme: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -331,7 +332,8 @@ struct InspectTestCommandServiceTests {
                 onlyTestIdentifiers: .any,
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
-                stressResultBundlePaths: .any
+                stressResultBundlePaths: .any,
+                scheme: .any
             )
             .called(1)
         verify(uploadResultBundleService)
