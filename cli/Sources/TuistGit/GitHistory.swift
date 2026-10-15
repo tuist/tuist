@@ -50,21 +50,31 @@ public struct GitHistoryLimits: Equatable, Sendable {
     public var windowCommits: Int
     /// How long deepening a shallow clone may take before giving up on the merge base.
     public var deepenBudgetSeconds: Int
-    /// Whether the base branch may be fetched and a shallow clone deepened. Without it, history is
-    /// read from what the checkout already has.
-    public var unshallow: Bool
+    /// What may be read from the remote beyond the checkout.
+    public var remoteAccess: GitHistoryRemoteAccess
 
     public init(
         windowDays: Int = 365,
         windowCommits: Int = 5000,
         deepenBudgetSeconds: Int = 60,
-        unshallow: Bool = true
+        remoteAccess: GitHistoryRemoteAccess = .history
     ) {
         self.windowDays = windowDays
         self.windowCommits = windowCommits
         self.deepenBudgetSeconds = deepenBudgetSeconds
-        self.unshallow = unshallow
+        self.remoteAccess = remoteAccess
     }
+}
+
+/// What collecting a run's history may read from the remote. Every remote call is a round trip of
+/// most of a second whatever it transfers, so only finding the merge base fetches history.
+public enum GitHistoryRemoteAccess: Equatable, Sendable {
+    /// Only what the checkout has.
+    case none
+    /// The base branch's latest commit (`git ls-remote`) when the checkout lacks the base branch.
+    case baseHead
+    /// The base branch, and a shallow clone deepened until the merge base is found.
+    case history
 }
 
 /// What a checkout can tell about a run's place in the repository's history. Anything the
@@ -76,10 +86,10 @@ public struct GitHistory: Equatable, Sendable {
     public let headSHA: String
     public let baseBranch: String?
     public let mergeBaseSHA: String?
-    /// The base branch's commit as the checkout saw it, nil when the base branch could not be read.
+    /// The base branch's commit as the checkout or the remote had it, nil when neither could say.
     public let baseHeadSHA: String?
-    /// The commits reachable from the head, and from the base branch's commit, within the limits,
-    /// newest first.
+    /// The commits reachable from the head, and from the base branch's commit when the checkout has
+    /// it, within the limits, newest first.
     public let commits: [GitHistoryCommit]
     public let fallbackReason: String?
 

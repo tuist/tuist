@@ -311,9 +311,105 @@ struct GitHistoryServiceTests {
                 workingDirectory: .any,
                 headSHA: .any,
                 baseBranch: .any,
-                limits: .value(GitHistoryLimits(windowDays: 30, windowCommits: 100, deepenBudgetSeconds: 10, unshallow: false))
+                limits: .value(GitHistoryLimits(windowDays: 30, windowCommits: 100, deepenBudgetSeconds: 10, remoteAccess: .none))
             )
             .called(1)
+    }
+
+    @Test(.withMockedEnvironment(), arguments: [
+        (false, GitHistoryRemoteAccess.baseHead),
+        (true, GitHistoryRemoteAccess.history),
+    ])
+    func fetchesHistoryOnlyForCoverage(coverage: Bool, remoteAccess: GitHistoryRemoteAccess) async throws {
+        Environment.mocked?.variables["CI"] = "1"
+        if coverage { Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1" }
+        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+
+        _ = await subject.collect(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL
+        )
+
+        verify(gitController)
+            .gitHistory(
+                workingDirectory: .any,
+                headSHA: .any,
+                baseBranch: .any,
+                limits: .value(GitHistoryLimits(
+                    windowDays: 30,
+                    windowCommits: 100,
+                    deepenBudgetSeconds: 10,
+                    remoteAccess: remoteAccess
+                ))
+            )
+            .called(1)
+    }
+
+    @Test(.withMockedEnvironment())
+    func reportsTheBaseBranchHeadTheRemoteGaveWithoutTheCheckoutHavingIt() async throws {
+        // The merge queue's run that tested the commit sent it; this checkout only knows its SHA.
+        Environment.mocked?.variables["CI"] = "1"
+        let gitController = MockGitControlling()
+        given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
+        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController)
+            .gitHistory(workingDirectory: .any, headSHA: .any, baseBranch: .any, limits: .any)
+            .willReturn(
+                GitHistory(
+                    objectFormat: "sha1",
+                    headSHA: "head",
+                    baseBranch: "main",
+                    mergeBaseSHA: nil,
+                    baseHeadSHA: "mainhead",
+                    commits: [GitHistoryCommit(sha: "head", parents: ["base"], committedAt: Date(timeIntervalSince1970: 2))],
+                    fallbackReason: "the base branch main is not in the checkout"
+                )
+            )
+        let subject = GitHistoryService(
+            gitController: gitController,
+            settingsService: settingsService,
+            missingCommitsService: missingCommitsService,
+            uploadCommitsService: uploadCommitsService,
+            missingListingsService: missingListingsService,
+            uploadListingService: uploadListingService,
+            cache: GitHistoryCache()
+        )
+        given(missingCommitsService)
+            .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
+            .willReturn([])
+        given(uploadCommitsService)
+            .uploadCommits(
+                fullHandle: .any,
+                serverURL: .any,
+                repositoryURL: .any,
+                objectFormat: .any,
+                commits: .any,
+                branchHeads: .any
+            )
+            .willReturn(())
+
+        let collected = try #require(
+            await subject.publish(
+                gitInfo: gitInfo,
+                workingDirectory: workingDirectory,
+                fullHandle: "tuist/tuist",
+                serverURL: serverURL
+            )
+        )
+
+        verify(uploadCommitsService).uploadCommits(
+            fullHandle: .any,
+            serverURL: .any,
+            repositoryURL: .any,
+            objectFormat: .any,
+            commits: .value([]),
+            branchHeads: .value([
+                GitHistoryBranchHead(branch: "feature", sha: "head", observedAt: collected.observedAt),
+                GitHistoryBranchHead(branch: "main", sha: "mainhead", observedAt: collected.observedAt),
+            ])
+        ).called(1)
     }
 
     @Test(.withMockedEnvironment())

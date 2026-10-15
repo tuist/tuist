@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistProcess
 
 extension GitController {
     public func commitFiles(workingDirectory: AbsolutePath, sha: String, limit: Int) async throws -> GitCommitFiles {
@@ -32,13 +33,17 @@ extension GitController {
 
         var mergeBase: String?
         var baseHead: String?
+        var localBaseHead: String?
         if let baseBranch {
             let resolved = await resolveMergeBase(git: git, head: head, baseBranch: baseBranch, limits: limits)
             mergeBase = resolved.sha
             reasons = resolved.reasons
             // Read after any deepening, which fetches the base branch again and can move it.
             if let ref = resolved.ref {
-                baseHead = await commitSHA(git: git, ref: ref)
+                localBaseHead = await commitSHA(git: git, ref: ref)
+                baseHead = localBaseHead
+            } else if limits.remoteAccess == .baseHead {
+                baseHead = await remoteBranchHead(git: git, branch: baseBranch, budgetSeconds: limits.deepenBudgetSeconds)
             }
         } else {
             reasons.append("no base branch is known")
@@ -47,7 +52,7 @@ extension GitController {
         let commits = try await windowCommits(
             git: git,
             workingDirectory: workingDirectory,
-            heads: [head] + [baseHead].compactMap { $0 }.filter { $0 != head },
+            heads: [head] + [localBaseHead].compactMap { $0 }.filter { $0 != head },
             limits: limits
         )
 
@@ -139,12 +144,8 @@ extension GitController {
         // filters ignores the option with a warning and sends everything.
         let baseRefspec = "+\(baseBranch):refs/remotes/origin/\(baseBranch)"
         var ref = await baseRef()
-        if ref == nil, !limits.unshallow {
-            return MergeBaseResolution(
-                sha: nil,
-                ref: nil,
-                reasons: ["the base branch \(baseBranch) is not in the checkout and fetching it is disabled"]
-            )
+        if ref == nil, limits.remoteAccess != .history {
+            return MergeBaseResolution(sha: nil, ref: nil, reasons: ["the base branch \(baseBranch) is not in the checkout"])
         }
         if ref == nil {
             var fetch = git + ["fetch", "--no-tags", "--filter=blob:none"]
@@ -173,11 +174,11 @@ extension GitController {
                 reasons: ["\(head.prefix(12)) and \(baseBranch) share no history in the checkout"]
             )
         }
-        guard limits.unshallow else {
+        guard limits.remoteAccess == .history else {
             return MergeBaseResolution(
                 sha: nil,
                 ref: ref,
-                reasons: ["shallow clone: the merge base with \(baseBranch) is not in the checkout and deepening it is disabled"]
+                reasons: ["shallow clone: the merge base with \(baseBranch) is not in the checkout"]
             )
         }
 
@@ -215,6 +216,33 @@ extension GitController {
 
     private enum FetchOutcome {
         case succeeded, failed, timedOut
+    }
+
+    /// The branch's latest commit as the remote has it: one `git ls-remote`, which transfers no
+    /// objects, torn down like a fetch when it outlasts the budget.
+    private func remoteBranchHead(git: [String], branch: String, budgetSeconds: Int) async -> String? {
+        let arguments = git + ["ls-remote", "origin", "refs/heads/\(branch)"]
+        let output = await withTaskGroup(of: String?.self) { group in
+            group.addTask {
+                var bytes: [UInt8] = []
+                do {
+                    for try await event in runInOwnProcessGroup(arguments: arguments) {
+                        if case let .standardOutput(chunk) = event { bytes += chunk }
+                    }
+                } catch {
+                    return nil
+                }
+                return Task.isCancelled ? nil : String(bytes: bytes, encoding: .utf8)
+            }
+            group.addTask {
+                try? await Task.sleep(for: .seconds(budgetSeconds))
+                return nil
+            }
+            let output = await group.next() ?? nil
+            group.cancelAll()
+            return output
+        }
+        return output?.split(whereSeparator: \.isWhitespace).first.map(String.init)
     }
 
     /// Runs the fetch until it exits or the deadline passes, whichever comes first. A fetch still

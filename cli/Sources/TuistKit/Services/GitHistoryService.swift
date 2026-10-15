@@ -88,8 +88,13 @@ public struct GitHistoryService: GitHistoryServicing {
     /// The commit file listings are what coverage measures against, and have no other use.
     static var coverageEnabled: Bool { ClientFeatureFlags.contains("COVERAGE") }
 
-    /// `TUIST_GIT_UNSHALLOW_ENABLED=false` reads history from what the checkout has, without fetching.
-    static var unshallowEnabled: Bool { !Environment.current.isVariableFalsy("TUIST_GIT_UNSHALLOW_ENABLED") }
+    /// Only coverage needs the merge base, so only coverage fetches history; any other run reads the
+    /// checkout and asks the remote for the base branch's latest commit at most.
+    /// `TUIST_GIT_UNSHALLOW_ENABLED=false` keeps every run to what the checkout has.
+    static var remoteAccess: GitHistoryRemoteAccess {
+        guard !Environment.current.isVariableFalsy("TUIST_GIT_UNSHALLOW_ENABLED") else { return .none }
+        return coverageEnabled ? .history : .baseHead
+    }
 
     /// History is best effort, so outside coverage a failure is only logged: a server that predates
     /// it, or a checkout it cannot read, is no reason to flag every run.
@@ -215,7 +220,7 @@ public struct GitHistoryService: GitHistoryServicing {
                     windowDays: settings.windowDays,
                     windowCommits: settings.windowCommits,
                     deepenBudgetSeconds: settings.deepenBudgetSeconds,
-                    unshallow: Self.unshallowEnabled
+                    remoteAccess: Self.remoteAccess
                 )
             )
         } catch {
@@ -352,9 +357,10 @@ public struct GitHistoryService: GitHistoryServicing {
             [GitHistoryBranchHead(branch: $0, sha: collected.history.headSHA, observedAt: collected.observedAt)]
         } ?? []
         // A pull request's run is how the default branch's head is seen between the default
-        // branch's own runs. It is reported only when it was listed, so the server knows it.
+        // branch's own runs. The checkout may not have that commit: the run that tested it, a
+        // merge queue's typically, sent it already.
         if let baseBranch = collected.history.baseBranch, baseBranch != collected.branch,
-           let baseHeadSHA = collected.history.baseHeadSHA, commits.contains(where: { $0.sha == baseHeadSHA })
+           let baseHeadSHA = collected.history.baseHeadSHA
         {
             branchHeads.append(GitHistoryBranchHead(branch: baseBranch, sha: baseHeadSHA, observedAt: collected.observedAt))
         }
