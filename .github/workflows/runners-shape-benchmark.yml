@@ -1,8 +1,8 @@
 name: Runners Shape Benchmark
 
 # Compares macOS runner shapes on the rack's M5 Pro (ber1-runner-b01, lent to
-# staging). Each shape runs the same cold workloads, one shape at a time so
-# they never share the host.
+# staging). A round runs the same cold workloads in one or two guests at once,
+# and the rounds run one after another so they never share the host.
 #
 # The `bench-ber1-*` labels are the dispatch labels of RunnerPools created by
 # hand in staging's tuist-runners namespace (label
@@ -11,17 +11,21 @@ name: Runners Shape Benchmark
 # pool or profile resolves; the chart's own `shape-macos-ber1-*` labels are
 # not.
 #
-# While b01 advertises 12 CPU / 28 GB, only one guest larger than 6 vCPU /
-# 14 GB fits, so every shape runs alone and 6 vCPU / 14 GB also runs as a
-# pair, which shows what the second guest costs. Every run records each
-# job's wall-clock times and in-guest CPU and memory, and the report job
-# tabulates them.
+# The default rounds fit b01 at 12 CPU / 28 GB. Two 8 vCPU guests and a
+# 16 vCPU guest need the 16 CPU / 48 GB it advertises with its `machine`
+# override in values-managed-production.yaml; pass them in `rounds`.
 
 on:
   workflow_dispatch:
     inputs:
+      rounds:
+        description: >-
+          JSON array of rounds, e.g. [{"shape": "8vcpu-19gb", "guests": 2}].
+          Empty runs the default rounds.
+        required: false
+        default: ""
       app_tests:
-        description: Also build and test TuistApp on the simulator, which is the memory-heavy workload
+        description: Also build and test TuistApp on the simulator
         type: boolean
         default: true
   push:
@@ -39,62 +43,45 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  shape-6vcpu-14gb:
+  plan:
     if: github.repository == 'tuist/tuist'
-    uses: ./.github/workflows/runners-shape-benchmark-run.yml
-    with:
-      runs_on: bench-ber1-6vcpu-14gb
-      shape: 6vcpu-14gb
-      slots: "[1]"
-      app_tests: ${{ github.event_name == 'push' || inputs.app_tests }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      rounds: ${{ steps.plan.outputs.rounds }}
+    steps:
+      - id: plan
+        env:
+          ROUNDS: ${{ inputs.rounds }}
+        run: |
+          if [ -z "$ROUNDS" ]; then
+            ROUNDS='[
+              {"shape": "6vcpu-14gb", "guests": 1},
+              {"shape": "6vcpu-14gb", "guests": 2},
+              {"shape": "8vcpu-19gb", "guests": 1},
+              {"shape": "12vcpu-28gb", "guests": 1}
+            ]'
+          fi
+          echo "rounds=$(jq -c '[.[] | . + {slots: [range(1; .guests + 1)]}]' <<< "$ROUNDS")" >> "$GITHUB_OUTPUT"
 
-  shape-8vcpu-19gb:
-    needs: shape-6vcpu-14gb
-    if: ${{ !cancelled() && github.repository == 'tuist/tuist' }}
+  round:
+    needs: plan
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        round: ${{ fromJSON(needs.plan.outputs.rounds) }}
     uses: ./.github/workflows/runners-shape-benchmark-run.yml
     with:
-      runs_on: bench-ber1-8vcpu-19gb
-      shape: 8vcpu-19gb
-      slots: "[1]"
-      app_tests: ${{ github.event_name == 'push' || inputs.app_tests }}
-    secrets: inherit
-
-  shape-8vcpu-24gb:
-    needs: shape-8vcpu-19gb
-    if: ${{ !cancelled() && github.repository == 'tuist/tuist' }}
-    uses: ./.github/workflows/runners-shape-benchmark-run.yml
-    with:
-      runs_on: bench-ber1-8vcpu-24gb
-      shape: 8vcpu-24gb
-      slots: "[1]"
-      app_tests: ${{ github.event_name == 'push' || inputs.app_tests }}
-    secrets: inherit
-
-  shape-6vcpu-24gb:
-    needs: shape-8vcpu-24gb
-    if: ${{ !cancelled() && github.repository == 'tuist/tuist' }}
-    uses: ./.github/workflows/runners-shape-benchmark-run.yml
-    with:
-      runs_on: bench-ber1-6vcpu-24gb
-      shape: 6vcpu-24gb
-      slots: "[1]"
-      app_tests: ${{ github.event_name == 'push' || inputs.app_tests }}
-    secrets: inherit
-
-  shape-6vcpu-14gb-pair:
-    needs: shape-6vcpu-24gb
-    if: ${{ !cancelled() && github.repository == 'tuist/tuist' }}
-    uses: ./.github/workflows/runners-shape-benchmark-run.yml
-    with:
-      runs_on: bench-ber1-6vcpu-14gb
-      shape: 6vcpu-14gb-pair
-      slots: "[1, 2]"
+      runs_on: bench-ber1-${{ matrix.round.shape }}
+      shape: ${{ matrix.round.shape }}
+      guests: ${{ matrix.round.guests }}
+      slots: ${{ toJSON(matrix.round.slots) }}
       app_tests: ${{ github.event_name == 'push' || inputs.app_tests }}
     secrets: inherit
 
   report:
-    needs: [shape-6vcpu-14gb, shape-8vcpu-19gb, shape-8vcpu-24gb, shape-6vcpu-24gb, shape-6vcpu-14gb-pair]
+    needs: round
     if: ${{ !cancelled() && github.repository == 'tuist/tuist' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -107,9 +94,9 @@ jobs:
       - name: Tabulate
         run: |
           {
-            echo "| Shape | Slot | Guest vCPU | Guest GiB | CLI builds (s) | CLI median (s) | TuistApp test (s) | TuistApp exit | Build avg CPU % | Build time at >=90% CPU | Peak mem GiB |"
-            echo "|---|---|---|---|---|---|---|---|---|---|---|"
-            jq -rs 'sort_by(.shape, .slot)[] | "| \(.shape) | \(.slot) | \(.guest_vcpus) | \(.guest_memory_gib) | \(.cli_build_seconds // [] | map(tostring) | join(" / ")) | \(.cli_build_seconds // [] | sort | if length > 0 then .[length / 2 | floor] else null end) | \(.app_test_seconds) | \(.app_test_exit) | \(.avg_cpu_percent) | \(.pegged_percent)% | \(.peak_memory_gib) |"' results/*.json
+            echo "| Shape | Guests | Slot | Guest vCPU | Guest GiB | CLI builds (s) | CLI median (s) | TuistApp test (s) | TuistApp exit | Build avg CPU % | Build time at >=90% CPU | Peak mem GiB |"
+            echo "|---|---|---|---|---|---|---|---|---|---|---|---|"
+            jq -rs 'sort_by(.guest_vcpus, .guests, .slot)[] | "| \(.shape) | \(.guests) | \(.slot) | \(.guest_vcpus) | \(.guest_memory_gib) | \(.cli_build_seconds // [] | map(tostring) | join(" / ")) | \(.cli_build_seconds // [] | sort | if length > 0 then .[length / 2 | floor] else null end) | \(.app_test_seconds) | \(.app_test_exit) | \(.avg_cpu_percent) | \(.pegged_percent)% | \(.peak_memory_gib) |"' results/*.json
           } >> "$GITHUB_STEP_SUMMARY"
           jq -s . results/*.json > results.json
       - uses: actions/upload-artifact@v4

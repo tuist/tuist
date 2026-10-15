@@ -12,6 +12,10 @@ on:
       shape:
         type: string
         required: true
+      guests:
+        description: Guests running at once on the host
+        type: number
+        default: 1
       slots:
         description: JSON array of guest slots to run at once, e.g. "[1, 2]"
         type: string
@@ -25,7 +29,7 @@ permissions:
 
 jobs:
   run:
-    name: ${{ inputs.shape }} slot ${{ matrix.slot }}
+    name: ${{ inputs.shape }} x${{ inputs.guests }} slot ${{ matrix.slot }}
     runs-on: ${{ inputs.runs_on }}
     timeout-minutes: 120
     strategy:
@@ -39,6 +43,7 @@ jobs:
       TUIST_ENABLE_CACHING: "false"
       SHAPE: ${{ inputs.shape }}
       SLOT: ${{ matrix.slot }}
+      GUESTS: ${{ inputs.guests }}
     steps:
       - name: Describe the guest
         run: |
@@ -138,9 +143,10 @@ jobs:
             "$RUNNER_TEMP/build-windows.txt" "$RUNNER_TEMP/samples.txt" 2>/dev/null || echo "null null null")
           read -r avg pegged peak <<< "$stats"
           mkdir -p bench
-          cat > "bench/$SHAPE-$SLOT.json" <<EOF
+          cat > "bench/$SHAPE-x$GUESTS-$SLOT.json" <<EOF
           {
             "shape": "$SHAPE",
+            "guests": $GUESTS,
             "slot": $SLOT,
             "guest_vcpus": ${guest_vcpus:-null},
             "guest_memory_gib": ${guest_memory_gib:-null},
@@ -152,9 +158,9 @@ jobs:
             "peak_memory_gib": ${peak}
           }
           EOF
-          cat "bench/$SHAPE-$SLOT.json"
+          cat "bench/$SHAPE-x$GUESTS-$SLOT.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: bench-${{ inputs.shape }}-${{ matrix.slot }}
+          name: bench-${{ inputs.shape }}-x${{ inputs.guests }}-${{ matrix.slot }}
           path: bench/*.json
