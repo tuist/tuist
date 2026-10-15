@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fixture, handover } from "./fixture.mjs";
 
@@ -70,19 +72,25 @@ try {
       );
     // Diverge only the standby with old destination-only bodies. The source's
     // ordinary recency policy must leave these outside its already-full ring.
-    f.docker(
-      "exec",
-      `${f.prefix}-api`,
-      "node",
-      "--input-type=module",
-      "-e",
-      `
+    await promisify(execFile)(
+      "docker",
+      [
+        "--context",
+        "default",
+        "exec",
+        `${f.prefix}-api`,
+        "node",
+        "--input-type=module",
+        "-e",
+        `
       for (let i = 0; i < 512; i++) {
         const r = await fetch(${JSON.stringify(`http://${f.names[1]}:7443/_internal/replicate/artifact?producer=gradle&inline=false&namespace_id=segmented-handover&content_type=application%2Foctet-stream&version_ms=1&key=destination-only-`)} + i,
           {method: 'PUT', body: Buffer.alloc(2 * 1024 * 1024, 91), signal: AbortSignal.timeout(30000)});
         await r.arrayBuffer(); if (r.status !== 204) throw Error('seed status ' + r.status);
       }
     `,
+      ],
+      { timeout: 120000, maxBuffer: 1024 * 1024 },
     );
     await sleep(10000);
     const id = createHash("sha256")
