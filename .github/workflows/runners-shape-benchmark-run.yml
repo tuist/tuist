@@ -74,19 +74,20 @@ jobs:
         run: |
           cat > "$RUNNER_TEMP/sampler.sh" <<'EOF'
           #!/bin/bash
-          # Every 5s: epoch, CPU as a share of all vCPUs, and
-          # active+wired+compressed memory in GiB.
-          ncpu=$(sysctl -n hw.ncpu)
+          # Every ~5s: epoch, busy CPU as a share of all vCPUs, and
+          # active+wired+compressed memory in GiB. CPU comes from top's idle
+          # figure over a 4s interval: per-process ps figures miss the
+          # short-lived compiler processes a build is made of.
           page=$(sysctl -n hw.pagesize)
           while :; do
-            cpu=$(ps -A -o %cpu= | awk -v n="$ncpu" '{s+=$1} END {printf "%.1f", s/n}')
+            cpu=$(top -l 2 -n 0 -s 4 | awk '/CPU usage/ {idle = $7} END {gsub("%", "", idle); printf "%.1f", 100 - idle}')
             mem=$(vm_stat | awk -v p="$page" '
               /Pages active/ {gsub(/\./, "", $3); a=$3}
               /Pages wired down/ {gsub(/\./, "", $4); w=$4}
               /occupied by compressor/ {gsub(/\./, "", $5); c=$5}
               END {printf "%.2f", (a+w+c)*p/1073741824}')
             echo "$(date +%s) $cpu $mem" >> "$1"
-            sleep 5
+            sleep 1
           done
           EOF
           chmod +x "$RUNNER_TEMP/sampler.sh"
