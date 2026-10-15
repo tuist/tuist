@@ -70,8 +70,9 @@ does not restore them. Put every OTP application used from a task back on the
 path with `Mix.ensure_application!/1` before starting it (`:inets` and `:ssl`
 in `TuistEx.HTTP`, `:os_mon` in `MachineMetrics`). It shares the Tuist credential
 file and uses the command line tool's refresh lock path. With `--cover`, `mix tuist.test` reports line coverage (`Analytics.Coverage`)
-and the Git history with every run, so the formatter always runs in
-`{:defer, owner}` mode then. The formatter reads `cover`'s counters at
+with every run, and on CI or with `--cover` the Git history (`Analytics.GitHistory.enabled?/2`, off with
+`TUIST_GIT_UPLOAD_ENABLED=false`), so the formatter runs in `{:defer, owner}`
+mode then. The formatter reads `cover`'s counters at
 `suite_finished`: every test has run, and Mix's coverage tool has neither
 written its report nor, in an umbrella, restarted `cover` for the next
 application. It never wraps or replaces the project's `test_coverage` tool,
@@ -104,12 +105,15 @@ must leave a running cover server alone: under `mix test --cover` it is Mix's.
 collection (`GitController+History.swift`, `GitHistoryParser.swift`,
 `GitHistoryService.swift`) and must stay in step with it, since the server
 compares what both report: the merge base with the CI provider's base branch
-(fetching it and deepening a shallow clone within the server's budget), the
-commits within the window (a shallow
-boundary's parents read from the commit objects), whether the checkout is
-dirty (`git status --porcelain`, untracked files included), and after the run
-the commits the server lacks, the branch head, and a clean checkout's file
-listing. Git's standard error is discarded and nothing here ever fails a run.
+(fetching it and deepening a shallow clone within the server's budget, unless
+`TUIST_GIT_UNSHALLOW_ENABLED=false`), the base branch's commit as the checkout
+saw it, the commits within the window reachable from the head and that commit
+(a shallow boundary's parents read from the commit objects), whether the
+checkout is dirty (`git status --porcelain`, untracked files included), and
+after the run the commits the server lacks, the branch heads (the run's, and
+the base branch's when it differs and was listed, which is how the default
+branch's head advances between its own runs), and, only with `--cover`, a
+clean checkout's file listing. Git's standard error is discarded and nothing here ever fails a run.
 Server ingestion and
 dashboard presentation belong in `server/`.
 

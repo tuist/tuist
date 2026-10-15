@@ -76,6 +76,13 @@ current git ref, and any recognised continuous integration provider metadata
 travel with the payload so a dashboard can group runs by branch, commit, and
 CI run.
 
+On continuous integration, the run also uploads the checkout's commit history:
+commit SHAs, their parents, commit dates, and the branch the run and its pull
+request's base branch were on, which is how Tuist learns which commits landed
+on the default branch. `TUIST_GIT_UPLOAD_ENABLED=false` turns it off, and
+`TUIST_GIT_UNSHALLOW_ENABLED=false` keeps a shallow clone from being fetched
+or deepened.
+
 Analytics submission never changes the exit code of `mix test`. If a request
 fails, set `TUIST_DEBUG=1` to print the reason to standard error. Authentication
 uses the `TUIST_TOKEN` environment variable if set, then the credentials from
@@ -364,7 +371,8 @@ branch's coverage trend.
 
 The run's Git history is the merge base with the branch a pull request merges
 into and the commits Tuist does not have yet. A shallow
-clone is deepened, within a time budget, until the merge base is found.
+clone is deepened, within a time budget, until the merge base is found. With
+`--cover`, the commit's file listing is uploaded too.
 
 ## Optional reported actor
 

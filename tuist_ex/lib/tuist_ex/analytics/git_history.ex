@@ -2,13 +2,13 @@ defmodule TuistEx.Analytics.GitHistory do
   @moduledoc false
 
   # A run's Git history, collected from the checkout within the limits the
-  # server sets: the fields a coverage run reports (merge base, whether the
-  # checkout was dirty), and, once the run exists, the commits the
-  # server's graph lacks, the branch head, and the commit's file listing when
-  # the checkout is clean. Both halves are best effort: a run is never lost to
-  # a history problem, and what could not be collected is reported with the
-  # run so the server can complete it from the VCS provider. Mirrors the
-  # command line tool's `GitHistoryService`.
+  # server sets: the fields the run reports (merge base, whether the checkout
+  # was dirty), and, once the run exists, the commits the server's graph
+  # lacks, the branch heads, and, with coverage, the commit's file listing
+  # when the checkout is clean. Both halves are best effort: a run is never
+  # lost to a history problem, and what could not be collected is reported
+  # with the run so the server can complete it from the VCS provider. Mirrors
+  # the command line tool's `GitHistoryService`.
 
   alias TuistEx.Analytics.Env
   alias TuistEx.Analytics.HTTP
@@ -25,11 +25,26 @@ defmodule TuistEx.Analytics.GitHistory do
     commit_file_limit: 50_000
   }
 
+  @falsy ["0", "false", "FALSE", "no", "NO"]
+
+  @doc """
+  Whether a run collects its history: on CI, where it places runs on the
+  default branch's history, and with coverage. `TUIST_GIT_UPLOAD_ENABLED=false`
+  turns it off.
+  """
+  def enabled?(coverage?, environment \\ &System.get_env/1) do
+    environment.("TUIST_GIT_UPLOAD_ENABLED") not in @falsy and
+      (coverage? or Env.ci?(environment))
+  end
+
   @doc """
   Collects the history of the checkout at `dir`. Returns the collected state
-  for `payload/1` and `upload/2`.
+  for `payload/1` and `upload/2`. The commit's file listing, which only
+  coverage measures against, is uploaded only when `coverage?`.
+  `TUIST_GIT_UNSHALLOW_ENABLED=false` reads what the checkout has, without
+  fetching.
   """
-  def collect(dir, options, environment \\ &System.get_env/1) do
+  def collect(dir, options, environment \\ &System.get_env/1, coverage? \\ false) do
     observed_at = DateTime.utc_now()
     head = Env.git_commit_sha(environment)
     base_branch = Env.base_branch(environment)
@@ -43,6 +58,7 @@ defmodule TuistEx.Analytics.GitHistory do
       pull_request_number: pull_request_number,
       pull_request?: not is_nil(pull_request_number),
       observed_at: observed_at,
+      coverage?: coverage?,
       settings: @default_settings,
       dirty?: false,
       history: nil
@@ -59,12 +75,12 @@ defmodule TuistEx.Analytics.GitHistory do
         settings = settings(options)
         dirty? = Git.dirty?(dir)
 
-        case Git.history(
-               dir,
-               head,
-               base_branch,
-               Map.take(settings, [:window_days, :window_commits, :deepen_budget_seconds])
-             ) do
+        limits =
+          settings
+          |> Map.take([:window_days, :window_commits, :deepen_budget_seconds])
+          |> Map.put(:unshallow, environment.("TUIST_GIT_UNSHALLOW_ENABLED") not in @falsy)
+
+        case Git.history(dir, head, base_branch, limits) do
           {:ok, history} ->
             %{base | settings: settings, dirty?: dirty?, history: history}
             |> Map.put(:fallback_reason, history.fallback_reason)
@@ -105,9 +121,10 @@ defmodule TuistEx.Analytics.GitHistory do
   @doc """
   Sends the commits the server lacks, oldest first so their generation
   numbers are exact, in batches of the server's size, with the branch head
-  the run was on, and the commit's file listing when the server lacks it and
-  the checkout is clean. A checkout without a remote has no graph to upload
-  to. Returns the problems it ran into, which are never raised.
+  the run was on and the base branch's as the checkout saw it, and, with
+  coverage, the commit's file listing when the server lacks it and the
+  checkout is clean. A checkout without a remote has no graph to upload to.
+  Returns the problems it ran into, which are never raised.
   """
   def upload(%{history: nil}, _options), do: []
   def upload(%{repository_url: url}, _options) when url in [nil, ""], do: []
@@ -115,7 +132,9 @@ defmodule TuistEx.Analytics.GitHistory do
   def upload(collected, options) do
     [
       upload_step("the run's Git history", fn -> upload_commits(collected, options) end),
-      upload_step("the commit's file listing", fn -> upload_listing(collected, options) end)
+      if(collected.coverage?,
+        do: upload_step("the commit's file listing", fn -> upload_listing(collected, options) end)
+      )
     ]
     |> Enum.reject(&is_nil/1)
   end
@@ -148,15 +167,9 @@ defmodule TuistEx.Analytics.GitHistory do
         end)
 
       branch_heads =
-        if collected.branch,
-          do: [
-            %{
-              branch: collected.branch,
-              sha: history.head_sha,
-              observed_at: DateTime.to_iso8601(collected.observed_at)
-            }
-          ],
-          else: []
+        Enum.map(branch_heads(collected), fn {branch, sha} ->
+          %{branch: branch, sha: sha, observed_at: DateTime.to_iso8601(collected.observed_at)}
+        end)
 
       batches =
         case Enum.chunk_every(to_upload, max(collected.settings.upload_batch_size, 1)) do
@@ -182,6 +195,19 @@ defmodule TuistEx.Analytics.GitHistory do
         end
       end)
     end
+  end
+
+  # A pull request's run is how the default branch's head is seen between the
+  # default branch's own runs. It is reported only when it was listed, so the
+  # server knows it.
+  defp branch_heads(%{branch: branch, history: history}) do
+    base_head =
+      if history.base_branch && history.base_branch != branch && history.base_head_sha &&
+           Enum.any?(history.commits, &(&1.sha == history.base_head_sha)),
+         do: [{history.base_branch, history.base_head_sha}],
+         else: []
+
+    if(branch, do: [{branch, history.head_sha}], else: []) ++ base_head
   end
 
   defp upload_listing(%{dirty?: true}, _options), do: :ok

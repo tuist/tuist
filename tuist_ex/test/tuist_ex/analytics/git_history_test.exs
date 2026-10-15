@@ -113,7 +113,7 @@ defmodule TuistEx.Analytics.GitHistoryTest do
     head: head
   } do
     stub_settings()
-    collected = GitHistory.collect(repo, [], environment(head))
+    collected = GitHistory.collect(repo, [], environment(head), true)
     test_pid = self()
 
     stub(HTTP, :project_request, fn
@@ -142,7 +142,10 @@ defmodule TuistEx.Analytics.GitHistoryTest do
                        repository_url: "https://github.com/tuist/app",
                        object_format: "sha1",
                        commits: [%{sha: ^head, parents: [^base]}],
-                       branch_heads: [%{branch: "feature", sha: ^head}]
+                       branch_heads: [
+                         %{branch: "feature", sha: ^head},
+                         %{branch: "main", sha: ^base}
+                       ]
                      }}
 
     assert_received {:listing,
@@ -158,7 +161,7 @@ defmodule TuistEx.Analytics.GitHistoryTest do
   test "never uploads the listing of a dirty checkout", %{repo: repo, head: head} do
     stub_settings()
     File.write!(Path.join(repo, "untracked.ex"), "u\n")
-    collected = GitHistory.collect(repo, [], environment(head))
+    collected = GitHistory.collect(repo, [], environment(head), true)
     assert GitHistory.payload(collected).git_dirty
 
     stub(HTTP, :project_request, fn
@@ -175,9 +178,86 @@ defmodule TuistEx.Analytics.GitHistoryTest do
     assert GitHistory.upload(collected, []) == []
   end
 
-  test "reports an upload failure instead of raising", %{repo: repo, head: head} do
+  test "uploads no listing without coverage", %{repo: repo, base: base, head: head} do
     stub_settings()
     collected = GitHistory.collect(repo, [], environment(head))
+    test_pid = self()
+
+    stub(HTTP, :project_request, fn
+      :post, "/tests/git-history/commits/missing", _, _ ->
+        {:ok, %{"missing" => [base, head]}}
+
+      :post, "/tests/git-history/commits", body, _ ->
+        send(test_pid, {:commits, body})
+        {:ok, %{}}
+
+      :post, "/tests/git-history/listings" <> _, _, _ ->
+        flunk("a listing was uploaded without coverage")
+    end)
+
+    assert GitHistory.upload(collected, []) == []
+    assert_received {:commits, %{commits: [%{sha: ^head}], branch_heads: [_, _]}}
+  end
+
+  test "reports the base branch's head only when the run is on another branch", %{
+    repo: repo,
+    head: head
+  } do
+    stub_settings()
+    collected = GitHistory.collect(repo, [], environment(head, %{"GITHUB_BASE_REF" => "feature"}))
+    test_pid = self()
+
+    stub(HTTP, :project_request, fn
+      :post, "/tests/git-history/commits/missing", _, _ ->
+        {:ok, %{"missing" => []}}
+
+      :post, "/tests/git-history/commits", body, _ ->
+        send(test_pid, {:commits, body})
+        {:ok, %{}}
+    end)
+
+    assert GitHistory.upload(collected, []) == []
+
+    assert_received {:commits, %{commits: [], branch_heads: [%{branch: "feature", sha: ^head}]}}
+  end
+
+  test "collects on CI, or with coverage, unless the upload is turned off" do
+    ci = fn
+      "CI" -> "true"
+      _ -> nil
+    end
+
+    off = fn
+      "CI" -> "true"
+      "TUIST_GIT_UPLOAD_ENABLED" -> "false"
+      _ -> nil
+    end
+
+    local = fn _ -> nil end
+
+    assert GitHistory.enabled?(false, ci)
+    assert GitHistory.enabled?(true, local)
+    refute GitHistory.enabled?(false, local)
+    refute GitHistory.enabled?(false, off)
+    refute GitHistory.enabled?(true, off)
+  end
+
+  test "fetches nothing when unshallowing is turned off", %{repo: repo, head: head} do
+    stub_settings()
+
+    environment =
+      environment(head, %{
+        "GITHUB_BASE_REF" => "develop",
+        "TUIST_GIT_UNSHALLOW_ENABLED" => "false"
+      })
+
+    assert GitHistory.payload(GitHistory.collect(repo, [], environment)).history_fallback_reason ==
+             "the base branch develop is not in the checkout and fetching it is disabled"
+  end
+
+  test "reports an upload failure instead of raising", %{repo: repo, head: head} do
+    stub_settings()
+    collected = GitHistory.collect(repo, [], environment(head), true)
     stub(HTTP, :project_request, fn :post, _, _, _ -> {:error, {:http, 404, %{}}} end)
 
     assert [commits, listing] = GitHistory.upload(collected, [])

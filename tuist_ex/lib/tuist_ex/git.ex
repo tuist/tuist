@@ -10,7 +10,8 @@ defmodule TuistEx.Git do
   @default_limits %{
     window_days: 365,
     window_commits: 5000,
-    deepen_budget_seconds: 60
+    deepen_budget_seconds: 60,
+    unshallow: true
   }
 
   # Git must never stop to ask for credentials, and signature checks would
@@ -128,8 +129,10 @@ defmodule TuistEx.Git do
 
   @doc """
   The run's history: the object format, the merge base with `base_branch`
-  (fetching and deepening a shallow clone within the budget), the commits
-  within the window. `fallback_reason` says what could not be collected.
+  (fetching and deepening a shallow clone within the budget unless
+  `unshallow` is off), the base branch's commit as the checkout saw it, and
+  the commits within the window reachable from the head and from that commit.
+  `fallback_reason` says what could not be collected.
   """
   def history(dir, head, base_branch, limits \\ @default_limits) do
     limits = Map.merge(@default_limits, limits)
@@ -141,10 +144,13 @@ defmodule TuistEx.Git do
           _ -> "sha1"
         end
 
-      {merge_base, reasons} =
+      {merge_base, ref, reasons} =
         if base_branch,
           do: resolve_merge_base(dir, head, base_branch, limits),
-          else: {nil, ["no base branch is known"]}
+          else: {nil, nil, ["no base branch is known"]}
+
+      # Read after any deepening, which fetches the base branch again and can move it.
+      base_head = if ref, do: commit_sha(dir, ref)
 
       {:ok,
        %{
@@ -152,9 +158,17 @@ defmodule TuistEx.Git do
          head_sha: head,
          base_branch: base_branch,
          merge_base_sha: merge_base,
-         commits: window_commits(dir, head, limits),
+         base_head_sha: base_head,
+         commits: window_commits(dir, Enum.uniq([head | List.wrap(base_head)]), limits),
          fallback_reason: if(reasons != [], do: Enum.join(reasons, "; "))
        }}
+    end
+  end
+
+  defp commit_sha(dir, ref) do
+    case capture(dir, ["rev-parse", "--verify", "--quiet", "#{ref}^{commit}"]) do
+      {:ok, output} -> if String.trim(output) != "", do: String.trim(output)
+      :error -> nil
     end
   end
 
@@ -171,13 +185,12 @@ defmodule TuistEx.Git do
   # theirs are read from the commit objects, which the raw format prints
   # regardless of the shallow grafts. When they cannot be read, the boundary
   # commits are left out rather than stored as roots.
-  defp window_commits(dir, head, limits) do
+  defp window_commits(dir, heads, limits) do
     case capture(dir, [
            "log",
            "--format=%H %P %ct",
            "--max-count=#{limits.window_commits}",
-           "--since=#{limits.window_days}.days.ago",
-           head
+           "--since=#{limits.window_days}.days.ago" | heads
          ]) do
       {:ok, output} -> output |> parse_commits() |> with_boundary_parents(dir)
       :error -> []
@@ -224,49 +237,65 @@ defmodule TuistEx.Git do
   # every fetch: without a refspec git fetches what the checkout's config
   # says, which for `actions/checkout` is every branch. Deepening steps add up
   # and stop at the window, and never continue past a fetch that failed.
+  # Returns the merge base, the base branch's ref it was resolved against, and
+  # why either is missing.
   defp resolve_merge_base(dir, head, base_branch, limits) do
     deadline = System.monotonic_time(:millisecond) + limits.deepen_budget_seconds * 1000
     shallow? = capture(dir, ["rev-parse", "--is-shallow-repository"]) == {:ok, "true\n"}
     refspec = "+#{base_branch}:refs/remotes/origin/#{base_branch}"
 
-    {ref, timed_out?} =
-      case base_ref(dir, base_branch) do
-        nil ->
+    {ref, fetch_problem} =
+      case {base_ref(dir, base_branch), limits.unshallow} do
+        {nil, false} ->
+          {nil, :disabled}
+
+        {nil, true} ->
           fetch =
             ["fetch", "--quiet", "--no-tags", "--filter=blob:none"] ++
               if(shallow?, do: ["--depth=1"], else: [])
 
           case run_until(dir, fetch ++ ["origin", refspec], deadline) do
-            :timed_out -> {nil, true}
-            _ -> {base_ref(dir, base_branch), false}
+            :timed_out -> {nil, :timed_out}
+            _ -> {base_ref(dir, base_branch), nil}
           end
 
-        ref ->
-          {ref, false}
+        {ref, _unshallow} ->
+          {ref, nil}
       end
 
     cond do
-      timed_out? ->
-        {nil,
+      fetch_problem == :disabled ->
+        {nil, nil,
+         ["the base branch #{base_branch} is not in the checkout and fetching it is disabled"]}
+
+      fetch_problem == :timed_out ->
+        {nil, nil,
          [
            "the base branch #{base_branch} is not in the checkout and could not be fetched within #{limits.deepen_budget_seconds}s"
          ]}
 
       is_nil(ref) ->
-        {nil, ["the base branch #{base_branch} is not in the checkout and could not be fetched"]}
+        {nil, nil,
+         ["the base branch #{base_branch} is not in the checkout and could not be fetched"]}
 
       sha = merge_base(dir, ref, head) ->
-        {sha, []}
+        {sha, ref, []}
 
       not shallow? ->
-        {nil,
+        {nil, ref,
          ["#{String.slice(head, 0, 12)} and #{base_branch} share no history in the checkout"]}
 
+      not limits.unshallow ->
+        {nil, ref,
+         [
+           "shallow clone: the merge base with #{base_branch} is not in the checkout and deepening it is disabled"
+         ]}
+
       sha = deepen(dir, ref, head, refspec, deadline, max(limits.window_commits, 50), 0, 50) ->
-        {sha, []}
+        {sha, ref, []}
 
       true ->
-        {nil,
+        {nil, ref,
          [
            "shallow clone: the merge base with #{base_branch} was not found within #{limits.deepen_budget_seconds}s"
          ]}

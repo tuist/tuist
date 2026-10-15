@@ -113,8 +113,8 @@ defmodule Mix.Tasks.Tuist.Test do
             else
               case retries_for(options, test_args) do
                 0 ->
-                  if options[:coverage] do
-                    run_with_coverage(options, test_args)
+                  if options[:coverage] or GitHistory.enabled?(false) do
+                    run_deferred(options, test_args)
                   else
                     configure(options)
                     run_test(test_args)
@@ -258,10 +258,10 @@ defmodule Mix.Tasks.Tuist.Test do
 
   defp run_test(args), do: Args.run_wrapped("test", Mix.Tasks.Test, args)
 
-  # Coverage is read when each suite finishes and sent with its run, so the
-  # runs wait for the suite to end; the Git history is read before the tests
-  # can change the checkout.
-  defp run_with_coverage(options, test_args) do
+  # Coverage is read when each suite finishes and sent with its run, and the
+  # Git history goes with the run too, so the runs wait for the suite to end;
+  # the Git history is read before the tests can change the checkout.
+  defp run_deferred(options, test_args) do
     configure(Keyword.put(options, :mode, {:defer, self()}))
     history = collect_history(options)
 
@@ -274,7 +274,7 @@ defmodule Mix.Tasks.Tuist.Test do
 
   defp run_with_retries(options, test_args, retries) do
     configure(Keyword.put(options, :mode, {:defer, self()}))
-    history = if options[:coverage], do: collect_history(options)
+    history = collect_history(options)
     suite = run_suite(test_args)
     # One per suite that ran: an umbrella runs one for each application.
     deferred = ExUnitFormatter.take_deferred()
@@ -319,12 +319,23 @@ defmodule Mix.Tasks.Tuist.Test do
     :ok
   end
 
-  defp collect_history(_options) do
+  # On CI, or with coverage, unless `TUIST_GIT_UPLOAD_ENABLED=false`.
+  defp collect_history(options) do
+    coverage? = options[:coverage] == true
     analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
 
-    case Isolated.run(fn -> GitHistory.collect(File.cwd!(), analytics_options) end, 300_000) do
-      %{} = history ->
-        history
+    with true <- GitHistory.enabled?(coverage?),
+         %{} = history <-
+           Isolated.run(
+             fn ->
+               GitHistory.collect(File.cwd!(), analytics_options, &System.get_env/1, coverage?)
+             end,
+             300_000
+           ) do
+      history
+    else
+      false ->
+        nil
 
       {:error, reason} ->
         Report.debug("tuist analytics: the Git history could not be read: #{inspect(reason)}")
