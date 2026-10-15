@@ -1347,7 +1347,7 @@ rackFleet:
       # Sized for staging's macOS shape benchmark
       # (.github/workflows/runners-shape-benchmark.yml): two guests of up to
       # 8 vCPU / 24 GB, which leaves the host 2 of its 18 cores and 16 of its
-      # 64 GB. Drop it with the benchmark shapes in values-managed-staging.yaml.
+      # 64 GB. Drop it once the benchmark is done.
       machine:
         hostCPU: 16
         hostMemoryMB: 49152

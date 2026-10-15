@@ -1,7 +1,7 @@
 name: Runners Shape Benchmark Run
 
-# One shape of runners-shape-benchmark.yml: the same cold workloads in both
-# of the host's guest slots at once.
+# One shape of runners-shape-benchmark.yml: the same cold workloads in each
+# of `slots` at once.
 
 on:
   workflow_call:
@@ -12,6 +12,10 @@ on:
       shape:
         type: string
         required: true
+      slots:
+        description: JSON array of guest slots to run at once, e.g. "[1, 2]"
+        type: string
+        default: "[1]"
       app_tests:
         type: boolean
         default: true
@@ -27,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        slot: [1, 2]
+        slot: ${{ fromJSON(inputs.slots) }}
     env:
       MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
       MISE_GITHUB_ATTESTATIONS: 0
