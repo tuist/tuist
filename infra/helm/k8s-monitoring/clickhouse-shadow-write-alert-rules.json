@@ -1,0 +1,89 @@
+[
+  {
+    "annotations": {
+      "description": "Tuist.IngestRepo.ShadowWrite gave up mirroring writes onto the in-cluster ClickHouse: result=error after its last retry, or result=dropped because the mirror's Task.Supervisor was full. ClickHouse Cloud took the rows and the in-cluster server does not have them, so while clickhouse_bare_metal_reads is on every read of those tables is missing them. The mirror's own error log lines do not reach Loki, so this counter is the only signal. Once the window is at least 15 minutes old, run `mise run clickhouse:migration <env> repair --from <start> --to <end>` from infra/ with a few minutes of margin on each side, then refold any coverage commit folded inside the window.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#clickhouse-shadow-write-lost",
+      "summary": "{{ $values.A.Value }} shadow ClickHouse {{ $labels.kind }} write(s) {{ $labels.result }} in {{ $labels.cluster }} in the last 10 minutes"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "(\n  sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~\"error|dropped\"})\n  - sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~\"error|dropped\"} offset 10m)\n)\nor\n(\n  sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~\"error|dropped\"})\n  unless sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~\"error|dropped\"} offset 10m)\n)",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 900,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "0s",
+    "isPaused": false,
+    "keep_firing_for": "10m",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "notification_settings": null,
+    "orgID": 1,
+    "record": null,
+    "ruleGroup": "Server",
+    "title": "ClickHouse shadow write lost",
+    "uid": "clickhouse-shadow-write-lost"
+  }
+]
