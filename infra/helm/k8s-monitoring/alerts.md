@@ -3929,7 +3929,10 @@ limit in the summary, which is what the on-call needs to pick the lever:
     `kura_memory_elastic_transient_capacity_bytes` as for `reapi_write_decode`
     below. Older versions queued on the floor alone, so a shed there can come
     with pressure normal and the headroom unused.
-- `reapi_write_decode`: the same budget on the remote-execution surface. It
+- `reapi_write_decode`: the same budget on the remote-execution surface:
+  decoding a write's messages, decoding a compressed `BatchUpdateBlobs` item,
+  or a write whose reply the floor cannot cover, refused before it stores
+  anything. It
   answers gRPC `RESOURCE_EXHAUSTED`, which Bazel retries, so this counter is
   the only place it shows, and a REAPI-heavy pod firing on it continuously is
   backpressure from a small floor rather than loss. If that proves to be steady
@@ -3982,13 +3985,16 @@ max by (cluster, region, pod) (
   {{ $values.A.Value | printf "%.0f" }} remote-execution reads at the response
   materialization limit in the last 15 minutes ({{ $labels.cluster }})`
 - Description: `The pod answered gRPC RESOURCE_EXHAUSTED to remote-execution
-  reads (BatchReadBlobs, GetActionResult with inline outputs, other unary
-  responses) because the transient memory pool for building responses stayed
-  full, or memory pressure shrank the per-request budget. Clients retry, so
-  this is read backpressure rather than loss. Compare
-  kura_memory_transient_reserved_bytes with kura_memory_transient_capacity_bytes:
-  a pool resting at capacity means the instance's floor is too small for its
-  read concurrency, and the lever is the account's memory profile.`
+  reads (BatchReadBlobs, GetActionResult, FindMissingBlobs, SplitBlob) because
+  the transient memory pool for building responses stayed full, or memory
+  pressure shrank the per-request budget. Clients retry, so this is read
+  backpressure rather than loss. Compare kura_memory_transient_reserved_bytes
+  with kura_memory_transient_capacity_bytes: a pool resting at capacity means
+  the instance's floor is too small for its read concurrency, and the lever is
+  the account's memory profile. A burst shorter than one scrape leaves the
+  gauge at zero, so also check the
+  response_materialization_admission_wait and
+  transient_ceiling_headroom_borrowed memory actions in the same window.`
 
 `reapi_materialization` is a read-path shed, so it does not belong in
 **Kura shedding cache writes by kind**, where it used to ride along and paged
@@ -4001,9 +4007,10 @@ saturation reaches.
 A read is refused for one of two reasons, and they carry different kinds:
 
 - `reapi_materialization`: the pool could not admit the response. The batch
-  read timed out waiting for it, a try-only site found it full, or memory
-  pressure above normal shrank the per-request budget the request ran out of.
-  This is capacity, and the rule counts only this kind.
+  read timed out waiting for it, a try-only read site (`GetActionResult`,
+  `FindMissingBlobs`, `SplitBlob`) found it full, or memory pressure above
+  normal shrank the per-request budget the request ran out of. This is
+  capacity, and the rule counts only this kind.
 - `reapi_request_budget`: one request asked for more than a single response
   may carry at normal pressure. A batch of 64 present 1 MiB blobs on a pod with
   a 48 MiB budget serves 48 and refuses 16, one shed each, while the pool is
@@ -4015,6 +4022,19 @@ Until every pod runs the release that split the kinds, older pods still file
 per-request budget refusals under `reapi_materialization`, so a single
 oversized batch on such a pod can cross the threshold on an idle pool. Check
 `kura_memory_transient_reserved_bytes` against capacity before acting.
+
+Writes no longer shed under this kind. A `BatchUpdateBlobs`,
+`UpdateActionResult` or `SpliceBlob` reserves its reply from the floor before
+it persists and is refused before storing anything when the floor cannot
+cover it, and a compressed `BatchUpdateBlobs` item the pool cannot decode is
+refused too. Both are filed under `reapi_write_decode`. Older pods still file both as
+`reapi_materialization`. There, a write burst filling the floor refuses the
+replies of writes it has already stored, so the client uploads them again.
+The tell is `kura_memory_actions_total_total` in the shed window:
+`transient_ceiling_headroom_borrowed` rising with no
+`response_materialization_admission_wait`. On 2026-10-14 that fired this rule
+with 12 sheds in one scrape on a pod whose reserved gauge read zero
+throughout.
 
 The threshold comes from the 30 days to 2026-09-28. Every 15-minute window
 with more than 10 sheds (20 to 64 per window, on five pods) had the transient
@@ -4032,9 +4052,9 @@ was full at one instant. The wait shows up as
 `kura_memory_actions_total{action="response_materialization_admission_wait"}`,
 which rises long before any shed does and is the earlier signal that an
 instance's floor is too small for its read concurrency. Sheds without a
-matching rise in that counter come from the other materialization sites, which
-stay try-only: they are reached holding admission from another path, so
-waiting there would be hold-and-wait on the pool they are waiting for.
+matching rise in that counter come from the other read sites, which stay
+try-only: they are reached holding admission from another path, so waiting
+there would be hold-and-wait on the pool they are waiting for.
 
 ### Kura replication outbox approaching its cap (retired)
 
