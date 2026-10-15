@@ -1103,6 +1103,40 @@ struct UploadResultBundleServiceTests {
             .called(1)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadResultBundle_createsTheRunWithTheSchemeItWasAskedFor() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.writeText("", at: xcresultPath.appending(component: "Info.plist"))
+        given(analyticsArtifactUploadService)
+            .uploadResultBundle(.any, fullHandle: .any, commandEventId: .any, serverURL: .any)
+            .willReturn()
+
+        _ = try await subject.uploadResultBundle(
+            resultBundlePath: xcresultPath,
+            config: .test(fullHandle: "tuist/tuist"),
+            quarantinedTests: [],
+            shardPlanId: nil,
+            shardIndex: nil,
+            scheme: "App"
+        )
+
+        verify(createTestService)
+            .createTest(
+                fullHandle: .any, serverURL: .any, id: .any,
+                testSummary: .matching { $0.testPlanName == "App" && $0.status == .processing },
+                buildRunId: .any, gitBranch: .any, gitCommitSHA: .any, gitRef: .any,
+                gitRemoteURLOrigin: .any, isCI: .any, modelIdentifier: .any,
+                macOSVersion: .any, xcodeVersion: .any, ciRunId: .any,
+                ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
+                shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
+                stressNewTests: .any, gitHistory: .any, coverage: .any,
+                coverageEnabled: .any
+            )
+            .called(1)
+    }
+
     @Test(.inTemporaryDirectory)
     func rootSpellings_includeThePrefixTheCompilerRecorded() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

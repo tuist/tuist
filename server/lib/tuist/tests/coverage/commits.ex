@@ -798,7 +798,10 @@ defmodule Tuist.Tests.Coverage.Commits do
         where: t.git_dirty == false,
         select: %{
           test_run_id: c.test_run_id,
-          scheme: c.scheme,
+          # The run's, not the published totals': a client that processed the bundle itself
+          # publishes its coverage with the run's creation, before the processor has read the
+          # scheme off the bundle, and the recompute that follows the processing reads it here.
+          scheme: t.scheme,
           build_system: c.build_system,
           partial: c.partial,
           git_commit_sha: t.git_commit_sha,
