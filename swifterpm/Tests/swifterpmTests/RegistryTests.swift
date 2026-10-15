@@ -37,7 +37,8 @@ struct RegistryTests {
             )
 
             let config = try await RegistryConfig.load(
-                packageDir: root, configPath: nil, defaultRegistryURL: nil)
+                packageDir: root, configPath: nil, defaultRegistryURL: nil
+            )
 
             #expect(
                 try config.registryURL(for: "\(scope).package").absoluteString
@@ -91,7 +92,8 @@ struct RegistryTests {
                 to: registries
             )
             let config = try await RegistryConfig.load(
-                packageDir: root, configPath: nil, defaultRegistryURL: nil)
+                packageDir: root, configPath: nil, defaultRegistryURL: nil
+            )
 
             let header = RegistryAuthorization.header(
                 for: RegistryCredential(user: "user", password: "secret"),
@@ -110,7 +112,7 @@ struct RegistryTests {
             "SWIFTPM_REGISTRY_TOKEN": "secret",
             "SWIFTPM_REGISTRY_LOGIN": "ignored", "SWIFTPM_REGISTRY_PASSWORD": "ignored",
         ]) {
-            await RegistryAuthorization.header(
+            try await RegistryAuthorization.header(
                 for: try #require(URL(string: "https://registry.example.com/path")),
                 registryConfig: config,
                 keychain: { _ in Issue.record("keychain consulted despite environment token"); return nil }
@@ -132,7 +134,7 @@ struct RegistryTests {
         ])
         let header = try await Environment.$values.withValue(["SWIFTPM_REGISTRY_TOKEN": "secret"]) {
             try await Environment.withNetrc(netrc) {
-                await RegistryAuthorization.header(
+                try await RegistryAuthorization.header(
                     for: try #require(URL(string: location)), registryConfig: config,
                     keychain: { _ in Issue.record("keychain consulted despite environment provider"); return nil }
                 )
@@ -153,7 +155,7 @@ struct RegistryTests {
         if hasPassword { environment["SWIFTPM_REGISTRY_PASSWORD"] = "secret" }
         let header = try await Environment.$values.withValue(environment) {
             try await Environment.withNetrc(netrc) {
-                await RegistryAuthorization.header(
+                try await RegistryAuthorization.header(
                     for: try #require(URL(string: "https://registry.example.com")), registryConfig: config,
                     keychain: { _ in nil }
                 )
@@ -184,7 +186,7 @@ struct RegistryTests {
         ), sources: sources)
         let header = try await Environment.$values.withValue([:]) {
             try await Environment.withNetrc(netrc) {
-                await RegistryAuthorization.header(
+                try await RegistryAuthorization.header(
                     for: try #require(URL(string: "https://registry.example.com")), registryConfig: config,
                     keychain: { _ in nil }
                 )

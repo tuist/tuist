@@ -643,6 +643,8 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :browser_app]
 
     get "/github/setup", GitHubAppSetupController, :setup
+    get "/origin/start", OriginAppSetupController, :start
+    get "/origin/setup", OriginAppSetupController, :setup
     get "/github/manifest/start", GitHubAppManifestController, :start
     get "/github/manifest/callback", GitHubAppManifestController, :callback
     get "/slack/callback", SlackOAuthController, :callback
@@ -1499,6 +1501,7 @@ defmodule TuistWeb.Router do
       live "/module-cache/modules/:module", ModuleCacheModuleLive, metadata: @public_project_route_metadata
       live "/xcode-cache", XcodeCacheLive, metadata: @public_project_route_metadata
       live "/gradle-cache", GradleCacheLive, metadata: @public_project_route_metadata
+      live "/mix-cache", MixCacheLive, metadata: @public_project_route_metadata
       live "/builds/tasks", GradleTasksLive, :tasks, metadata: @public_project_route_metadata
       live "/builds/tasks/:name", GradleTasksLive, :task, metadata: @public_project_route_metadata
       live "/bazel-cache", BazelCacheLive, metadata: @public_project_route_metadata

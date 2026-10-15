@@ -185,6 +185,13 @@ defmodule TuistWeb.AppLayoutComponents do
           )
         }
       />
+      <.sidebar_item
+        :if={Project.mix_project?(@selected_project)}
+        label={dgettext("dashboard", "Mix Cache")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/mix-cache"}
+        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/mix-cache"}
+      />
       <.sidebar_group
         :if={Project.xcode_project?(@selected_project)}
         id="sidebar-module-cache"

@@ -3,10 +3,13 @@ defmodule Atlas.MCP.ServerConfiguration do
 
   import Ecto.Changeset
 
+  alias Atlas.Encrypted.Binary
+
   schema "mcp_server_configurations" do
     field :name, :string
     field :url, :string
     field :auth_type, :string, default: "oauth2"
+    field :bearer_token, Binary, redact: true
     field :authorization_url, :string
     field :token_url, :string
     field :registration_url, :string
@@ -19,15 +22,53 @@ defmodule Atlas.MCP.ServerConfiguration do
 
   def changeset(server, attrs) do
     server
-    |> cast(attrs, [:name, :url, :authorization_url, :token_url, :registration_url, :scope_list])
+    |> cast(attrs, [
+      :name,
+      :url,
+      :auth_type,
+      :bearer_token,
+      :authorization_url,
+      :token_url,
+      :registration_url,
+      :scope_list
+    ])
     |> put_scopes()
     |> update_change(:name, &String.trim/1)
     |> validate_required([:name, :url, :auth_type])
+    |> validate_inclusion(:auth_type, ~w(oauth2 bearer_token))
+    |> configure_authentication()
     |> validate_format(:name, ~r/^[a-z][a-z0-9_-]*$/)
     |> validate_length(:name, max: 64)
     |> validate_url(:url)
     |> validate_oauth_urls()
     |> unique_constraint(:name)
+  end
+
+  defp configure_authentication(changeset) do
+    case get_field(changeset, :auth_type) do
+      "bearer_token" ->
+        changeset =
+          if get_change(changeset, :bearer_token) in [nil, ""],
+            do: delete_change(changeset, :bearer_token),
+            else: changeset
+
+        changeset
+        |> put_change(:authorization_url, nil)
+        |> put_change(:token_url, nil)
+        |> put_change(:registration_url, nil)
+        |> put_change(:scopes, [])
+        |> validate_required([:bearer_token])
+        |> validate_length(:bearer_token, max: 8192)
+        |> validate_format(:bearer_token, ~r/\A[A-Za-z0-9\-._~+\/]+=*\z/,
+          message: "must be a token without the Bearer prefix or whitespace"
+        )
+
+      "oauth2" ->
+        put_change(changeset, :bearer_token, nil)
+
+      _ ->
+        changeset
+    end
   end
 
   defp put_scopes(changeset) do

@@ -28,6 +28,10 @@ use crate::types::*;
 use crate::upstream::Upstream;
 use crate::PublishRecord;
 
+#[cfg(test)]
+#[path = "../tests/support/replay_cache.rs"]
+mod replay_cache;
+
 // Bounds for the per-path in-memory caches so a long-lived (machine-wide,
 // launchd-managed) proxy cannot grow without limit across many builds. They
 // are correctness-preserving caches — clearing only forces a re-resolve or a
@@ -1306,6 +1310,12 @@ pub struct PathState {
     // materialization. Retained across invalidation for batched demand repair.
     // Decoded-reference checks also protect writes when this map is absent.
     withheld_roots: Mutex<HashMap<Vec<u8>, Vec<Vec<u8>>>>,
+    // A failed preparation must fall through to a fresh action lookup, even if
+    // its old instructions (or an incomplete root) are still present.
+    failed_prepares: Mutex<HashSet<Vec<u8>>>,
+    pub stats_prepares: AtomicU64,
+    pub stats_prepare_misses: AtomicU64,
+    pub stats_prepare_retained: AtomicU64,
     pub stats_resolves: AtomicU64,
     pub stats_remote_hits: AtomicU64,
     pub stats_misses: AtomicU64,
@@ -1654,6 +1664,10 @@ impl PathState {
             last_used: AtomicU64::new(last_used),
             pending_objects: Mutex::new(HashMap::new()),
             withheld_roots: Mutex::new(HashMap::new()),
+            failed_prepares: Mutex::new(HashSet::new()),
+            stats_prepares: AtomicU64::new(0),
+            stats_prepare_misses: AtomicU64::new(0),
+            stats_prepare_retained: AtomicU64::new(0),
             stats_resolves: AtomicU64::new(0),
             stats_remote_hits: AtomicU64::new(0),
             stats_misses: AtomicU64::new(0),
@@ -1702,20 +1716,25 @@ impl PathState {
         self.pending_objects.lock().unwrap().contains_key(digest)
     }
 
-    /// Drops all cached knowledge of the on-disk CAS for this path: the
-    /// resolved key->value map and the known-local shard sets. Called when a
-    /// cached Hit's value object is found missing from disk (`xcodebuild clean`
-    /// or a deleted DerivedData wiped the local CAS under this long-lived
-    /// proxy), so the re-resolve re-probes every manifest entry authoritatively
-    /// and re-materializes the full graph rather than trusting stale in-memory
-    /// marks. Content-addressed and correctness-preserving, so clearing only
-    /// forces re-work, never a wrong answer.
+    fn resolved_value_available(&self, digest: &[u8]) -> bool {
+        if self.failed_prepares.lock().unwrap().contains(digest) {
+            if !self.graph_present(digest) {
+                return false;
+            }
+            self.failed_prepares.lock().unwrap().remove(digest);
+            return true;
+        }
+        self.load_present(digest) || self.fetchable(digest)
+    }
+
+    /// Advances the store fence and clears trusted local-presence marks after
+    /// pruning, release, or loss of a cached value. Content-addressed metadata
+    /// remains available for validated demand repair; a successful reopen of
+    /// a replaced directory separately clears cached action resolutions.
     ///
-    /// The counter is bumped BEFORE the maps are cleared so that a concurrent
-    /// in-flight resolve (which checks the counter while holding the same map
-    /// lock it is about to write) either sees the new counter and skips its
-    /// write, or writes first and then has it cleared here — never inserts a
-    /// stale mark that survives the clear.
+    /// Bump the fence before clearing presence marks so an in-flight operation
+    /// either commits before the clear or observes the new generation and
+    /// discards its stale writes.
     fn invalidate(&self) {
         self.gen_counter.fetch_add(1, Ordering::SeqCst);
         // Only the known-local marks are cleared. They are trusted WITHOUT an
@@ -1808,7 +1827,19 @@ impl PathState {
             ("reopen", "reopening the store")
         };
         let started = Instant::now();
-        let outcome = self.stalls.watch(&self.cas_path, what, || self.reopen_cas());
+        let replaced = generation_changed(self.binding.lock().unwrap().generation, Some(target));
+        let outcome: Result<(), String> = self.stalls.watch(&self.cas_path, what, || {
+            self.reopen_cas()?;
+            if replaced {
+                self.resolved.lock().unwrap().clear();
+                self.failed_prepares.lock().unwrap().clear();
+                crate::log_line(&format!(
+                    "cas store replaced: discarded cached action results for {}",
+                    self.cas_path
+                ));
+            }
+            Ok(())
+        });
         {
             let mut binding = self.binding.lock().unwrap();
             binding.open_started = None;
@@ -3042,11 +3073,23 @@ impl Proxy {
         // Registered fetch instructions let us return the same candidate
         // without another action lookup. The plugin still checks readiness
         // before turning it into a compiler hit.
+        let retry_prepare = std::cell::Cell::new(false);
         match fast_path(
             &state.resolved,
             key,
-            |value| state.load_present(value) || state.fetchable(value),
-            || state.invalidate(),
+            |value| {
+                let available = state.resolved_value_available(value);
+                retry_prepare
+                    .set(!available && state.failed_prepares.lock().unwrap().contains(value));
+                available
+            },
+            || {
+                // An unavailable remote graph is not evidence the local store
+                // changed: keep other actions' presence marks and write fences.
+                if !retry_prepare.get() {
+                    state.invalidate();
+                }
+            },
         ) {
             FastPath::Hit(value) => return Ok(Some(value)),
             FastPath::Miss => return Ok(None),
@@ -3059,10 +3102,18 @@ impl Proxy {
         // idempotent, and a raced duplicate materialize job no-ops against
         // `is_local`. Keys the snapshot lacks (published after it was taken,
         // or genuinely absent) fall through to the per-key path below.
-        if let Some(snapshot) = snapshot {
+        // A failed preparation must refresh metadata from the remote once,
+        // not immediately recommit the same snapshot candidate.
+        if let Some(snapshot) = snapshot.filter(|_| !retry_prepare.get()) {
             use sha2::{Digest, Sha256};
             let key_hash: [u8; 32] = Sha256::digest(key).into();
-            if let Some(manifest) = snapshot.manifest(&key_hash) {
+            if let Some(manifest) = snapshot.manifest(&key_hash).filter(|manifest| {
+                // Negative entries can outlive the resolved key's candidate.
+                // A retained root failure still invalidates this snapshot row.
+                manifest.first().is_none_or(|entry| {
+                    !state.failed_prepares.lock().unwrap().contains(&entry.llcas_digest)
+                })
+            }) {
                 state.stats_snapshot_hits.fetch_add(1, Ordering::Relaxed);
                 let observed = state.gen_counter.load(Ordering::SeqCst);
                 return self.commit_and_materialize(remote, state, key, manifest, observed);
@@ -3088,7 +3139,12 @@ impl Proxy {
                     _ => None,
                 };
                 if let Some(value) = peeked {
-                    if state.load_present(&value) || state.fetchable(&value) {
+                    // Do not walk a failed root's full closure under the
+                    // path-wide single-flight mutex. The fast path already
+                    // attempts verified local recovery outside that lock.
+                    if !state.failed_prepares.lock().unwrap().contains(&value)
+                        && (state.load_present(&value) || state.fetchable(&value))
+                    {
                         return Ok(Some(value));
                     }
                 }
@@ -3141,7 +3197,9 @@ impl Proxy {
                 {
                     let mut resolved = state.resolved.lock().unwrap();
                     if let Some(Resolution::Hit(value)) = resolved.get(key) {
-                        return Ok(Some(value.clone()));
+                        if !state.failed_prepares.lock().unwrap().contains(value) {
+                            return Ok(Some(value.clone()));
+                        }
                     }
                     resolved.insert(key.to_vec(), Resolution::Miss(Instant::now()));
                 }
@@ -3206,6 +3264,7 @@ impl Proxy {
             if !committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
                 return Ok(None);
             }
+            state.failed_prepares.lock().unwrap().remove(&value);
             let mut withheld = state.withheld_roots.lock().unwrap();
             let mut pending = state.pending_objects.lock().unwrap();
             withheld.insert(
@@ -3753,6 +3812,41 @@ impl Proxy {
         }
         let mut repairing = Vec::new();
         self.fetch_object_inner(state, cas_path, declared_instance, digest, &mut repairing)
+    }
+
+    fn prepare_action(
+        &self,
+        state: &'static PathState,
+        cas_path: &str,
+        instance: &str,
+        root: &[u8],
+    ) -> Result<bool, String> {
+        state.stats_prepares.fetch_add(1, Ordering::Relaxed);
+        let present = state.load_present(root);
+        let guarded = state.withheld_roots.lock().unwrap().contains_key(root);
+        let retained = state.fetchable(root);
+        if !present && !guarded && retained {
+            state.stats_prepare_retained.fetch_add(1, Ordering::Relaxed);
+        }
+        // Completed guards are temporary. The retained instruction can still
+        // rebuild the graph, with decoded-reference and store-time closure checks.
+        let outcome = if present || guarded || retained {
+            self.fetch_object(state, cas_path, instance, root)
+        } else {
+            Ok(false)
+        };
+        if matches!(outcome, Ok(true)) {
+            state.failed_prepares.lock().unwrap().remove(root);
+        } else {
+            state.failed_prepares.lock().unwrap().insert(root.to_vec());
+            let misses = state.stats_prepare_misses.fetch_add(1, Ordering::Relaxed) + 1;
+            if misses.is_power_of_two() {
+                crate::log_line(&format!(
+                    "action preparation failed: {misses} failures for {cas_path}; next resolve refreshes remote metadata"
+                ));
+            }
+        }
+        outcome
     }
 
     /// `repairing` tracks both manifest repairs and decoded-reference traversal,
@@ -4424,14 +4518,25 @@ impl Proxy {
             self.remove_spooled(&record_path);
             return;
         }
+        let observed = state.gen_counter.load(Ordering::SeqCst);
         match self.publish(&remote, state, &record, branch.as_deref(), trunk.as_deref()) {
             Ok(()) => {
                 self.remove_spooled(&record_path);
                 state.stats_published.fetch_add(1, Ordering::Relaxed);
-                state.resolved.lock().unwrap().insert(
-                    record.key.clone(),
-                    Resolution::Hit(record.value_digest.clone()),
-                );
+                let mut resolved = state.resolved.lock().unwrap();
+                // The upload may finish after the store it read was replaced.
+                // That new store still needs fresh metadata and materialization.
+                if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
+                    state
+                        .failed_prepares
+                        .lock()
+                        .unwrap()
+                        .remove(&record.value_digest);
+                    resolved.insert(
+                        record.key.clone(),
+                        Resolution::Hit(record.value_digest.clone()),
+                    );
+                }
             }
             Err(reason) => {
                 // A shed is already reported once per window by the breaker that
@@ -4563,6 +4668,9 @@ impl Proxy {
         for state in states {
             if state.resolved.lock().unwrap().len() > MAX_RESOLVED {
                 state.resolved.lock().unwrap().clear();
+            }
+            if state.failed_prepares.lock().unwrap().len() > MAX_WITHHELD_ROOTS {
+                state.failed_prepares.lock().unwrap().clear();
             }
             if state.publish_cache.lock().unwrap().len() > MAX_PUBLISH_CACHE {
                 state.publish_cache.lock().unwrap().clear();
@@ -5885,7 +5993,7 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} reopen_misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={} | us publish_local={} nodes_loaded={} shed={} | upload_waited={} upload_unwaited={} upload_wait_ms={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} reopen_misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} prepares={} prepare_misses={} prepare_retained={} | ms action={} filter={} fetch={} decode={} store={} | us publish_local={} nodes_loaded={} shed={} | upload_waited={} upload_unwaited={} upload_wait_ms={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
@@ -5900,6 +6008,9 @@ impl Proxy {
                 state.stats_incomplete_closures.load(Ordering::Relaxed),
                 state.stats_withheld_roots_refused.load(Ordering::Relaxed),
                 state.stats_withheld_roots_repaired.load(Ordering::Relaxed),
+                state.stats_prepares.load(Ordering::Relaxed),
+                state.stats_prepare_misses.load(Ordering::Relaxed),
+                state.stats_prepare_retained.load(Ordering::Relaxed),
                 state.ms_action.load(Ordering::Relaxed),
                 state.ms_filter.load(Ordering::Relaxed),
                 state.ms_fetch.load(Ordering::Relaxed),
@@ -6193,13 +6304,12 @@ impl Proxy {
                     None => Ok(None),
                 };
                 let outcome = state.and_then(|state| match state {
-                    Some(state)
-                        if request.op == OP_PREPARE_ACTION
-                            && !state.load_present(&request.payload)
-                            && !state.withheld_roots.lock().unwrap().contains_key(&request.payload) =>
-                    {
-                        Ok(false)
-                    }
+                    Some(state) if request.op == OP_PREPARE_ACTION => self.prepare_action(
+                        state,
+                        &request.cas_path,
+                        &request.instance,
+                        &request.payload,
+                    ),
                     Some(state) => self.fetch_object(
                         state,
                         &request.cas_path,
@@ -10816,6 +10926,550 @@ mod tests {
             "so the root is published and the key resolves locally next build"
         );
         assert_eq!(state.stats_incomplete_closures.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn prepare_action_restores_retained_instructions_after_the_guard_completed() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let source_dir = TempCasDir::new("prepare-retained-source");
+        let source = path_state_for(&source_dir.path());
+        let child = store_probe_object(source, b"retained-child");
+        let root =
+            store_probe_object_with_refs(source, b"retained-root", std::slice::from_ref(&child));
+        let cache = replay_cache::start();
+        let dir = TempCasDir::new("prepare-retained-target");
+        let proxy = Proxy::new(
+            cache.url.clone(),
+            TokenProvider::from_env(),
+            crate::upstream_path(),
+            Some(dir.0.join("registry")),
+            None,
+        );
+        let remote = proxy.remote_for("tuist/retained");
+        let (manifest, encoded) = walk_closure(source, &root, &remote).unwrap();
+        remote
+            .batch_update(
+                manifest
+                    .iter()
+                    .zip(encoded)
+                    .map(|(entry, (bytes, _))| (entry.blob.clone(), bytes.unwrap()))
+                    .collect(),
+            )
+            .unwrap();
+        let state = opened_path_state(proxy, &dir.path());
+        register_instructions(state, &manifest);
+        state
+            .withheld_roots
+            .lock()
+            .unwrap()
+            .insert(root.clone(), vec![child.clone()]);
+        assert!(proxy
+            .fetch_object(state, &dir.path(), "tuist/retained", &root)
+            .unwrap());
+        assert!(state.graph_present(&root));
+        assert!(!state.withheld_roots.lock().unwrap().contains_key(&root));
+
+        dir.wipe();
+        assert!(wait_until_serving(proxy, state));
+        assert!(!state.load_present(&root));
+        assert!(state.fetchable(&root));
+        assert!(!state.withheld_roots.lock().unwrap().contains_key(&root));
+        // A prune can leave retained instructions without a closure guard.
+        // No bytes are inlined: preparation must fetch them over REAPI.
+        let blob_reads = cache.state.blob_reads.load(Ordering::Relaxed);
+        let key = b"retained-action";
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(key.to_vec(), Resolution::Candidate(root.clone()));
+        assert_eq!(
+            proxy
+                .resolve(&remote, "tuist/retained", state, key, None)
+                .unwrap(),
+            Some(root.clone())
+        );
+        let prepare = || {
+            let (mut client, server) = UnixStream::pair().unwrap();
+            proxy
+                .dispatch(
+                    Request {
+                        version: crate::proxy_proto::PROTOCOL_VERSION,
+                        op: OP_PREPARE_ACTION,
+                        cas_path: dir.path(),
+                        instance: "tuist/retained".into(),
+                        payload: root.clone(),
+                    },
+                    server,
+                )
+                .unwrap();
+            crate::proxy_proto::read_response(&mut client).unwrap().0
+        };
+        assert_eq!(
+            prepare(),
+            STATUS_HIT,
+            "completed guards must not prevent a later restore"
+        );
+        assert!(state.graph_present(&root));
+        assert!(state.load_present(&child));
+        assert!(cache.state.blob_reads.load(Ordering::Relaxed) > blob_reads);
+        assert_eq!(state.stats_prepare_retained.load(Ordering::Relaxed), 1);
+
+        dir.wipe();
+        assert!(wait_until_serving(proxy, state));
+        state
+            .pending_objects
+            .lock()
+            .unwrap()
+            .get_mut(&child)
+            .unwrap()
+            .contents = Some(b"invalid remote frame".to_vec());
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(key.to_vec(), Resolution::Candidate(root.clone()));
+        assert_eq!(
+            prepare(),
+            STATUS_MISS,
+            "a missing child must still prevent a hit"
+        );
+        assert!(!state.load_present(&root));
+        assert!(!state.load_present(&child));
+        let before = cache.state.action_reads.load(Ordering::Relaxed);
+        assert_eq!(
+            proxy
+                .resolve(&remote, "tuist/retained", state, key, None)
+                .unwrap(),
+            None
+        );
+        assert!(
+            cache.state.action_reads.load(Ordering::Relaxed) > before,
+            "a failed preparation must retry the remote, not keep serving the failed candidate"
+        );
+    }
+
+    #[test]
+    fn repeated_wipes_restore_over_reapi_and_failed_preparations_can_recover() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let cache = replay_cache::start();
+        let source_dir = TempCasDir::new("reapi-replay-source");
+        let source = path_state_for(&source_dir.path());
+        let child = store_probe_object(source, b"remote-child");
+        let root = store_probe_object_with_refs(source, b"remote-root", &[child]);
+        let dir = TempCasDir::new("reapi-replay-target");
+        let proxy = Proxy::new(
+            cache.url.clone(),
+            TokenProvider::from_env(),
+            crate::upstream_path(),
+            Some(dir.0.join("registry")),
+            None,
+        );
+        let remote = proxy.remote_for("tuist/replay");
+        let (manifest, encoded) = walk_closure(source, &root, &remote).unwrap();
+        let blobs: Vec<_> = manifest
+            .iter()
+            .zip(encoded)
+            .map(|(entry, (bytes, _))| (entry.blob.clone(), bytes.unwrap()))
+            .collect();
+        let key = b"remote-replay-action";
+        remote.batch_update(blobs.clone()).unwrap();
+        remote.update_action(key, &manifest, None, None).unwrap();
+        let state = opened_path_state(proxy, &dir.path());
+        let wait_materializer = || {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while proxy.warming(&dir.path()) {
+                assert!(Instant::now() < deadline, "materializer did not finish");
+                std::thread::sleep(Duration::from_millis(2));
+            }
+        };
+
+        for round in 0..4 {
+            if round > 0 {
+                dir.wipe();
+            }
+            let before = cache.state.action_reads.load(Ordering::Relaxed);
+            assert_eq!(
+                proxy
+                    .resolve(&remote, "tuist/replay", state, key, None)
+                    .unwrap(),
+                Some(root.clone())
+            );
+            assert!(
+                cache.state.action_reads.load(Ordering::Relaxed) > before,
+                "wipe {round} must refresh the action manifest, not reuse a stale candidate"
+            );
+            wait_materializer();
+            assert!(
+                state.graph_present(&root),
+                "wipe {round} must rebuild the complete graph"
+            );
+            assert!(!state.withheld_roots.lock().unwrap().contains_key(&root));
+            assert!(proxy
+                .prepare_action(state, &dir.path(), "tuist/replay", &root)
+                .unwrap());
+        }
+        assert!(
+            cache.state.blob_reads.load(Ordering::Relaxed) >= 4,
+            "restores must use blob RPCs, not reinserted inline bytes"
+        );
+
+        dir.wipe();
+        cache.state.blobs.lock().unwrap().clear();
+        assert_eq!(
+            proxy
+                .resolve(&remote, "tuist/replay", state, key, None)
+                .unwrap(),
+            Some(root.clone())
+        );
+        wait_materializer();
+        assert!(!proxy
+            .prepare_action(state, &dir.path(), "tuist/replay", &root)
+            .unwrap());
+        assert!(
+            !state.load_present(&root),
+            "unavailable descendants must not leave a persisted root"
+        );
+        let before = cache.state.action_reads.load(Ordering::Relaxed);
+        let generation = state.gen_counter.load(Ordering::SeqCst);
+        remote.batch_update(blobs).unwrap();
+        use sha2::{Digest, Sha256};
+        let hash: [u8; 32] = Sha256::digest(key).into();
+        let snapshot = Snapshot {
+            nodes: manifest
+                .iter()
+                .map(|entry| (entry.llcas_digest.clone(), entry.blob.clone()))
+                .collect(),
+            node_index: HashMap::new(),
+            keys: HashMap::from([(hash, (0..manifest.len() as u32).collect())]),
+            key_order: vec![hash],
+            watermark: 0,
+        };
+        assert_eq!(
+            proxy
+                .resolve(&remote, "tuist/replay", state, key, Some(&snapshot))
+                .unwrap(),
+            Some(root.clone())
+        );
+        assert!(
+            cache.state.action_reads.load(Ordering::Relaxed) > before,
+            "a failed candidate must bypass the snapshot and refresh remote metadata"
+        );
+        assert_eq!(
+            state.gen_counter.load(Ordering::SeqCst),
+            generation,
+            "a failed preparation must not invalidate every other action's local marks"
+        );
+        wait_materializer();
+        assert!(proxy
+            .prepare_action(state, &dir.path(), "tuist/replay", &root)
+            .unwrap());
+        assert!(state.graph_present(&root));
+    }
+
+    #[test]
+    fn successful_preparation_and_publication_clear_failed_root_marks() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let cache = replay_cache::start();
+        let dir = TempCasDir::new("prepare-publish-recovery");
+        let proxy = Proxy::new(
+            cache.url.clone(),
+            TokenProvider::from_env(),
+            crate::upstream_path(),
+            Some(dir.0.join("registry")),
+            None,
+        );
+        let state = opened_path_state(proxy, &dir.path());
+        let root = store_probe_object(state, b"recovered-root");
+        let key = b"recovered-action";
+        let remote = proxy.remote_for("tuist/recovery");
+        state.failed_prepares.lock().unwrap().insert(root.clone());
+        assert!(proxy
+            .prepare_action(state, &dir.path(), "tuist/recovery", &root)
+            .unwrap());
+        assert!(
+            !state.failed_prepares.lock().unwrap().contains(&root),
+            "successful preparation retires a transient failure mark"
+        );
+
+        state.failed_prepares.lock().unwrap().insert(root.clone());
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(key.to_vec(), Resolution::Candidate(root.clone()));
+        let before = cache.state.action_reads.load(Ordering::Relaxed);
+        let generation = state.gen_counter.load(Ordering::SeqCst);
+        assert_eq!(
+            proxy
+                .resolve(&remote, "tuist/recovery", state, key, None)
+                .unwrap(),
+            Some(root.clone())
+        );
+        assert_eq!(cache.state.action_reads.load(Ordering::Relaxed), before);
+        assert_eq!(state.gen_counter.load(Ordering::SeqCst), generation);
+        assert!(
+            !state.failed_prepares.lock().unwrap().contains(&root),
+            "a verified local graph supersedes a failed preparation"
+        );
+
+        state.failed_prepares.lock().unwrap().insert(root.clone());
+        let path = dir.0.join("publication");
+        let record = PublishRecord {
+            key: key.to_vec(),
+            value_digest: root.clone(),
+            spool_path: Some(path.clone()),
+        };
+        std::fs::write(&path, record.encode_body()).unwrap();
+        let item = proxy
+            .publish_item_bytes(&dir.path(), "tuist/recovery", path.to_str().unwrap())
+            .unwrap();
+        proxy.publish_item(&item);
+        assert!(!path.exists(), "publication completed");
+        assert!(
+            !state.failed_prepares.lock().unwrap().contains(&root),
+            "successful publication retires the failed preparation mark"
+        );
+        let before = cache.state.action_reads.load(Ordering::Relaxed);
+        assert_eq!(
+            proxy
+                .resolve(&remote, "tuist/recovery", state, key, None)
+                .unwrap(),
+            Some(root)
+        );
+        assert_eq!(cache.state.action_reads.load(Ordering::Relaxed), before);
+        assert_eq!(state.gen_counter.load(Ordering::SeqCst), generation);
+        assert!(matches!(
+            state.resolved.lock().unwrap().get(key.as_slice()),
+            Some(Resolution::Hit(_))
+        ));
+    }
+
+    #[test]
+    fn failed_preparations_do_not_reenter_snapshots_after_negative_entries_expire() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        use sha2::{Digest, Sha256};
+        let cache = replay_cache::start();
+        let source_dir = TempCasDir::new("expired-negative-source");
+        let source = path_state_for(&source_dir.path());
+        let root = store_probe_object(source, b"unavailable-root");
+        let dir = TempCasDir::new("expired-negative-target");
+        let proxy = Proxy::new(
+            cache.url.clone(),
+            TokenProvider::from_env(),
+            crate::upstream_path(),
+            Some(dir.0.join("registry")),
+            None,
+        );
+        let state = opened_path_state(proxy, &dir.path());
+        let remote = proxy.remote_for("tuist/expired-negative");
+        let key = b"expired-negative-action";
+        let hash: [u8; 32] = Sha256::digest(key).into();
+        let (manifest, _) = walk_closure(source, &root, &remote).unwrap();
+        let snapshot = Snapshot {
+            nodes: manifest
+                .iter()
+                .map(|entry| (entry.llcas_digest.clone(), entry.blob.clone()))
+                .collect(),
+            node_index: HashMap::new(),
+            keys: HashMap::from([(hash, vec![0])]),
+            key_order: vec![hash],
+            watermark: 0,
+        };
+        let expired = Instant::now()
+            .checked_sub(NEGATIVE_TTL + Duration::from_secs(1))
+            .unwrap();
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(key.to_vec(), Resolution::Miss(expired));
+        state.failed_prepares.lock().unwrap().insert(root.clone());
+        assert_eq!(
+            proxy
+                .resolve(
+                    &remote,
+                    "tuist/expired-negative",
+                    state,
+                    key,
+                    Some(&snapshot)
+                )
+                .unwrap(),
+            None
+        );
+        assert_eq!(state.stats_snapshot_hits.load(Ordering::Relaxed), 0);
+        assert_eq!(cache.state.action_reads.load(Ordering::Relaxed), 1);
+        assert!(state.failed_prepares.lock().unwrap().contains(&root));
+        assert!(!proxy.warming(&dir.path()));
+    }
+
+    #[test]
+    fn failed_published_values_are_negative_cached_when_the_remote_entry_is_gone() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let cache = replay_cache::start();
+        let source_dir = TempCasDir::new("negative-published-source");
+        let root = store_probe_object(
+            path_state_for(&source_dir.path()),
+            b"unavailable-publication",
+        );
+        let dir = TempCasDir::new("negative-published-target");
+        let proxy = Proxy::new(
+            cache.url.clone(),
+            TokenProvider::from_env(),
+            crate::upstream_path(),
+            Some(dir.0.join("registry")),
+            None,
+        );
+        let state = opened_path_state(proxy, &dir.path());
+        let remote = proxy.remote_for("tuist/negative-published");
+        let key = b"negative-published-action";
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(key.to_vec(), Resolution::Hit(root.clone()));
+        state.failed_prepares.lock().unwrap().insert(root);
+        for _ in 0..2 {
+            assert_eq!(
+                proxy
+                    .resolve(&remote, "tuist/negative-published", state, key, None)
+                    .unwrap(),
+                None
+            );
+        }
+        assert_eq!(cache.state.action_reads.load(Ordering::Relaxed), 1);
+        assert!(matches!(
+            state.resolved.lock().unwrap().get(key.as_slice()),
+            Some(Resolution::Miss(_))
+        ));
+    }
+
+    #[test]
+    fn a_publication_finishing_after_a_wipe_cannot_restore_a_stale_hit() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let cache = replay_cache::start();
+        let dir = TempCasDir::new("late-publication-wipe");
+        let proxy = Proxy::new(
+            cache.url.clone(),
+            TokenProvider::from_env(),
+            crate::upstream_path(),
+            Some(dir.0.join("registry")),
+            None,
+        );
+        let state = opened_path_state(proxy, &dir.path());
+        let root = store_probe_object(state, b"late-publication-root");
+        let remote = proxy.remote_for("tuist/late-publication");
+        let key = b"late-publication-action";
+        let (manifest, _) = walk_closure(state, &root, &remote).unwrap();
+        register_instructions(state, &manifest);
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(key.to_vec(), Resolution::Candidate(root.clone()));
+        let path = dir.0.join("publication");
+        let record = PublishRecord {
+            key: key.to_vec(),
+            value_digest: root.clone(),
+            spool_path: Some(path.clone()),
+        };
+        std::fs::write(&path, record.encode_body()).unwrap();
+        let item = proxy
+            .publish_item_bytes(
+                &dir.path(),
+                "tuist/late-publication",
+                path.to_str().unwrap(),
+            )
+            .unwrap();
+        let (started, reached_reply) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel();
+        *cache.state.before_action_reply.lock().unwrap() = Some(Box::new(move || {
+            started.send(()).unwrap();
+            released.recv_timeout(Duration::from_secs(10)).unwrap();
+        }));
+        let publisher = std::thread::spawn(move || proxy.publish_item(&item));
+        reached_reply.recv_timeout(Duration::from_secs(10)).unwrap();
+        dir.wipe();
+        assert!(wait_until_serving(proxy, state));
+        assert!(state.resolved.lock().unwrap().is_empty());
+        release.send(()).unwrap();
+        publisher.join().unwrap();
+        assert!(
+            !matches!(
+                state.resolved.lock().unwrap().get(key.as_slice()),
+                Some(Resolution::Hit(_))
+            ),
+            "a publication from the deleted store must not bypass materialization in the new store"
+        );
+        let before = cache.state.action_reads.load(Ordering::Relaxed);
+        assert_eq!(
+            proxy
+                .resolve(&remote, "tuist/late-publication", state, key, None)
+                .unwrap(),
+            Some(root.clone())
+        );
+        assert!(cache.state.action_reads.load(Ordering::Relaxed) > before);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while proxy.warming(&dir.path()) {
+            assert!(Instant::now() < deadline);
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            state.graph_present(&root),
+            "local-only lookup must schedule materialization without PREPARE_ACTION"
+        );
+    }
+
+    #[test]
+    fn a_wipe_discards_cached_resolutions_but_an_idle_reopen_preserves_them() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("wipe-resolved");
+        let proxy = test_proxy();
+        let state = opened_path_state(proxy, &dir.path());
+        let value = store_probe_object(state, b"cached-value");
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(b"candidate".to_vec(), Resolution::Candidate(value.clone()));
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(b"published".to_vec(), Resolution::Hit(value));
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(b"miss".to_vec(), Resolution::Miss(Instant::now()));
+        state.release();
+        assert!(wait_until_serving(proxy, state));
+        assert_eq!(
+            state.resolved.lock().unwrap().len(),
+            3,
+            "an idle reopen is not a wipe"
+        );
+
+        dir.wipe();
+        assert!(wait_until_serving(proxy, state));
+        assert!(
+            state.resolved.lock().unwrap().is_empty(),
+            "a recreated store must perform fresh action lookups and queue materialization again"
+        );
     }
 
     /// Registers fetch instructions the way `commit_and_materialize` does before

@@ -17,7 +17,9 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - `TuistCommand` groups commands into: Get started, Develop, Share, Account, Other.
 - Open-source generation honors `includeGenerateScheme` and configures compilation-cache debugging after automatic workspace schemes are created.
 - ProjectAutomation's package projection keeps its existing product-name and embedding shape. Explicit native package linkage hints remain in the generation graph; they do not add new package variants to this projection.
-- `TuistCommand.main` initializes cache directories, loads config, resolves server URL, and runs `TrackableCommand`.
+- `TuistCommand.main` initializes cache directories, parses the command, loads config, resolves server URL, and runs `TrackableCommand`. Commands conforming to `ProjectPathProviding` use their parsed path (including environment defaults) for both configuration and analytics; other commands and plugin dispatch retain raw-argument path resolution.
+- `graph`, `clean`, `dump`, and both `hash` subcommands conform to `ProjectPathProviding`, just like generation, cache warming, editing, installing, building, and testing. Keep their parsed project paths consistent with entry-point configuration and analytics.
+- Background analytics uploads receive the resolved project path through the hidden `analytics-upload --project-path` option so optional-authentication policy is loaded from the same config as the original command. Legacy invocations without it retain the raw-argument fallback.
 - Noora logging is reinitialized after command execution to ensure logs are captured in verbose logs.
 - Cache warm selection is scoped from explicit non-test roots; focused test roots may remain in the graph but do not expand binary cache candidates.
 - Cache readiness probes keep their read side open until the daemon responds or closes the connection. Closing immediately after connecting can crash SwiftNIO on Darwin before it accepts the socket.

@@ -2474,6 +2474,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bazel_cache_live.ex:753
 #: lib/tuist_web/live/bazel_overview_live.ex:686
+#: lib/tuist_web/live/mix_cache_live.html.heex:157
 #: lib/tuist_web/live/once_cache_live.ex:823
 #, elixir-autogen, elixir-format
 msgid "No cache observations yet"

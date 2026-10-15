@@ -18,6 +18,9 @@ defmodule Tuist.VCS do
   alias Tuist.GitHub.Client
   alias Tuist.Gradle
   alias Tuist.KeyValueStore
+  alias Tuist.Origin
+  alias Tuist.Origin.Client, as: OriginClient
+  alias Tuist.Origin.Installation, as: OriginInstallation
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Tests
@@ -87,7 +90,7 @@ defmodule Tuist.VCS do
   def ci_run_url(_), do: nil
 
   def supported_vcs_hosts do
-    ["GitHub"]
+    ["GitHub", "Origin"]
   end
 
   @default_provider :github
@@ -97,6 +100,7 @@ defmodule Tuist.VCS do
   """
   def default_client_url(provider \\ @default_provider)
   def default_client_url(:github), do: "https://github.com"
+  def default_client_url(:origin), do: "https://cursor.com/codebase"
 
   @doc """
   REST API base URL for a given forge provider and instance URL.
@@ -321,10 +325,10 @@ defmodule Tuist.VCS do
     global ++ per_installation
   end
 
-  def get_repository_content(
-        %{repository_full_handle: repository_full_handle, provider: provider, token: token},
-        opts \\ []
-      ) do
+  def get_repository_content(params, opts \\ [])
+  def get_repository_content(%{provider: :origin}, _opts), do: {:error, :unsupported_vcs}
+
+  def get_repository_content(%{repository_full_handle: repository_full_handle, provider: provider, token: token}, opts) do
     client = get_client_for_provider(provider)
 
     client.get_repository_content(
@@ -336,11 +340,15 @@ defmodule Tuist.VCS do
     )
   end
 
+  def get_tags(%{provider: :origin}), do: {:error, :unsupported_vcs}
+
   def get_tags(%{provider: provider, repository_full_handle: repository_full_handle, token: token}) do
     client = get_client_for_provider(provider)
 
     client.get_tags(%{repository_full_handle: repository_full_handle, token: token})
   end
+
+  def get_source_archive_by_tag_and_repository_full_handle(%{provider: :origin}), do: {:error, :unsupported_vcs}
 
   def get_source_archive_by_tag_and_repository_full_handle(%{
         provider: provider,
@@ -357,19 +365,28 @@ defmodule Tuist.VCS do
     })
   end
 
-  # NOTE: this only recognises github.com because the few callers that use it
-  # (mainly Swift package registry resolution from raw repo URLs) target the
-  # public Tuist instance. GitHub Enterprise Server flows reach the GitHub
-  # provider through a stored `GitHubAppInstallation` instead, so they don't
-  # depend on this function. If a GHES-aware caller appears, broaden this to
-  # accept hosts that match a known installation's `client_url`.
+  # Public GitHub and Origin URLs are recognized here. Enterprise Server
+  # flows use their stored installation instead of guessing a provider from
+  # an arbitrary host. Origin supports reports, not package-registry content.
   def get_provider_from_repository_url(repository_url) do
-    vcs_uri = URI.parse(repository_url)
-    host = Map.get(vcs_uri, :host)
+    vcs_uri = repository_url |> normalize_scp_url() |> URI.parse()
+    host = String.downcase(vcs_uri.host || "")
 
     case host do
-      "github.com" -> {:ok, :github}
-      _ -> {:error, :unsupported_vcs}
+      "github.com" ->
+        {:ok, :github}
+
+      "origin.cursor.com" ->
+        {:ok, :origin}
+
+      "cursor.com" ->
+        if(String.starts_with?(vcs_uri.path || "", "/codebase/"),
+          do: {:ok, :origin},
+          else: {:error, :unsupported_vcs}
+        )
+
+      _ ->
+        {:error, :unsupported_vcs}
     end
   end
 
@@ -377,20 +394,63 @@ defmodule Tuist.VCS do
     Client
   end
 
-  def get_repository_full_handle_from_url(repository_url) do
-    full_handle =
-      ~r/^git@(.+):/
-      |> Regex.replace(repository_url, "https://\\1/")
-      |> URI.parse()
-      |> Map.get(:path)
-      |> String.replace_leading("/", "")
-      |> String.replace_trailing("/", "")
-      |> String.replace_trailing(".git", "")
+  def get_repository_full_handle_from_url(repository_url) when is_binary(repository_url) do
+    uri = repository_url |> normalize_scp_url() |> URI.parse()
+    path = uri.path || ""
 
-    if full_handle |> String.split("/") |> Enum.count() == 2 do
+    path =
+      case String.downcase(uri.host || "") do
+        "origin.cursor.com" -> String.replace_prefix(path, "/git/", "/")
+        "cursor.com" -> String.replace_prefix(path, "/codebase/", "/")
+        _ -> path
+      end
+
+    full_handle = path |> String.trim("/") |> String.replace_trailing(".git", "")
+
+    if Regex.match?(~r{^[\w.-]+/[\w.-]+$}, full_handle) do
       {:ok, full_handle}
     else
       {:error, :invalid_repository_url}
+    end
+  end
+
+  def get_repository_full_handle_from_url(_), do: {:error, :invalid_repository_url}
+
+  defp normalize_scp_url(url), do: Regex.replace(~r/^git@([^:]+):/, url, "https://\\1/")
+
+  defp get_app_installation_for_repository(%{project: project, repository_full_handle: handle} = params) do
+    case Repo.preload(project, :vcs_connection).vcs_connection do
+      %{provider: :origin} -> Origin.installation_for_repository(project, handle)
+      _ -> get_github_app_installation_for_repository(params)
+    end
+  end
+
+  defp comment_client(%OriginInstallation{}), do: OriginClient
+  defp comment_client(%GitHubAppInstallation{}), do: Client
+
+  defp report_pull_request(%OriginInstallation{} = installation, handle, ref, sha, remote) do
+    case get_provider_from_repository_url(remote) do
+      {:ok, :origin} ->
+        OriginClient.get_pull_request_number(%{
+          installation: installation,
+          repository_full_handle: handle,
+          git_ref: ref,
+          git_commit_sha: sha
+        })
+
+      _ ->
+        {:error, :not_pull_request}
+    end
+  end
+
+  defp report_pull_request(%GitHubAppInstallation{}, _handle, ref, _sha, remote) do
+    if get_provider_from_repository_url(remote) == {:ok, :origin} do
+      {:error, :not_pull_request}
+    else
+      case pull_request_number_from_git_ref(ref) do
+        nil -> {:error, :not_pull_request}
+        number -> {:ok, number}
+      end
     end
   end
 
@@ -466,11 +526,11 @@ defmodule Tuist.VCS do
   def create_comment(%{repository_full_handle: repository_full_handle, git_ref: git_ref, body: body, project: project}) do
     with issue_id when is_integer(issue_id) <- pull_request_number_from_git_ref(git_ref),
          {:ok, installation} <-
-           get_github_app_installation_for_repository(%{
+           get_app_installation_for_repository(%{
              repository_full_handle: repository_full_handle,
              project: project
            }) do
-      client = get_client_for_provider(:github)
+      client = comment_client(installation)
 
       client.create_comment(%{
         repository_full_handle: repository_full_handle,
@@ -493,12 +553,12 @@ defmodule Tuist.VCS do
         body: body,
         project: project
       }) do
-    case get_github_app_installation_for_repository(%{
+    case get_app_installation_for_repository(%{
            repository_full_handle: repository_full_handle,
            project: project
          }) do
       {:ok, installation} ->
-        client = get_client_for_provider(:github)
+        client = comment_client(installation)
 
         client.update_comment(%{
           repository_full_handle: repository_full_handle,
@@ -523,24 +583,31 @@ defmodule Tuist.VCS do
         bundle_url: bundle_url,
         build_url: build_url
       }) do
-    repository_full_handle =
-      if is_nil(git_remote_url_origin) do
-        nil
-      else
-        git_remote_url_origin |> get_repository_full_handle_from_url() |> elem(1)
-      end
-
-    with true <- git_commit_sha != "",
-         true <- not is_nil(git_ref) and git_ref != "",
-         true <- not is_nil(repository_full_handle),
-         issue_id when is_integer(issue_id) <- pull_request_number_from_git_ref(git_ref),
+    with true <- is_binary(git_commit_sha) and git_commit_sha != "",
+         true <- is_binary(git_ref) and git_ref != "",
+         {:ok, repository_full_handle} <-
+           get_repository_full_handle_from_url(git_remote_url_origin),
          {:ok, installation} <-
-           get_github_app_installation_for_repository(%{
+           get_app_installation_for_repository(%{
              repository_full_handle: repository_full_handle,
              project: project
+           }),
+         {:ok, issue_id} <-
+           report_pull_request(
+             installation,
+             repository_full_handle,
+             git_ref,
+             git_commit_sha,
+             git_remote_url_origin
+           ),
+         client = comment_client(installation),
+         {:ok, existing_comment} <-
+           get_existing_vcs_comment_id(%{
+             client: client,
+             repository: repository_full_handle,
+             issue_id: issue_id,
+             installation: installation
            }) do
-      client = get_client_for_provider(:github)
-
       vcs_comment_body =
         get_vcs_comment_body(%{
           git_ref: git_ref,
@@ -553,14 +620,6 @@ defmodule Tuist.VCS do
           project: project
         })
 
-      existing_comment =
-        get_existing_vcs_comment_id(%{
-          client: client,
-          repository: repository_full_handle,
-          issue_id: issue_id,
-          installation: installation
-        })
-
       update_or_create_vcs_comment(%{
         vcs_comment_body: vcs_comment_body,
         repository: repository_full_handle,
@@ -570,8 +629,14 @@ defmodule Tuist.VCS do
         installation: installation
       })
     else
-      # No GitHub app installation, skip posting comment
-      _ -> :ok
+      {:error, reason} when reason in [:not_found, :not_pull_request, :invalid_repository_url] ->
+        :ok
+
+      {:error, _} = error ->
+        error
+
+      _ ->
+        :ok
     end
   end
 
@@ -588,20 +653,27 @@ defmodule Tuist.VCS do
     }
 
     expected_client_id =
-      case github_app_credentials(installation) do
-        %{client_id: client_id} -> client_id
-        _ -> nil
+      case installation do
+        %OriginInstallation{app_id: app_id} ->
+          app_id
+
+        %GitHubAppInstallation{} ->
+          case github_app_credentials(installation) do
+            %{client_id: client_id} -> client_id
+            _ -> nil
+          end
       end
 
     case client.get_comments(comments_params) do
       {:ok, comments} ->
-        Enum.find(comments, fn comment ->
-          comment.client_id == expected_client_id and
-            String.starts_with?(comment.body, @tuist_run_report_prefix)
-        end)
+        {:ok,
+         Enum.find(comments, fn comment ->
+           not is_nil(expected_client_id) and comment.client_id == expected_client_id and
+             String.starts_with?(comment.body, @tuist_run_report_prefix)
+         end)}
 
-      _ ->
-        nil
+      {:error, _} = error ->
+        error
     end
   end
 
@@ -805,6 +877,9 @@ defmodule Tuist.VCS do
   defp format_bundle_download_size(size) when is_integer(size), do: ByteFormatter.format_bytes(size)
 
   defp commit_link(nil, _git_remote_url_origin), do: ""
+
+  defp commit_link(git_commit_sha, "https://cursor.com/codebase/" <> _repository),
+    do: "`#{String.slice(git_commit_sha, 0, 9)}`"
 
   defp commit_link(git_commit_sha, git_remote_url_origin),
     do: "[#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha})"
@@ -1196,7 +1271,7 @@ defmodule Tuist.VCS do
     location_text = "#{path}:#{failure.line_number}"
     repo_handle = project.vcs_connection && project.vcs_connection.repository_full_handle
 
-    if repo_handle && commit_sha not in [nil, ""] do
+    if repo_handle && project.vcs_connection.provider == :github && commit_sha not in [nil, ""] do
       "[`#{location_text}`](https://github.com/#{repo_handle}/blob/#{commit_sha}/#{path}#L#{failure.line_number})"
     else
       "`#{location_text}`"

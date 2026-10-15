@@ -159,8 +159,6 @@ public struct TuistCommand: AsyncParsableCommand {
         let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
 
         #if os(macOS)
-            let path = try await CommandArguments.path(in: processedArguments)
-
             try await CacheDirectoriesProvider.bootstrap()
 
             let executeCommand: () async throws -> Void
@@ -171,9 +169,10 @@ public struct TuistCommand: AsyncParsableCommand {
                 if processedArguments.first == ScaffoldCommand.configuration.commandName {
                     try await ScaffoldCommand.preprocess(processedArguments)
                 }
+                let command = try parseAsRoot(processedArguments)
+                let path = try await CommandArguments.path(in: processedArguments, command: command)
                 let config = try await ConfigLoader().loadConfig(path: path)
                 let serverURL = try ServerEnvironmentService().url(configServerURL: config.url)
-                let command = try parseAsRoot(processedArguments)
                 let shouldRecordHAR = (command as? HARRecordingCommand)?.shouldRecordHAR ?? true
 
                 executeCommand = {
@@ -342,6 +341,7 @@ public struct TuistCommand: AsyncParsableCommand {
             await HARRecorder.finishCurrent()
         #endif
         ProgramStatusReporter.current.finish(exitCode: exitCode, cancelled: error is CancellationError)
+        fflush(stdout)
     }
 
     private static func outputCompletion(
@@ -350,7 +350,8 @@ public struct TuistCommand: AsyncParsableCommand {
         errorAlertMessage: TerminalText? = nil,
         errorAlertNextSteps: [TerminalText]? = nil
     ) {
-        if Environment.current.isJSONOutput { return }
+        let isJSONOutput = Environment.current.isJSONOutput
+        if isJSONOutput, errorAlertMessage == nil { return }
 
         let errorAlert: ErrorAlert? =
             if let errorAlertMessage {
@@ -362,7 +363,7 @@ public struct TuistCommand: AsyncParsableCommand {
         let warningAlerts = AlertController.current.warnings()
         let takeaways = AlertController.current.takeaways()
 
-        if !warningAlerts.isEmpty {
+        if !warningAlerts.isEmpty, !isJSONOutput {
             Noora.current.warning(warningAlerts)
         }
         let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"

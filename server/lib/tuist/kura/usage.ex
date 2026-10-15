@@ -42,6 +42,7 @@ defmodule Tuist.Kura.Usage do
 
   # Only trusted managed-node traffic refreshes hosted capacity. Replayed old
   # rollups, replication, storage snapshots and self-hosted reports do not.
+  # This is the traffic clock's main source: bytes a client actually moved.
   defp record_managed_demand(events, account_ids) do
     now = System.system_time(:second)
 
@@ -56,7 +57,7 @@ defmodule Tuist.Kura.Usage do
     |> Enum.map(&Map.get(account_ids, &1["tenant_id"]))
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
-    |> Enum.each(&Demand.record/1)
+    |> Enum.each(&Demand.record(&1, nil, traffic: true))
   end
 
   defp insert_events(events, account_id_for) do
