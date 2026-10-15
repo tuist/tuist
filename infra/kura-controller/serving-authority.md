@@ -33,6 +33,16 @@ or an explicit refusal from that holder requires positive fencing. Authority HTT
 errors include bounded cause chains and timeout/connect classification, so a
 transport failure is distinguishable from a rejected grant.
 
+A transport-only status observation gap keeps the primary Service's existing route
+only while the existing Serving or Quiescing grant remains valid and the live,
+Ready, nonterminating pod still matches its holder. The runtime process must
+predate the grant renewal, accounting for the two-second clock allowance.
+Other configured endpoints reconcile to the same acknowledged holder. This does
+not select a new holder, extend authority, or bypass runtime fencing. Interrupted
+response-body reads are transport failures, not fresh invalid runtime reports.
+HTTP failures, malformed status responses, fresh refusals, changed identities,
+expired grants and restarted pods withdraw routing rather than use this fallback.
+
 After an interruption during ordinary serving, a compatible **same live writer**
 can acknowledge `fenced_epoch`: it takes the publication mutex, closes admission
 and publication, and waits for all admitted mutations to finish. The controller
@@ -80,12 +90,14 @@ publication and eviction. The destination must have durably reached the source's
 final feed incarnation/head, then reconcile the source's complete retained index
 before freezing its retained corpus. This bounded replication pass fetches missing
 records outside the normal bootstrap horizon without echoing them into the sibling
-feed. It preserves resource admission, capacity, version and tombstone checks;
+feed. It preserves resource admission, store capacity, version and tombstone checks;
 an incompatible or undersized destination can still fail the final barrier.
-Repair applies the capacity check separately to each record at listing and
-dispatch, preserving newer queued records when the listing reaches an older
-capacity-rejected record. It does not increase ring capacity or guarantee that
-equal-sized fragmented replicas can hold the same corpus.
+Named repair bypasses the recency cutoff at listing and dispatch: an older
+missing record still belongs to the source's retained corpus. Ordinary catch-up
+keeps its recency policy. Repair does not increase ring capacity or bypass disk
+admission; normal rotation can still evict other required records, in which case
+the final full-corpus check refuses promotion. Equal-sized fragmented replicas
+are not guaranteed to hold the same corpus.
 Only one repair runs per destination, and an abort, changed intent or deadline
 cancels it. A retry after the destination is frozen does not repair or release
 that hold. Older destinations keep their verify-only behavior. Verification
@@ -169,7 +181,11 @@ Turning off the account flag does not restore legacy selection. Disabling the
 controller flag stops renewal and eventually serving. Keep the capable controller
 and runtime pair; an old controller is below the rollback floor. Qualifying a new
 runtime image and deliberately updating the pin is an operator procedure while
-automatic rolling replacement stays paused.
+automatic rolling replacement stays paused. A newer requested image does not
+stop ordinary workload reconciliation: the template remains at the qualified
+runtime pin and the instance reports Pending with the held-image reason. The
+requested image remains unchanged, and only an explicitly updated pin permits
+the template to adopt it. OnDelete and volume retention remain in force.
 For an already activated instance, replace the clean standby first, then perform
 a named handover before replacing the positively revoked old primary. Do not
 restart an active primary onto its marked volume. The first handover from an old

@@ -9,6 +9,26 @@ workflow code runs in the guest. Never expose host credentials or masters.
   API connection (shared `connrotation` dialer) so the next one redials. Keep
   slow work (guest probes, label scans) in the Node status refresh, never in the
   lease path.
+- `tart run` needs an Aqua session for the host user. `internal/tart/session.go`
+  kicks loginwindow before each run when it is missing; on timeout the error
+  names who holds `/dev/console`. `_mbsetupuser` (Setup Assistant from first
+  boot) is not fixable by a kick: restart the host. Bootstrap verifies the
+  session, so a new host should not reach this (see "The console session" in
+  [`cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)).
+- A Node this process creates (a host joining or rejoining the cluster) is
+  tainted `tuist.dev/prewarming:NoSchedule` while `podagent.Prewarmer` pulls
+  the images of its fleet's macOS RunnerPools that keep a warm floor or have
+  `spec.replicas > 0`, warm floors first, through `ensureGolden` (the path a
+  Pod's first VM takes). Decision: a taint, not a cordon, because the operator
+  cordons rack hosts by hand and tart-kubelet must never lift that. Runner Pods
+  do not tolerate it, and the runners-controller leaves tainted Nodes out of
+  fleet capacity (`nodeFilterReason`), so the allocator agrees with the
+  scheduler. A restart on a registered Node never taints or prewarms: that
+  host is serving, and a deploy rolling both runner images and tart-kubelet
+  would otherwise empty the fleet. Pulls stop below 30% free disk (a golden is
+  tens of GB) and the taint lifts after an hour regardless; a leftover taint is
+  removed on the next start. Evidence: on 2026-10-14 b04-b09 joined untainted
+  and their first VM per image sat in `CreatingVM` for 5+ minutes downloading.
 - Built-in cache behavior remains in `internal/podagent/volume*.go` and the
   runner-image dispatch script. Preserve existing Tuist/CAS paths and identities.
 - Custom volumes use `internal/podagent/custom_volumes*.go` and the shared

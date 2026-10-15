@@ -565,6 +565,8 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       end
     end)
 
+    stub(Client, :list_persistent_volumes, fn _opts -> {:ok, []} end)
+
     stub(Client, :list_pods_on_node, fn name, _opts ->
       if Map.fetch!(rooms, name), do: {:ok, []}, else: {:ok, [pod_holding_disk("#{@box_disk_gib}Gi")]}
     end)
@@ -589,6 +591,8 @@ defmodule Tuist.Kura.AccountPoliciesTest do
     stub(Client, :list_nodes, fn selector, _opts -> nodes.(selector) end)
     stub(Client, :list_nodes, fn selector -> nodes.(selector) end)
     stub(Client, :list_pods_on_node, fn name, _opts -> {:ok, pods.(name)} end)
+
+    stub(Client, :list_persistent_volumes, fn _opts -> {:ok, []} end)
 
     stub(Client, :list_pods, fn "kura", selector ->
       [_selector, region_id] = Regex.run(~r/tuist\.dev\/region=([^,]+)/, selector)

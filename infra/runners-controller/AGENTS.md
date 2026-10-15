@@ -242,12 +242,14 @@ independent workqueues:
     status the scheduler never sees, which is why this lives in the
     controller.
 
-  Only nodes that report `Ready=True`, remain schedulable, and have no
-  memory, disk, or process identifier pressure contribute to either
-  budget. A fleet filtered to zero capacity still takes the existing
-  per-pool fallback, so a transient node roll never triggers a mass
-  scale-down of warm Pods. Pod creation has a separate fail-closed
-  healthy-node gate described below.
+  Only nodes that report `Ready=True`, remain schedulable, carry no
+  `tuist.dev/prewarming` taint (a joining macOS host still pulling its
+  runner images; see tart-kubelet's AGENTS.md), and have no memory, disk,
+  or process identifier pressure contribute to either budget. A fleet
+  filtered to zero capacity still takes the existing per-pool fallback,
+  so a transient node roll never triggers a mass scale-down of warm
+  Pods. Pod creation has a separate fail-closed healthy-node gate
+  described below.
 
   The reconciler reads nodes via the cluster-scoped `nodes` verb in
   the ClusterRole. Fleet-capacity, pool-list, and sibling-signal
