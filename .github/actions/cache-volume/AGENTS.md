@@ -21,5 +21,3 @@ The release workflow is `.github/workflows/cache-volume-action.yml`.
 - macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
   shared runner-cache lifecycle with an APFS backend; rollout and compatibility
   are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
-
-- The optional commit input is auto/true/false. Omit --commit for auto to support older clients; never infer writer rights in the wrapper. Explicit modes require end-to-end acknowledgement and server authorization.

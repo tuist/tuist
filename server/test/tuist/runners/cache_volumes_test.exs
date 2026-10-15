@@ -1124,15 +1124,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert [] = CacheVolumes.size_history(account.id, id)
   end
 
-  test "commit false and allocation retries cannot grant publication", %{job: job} do
-    attrs = Map.put(attrs(), :commit_mode, "false")
-    assert {:ok, %{can_publish: false, commit: "false"} = use} = CacheVolumes.allocate_for_job(job, identity(), attrs)
-    assert {:ok, ^use} = CacheVolumes.allocate_for_job(job, identity(), attrs)
-    assert {:error, :unavailable} = CacheVolumes.allocate_for_job(job, identity(), %{attrs | commit_mode: "true"})
-    complete(job)
-    assert {:ok, %{action: "delete"}} = publish_report("node", use.id)
-  end
-
   describe "runner profile writer policy" do
     setup %{account: account, job: job} do
       other_account = AccountsFixtures.account_fixture()
@@ -1174,28 +1165,25 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert CacheVolumes.default_branches(account.id) == ["main"]
     end
 
-    test "explicit commit requires a matching verified branch and success", %{
+    test "a matching verified branch saves only when its job succeeds", %{
       job: job,
       account: account,
       profile: profile
     } do
       branch_identity = branch_identity("codex/volume-test")
-      requested = Map.put(attrs(), :commit_mode, "true")
+      requested = attrs()
       assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, branch_identity, requested)
       set_policy(profile, %{cache_writer_branches: ["codex/volume-test"]})
       assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, branch_identity, requested)
 
       assert {:ok, %{can_publish: true} = permitted} =
-               CacheVolumes.allocate_for_job(job, branch_identity, Map.put(attrs("new"), :commit_mode, "true"))
+               CacheVolumes.allocate_for_job(job, branch_identity, attrs("new"))
 
       assert Repo.get!(Usage, permitted.id).writer_profile_id == profile.id
 
       fork = %{branch_identity | same_repository: false, writer_branch: nil}
       assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, fork, attrs("fork"))
       assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, branch_identity("other"), attrs("other"))
-
-      assert {:ok, %{can_publish: false}} =
-               CacheVolumes.allocate_for_job(job, branch_identity, Map.put(attrs("readonly"), :commit_mode, "false"))
 
       complete(job, "failure")
       assert {:ok, %{action: "delete"}} = publish_report("node", permitted.id)

@@ -43,7 +43,6 @@ teardown; unavailable agents remain pending. A future use of the key starts fres
 | --- | --- |
 | `key` | Required stable name within the repository, architecture and execution user. Use a new key to start a separate cache. |
 | `path` | Required absent or empty directory. Absolute paths, workspace-relative paths and `~/` are supported. |
-| `commit` | Optional `auto`, `'true'`, or `'false'`; save intent never overrides the server writer policy. |
 | `cache-hit` | Output string `true` for a mounted saved snapshot; `false` for a cold directory or unavailable storage. |
 
 Use `id: dependencies` to access `${{ steps.dependencies.outputs.cache-hit }}`.
@@ -59,12 +58,7 @@ When saved contents reach 80% of capacity and a job runs out of space on them,
 the next job starts empty.
 Linux and macOS fleets must have cache volumes enabled.
 
-### Commit controls and cache saving
-
-The GitHub action accepts `commit: auto` (the default), `commit: 'false'` (discard
-this job's changes), and `commit: 'true'` (request a save). Both `auto` and `true`
-remain subject to the runner profile's **Save cache from** list and successful job completion;
-`true` cannot grant a branch permission or save a failed job. If the job lacks permission at attachment, the action emits a warning and its changes are discarded.
+### Choosing which branches save
 
 Account administrators configure **Save cache from** on each runner profile under
 **Runners → Profiles**. The list applies to every custom volume attached by
@@ -82,12 +76,6 @@ Fork pull requests and `pull_request_target` never save. Buildkite, GitLab and
 built-in macOS volume policies are unchanged. Changing the list or deleting the
 profile revokes pending saves it no longer allows; a deleted profile falls back
 to the default branch. Additions apply to new volume attachments.
-
-Explicit `true`/`false` modes require updated runner clients, host agents and
-server. The default `auto` action invocation remains compatible with older
-clients. The transport requires explicit server/host acknowledgement of a new
-mode before exposing the mounted cache, so an older component cannot silently
-ignore `commit: 'false'`.
 
 ## Releases
 
