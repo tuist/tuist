@@ -673,8 +673,6 @@ defmodule Tuist.Tests do
       |> Enum.uniq()
 
     Tuist.Tasks.run_async(fn ->
-      enrich(test, "flaky run flag", fn -> mark_test_run_as_flaky(test, flaky?, shard_plan) end)
-
       enrich(test, "flaky alert evaluations", fn ->
         Automations.enqueue_flaky_alert_evaluations(test.project_id, test_case_ids)
       end)
@@ -684,6 +682,8 @@ defmodule Tuist.Tests do
           Tuist.PubSub.broadcast(test, "#{project.account.name}/#{project.name}", :test_created)
         end
       end)
+
+      enrich(test, "flaky run flag", fn -> mark_test_run_as_flaky(test, flaky?, shard_plan) end)
     end)
   end
 

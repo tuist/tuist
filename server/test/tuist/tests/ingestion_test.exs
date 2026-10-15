@@ -338,6 +338,37 @@ defmodule Tuist.Tests.IngestionTest do
     refute_receive {:parent_write, _}
   end
 
+  test "a flag-buffer exit does not prevent alerts or notification", %{attrs: attrs} do
+    attrs = cross_run_attrs(attrs)
+    assert {:ok, _passing} = Tests.create_test(attrs)
+    assert_receive {:test_created, _}, 5_000
+    owner = self()
+    stub(Tasks, :run_async, &Task.start/1)
+
+    stub(Test.Buffer, :insert, fn row ->
+      if row.is_flaky do
+        send(owner, :flag_buffer_exited)
+        exit(:noproc)
+      else
+        Mimic.call_original(Test.Buffer, :insert, [row])
+      end
+    end)
+
+    stub(Automations, :enqueue_flaky_alert_evaluations, fn project_id, ids ->
+      send(owner, {:alerts, project_id, ids})
+      :ok
+    end)
+
+    capture_log(fn ->
+      assert {:ok, failed} = Tests.create_test(failing_run_attrs(attrs))
+      assert_receive :flag_buffer_exited, 5_000
+      assert_receive {:alerts, project_id, [_id]}, 5_000
+      assert project_id == failed.project_id
+      assert_receive {:test_created, %{id: id}}, 5_000
+      assert id == failed.id
+    end)
+  end
+
   test "a blocked alert follow-up does not hold the ingestion response", %{attrs: attrs} do
     owner = self()
     stub(Tasks, :run_async, &Task.start/1)
