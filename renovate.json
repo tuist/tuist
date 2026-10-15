@@ -107,6 +107,13 @@
       "automerge": true
     },
     {
+      "description": "Runner payload pins: a releasable prefix, since the payload's release check skips chore commits. Not automerged: the checksum beside the version is updated by hand.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/runner-payload/buildkite-agent.env"],
+      "matchPackageNames": ["buildkite/agent"],
+      "commitMessagePrefix": "fix(infra):"
+    },
+    {
       "description": "Host-side actions/runner seed in the chart values. Same deadline pressure as the image pins, but no image to rebuild — merging the chart bump is the whole change.",
       "matchManagers": ["custom.regex"],
       "matchFileNames": ["infra/helm/tuist/values.yaml"],
