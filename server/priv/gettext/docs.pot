@@ -439,12 +439,6 @@ msgstr ""
 msgid "Install Tuist CLI"
 msgstr ""
 
-#: lib/tuist_web/live/docs_live.ex:322
-#: lib/tuist_web/live/docs_live.ex:735
-#, elixir-autogen, elixir-format
-msgid "Reuse build artifacts across Xcode, Gradle, and Bazel so work completed in one environment speeds up every other environment."
-msgstr ""
-
 #: lib/tuist_web/live/docs_live.ex:162
 #, elixir-autogen, elixir-format
 msgid "Supported for:"
@@ -482,4 +476,10 @@ msgstr ""
 #: lib/tuist_web/live/docs_live.ex:789
 #, elixir-autogen, elixir-format
 msgid "Run continuous integration workflows on managed macOS and Linux runners, with cache infrastructure colocated next to compute for the best results and shared with your developer machines."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:322
+#: lib/tuist_web/live/docs_live.ex:735
+#, elixir-autogen, elixir-format
+msgid "Share Xcode, Gradle, and Bazel build artifacts and audited Elixir dependency bundles across machines and CI."
 msgstr ""

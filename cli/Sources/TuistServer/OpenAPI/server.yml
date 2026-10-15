@@ -19572,6 +19572,117 @@ paths:
                   type: object
                   x-struct:
                   x-validate:
+                dependency_cache:
+                  description: Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                  items:
+                    properties:
+                      dependency:
+                        maxLength: 1024
+                        minLength: 1
+                        type: string
+                        x-struct:
+                        x-validate:
+                      duration_ms:
+                        maximum: 4294967295
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      key:
+                        pattern: ^([a-f0-9]{64})?$
+                        type: string
+                        x-struct:
+                        x-validate:
+                      outcome:
+                        enum:
+                          - local_hit
+                          - remote_hit
+                          - miss
+                          - bypass
+                        type: string
+                        x-struct:
+                        x-validate:
+                      read_bytes:
+                        description: Successful read bytes. Remote CAS payload bytes or local artifact and manifest copy bytes, identified by read_source.
+                        maximum: 9223372036854775807
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      read_duration_us:
+                        description: Successful client transfer or local restore duration in microseconds. Local restores include verification and installation; remote transfers exclude installation.
+                        maximum: 9223372036854775807
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      read_source:
+                        description: Read measurement provenance; legacy observations may omit it.
+                        enum:
+                          - local
+                          - remote
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      reason:
+                        enum:
+                          - ""
+                          - not_enabled
+                          - local_dependency
+                          - custom_compiler
+                          - unmodeled_input
+                          - inputs_changed
+                          - store_failed
+                        type: string
+                        x-struct:
+                        x-validate:
+                      saved_duration_ms:
+                        description: Estimated compilation time avoided on a hit, from the original compilation. Not elapsed build time saved.
+                        maximum: 4294967295
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      write_bytes:
+                        description: Successful write bytes. Remote CAS payload bytes or local artifact and manifest copy bytes, identified by write_source.
+                        maximum: 9223372036854775807
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      write_duration_us:
+                        description: Successful client transfer or local publication duration in microseconds. Local publications include snapshot verification. Excludes compilation.
+                        maximum: 9223372036854775807
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      write_source:
+                        description: Write measurement provenance; legacy observations may omit it.
+                        enum:
+                          - local
+                          - remote
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - dependency
+                      - outcome
+                      - duration_ms
+                    type: object
+                    x-struct:
+                    x-validate:
+                  maxItems: 5000
+                  type: array
+                  x-struct:
+                  x-validate:
                 diagnostics:
                   description: Compile-time diagnostics emitted during the build.
                   items:
