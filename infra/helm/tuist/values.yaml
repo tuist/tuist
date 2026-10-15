@@ -2576,6 +2576,10 @@ runnersFleet:
   # render otherwise). Resolved from the latest `runner-image@` tag at
   # deploy time; managed envs override this with the live version.
   runnerImageSemver: ""
+  # Digest reference (`<registry>/<repository>@sha256:<digest>`) of the
+  # runner payload macOS runner VMs install at boot. Resolved from the latest
+  # `runner-payload@` tag at deploy time.
+  runnerPayload: ""
   # RunnerPool CRs rendered into `runnersFleet.namespace`. One
   # entry per image variant. Required when `runnersFleet.enabled`
   # is true; the chart fails the render with an empty list.

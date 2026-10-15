@@ -330,6 +330,13 @@ independent workqueues:
   can pause a roll rather than letting the controller remove another
   warm Pod while serving capacity is already unavailable.
 
+  Helm stamps the [runner payload](../runner-payload/AGENTS.md) digest
+  as `tuist.dev/runner-payload` on macOS RunnerPools, and
+  `podtemplate.Build` copies it to new Pods. A Pod on another payload is
+  stale exactly like one on another image: idle Pending Pods are
+  replaced and idle Running ones are marked drain-eligible, which the
+  server's dispatch check honors for a payload mismatch too.
+
   `tuist.dev/runner-operator-drain=true` is an operator-set, one-way
   retirement signal. The controller does not apply or clear it. The
   server returns a drain response before attempting a claim, so an

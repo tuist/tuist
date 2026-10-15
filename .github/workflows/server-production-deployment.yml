@@ -141,6 +141,9 @@ jobs:
       linux-runner-image-should-release: ${{ steps.check.outputs.linux-runner-image-should-release }}
       linux-runner-image-next-version: ${{ steps.check.outputs.linux-runner-image-next-version }}
       linux-runner-image-next-version-number: ${{ steps.check.outputs.linux-runner-image-next-version-number }}
+      runner-payload-should-release: ${{ steps.check.outputs.runner-payload-should-release }}
+      runner-payload-next-version: ${{ steps.check.outputs.runner-payload-next-version }}
+      runner-payload-next-version-number: ${{ steps.check.outputs.runner-payload-next-version-number }}
       runners-controller-should-release: ${{ steps.check.outputs.runners-controller-should-release }}
       runners-controller-next-version: ${{ steps.check.outputs.runners-controller-next-version }}
       runners-controller-next-version-number: ${{ steps.check.outputs.runners-controller-next-version-number }}
@@ -898,6 +901,63 @@ jobs:
             infra/linux-runner-image/CHANGELOG.md
           retention-days: 1
 
+  release-runner-payload:
+    name: Release runner payload
+    needs: check-releases
+    if: needs.check-releases.outputs.runner-payload-should-release == 'true'
+    # macOS for the native tuist-cas-proxy build. Roll back with server-deployment.yml's `runner_payload_version`.
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      VERSION: ${{ needs.check-releases.outputs.runner-payload-next-version-number }}
+    outputs:
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq oras"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Get release notes
+        id: release-notes
+        run: |
+          set -euo pipefail
+          include_paths=()
+          while IFS= read -r path; do
+            include_paths+=(--include-path "$path")
+          done < <(jq -r '.components[] | select(.name == "runner-payload") | .include_paths[]' mise/tasks/release/components.json)
+          range=()
+          latest="$(git tag -l | grep -E '^runner-payload@[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)"
+          [ -z "$latest" ] || range=(-- "${latest}..HEAD")
+          {
+            echo "RELEASE_NOTES<<EOF"
+            git cliff "${include_paths[@]}" --config infra/runner-payload/cliff.toml --repository "." ${range[@]+"${range[@]}"} 2>/dev/null \
+              | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/build-runner-image-binaries
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build runner payload
+        run: infra/runner-payload/build.sh "$VERSION" "$RUNNER_TEMP/runner-payload.tar.gz"
+
+      - name: Push runner payload
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GITHUB_TOKEN" | oras login ghcr.io --username tuist-bot --password-stdin
+          oras push "ghcr.io/tuist/tuist-runner-payload:${VERSION}" \
+            --artifact-type application/vnd.tuist.runner-payload.v1 \
+            --annotation org.opencontainers.image.source=https://github.com/tuist/tuist \
+            runner-payload.tar.gz:application/vnd.tuist.runner-payload.v1.tar+gzip
+
   publish-releases:
     # Publishes the GitHub Releases (which create the component tags via the
     # API) for the components released here: Helm and the infrastructure
@@ -919,12 +979,14 @@ jobs:
         release-egress-tree-agent,
         release-xcresult-processor-image,
         release-linux-runner-image,
+        release-runner-payload,
         tag-infra-releases,
       ]
     if: |
       always() &&
       (
         needs.check-releases.outputs.helm-should-release == 'true' ||
+        needs.check-releases.outputs.runner-payload-should-release == 'true' ||
         needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
         needs.check-releases.outputs.runners-controller-should-release == 'true' ||
         needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
@@ -1125,6 +1187,20 @@ jobs:
 
             ${{ needs.release-linux-runner-image.outputs.release-notes }}
 
+      - name: Create runner-payload GitHub Release
+        if: needs.tag-infra-releases.outputs.runner-payload-tagged == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
+          name: Runner Payload ${{ needs.check-releases.outputs.runner-payload-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.runner-payload-next-version }}
+          body: |
+            OCI artifact: `ghcr.io/tuist/tuist-runner-payload:${{ needs.check-releases.outputs.runner-payload-next-version-number }}`
+
+            ${{ needs.release-runner-payload.outputs.release-notes }}
+
       # Nothing is committed to a branch here. Build artifacts embed their
       # version (each release job stamps it before building), release notes
       # live in the GitHub Releases above, image versions are resolved at
@@ -1159,6 +1235,7 @@ jobs:
         release-egress-tree-agent,
         release-xcresult-processor-image,
         release-linux-runner-image,
+        release-runner-payload,
       ]
     # Runs whenever the gate computed, regardless of which (if any) image
     # released; tag_release no-ops the components that didn't. Kura's tag
@@ -1177,6 +1254,7 @@ jobs:
       egress-tree-agent-tagged: ${{ steps.tag.outputs.egress-tree-agent-tagged }}
       xcresult-processor-image-tagged: ${{ steps.tag.outputs.xcresult-processor-image-tagged }}
       linux-runner-image-tagged: ${{ steps.tag.outputs.linux-runner-image-tagged }}
+      runner-payload-tagged: ${{ steps.tag.outputs.runner-payload-tagged }}
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
@@ -1281,6 +1359,11 @@ jobs:
             "${{ needs.release-linux-runner-image.result }}" \
             "${{ needs.check-releases.outputs.linux-runner-image-next-version }}" \
             tuist/tuist-linux-runner
+          tag_release runner-payload \
+            "${{ needs.check-releases.outputs.runner-payload-should-release }}" \
+            "${{ needs.release-runner-payload.result }}" \
+            "${{ needs.check-releases.outputs.runner-payload-next-version }}" \
+            tuist/tuist-runner-payload
 
   # Publishes the Kura canary that the deploy legs below resolve (hosted Kura
   # runs the newest canary in the deployed commit). It runs inside this
@@ -1325,6 +1408,7 @@ jobs:
       (
         needs.check-releases.outputs.deployable-changed == 'true' ||
         needs.check-releases.outputs.linux-runner-image-should-release == 'true' ||
+        needs.check-releases.outputs.runner-payload-should-release == 'true' ||
         needs.check-releases.outputs.runners-controller-should-release == 'true' ||
         needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
         needs.check-releases.outputs.egress-tree-agent-should-release == 'true' ||

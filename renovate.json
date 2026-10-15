@@ -33,6 +33,15 @@
     },
     {
       "customType": "regex",
+      "description": "Version pins in the macOS runner payload. Bumps release a new `runner-payload@<semver>`, which server-deployment.yml pins by digest at deploy time. The checksum next to the version is updated by hand.",
+      "fileMatch": ["^infra/runner-payload/buildkite-agent\\.env$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+[A-Z_]+=(?<currentValue>[^\\s]+)"
+      ],
+      "extractVersionTemplate": "^v?(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
       "description": "hetzner-robot-controller image pin in the mgmt-cluster Deployment manifest. Renovate tracks the ghcr tag the release pushes and opens the bump PR; mgmt-cluster-apply.yml rolls it out on merge (the manifest path is in its trigger).",
       "fileMatch": ["^infra/k8s/mgmt/hetzner-robot-controller\\.yaml$"],
       "matchStrings": [
@@ -96,6 +105,13 @@
       "commitMessagePrefix": "fix(linux-runner-image):",
       "prPriority": 10,
       "automerge": true
+    },
+    {
+      "description": "Runner payload pins: a releasable prefix, since the payload's release check skips chore commits. Not automerged: the checksum beside the version is updated by hand.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/runner-payload/buildkite-agent.env"],
+      "matchPackageNames": ["buildkite/agent"],
+      "commitMessagePrefix": "fix(infra):"
     },
     {
       "description": "Host-side actions/runner seed in the chart values. Same deadline pressure as the image pins, but no image to rebuild — merging the chart bump is the whole change.",

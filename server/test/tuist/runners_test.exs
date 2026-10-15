@@ -68,17 +68,25 @@ defmodule Tuist.RunnersTest do
       end)
 
     %{
-      "metadata" => %{"name" => pod_name, "namespace" => "tuist-runners", "labels" => labels},
+      "metadata" => %{
+        "name" => pod_name,
+        "namespace" => "tuist-runners",
+        "labels" => labels,
+        "annotations" => payload_annotations(Keyword.get(opts, :payload))
+      },
       "spec" => spec
     }
   end
 
-  defp pool_with_image(image) do
+  defp pool_with_image(image, opts \\ []) do
     %{
-      "metadata" => %{"name" => "fleet-a"},
+      "metadata" => %{"name" => "fleet-a", "annotations" => payload_annotations(Keyword.get(opts, :payload))},
       "spec" => %{"image" => image, "dispatchLabel" => "tuist-macos"}
     }
   end
+
+  defp payload_annotations(nil), do: %{}
+  defp payload_annotations(payload), do: %{"tuist.dev/runner-payload" => payload}
 
   describe "dispatch_for_sa/2 stale-image drain" do
     test "returns :drain for an operator-marked Pod before attempting a claim" do
@@ -174,6 +182,65 @@ defmodule Tuist.RunnersTest do
 
       expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
         {:error, :not_in_cluster}
+      end)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "returns :drain when the Pod booted an older runner payload and is drain-eligible" do
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
+        {:ok, pool_with_image(image, payload: "ghcr.io/tuist/tuist-runner-payload@sha256:new")}
+      end)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok,
+         pod_with_image("pod-1", image,
+           payload: "ghcr.io/tuist/tuist-runner-payload@sha256:old",
+           drain_eligible: true
+         )}
+      end)
+
+      assert {:error, :drain} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "defers the drain of a Pod on an older runner payload until it is drain-eligible" do
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
+        {:ok, pool_with_image(image, payload: "ghcr.io/tuist/tuist-runner-payload@sha256:new")}
+      end)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, pod_with_image("pod-1", image)}
+      end)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "does not drain a drain-eligible Pod when the RunnerPool pins no runner payload" do
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
+        {:ok, pool_with_image(image)}
+      end)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok,
+         pod_with_image("pod-1", image, payload: "ghcr.io/tuist/tuist-runner-payload@sha256:old", drain_eligible: true)}
       end)
 
       assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")

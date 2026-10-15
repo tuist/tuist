@@ -521,3 +521,4 @@ This documentation is critical for:
 
 - `infra/tart-kubelet/` — current macOS Pod-to-Tart runtime and APFS caches; see `infra/tart-kubelet/AGENTS.md`.
 - `infra/runner-cache/` — shared Linux/macOS custom-volume journal, image lifecycle and transfer; see `infra/runner-cache/AGENTS.md`.
+- `infra/runner-payload/`: scripts and binaries macOS runner VMs install at boot, released as an OCI artifact; see `infra/runner-payload/AGENTS.md`.

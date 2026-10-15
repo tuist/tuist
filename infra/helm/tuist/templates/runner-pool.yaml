@@ -56,6 +56,7 @@ kind: RunnerPool
 metadata:
   name: {{ $poolName | quote }}
   namespace: {{ $namespace | quote }}
+  {{- with include "tuist.macosRunnerPoolAnnotations" $ }}{{ . | nindent 2 }}{{- end }}
   labels:
     {{- $labels | nindent 4 }}
     app.kubernetes.io/component: runners-controller
@@ -252,6 +253,7 @@ kind: RunnerPool
 metadata:
   name: {{ $poolName | quote }}
   namespace: {{ $namespace | quote }}
+  {{- with include "tuist.macosRunnerPoolAnnotations" $ }}{{ . | nindent 2 }}{{- end }}
   labels:
     {{- $labels | nindent 4 }}
     app.kubernetes.io/component: runners-controller
@@ -323,6 +325,7 @@ kind: RunnerPool
 metadata:
   name: {{ $shapePoolName | quote }}
   namespace: {{ $namespace | quote }}
+  {{- with include "tuist.macosRunnerPoolAnnotations" $ }}{{ . | nindent 2 }}{{- end }}
   labels:
     {{- $labels | nindent 4 }}
     app.kubernetes.io/component: runners-controller
