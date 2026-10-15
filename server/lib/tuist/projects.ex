@@ -651,6 +651,9 @@ defmodule Tuist.Projects do
       %VCSConnection{provider: :github, repository_full_handle: repository_full_handle} ->
         "https://github.com/#{repository_full_handle}"
 
+      %VCSConnection{provider: :origin, repository_full_handle: repository_full_handle} ->
+        "https://cursor.com/codebase/#{repository_full_handle}"
+
       nil ->
         nil
     end
@@ -775,16 +778,19 @@ defmodule Tuist.Projects do
   end
 
   @doc """
-  Get all projects connected to a VCS repository. The handle is matched
-  case-insensitively, like GitHub matches owner and repository names.
+  Get all projects connected to a VCS repository, scoped to a provider
+  (GitHub by default). Never let a same-named repository on another forge
+  authorize CI tokens. The handle is matched case-insensitively.
   """
   def projects_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
+    provider = Keyword.get(opts, :provider, :github)
 
     Repo.all(
       from p in Project,
         join: pc in VCSConnection,
         on: pc.project_id == p.id,
+        where: pc.provider == ^provider,
         where: fragment("lower(?) = lower(?)", pc.repository_full_handle, ^vcs_repository_full_handle),
         order_by: [asc: p.id],
         preload: ^preload
@@ -796,12 +802,14 @@ defmodule Tuist.Projects do
   """
   def project_by_name_and_vcs_repository_full_handle(project_name, vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
+    provider = Keyword.get(opts, :provider, :github)
 
     project =
       Repo.one(
         from p in Project,
           join: pc in VCSConnection,
           on: pc.project_id == p.id,
+          where: pc.provider == ^provider,
           where: pc.repository_full_handle == ^vcs_repository_full_handle and p.name == ^project_name,
           preload: ^preload
       )

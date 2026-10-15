@@ -2,6 +2,10 @@
 
 This directory contains database migrations and other private assets.
 
+## Origin integration
+- `docs/en/guides/integrations/gitforge/origin.md` documents native-Origin account/project connections, reporting requirements, and user-facing permissions. Keep it focused on usage, without comparisons to other forges, token-minting internals, or managed-development infrastructure. App registration, key generation, callback/webhook settings, and environment variables belong in `docs/en/guides/server/self-host/server.md#platform-origin`, following the adjacent platform setup structure. Installation does not start CI. `origin_app_installations` stores account-owned installation/app/namespace IDs, not receipts or private keys.
+- `marketing/changelog/2026.10.15-cursor-origin-integration.md` announces native Origin reports and uses the matching WebP under `static/marketing/images/changelog/`. Keep the screenshot's synthetic-demo disclosure and the distinction between reporting results and running workflows.
+
 ## Responsibilities
 - Explicit client actor-claim configuration and privacy/legacy-server compatibility are documented in the English Xcode, Gradle, and Elixir build-insights guides. Claims are off by default; Xcode post-actions need their own environment configuration. This header does not imply report persistence, dashboard support, or new authorization; the endpoint scrubs it from Sentry contexts.
 - Grafana build-health setup, metric definitions, reporting limitations, and alert routing are documented in `docs/en/guides/integrations/grafana.md`. Keep this guide aligned with the Grafana plugin readme and link it in `lib/tuist/docs_sidebar.ex`.
@@ -35,6 +39,7 @@ This directory contains database migrations and other private assets.
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
 - REAPI cache output hints default to empty strings for historical rows and older Kura nodes. Append physical ClickHouse columns in schema order; these identifiers correlate profile descriptions and are never repository source links.
+- The Origin installation migration creates indexes concurrently and validates its provider constraint separately after adding it without validation, so existing connection writes are not blocked by an index build or constraint scan. The installation column keeps its UUID type when its nullability changes.
 - Migration filename versions must be unique within each repository. Check for collisions against main when adding migrations, and update explicit test file references if renaming a migration. Mix cache creation and I/O metrics use `20261009120100` and `20261010110100`; their prototype versions `20261009120000` and `20261010110000` collided with upstream migrations. Reconcile locally applied prototype history against the actual tables/columns before migrating.
 - Runner cache migrations create indexes concurrently with DDL transactions and
   migration locks disabled; verify both forward migration and rollback.
