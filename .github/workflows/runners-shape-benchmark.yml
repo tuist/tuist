@@ -11,9 +11,9 @@ name: Runners Shape Benchmark
 # pool or profile resolves; the chart's own `shape-macos-ber1-*` labels are
 # not.
 #
-# The default rounds fit b01 at 12 CPU / 28 GB. Two 8 vCPU guests and a
-# 16 vCPU guest need the 16 CPU / 48 GB it advertises with its `machine`
-# override in values-managed-production.yaml; pass them in `rounds`.
+# Two 8 vCPU guests and a 16 vCPU guest need b01 to advertise 16 CPU / 48 GB.
+# For this benchmark its tart-kubelet flags were raised by hand on the host;
+# production's operator restores 12 / 28 on its next host-config push.
 
 on:
   workflow_dispatch:
@@ -56,10 +56,8 @@ jobs:
         run: |
           if [ -z "$ROUNDS" ]; then
             ROUNDS='[
-              {"shape": "6vcpu-14gb", "guests": 1},
-              {"shape": "6vcpu-14gb", "guests": 2},
-              {"shape": "8vcpu-19gb", "guests": 1},
-              {"shape": "12vcpu-28gb", "guests": 1}
+              {"shape": "8vcpu-19gb", "guests": 2},
+              {"shape": "16vcpu-48gb", "guests": 1}
             ]'
           fi
           echo "rounds=$(jq -c '[.[] | . + {slots: [range(1; .guests + 1)]}]' <<< "$ROUNDS")" >> "$GITHUB_OUTPUT"
