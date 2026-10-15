@@ -33,6 +33,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     private let fileSystem: FileSysteming
     private let token: @Sendable () async throws -> String
     private let guards: TransferGuards
+    private let metadataTimeout: Duration
     private let stats: REAPIStats?
     private let backpressureRetryPolicy: REAPIBackpressureRetryPolicy
 
@@ -42,6 +43,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         instanceName: String,
         fileSystem: FileSysteming = FileSystem(),
         guards: TransferGuards = .default,
+        metadataTimeout: Duration = .seconds(120),
         stats: REAPIStats? = nil,
         backpressureRetryPolicy: REAPIBackpressureRetryPolicy? = nil,
         environment: [String: String] = Environment.current.variables,
@@ -83,6 +85,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         self.token = token
         self.fileSystem = fileSystem
         self.guards = guards
+        self.metadataTimeout = metadataTimeout
         self.stats = stats
         self.backpressureRetryPolicy = backpressureRetryPolicy ?? .init()
     }
@@ -106,7 +109,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
 
     private var options: CallOptions {
         var options = CallOptions.defaults
-        options.timeout = .seconds(120)
+        options.timeout = metadataTimeout
         return options
     }
 
@@ -533,7 +536,8 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         let available = existing.union(uploaded)
         return REAPIBlobUpload(
             available: available,
-            failures: failures.withLock { $0 }.filter { !available.contains($0.key) }
+            failures: failures.withLock { $0 }.filter { !available.contains($0.key) },
+            uploaded: uploaded
         )
     }
 

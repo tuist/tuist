@@ -23,7 +23,19 @@ message SymlinkNode { string name = 1; string target = 2; }
 message Tree { Directory root = 1; repeated Directory children = 2; }
 message OutputFile { string path = 1; Digest digest = 2; bool is_executable = 4; bytes contents = 5; }
 message OutputDirectory { string path = 1; Digest tree_digest = 3; bool is_topologically_sorted = 4; Digest root_directory_digest = 5; }
-message ActionResult { repeated OutputFile output_files = 2; repeated OutputDirectory output_directories = 3; int32 exit_code = 4; }
+message OutputSymlink { string path = 1; string target = 2; }
+message ActionResult {
+  repeated OutputFile output_files = 2;
+  repeated OutputDirectory output_directories = 3;
+  int32 exit_code = 4;
+  bytes stdout_raw = 5;
+  Digest stdout_digest = 6;
+  bytes stderr_raw = 7;
+  Digest stderr_digest = 8;
+  repeated OutputSymlink output_file_symlinks = 10;
+  repeated OutputSymlink output_directory_symlinks = 11;
+  repeated OutputSymlink output_symlinks = 12;
+}
 message GetActionResultRequest { string instance_name = 1; Digest action_digest = 2; DigestFunction.Value digest_function = 6; }
 message UpdateActionResultRequest { string instance_name = 1; Digest action_digest = 2; ActionResult action_result = 3; DigestFunction.Value digest_function = 5; }
 message FindMissingBlobsRequest { string instance_name = 1; repeated Digest blob_digests = 2; DigestFunction.Value digest_function = 3; }

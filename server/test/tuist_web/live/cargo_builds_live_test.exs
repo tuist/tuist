@@ -415,7 +415,7 @@ defmodule TuistWeb.CargoBuildsLiveTest do
     assert has_element?(view, "#cas-outputs-table")
     assert has_element?(view, "#widget-cargo-download-throughput")
     refute has_element?(view, "#cacheable-tasks-table")
-    assert html =~ "including speculative prefetches"
+    assert html =~ "including protocol metadata"
     assert html =~ "Compiler work is not wall-clock time saved"
     assert html =~ "Aggregate hits do not distinguish local and remote restores"
     assert html =~ "Fresh compiler outputs were retained"

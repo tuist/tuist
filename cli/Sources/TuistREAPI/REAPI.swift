@@ -119,11 +119,16 @@ extension REAPI {
 public struct REAPIBlobUpload: Sendable {
     /// Blobs the cache holds now, whether this upload sent them or they were already present.
     public var available: Set<REAPI.Digest>
+    /// Blobs transferred by this operation, or nil when the implementation cannot distinguish presence from transfer.
+    public var uploaded: Set<REAPI.Digest>?
     /// Why each blob outside `available` is missing from the cache.
     public var failures: [REAPI.Digest: String]
 
-    public init(available: Set<REAPI.Digest>, failures: [REAPI.Digest: String] = [:]) {
+    public init(
+        available: Set<REAPI.Digest>, failures: [REAPI.Digest: String] = [:], uploaded: Set<REAPI.Digest>? = nil
+    ) {
         self.available = available
+        self.uploaded = uploaded
         self.failures = failures
     }
 }

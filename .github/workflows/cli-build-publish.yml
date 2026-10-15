@@ -190,13 +190,8 @@ jobs:
           sed -i "s/^let releaseVersion = \".*\"$/let releaseVersion = \"${{ inputs.version }}\"/" cli/Sources/tuist/ReleaseVersion.swift
           grep -qxF "let releaseVersion = \"${{ inputs.version }}\"" cli/Sources/tuist/ReleaseVersion.swift
 
-      - name: Install native build dependencies and caddy
-        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy build-essential cmake musl-tools pkg-config
-      - uses: ./.github/actions/mise
-        with:
-          install_args: rust
-          working_directory: cas-plugin
-          env: "false"
+      - name: Install caddy
+        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
       # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
       # (see #12229), and the registry answers 303 to storage over h2. Terminating
       # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect

@@ -3,7 +3,7 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Color codes
 GREEN='\033[0;32m'
@@ -169,8 +169,7 @@ strip_release_binaries() {
         "$BUILD_DIRECTORY/tuist" \
         "$BUILD_DIRECTORY/ProjectDescription.framework/ProjectDescription" \
         "$BUILD_DIRECTORY/libtuist_cas_plugin.dylib" \
-        "$BUILD_DIRECTORY/tuist-cas-proxy" \
-        "$BUILD_DIRECTORY/tuist-cargo-cache"
+        "$BUILD_DIRECTORY/tuist-cas-proxy"
 }
 
 # Builds the cas-plugin (Xcode compilation-cache CAS plugin) as a universal
@@ -202,20 +201,6 @@ build_cas_plugin() {
         -output "$BUILD_DIRECTORY/tuist-cas-proxy"
 }
 
-build_cargo_cache() {
-    local target_dir="$TMP_DIR/cargo-cache-target"
-    (
-        cd "$TUIST_DIR/cli/native/cargo-cache" || exit 1
-        rustup target add aarch64-apple-darwin x86_64-apple-darwin
-        cargo build --locked --release -p tuist-cargo-cache --bin tuist-cargo-cache --target aarch64-apple-darwin --target-dir "$target_dir"
-        cargo build --locked --release -p tuist-cargo-cache --bin tuist-cargo-cache --target x86_64-apple-darwin --target-dir "$target_dir"
-    )
-    lipo -create "$target_dir/aarch64-apple-darwin/release/tuist-cargo-cache" \
-        "$target_dir/x86_64-apple-darwin/release/tuist-cargo-cache" -output "$BUILD_DIRECTORY/tuist-cargo-cache"
-    cp "$TUIST_DIR/cli/native/cargo-cache/LICENSE" "$BUILD_DIRECTORY/cargo-cache-LICENSE"
-    cp "$TUIST_DIR/cli/native/cargo-cache/NOTICE" "$BUILD_DIRECTORY/cargo-cache-NOTICE"
-}
-
 echo "$(format_section "Building")"
 
 echo "$(format_subsection "Generating Xcode project")"
@@ -229,9 +214,6 @@ build_project_desscription
 
 echo "$(format_subsection "Building cas-plugin dylib")"
 build_cas_plugin
-
-echo "$(format_subsection "Building Cargo cache runtime")"
-build_cargo_cache
 
 echo "$(format_subsection "Bundling Swift runtime libraries")"
 bundle_swift_runtime_libraries
@@ -256,13 +238,12 @@ echo "$(format_section "Bundling")"
         done
     fi
     /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose libtuist_cas_plugin.dylib
-    /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist-cargo-cache
     /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist-cas-proxy
     /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
     /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
 
     echo "$(format_subsection "Notarizing")"
-    zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework vendor libtuist_cas_plugin.dylib tuist-cas-proxy tuist-cargo-cache
+    zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework vendor libtuist_cas_plugin.dylib tuist-cas-proxy
 
     RAW_JSON=$(xcrun notarytool submit "notarization-bundle.zip" \
         --apple-id "$APPLE_ID" \
@@ -281,32 +262,32 @@ echo "$(format_section "Bundling")"
             --output-format json | jq -r '.status')
 
         case $STATUS in
-        "Accepted")
-            echo -e "${GREEN}Notarization succeeded!${NC}"
-            break
-            ;;
-        "In Progress")
-            echo "Notarization in progress... waiting 30 seconds"
-            sleep 30
-            ;;
-        "Invalid" | "Rejected")
-            echo "Notarization failed with status: $STATUS"
-            xcrun notarytool log "$SUBMISSION_ID" \
-                --apple-id "$APPLE_ID" \
-                --team-id "$TEAM_ID" \
-                --password "$APPLE_PASSWORD"
-            exit 1
-            ;;
-        *)
-            echo "Unknown status: $STATUS"
-            exit 1
-            ;;
+            "Accepted")
+                echo -e "${GREEN}Notarization succeeded!${NC}"
+                break
+                ;;
+            "In Progress")
+                echo "Notarization in progress... waiting 30 seconds"
+                sleep 30
+                ;;
+            "Invalid"|"Rejected")
+                echo "Notarization failed with status: $STATUS"
+                xcrun notarytool log "$SUBMISSION_ID" \
+                    --apple-id "$APPLE_ID" \
+                    --team-id "$TEAM_ID" \
+                    --password "$APPLE_PASSWORD"
+                exit 1
+                ;;
+            *)
+                echo "Unknown status: $STATUS"
+                exit 1
+                ;;
         esac
     done
     rm "notarization-bundle.zip"
 
     echo "$(format_subsection "Bundling tuist.zip")"
-    zip -q -r --symlinks tuist.zip tuist ProjectDescription.framework ProjectDescription.framework.dSYM Templates vendor libtuist_cas_plugin.dylib tuist-cas-proxy tuist-cargo-cache cargo-cache-LICENSE cargo-cache-NOTICE
+    zip -q -r --symlinks tuist.zip tuist ProjectDescription.framework ProjectDescription.framework.dSYM Templates vendor libtuist_cas_plugin.dylib tuist-cas-proxy
 
     echo "$(format_subsection "Bundling ProjectDescription.xcframework.zip")"
     xcodebuild -create-xcframework -framework ProjectDescription.framework -output ProjectDescription.xcframework
@@ -314,21 +295,21 @@ echo "$(format_section "Bundling")"
 
     echo "$(format_subsection "Generating tuist.spec.json")"
     SPEC_TMP_DIR=$(mktemp -d)
-    ./tuist --experimental-dump-help --path "$SPEC_TMP_DIR" >tuist.spec.json
+    ./tuist --experimental-dump-help --path "$SPEC_TMP_DIR" > tuist.spec.json
     rm -rf "$SPEC_TMP_DIR"
 
-    rm -rf tuist ProjectDescription.framework ProjectDescription.xcframework ProjectDescription.framework.dSYM Templates vendor libtuist_cas_plugin.dylib tuist-cas-proxy tuist-cargo-cache cargo-cache-LICENSE cargo-cache-NOTICE
+    rm -rf tuist ProjectDescription.framework ProjectDescription.xcframework ProjectDescription.framework.dSYM Templates vendor libtuist_cas_plugin.dylib tuist-cas-proxy
 
-    : >SHASUMS256.txt
-    : >SHASUMS512.txt
+    : > SHASUMS256.txt
+    : > SHASUMS512.txt
 
     for file in *; do
         if [ -f "$file" ]; then
             if [[ "$file" == "SHASUMS256.txt" || "$file" == "SHASUMS512.txt" ]]; then
                 continue
             fi
-            echo "$(shasum -a 256 "$file" | awk '{print $1}') ./$file" >>SHASUMS256.txt
-            echo "$(shasum -a 512 "$file" | awk '{print $1}') ./$file" >>SHASUMS512.txt
+            echo "$(shasum -a 256 "$file" | awk '{print $1}') ./$file" >> SHASUMS256.txt
+            echo "$(shasum -a 512 "$file" | awk '{print $1}') ./$file" >> SHASUMS512.txt
         fi
     done
 )

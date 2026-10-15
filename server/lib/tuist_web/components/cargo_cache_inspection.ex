@@ -328,7 +328,7 @@ defmodule TuistWeb.Components.CargoCacheInspection do
           description={
             dgettext(
               "dashboard_builds",
-              "Estimated compiler work avoided: %{duration}. Aggregate hits do not distinguish local and remote restores. CAS operations include speculative prefetches, protocol metadata and presence checks; they do not establish task restores. No remote CAS operations are inferred for local restores. Cumulative timings can overlap.",
+              "Estimated compiler work avoided: %{duration}. Aggregate hits do not distinguish local and remote restores. CAS operations include protocol metadata and presence checks; they do not establish task restores. No remote CAS operations are inferred for local restores. Cumulative timings can overlap.",
               duration: CargoCache.duration(@metrics.estimated_compiler_duration_avoided_ns)
             )
           }

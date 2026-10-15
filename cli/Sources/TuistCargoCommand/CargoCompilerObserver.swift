@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import TuistProcess
+import TuistREAPI
 import TuistServer
 
 struct CargoCompilerObserver {
@@ -8,7 +9,28 @@ struct CargoCompilerObserver {
 
     func run(_ arguments: [String], environment: [String: String], directory: AbsolutePath) async throws {
         guard let compiler = arguments.first else { throw CargoReportError(message: "Missing compiler executable.") }
+        let invocation = try? await CargoCacheInvocation.prepare(
+            arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
+        )
+        let measurement = invocation.map(CargoCacheMeasurement.init)
+        let cache: CargoCompilationCache?
+        if let invocation, let measurement, let root = environment["TUIST_CARGO_CACHE_DIR"] {
+            let remote = try? await Self.remote(environment)
+            cache = try? CargoCompilationCache(
+                invocation: invocation, root: URL(fileURLWithPath: root), remote: remote, measurement: measurement
+            )
+        } else { cache = nil }
+        defer { measurement?.write() }
+        if let cache, try await cache.restore() {
+            measurement?.outcome(hit: true)
+            return
+        }
+        try Task.checkCancellation()
+        measurement?.outcome(hit: false)
         let started = Date()
+        var stdout = Data()
+        var stderr = Data()
+        var bounded = true
         let wrapper = environment["TUIST_CARGO_INNER_WRAPPER"].flatMap { $0.isEmpty ? nil : $0 }
         var executionError: Error?
         var diagnostics: [CargoDiagnostic] = []
@@ -19,9 +41,12 @@ struct CargoCompilerObserver {
                 environment: environment, workingDirectory: directory
             ) {
                 switch event {
-                case let .standardOutput(bytes): FileHandle.standardOutput.write(Data(bytes))
+                case let .standardOutput(bytes):
+                    FileHandle.standardOutput.write(Data(bytes))
+                    if stdout.count + stderr.count + bytes.count <= 1_000_000 { stdout.append(contentsOf: bytes) } else { bounded = false }
                 case let .standardError(bytes):
                     FileHandle.standardError.write(Data(bytes))
+                    if stdout.count + stderr.count + bytes.count <= 1_000_000 { stderr.append(contentsOf: bytes) } else { bounded = false }
                     pending.append(contentsOf: bytes)
                     if pending.count > 1_000_000 { pending.removeAll() }
                     diagnostics += Self.diagnostics(from: &pending, remaining: 100 - diagnostics.count)
@@ -30,6 +55,19 @@ struct CargoCompilerObserver {
         } catch { executionError = error }
         record(arguments, environment: environment, started: started, failed: executionError != nil, diagnostics: diagnostics)
         if let executionError { throw executionError }
+        if bounded, let cache { try? await cache.store(stdout: stdout, stderr: stderr) }
+    }
+
+    private static func remote(_ environment: [String: String]) async throws -> (any REAPICacheStoring)? {
+        guard let address = environment["TUIST_CARGO_CACHE_REMOTE_URL"], let url = URL(string: address), let host = url.host,
+              let namespace = environment["TUIST_CARGO_CACHE_NAMESPACE"],
+              let account = namespace.split(separator: "/").first,
+              let file = environment["TUIST_CARGO_CACHE_TOKEN_FILE"] else { return nil }
+        return try await REAPICacheClient(
+            endpoint: GRPCEndpoint(host: host, explicitPort: url.port, isTLS: url.scheme == "https" || url.scheme == "grpcs"),
+            accountHandle: String(account), instanceName: namespace, metadataTimeout: .seconds(3), environment: environment,
+            token: { try String(contentsOfFile: file, encoding: .utf8) }
+        )
     }
 
     private static func diagnostics(from pending: inout Data, remaining: Int) -> [CargoDiagnostic] {

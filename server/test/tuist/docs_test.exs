@@ -26,7 +26,12 @@ defmodule Tuist.DocsTest do
       assert cache =~ "Rust cache (experimental)"
       assert cache =~ "supported_for=\"rust\""
       assert cache =~ "/guides/features/build-insights/rust#cache-measurements"
-      assert Docs.get_page("/en/guides/features/build-insights/rust").markdown =~ "{#cache-measurements}"
+      guide = Docs.get_page("/en/guides/features/build-insights/rust").markdown
+      assert guide =~ "{#cache-measurements}"
+      assert guide =~ "registry leaf libraries"
+      assert guide =~ "absolute paths"
+      refute guide =~ "compatible cache runtime"
+      refute guide =~ "verification detects"
     end
 
     test "loads the per-build-system Get Started pages with the agent prompt and prerequisites" do

@@ -8,7 +8,7 @@ enum CargoCacheReport {
         "remote_action_lookup_duration_ns", "remote_blob_transfer_duration_ns", "upload_drain_duration_ns",
     ]
 
-    private struct NativeReport: Decodable {
+    private struct Measurement: Decodable {
         let version: Int
         let values: [String: UInt64]
 
@@ -54,7 +54,7 @@ enum CargoCacheReport {
             guard let data else { continue }
             remaining -= data.count
             guard data.count <= 512_000, data.count == size,
-                  let report = try? JSONDecoder().decode(NativeReport.self, from: data), report.version == 5
+                  let report = try? JSONDecoder().decode(Measurement.self, from: data), report.version == 1
             else { continue }
             reports += 1
             for (key, value) in report.values {

@@ -2302,11 +2302,6 @@ msgstr ""
 msgid "Fresh compiler outputs were retained instead of the divergent cached outputs."
 msgstr ""
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:155
-#, elixir-autogen, elixir-format
-msgid "Bytes downloaded from the remote cache, including speculative prefetches."
-msgstr ""
-
 #: lib/tuist_web/components/cargo_cache_inspection.ex:41
 #, elixir-autogen, elixir-format
 msgid "Cargo Cache"
@@ -2372,11 +2367,6 @@ msgstr ""
 msgid "Detailed cache records were not collected"
 msgstr ""
 
-#: lib/tuist_web/components/cargo_cache_inspection.ex:329
-#, elixir-autogen, elixir-format
-msgid "Estimated compiler work avoided: %{duration}. Aggregate hits do not distinguish local and remote restores. CAS operations include speculative prefetches, protocol metadata and presence checks; they do not establish task restores. No remote CAS operations are inferred for local restores. Cumulative timings can overlap."
-msgstr ""
-
 #: lib/tuist_web/components/cargo_cache_inspection.ex:65
 #, elixir-autogen, elixir-format
 msgid "Inspection records are bounded and best-effort. The tables, charts and measurements below cover only captured records; the summary above retains the aggregate totals."
@@ -2430,4 +2420,14 @@ msgstr ""
 #: lib/tuist_web/live/cargo_build_live.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "Percentage of cacheable tasks that reused cached outputs instead of compiling."
+msgstr ""
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:155
+#, elixir-autogen, elixir-format
+msgid "Bytes downloaded from the remote cache, including protocol metadata."
+msgstr ""
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:329
+#, elixir-autogen, elixir-format
+msgid "Estimated compiler work avoided: %{duration}. Aggregate hits do not distinguish local and remote restores. CAS operations include protocol metadata and presence checks; they do not establish task restores. No remote CAS operations are inferred for local restores. Cumulative timings can overlap."
 msgstr ""

@@ -5,9 +5,9 @@ helpers remain in `../http.rs`. `upload_tests.rs` covers typed incoming-body
 failures, checksum validation, and cleanup.
 
 Tuist Cargo compilation caching uses the existing project-scoped Bazel Remote
-Execution API in `../reapi/`, not a custom HTTP protocol. Keep digest mapping and
-compilation-model prediction indexes in the client; the server remains an
-ordinary SHA-256 REAPI CAS and Action Cache.
+Execution API in `../reapi/`, not a custom HTTP protocol. The Swift client owns
+compilation eligibility and action identities; the server remains an ordinary
+SHA-256 REAPI CAS and Action Cache.
 
 - Hash checksum-declaring HTTP uploads while staging, verify size/hash before
   persistence, and retain request-owned cleanup and memory/disk admission.

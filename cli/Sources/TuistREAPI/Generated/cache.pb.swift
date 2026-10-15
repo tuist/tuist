@@ -340,6 +340,20 @@ public struct Build_Bazel_Remote_Execution_V2_OutputDirectory: Sendable {
     fileprivate var _rootDirectoryDigest: Build_Bazel_Remote_Execution_V2_Digest?
 }
 
+public struct Build_Bazel_Remote_Execution_V2_OutputSymlink: Sendable {
+    // SwiftProtobuf.Message conformance is added in an extension below. See the
+    // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+    // methods supported on all messages.
+
+    public var path: String = .init()
+
+    public var target: String = .init()
+
+    public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+    public init() {}
+}
+
 public struct Build_Bazel_Remote_Execution_V2_ActionResult: Sendable {
     // SwiftProtobuf.Message conformance is added in an extension below. See the
     // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -351,9 +365,42 @@ public struct Build_Bazel_Remote_Execution_V2_ActionResult: Sendable {
 
     public var exitCode: Int32 = 0
 
+    public var stdoutRaw: Data = .init()
+
+    public var stdoutDigest: Build_Bazel_Remote_Execution_V2_Digest {
+        get { _stdoutDigest ?? Build_Bazel_Remote_Execution_V2_Digest() }
+        set { _stdoutDigest = newValue }
+    }
+
+    /// Returns true if `stdoutDigest` has been explicitly set.
+    public var hasStdoutDigest: Bool { _stdoutDigest != nil }
+    /// Clears the value of `stdoutDigest`. Subsequent reads from it will return its default value.
+    public mutating func clearStdoutDigest() { _stdoutDigest = nil }
+
+    public var stderrRaw: Data = .init()
+
+    public var stderrDigest: Build_Bazel_Remote_Execution_V2_Digest {
+        get { _stderrDigest ?? Build_Bazel_Remote_Execution_V2_Digest() }
+        set { _stderrDigest = newValue }
+    }
+
+    /// Returns true if `stderrDigest` has been explicitly set.
+    public var hasStderrDigest: Bool { _stderrDigest != nil }
+    /// Clears the value of `stderrDigest`. Subsequent reads from it will return its default value.
+    public mutating func clearStderrDigest() { _stderrDigest = nil }
+
+    public var outputFileSymlinks: [Build_Bazel_Remote_Execution_V2_OutputSymlink] = []
+
+    public var outputDirectorySymlinks: [Build_Bazel_Remote_Execution_V2_OutputSymlink] = []
+
+    public var outputSymlinks: [Build_Bazel_Remote_Execution_V2_OutputSymlink] = []
+
     public var unknownFields = SwiftProtobuf.UnknownStorage()
 
     public init() {}
+
+    fileprivate var _stdoutDigest: Build_Bazel_Remote_Execution_V2_Digest?
+    fileprivate var _stderrDigest: Build_Bazel_Remote_Execution_V2_Digest?
 }
 
 public struct Build_Bazel_Remote_Execution_V2_GetActionResultRequest: Sendable {
@@ -1116,12 +1163,54 @@ extension Build_Bazel_Remote_Execution_V2_OutputDirectory: SwiftProtobuf.Message
     }
 }
 
+extension Build_Bazel_Remote_Execution_V2_OutputSymlink: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase,
+    SwiftProtobuf._ProtoNameProviding
+{
+    public static let protoMessageName: String = _protobuf_package + ".OutputSymlink"
+    public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}path\0\u{1}target\0")
+
+    public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
+        while let fieldNumber = try decoder.nextFieldNumber() {
+            // The use of inline closures is to circumvent an issue where the compiler
+            // allocates stack space for every case branch when no optimizations are
+            // enabled. https://github.com/apple/swift-protobuf/issues/1034
+            switch fieldNumber {
+            case 1: try decoder.decodeSingularStringField(value: &path)
+            case 2: try decoder.decodeSingularStringField(value: &target)
+            default: break
+            }
+        }
+    }
+
+    public func traverse(visitor: inout some SwiftProtobuf.Visitor) throws {
+        if !path.isEmpty {
+            try visitor.visitSingularStringField(value: path, fieldNumber: 1)
+        }
+        if !target.isEmpty {
+            try visitor.visitSingularStringField(value: target, fieldNumber: 2)
+        }
+        try unknownFields.traverse(visitor: &visitor)
+    }
+
+    public static func == (
+        lhs: Build_Bazel_Remote_Execution_V2_OutputSymlink,
+        rhs: Build_Bazel_Remote_Execution_V2_OutputSymlink
+    ) -> Bool {
+        if lhs.path != rhs.path { return false }
+        if lhs.target != rhs.target { return false }
+        if lhs.unknownFields != rhs.unknownFields { return false }
+        return true
+    }
+}
+
 extension Build_Bazel_Remote_Execution_V2_ActionResult: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase,
     SwiftProtobuf._ProtoNameProviding
 {
     public static let protoMessageName: String = _protobuf_package + ".ActionResult"
     public static let _protobuf_nameMap = SwiftProtobuf
-        ._NameMap(bytecode: "\0\u{4}\u{2}output_files\0\u{3}output_directories\0\u{3}exit_code\0")
+        ._NameMap(
+            bytecode: "\0\u{4}\u{2}output_files\0\u{3}output_directories\0\u{3}exit_code\0\u{3}stdout_raw\0\u{3}stdout_digest\0\u{3}stderr_raw\0\u{3}stderr_digest\0\u{4}\u{2}output_file_symlinks\0\u{3}output_directory_symlinks\0\u{3}output_symlinks\0"
+        )
 
     public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
         while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1132,12 +1221,23 @@ extension Build_Bazel_Remote_Execution_V2_ActionResult: SwiftProtobuf.Message, S
             case 2: try decoder.decodeRepeatedMessageField(value: &outputFiles)
             case 3: try decoder.decodeRepeatedMessageField(value: &outputDirectories)
             case 4: try decoder.decodeSingularInt32Field(value: &exitCode)
+            case 5: try decoder.decodeSingularBytesField(value: &stdoutRaw)
+            case 6: try decoder.decodeSingularMessageField(value: &_stdoutDigest)
+            case 7: try decoder.decodeSingularBytesField(value: &stderrRaw)
+            case 8: try decoder.decodeSingularMessageField(value: &_stderrDigest)
+            case 10: try decoder.decodeRepeatedMessageField(value: &outputFileSymlinks)
+            case 11: try decoder.decodeRepeatedMessageField(value: &outputDirectorySymlinks)
+            case 12: try decoder.decodeRepeatedMessageField(value: &outputSymlinks)
             default: break
             }
         }
     }
 
     public func traverse(visitor: inout some SwiftProtobuf.Visitor) throws {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every if/case branch local when no optimizations
+        // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+        // https://github.com/apple/swift-protobuf/issues/1182
         if !outputFiles.isEmpty {
             try visitor.visitRepeatedMessageField(value: outputFiles, fieldNumber: 2)
         }
@@ -1146,6 +1246,27 @@ extension Build_Bazel_Remote_Execution_V2_ActionResult: SwiftProtobuf.Message, S
         }
         if exitCode != 0 {
             try visitor.visitSingularInt32Field(value: exitCode, fieldNumber: 4)
+        }
+        if !stdoutRaw.isEmpty {
+            try visitor.visitSingularBytesField(value: stdoutRaw, fieldNumber: 5)
+        }
+        try { if let v = self._stdoutDigest {
+            try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+        } }()
+        if !stderrRaw.isEmpty {
+            try visitor.visitSingularBytesField(value: stderrRaw, fieldNumber: 7)
+        }
+        try { if let v = self._stderrDigest {
+            try visitor.visitSingularMessageField(value: v, fieldNumber: 8)
+        } }()
+        if !outputFileSymlinks.isEmpty {
+            try visitor.visitRepeatedMessageField(value: outputFileSymlinks, fieldNumber: 10)
+        }
+        if !outputDirectorySymlinks.isEmpty {
+            try visitor.visitRepeatedMessageField(value: outputDirectorySymlinks, fieldNumber: 11)
+        }
+        if !outputSymlinks.isEmpty {
+            try visitor.visitRepeatedMessageField(value: outputSymlinks, fieldNumber: 12)
         }
         try unknownFields.traverse(visitor: &visitor)
     }
@@ -1157,6 +1278,13 @@ extension Build_Bazel_Remote_Execution_V2_ActionResult: SwiftProtobuf.Message, S
         if lhs.outputFiles != rhs.outputFiles { return false }
         if lhs.outputDirectories != rhs.outputDirectories { return false }
         if lhs.exitCode != rhs.exitCode { return false }
+        if lhs.stdoutRaw != rhs.stdoutRaw { return false }
+        if lhs._stdoutDigest != rhs._stdoutDigest { return false }
+        if lhs.stderrRaw != rhs.stderrRaw { return false }
+        if lhs._stderrDigest != rhs._stderrDigest { return false }
+        if lhs.outputFileSymlinks != rhs.outputFileSymlinks { return false }
+        if lhs.outputDirectorySymlinks != rhs.outputDirectorySymlinks { return false }
+        if lhs.outputSymlinks != rhs.outputSymlinks { return false }
         if lhs.unknownFields != rhs.unknownFields { return false }
         return true
     }

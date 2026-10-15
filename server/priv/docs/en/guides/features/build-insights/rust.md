@@ -36,25 +36,25 @@ Each compiler row is one call to `rustc`, not a source-file timing. A crate can 
 
 The build duration is how long the whole Cargo command took. Compiler jobs can run in parallel, so their durations won't add up to the build duration.
 
-Cargo only compiles crates that need rebuilding. Crates that are already up to date won't appear in the compiler list. With Tuist's bundled compilation cache, restored jobs appear in the cache measurements, not as compiler executions.
+Cargo only compiles crates that need rebuilding. Crates that are already up to date won't appear in the compiler list. With Tuist's compilation cache, restored jobs appear in the cache measurements, not as compiler executions.
 
 Tuist doesn't measure build scripts separately or show a build Timeline. The dependency names in the compiler list come from rustc's `--extern` arguments; they aren't a complete Cargo dependency graph. A large build shows the first 500 compiler jobs, with a notice if more were recorded.
 
 ## Read cache measurements {#cache-measurements}
 
-`tuist cargo` automatically uses the compilation cache bundled with Tuist. There is no separate cache tool to install; project and server settings come from `tuist.toml`. If a compatible cache runtime isn't available, Cargo builds normally without Tuist caching.
+`tuist cargo` includes an experimental compilation cache implemented in the Tuist CLI. There is no separate tool to install; project and server settings come from `tuist.toml`. Unsupported compilations run normally.
 
 Open a build's **Cache** tab to see task hits, task misses, hit rate, and downloaded and uploaded bytes. The tab appears when the build reports cache data.
 
 - **Cacheable Tasks** shows which compiler and build-script tasks reused cached outputs. Search or filter the tasks, inspect cache read/write latency, and expand a row to see its outputs.
 - **CAS Outputs** shows artifact downloads and uploads, with their sizes, durations, and throughput. The chart counts completed transfers; already-present artifacts and failed attempts remain in the table.
 
-**Hit** means cached outputs were reused. **Missed** means the task compiled instead, including cold builds and verification rebuilds. Task tooltips explain the reason. Hits aren't split into local and remote, and artifact downloads don't necessarily represent task hits.
+**Hit** means cached outputs were reused. **Missed** means the task compiled instead. Hits aren't split into local and remote; CAS Outputs shows the recorded artifact operations.
 
 If detailed records are missing or incomplete, the page shows a notice. The summary still covers the whole build. Estimated compiler work avoided is **not elapsed build time saved**.
 
 > [!WARNING] Experimental compilation cache
-> Rust caching currently covers eligible library compilations, not executables. Cross-worker correctness is still being validated. Build scripts and procedural macros can read undeclared inputs, so caching isn't a sandbox. If verification detects different outputs, Tuist keeps the freshly compiled result.
+> The first version caches only registry leaf libraries with verified inputs and outputs. Workspace crates, build scripts, procedural macros, dependencies on other crates, incremental compilation, native linking, and executables build normally. Cache keys retain absolute paths, so reuse across different checkout paths isn't supported yet.
 
 ### Builds that run tests {#builds-that-run-tests}
 
@@ -64,7 +64,7 @@ For <.localized_link href="/guides/features/test-sharding/rust">test sharding</.
 
 ## Other compiler tools {#other-compiler-tools}
 
-Tuist preserves existing compiler wrappers configured through `RUSTC_WRAPPER`, `CARGO_BUILD_RUSTC_WRAPPER`, or Cargo configuration, and leaves `RUSTC_WORKSPACE_WRAPPER` intact. A pre-existing global wrapper disables Tuist's native cache and compiler observer: Tuist cannot establish whether that wrapper actually ran rustc. Custom workspace wrappers can likewise leave fewer compiler jobs in the report.
+Tuist preserves existing compiler wrappers configured through `RUSTC_WRAPPER`, `CARGO_BUILD_RUSTC_WRAPPER`, or Cargo configuration, and leaves `RUSTC_WORKSPACE_WRAPPER` intact. A pre-existing global wrapper disables Tuist's cache and compiler observer: Tuist cannot establish whether that wrapper actually ran rustc. Custom workspace wrappers can likewise leave fewer compiler jobs in the report.
 
 Tuist finds Cargo through rustup. If you use a custom installation, set `TUIST_CARGO_EXECUTABLE` to its executable path. Calling Cargo by a direct toolchain path bypasses mise's wrapper. A Cargo alias can't replace a built-in command such as `build`.
 

@@ -70,6 +70,7 @@ var tuistDependencies: [Target.Dependency] = [
 ]
 var tuistCargoCommandDependencies: [Target.Dependency] = [
     "TuistCAS",
+    "TuistREAPI",
     "TuistHTTP",
     .product(name: "Crypto", package: "apple.swift-crypto"),
     processDependency,

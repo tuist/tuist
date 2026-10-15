@@ -13,7 +13,7 @@ struct CargoCacheReportTests {
         let reports = root.appendingPathComponent("cache-reports")
         try FileManager.default.createDirectory(at: reports, withIntermediateDirectories: true)
         var payload: [String: Any] = Dictionary(uniqueKeysWithValues: CargoCacheReport.counters.map { ($0, 0 as Any) })
-        payload["version"] = 5
+        payload["version"] = 1
         payload["hits"] = 12
         payload["downloaded_bytes"] = 42
         payload["compiler_arguments"] = ["must not be collected"]
@@ -36,7 +36,7 @@ struct CargoCacheReportTests {
         let reports = root.appendingPathComponent("cache-reports")
         try FileManager.default.createDirectory(at: reports, withIntermediateDirectories: true)
         var payload: [String: Any] = Dictionary(uniqueKeysWithValues: CargoCacheReport.counters.map { ($0, 0 as Any) })
-        payload["version"] = 5
+        payload["version"] = 1
         payload["hits"] = UInt64.max
         for index in 0 ..< 2 {
             try JSONSerialization.data(withJSONObject: payload).write(to: reports.appendingPathComponent("\(index).json"))
@@ -52,7 +52,7 @@ struct CargoCacheReportTests {
         let reports = root.appendingPathComponent("cache-reports")
         try FileManager.default.createDirectory(at: reports, withIntermediateDirectories: true)
         var payload: [String: Any] = Dictionary(uniqueKeysWithValues: CargoCacheReport.counters.map { ($0, 0 as Any) })
-        payload["version"] = 5
+        payload["version"] = 1
         payload["hits"] = 1
         let json = try JSONSerialization.data(withJSONObject: payload)
         let padded = json + Data(repeating: 0x20, count: 400_000 - json.count)
@@ -77,7 +77,7 @@ struct CargoCacheReportTests {
         #expect(CargoCacheReport.read(root: root) == nil)
         let reports = root.appendingPathComponent("cache-reports")
         try FileManager.default.createDirectory(at: reports, withIntermediateDirectories: true)
-        try Data("{\"version\":5,\"hits\":-1}".utf8).write(to: reports.appendingPathComponent("invalid.json"))
+        try Data("{\"version\":1,\"hits\":-1}".utf8).write(to: reports.appendingPathComponent("invalid.json"))
         #expect(CargoCacheReport.read(root: root) == nil)
     }
 }

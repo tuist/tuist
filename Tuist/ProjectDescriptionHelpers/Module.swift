@@ -1264,6 +1264,7 @@ public enum Module: String, CaseIterable {
             case .cargoCommand:
                 [
                     .target(name: Module.cas.targetName),
+                    .target(name: Module.reapi.targetName),
                     .target(name: Module.http.targetName),
                     .external(name: "Crypto"),
                     .target(name: Module.process.targetName),
@@ -1771,6 +1772,7 @@ public enum Module: String, CaseIterable {
             case .cargoCommand:
                 [
                     .target(name: Module.process.targetName),
+                    .target(name: Module.reapi.targetName),
                     .target(name: Module.server.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
