@@ -6,6 +6,7 @@ This directory holds Phoenix configuration for the server.
 - Environment-specific configuration (dev, test, prod).
 - Runtime config and endpoint settings.
 - `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true` enables reporting-only network trust for every supported project/account on a self-hosted instance. Parse only exact `true` into the startup application configuration; default false, keep hosted denial, and require replica restarts for changes. There is no dashboard/project policy or allowlist.
+- Origin app identity uses `TUIST_ORIGIN_APP_ID` and `TUIST_ORIGIN_APP_PRIVATE_KEY` (Ed25519 PEM) through `Tuist.Environment`. Managed production, canary, and staging sync independent signing keys from their respective 1Password vaults; development loads its own `Development/ORIGIN_APP/private_key` through `server/fnox.toml`. Configuring the key alone does not enable PR reporting or authenticate without the App ID.
 - Request logging filters Google One Tap credentials alongside passwords, secrets and tokens.
 - Marketing's esbuild `noora/hooks` alias resolves individual Noora hook sources
   so unused charting and form runtimes stay out of the marketing bundle.

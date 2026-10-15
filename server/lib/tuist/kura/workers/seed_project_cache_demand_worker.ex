@@ -28,7 +28,9 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
   (`Tuist.Kura.Lifecycle`). The account's first cache request returns it, so
   reclaiming it early costs one provision. The seed declines while that hold is
   in place (`Tuist.Kura.Demand.unused_hold?/1`); otherwise every new project
-  would provision the reclaimed instance again.
+  would provision the reclaimed instance again. It also declines while an Air
+  instance reclaimed for serving no traffic is held
+  (`Tuist.Kura.Demand.idle_hold?/1`), for the same reason.
 
   **Placement.** The job carries `origin`, the coarse location label of the
   request that created the project (never an address). The seed is placed
@@ -97,6 +99,15 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
 
         Logger.info(
           "[Kura.SeedProjectCacheDemand] did not seed account #{account.id}: its instance was reclaimed for never storing anything"
+        )
+
+        :ok
+
+      Demand.idle_hold?(account) ->
+        Telemetry.seed_declined(plan, service_region, :idle)
+
+        Logger.info(
+          "[Kura.SeedProjectCacheDemand] did not seed account #{account.id}: its instance was reclaimed after serving no traffic"
         )
 
         :ok

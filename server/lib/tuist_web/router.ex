@@ -652,6 +652,8 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :browser_app]
 
     get "/github/setup", GitHubAppSetupController, :setup
+    get "/origin/start", OriginAppSetupController, :start
+    get "/origin/setup", OriginAppSetupController, :setup
     get "/github/manifest/start", GitHubAppManifestController, :start
     get "/github/manifest/callback", GitHubAppManifestController, :callback
     get "/slack/callback", SlackOAuthController, :callback

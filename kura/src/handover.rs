@@ -297,8 +297,9 @@ async fn reconcile_retained_corpus(
     // A feed cursor covers arrivals, not everything the source still retains:
     // bootstrap is horizon bounded and local eviction can remove older rows.
     // Reuse the bounded replication pipeline before freezing the destination.
-    // Keep ordinary capacity/version/tombstone rules; the subsequent full
-    // verification, never pass completion, is what authorizes the transfer.
+    // Keep store capacity/version/tombstone rules, but not the ordinary
+    // age-based selection policy: even old records belong to this barrier.
+    // Full verification, never pass completion, authorizes the transfer.
     let mut tuning = BackfillPassTuning::from_config(&state.config);
     tuning.source = PassSource::RetainedIndex;
     tuning.feed_rows = false;
@@ -781,16 +782,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn retained_repair_keeps_newer_work_queued_before_capacity_cutoff() {
+    async fn retained_repair_copies_missing_records_older_than_the_evictee() {
         use crate::segment::{reference::SegmentReference, state::SegmentState};
 
         let source = test_context(|_| {}).await;
         let target = test_context(|config| config.cas_capacity_bytes = Some(1)).await;
-        for (ctx, key, version) in [
-            (&source, "newer", 1000),
-            (&source, "older", 400),
-            (&target, "older", 400),
-        ] {
+        for (ctx, key, version) in [(&source, "newer", 1000), (&source, "older", 400)] {
             ctx.state
                 .store
                 .apply_replicated_artifact_from_bytes(
@@ -845,8 +842,8 @@ mod tests {
                 .unwrap(),
             );
         }
-        // The older retained record is already present. Listing it must not
-        // cancel the newer missing record queued in the same response page.
+        // Both records are missing. The recency heuristic would reject the
+        // older one even though it fits in the active segment without eviction.
         assert!(expected.iter().any(|r| r.version == 1000));
         verify_inner(&target.state, request).await.unwrap();
         for record in expected {

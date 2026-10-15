@@ -119,9 +119,10 @@ extension Tuist {
 
         /// When enabled, adds Xcode compilation-cache settings and configures LLDB source mappings
         /// for the workspace's Run and Test actions, including automatically generated schemes.
-        /// Projects can disable `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING` and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`
-        /// in their manifest settings to keep sources from different projects in the shared repository
-        /// namespace instead of `/^src`. Per-project mapping remains enabled by default.
+        /// Sources are mapped to workspace-wide prefixes such as `/^root`. Xcode's per-project mappings
+        /// (`SWIFT_ENABLE_PROJECT_PREFIX_MAPPING` and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`, which map to `/^src`)
+        /// stay off unless a project sets them, because a single debugger source map cannot resolve a prefix
+        /// that names a different directory in every project.
         public var enableCaching: Bool
 
         /// Keeps compilation-cache prefix mapping enabled for coverage builds on Xcode 27 and later.

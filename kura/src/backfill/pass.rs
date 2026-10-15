@@ -144,8 +144,8 @@ pub enum PassSource {
     /// Walk the peer's index newest-first within the window (a backward
     /// pass).
     PeerIndex,
-    /// Walk the retained index while evaluating capacity for each record.
-    /// An older listing must not discard newer queued repair work.
+    /// Repair the named source's retained index without the recency cutoff.
+    /// Store capacity and the subsequent full-corpus barrier still apply.
     RetainedIndex,
     /// Apply exactly these entries — one forward page of the arrival feed
     /// or of the ascending region read (design §3.1, §4.1; implementation
@@ -317,6 +317,14 @@ impl PassContext<'_> {
     }
 
     fn capacity_declines(&self, version_ms: u64) -> bool {
+        // Recency is a cache-selection policy, not a storage admission limit.
+        // A named handover must attempt older missing records too: they may
+        // fit in the active segment, or replace data the source already evicted.
+        // Normal ring rotation/disk admission still bound every apply, and the
+        // frozen full-corpus verification rejects any holes caused by rotation.
+        if matches!(self.tuning.source, PassSource::RetainedIndex) {
+            return false;
+        }
         let inputs = self.state.store.backfill_capacity_inputs();
         capacity_complete(
             inputs.segment_count,
@@ -2463,7 +2471,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn retained_index_keeps_newer_queued_records_when_listing_reaches_capacity() {
+    async fn retained_index_repairs_both_sides_of_the_recency_cutoff() {
         let peer = test_context(|_| {}).await;
         seed_segmented(&peer, "newer", b"newer-body", 1_000).await;
         seed_segmented(&peer, "older", b"older-body", 400).await;
@@ -2517,10 +2525,10 @@ mod tests {
         };
         assert_eq!(end, BackfillPassEnd::PeerExhausted);
         assert!(!capacity_completed);
-        assert_eq!(stats.tuples_capacity_skipped, 1);
+        assert_eq!(stats.tuples_capacity_skipped, 0);
         assert!(claim_set.is_empty());
 
-        // Listing the older tuple must not strip the newer queued claim.
+        // Both the older and newer missing bodies are required by handover.
         assert!(
             fetch_manifest(&local, ArtifactProducer::Gradle, "newer")
                 .await
@@ -2529,9 +2537,9 @@ mod tests {
         assert!(
             fetch_manifest(&local, ArtifactProducer::Gradle, "older")
                 .await
-                .is_none()
+                .is_some()
         );
-        // Non-ring kinds continue despite the declined segmented tuple.
+        // Non-ring kinds still use the same complete retained-index walk.
         assert!(
             fetch_manifest(&local, ArtifactProducer::Xcode, "inl")
                 .await

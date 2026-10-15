@@ -2,6 +2,9 @@
 
 This area owns Phoenix controllers for HTML and API endpoints.
 
+## Origin installation setup
+- `OriginAppSetupController` starts consent with browser-session-bound random state, account/user identity, and a ten-minute setup window. Setup requires the same signed-in administrator and validates the Cursor-signed receipt before persisting an installation. Never trust a query-supplied installation/account ID as approval. Installation receipts are filtered from Phoenix request logs.
+
 ## Responsibilities
 - `LlmsTxtController` serves `/llms.txt` as the agent-facing index and `/llms-full.txt` as the complete English documentation Markdown export, including runtime CLI reference pages. Both are public plain-text responses cached for one hour.
 - `MarketingMarkdownController` serves landing-page guides and original legal documents at `/marketing-markdown[/<page>]`, plus full original static statements at `/marketing-markdown/source/<page>`, without sessions or language redirects. Unknown paths return uncacheable 404s; preserve on-premise forwarding and public marketing classification.

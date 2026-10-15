@@ -570,6 +570,60 @@ Your Tuist server also needs outbound access to your CI provider's OIDC issuer t
 
 The env vars above only configure Tuist's github.com App. To integrate Tuist with a GitHub Enterprise Server (GHES) instance instead, organization admins switch to the **Enterprise server** tab on the integrations page and enter the GHES base URL — Tuist walks them through GitHub's [App manifest flow](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest) to register a fresh Tuist App on their GHES instance. The new App's credentials are stored encrypted per installation; no additional `TUIST_GITHUB_APP_*` env vars are needed.
 
+#### Origin {#platform-origin}
+
+A self-hosted Tuist server needs its own Origin app, configured with your deployment's URLs and signing key. Register a separate app for each Tuist environment so that installations and credentials stay independent.
+
+##### Registering the App {#platform-origin-registering-the-app}
+
+1. Generate an Ed25519 signing key pair using OpenSSL with Ed25519 support:
+
+   ```sh
+   umask 077
+   openssl genpkey -algorithm ED25519 -out origin-app-private.pem
+   openssl pkey -in origin-app-private.pem -pubout -out origin-app-public.pem
+   ```
+
+2. Create an app in [Origin app settings](https://cursor.com/codebase/settings/apps). Register the contents of `origin-app-public.pem` as its public signing key. Keep `origin-app-private.pem` secret; you will provide it to the Tuist server, not upload it to Cursor.
+3. Configure the following settings, replacing `YOUR_APP_URL` with your Tuist deployment's HTTPS base URL:
+
+   | Setting | Value |
+   | --- | --- |
+   | Homepage URL | `YOUR_APP_URL` |
+   | Redirect URI | `YOUR_APP_URL/integrations/origin/setup` |
+   | Webhook URL | `YOUR_APP_URL/webhooks/origin` |
+
+4. Copy the registered App ID, which starts with `app_`.
+
+Tuist requests the following permissions during installation:
+
+| Scope | Used for |
+| --- | --- |
+| `repository:pull_requests:read` | Find pull requests and their current head commit. |
+| `repository:pull_requests:reviews:write` | Read, post, and update report comments. Origin includes the corresponding review-read permission. |
+| `repository:metadata:read` | Discover repositories and read their default branches. Granted automatically by Origin. |
+
+Leave optional repository webhook events unselected. Installation lifecycle notifications are sufficient; source-code access, merge permissions, and check-run permissions are not required.
+
+##### Configuring the server {#platform-origin-configuring-the-server}
+
+Set the following environment variables, then restart the server:
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `TUIST_ORIGIN_APP_ID` | The App ID copied from Origin app settings. | Yes | | `app_...` |
+| `TUIST_ORIGIN_APP_PRIVATE_KEY` | The complete contents of `origin-app-private.pem`, including the `BEGIN PRIVATE KEY` and `END PRIVATE KEY` lines and all line breaks. | Yes | | `-----BEGIN PRIVATE KEY-----...` |
+
+Store the private key in your deployment's secret manager. Preserve its multiline PEM format; this setting does not accept a base64-encoded replacement. Never commit the key to source control or expose it in logs. Both variables must belong to the same registered app.
+
+Your Tuist server needs outbound HTTPS access to `api.cursor.com`. Cursor must be able to deliver requests to the webhook URL, and administrators must be able to return to the redirect URI in their browser. Both registered URLs must match your deployment's HTTPS base URL.
+
+##### Installing the App {#platform-origin-installing-the-app}
+
+Once the server restarts, an administrator opens **Settings → Integrations**, chooses **Connect** under Origin, and approves the app's access to the appropriate Origin account and repositories. Then they choose **Add new project connection** to link a Tuist project to a native repository.
+
+Follow the <.localized_link href="/guides/integrations/gitforge/origin">Origin integration guide</.localized_link> for project connections and result-upload requirements. Installing the app does not start build or test workflows; those workflows continue reporting results to your Tuist server.
+
 ## Testing Locally {#testing-locally}
 
 We provide a comprehensive Docker Compose configuration that includes all required dependencies for testing Tuist server on your local machine before deploying to your infrastructure:

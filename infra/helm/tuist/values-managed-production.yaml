@@ -91,6 +91,8 @@ server:
   appUrl: https://tuist.dev
 
   config:
+    originAppKey:
+      enabled: true
     atlasEmail:
       enabled: true
     # Point server error reporting at the Atlas error-tracking ingest
@@ -2031,6 +2033,9 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 0
         maxReplicas: 18
+        # Smoke runs are dispatched by hand, so the last hour's peak does not
+        # predict the next one.
+        holdRecentPeak: false
       pod:
         cpuMilli: 6000
         memoryMB: 14336
