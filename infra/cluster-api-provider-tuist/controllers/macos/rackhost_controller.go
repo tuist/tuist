@@ -340,7 +340,13 @@ func (r *RackHostReconciler) observePower(ctx context.Context, host *infrav1.Rac
 
 	state, err := driver.State(ctx, outlet)
 	if err != nil {
-		markOutletDrawUnread(host)
+		if onRackPDU(host) {
+			// The RackPDU's reading of the outlet does not depend on this
+			// read, and it carries its own switch state.
+			r.observeDraw(ctx, host, driver, outlet, power.StateUnknown)
+		} else {
+			markOutletDrawUnread(host)
+		}
 		host.Status.Power = string(power.StateUnknown)
 		conditions.MarkFalse(host, PowerReachableCondition, "PowerUnreachable",
 			clusterv1.ConditionSeverityWarning,
