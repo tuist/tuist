@@ -66,7 +66,9 @@ let tuist = Tuist(
 )
 EOF
 
-    echo "# Using tuist binary: $("$TUIST_EXECUTABLE" version 2>/dev/null || echo unknown)" >&3
+    # From our own dir: an old CLI loads the manifest of the directory it runs in
+    # even for `version`, and the checkout's Tuist.swift may use options it lacks.
+    echo "# Using tuist binary: $(cd "$TUIST_TEST_HOME" && "$TUIST_EXECUTABLE" version 2>/dev/null || echo unknown)" >&3
     # The way `auth login` is pointed at a server changed across versions: older
     # CLIs take --path and read the URL from Tuist.swift, newer ones take --url.
     # Detect which the pinned binary supports from its --help so the suite

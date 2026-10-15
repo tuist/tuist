@@ -1622,7 +1622,10 @@ jobs:
             exit 1
           fi
           echo "tuist_bin=$bin" >> "$GITHUB_OUTPUT"
-          "$bin" version
+          # Outside the checkout: an old CLI loads the manifest of the directory it
+          # runs in even for `version`, and HEAD's Tuist.swift may use generation
+          # options its ProjectDescription does not have yet.
+          (cd "$RUNNER_TEMP" && "$bin" version)
       - name: Run backward-compatibility acceptance test
         env:
           TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
