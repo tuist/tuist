@@ -6140,10 +6140,6 @@ or
 - Summary: `{{ $values.A.Value }} shadow ClickHouse {{ $labels.kind }} write(s) {{ $labels.result }} in {{ $labels.cluster }} in the last 10 minutes`
 - Set **No Data** to Normal: the counter only has `error` and `dropped` series
   once a mirror has failed. Error state: Error.
-- Provisioned from
-  [`clickhouse-shadow-write-alert-rules.json`](clickhouse-shadow-write-alert-rules.json).
-  POST it to `/api/v1/provisioning/alert-rules` with
-  `X-Disable-Provenance: true`, so the rule stays editable in the UI.
 - `tuist_clickhouse_shadow_write_count` is emitted by
   `Tuist.IngestRepo.ShadowWrite` for every write it mirrors onto the
   in-cluster ClickHouse. `result=retried` is a failed attempt that will be
