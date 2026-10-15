@@ -309,7 +309,13 @@ The network address is recorded so that authentication failures, which carry no
 account, can be attributed to a source at all; it is the only personal data in
 these records beyond the account handle. Sign-in attempts additionally carry an
 explicit outcome. Logs deliberately exclude credentials, tokens, and request
-bodies.
+bodies. Genuine action-cache misses additionally carry `cache_outcome=miss`;
+only 1% of their routine GET 404 completion entries are retained. Operator-access
+audit records and unexpected failures are exempt from that sampling. Oban
+lifecycle logs retain worker, job ID, queue, attempt, state, and timings, but do
+not copy job arguments or metadata. Bounded exception diagnostics can still
+contain worker-provided details. These changes introduce no new data store or
+retention duration.
 
 ### Website localization analytics
 

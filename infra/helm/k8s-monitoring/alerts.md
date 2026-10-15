@@ -5152,7 +5152,8 @@ rather than dropping the protocol split.
 
 ```promql
 histogram_quantile(0.95, sum by (cluster, region, le) (
-  sum by (cluster, pod, le) (rate(kura_public_request_latency_seconds_bucket[5m]))
+  (sum by (cluster, pod, le) (rate(kura_public_request_latency_by_transport_seconds_bucket[5m]))
+   or sum by (cluster, pod, le) (rate(kura_public_request_latency_seconds_bucket{latency_aggregate!="true"}[5m])))
   * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 ))
 and on (cluster, region)
@@ -6884,7 +6885,7 @@ source, which carries Grafana Cloud's own metering of the stack.
 sum(
   grafanacloud_instance_samples_discarded_per_second{
     id="1774467",
-    reason="new-value-for-timestamp"
+    reason=~"new-value-for-timestamp|sample_duplicate_timestamp"
   }
 ) > 500
 ```
@@ -6898,14 +6899,20 @@ about 100 per second. From 2026-09-30 to 2026-10-05 it ran at about 2,500 per
 second, which doubled billable series from about 240k to 447k without any
 change in active series.
 
-The usual cause is the Adaptive Metrics dependency described in "The apiserver
-request rules are load-bearing for cost" in `README.md`: the rule for
-`apiserver_request_total` or `apiserver_request_duration_seconds_bucket` is
-gone, so the control-plane collector's colliding series reach storage. Read
-the colliding series from the `err-mimir-sample-duplicate-timestamp` lines in
-the `grafanacloud-tuist-usage-insights` Loki data source, then restore the
-rule. Any other series named there means a new relabel rule in this chart is
-collapsing distinct series into one label set.
+The previous API-server labeldrop created colliding identities before remote
+write. Source-side aggregation must be enabled and verified before the gated
+legacy labeldrop is removed; see "API-server aggregation must happen before export" in
+`README.md`. Read the colliding series from duplicate-timestamp lines in the
+`grafanacloud-tuist-usage-insights` Loki data source. Check both reason labels:
+the October 5 mitigation reduced `new-value-for-timestamp`, while roughly
+2,000/s still appeared as `sample_duplicate_timestamp` on October 14. Do not
+assume that restoring an Adaptive Metrics rule repairs malformed input.
+
+Update the live rule only after workload aggregation removes the known
+~2,000/s backlog, otherwise the existing 500/s threshold pages continuously
+during rollout. Changing this expression does not provision Grafana alerts.
+Any other colliding series suggests a relabel rule is removing
+dimensions without actual aggregation.
 
 ## Useful investigation queries
 
