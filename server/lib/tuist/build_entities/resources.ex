@@ -1,6 +1,8 @@
 defmodule Tuist.BuildEntities.Resources do
   @moduledoc false
 
+  alias Tuist.BuildEntities
+
   @resources [
     %{
       key: :gradle_tasks,
@@ -18,21 +20,6 @@ defmodule Tuist.BuildEntities.Resources do
       path: "/builds/gradle/tasks"
     },
     %{
-      key: :xcode_cache_actions,
-      system: :xcode,
-      kind: "cache_action",
-      singular: :cache_action,
-      plural: :cache_actions,
-      id_param: :cache_action_id,
-      history_key: :cache_events,
-      title: "XcodeCacheAction",
-      label: "Xcode cache actions",
-      label_singular: "an Xcode cache action",
-      api_path: "/xcode/cache-actions",
-      history_path: "events",
-      path: "/xcode-cache/actions"
-    },
-    %{
       key: :xcode_modules,
       system: :xcode,
       kind: "module",
@@ -46,21 +33,6 @@ defmodule Tuist.BuildEntities.Resources do
       api_path: "/xcode/modules",
       history_path: "events",
       path: "/builds/xcode/modules"
-    },
-    %{
-      key: :bazel_cache_actions,
-      system: :bazel,
-      kind: "cache_action",
-      singular: :cache_action,
-      plural: :cache_actions,
-      id_param: :cache_action_id,
-      history_key: :cache_events,
-      title: "BazelCacheAction",
-      label: "Bazel cache actions",
-      label_singular: "a Bazel cache action",
-      api_path: "/bazel/cache-actions",
-      history_path: "events",
-      path: "/builds/bazel/cache-actions"
     },
     %{
       key: :once_actions,
@@ -111,5 +83,10 @@ defmodule Tuist.BuildEntities.Resources do
 
   def all, do: @resources
   def fetch!(key), do: Enum.find(@resources, &(&1.key == key)) || raise(ArgumentError, "Unknown resource")
-  def for_project(project), do: Enum.filter(@resources, &(&1.system == project.build_system))
+
+  def for_project(project) do
+    if BuildEntities.enabled?(project),
+      do: Enum.filter(@resources, &(&1.system == project.build_system)),
+      else: []
+  end
 end

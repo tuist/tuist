@@ -4,25 +4,19 @@ defmodule TuistWeb.Helpers.BuildEntityLabels do
   use Gettext, backend: TuistWeb.Gettext
 
   def plural(:gradle, "task"), do: dgettext("dashboard_builds", "Tasks")
-  def plural(:xcode, "cache_action"), do: dgettext("dashboard_builds", "Actions")
   def plural(:xcode, "module"), do: dgettext("dashboard_builds", "Modules")
-  def plural(:bazel, "cache_action"), do: dgettext("dashboard_builds", "Actions")
   def plural(:once, "action"), do: dgettext("dashboard_builds", "Actions")
   def plural(:mix, "file"), do: dgettext("dashboard_builds", "Files")
   def plural(:mix, "module"), do: dgettext("dashboard_builds", "Modules")
 
   def singular(:gradle, "task"), do: dgettext("dashboard_builds", "Task")
-  def singular(:xcode, "cache_action"), do: dgettext("dashboard_builds", "Action")
   def singular(:xcode, "module"), do: dgettext("dashboard_builds", "Module")
-  def singular(:bazel, "cache_action"), do: dgettext("dashboard_builds", "Action")
   def singular(:once, "action"), do: dgettext("dashboard_builds", "Action")
   def singular(:mix, "file"), do: dgettext("dashboard_builds", "File")
   def singular(:mix, "module"), do: dgettext("dashboard_builds", "Module")
 
   def inventory_fields(:gradle, "task"), do: ~w(root_project_name build_path task_type)
-  def inventory_fields(:xcode, "cache_action"), do: ~w(type key)
   def inventory_fields(:xcode, "module"), do: ~w(project)
-  def inventory_fields(:bazel, "cache_action"), do: ~w(target_label action_mnemonic action_digest_hash)
   def inventory_fields(:once, "action"), do: ~w(target_id capability action_index)
   def inventory_fields(_system, _kind), do: []
 
@@ -47,16 +41,13 @@ defmodule TuistWeb.Helpers.BuildEntityLabels do
   defp primary_field(_system, _kind), do: nil
 
   def history(:xcode, "module"), do: dgettext("dashboard_builds", "Cache history")
-  def history(_system, "cache_action"), do: dgettext("dashboard_builds", "Cache history")
   def history(:mix, _kind), do: dgettext("dashboard_builds", "Compilation history")
   def history(_system, _kind), do: dgettext("dashboard_builds", "Execution history")
 
   def parent(:gradle, _kind), do: dgettext("dashboard_builds", "Project")
-  def parent(:xcode, "cache_action"), do: dgettext("dashboard_builds", "Scheme")
   def parent(:once, _kind), do: dgettext("dashboard_builds", "Run")
   def parent(_system, _kind), do: dgettext("dashboard_builds", "Command")
 
-  def duration(_system, "cache_action"), do: dgettext("dashboard_builds", "Cache operation duration")
   def duration(:mix, "module"), do: dgettext("dashboard_builds", "File compilation duration")
   def duration(:mix, "file"), do: dgettext("dashboard_builds", "Compilation duration")
   def duration(_system, _kind), do: dgettext("dashboard_builds", "Duration")

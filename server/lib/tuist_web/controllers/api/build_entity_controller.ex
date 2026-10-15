@@ -38,6 +38,7 @@ defmodule TuistWeb.API.BuildEntityController do
 
   def run(%{assigns: %{selected_project: project}} = conn, action, resource) do
     with true <- project.build_system == resource.system,
+         true <- BuildEntities.enabled?(project),
          {:ok, opts} <- Params.parse(conn.params),
          {:ok, result} <- query(action, project.id, resource, conn.params, opts) do
       Phoenix.Controller.json(conn, result)

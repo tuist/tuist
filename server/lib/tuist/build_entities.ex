@@ -29,6 +29,8 @@ defmodule Tuist.BuildEntities do
   alias Tuist.BuildEntities.Observation
   alias Tuist.BuildEntities.QueryLimitError
   alias Tuist.ClickHouseRepo
+  alias Tuist.FeatureFlags
+  alias Tuist.IngestRepo
   alias Tuist.OnceEvents.Run
   alias Tuist.Repo
 
@@ -43,6 +45,14 @@ defmodule Tuist.BuildEntities do
   @default_window_days 30
   @default_page_size 20
   @max_page_size 100
+
+  # Applied centrally after caller budgets, so no read path can accidentally
+  # override replacement semantics while tuning its resource limits.
+  @replacement_settings [
+    do_not_merge_across_partitions_select_final: 0,
+    optimize_move_to_prewhere_if_final: 0,
+    use_skip_indexes_if_final: 0
+  ]
 
   # Reads scoped to one entity, or to the at most 100 entities of a page:
   # history, analytics, list counts and catalog lookups. Grouping by
@@ -59,9 +69,6 @@ defmodule Tuist.BuildEntities do
     aggregation_in_order_max_block_bytes: 1024 * 1024,
     max_block_size: 8192,
     max_streams_to_max_threads_ratio: 1,
-    do_not_merge_across_partitions_select_final: 0,
-    optimize_move_to_prewhere_if_final: 0,
-    use_skip_indexes_if_final: 0,
     max_execution_time: 20
   ]
 
@@ -76,9 +83,6 @@ defmodule Tuist.BuildEntities do
     aggregation_in_order_max_block_bytes: 1024 * 1024,
     max_block_size: 8192,
     max_streams_to_max_threads_ratio: 1,
-    do_not_merge_across_partitions_select_final: 0,
-    optimize_move_to_prewhere_if_final: 0,
-    use_skip_indexes_if_final: 0,
     max_execution_time: 30
   ]
 
@@ -101,19 +105,52 @@ defmodule Tuist.BuildEntities do
     * `:execution_id`, `:status`, `:cache_status`, `:duration_ms`
     * `:git_branch`, `:git_commit_sha`, `:is_ci`, `:observed_at`
 
-  Never reads. Rows go through the ingestion buffer.
+  Never reads the catalog. Disabled projects produce no observations. Rows go
+  through the ingestion buffer, except durable Once publication uses `sync: true`
+  and marks its PostgreSQL run only after ClickHouse acknowledges the batch.
   """
-  def record([]), do: :ok
+  def record(observations, opts \\ [])
+  def record([], _opts), do: :ok
 
-  def record(observations) when is_list(observations) do
+  def record(observations, opts) when is_list(observations) do
     now = NaiveDateTime.utc_now()
 
-    observations
-    |> Enum.map(&observation_row(&1, now))
-    |> Observation.Buffer.insert_all()
+    enabled_projects =
+      observations
+      |> Enum.map(& &1.project_id)
+      |> Enum.uniq()
+      |> Enum.filter(&enabled?/1)
+      |> MapSet.new()
 
-    :ok
+    rows =
+      observations
+      |> Enum.filter(
+        &(MapSet.member?(enabled_projects, &1.project_id) and Identity.resolve(&1.system, &1.kind) != :error)
+      )
+      |> Enum.map(&observation_row(&1, now))
+
+    cond do
+      Keyword.get(opts, :sync, false) and MapSet.size(enabled_projects) == 0 ->
+        :disabled
+
+      rows == [] ->
+        :ok
+
+      Keyword.get(opts, :sync, false) ->
+        IngestRepo.insert_all(Observation, rows,
+          timeout: 5_000,
+          settings: [async_insert: 0, max_execution_time: 5]
+        )
+
+        :ok
+
+      true ->
+        Observation.Buffer.insert_all(rows)
+        :ok
+    end
   end
+
+  def enabled?(project), do: FeatureFlags.build_entities_enabled?(project)
 
   defp observation_row(observation, now) do
     %{project_id: project_id, system: system, kind: kind, identity: identity} = observation
@@ -351,42 +388,7 @@ defmodule Tuist.BuildEntities do
   end
 
   @doc """
-  The subset of `invocation_ids` that have a Bazel invocation in the project.
-
-  Cache-only Bazel clients report cache events without a Build Event Protocol
-  stream, so a cache action observation's parent invocation may not exist.
-  Callers use this to avoid linking to a missing invocation for one page of
-  history at a time: at most #{@max_parent_lookups} distinct IDs, answered by a
-  single query.
-  """
-  def available_bazel_invocations(project_id, invocation_ids) when is_integer(project_id) and is_list(invocation_ids) do
-    ids = invocation_ids |> Enum.filter(&(is_binary(&1) and &1 != "")) |> Enum.uniq()
-
-    cond do
-      ids == [] ->
-        MapSet.new()
-
-      length(ids) > @max_parent_lookups ->
-        raise ArgumentError, "expected at most #{@max_parent_lookups} invocation IDs, got #{length(ids)}"
-
-      true ->
-        {:ok, %{rows: rows}} =
-          bounded_query(
-            """
-            SELECT DISTINCT invocation_id
-            FROM bazel_invocations
-            WHERE project_id = {project_id:Int64} AND invocation_id IN {ids:Array(String)}
-            """,
-            %{project_id: project_id, ids: ids},
-            @entity_read_settings
-          )
-
-        MapSet.new(rows, fn [id] -> id end)
-    end
-  end
-
-  @doc """
-  Native context for each parent build, invocation, command or run of one page
+  Native context for each parent build, command or run of one page
   of history: at most #{@max_parent_lookups} distinct valid IDs, answered by one
   bounded lookup against the native parent plus one batch of account names.
 
@@ -395,27 +397,23 @@ defmodule Tuist.BuildEntities do
 
     * `:label` - the human-readable name the native run pages show, or `nil`
       when the parent recorded none. It is never replaced by an ID or a guess.
-      Gradle builds use the root project name; Xcode builds the scheme;
-      Xcode commands the raw command name (for example `"generate"`); Mix
-      builds the literal `"mix compile"`; Once runs their safe
-      `command_display`; Bazel invocations the raw Bazel command (for example
-      `"build"`). Surfaces format commands.
+      Gradle builds use the root project name; Xcode commands the raw command
+      name (for example `"generate"`); Mix builds the literal `"mix compile"`;
+      Once runs their safe `command_display`. Surfaces format commands.
     * `:ran_by_name` - the recorded actor, as described in
-      `parent_actor_names/4`, or `nil`. Always `nil` for Bazel.
+      `parent_actor_names/4`, or `nil`.
     * `:tags` - Gradle only: the build's `custom_tags`.
     * `:command_arguments` - Xcode modules only: the command's recorded
       `command_arguments`, or `nil`, for native command rendering.
-    * `:target_patterns` - Bazel only: the invocation's recorded target
-      patterns, for native requested-command rendering.
 
   `label` stays the raw native value; these fields are the existing recorded
   inputs native pages render commands from, read in the same query.
 
   The latest version of each parent decides every field, including a version
   that cleared one. UUID parents that are empty or malformed are skipped; Once
-  run IDs and Bazel invocation IDs are kept as strings. An invalid
-  system/kind pair returns `%{}`. The ClickHouse lookups run under the entity
-  read limits and raise `Tuist.BuildEntities.QueryLimitError`.
+  run IDs are kept as strings. An unsupported system/kind pair returns `%{}`
+  without querying. The ClickHouse lookups run under the entity read limits and
+  raise `Tuist.BuildEntities.QueryLimitError`.
   """
   def parent_contexts(project_id, system, kind, parent_ids) when is_integer(project_id) and is_list(parent_ids) do
     case Identity.resolve(system, kind) do
@@ -437,11 +435,11 @@ defmodule Tuist.BuildEntities do
   to the project's account or the viewer, and no recovery of credential
   details older reports never stored.
 
-    * Gradle tasks, Mix files and modules, and Xcode cache actions read the
-      build's recorded `account_id`.
+    * Gradle tasks and Mix files and modules read the build's recorded
+      `account_id`.
     * Xcode modules read the generate or cache command's attributed `user_id`.
     * Once actions read the run's recorded credential `account_id`.
-    * Bazel has no trustworthy actor, so it always returns `%{}`.
+    * An unsupported system/kind pair returns `%{}` without querying.
 
   Each parent's latest version decides, including a later version that
   cleared the actor. Raises `Tuist.BuildEntities.QueryLimitError` like
@@ -449,9 +447,6 @@ defmodule Tuist.BuildEntities do
   """
   def parent_actor_names(project_id, system, kind, parent_ids) when is_integer(project_id) and is_list(parent_ids) do
     case Identity.resolve(system, kind) do
-      {:ok, {:bazel, _kind, _fields}} ->
-        %{}
-
       {:ok, {system, kind, _fields}} ->
         project_id
         |> resolve_parent_contexts(parent_source(system, kind), parent_ids)
@@ -465,8 +460,6 @@ defmodule Tuist.BuildEntities do
         %{}
     end
   end
-
-  defp resolve_parent_contexts(_project_id, :none, _parent_ids), do: %{}
 
   defp resolve_parent_contexts(project_id, source, parent_ids) do
     keys = parent_keys(source, parent_ids)
@@ -489,22 +482,13 @@ defmodule Tuist.BuildEntities do
 
   defp parent_source(:gradle, "task"), do: :gradle_build
   defp parent_source(:mix, _kind), do: :mix_build
-  defp parent_source(:xcode, "cache_action"), do: :xcode_build
   defp parent_source(:xcode, "module"), do: :command_event
   defp parent_source(:once, "action"), do: :once_run
-  defp parent_source(:bazel, "cache_action"), do: :bazel_invocation
-  defp parent_source(_system, _kind), do: :none
 
   # Normalized lookup key => the caller's IDs that map to it.
   defp parent_keys(:once_run, parent_ids) do
     parent_ids
     |> Enum.filter(&once_run_id?/1)
-    |> Enum.group_by(& &1)
-  end
-
-  defp parent_keys(:bazel_invocation, parent_ids) do
-    parent_ids
-    |> Enum.filter(&(is_binary(&1) and &1 != ""))
     |> Enum.group_by(& &1)
   end
 
@@ -535,7 +519,7 @@ defmodule Tuist.BuildEntities do
   # one tuple: a later version that cleared a nullable field must win.
   defp parent_records(project_id, :gradle_build, uuids) do
     project_id
-    |> latest_parent_rows("gradle_builds", "id", "account_id, root_project_name, custom_tags", "inserted_at", uuids)
+    |> latest_parent_rows("gradle_builds", "account_id, root_project_name, custom_tags", "inserted_at", uuids)
     |> Enum.map(fn [id, account_id, root_project_name, tags] ->
       {id, %{label: blank_to_nil(root_project_name), tags: tags || [], actor: account_actor(account_id)}}
     end)
@@ -543,34 +527,16 @@ defmodule Tuist.BuildEntities do
 
   defp parent_records(project_id, :mix_build, uuids) do
     project_id
-    |> latest_parent_rows("mix_builds", "id", "account_id", "inserted_at", uuids)
+    |> latest_parent_rows("mix_builds", "account_id", "inserted_at", uuids)
     |> Enum.map(fn [id, account_id] -> {id, %{label: "mix compile", actor: account_actor(account_id)}} end)
-  end
-
-  defp parent_records(project_id, :xcode_build, uuids) do
-    project_id
-    |> latest_parent_rows("build_runs", "id", "account_id, scheme", "updated_at", uuids)
-    |> Enum.map(fn [id, account_id, scheme] ->
-      {id, %{label: blank_to_nil(scheme), actor: account_actor(account_id)}}
-    end)
   end
 
   defp parent_records(project_id, :command_event, uuids) do
     project_id
-    |> latest_parent_rows("command_events", "id", "user_id, name, command_arguments", "updated_at", uuids)
+    |> latest_parent_rows("command_events", "user_id, name, command_arguments", "updated_at", uuids)
     |> Enum.map(fn [id, user_id, name, command_arguments] ->
       actor = if is_integer(user_id) and user_id > 0, do: {:user, user_id}
       {id, %{label: blank_to_nil(name), command_arguments: blank_to_nil(command_arguments), actor: actor}}
-    end)
-  end
-
-  defp parent_records(project_id, :bazel_invocation, invocation_ids) do
-    columns = "command, target_patterns"
-
-    project_id
-    |> latest_parent_rows("bazel_invocations", "invocation_id", columns, "inserted_at", invocation_ids)
-    |> Enum.map(fn [id, command, target_patterns] ->
-      {id, %{label: blank_to_nil(command), target_patterns: target_patterns || [], actor: nil}}
     end)
   end
 
@@ -590,10 +556,9 @@ defmodule Tuist.BuildEntities do
     end)
   end
 
-  # Table, key, column and version names are fixed by `parent_records/3`;
+  # Table, column and version names are fixed by `parent_records/3`;
   # nothing here comes from input.
-  defp latest_parent_rows(project_id, table, key, columns, version, ids) do
-    key_type = if key == "id", do: "UUID", else: "String"
+  defp latest_parent_rows(project_id, table, columns, version, uuids) do
     count = columns |> String.split(",") |> length()
     fields = Enum.map_join(1..count, ", ", &"latest.#{&1}")
 
@@ -602,13 +567,13 @@ defmodule Tuist.BuildEntities do
         """
         SELECT parent, #{fields}
         FROM (
-          SELECT toString(#{key}) AS parent, argMax(tuple(#{columns}), #{version}) AS latest
+          SELECT toString(id) AS parent, argMax(tuple(#{columns}), #{version}) AS latest
           FROM #{table}
-          WHERE project_id = {project_id:Int64} AND #{key} IN {ids:Array(#{key_type})}
-          GROUP BY #{key}
+          WHERE project_id = {project_id:Int64} AND id IN {ids:Array(UUID)}
+          GROUP BY id
         )
         """,
-        %{project_id: project_id, ids: ids},
+        %{project_id: project_id, ids: uuids},
         @entity_read_settings
       )
 
@@ -1055,6 +1020,7 @@ defmodule Tuist.BuildEntities do
   # is. The client waits a little longer than the server-side limit so the
   # server is the one that gives up.
   defp bounded_query(sql, params, settings) do
+    settings = Keyword.merge(settings, @replacement_settings)
     timeout = to_timeout(second: Keyword.fetch!(settings, :max_execution_time) + 5)
 
     case ClickHouseRepo.query(sql, params, settings: settings, timeout: timeout) do

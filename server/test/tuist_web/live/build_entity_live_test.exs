@@ -6,16 +6,35 @@ defmodule TuistWeb.BuildEntityLiveTest do
 
   import Phoenix.LiveViewTest, except: [render_async: 1]
 
-  alias Tuist.Bazel
   alias Tuist.BuildEntities
   alias Tuist.BuildEntities.QueryLimitError
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.BuildEntitiesFixtures
   alias TuistWeb.API.BuildEntityResources
+  alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.BuildEntityLabels
 
   setup %{project: project} do
+    FunWithFlags.enable(:build_entities, for_actor: project)
     %{account: project.account}
+  end
+
+  test "pages are hidden before any query while legacy build pages stay reachable when build entities are off",
+       context do
+    %{conn: conn, project: project, account: account} = context
+    project = project |> Ecto.Changeset.change(build_system: :gradle) |> Repo.update!()
+    FunWithFlags.disable(:build_entities, for_actor: project)
+    reject(BuildEntities, :get, 4)
+    reject(BuildEntities, :list, 4)
+    root = "/#{account.name}/#{project.name}"
+
+    for path <- ["/builds/gradle/tasks", "/builds/gradle/tasks/#{Ecto.UUID.generate()}"] do
+      assert_raise NotFoundError, fn -> live(conn, root <> path) end
+    end
+
+    {:ok, view, _html} = live(conn, root <> "/builds/tasks")
+    assert has_element?(view, "a[href='#{root}/builds/tasks']", "Tasks")
+    refute has_element?(view, "a[href^='#{root}/builds/gradle/tasks']")
   end
 
   for resource <- BuildEntityResources.all() do
@@ -42,10 +61,12 @@ defmodule TuistWeb.BuildEntityLiveTest do
       assert has_element?(view, "#build-entity-history", "main")
       assert_shared_table_section(view, "activity-section", "entity-activity-search-form", "build-entity-history")
 
-      assert_parent_reference(view, resource, overview, observation)
+      assert overview =~ observation.parent_id
       assert_history_presentation(view, resource, observation)
 
       assert overview =~ BuildEntityLabels.duration(resource.system, resource.kind)
+
+      assert_duration_semantics(overview, resource.key)
 
       render_patch(view, path <> "/#{entity.id}?tab=history&environment=local")
       render_async(view)
@@ -66,16 +87,14 @@ defmodule TuistWeb.BuildEntityLiveTest do
       render_patch(view, path <> "/#{entity.id}?tab=history&environment=ci&branch=main")
       render_async(view)
       assert has_element?(view, "#build-entity-history", "main")
-      assert_parent_reference(view, resource, render(view), observation)
+      assert render(view) =~ observation.parent_id
       assert_history_presentation(view, resource, observation)
     end
   end
 
   for {key, native, expected} <- [
         {:gradle_tasks, %{label: "ShopApp", tags: ["Android"]}, "ShopApp Android"},
-        {:xcode_cache_actions, %{label: "ShopApp"}, "ShopApp"},
         {:xcode_modules, %{label: "generate", command_arguments: "generate --no-open"}, "tuist generate --no-open"},
-        {:bazel_cache_actions, %{label: "build", target_patterns: ["//app:binary"]}, "bazel build //app:binary"},
         {:once_actions, %{label: "once build //app:binary"}, "once build //app:binary"},
         {:mix_files, %{label: "mix compile"}, "mix compile"},
         {:mix_modules, %{label: "mix compile"}, "mix compile"}
@@ -114,38 +133,6 @@ defmodule TuistWeb.BuildEntityLiveTest do
         assert has_element?(view, "#build-entity-history", "Passed")
       end
     end
-  end
-
-  test "Bazel cache-only observations remain visible without linking to missing invocation reports", context do
-    %{conn: conn, project: project, account: account} = context
-    project = project |> Ecto.Changeset.change(build_system: :bazel) |> Repo.update!()
-    %{entity: entity, observation: missing} = BuildEntitiesFixtures.entity_fixture(project, :bazel_cache_actions)
-    %{observation: recorded} = BuildEntitiesFixtures.entity_fixture(project, :bazel_cache_actions)
-    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
-
-    Bazel.create_invocations([
-      %{
-        invocation_id: recorded.parent_id,
-        command: "build",
-        status: "success",
-        exit_code: 0,
-        started_at: now,
-        finished_at: now,
-        duration_ms: 1000,
-        project_id: project.id,
-        account_handle: account.name,
-        project_handle: project.name,
-        cache_endpoint: ""
-      }
-    ])
-
-    path = "/#{account.name}/#{project.name}/builds/bazel/cache-actions/#{entity.id}?tab=history"
-    {:ok, view, _html} = live(conn, path)
-    render_async(view)
-    assert has_element?(view, "#build-entity-history", "main")
-    assert has_element?(view, "#build-entity-history a[href$='/builds/invocations/#{recorded.parent_id}']")
-    refute has_element?(view, "#build-entity-history a[href$='/builds/invocations/#{missing.parent_id}']")
-    assert render(view) =~ "Invocation links are shown only when their reports are available."
   end
 
   test "widget and tab changes reuse analytics while identity changes reset them", context do
@@ -484,34 +471,6 @@ defmodule TuistWeb.BuildEntityLiveTest do
     assert has_element?(view, "[data-part=analytics-chart]", "Showing the latest 10,000 measured durations")
   end
 
-  test "Bazel scatter links to scoped history rather than unavailable invocation parents", context do
-    %{conn: conn, project: project, account: account} = context
-    project = project |> Ecto.Changeset.change(build_system: :bazel) |> Repo.update!()
-
-    %{entity: entity, observation: observation} =
-      BuildEntitiesFixtures.entity_fixture(project, :bazel_cache_actions, cache_status: "write")
-
-    root = "/#{account.name}/#{project.name}/builds/bazel/cache-actions/#{entity.id}"
-
-    {:ok, view, _} =
-      live(
-        conn,
-        root <>
-          "?widget=duration&duration-chart-type=scatter&duration-group-by=invalid&filter_cache_status_op=%3D%3D&filter_cache_status_val=hit"
-      )
-
-    render_async(view)
-    assert [%{"name" => "Write", "data" => [point]}] = chart_data(view, "build-entity-duration-scatter-chart")["series"]
-    assert URI.parse(point["url"]).path == root
-    params = URI.decode_query(URI.parse(point["url"]).query)
-    assert params["tab"] == "history"
-    assert params["activity-search"] == observation.parent_id
-    refute Map.has_key?(params, "filter_cache_status_val")
-    render_patch(view, point["url"])
-    render_async(view)
-    assert has_element?(view, "#build-entity-history", "Write")
-  end
-
   test "Xcode modules without measured durations omit the scatter toggle", context do
     %{conn: conn, project: project, account: account} = context
     %{entity: entity} = BuildEntitiesFixtures.entity_fixture(project, :xcode_modules, duration_ms: nil)
@@ -523,7 +482,9 @@ defmodule TuistWeb.BuildEntityLiveTest do
         "/#{account.name}/#{project.name}/builds/xcode/modules/#{entity.id}?widget=duration&duration-chart-type=scatter"
       )
 
-    render_async(view)
+    html = render_async(view)
+    assert html =~ "Shows the binary cache outcome each time tuist generate or tuist cache resolved this module."
+    assert html =~ "Tuist does not record an execution duration or status for generated modules."
     refute has_element?(view, ".tuist-chart-type-toggle")
     assert has_element?(view, "#entity-duration[data-empty=true]", "Not recorded")
     assert has_element?(view, "[data-part=analytics-chart]", "No recorded durations")
@@ -618,6 +579,12 @@ defmodule TuistWeb.BuildEntityLiveTest do
     assert has_element?(view, "#build-entity-history .noora-badge[data-color=information]", "CI")
   end
 
+  defp assert_duration_semantics(overview, :mix_modules) do
+    assert overview =~ "Durations measure compilation of the containing file, which every module in that file shares."
+  end
+
+  defp assert_duration_semantics(_overview, _kind), do: :ok
+
   defp assert_native_inventory(view, resource, entity) do
     inventory = view |> element("#build-entity-inventory") |> render() |> Floki.parse_fragment!()
     headers = inventory |> Floki.find("thead th") |> Enum.map(&(&1 |> Floki.text() |> String.trim()))
@@ -636,9 +603,7 @@ defmodule TuistWeb.BuildEntityLiveTest do
   defp inventory_headers(resource) do
     native = %{
       gradle_tasks: ["Task", "Root project", "Build path", "Task type"],
-      xcode_cache_actions: ["Action", "Compiler", "Cache key"],
       xcode_modules: ["Module", "Project"],
-      bazel_cache_actions: ["Action", "Target", "Mnemonic", "Action digest hash"],
       once_actions: ["Action", "Target", "Capability", "Declared action index"],
       mix_files: ["File"],
       mix_modules: ["Module"]
@@ -668,14 +633,5 @@ defmodule TuistWeb.BuildEntityLiveTest do
     assert [_] = Floki.find(children, "##{search_id}")
     assert [_] = Floki.find(children, "##{table_id}")
     assert [] = Floki.find(children, ".noora-card__section")
-  end
-
-  defp assert_parent_reference(view, %{system: :bazel}, html, _observation) do
-    refute has_element?(view, "#build-entity-history a[href*='/builds/invocations/']")
-    assert html =~ "Invocation links are shown only when their reports are available."
-  end
-
-  defp assert_parent_reference(_view, _resource, html, observation) do
-    assert html =~ observation.parent_id
   end
 end

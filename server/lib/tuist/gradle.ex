@@ -58,7 +58,10 @@ defmodule Tuist.Gradle do
 
       if !Enum.empty?(tasks) do
         task_entries = create_tasks(build_id, attrs.project_id, tasks, now)
-        BuildEntities.Producers.gradle_build(build_entry, Enum.zip(tasks, task_entries))
+
+        if BuildEntities.enabled?(build_entry.project_id) do
+          BuildEntities.Producers.gradle_build(build_entry, Enum.zip(tasks, task_entries))
+        end
       end
 
       machine_metrics = Map.get(attrs, :machine_metrics, [])

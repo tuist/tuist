@@ -9,8 +9,8 @@ defmodule Tuist.BuildEntities.Producers do
 
   Observation IDs are deterministic (`Tuist.BuildEntities.Identity`) within a
   native parent, so resending the same build/run/event identity does not double
-  count. Legacy Kura events without a producer UUID and Once actions without
-  target mappings remain accepted but cannot create retry-safe observations.
+  count. Once actions without target mappings remain accepted but cannot
+  create retry-safe observations.
 
   Only recorded facts are mapped: an outcome the producer does not recognize
   becomes `"unknown"`, a cache miss is only a miss the toolchain reported, and a
@@ -18,7 +18,6 @@ defmodule Tuist.BuildEntities.Producers do
   """
 
   alias Tuist.BuildEntities
-  alias Tuist.ReapiCache
 
   @doc """
   Gradle tasks from a build report, given the `gradle_builds` row and pairs of
@@ -194,96 +193,6 @@ defmodule Tuist.BuildEntities.Producers do
   defp xcode_module_cache_status(_hit), do: "none"
 
   @doc """
-  Xcode compilation cache actions from a build. Xcode reports no target, file
-  or other stable logical identity for a cache key, so the identity is the
-  exact cache key: an entity is one key's history (miss, then local or remote
-  hits), not a logical compile step across input changes. Descriptions are
-  display names only and never grouped.
-
-  `duration_ms` is the cache operation duration in milliseconds: the read for
-  hits and the write for misses. The compilation outcome is not reported.
-  """
-  def xcode_build(build, cacheable_tasks) do
-    cacheable_tasks
-    |> with_ordinals(&[to_string(&1.type), &1.key])
-    |> Enum.map(fn {task, ordinal} ->
-      status = to_string(task.status)
-
-      %{
-        project_id: build.project_id,
-        system: :xcode,
-        kind: "cache_action",
-        identity: %{"type" => to_string(task.type), "key" => task.key},
-        name: task.description || task.key,
-        parent_id: build.id,
-        discriminator: ordinal,
-        execution_id: task.key,
-        status: "unknown",
-        cache_status: if(status in ["hit_local", "hit_remote", "miss"], do: status, else: "none"),
-        duration_ms: if(status == "miss", do: task.write_duration, else: task.read_duration),
-        git_branch: build.git_branch,
-        git_commit_sha: build.git_commit_sha,
-        is_ci: build.is_ci,
-        observed_at: build.inserted_at
-      }
-    end)
-    |> BuildEntities.record()
-  end
-
-  @doc """
-  Bazel action cache operations reported by Kura: lookups (`hit`, `miss`) and
-  recorded result writes (`write`). Identity is the exact REAPI action digest
-  hash plus the mnemonic and target label the client declared for it. A write
-  is its own observation because it is not guaranteed to follow a reported
-  miss. CAS transfers are excluded.
-
-  Cache events carry no branch, commit or environment, so those stay empty, and
-  no execution outcome, so the status is unknown.
-
-  Takes the reported events and the native rows inserted for them, in order.
-  Only events whose native row reuses a valid producer UUID `event_id` are
-  observed. Older Kura nodes omit it, and the webhook accepts any string, so
-  such events get a server-minted row ID that changes on every retry: deriving
-  observations from them would double count and link to rows that do not
-  exist. Those events keep their native ingestion and are simply not observed.
-  """
-  def bazel_cache_events(events, entries) do
-    events
-    |> Enum.zip(entries)
-    |> Enum.filter(fn {event, entry} -> ReapiCache.producer_event_id(event) == {:ok, entry.id} end)
-    |> Enum.map(&elem(&1, 1))
-    |> Enum.filter(&(to_string(&1.operation) == "action_cache" and to_string(&1.outcome) in ["hit", "miss", "write"]))
-    |> Enum.map(fn event ->
-      mnemonic = event.action_mnemonic || ""
-      label = event.target_label || ""
-
-      %{
-        project_id: event.project_id,
-        system: :bazel,
-        kind: "cache_action",
-        identity: %{
-          "action_digest_hash" => event.action_digest,
-          "action_mnemonic" => mnemonic,
-          "target_label" => label
-        },
-        name: [mnemonic, label] |> Enum.reject(&(&1 == "")) |> Enum.join(" ") |> non_empty(event.action_digest),
-        parent_id: event.invocation_id,
-        discriminator: event.id,
-        execution_id: event.id,
-        status: "unknown",
-        cache_status: bazel_cache_status(to_string(event.outcome)),
-        duration_ms: event.duration_ms,
-        observed_at: event.observed_at
-      }
-    end)
-    |> BuildEntities.record()
-  end
-
-  defp bazel_cache_status("hit"), do: "hit_remote"
-  defp bazel_cache_status("miss"), do: "miss"
-  defp bazel_cache_status("write"), do: "write"
-
-  @doc """
   Once actions of a finished run, attributed to their declared slot: the
   target ID, capability and zero-based declaration index. The `identifier` is
   a diagnostic label and does not take part, so reordering a target's declared
@@ -294,7 +203,7 @@ defmodule Tuist.BuildEntities.Producers do
   Once reports whether an action was served from cache, not whether a lookup
   missed, so uncached actions have no cache status.
   """
-  def once_run(run, actions) do
+  def once_run(run, actions, opts \\ []) do
     actions
     |> Enum.reject(&(is_nil(&1.target_id) or &1.target_id == "" or &1.capability == "_phase"))
     |> Enum.map(fn action ->
@@ -321,7 +230,7 @@ defmodule Tuist.BuildEntities.Producers do
         observed_at: action.started_at || action.finished_at
       }
     end)
-    |> BuildEntities.record()
+    |> BuildEntities.record(opts)
   end
 
   defp once_status("succeeded"), do: "success"
@@ -332,9 +241,6 @@ defmodule Tuist.BuildEntities.Producers do
 
   defp integer_or_nil(value) when is_integer(value) and value >= 0, do: value
   defp integer_or_nil(_value), do: nil
-
-  defp non_empty("", fallback), do: fallback
-  defp non_empty(value, _fallback), do: value
 
   # Pairs each item with its occurrence index among items sharing the same
   # identity, in payload order, so repeated executions within one parent get

@@ -1,14 +1,15 @@
 defmodule Tuist.IngestRepo.Migrations.CreateBuildEntityTables do
   @moduledoc """
-  Stable, project-scoped build entities (Gradle tasks, Xcode modules and cache
-  actions, Bazel cache actions, Once actions, Mix files and modules) and one
+  Stable, project-scoped build entities (Gradle tasks, generated Xcode modules,
+  declared Once actions, Mix files and modules) and one
   slim observation per execution of each.
 
   `build_entity_observations` is the only write path. Producers compute
   `entity_id` and `id` deterministically in process (`Tuist.BuildEntities.Identity`),
-  so a retried build, a replayed Once batch or a duplicate webhook produces
-  identical rows that ReplacingMergeTree collapses. Readers deduplicate by `id`
-  before aggregating, so unmerged duplicates never bias distributions.
+  so a retried build or replayed Once batch produces the same observation IDs.
+  ReplacingMergeTree collapses versions within each insertion-month partition;
+  readers use cross-partition FINAL before filtering/aggregating so unmerged
+  and cross-month duplicates never bias distributions.
 
   The sort key leads with the entity and stable observation ID, so FINAL
   resolves complete replacement rows in a sorted stream without a per-observation

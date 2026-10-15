@@ -5,17 +5,33 @@ defmodule Tuist.MCP.Components.Tools.BuildEntityTool do
   alias Tuist.BuildEntities.Params
   alias Tuist.BuildEntities.QueryLimitError
   alias Tuist.BuildEntities.Resources
+  alias Tuist.FeatureFlags
   alias Tuist.MCP.Tool
 
+  # The persistent kinds exposed over MCP. Cache actions stay available through
+  # REST and the dashboard, and their run-level cache tools are unchanged.
+  @kinds [:gradle_tasks, :xcode_modules, :once_actions, :mix_files, :mix_modules]
+
+  @kind_descriptions """
+  Kinds: `gradle_tasks` (Gradle tasks; history lists task executions), \
+  `xcode_modules` (generated Xcode project modules; history lists module cache events), \
+  `once_actions` (Once actions identified by declared target, capability and action index; \
+  history lists executions), `mix_files` (Mix compiled files; history lists compilations) and \
+  `mix_modules` (Mix compiled modules; durations measure the containing file's compilation, \
+  not independently measured module work). A kind is only available for projects using its \
+  build toolchain.\
+  """
+
   defmacro __using__(opts) do
-    tool_opts = resource(opts)
-    input_schema = input(tool_opts)
-    output_schema = output(tool_opts)
+    action = Keyword.fetch!(opts, :action)
+    {name, title, summary} = definition(action)
+    input_schema = input(action)
+    output_schema = output(action)
 
     quote do
       use Tuist.MCP.Tool,
-        name: unquote(Keyword.fetch!(tool_opts, :name)),
-        title: unquote(Keyword.fetch!(tool_opts, :title)),
+        name: unquote(name),
+        title: unquote(title),
         read_only_hint: true,
         authorize: [action: :read, category: :build],
         schema: unquote(Macro.escape(input_schema)),
@@ -24,67 +40,40 @@ defmodule Tuist.MCP.Components.Tools.BuildEntityTool do
       alias Tuist.MCP.Components.Tools.BuildEntityTool
 
       @impl EMCP.Tool
-      def description, do: unquote(Keyword.fetch!(tool_opts, :description))
+      def description, do: unquote(summary <> " " <> @kind_descriptions)
 
       def execute(_conn, args, project) do
-        BuildEntityTool.run(project, args, unquote(tool_opts))
+        BuildEntityTool.run(project, args, unquote(action))
       end
     end
   end
 
-  def resource(opts) do
-    resource = Resources.fetch!(Keyword.fetch!(opts, :resource))
-    system = resource.system
-    kind = resource.kind
-    singular = to_string(resource.singular)
-    plural = to_string(resource.plural)
-    history_key = to_string(resource.history_key)
-    label = resource.label
-    singular_label = String.replace(resource.label_singular, ~r/^an? /, "")
-    action = Keyword.fetch!(opts, :action)
+  def kinds, do: @kinds
 
-    history_suffix = if kind == "cache_action", do: "events", else: history_key
+  def definition(:index),
+    do:
+      {"list_build_entities", "List Build Entities",
+       "List the tasks, modules, actions or files of one kind seen across a project's builds, with stable IDs independent of any run."}
 
-    {name, title} =
-      case action do
-        :index -> {"list_#{system}_#{plural}", "List #{label}"}
-        :show -> {"get_#{system}_#{singular}", "Get #{singular_label}"}
-        :history -> {"list_#{system}_#{singular}_#{history_suffix}", "List #{label} History"}
-      end
+  def definition(:show),
+    do:
+      {"get_build_entity", "Get Build Entity",
+       "Get one build entity by the stable ID a list call returned, with its native identity and analytics for the chosen period."}
 
-    note =
-      case {system, kind} do
-        {:bazel, "cache_action"} ->
-          " Cache actions identify exact cache keys/digests, not logical actions across changing inputs. Cache events do not report branch or CI/local provenance."
+  def definition(:history),
+    do:
+      {"list_build_entity_history", "List Build Entity History",
+       "List the recorded executions, compilations or cache events of one build entity, newest first, using the stable ID a list call returned."}
 
-        {_, "cache_action"} ->
-          " Cache actions identify exact cache keys/digests, not logical actions across changing inputs."
-
-        {:mix, "module"} ->
-          " Durations measure the containing file compilation, not independently measured module work."
-
-        _ ->
-          ""
-      end
-
-    [
-      action: action,
-      system: system,
-      kind: kind,
-      singular: singular,
-      plural: plural,
-      history_key: history_key,
-      id_param: singular <> "_id",
-      name: name,
-      title: title,
-      description: "#{title} across builds in a project, using stable IDs independent of a run." <> note
-    ]
-  end
-
-  def input(opts) do
+  def input(action) do
     properties = %{
       "account_handle" => %{"type" => "string", "description" => "The account handle."},
       "project_handle" => %{"type" => "string", "description" => "The project handle."},
+      "kind" => %{
+        "type" => "string",
+        "enum" => Enum.map(@kinds, &Atom.to_string/1),
+        "description" => "The kind of build entity."
+      },
       "start_at" => %{"type" => "string", "description" => "Inclusive ISO 8601 start within the last 90 days."},
       "end_at" => %{"type" => "string", "description" => "Exclusive ISO 8601 end, defaulting to now."},
       "environment" => %{"type" => "string", "enum" => ["any", "ci", "local"]},
@@ -99,40 +88,39 @@ defmodule Tuist.MCP.Components.Tools.BuildEntityTool do
       "page_size" => %{"type" => "integer", "minimum" => 1, "maximum" => 100}
     }
 
-    properties =
-      case opts[:action] do
-        :show -> Map.drop(properties, ~w(after before page page_size))
-        :index -> Map.drop(properties, ~w(after before))
-        :history -> properties
-      end
-
     {properties, required} =
-      if opts[:action] == :index do
-        {Map.put(properties, "q", %{"type" => "string", "description" => "Search names and identity."}),
-         ["account_handle", "project_handle"]}
-      else
-        id_param = Keyword.fetch!(opts, :id_param)
+      case action do
+        :index ->
+          {properties
+           |> Map.drop(~w(after before))
+           |> Map.put("q", %{"type" => "string", "description" => "Search names and identity."}),
+           ["account_handle", "project_handle", "kind"]}
 
-        {Map.put(properties, id_param, %{
-           "type" => "string",
-           "description" => "Stable ID returned by the project list tool."
-         }), ["account_handle", "project_handle", id_param]}
+        action ->
+          properties = if action == :show, do: Map.drop(properties, ~w(after before page page_size)), else: properties
+
+          {Map.put(properties, "id", %{"type" => "string", "description" => "Stable ID returned by list_build_entities."}),
+           ["account_handle", "project_handle", "kind", "id"]}
       end
 
     %{"type" => "object", "properties" => properties, "required" => required, "additionalProperties" => false}
   end
 
-  def output(opts) do
-    case opts[:action] do
+  def output(action) do
+    kind = %{"type" => "string", "enum" => Enum.map(@kinds, &Atom.to_string/1)}
+
+    case action do
       :index ->
         object(%{
-          opts[:plural] => %{"type" => "array", "items" => entity()},
+          "kind" => kind,
+          "entities" => %{"type" => "array", "items" => entity()},
           "pagination_metadata" => Tool.pagination_metadata_schema()
         })
 
       :show ->
         object(%{
-          opts[:singular] => entity(),
+          "kind" => kind,
+          "entity" => entity(),
           "analytics" =>
             object(%{
               "total" => metrics(),
@@ -146,51 +134,68 @@ defmodule Tuist.MCP.Components.Tools.BuildEntityTool do
 
       :history ->
         object(%{
-          opts[:history_key] => %{"type" => "array", "items" => observation()},
+          "kind" => kind,
+          "history" => %{"type" => "array", "items" => observation()},
           "pagination_metadata" => history_pagination()
         })
     end
   end
 
-  def run(project, args, opts) do
-    with true <- project.build_system == opts[:system],
+  # Runs after `Tuist.MCP.Tool` has authorized the project, and checks the
+  # rollout flag before any query.
+  def run(project, args, action) do
+    with :ok <- enabled(project),
+         {:ok, key} <- kind(args),
+         resource = Resources.fetch!(key),
+         true <- project.build_system == resource.system,
          {:ok, filters} <- Params.parse(args) do
-      query(project.id, args, opts, filters)
+      query(project.id, args, action, resource, filters)
     else
-      false -> {:error, "This resource is not available for this project's build toolchain."}
+      false -> {:error, "This kind is not available for this project's build toolchain."}
       {:error, message} -> {:error, message}
     end
   rescue
     QueryLimitError -> {:error, "The query exceeded analytics limits. Please try again later."}
   end
 
-  defp query(project_id, args, opts, filters) do
-    if opts[:action] == :index do
-      {entries, meta} = BuildEntities.list(project_id, opts[:system], opts[:kind], filters)
-      {:ok, %{opts[:plural] => entries, "pagination_metadata" => meta}}
-    else
-      detail(project_id, args, opts, filters)
+  defp enabled(project) do
+    if FeatureFlags.build_entities_enabled?(project),
+      do: :ok,
+      else: {:error, "Build entities are not available for this project."}
+  end
+
+  defp kind(args) do
+    case Enum.find(@kinds, &(Atom.to_string(&1) == Map.get(args, "kind"))) do
+      nil -> {:error, "Use one of the supported build entity kinds."}
+      key -> {:ok, key}
     end
   end
 
-  defp detail(project_id, args, opts, filters) do
-    id = Map.fetch!(args, opts[:id_param])
+  defp query(project_id, _args, :index, resource, filters) do
+    {entries, meta} = BuildEntities.list(project_id, resource.system, resource.kind, filters)
+    {:ok, %{"kind" => Atom.to_string(resource.key), "entities" => entries, "pagination_metadata" => meta}}
+  end
 
-    case BuildEntities.get(project_id, opts[:system], opts[:kind], id) do
+  defp query(project_id, args, action, resource, filters) do
+    id = Map.fetch!(args, "id")
+
+    case BuildEntities.get(project_id, resource.system, resource.kind, id) do
       {:ok, entity} ->
-        case opts[:action] do
-          :show ->
-            analytics = BuildEntities.analytics(project_id, opts[:system], opts[:kind], id, filters)
-            {:ok, %{opts[:singular] => entity, "analytics" => analytics}}
-
-          :history ->
-            {observations, meta} = BuildEntities.history(project_id, opts[:system], opts[:kind], id, filters)
-            {:ok, %{opts[:history_key] => observations, "pagination_metadata" => meta}}
-        end
+        detail(project_id, id, action, resource, entity, filters)
 
       _ ->
         {:error, "Not found in this project."}
     end
+  end
+
+  defp detail(project_id, id, :show, resource, entity, filters) do
+    analytics = BuildEntities.analytics(project_id, resource.system, resource.kind, id, filters)
+    {:ok, %{"kind" => Atom.to_string(resource.key), "entity" => entity, "analytics" => analytics}}
+  end
+
+  defp detail(project_id, id, :history, resource, _entity, filters) do
+    {observations, meta} = BuildEntities.history(project_id, resource.system, resource.kind, id, filters)
+    {:ok, %{"kind" => Atom.to_string(resource.key), "history" => observations, "pagination_metadata" => meta}}
   end
 
   defp entity do

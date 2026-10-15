@@ -3,19 +3,9 @@ defmodule TuistWeb.API.GradleTaskDetailsController do
   use TuistWeb.API.BuildEntityController, resource: :gradle_tasks
 end
 
-defmodule TuistWeb.API.XcodeCacheActionsController do
-  @moduledoc false
-  use TuistWeb.API.BuildEntityController, resource: :xcode_cache_actions
-end
-
 defmodule TuistWeb.API.XcodeModulesController do
   @moduledoc false
   use TuistWeb.API.BuildEntityController, resource: :xcode_modules
-end
-
-defmodule TuistWeb.API.BazelCacheActionsController do
-  @moduledoc false
-  use TuistWeb.API.BuildEntityController, resource: :bazel_cache_actions
 end
 
 defmodule TuistWeb.API.OnceActionsController do

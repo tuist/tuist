@@ -19,11 +19,7 @@ defmodule Tuist.BuildEntities.Identity do
 
   @contracts %{
     gradle: %{"task" => ["root_project_name", "build_path", "task_path", "task_type"]},
-    xcode: %{
-      "module" => ["project", "target"],
-      "cache_action" => ["type", "key"]
-    },
-    bazel: %{"cache_action" => ["action_digest_hash", "action_mnemonic", "target_label"]},
+    xcode: %{"module" => ["project", "target"]},
     once: %{"action" => ["target_id", "capability", "action_index"]},
     mix: %{"file" => ["path"], "module" => ["module"]}
   }

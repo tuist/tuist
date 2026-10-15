@@ -3,7 +3,7 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
   # Mix compiler diagnostics, posts what it reports to the real /mix/builds
   # controller (no Tuist.Mix mock), and asserts that ClickHouse ends up
   # with the build row and one diagnostic per captured issue.
-  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: false
 
   import Ecto.Query
   import Phoenix.ConnTest
@@ -112,6 +112,7 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
     user: user,
     project: project
   } do
+    FunWithFlags.enable(:build_entities, for_actor: project)
     reporter = reporter([])
 
     CompileReporter.record(

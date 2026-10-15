@@ -19,10 +19,13 @@
         style="light-fill"
       />
     </div>
-    <p :if={@entity && @resource.kind == "cache_action"} data-part="identity-note">
+    <p
+      :if={@entity && @resource.system == :xcode && @resource.kind == "module"}
+      data-part="identity-note"
+    >
       {dgettext(
         "dashboard_builds",
-        "This page tracks an exact cache key across builds. Input changes can produce a different key."
+        "Shows the binary cache outcome each time tuist generate or tuist cache resolved this module. Tuist does not record an execution duration or status for generated modules."
       )}
     </p>
     <p
@@ -31,7 +34,7 @@
     >
       {dgettext(
         "dashboard_builds",
-        "Durations measure compilation of the containing file, not independently measured module work."
+        "Durations measure compilation of the containing file, which every module in that file shares. Do not add them up across modules."
       )}
     </p>
   </div>
@@ -168,7 +171,7 @@
         id="entity-duration"
         chart_type={@duration_chart_type}
         chart_type_event="select_duration_chart_type"
-        group_by_options={duration_group_options(@resource)}
+        group_by_options={duration_group_options()}
         selected_group_by={@duration_group_by}
         group_by_query_param="duration-group-by"
         uri={@uri}
@@ -473,15 +476,6 @@
             />
           </:empty_state>
         </.table>
-        <p
-          :if={ready? && @resource.system == :bazel && !@history.result.row_navigation}
-          data-part="empty"
-        >
-          {dgettext(
-            "dashboard_builds",
-            "Invocation links are shown only when their reports are available."
-          )}
-        </p>
         <div
           :if={
             ready? && @tab == "history" &&

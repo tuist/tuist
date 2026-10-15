@@ -18,7 +18,6 @@ defmodule TuistWeb.BuildEntityLive do
   alias Tuist.BuildEntities.QueryLimitError
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.API.BuildEntityResources
-  alias TuistWeb.BazelAnalyticsHelpers
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.BuildEntityLabels, as: Labels
   alias TuistWeb.Helpers.DatePicker
@@ -34,8 +33,9 @@ defmodule TuistWeb.BuildEntityLive do
 
   def mount(_params, _session, socket) do
     resource = BuildEntityResources.fetch!(socket.assigns.live_action)
+    project = socket.assigns.selected_project
 
-    if socket.assigns.selected_project.build_system != resource.system do
+    if project.build_system != resource.system or not BuildEntities.enabled?(project) do
       raise NotFoundError, dgettext("dashboard_builds", "Not found in this project.")
     end
 
@@ -116,7 +116,7 @@ defmodule TuistWeb.BuildEntityLive do
       |> assign(:duration_chart_type, duration_chart_type(params, resource))
       |> assign(
         :duration_group_by,
-        selection(params, "duration-group-by", ~w(environment), default_duration_group(resource))
+        selection(params, "duration-group-by", ~w(environment), "status")
       )
       |> assign(:page, page)
       |> assign(:head_title, "#{title} · Builds · Tuist")
@@ -227,9 +227,6 @@ defmodule TuistWeb.BuildEntityLive do
 
   defp duration_chart_type(params, _resource), do: selection(params, "duration-chart-type", ~w(scatter), "line")
 
-  defp default_duration_group(%{kind: "cache_action"}), do: "cache_status"
-  defp default_duration_group(_resource), do: "status"
-
   defp maybe_load_duration_scatter(socket, resource, project_id, id, opts, reset?) do
     if socket.assigns.tab == "overview" and socket.assigns.widget == "duration" and
          socket.assigns.duration_chart_type == "scatter" do
@@ -251,7 +248,7 @@ defmodule TuistWeb.BuildEntityLive do
       context = Map.get(contexts, row.parent_id, %{})
 
       Map.merge(row, %{
-        parent_available: row.parent_id != "" and (resource.system != :bazel or Map.has_key?(contexts, row.parent_id)),
+        parent_available: row.parent_id != "",
         parent_label: context_label(resource, context),
         parent_tags: Map.get(context, :tags, []),
         ran_by_name: Map.get(context, :ran_by_name)
@@ -269,10 +266,6 @@ defmodule TuistWeb.BuildEntityLive do
 
   defp context_label(%{system: :xcode, kind: "module"}, %{label: label} = context) do
     CommandFormatter.format_command(%{name: label, command_arguments: Map.get(context, :command_arguments)})
-  end
-
-  defp context_label(%{system: :bazel}, %{label: label} = context) do
-    BazelAnalyticsHelpers.requested_command(%{command: label, target_patterns: Map.get(context, :target_patterns, [])})
   end
 
   defp context_label(_resource, context), do: Map.get(context, :label)
@@ -475,7 +468,6 @@ defmodule TuistWeb.BuildEntityLive do
 
     case assigns.resource.system do
       :gradle when row.execution_id != "" -> root <> "/builds/build-runs/#{parent}/tasks/#{row.execution_id}"
-      :bazel -> root <> "/builds/invocations/#{parent}"
       :once -> root <> "/once/runs/#{parent}"
       :mix -> root <> "/builds/mix-builds/#{parent}"
       :xcode when assigns.resource.kind == "module" -> root <> "/runs/#{parent}?tab=module-cache"
@@ -519,18 +511,12 @@ defmodule TuistWeb.BuildEntityLive do
   defp identity_label("task_type"), do: dgettext("dashboard_builds", "Task type")
   defp identity_label("target"), do: dgettext("dashboard_builds", "Target")
   defp identity_label("project"), do: dgettext("dashboard_builds", "Project")
-  defp identity_label("target_label"), do: dgettext("dashboard_builds", "Target")
-  defp identity_label("action_mnemonic"), do: dgettext("dashboard_builds", "Mnemonic")
   defp identity_label("target_id"), do: dgettext("dashboard_builds", "Target")
   defp identity_label("target_name"), do: dgettext("dashboard_builds", "Target")
   defp identity_label("project_name"), do: dgettext("dashboard_builds", "Project")
   defp identity_label("xcode_project_name"), do: dgettext("dashboard_builds", "Project")
   defp identity_label("capability"), do: dgettext("dashboard_builds", "Capability")
   defp identity_label("action_index"), do: dgettext("dashboard_builds", "Declared action index")
-  defp identity_label("key"), do: dgettext("dashboard_builds", "Cache key")
-  defp identity_label("action_digest_hash"), do: dgettext("dashboard_builds", "Action digest hash")
-  defp identity_label("configuration_id"), do: dgettext("dashboard_builds", "Configuration")
-  defp identity_label("type"), do: dgettext("dashboard_builds", "Compiler")
   defp identity_label("path"), do: dgettext("dashboard_builds", "Path")
   defp identity_label("module"), do: dgettext("dashboard_builds", "Module")
   defp identity_label(key), do: key
@@ -538,7 +524,6 @@ defmodule TuistWeb.BuildEntityLive do
   defp observations_label(assigns) do
     case {assigns.resource.system, assigns.resource.kind} do
       {:mix, _} -> dgettext("dashboard_builds", "Compilations")
-      {_, "cache_action"} -> dgettext("dashboard_builds", "Cache operations")
       {:xcode, "module"} -> dgettext("dashboard_builds", "Cache lookups")
       _ -> dgettext("dashboard_builds", "Executions")
     end
@@ -682,13 +667,11 @@ defmodule TuistWeb.BuildEntityLive do
 
   defp chart_point(point, field, _name), do: [point.date, Map.get(point, field)]
 
-  defp duration_group_options(resource) do
-    primary =
-      if resource.kind == "cache_action",
-        do: %{value: "cache_status", label: dgettext("dashboard_builds", "Cache result")},
-        else: %{value: "status", label: dgettext("dashboard_builds", "Outcome")}
-
-    [primary, %{value: "environment", label: dgettext("dashboard_builds", "Environment")}]
+  defp duration_group_options do
+    [
+      %{value: "status", label: dgettext("dashboard_builds", "Outcome")},
+      %{value: "environment", label: dgettext("dashboard_builds", "Environment")}
+    ]
   end
 
   defp scatter_chart_result(%{duration_scatter: %{ok?: false} = result}), do: result
@@ -713,7 +696,6 @@ defmodule TuistWeb.BuildEntityLive do
   end
 
   defp scatter_group(row, "environment"), do: row.is_ci
-  defp scatter_group(row, "cache_status"), do: row.cache_status
   defp scatter_group(row, _group), do: row.status
 
   defp scatter_group_label(true, "environment"), do: Labels.environment("ci")
@@ -728,11 +710,6 @@ defmodule TuistWeb.BuildEntityLive do
         %{
           "failure" => "destructive",
           "success" => "p99",
-          "miss" => "p50",
-          "write" => "p90",
-          "hit_local" => "secondary",
-          "hit_remote" => "primary",
-          "hit" => "tertiary",
           true => "primary",
           false => "secondary"
         },
@@ -765,7 +742,7 @@ defmodule TuistWeb.BuildEntityLive do
   defp reported(value), do: value
 
   defp scatter_point_path(assigns, row) do
-    if assigns.resource.system == :bazel or row.parent_id == "" do
+    if row.parent_id == "" do
       params =
         assigns.params
         |> Map.drop(@activity_keys)

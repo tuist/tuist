@@ -891,9 +891,6 @@ defmodule TuistWeb.Router do
         end
 
         scope "/xcode" do
-          get "/cache-actions", XcodeCacheActionsController, :index
-          get "/cache-actions/:cache_action_id", XcodeCacheActionsController, :show
-          get "/cache-actions/:cache_action_id/events", XcodeCacheActionsController, :history
           get "/modules", XcodeModulesController, :index
           get "/modules/:module_id", XcodeModulesController, :show
           get "/modules/:module_id/events", XcodeModulesController, :history
@@ -942,9 +939,6 @@ defmodule TuistWeb.Router do
         end
 
         scope "/bazel" do
-          get "/cache-actions", BazelCacheActionsController, :index
-          get "/cache-actions/:cache_action_id", BazelCacheActionsController, :show
-          get "/cache-actions/:cache_action_id/events", BazelCacheActionsController, :history
           get "/invocations", BazelController, :list_invocations
           get "/invocations/:invocation_id", BazelController, :get_invocation
           get "/invocations/:invocation_id/steps", BazelBuildStepsController, :index
@@ -1552,18 +1546,8 @@ defmodule TuistWeb.Router do
       live "/bundles/:bundle_id", BundleLive, metadata: @public_project_route_metadata
       live "/builds/gradle/tasks", BuildEntityLive, :gradle_tasks, metadata: @public_project_route_metadata
       live "/builds/gradle/tasks/:task_id", BuildEntityLive, :gradle_tasks, metadata: @public_project_route_metadata
-      live "/xcode-cache/actions", BuildEntityLive, :xcode_cache_actions, metadata: @public_project_route_metadata
-
-      live "/xcode-cache/actions/:cache_action_id", BuildEntityLive, :xcode_cache_actions,
-        metadata: @public_project_route_metadata
-
       live "/builds/xcode/modules", BuildEntityLive, :xcode_modules, metadata: @public_project_route_metadata
       live "/builds/xcode/modules/:module_id", BuildEntityLive, :xcode_modules, metadata: @public_project_route_metadata
-      live "/builds/bazel/cache-actions", BuildEntityLive, :bazel_cache_actions, metadata: @public_project_route_metadata
-
-      live "/builds/bazel/cache-actions/:cache_action_id", BuildEntityLive, :bazel_cache_actions,
-        metadata: @public_project_route_metadata
-
       live "/builds/once/actions", BuildEntityLive, :once_actions, metadata: @public_project_route_metadata
       live "/builds/once/actions/:action_id", BuildEntityLive, :once_actions, metadata: @public_project_route_metadata
       live "/builds/mix/files", BuildEntityLive, :mix_files, metadata: @public_project_route_metadata

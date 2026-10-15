@@ -80,6 +80,8 @@ defmodule TuistWeb.API.GradleControllerTest do
       user: user,
       project: project
     } do
+      FunWithFlags.enable(:build_entities, for_actor: project)
+
       body = %{
         duration_ms: 100,
         status: "success",

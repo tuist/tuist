@@ -62,7 +62,7 @@ defmodule Tuist.OnceEvents.Projector do
       # must not reject the event, or the client would retry a run that did
       # finalize, so it is logged and left for the run to be republished.
       TestReportIngestor.publish(finalized)
-      BuildEntities.Producers.once_run(finalized, OnceEvents.list_action_slots(finalized))
+      {:ok, _published?} = OnceEvents.publish_build_entities(finalized)
     end
 
     :ok
@@ -78,7 +78,8 @@ defmodule Tuist.OnceEvents.Projector do
   # truncated, hashed or defaulted. An unstorable configuration digest is
   # optional metadata and is left out.
   def project(%RunEvent{payload: {:target_instance, %TargetInstance{} = instance}}, project_id, run_id) do
-    with %{} = run <- OnceEvents.get_run(project_id, run_id),
+    with true <- BuildEntities.enabled?(project_id),
+         %{} = run <- OnceEvents.get_run(project_id, run_id),
          {:ok, target_instance_id} <- mapping_value(instance.target_instance_id, @mapping_id_max_length),
          {:ok, target_id} <- mapping_value(instance.target_id, @target_id_max_length) do
       configuration_digest =
@@ -98,7 +99,8 @@ defmodule Tuist.OnceEvents.Projector do
   end
 
   def project(%RunEvent{payload: {:target_queued, %TargetQueued{} = queued}}, project_id, run_id) do
-    with %{} = run <- OnceEvents.get_run(project_id, run_id),
+    with true <- BuildEntities.enabled?(project_id),
+         %{} = run <- OnceEvents.get_run(project_id, run_id),
          {:ok, target_execution_id} <- mapping_value(queued.target_execution_id, @mapping_id_max_length),
          {:ok, target_instance_id} <- mapping_value(queued.target_instance_id, @mapping_id_max_length),
          attempt when is_integer(attempt) and attempt >= 0 and attempt <= @max_int32 <- queued.attempt do

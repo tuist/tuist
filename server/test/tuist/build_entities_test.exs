@@ -1,8 +1,7 @@
 defmodule Tuist.BuildEntitiesTest do
-  use TuistTestSupport.Cases.DataCase, async: true
+  use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
-  alias Tuist.Bazel
   alias Tuist.BuildEntities
   alias Tuist.BuildEntities.Identity
   alias Tuist.BuildEntities.Observation
@@ -16,10 +15,10 @@ defmodule Tuist.BuildEntitiesTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.RunsFixtures
 
   setup do
     project = ProjectsFixtures.project_fixture()
+    FunWithFlags.enable(:build_entities, for_actor: project)
     end_at = DateTime.new!(Date.utc_today(), ~T[00:00:00])
     start_at = DateTime.add(end_at, -3, :day)
     window = [start_datetime: start_at, end_datetime: end_at]
@@ -45,6 +44,39 @@ defmodule Tuist.BuildEntitiesTest do
   end
 
   defp at(start_at, days, seconds \\ 0), do: start_at |> DateTime.add(days, :day) |> DateTime.add(seconds, :second)
+
+  test "disabled projects and the kill switch discard derivation before writing", %{project: project, start_at: start_at} do
+    disabled_project = ProjectsFixtures.project_fixture()
+    reject(IngestRepo, :insert_all, 2)
+    assert :ok = BuildEntities.record([observation(disabled_project, "lib/disabled.ex", observed_at: start_at)])
+
+    assert :disabled =
+             BuildEntities.record([observation(disabled_project, "lib/disabled.ex", observed_at: start_at)], sync: true)
+
+    stub(FunWithFlags, :enabled?, fn :build_entities_kill_switch -> true end)
+    assert :ok = BuildEntities.record([observation(project, "lib/disabled.ex", observed_at: start_at)])
+    refute BuildEntities.enabled?(project)
+    refute BuildEntities.enabled?(project.id)
+  end
+
+  test "mixed batches write only opted-in projects and check each project once", %{project: project, start_at: start_at} do
+    disabled_project = ProjectsFixtures.project_fixture()
+
+    expect(Tuist.FeatureFlags, :build_entities_enabled?, 2, fn id -> id == project.id end)
+
+    expect(IngestRepo, :insert_all, fn Observation, rows ->
+      assert length(rows) == 2
+      assert Enum.all?(rows, &(&1.project_id == project.id))
+      {2, nil}
+    end)
+
+    assert :ok =
+             BuildEntities.record([
+               observation(project, "lib/one.ex", observed_at: start_at),
+               observation(disabled_project, "lib/off.ex", observed_at: start_at),
+               observation(project, "lib/two.ex", observed_at: start_at)
+             ])
+  end
 
   test "records a whole batch with one insert and no catalog or native reads", %{project: project, start_at: start_at} do
     observations =
@@ -229,10 +261,10 @@ defmodule Tuist.BuildEntitiesTest do
              aggregation_in_order_max_block_bytes: 1024 * 1024,
              max_block_size: 8192,
              max_streams_to_max_threads_ratio: 1,
+             max_execution_time: 20,
              do_not_merge_across_partitions_select_final: 0,
              optimize_move_to_prewhere_if_final: 0,
-             use_skip_indexes_if_final: 0,
-             max_execution_time: 20
+             use_skip_indexes_if_final: 0
            ]
 
     stub(ClickHouseRepo, :query, fn _sql, _params, opts ->
@@ -245,6 +277,35 @@ defmodule Tuist.BuildEntitiesTest do
     assert Keyword.fetch!(opts, :timeout) == 35_000
     assert Keyword.fetch!(opts, :settings)[:max_memory_usage] == 512 * 1024 * 1024
     assert Keyword.fetch!(opts, :settings)[:max_bytes_before_external_group_by] == 128 * 1024 * 1024
+  end
+
+  test "all observation read paths preserve FINAL and replacement safety settings", %{project: project, window: window} do
+    :ok = BuildEntities.record([observation(project, "lib/invariants.ex", observed_at: window[:start_datetime])])
+    id = Identity.id(project.id, :mix, "file", %{"path" => "lib/invariants.ex"})
+    test_pid = self()
+
+    stub(ClickHouseRepo, :query, fn sql, params, opts ->
+      settings = Keyword.fetch!(opts, :settings)
+      assert settings[:do_not_merge_across_partitions_select_final] == 0
+      assert settings[:optimize_move_to_prewhere_if_final] == 0
+      assert settings[:use_skip_indexes_if_final] == 0
+
+      if String.contains?(sql, "build_entity_observations") do
+        assert String.contains?(sql, "FROM build_entity_observations FINAL")
+        assert String.contains?(sql, "PREWHERE project_id =")
+        send(test_pid, :checked_observation_query)
+      end
+
+      Mimic.call_original(ClickHouseRepo, :query, [sql, params, opts])
+    end)
+
+    BuildEntities.list(project.id, :mix, "file", window)
+    BuildEntities.list(project.id, :mix, "file", window ++ [environment: "ci"])
+    BuildEntities.get(project.id, :mix, "file", id)
+    BuildEntities.history(project.id, :mix, "file", id, window)
+    BuildEntities.analytics(project.id, :mix, "file", id, window)
+    BuildEntities.duration_scatter(project.id, :mix, "file", id, window)
+    assert_received :checked_observation_query
   end
 
   test "other database errors are not turned into query limit errors", %{project: project, window: window} do
@@ -552,8 +613,8 @@ defmodule Tuist.BuildEntitiesTest do
     start_at: start_at,
     window: window
   } do
-    identity = %{"action_digest_hash" => "d", "action_mnemonic" => "CppCompile", "target_label" => "//:a"}
-    base = observation(project, "", system: :bazel, kind: "cache_action", identity: identity, git_branch: "main")
+    identity = %{"path" => "lib/cache_math.ex"}
+    base = observation(project, "lib/cache_math.ex", identity: identity, git_branch: "main")
 
     BuildEntities.record([
       Map.merge(base, %{cache_status: "hit_remote", duration_ms: 10, observed_at: at(start_at, 0), discriminator: 1}),
@@ -562,8 +623,8 @@ defmodule Tuist.BuildEntitiesTest do
       Map.merge(base, %{cache_status: "hit_remote", observed_at: at(start_at, 2), git_branch: "other", discriminator: 4})
     ])
 
-    id = Identity.id(project.id, :bazel, "cache_action", identity)
-    analytics = BuildEntities.analytics(project.id, :bazel, "cache_action", id, window ++ [branch: "main"])
+    id = Identity.id(project.id, :mix, "file", identity)
+    analytics = BuildEntities.analytics(project.id, :mix, "file", id, window ++ [branch: "main"])
 
     assert analytics.total == %{
              observations: 2,
@@ -587,51 +648,8 @@ defmodule Tuist.BuildEntitiesTest do
              {start_at |> DateTime.add(2, :day) |> DateTime.to_date() |> Date.to_iso8601(), 1}
            ]
 
-    misses = BuildEntities.analytics(project.id, :bazel, "cache_action", id, window ++ [cache_status: "miss"])
+    misses = BuildEntities.analytics(project.id, :mix, "file", id, window ++ [cache_status: "miss"])
     assert %{observations: 1, avg_duration_ms: 30} = misses.total
-  end
-
-  defp invocation(project, invocation_id, target_patterns \\ []) do
-    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
-
-    Bazel.create_invocations([
-      %{
-        invocation_id: invocation_id,
-        command: "build",
-        target_patterns: target_patterns,
-        status: "success",
-        exit_code: 0,
-        started_at: now,
-        finished_at: now,
-        duration_ms: 1000,
-        project_id: project.id,
-        account_handle: "account",
-        project_handle: "project",
-        cache_endpoint: ""
-      }
-    ])
-  end
-
-  describe "available_bazel_invocations/2" do
-    test "returns only the invocations that exist in the project", %{project: project} do
-      other = ProjectsFixtures.project_fixture()
-      existing = UUIDv7.generate()
-      other_projects = UUIDv7.generate()
-      invocation(project, existing)
-      invocation(project, existing)
-      invocation(other, other_projects)
-
-      ids = [existing, other_projects, "cache-only", "", existing]
-      assert BuildEntities.available_bazel_invocations(project.id, ids) == MapSet.new([existing])
-
-      assert BuildEntities.available_bazel_invocations(project.id, []) == MapSet.new()
-    end
-
-    test "rejects more than one page of IDs", %{project: project} do
-      ids = Enum.map(1..101, &"invocation-#{&1}")
-
-      assert_raise ArgumentError, fn -> BuildEntities.available_bazel_invocations(project.id, ids) end
-    end
   end
 
   describe "duration samples" do
@@ -825,15 +843,6 @@ defmodule Tuist.BuildEntitiesTest do
       end
     end
 
-    test "maps Xcode builds for cache actions", %{project: project, actor: actor, actor_name: actor_name} = context do
-      {:ok, ran} = RunsFixtures.build_fixture(project_id: project.id, user_id: actor.account.id)
-      {:ok, by_owner} = RunsFixtures.build_fixture(project_id: project.id, user_id: context.owner_account_id)
-      {:ok, elsewhere} = RunsFixtures.build_fixture(project_id: context.other_project.id, user_id: actor.account.id)
-
-      assert BuildEntities.parent_actor_names(project.id, :xcode, "cache_action", [ran.id, by_owner.id, elsewhere.id]) ==
-               %{ran.id => actor_name}
-    end
-
     test "maps generate and cache commands for modules through the attributed user", context do
       %{project: project, actor: actor, actor_name: actor_name} = context
       ran = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "generate", user_id: actor.id)
@@ -876,10 +885,11 @@ defmodule Tuist.BuildEntitiesTest do
                %{"local-run-7" => context.actor_name}
     end
 
-    test "returns nothing for Bazel and invalid system/kind pairs", %{project: project, actor: actor} do
+    test "returns nothing for unsupported system/kind pairs", %{project: project, actor: actor} do
       ran = gradle_build(project.id, actor.account.id)
 
       assert BuildEntities.parent_actor_names(project.id, :bazel, "cache_action", [ran, "invocation"]) == %{}
+      assert BuildEntities.parent_actor_names(project.id, :xcode, "cache_action", [ran]) == %{}
       assert BuildEntities.parent_actor_names(project.id, :gradle, "file", [ran]) == %{}
       assert BuildEntities.parent_actor_names(project.id, :gradle, "task", []) == %{}
     end
@@ -941,18 +951,6 @@ defmodule Tuist.BuildEntitiesTest do
              }
     end
 
-    test "labels Xcode builds with the scheme", %{project: project, actor: actor, actor_name: actor_name} = context do
-      {:ok, named} = RunsFixtures.build_fixture(project_id: project.id, scheme: "App", user_id: actor.account.id)
-      {:ok, unnamed} = RunsFixtures.build_fixture(project_id: project.id, scheme: "")
-      {:ok, elsewhere} = RunsFixtures.build_fixture(project_id: context.other_project.id, scheme: "Other")
-
-      contexts = BuildEntities.parent_contexts(project.id, :xcode, "cache_action", [named.id, unnamed.id, elsewhere.id])
-
-      assert contexts[named.id] == %{label: "App", ran_by_name: actor_name}
-      assert %{label: nil} = contexts[unnamed.id]
-      refute Map.has_key?(contexts, elsewhere.id)
-    end
-
     test "labels Xcode commands with the raw command name", %{project: project, actor: actor} = context do
       generate =
         CommandEventsFixtures.command_event_fixture(
@@ -1010,21 +1008,6 @@ defmodule Tuist.BuildEntitiesTest do
                }
     end
 
-    test "labels Bazel invocations with the raw command and never reports an actor", %{project: project} = context do
-      invocation(project, "invocation-1", ["//app:binary", "//lib/..."])
-      invocation(context.other_project, "invocation-2")
-
-      assert BuildEntities.parent_contexts(project.id, :bazel, "cache_action", [
-               "invocation-1",
-               "invocation-2",
-               "",
-               "cache-only"
-             ]) ==
-               %{"invocation-1" => %{label: "build", target_patterns: ["//app:binary", "//lib/..."], ran_by_name: nil}}
-
-      assert BuildEntities.parent_actor_names(project.id, :bazel, "cache_action", ["invocation-1"]) == %{}
-    end
-
     test "the latest parent version decides, including one that cleared the label and actor", %{
       project: project,
       actor: actor
@@ -1047,7 +1030,7 @@ defmodule Tuist.BuildEntitiesTest do
       assert BuildEntities.parent_contexts(project.id, :gradle, "file", [UUIDv7.generate()]) == %{}
 
       assert_raise ArgumentError, fn ->
-        BuildEntities.parent_contexts(project.id, :bazel, "cache_action", Enum.map(1..101, &"invocation-#{&1}"))
+        BuildEntities.parent_contexts(project.id, :once, "action", Enum.map(1..101, &"run-#{&1}"))
       end
 
       stub(ClickHouseRepo, :query, fn _sql, _params, _opts ->
@@ -1055,10 +1038,11 @@ defmodule Tuist.BuildEntitiesTest do
       end)
 
       assert_raise QueryLimitError, fn ->
-        BuildEntities.parent_contexts(project.id, :xcode, "cache_action", [UUIDv7.generate()])
+        BuildEntities.parent_contexts(project.id, :xcode, "module", [UUIDv7.generate()])
       end
 
-      # Bazel actors are never looked up, so no query can fail.
+      # Unsupported pairs are never looked up, so no query can fail.
+      assert BuildEntities.parent_contexts(project.id, :xcode, "cache_action", [UUIDv7.generate()]) == %{}
       assert BuildEntities.parent_actor_names(project.id, :bazel, "cache_action", ["invocation-1"]) == %{}
     end
   end

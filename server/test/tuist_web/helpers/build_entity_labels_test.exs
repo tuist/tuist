@@ -6,10 +6,6 @@ defmodule TuistWeb.Helpers.BuildEntityLabelsTest do
   test "uses native terminology for every supported build system" do
     assert BuildEntityLabels.plural(:gradle, "task") == "Tasks"
     assert BuildEntityLabels.plural(:xcode, "module") == "Modules"
-    assert BuildEntityLabels.plural(:xcode, "cache_action") == "Actions"
-    assert BuildEntityLabels.singular(:xcode, "cache_action") == "Action"
-    assert BuildEntityLabels.plural(:bazel, "cache_action") == "Actions"
-    assert BuildEntityLabels.singular(:bazel, "cache_action") == "Action"
     assert BuildEntityLabels.plural(:once, "action") == "Actions"
     assert BuildEntityLabels.plural(:mix, "file") == "Files"
     assert BuildEntityLabels.plural(:mix, "module") == "Modules"
@@ -17,12 +13,7 @@ defmodule TuistWeb.Helpers.BuildEntityLabelsTest do
 
   test "inventory fields use native scope without repeating the primary task, file or module identifier" do
     assert BuildEntityLabels.inventory_fields(:gradle, "task") == ~w(root_project_name build_path task_type)
-    assert BuildEntityLabels.inventory_fields(:xcode, "cache_action") == ~w(type key)
     assert BuildEntityLabels.inventory_fields(:xcode, "module") == ~w(project)
-
-    assert BuildEntityLabels.inventory_fields(:bazel, "cache_action") ==
-             ~w(target_label action_mnemonic action_digest_hash)
-
     assert BuildEntityLabels.inventory_fields(:once, "action") == ~w(target_id capability action_index)
     assert BuildEntityLabels.inventory_fields(:mix, "file") == []
     assert BuildEntityLabels.inventory_fields(:mix, "module") == []
@@ -52,17 +43,13 @@ defmodule TuistWeb.Helpers.BuildEntityLabelsTest do
 
   test "parent columns match the native build runs human-readable context" do
     assert BuildEntityLabels.parent(:gradle, "task") == "Project"
-    assert BuildEntityLabels.parent(:xcode, "cache_action") == "Scheme"
     assert BuildEntityLabels.parent(:xcode, "module") == "Command"
-    assert BuildEntityLabels.parent(:bazel, "cache_action") == "Command"
     assert BuildEntityLabels.parent(:once, "action") == "Run"
     assert BuildEntityLabels.parent(:mix, "file") == "Command"
     assert BuildEntityLabels.parent(:mix, "module") == "Command"
   end
 
-  test "does not conflate cache time or file compilation time with action execution" do
-    assert BuildEntityLabels.duration(:xcode, "cache_action") == "Cache operation duration"
-    assert BuildEntityLabels.duration(:bazel, "cache_action") == "Cache operation duration"
+  test "does not conflate file compilation time with module work" do
     assert BuildEntityLabels.duration(:mix, "module") == "File compilation duration"
     assert BuildEntityLabels.history(:mix, "file") == "Compilation history"
     assert BuildEntityLabels.history(:gradle, "task") == "Execution history"

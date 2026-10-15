@@ -337,9 +337,48 @@ defmodule Tuist.OnceEvents do
   end
 
   @doc """
-  Index completed actions of recently terminal runs, including abandoned runs
-  that never sent `RunCompleted`. Replays also repair missed emission during
-  a rollout; deterministic observation IDs keep the sweep duplicate-insensitive.
+  Publish a terminal run once. A shared row lock serializes finalization and
+  recovery across replicas. Mark publication only after ClickHouse acknowledges
+  the synchronous batch; failures leave it retryable. A crash between the two
+  databases can still replay, so deterministic observation IDs remain required.
+  """
+  def publish_build_entities(%Run{id: id, project_id: project_id}) do
+    if BuildEntities.enabled?(project_id) do
+      Repo.transaction(
+        fn ->
+          from(r in Run, where: r.id == ^id and r.project_id == ^project_id, lock: "FOR UPDATE")
+          |> Repo.one()
+          |> publish_locked_build_entities()
+        end,
+        timeout: 60_000
+      )
+    else
+      {:ok, false}
+    end
+  end
+
+  defp publish_locked_build_entities(%Run{finalization: state, build_entities_published_at: nil} = run)
+       when state in ["finalized", "lost"] do
+    if BuildEntities.enabled?(run.project_id) do
+      case BuildEntities.Producers.once_run(run, list_action_slots(run), sync: true) do
+        :ok ->
+          Repo.update_all(from(r in Run, where: r.id == ^run.id), set: [build_entities_published_at: DateTime.utc_now()])
+          true
+
+        :disabled ->
+          false
+      end
+    else
+      false
+    end
+  end
+
+  defp publish_locked_build_entities(_run), do: false
+
+  @doc """
+  Index unpublished completed actions of recently terminal runs, including
+  abandoned runs that never sent `RunCompleted`. Successful publications are
+  not re-emitted by subsequent sweeps.
 
   The cutoff is fixed for the sweep and runs are read in 100-row keyset batches
   through the terminal-time index. This is bounded recovery, not a backfill.
@@ -350,7 +389,9 @@ defmodule Tuist.OnceEvents do
 
     query =
       from(r in Run,
-        where: r.finalization in ["finalized", "lost"] and r.finalized_at >= ^cutoff and r.finalized_at <= ^now,
+        where:
+          r.finalization in ["finalized", "lost"] and is_nil(r.build_entities_published_at) and
+            r.finalized_at >= ^cutoff and r.finalized_at <= ^now,
         order_by: [asc: r.finalized_at, asc: r.id],
         limit: 100
       )
@@ -370,10 +411,15 @@ defmodule Tuist.OnceEvents do
         count
 
       runs ->
-        for run <- runs, do: BuildEntities.Producers.once_run(run, list_action_slots(run))
+        published =
+          Enum.count(runs, fn run ->
+            {:ok, published?} = publish_build_entities(run)
+            published?
+          end)
+
         last = List.last(runs)
 
-        publish_build_entity_batches(query, {last.finalized_at, last.id}, count + length(runs))
+        publish_build_entity_batches(query, {last.finalized_at, last.id}, count + published)
     end
   end
 

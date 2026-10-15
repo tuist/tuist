@@ -424,6 +424,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
+      FunWithFlags.enable(:build_entities, for_actor: project)
 
       conn =
         conn

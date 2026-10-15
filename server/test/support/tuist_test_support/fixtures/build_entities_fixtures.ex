@@ -7,17 +7,14 @@ defmodule TuistTestSupport.Fixtures.BuildEntitiesFixtures do
     gradle_tasks:
       {:gradle, "task",
        %{"root_project_name" => "app", "build_path" => ":", "task_path" => ":app:test", "task_type" => "Test"}},
-    xcode_cache_actions: {:xcode, "cache_action", %{"type" => "swift", "key" => "cache-key"}},
     xcode_modules: {:xcode, "module", %{"project" => "App", "target" => "App"}},
-    bazel_cache_actions:
-      {:bazel, "cache_action",
-       %{"action_digest_hash" => "digest", "action_mnemonic" => "SwiftCompile", "target_label" => "//app:app"}},
     once_actions: {:once, "action", %{"target_id" => "app", "capability" => "build", "action_index" => "0"}},
     mix_files: {:mix, "file", %{"path" => "lib/app.ex"}},
     mix_modules: {:mix, "module", %{"module" => "App"}}
   }
 
   def entity_fixture(project, resource, attrs \\ []) do
+    FunWithFlags.enable(:build_entities, for_actor: project)
     {system, kind, identity} = Map.fetch!(@identities, resource)
 
     observation =

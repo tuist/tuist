@@ -53,8 +53,19 @@ defmodule TuistWeb.API.NativeBuildEntitiesControllerTest do
       assert execution["cache_status"] == "none"
 
       other_project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: resource.system)
+      FunWithFlags.enable(:build_entities, for_actor: other_project)
       other_path = "/api/projects/#{user.account.name}/#{other_project.name}#{resource.api_path}/#{entity.id}"
       assert %{"message" => "Not found in this project."} = conn |> get(other_path) |> json_response(404)
+    end
+  end
+
+  test "exact-key Xcode and Bazel cache actions are not exposed", %{conn: conn, user: user} do
+    assert Enum.map(BuildEntityResources.all(), & &1.key) ==
+             ~w(gradle_tasks xcode_modules once_actions mix_files mix_modules)a
+
+    for {system, path} <- [xcode: "/xcode/cache-actions", bazel: "/bazel/cache-actions"] do
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: system)
+      assert response(get(conn, "/api/projects/#{user.account.name}/#{project.name}#{path}"), 404)
     end
   end
 
@@ -93,12 +104,29 @@ defmodule TuistWeb.API.NativeBuildEntitiesControllerTest do
 
   test "bounded analytics failures return a retryable service error", %{conn: conn, user: user} do
     project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :gradle)
+    FunWithFlags.enable(:build_entities, for_actor: project)
     stub(BuildEntities, :list, fn _project_id, _system, _kind, _opts -> raise QueryLimitError end)
 
     assert %{"message" => "The query exceeded analytics limits. Please try again later."} =
              conn
              |> get("/api/projects/#{user.account.name}/#{project.name}/gradle/tasks")
              |> json_response(503)
+  end
+
+  test "disabled projects and the kill switch hide new resources before querying", %{conn: conn, user: user} do
+    project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :gradle)
+    root = "/api/projects/#{user.account.name}/#{project.name}/gradle/tasks"
+    id = UUIDv7.generate()
+    reject(BuildEntities, :list, 4)
+    reject(BuildEntities, :get, 4)
+
+    for path <- [root, root <> "/#{id}", root <> "/#{id}/executions"] do
+      assert %{"message" => "Not found in this project."} = conn |> get(path) |> json_response(404)
+    end
+
+    FunWithFlags.enable(:build_entities, for_actor: project)
+    stub(FunWithFlags, :enabled?, fn :build_entities_kill_switch -> true end)
+    assert %{"message" => "Not found in this project."} = conn |> get(root) |> json_response(404)
   end
 
   test "checks project permissions before exposing a persistent identity", %{conn: conn, user: user} do

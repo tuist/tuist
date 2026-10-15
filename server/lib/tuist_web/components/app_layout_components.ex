@@ -300,7 +300,11 @@ defmodule TuistWeb.AppLayoutComponents do
         <.sidebar_item
           label={dgettext("dashboard", "Tasks")}
           icon="subtask"
-          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/gradle/tasks"}
+          navigate={
+            if Enum.any?(entity_resources, &(&1.key == :gradle_tasks)),
+              do: overview_path <> "/builds/gradle/tasks",
+              else: ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"
+          }
           selected={
             String.starts_with?(
               @current_path,

@@ -284,7 +284,11 @@ defmodule Tuist.Mix do
 
     files = attrs |> Map.get(:files, []) |> Enum.take(@max_files)
     compiled_files = insert_compiled_files(build_id, attrs.project_id, files, now)
-    BuildEntities.Producers.mix_build(build_entry, Enum.zip(files, compiled_files))
+
+    if BuildEntities.enabled?(build_entry.project_id) do
+      BuildEntities.Producers.mix_build(build_entry, Enum.zip(files, compiled_files))
+    end
+
     insert_steps(build_id, attrs.project_id, attrs |> Map.get(:steps, []) |> Enum.take(@max_steps), now)
     Cache.insert(attrs, now)
 

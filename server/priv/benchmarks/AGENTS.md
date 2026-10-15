@@ -1,9 +1,0 @@
-# Isolated Volume Benchmarks
-
-- [README.md](README.md) documents the three build-entity gates and their workload/measurement limits.
-- Only explicitly named `build_entities_bench_*` databases on loopback may be written. Never use demo, test-suite, production or another worktree's databases. Never reset shared caches, run whole-table OPTIMIZE, or generate production load.
-- `run_build_entities.sh` owns one private ClickHouse process/configuration/data directory. Verify its command/config path before termination; refuse occupied ports. Pass the HTTP port after `mise exec -- env` (Mise hooks can override exported values). Every harness requires `BUILD_ENTITY_BENCH_EXPECTED_PORT`, rejects shared port 8123, validates both read/write repo ports before writes and records the actual endpoint. Preserve results on failure. PostgreSQL Once runs create a new database and run the actual migrations, without starting application workers.
-- Exercise actual domain methods and capture server statistics, not just bounded SQL success. Keep fixture cardinality/correction checks and explicit latency gates. Cover filtered inventory with search, one-day and full-retention windows so catalog candidate pruning is not mistaken for a universal gain. Use paired interleaved old/new calls on the same private dataset for speedup claims. Report sample counts; local percentiles are not production p95/p99 or a controlled cold-cache claim.
-- Native parent fixtures preserve production key/type/index shapes and can be verified against a fully migrated local schema. Missing duration/actor evidence stays missing. UUID generation uses raw MD5 bytes or canonical formatted hex, never `unhex(MD5(...))`.
-- Observation FINAL reads depend on the stable `(project_id, system, kind, entity_id, id)` replacement key. Old locally applied prototype migrations require fresh disposable validation databases; never silently benchmark an incompatible key.
-- Parent: [../AGENTS.md](../AGENTS.md).

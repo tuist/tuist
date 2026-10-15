@@ -22,7 +22,10 @@ defmodule Tuist.Xcode do
     XcodeGraphBuffer.insert(xcode_graph_data)
     XcodeProjectBuffer.insert_all(projects_data)
     XcodeTargetBuffer.insert_all(targets_data)
-    BuildEntities.Producers.xcode_graph(command_event, projects_data, targets_data)
+
+    if BuildEntities.enabled?(command_event.project_id) do
+      BuildEntities.Producers.xcode_graph(command_event, projects_data, targets_data)
+    end
 
     xcode_graph = %{id: xcode_graph_id, name: name, command_event_id: command_event_id}
     {:ok, xcode_graph}

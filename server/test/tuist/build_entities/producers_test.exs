@@ -1,5 +1,7 @@
 defmodule Tuist.BuildEntities.ProducersTest do
-  use TuistTestSupport.Cases.DataCase, async: true
+  # Enables the `:build_entities` flag for real. Flag records and their cache
+  # are shared across test modules, so this module must not run async.
+  use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
   alias Once.Events.V1.ActionCompleted
@@ -10,29 +12,80 @@ defmodule Tuist.BuildEntities.ProducersTest do
   alias Once.Events.V1.TargetQueued
   alias Tuist.BuildEntities
   alias Tuist.BuildEntities.Identity
+  alias Tuist.BuildEntities.Observation
   alias Tuist.ClickHouseRepo
+  alias Tuist.FeatureFlags
+  alias Tuist.Gradle
+  alias Tuist.IngestRepo
   alias Tuist.Mix
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Projector
   alias Tuist.OnceEvents.Run
   alias Tuist.OnceEvents.TargetInstance, as: TargetInstanceMapping
   alias Tuist.OnceEvents.Workers.ExpireStaleRunsWorker
-  alias Tuist.ReapiCache
   alias Tuist.Repo
   alias Tuist.Xcode
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.RunsFixtures
 
   setup do
     user = AccountsFixtures.user_fixture(preload: [:account])
     project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+    FunWithFlags.enable(:build_entities, for_actor: project)
+    assert FeatureFlags.build_entities_enabled?(project)
+
+    disabled = ProjectsFixtures.project_fixture(account_id: user.account.id)
+    refute FeatureFlags.build_entities_enabled?(disabled)
+
     now = DateTime.utc_now()
     window = [start_datetime: DateTime.add(now, -1, :day), end_datetime: DateTime.add(now, 2, :hour)]
-    %{project: project, account: user.account, window: window}
+    %{project: project, disabled: disabled, account: user.account, window: window}
   end
+
+  # Physical rows, without FINAL, so a duplicate write would be visible until a
+  # background merge collapses it.
+  defp stored_observations(project) do
+    {:ok, %{rows: [[count]]}} =
+      ClickHouseRepo.query(
+        "SELECT count() FROM build_entity_observations WHERE project_id = {project_id:Int64}",
+        %{project_id: project.id}
+      )
+
+    count
+  end
+
+  # Counts synchronous observation inserts, failing the first `failures`
+  # attempts the way an unavailable ClickHouse would. Other inserts pass through.
+  defp observation_inserts(failures \\ 0) do
+    counters = :counters.new(2, [])
+
+    stub(IngestRepo, :insert_all, fn
+      Observation, rows, opts ->
+        assert opts[:timeout] == 5_000
+        assert opts[:settings] == [async_insert: 0, max_execution_time: 5]
+        :counters.add(counters, 1, 1)
+        if :counters.get(counters, 1) <= failures, do: raise("ClickHouse unavailable")
+        result = Mimic.call_original(IngestRepo, :insert_all, [Observation, rows, opts])
+        :counters.add(counters, 2, 1)
+        result
+
+      schema, rows, opts ->
+        Mimic.call_original(IngestRepo, :insert_all, [schema, rows, opts])
+    end)
+
+    fn -> %{attempts: :counters.get(counters, 1), written: :counters.get(counters, 2)} end
+  end
+
+  defp kill_switch_on do
+    stub(FunWithFlags, :enabled?, fn
+      :build_entities_kill_switch -> true
+      flag -> Mimic.call_original(FunWithFlags, :enabled?, [flag])
+    end)
+  end
+
+  defp published_at(run), do: Repo.get!(Run, run.id).build_entities_published_at
 
   defp history(project, system, kind, identity, window) do
     id = Identity.id(project.id, system, kind, identity)
@@ -253,181 +306,104 @@ defmodule Tuist.BuildEntities.ProducersTest do
     end
   end
 
-  describe "Xcode cache actions" do
-    test "are keyed by the exact cache key and report the cache operation duration", %{
-      project: project,
+  describe "rollout flag" do
+    test "is off by default: native Gradle, Mix and Xcode ingestion is unchanged and nothing is observed", %{
+      disabled: project,
+      account: account,
       window: window
     } do
-      {:ok, build} =
-        RunsFixtures.build_fixture(
+      build_id =
+        GradleFixtures.build_fixture(
           project_id: project.id,
-          git_branch: "main",
-          cacheable_tasks: [
-            %{type: :swift, status: :hit_remote, key: "0~a", read_duration: 12.4, description: "Compile A.swift"},
-            %{type: :clang, status: :miss, key: "0~b", write_duration: 3.0}
+          account_id: account.id,
+          root_project_name: "app",
+          tasks: [%{task_path: ":app:jar", outcome: "executed", execution: %{build_path: ":", task_type: "Jar"}}]
+        )
+
+      assert {:ok, %{id: ^build_id}} = Gradle.get_build(build_id, project_id: project.id)
+
+      {:ok, mix_build_id} =
+        Mix.create_build(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration_ms: 500,
+          status: "success",
+          files: [%{path: "lib/a.ex", modules: ["A"], compile_duration_ms: 40}]
+        })
+
+      assert {:ok, %{id: ^mix_build_id}} = Mix.get_build(mix_build_id, project.id)
+
+      event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "generate")
+
+      Xcode.create_xcode_graph(%{
+        command_event: event,
+        xcode_graph: %{
+          name: "Graph",
+          projects: [
+            %{
+              "name" => "App",
+              "path" => ".",
+              "targets" => [%{"name" => "Core", "binary_cache_metadata" => %{"hash" => "h1", "hit" => "remote"}}]
+            }
           ]
-        )
+        }
+      })
 
-      assert [%{cache_status: "hit_remote", duration_ms: 12, status: "unknown"} = observation] =
-               history(project, :xcode, "cache_action", %{"type" => "swift", "key" => "0~a"}, window)
-
-      assert observation.parent_id == build.id
-
-      assert [%{cache_status: "miss", duration_ms: 3}] =
-               history(project, :xcode, "cache_action", %{"type" => "clang", "key" => "0~b"}, window)
-
-      {entries, _meta} =
-        BuildEntities.list(project.id, :xcode, "cache_action", window ++ [sort_by: "name", sort_order: "asc"])
-
-      assert Enum.map(entries, & &1.name) == ["0~b", "Compile A.swift"]
-    end
-  end
-
-  describe "Bazel cache actions" do
-    test "observe action cache lookups and writes once, even when Kura resends a batch", %{
-      project: project,
-      window: window
-    } do
-      event = fn attrs ->
-        Map.merge(
-          %{
-            event_id: UUIDv7.generate(),
-            client_kind: "bazel",
-            operation: "action_cache",
-            outcome: "hit",
-            action_digest: "digest",
-            size: 42,
-            duration_us: 2_000,
-            invocation_id: "invocation-1",
-            action_mnemonic: "CppCompile",
-            target_label: "//:app",
-            configuration_id: "config",
-            project_id: project.id,
-            account_handle: "account",
-            project_handle: "project",
-            cache_endpoint: "cache.tuist.dev"
-          },
-          attrs
-        )
-      end
-
-      events = [
-        event.(%{}),
-        event.(%{outcome: "miss"}),
-        event.(%{outcome: "write"}),
-        event.(%{operation: "cas", action_digest: "blob"})
-      ]
-
-      ReapiCache.create_cache_events(events)
-      ReapiCache.create_cache_events(events)
-
-      identity = %{"action_digest_hash" => "digest", "action_mnemonic" => "CppCompile", "target_label" => "//:app"}
-      observations = history(project, :bazel, "cache_action", identity, window)
-
-      assert observations |> Enum.map(& &1.cache_status) |> Enum.sort() == ["hit_remote", "miss", "write"]
-      assert Enum.all?(observations, &(&1.parent_id == "invocation-1" and &1.duration_ms == 2 and is_nil(&1.is_ci)))
-
-      assert {[%{name: "CppCompile //:app", identity: ^identity, observations: 3}], _meta} =
-               BuildEntities.list(project.id, :bazel, "cache_action", window)
-
-      id = Identity.id(project.id, :bazel, "cache_action", identity)
-      analytics = BuildEntities.analytics(project.id, :bazel, "cache_action", id, window)
-      assert %{observations: 3, hits: 1, misses: 1, hit_rate: 50.0} = analytics.total
-    end
-
-    test "keep native ingestion for events without an event ID but do not observe them", %{
-      project: project,
-      window: window
-    } do
-      legacy = %{
-        client_kind: "bazel",
-        operation: "action_cache",
-        outcome: "hit",
-        action_digest: "legacy-digest",
-        size: 42,
-        duration_us: 2_000,
-        invocation_id: "invocation-legacy",
-        action_mnemonic: "CppCompile",
-        target_label: "//:legacy",
-        configuration_id: "config",
-        project_id: project.id,
-        account_handle: "account",
-        project_handle: "project",
-        cache_endpoint: "cache.tuist.dev"
-      }
-
-      ReapiCache.create_cache_events([legacy])
-      ReapiCache.create_cache_events([legacy])
-
-      assert {:ok, %{rows: [[2]]}} =
+      assert {:ok, %{rows: [[targets]]}} =
                ClickHouseRepo.query(
-                 "SELECT count() FROM reapi_cache_events WHERE project_id = {project_id:Int64} AND action_digest = 'legacy-digest'",
+                 "SELECT count() FROM xcode_targets WHERE project_id = {project_id:Int64}",
                  %{project_id: project.id}
                )
 
-      identity = %{
-        "action_digest_hash" => "legacy-digest",
-        "action_mnemonic" => "CppCompile",
-        "target_label" => "//:legacy"
-      }
+      assert targets > 0
 
-      assert [] == history(project, :bazel, "cache_action", identity, window)
-      assert {[], _meta} = BuildEntities.list(project.id, :bazel, "cache_action", window)
+      assert stored_observations(project) == 0
+
+      for {system, kind} <- [{:gradle, "task"}, {:mix, "file"}, {:mix, "module"}, {:xcode, "module"}] do
+        assert {[], %{total_count: 0}} = BuildEntities.list(project.id, system, kind, window)
+      end
     end
 
-    test "ingest non-UUID event IDs under a fresh row ID without observing them", %{project: project, window: window} do
-      event = fn attrs ->
-        Map.merge(
-          %{
-            client_kind: "bazel",
-            operation: "action_cache",
-            outcome: "hit",
-            size: 42,
-            duration_us: 2_000,
-            invocation_id: "invocation-ids",
-            action_mnemonic: "CppCompile",
-            configuration_id: "config",
-            project_id: project.id,
-            account_handle: "account",
-            project_handle: "project",
-            cache_endpoint: "cache.tuist.dev"
-          },
-          attrs
-        )
+    test "is per project: direct observation writes for a project that has not opted in are dropped", %{
+      project: project,
+      disabled: disabled
+    } do
+      observation = fn project_id ->
+        %{
+          project_id: project_id,
+          system: :mix,
+          kind: "file",
+          identity: %{"path" => "lib/a.ex"},
+          name: "lib/a.ex",
+          parent_id: UUIDv7.generate(),
+          observed_at: DateTime.utc_now()
+        }
       end
 
-      producer_id = UUIDv7.generate()
+      assert :ok = BuildEntities.record([observation.(project.id), observation.(disabled.id)])
+      assert stored_observations(project) == 1
+      assert stored_observations(disabled) == 0
+      assert :disabled = BuildEntities.record([observation.(disabled.id)], sync: true)
+      assert stored_observations(disabled) == 0
+    end
 
-      ReapiCache.create_cache_events([
-        event.(%{event_id: "kura-event-1", action_digest: "string-id-digest", target_label: "//:string"}),
-        event.(%{event_id: producer_id, action_digest: "uuid-id-digest", target_label: "//:uuid"})
-      ])
+    test "the kill switch stops observation writes for opted-in projects", %{
+      project: project,
+      account: account
+    } do
+      kill_switch_on()
+      refute FeatureFlags.build_entities_enabled?(project)
 
-      assert {:ok, %{rows: rows}} =
-               ClickHouseRepo.query(
-                 """
-                 SELECT action_digest, toString(id)
-                 FROM reapi_cache_events
-                 WHERE project_id = {project_id:Int64} AND invocation_id = 'invocation-ids'
-                 """,
-                 %{project_id: project.id}
-               )
+      build_id =
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          account_id: account.id,
+          tasks: [%{task_path: ":app:jar", outcome: "executed", execution: %{build_path: ":", task_type: "Jar"}}]
+        )
 
-      assert length(rows) == 2
-      ids = Map.new(rows, fn [digest, id] -> {digest, id} end)
-      assert ids["uuid-id-digest"] == producer_id
-      assert {:ok, _} = Ecto.UUID.cast(ids["string-id-digest"])
-
-      string_identity = %{
-        "action_digest_hash" => "string-id-digest",
-        "action_mnemonic" => "CppCompile",
-        "target_label" => "//:string"
-      }
-
-      uuid_identity = %{string_identity | "action_digest_hash" => "uuid-id-digest", "target_label" => "//:uuid"}
-
-      assert [] == history(project, :bazel, "cache_action", string_identity, window)
-      assert [%{execution_id: ^producer_id}] = history(project, :bazel, "cache_action", uuid_identity, window)
+      assert {:ok, %{id: ^build_id}} = Gradle.get_build(build_id, project_id: project.id)
+      assert stored_observations(project) == 0
     end
   end
 
@@ -437,11 +413,12 @@ defmodule Tuist.BuildEntities.ProducersTest do
       %{run: run}
     end
 
-    test "attribute actions to their declared slot and skip actions without a target mapping", %{
+    test "attribute actions to their declared slot, skip unmapped actions and publish the run once", %{
       project: project,
       run: run,
       window: window
     } do
+      inserts = observation_inserts()
       project_event(run, :target_instance, %TargetInstance{target_instance_id: "instance-1", target_id: "//app:lib"})
 
       project_event(run, :target_queued, %TargetQueued{
@@ -453,7 +430,16 @@ defmodule Tuist.BuildEntities.ProducersTest do
       project_event(run, :action_completed, completed_action("execution-1", %{action_index: 1, was_cached: true}))
       project_event(run, :action_completed, completed_action("unmapped"))
       project_event(run, :run_completed, %RunCompleted{result: 1})
+
+      published_at = published_at(run)
+      assert %DateTime{} = published_at
+
+      # A replayed RunCompleted and later sweeps neither republish nor move the marker.
       project_event(run, :run_completed, %RunCompleted{result: 1})
+      assert {:ok, 0} = OnceEvents.publish_recent_build_entities()
+      assert published_at(run) == published_at
+      assert %{attempts: 1, written: 1} = inserts.()
+      assert stored_observations(project) == 2
 
       slot = %{"target_id" => "//app:lib", "capability" => "build", "action_index" => "0"}
 
@@ -467,11 +453,62 @@ defmodule Tuist.BuildEntities.ProducersTest do
       assert length(entries) == 2
     end
 
-    test "the stale-run worker indexes completed actions even without RunCompleted", %{
+    test "runs with no actions or no target mappings are marked published without a write", %{
+      project: project,
+      run: run
+    } do
+      inserts = observation_inserts()
+      {:ok, empty} = OnceEvents.upsert_run(%{project_id: project.id, run_id: UUIDv7.generate()})
+      project_event(empty, :run_completed, %RunCompleted{result: 1})
+
+      project_event(run, :action_completed, completed_action("unmapped"))
+      project_event(run, :run_completed, %RunCompleted{result: 1})
+
+      for published <- [empty, run], do: assert(%DateTime{} = published_at(published))
+
+      project_event(run, :run_completed, %RunCompleted{result: 1})
+      assert {:ok, 0} = OnceEvents.publish_recent_build_entities()
+      assert %{attempts: 0} = inserts.()
+      assert stored_observations(project) == 0
+    end
+
+    test "a transient ClickHouse failure at RunCompleted leaves the run unpublished until recovery writes it once", %{
       project: project,
       run: run,
       window: window
     } do
+      inserts = observation_inserts(1)
+      project_event(run, :target_instance, %TargetInstance{target_instance_id: "instance", target_id: "//app:lib"})
+      project_event(run, :target_queued, %TargetQueued{target_execution_id: "execution", target_instance_id: "instance"})
+      project_event(run, :action_completed, completed_action("execution"))
+
+      assert_raise RuntimeError, "ClickHouse unavailable", fn ->
+        project_event(run, :run_completed, %RunCompleted{result: 1})
+      end
+
+      assert %{finalization: "finalized", build_entities_published_at: nil} = Repo.get!(Run, run.id)
+      assert stored_observations(project) == 0
+
+      assert {:ok, 1} = OnceEvents.publish_recent_build_entities()
+      published_at = published_at(run)
+      assert %DateTime{} = published_at
+
+      project_event(run, :run_completed, %RunCompleted{result: 1})
+      assert {:ok, 0} = OnceEvents.publish_recent_build_entities()
+      assert published_at(run) == published_at
+      assert %{attempts: 2, written: 1} = inserts.()
+      assert stored_observations(project) == 1
+
+      slot = %{"target_id" => "//app:lib", "capability" => "build", "action_index" => "0"}
+      assert [%{status: "success"}] = history(project, :once, "action", slot, window)
+    end
+
+    test "the stale-run worker publishes abandoned runs once, retrying after a failed write", %{
+      project: project,
+      run: run,
+      window: window
+    } do
+      inserts = observation_inserts(1)
       project_event(run, :target_instance, %TargetInstance{target_instance_id: "instance", target_id: "//app:lib"})
       project_event(run, :target_queued, %TargetQueued{target_execution_id: "execution", target_instance_id: "instance"})
       project_event(run, :action_completed, completed_action("execution"))
@@ -481,11 +518,11 @@ defmodule Tuist.BuildEntities.ProducersTest do
 
       slot = %{"target_id" => "//app:lib", "capability" => "build", "action_index" => "0"}
       assert [] == history(project, :once, "action", slot, window)
-      expect(BuildEntities, :record, fn _ -> raise "unavailable observation store" end)
-      assert_raise RuntimeError, "unavailable observation store", fn -> ExpireStaleRunsWorker.perform(%{}) end
-      assert %{finalization: "lost"} = OnceEvents.get_run(project.id, run.run_id)
-      stub(BuildEntities, :record, fn observations -> Mimic.call_original(BuildEntities, :record, [observations]) end)
+      assert_raise RuntimeError, "ClickHouse unavailable", fn -> ExpireStaleRunsWorker.perform(%{}) end
+      assert %{finalization: "lost", build_entities_published_at: nil} = Repo.get!(Run, run.id)
+
       assert :ok = ExpireStaleRunsWorker.perform(%{})
+      assert %DateTime{} = published_at(run)
 
       assert [%{parent_id: parent_id, status: "success", duration_ms: 50}] =
                history(project, :once, "action", slot, window)
@@ -493,31 +530,13 @@ defmodule Tuist.BuildEntities.ProducersTest do
       assert parent_id == run.run_id
 
       assert :ok = ExpireStaleRunsWorker.perform(%{})
+      assert {:ok, 0} = OnceEvents.publish_recent_build_entities()
+      assert %{attempts: 2, written: 1} = inserts.()
+      assert stored_observations(project) == 1
       assert {[%{observations: 1}], _meta} = BuildEntities.list(project.id, :once, "action", window)
     end
 
-    test "recent recovery repairs failed finalization emission without acknowledging the failure", %{
-      project: project,
-      run: run,
-      window: window
-    } do
-      project_event(run, :target_instance, %TargetInstance{target_instance_id: "instance", target_id: "//app:lib"})
-      project_event(run, :target_queued, %TargetQueued{target_execution_id: "execution", target_instance_id: "instance"})
-      project_event(run, :action_completed, completed_action("execution"))
-      expect(BuildEntities, :record, fn _ -> raise "unavailable observation store" end)
-
-      assert_raise RuntimeError, "unavailable observation store", fn ->
-        project_event(run, :run_completed, %RunCompleted{result: 1})
-      end
-
-      assert %{finalization: "finalized"} = OnceEvents.get_run(project.id, run.run_id)
-      stub(BuildEntities, :record, fn observations -> Mimic.call_original(BuildEntities, :record, [observations]) end)
-      assert :ok = ExpireStaleRunsWorker.perform(%{})
-      slot = %{"target_id" => "//app:lib", "capability" => "build", "action_index" => "0"}
-      assert [%{status: "success"}] = history(project, :once, "action", slot, window)
-    end
-
-    test "recent recovery uses stable batches and excludes active and old terminal runs", %{
+    test "recent recovery uses stable batches, publishes only unpublished runs and excludes active and old ones", %{
       project: project,
       run: run
     } do
@@ -542,10 +561,49 @@ defmodule Tuist.BuildEntities.ProducersTest do
       {:ok, _} = OnceEvents.finalize_run(old, %{finalized_at: DateTime.add(at, -7_200, :second)})
       {:ok, future} = OnceEvents.upsert_run(%{project_id: project.id, run_id: UUIDv7.generate()})
       {:ok, _} = OnceEvents.finalize_run(future, %{finalized_at: DateTime.add(at, 600, :second)})
-      expect(BuildEntities, :record, 101, fn [] -> :ok end)
 
       assert {:ok, 101} = OnceEvents.publish_recent_build_entities()
+
+      ids = Enum.map(rows, & &1.id)
+
+      published = from(r in Run, where: r.id in ^ids and not is_nil(r.build_entities_published_at))
+      assert Repo.aggregate(published, :count) == 101
+
+      for skipped <- [run, old, future], do: assert(is_nil(published_at(skipped)))
       assert %{finalization: "active"} = OnceEvents.get_run(project.id, run.run_id)
+
+      assert {:ok, 0} = OnceEvents.publish_recent_build_entities()
+    end
+
+    test "a project that has not opted in stores no target mappings, observations or publication marker", %{
+      disabled: project
+    } do
+      inserts = observation_inserts()
+      {:ok, run} = OnceEvents.upsert_run(%{project_id: project.id, run_id: UUIDv7.generate()})
+      assert :ok = project_event(run, :target_instance, %TargetInstance{target_instance_id: "i", target_id: "//app:lib"})
+      assert :ok = project_event(run, :target_queued, %TargetQueued{target_execution_id: "e", target_instance_id: "i"})
+      assert :ok = project_event(run, :action_completed, completed_action("e"))
+      assert :ok = project_event(run, :run_completed, %RunCompleted{result: 1})
+
+      assert %{finalization: "finalized", build_entities_published_at: nil} = Repo.get!(Run, run.id)
+      assert Repo.aggregate(from(m in TargetInstanceMapping, where: m.once_run_id == ^run.id), :count) == 0
+      assert {:ok, false} = OnceEvents.publish_build_entities(run)
+      assert {:ok, 0} = OnceEvents.publish_recent_build_entities()
+      assert %{attempts: 0} = inserts.()
+      assert stored_observations(project) == 0
+    end
+
+    test "the kill switch stops target mappings and publication for an opted-in project", %{run: run} do
+      kill_switch_on()
+      inserts = observation_inserts()
+      assert :ok = project_event(run, :target_instance, %TargetInstance{target_instance_id: "i", target_id: "//app:lib"})
+      assert :ok = project_event(run, :action_completed, completed_action("e"))
+      assert :ok = project_event(run, :run_completed, %RunCompleted{result: 1})
+
+      assert is_nil(published_at(run))
+      assert Repo.aggregate(from(m in TargetInstanceMapping, where: m.once_run_id == ^run.id), :count) == 0
+      assert {:ok, 0} = OnceEvents.publish_recent_build_entities()
+      assert %{attempts: 0} = inserts.()
     end
 
     test "skip mappings the tables cannot store without failing the event stream", %{

@@ -38,10 +38,16 @@ defmodule Tuist.BuildEntities.IdentityTest do
   end
 
   test "resolves only declared system and kind pairs" do
-    assert {:ok, {:bazel, "cache_action", _}} = Identity.resolve(:bazel, "cache_action")
+    assert {:ok, {:xcode, "module", ["project", "target"]}} = Identity.resolve(:xcode, "module")
     assert {:ok, {:mix, "module", ["module"]}} = Identity.resolve("mix", "module")
-    assert :error == Identity.resolve(:bazel, "task")
+    assert :error == Identity.resolve(:mix, "task")
     assert :error == Identity.resolve("not_a_system_#{System.unique_integer([:positive])}", "task")
     assert :error == Identity.resolve(:gradle, :task)
+  end
+
+  test "exact-key Xcode and Bazel cache actions have no identity contract" do
+    assert :error == Identity.resolve(:xcode, "cache_action")
+    assert :error == Identity.resolve(:bazel, "cache_action")
+    refute Map.has_key?(Identity.contracts(), :bazel)
   end
 end

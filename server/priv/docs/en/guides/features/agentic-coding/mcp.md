@@ -342,21 +342,27 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 
 #### Tasks, actions, modules and files
 
-These project-scoped tools inspect persistent build identities across runs. Start with a list tool, then pass the returned stable ID to its detail or history tool with `account_handle` and `project_handle`. No build or invocation identifier is required. Detail tools return analytics for the chosen period alongside the native identity. Their metrics include `duration_samples`, the number of observations with recorded timing: genuine zero durations count, missing timing does not. This count may be lower than the observation count; unavailable duration statistics remain null.
+These project-scoped tools inspect persistent build identities across runs. Start with `list_build_entities`, then pass a returned stable `id` with the same `kind` to `get_build_entity` or `list_build_entity_history`, together with `account_handle` and `project_handle`. No build or invocation identifier is required.
 
-| Toolchain | List | Detail | History |
-| --- | --- | --- | --- |
-| Gradle tasks | `list_gradle_tasks` | `get_gradle_task` | `list_gradle_task_executions` |
-| Xcode cache actions | `list_xcode_cache_actions` | `get_xcode_cache_action` | `list_xcode_cache_action_events` |
-| Generated Xcode modules | `list_xcode_modules` | `get_xcode_module` | `list_xcode_module_cache_events` |
-| Bazel cache actions | `list_bazel_cache_actions` | `get_bazel_cache_action` | `list_bazel_cache_action_events` |
-| Once actions | `list_once_actions` | `get_once_action` | `list_once_action_executions` |
-| Mix files | `list_mix_files` | `get_mix_file` | `list_mix_file_compilations` |
-| Mix modules | `list_mix_modules` | `get_mix_module` | `list_mix_module_compilations` |
+| Tool | Description | Required parameters |
+| --- | --- | --- |
+| `list_build_entities` | List the tasks, modules, actions or files of one kind seen across a project's builds. | `account_handle`, `project_handle`, `kind` |
+| `get_build_entity` | Get one build entity with its native identity and analytics for the chosen period. | `account_handle`, `project_handle`, `kind`, `id` |
+| `list_build_entity_history` | List the recorded executions, compilations or cache events of one build entity, newest first. | `account_handle`, `project_handle`, `kind`, `id` |
 
-The tools accept bounded `start_at`/`end_at` filters, `environment` (`any`, `ci`, or `local`) and an exact `branch`. List tools accept `q`; history supports opaque `after`/`before` cursors. Unknown timing or cache observations remain unavailable rather than becoming zero or misses. History references the recorded parent and native execution for drill-down using the existing run tools.
+| `kind` | Toolchain | History lists |
+| --- | --- | --- |
+| `gradle_tasks` | Gradle tasks | Task executions |
+| `xcode_modules` | Generated Xcode project modules | Module cache events |
+| `once_actions` | Once actions | Executions |
+| `mix_files` | Mix compiled files | Compilations |
+| `mix_modules` | Mix compiled modules | Compilations |
 
-Xcode and Bazel cache-action identities represent exact cache keys/digests, not a logical compilation operation across input changes. Mix module durations measure the containing file's compilation, not independently measured module work. Once actions use declared target/capability/index slots when the client reported the target mappings; diagnostic labels alone are not stable identities. Existing clients and run-level tools remain supported unchanged. Older Kura reports without a valid producer event UUID continue to appear in run-level cache tools but are not indexed into these new persistent histories.
+These tools are rolling out gradually and only return data for projects where they are enabled; for other projects they return an error instead of an empty result. A kind is only available for projects that use its build toolchain. The tools accept bounded `start_at`/`end_at` filters, `environment` (`any`, `ci`, or `local`) and an exact `branch`. `list_build_entities` accepts `q`; `list_build_entity_history` supports opaque `after`/`before` cursors. Unknown timing or cache observations remain unavailable rather than becoming zero or misses. History references the recorded parent and native execution for drill-down using the existing run tools.
+
+`get_build_entity` metrics include `duration_samples`, the number of observations with recorded timing: genuine zero durations count, missing timing does not. This count may be lower than the observation count; unavailable duration statistics remain null.
+
+Mix module durations measure the containing file's compilation, not independently measured module work. Once actions use declared target/capability/index slots when the client reported the target mappings; diagnostic labels alone are not stable identities. Existing clients and run-level tools remain supported unchanged.
 
 Analytics reads have bounded memory and execution time. If a query exceeds those limits, the tool returns an error instead of inventing an empty result.
 

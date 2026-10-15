@@ -41,7 +41,7 @@ These windows define how long selected dashboard and activity data remains avail
 | Xcode project graph records | 30 days |
 | Gradle build records, task records, cache event records, Mix build records, compiled file records, build step records and diagnostics, Bazel invocations, Bazel trace profiles, indexed profile steps and action diagnostics, pending Bazel profile and test ingestion records, Bazel invocation logs, and Bazel remote action-cache observations | 90 days |
 | Generated Xcode module history on persistent module detail pages | 30 days |
-| Task, cache action, declared action, compiled file and module observations on persistent detail pages | 90 days, except generated Xcode modules above |
+| Task, declared action, compiled file and module observations on persistent detail pages | 90 days, except generated Xcode modules above |
 | Persistent task/action/module/file identity metadata | 365 days without an observation |
 | Build machine metrics | 90 days |
 | Runner job logs, archived runner logs, and runner job machine metrics | 90 days |
