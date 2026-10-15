@@ -197,10 +197,15 @@ var (
 		Name: "tuist_runners_pool_stuck_terminations_total",
 		Help: "Runner Pods force-deleted after kubelet did not finish terminating them within the grace period. A non-zero rate means sandboxes are leaking on their nodes.",
 	}, []string{poolLabel})
+
+	preemptedPodsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "tuist_runners_pool_preempted_pods_total",
+		Help: "Idle runner Pods retired ahead of the scale-down cooldown because a sibling pool on the same fleet had queued jobs the scheduler could not place.",
+	}, []string{fleetSelectorLabel, poolLabel})
 )
 
 func init() {
-	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, fleetProvisioningCeiling, podStartTimeoutsTotal, stuckTerminationsTotal)
+	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, fleetProvisioningCeiling, podStartTimeoutsTotal, stuckTerminationsTotal, preemptedPodsTotal)
 }
 
 // RecordAllocation publishes one pool's allocation outcome for this
@@ -278,6 +283,12 @@ func RecordStuckTermination(pool string) {
 	stuckTerminationsTotal.WithLabelValues(pool).Inc()
 }
 
+// RecordPreemption counts an idle runner a pool gave up for a starved
+// sibling on the same fleet.
+func RecordPreemption(fleetSelector, pool string) {
+	preemptedPodsTotal.WithLabelValues(fleetSelector, pool).Inc()
+}
+
 // RecordRoll publishes a pool's Pod-template rollout progress for this
 // reconcile tick: unavailable serving capacity, stale Pods remaining,
 // and the concurrency cap. Steady state reports rolling=0, stale=0.
@@ -338,6 +349,7 @@ func ClearRunnerPool(pool string) {
 	for _, phase := range podPhaseLabels {
 		phaseReplicas.DeleteLabelValues(pool, phase)
 	}
+	preemptedPodsTotal.DeletePartialMatch(prometheus.Labels{poolLabel: pool})
 }
 
 // Clear drops all pool series when the RunnerPool object is gone. Safe

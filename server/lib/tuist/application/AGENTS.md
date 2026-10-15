@@ -12,3 +12,7 @@
   repository's event prefix, not the logical read repository's prefix.
 
 Use the standard [application shutdown callback](https://hexdocs.pm/elixir/Application.html#c:prep_stop/1) and [socket drainer specifications](https://hexdocs.pm/phoenix/Phoenix.Socket.Transport.html#c:drainer_spec/1). The server child identifiers follow Bandit's Phoenix adapter.
+
+## Replica-safety rollout
+
+Boot Kura reconciliation is enqueued through the existing unique Oban worker instead of running once in every boot task. Keep best-effort test-ingestion enrichments on the existing detached `Tuist.Tasks` path; they do not require an application-level task supervisor, drainer or extra pod grace. Required analytics buffer shutdown and shadow-write draining retain their existing lifecycles; neither makes acknowledged in-memory staging durable across hard replica loss.

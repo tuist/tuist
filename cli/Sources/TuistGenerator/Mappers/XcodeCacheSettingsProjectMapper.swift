@@ -63,12 +63,16 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         // those builds path-independent with `enableCoveragePrefixMapping`.
         if await Self.isPrefixMappingSupported() {
             baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
-            // A shared source namespace can opt out of per-project /^src aliases.
+            // The project mappings (`/^src`, `/^derived`, `/^built`, `/^workspace`) name a
+            // different directory in every project, and the debugger gets a single source
+            // map, so it would resolve other projects' paths against the debugged target's
+            // project. The workspace-wide mappings from XcodeCachePrefixMappingWorkspaceMapper
+            // cover the same directories, so they stay off unless a project turns them on.
             baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] =
-                baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] ?? "YES"
+                baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] ?? "NO"
             baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
             baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] =
-                baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] ?? "YES"
+                baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] ?? "NO"
             for (key, value) in Self.prefixMappingForCoverageSettings(tuist: tuist) {
                 baseSettings[key] = .string(value)
             }
