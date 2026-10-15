@@ -109,8 +109,12 @@ for future runs when triggered by these events:
 | GitLab CI | Push, schedule, web |
 
 Other jobs, including pull requests, merge requests and tags, can use the cache,
-but their changes are discarded. Concurrent jobs work independently; changes
-from different jobs are not merged. Never cache credentials or irreplaceable data.
+but their changes are discarded. With GitHub Actions, you can change which
+branches save on the runner profile, for example to let pull requests or release
+branches update the cache; see [Choose which branches save](#choose-which-branches-save).
+
+Concurrent jobs work independently; changes from different jobs are not merged.
+Never cache credentials or irreplaceable data.
 
 ### Choose which branches save {#choose-which-branches-save}
 
