@@ -20,7 +20,9 @@ defmodule Tuist.OnceEvents do
   alias Ecto.Multi
   alias Phoenix.PubSub
   alias Tuist.OnceEvents.Action
+  alias Tuist.OnceEvents.ActionHistory
   alias Tuist.OnceEvents.CacheEvent
+  alias Tuist.OnceEvents.Presentation
   alias Tuist.OnceEvents.Run
   alias Tuist.OnceEvents.SystemSample
   alias Tuist.OnceEvents.TestCaseRun
@@ -210,8 +212,13 @@ defmodule Tuist.OnceEvents do
   publishes a half-updated run.
   """
   def ingest_action(%Run{} = run, attrs) do
+    {history, attrs} = Map.pop(attrs, :history)
+    history = if attrs[:capability] == "_phase", do: nil, else: history
+
     action_attrs =
       attrs
+      |> Map.put(:presentation, Presentation.normalize(attrs[:presentation]))
+      |> Map.merge(ActionHistory.fields(run.project_id, history, attrs[:capability] || ""))
       |> Map.put(:once_run_id, run.id)
       |> Map.put(:run_id, run.run_id)
       |> Map.put(:project_id, run.project_id)
@@ -231,6 +238,8 @@ defmodule Tuist.OnceEvents do
         now = DateTime.truncate(DateTime.utc_now(), :microsecond)
         attrs = Map.merge(action_attrs, %{id: UUIDv7.generate(), inserted_at: now, updated_at: now})
 
+        ActionHistory.guard_identity(repo, attrs)
+
         {count, actions} =
           repo.insert_all(Action, [attrs],
             on_conflict: :nothing,
@@ -238,7 +247,8 @@ defmodule Tuist.OnceEvents do
             returning: true
           )
 
-        {:ok, {count, List.first(actions)}}
+        action = refresh_colliding_action(repo, List.first(actions))
+        {:ok, {count, action}}
       end)
       |> Multi.run(:rollup, fn repo, %{action: {count, _}} ->
         if count == 1 and not synthetic? do
@@ -255,11 +265,18 @@ defmodule Tuist.OnceEvents do
     case Repo.transaction(multi) do
       {:ok, %{action: {_count, action}}} ->
         broadcast_run(run, {:action_ingested, run.run_id})
+        ActionHistory.broadcast(action)
         {:ok, action}
 
       {:error, _step, reason, _changes} ->
         {:error, reason}
     end
+  end
+
+  defp refresh_colliding_action(_repo, nil), do: nil
+
+  defp refresh_colliding_action(repo, action) do
+    if ActionHistory.mark_collisions(repo, action), do: repo.get!(Action, action.id), else: action
   end
 
   defp action_rollup_delta(action_attrs) do
@@ -1137,7 +1154,28 @@ defmodule Tuist.OnceEvents do
       query,
       [a],
       ilike(a.target_execution_id, ^pattern) or ilike(a.identifier, ^pattern) or ilike(a.display_name, ^pattern) or
-        fragment("EXISTS (SELECT 1 FROM unnest(?) AS source_file WHERE source_file ILIKE ?)", a.source_files, ^pattern)
+        fragment("EXISTS (SELECT 1 FROM unnest(?) AS source_file WHERE source_file ILIKE ?)", a.source_files, ^pattern) or
+        fragment(
+          "EXISTS (SELECT 1 FROM jsonb_each_text(CASE WHEN jsonb_typeof(?->'package') = 'object' THEN ?->'package' ELSE '{}'::jsonb END) AS package WHERE package.key IN ('ecosystem', 'name', 'version', 'revision', 'digest') AND package.value ILIKE ?)",
+          a.presentation,
+          a.presentation,
+          ^pattern
+        ) or
+        fragment(
+          "EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(?->'platforms') = 'array' THEN ?->'platforms' ELSE '[]'::jsonb END) AS platform WHERE platform->>'id' ILIKE ? OR platform->>'label' ILIKE ?)",
+          a.presentation,
+          a.presentation,
+          ^pattern,
+          ^pattern
+        ) or
+        fragment(
+          "EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(?->'context') = 'array' THEN ?->'context' ELSE '[]'::jsonb END) AS context WHERE context->>'key' ILIKE ? OR context->>'value' ILIKE ? OR context->>'label' ILIKE ?)",
+          a.presentation,
+          a.presentation,
+          ^pattern,
+          ^pattern,
+          ^pattern
+        )
     )
   end
 
@@ -1185,6 +1223,8 @@ defmodule Tuist.OnceEvents do
       action_identifier: action.identifier,
       action_display_name: action.display_name,
       source_files: action.source_files,
+      source_file_statuses: action.source_file_statuses,
+      presentation: action.presentation,
       outcome: if(action.was_cached, do: "hit", else: "miss"),
       duration_ms: action.duration_ms || 0,
       observed_at: action.finished_at || action.started_at,

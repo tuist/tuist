@@ -200,7 +200,7 @@ defmodule TuistWeb.Widget do
           size="large"
         >
           <:trigger :let={attrs}>
-            <span {attrs} data-part="tooltip-icon">
+            <span tabindex="0" {attrs}>
               <.alert_circle />
             </span>
           </:trigger>

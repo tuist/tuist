@@ -444,15 +444,12 @@
     }
   }
 
-  & [data-part="cell"][data-source-files] {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--noora-spacing-1);
-    max-width: 320px;
+  & [data-once-action] [data-part="column"] {
+    max-width: 24rem;
+  }
 
-    & > [data-part="label"] {
-      max-width: 100%;
-    }
+  & [data-once-action] a:hover {
+    text-decoration: underline;
   }
 
   & [data-part="command-note"] {

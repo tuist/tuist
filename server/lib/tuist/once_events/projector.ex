@@ -13,6 +13,7 @@ defmodule Tuist.OnceEvents.Projector do
   alias Once.Events.V1.RunCompleted
   alias Once.Events.V1.RunEvent
   alias Once.Events.V1.RunStarted
+  alias Once.Events.V1.SourceFileStatus
   alias Once.Events.V1.SystemSampled
   alias Once.Events.V1.TargetResult
   alias Once.Events.V1.TestCaseCompleted
@@ -20,6 +21,7 @@ defmodule Tuist.OnceEvents.Projector do
   alias Once.Events.V1.TestSuiteCompleted
   alias Once.Events.V1.TestSuiteStarted
   alias Tuist.OnceEvents
+  alias Tuist.OnceEvents.Presentation
   alias Tuist.OnceEvents.TestReportIngestor
 
   @doc """
@@ -226,7 +228,10 @@ defmodule Tuist.OnceEvents.Projector do
       action_index: action.action_index || 0,
       identifier: nil_if_empty(action.identifier),
       display_name: nil_if_empty(action.display_name),
+      presentation: Presentation.normalize(action.presentation),
+      history: Map.get(action, :history),
       source_files: action.source_files || [],
+      source_file_statuses: Enum.map(action.source_file_statuses || [], &source_file_status/1),
       result: target_result(action.result),
       was_cached: action.was_cached,
       exit_code: action.exit_code || 0,
@@ -239,6 +244,9 @@ defmodule Tuist.OnceEvents.Projector do
       finished_at: from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
     }
   end
+
+  defp source_file_status(status) when is_integer(status), do: status
+  defp source_file_status(status), do: SourceFileStatus.value(status)
 
   # The client sends `start_at_epoch_ms` under the RFC 0008.v2 extension.
   # Falls back to `envelope.epoch_ms - duration_ms` for older clients,
