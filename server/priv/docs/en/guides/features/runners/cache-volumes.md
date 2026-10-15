@@ -123,6 +123,8 @@ For GitHub Actions, you can change which branches save their changes. Open
 expand **Save cache from**. The list applies to every custom volume used by jobs
 on that profile, including volumes created later.
 
+![The runner profile form with the Save cache from section expanded, listing main and release/* as branches that save their changes](/images/guides/features/runners/save-cache-from.png)
+
 Until you change it, the list follows each repository's default branch. Add or
 remove branches to replace it with up to 20 branch names. Use `*` as a wildcard:
 `release/*` matches `release/1.0`, and `*` matches every branch. Successful push,
@@ -136,19 +138,6 @@ Fork pull requests and `pull_request_target` jobs never save. Changing the list
 or deleting the profile discards pending changes the new list no longer allows;
 a deleted profile falls back to the default branch. Buildkite and GitLab CI
 always save from the default branch.
-
-You can also manage the list from the CLI:
-
-```bash
-tuist runner profile list
-tuist runner profile update ci --save-cache-from main --save-cache-from "release/*"
-tuist runner profile update ci
-```
-
-Running `update` without `--save-cache-from` returns the profile to the default branch.
-
-The same settings are available through the `updateRunnerProfile` API operation and
-the `update_runner_profile_cache_branches` MCP tool.
 
 ### Skip or request a save {#skip-or-request-a-save}
 
