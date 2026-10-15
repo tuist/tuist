@@ -123,6 +123,94 @@ defmodule Tuist.Kura.DemandTest do
       assert {:ok, 0} = Demand.flush()
     end
 
+    test "advances the traffic clock only for a request that moved bytes" do
+      resolving = air_account()
+      transferring = air_account()
+
+      Demand.record(resolving.id)
+      Demand.record(transferring.id, nil, traffic: true)
+      assert {:ok, 2} = Demand.flush()
+
+      assert %AccountRegionLifecycle{last_cache_demand_at: %DateTime{}, last_cache_traffic_at: nil} =
+               Demand.get(resolving.id, "us-east")
+
+      assert %AccountRegionLifecycle{last_cache_demand_at: demand_at, last_cache_traffic_at: traffic_at} =
+               Demand.get(transferring.id, "us-east")
+
+      assert traffic_at == demand_at
+    end
+
+    test "keeps the traffic clock when later demand moves no bytes" do
+      account = air_account()
+
+      Demand.record(account.id, nil, traffic: true)
+      {:ok, 1} = Demand.flush()
+      traffic_at = Demand.get(account.id, "us-east").last_cache_traffic_at
+
+      Demand.record(account.id)
+      {:ok, 1} = Demand.flush()
+
+      assert Demand.get(account.id, "us-east").last_cache_traffic_at == traffic_at
+    end
+
+    test "persists a traffic entry whose demand entry an earlier flush already took" do
+      account = air_account()
+      now = System.system_time(:second)
+      :ets.insert(Demand, {{:traffic, account.id}, now})
+
+      assert {:ok, 1} = Demand.flush()
+
+      assert %AccountRegionLifecycle{last_cache_demand_at: demand_at, last_cache_traffic_at: traffic_at} =
+               Demand.get(account.id, "us-east")
+
+      assert demand_at == DateTime.from_unix!(now)
+      assert traffic_at == DateTime.from_unix!(now)
+    end
+  end
+
+  describe "idle_hold?/1" do
+    defp archived_as(account, reason, archived_days_ago, traffic_days_ago) do
+      at = fn days -> days && DateTime.truncate(DateTime.add(DateTime.utc_now(), -days * 86_400, :second), :second) end
+      {:ok, 1} = Demand.upsert(account.id, "us-east", at.(archived_days_ago + 1))
+
+      account.id
+      |> Demand.get("us-east")
+      |> Ecto.Changeset.change(%{
+        drain_reason: reason,
+        archived_at: at.(archived_days_ago),
+        last_cache_traffic_at: at.(traffic_days_ago)
+      })
+      |> Repo.update!()
+    end
+
+    test "holds an idle archival with no traffic since, inside the hold" do
+      account = air_account()
+      archived_as(account, :idle, 1, nil)
+
+      assert Demand.idle_hold?(account)
+    end
+
+    test "releases once the hold has run out" do
+      account = air_account()
+      archived_as(account, :idle, Demand.idle_hold_days() + 1, nil)
+
+      refute Demand.idle_hold?(account)
+    end
+
+    test "releases on traffic after the archival" do
+      account = air_account()
+      archived_as(account, :idle, 2, 1)
+
+      refute Demand.idle_hold?(account)
+    end
+
+    test "does not hold an ordinary inactive archival" do
+      account = air_account()
+      archived_as(account, :inactive, 1, nil)
+
+      refute Demand.idle_hold?(account)
+    end
+
     test "skips an account deleted after its region was resolved" do
       deleted = air_account()
       live = air_account()

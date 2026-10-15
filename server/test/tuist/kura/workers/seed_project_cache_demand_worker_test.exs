@@ -284,6 +284,31 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
       assert_received {^handler, %{count: 1}, %{reason: "unused", region: @region}}
     end
 
+    test "is not seeded again while an archival for serving no traffic is held" do
+      handler = attach_seed_declined_handler()
+      account = account()
+      archived_at = DateTime.truncate(DateTime.add(DateTime.utc_now(), -86_400, :second), :second)
+      {:ok, _} = Demand.upsert(account.id, @region, archived_at)
+
+      account.id
+      |> Demand.get(@region)
+      |> Ecto.Changeset.change(%{drain_reason: :idle, archived_at: archived_at})
+      |> Repo.update!()
+
+      Repo.insert!(%Server{
+        account_id: account.id,
+        region: @region,
+        status: :archived,
+        provisioner_node_ref: "kura-#{account.id}-#{@region}"
+      })
+
+      assert :ok = seed(account)
+      assert :ok = Lifecycle.reconcile()
+
+      assert [%Server{status: :archived}] = servers_for(account)
+      assert_received {^handler, %{count: 1}, %{reason: "idle", region: @region}}
+    end
+
     test "leaves placement undecided so the first-placement guess stays correctable" do
       account = account()
 

@@ -11,6 +11,8 @@
   flag cannot remove the serving rollback floor or restore legacy selection.
   See [serving authority](../../../../../infra/kura-controller/serving-authority.md).
 
+- Demand has two clocks. `last_cache_demand_at` moves on any cache demand, including legacy endpoint resolution and runner dispatch; `last_cache_traffic_at` moves only on traffic (managed usage reports with requests, activation-gateway admissions), passed as `Demand.record(id, origin, traffic: true)`. Air inactivity and Air drain cancellation read the traffic clock; every other plan reads demand. An Air service period with no traffic archives as `:idle`, which only traffic returns until `Demand.idle_hold_days/0` passes; resolution then neither reports provisioning nor kicks it, and project seeding declines. Never let a resolution-only path set `traffic: true`, or zero-traffic instances cycle back into service.
+
 - Storage sizing counts `disk_pressure` events as eviction activity to block occupancy shrink, but excludes their bytes from turnover and invalidates all retention ages for the affected account-region-day. Keep snapshots reporting configured ring budgets; runtime pressure caps belong to backfill, not the resize denominator.
 
 - Region location metadata follows the active fleet's physical datacenter:
