@@ -575,7 +575,9 @@ not restarted at all: auto-login cannot work there and the restart would stop
 at the unlock screen. If the session is still missing, bootstrap fails with a
 `GUISessionError` and `Bootstrapped` goes False with reason
 `GUISessionMissing`, so the host never reports Ready while unable to start a VM.
-It then follows the usual failure ladder (outlet cycle, then quarantine).
+It then follows the usual failure ladder (outlet cycle, then quarantine), except
+that a FileVault host (`RestartUnsafe`) is never cycled or rebooted by either
+kind's recovery, for the same reason bootstrap did not restart it.
 
 A freshly ADE-enrolled mini needs the restart: Setup Assistant's first-boot
 session (`_mbsetupuser`) keeps the console, a loginwindow kick does not replace

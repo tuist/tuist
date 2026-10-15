@@ -146,6 +146,9 @@ func TestEnsureGUISession_FailsWithoutRestartingAgain(t *testing.T) {
 	if !strings.Contains(err.Error(), "console held by root") {
 		t.Fatalf("error %q does not say who holds the console", err)
 	}
+	if RestartUnsafe(err) {
+		t.Fatal("a host that already survived a restart is marked unsafe to restart")
+	}
 }
 
 // A restart with FileVault on stops at the unlock screen, where there is no
@@ -162,6 +165,9 @@ func TestEnsureGUISession_DoesNotRestartWithFileVaultOn(t *testing.T) {
 	}
 	if host.restarts != 0 {
 		t.Fatalf("restarted a FileVault host %d times", host.restarts)
+	}
+	if !RestartUnsafe(fmt.Errorf("gui session: %w", err)) {
+		t.Fatal("a FileVault failure is not marked unsafe to restart, so controller recovery would reboot it")
 	}
 }
 

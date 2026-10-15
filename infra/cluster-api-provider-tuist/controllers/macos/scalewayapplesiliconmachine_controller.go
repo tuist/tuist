@@ -1169,6 +1169,13 @@ func handleBootstrapFailure(
 			clusterv1.ConditionSeverityWarning,
 			"released Scaleway server %s after %d bootstrap failures; awaiting fresh adopt",
 			releasedID, attempts)
+	case rebootAfter > 0 && attempts >= rebootAfter && bootstrap.RestartUnsafe(err):
+		// A reboot would leave a FileVault host at the unlock screen with no
+		// sshd, the restart bootstrap itself refused.
+		if attempts == rebootAfter {
+			recorder.Eventf(machine, corev1.EventTypeWarning, "RebootForRecoverySkipped",
+				"Not rebooting Scaleway server %s: FileVault is on, so the host would not come back over SSH", machine.Status.ServerID)
+		}
 	case rebootAfter > 0 && attempts >= rebootAfter && !machine.Status.BootstrapRebootIssued && machine.Status.ServerID != "":
 		if rebootErr := client.RebootServer(ctx, machine.Status.ServerID, machine.Spec.Zone); rebootErr != nil {
 			logger.Error(rebootErr, "reboot for bootstrap recovery failed; will retry on next attempt")

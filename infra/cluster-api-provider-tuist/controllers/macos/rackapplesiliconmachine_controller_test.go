@@ -316,6 +316,43 @@ func TestBootstrapFailureWithoutAGUISessionSaysSo(t *testing.T) {
 	}
 }
 
+// Bootstrap refuses to restart a FileVault host because it would stop at the
+// unlock screen with no sshd. The recovery ladder's power cycle is the same
+// restart and must be refused too; quarantine still applies.
+func TestBootstrapFailureDoesNotCycleAFileVaultHost(t *testing.T) {
+	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
+		m.Status.BootstrapAttempts = 2
+	})
+	host := rackHost("mini-01")
+	r := newRackReconciler(t, host, machine)
+	driver := &stubPowerDriver{on: true}
+	r.Power = registryWithShelly(driver)
+
+	fileVault := fmt.Errorf("gui session: %w", &bootstrap.GUISessionError{
+		User:          "tuist",
+		State:         bootstrap.GUISessionState{ConsoleUser: "root"},
+		Reason:        "FileVault is not off",
+		RestartUnsafe: true,
+	})
+	r.handleBootstrapFailure(context.Background(), machine, host, fileVault)
+
+	if got := driver.recorded(); len(got) != 0 {
+		t.Fatalf("outlet calls = %v, want none for a FileVault host", got)
+	}
+	if machine.Status.BootstrapRebootIssued {
+		t.Fatal("BootstrapRebootIssued set although no cycle was issued")
+	}
+
+	machine.Status.BootstrapAttempts = r.BootstrapMaxAttempts - 1
+	r.handleBootstrapFailure(context.Background(), machine, host, fileVault)
+	if machine.Status.Phase != "Quarantined" {
+		t.Fatalf("phase = %q, want the host quarantined at exhaustion", machine.Status.Phase)
+	}
+	if got := driver.recorded(); len(got) != 0 {
+		t.Fatalf("outlet calls = %v at exhaustion, want none", got)
+	}
+}
+
 func TestBootstrapFailureCyclesTheOutletOnlyOnce(t *testing.T) {
 	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
 		m.Status.BootstrapAttempts = 4

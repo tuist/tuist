@@ -58,6 +58,9 @@ type GUISessionError struct {
 	User   string
 	State  GUISessionState
 	Reason string
+	// RestartUnsafe is a host that a restart would leave at the FileVault
+	// unlock screen with no sshd. Whatever recovers it must not reboot it.
+	RestartUnsafe bool
 }
 
 func (e *GUISessionError) Error() string {
@@ -66,6 +69,13 @@ func (e *GUISessionError) Error() string {
 		msg += ": " + e.Reason
 	}
 	return msg
+}
+
+// RestartUnsafe reports whether err is, or wraps, a GUISessionError for a host
+// that must not be rebooted, by bootstrap or by a controller's recovery.
+func RestartUnsafe(err error) bool {
+	var guiErr *GUISessionError
+	return errors.As(err, &guiErr) && guiErr.RestartUnsafe
 }
 
 // IsGUISessionError reports whether err is, or wraps, a GUISessionError.
@@ -118,7 +128,7 @@ func ensureGUISession(ctx context.Context, host guiSessionHost, user string, wai
 		return nil
 	}
 	if !state.FileVaultOff {
-		return &GUISessionError{User: user, State: state,
+		return &GUISessionError{User: user, State: state, RestartUnsafe: true,
 			Reason: "FileVault is not off, which disables auto-login; not restarting a host that would stop at the unlock screen"}
 	}
 
