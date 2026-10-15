@@ -9,7 +9,8 @@ public struct PreviewsView: View {
     @EnvironmentObject var errorHandling: ErrorHandling
     @EnvironmentObject private var authenticationService: AuthenticationService
     @State var viewModel = PreviewsViewModel()
-    @State private var searchText = ""
+    @State private var trackFilter = ""
+    @State private var isTrackFilterPresented = false
     @State private var navigationPath = NavigationPath()
     @State private var pressedPreviewId: String?
     private let imagePrefetcher = ImagePrefetcher()
@@ -66,6 +67,14 @@ public struct PreviewsView: View {
                                     try await viewModel.refreshProjects()
                                 }
                             }
+                        } else if viewModel.isLoadingPreviews, viewModel.previews.isEmpty {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                Spacer()
+                            }
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
                         } else if viewModel.previews.isEmpty {
                             PreviewsEmptyStateView(
                                 title: "No previews found",
@@ -131,6 +140,36 @@ public struct PreviewsView: View {
                 errorHandling.fireAndHandleError {
                     try await viewModel.onAppear()
                 }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        trackFilter = viewModel.selectedTrack ?? ""
+                        isTrackFilterPresented = true
+                    } label: {
+                        Label(viewModel.selectedTrack ?? "All tracks", systemImage: "line.3.horizontal.decrease.circle")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .disabled(viewModel.selectedProject == nil)
+                }
+            }
+            .alert("Filter by track", isPresented: $isTrackFilterPresented) {
+                TextField("Track name", text: $trackFilter)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Button("Filter") {
+                    errorHandling.fireAndHandleError {
+                        try await viewModel.selectTrack(trackFilter)
+                    }
+                }
+                Button("All tracks") {
+                    errorHandling.fireAndHandleError {
+                        try await viewModel.selectTrack(nil)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Enter the exact track name, such as QA or beta.")
             }
             .navigationTitle("Previews")
             .navigationBarTitleDisplayMode(.automatic)

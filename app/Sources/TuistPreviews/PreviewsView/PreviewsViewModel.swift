@@ -9,6 +9,14 @@ struct SelectedProjectFullHandleKey: AppStorageKey {
     static let defaultValue: String? = nil
 }
 
+enum PreviewsViewModelError: LocalizedError, Equatable {
+    case trackFilteringUnsupported
+
+    var errorDescription: String? {
+        "This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks."
+    }
+}
+
 @Observable
 final class PreviewsViewModel: Sendable {
     private let listProjectsService: ListProjectsServicing
@@ -19,9 +27,12 @@ final class PreviewsViewModel: Sendable {
     private(set) var projects: [ServerProject] = []
     private(set) var previews: [ServerPreview] = []
     private(set) var selectedProject: ServerProject?
+    private(set) var selectedTrack: String?
+    private var loadID = UUID()
 
     private var currentPage = 1
     private(set) var isLoadingMore = false
+    private(set) var isLoadingPreviews = false
     private(set) var hasMorePreviews = true
     private(set) var isRefreshingPreviews = false
     private(set) var isRefreshingProjects = false
@@ -51,28 +62,48 @@ final class PreviewsViewModel: Sendable {
 
     func selectProject(_ project: ServerProject) async throws {
         selectedProject = project
+        selectedTrack = nil
+        previews = []
         try? appStorage.set(SelectedProjectFullHandleKey.self, value: selectedProject?.fullName)
         try await loadPreviews(for: project)
     }
 
+    func selectTrack(_ track: String?) async throws {
+        selectedTrack = track.flatMap { $0.isEmpty ? nil : $0 }
+        previews = []
+        guard let selectedProject else { return }
+        try await loadPreviews(for: selectedProject)
+    }
+
     private func loadPreviews(for project: ServerProject) async throws {
+        loadID = UUID()
         currentPage = 1
         hasMorePreviews = true
+        isLoadingMore = false
+        isLoadingPreviews = true
+        let requestID = loadID
+        defer {
+            if requestID == loadID { isLoadingPreviews = false }
+        }
         try await loadPreviewsPage(for: project, page: currentPage)
     }
 
     func loadMorePreviews() async throws {
         guard let selectedProject,
               !isLoadingMore,
+              !isLoadingPreviews,
               hasMorePreviews
         else {
             return
         }
 
         isLoadingMore = true
+        let requestID = loadID
+        defer {
+            if requestID == loadID { isLoadingMore = false }
+        }
         let nextPage = currentPage + 1
         try await loadPreviewsPage(for: selectedProject, page: nextPage)
-        isLoadingMore = false
     }
 
     func refreshPreviews() async throws {
@@ -142,9 +173,11 @@ final class PreviewsViewModel: Sendable {
     }
 
     private func loadPreviewsPage(for project: ServerProject, page: Int) async throws {
+        let requestID = loadID
         let previewsPage = try await listPreviewsService.listPreviews(
             displayName: nil,
             specifier: nil,
+            track: selectedTrack,
             supportedPlatforms: [],
             page: page,
             pageSize: 20,
@@ -152,6 +185,13 @@ final class PreviewsViewModel: Sendable {
             fullHandle: project.fullName,
             serverURL: serverEnvironmentService.url()
         )
+
+        guard requestID == loadID else { return }
+        if let selectedTrack,
+           previewsPage.previews.contains(where: { $0.track?.caseInsensitiveCompare(selectedTrack) != .orderedSame })
+        {
+            throw PreviewsViewModelError.trackFilteringUnsupported
+        }
 
         if previewsPage.paginationMetadata.currentPage == 1 {
             previews = previewsPage.previews

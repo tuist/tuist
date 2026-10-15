@@ -54,6 +54,20 @@ struct PreviewRowView: View {
                         .foregroundColor(Noora.Colors.surfaceLabelPrimary)
                         .lineLimit(1)
 
+                    if let track = preview.track, !track.isEmpty {
+                        Label(track, systemImage: "tag")
+                            .font(.caption2)
+                            .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                            .lineLimit(1)
+                    }
+
+                    if let notes = preview.releaseNotes, !notes.isEmpty {
+                        Text(notes)
+                            .font(.caption)
+                            .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                            .lineLimit(2)
+                    }
+
                     HStack(spacing: Noora.Spacing.spacing4) {
                         HStack(spacing: Noora.Spacing.spacing1) {
                             NooraIcon(.history)

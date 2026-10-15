@@ -17,6 +17,7 @@ This node covers the Tuist companion app under `app/`. The app provides a menu b
 - Generate the project: `tuist generate --no-open` (from `app/` directory)
 - Build: `xcodebuild build -workspace TuistApp.xcworkspace -scheme TuistApp`
 - Test: `xcodebuild test -workspace TuistApp.xcworkspace -scheme TuistApp`
+- iOS preview tests: use the `TuistPreviews` scheme with an iOS Simulator destination; sources live in `Tests/TuistPreviewsTests`.
 
 ## Dependencies
 The app depends on several CLI modules:
@@ -52,6 +53,11 @@ Both login screens always show the same Tuist-hosted sign-in buttons, with a "Se
 Saving a self-hosted URL reads `registration_endpoint` from `/.well-known/oauth-authorization-server` and registers the app as a public PKCE client (RFC 7591) with the `tuist://oauth-callback` redirect, so no client ID is hardcoded or advertised per deployment. The registration endpoint must be on the selected server's origin. Servers without dynamic registration show an update error instead of attempting login with the hosted client ID. Custom URLs require HTTPS with a certificate trusted by the device; do not bypass TLS verification or add broad App Transport Security exceptions.
 
 OAuth credentials retain their issuing client ID through storage and refresh in `TuistServer`. Keep this metadata when rotating tokens so an on-premise session never refreshes with the hosted client ID.
+
+## Preview Browsing
+The macOS menu lists previews across all branches and all result pages. Do not use the `latest` API specifier for discovery: it restricts results to the project's default branch. Launching a tile must match its bundle identifier, not simply use the project's newest build. Search distinct compatible apps first; only fall back to full history for older servers that apply supported-platform filtering after distinct selection. Reject repeated or empty nonterminal pages instead of silently capping the search.
+
+The shared `ServerPreview` preserves optional tracks and release notes, including compatibility with older responses that omit either field. iOS filters by whole track name on the server before pagination, resets the track when changing projects, and ignores responses from superseded list requests. Track storage is case-insensitive (`citext`), so unsupported-filter detection must accept case-only differences while rejecting missing or genuinely different tracks. Release notes are plain text, not Markdown or HTML.
 
 ## Environment Configuration
 The app supports multiple environments via `TUIST_ENV`:
