@@ -81,13 +81,41 @@ defmodule TuistWeb.RateLimit.OutageTest do
                     %{algorithm: :fixed_window, policy: :local, outcome: :deny}}
   end
 
+  test "local process exits deny rather than escaping the fallback", %{key: key, window: window} do
+    stub(InMemory.Local, :hit, fn _, _, _, _ -> exit(:noproc) end)
+    assert {:deny, ^window} = RateLimit.hit(key, limit: 100, window: window, failure_policy: :local)
+  end
+
+  for failure <- [:redis_error, :connection_error, :match_error, :exit], policy <- [:deny, :local] do
+    @failure failure
+    @policy policy
+    test "#{failure} uses the #{@policy} policy", %{key: key, window: window} do
+      stub(PersistentFixedWindow, :hit, fn _, _, _, _ ->
+        case @failure do
+          :redis_error -> raise Redix.Error, message: "READONLY replica"
+          :connection_error -> raise Redix.ConnectionError, reason: :closed
+          :match_error -> raise MatchError, term: {:error, :closed}
+          :exit -> exit(:noproc)
+        end
+      end)
+
+      result = RateLimit.hit(key, limit: 100, window: window, failure_policy: @policy)
+      if @policy == :local, do: assert(result == {:allow, 1}), else: assert(result == {:deny, window})
+    end
+  end
+
+  test "unrelated programming exceptions are not disguised as outages", %{key: key, window: window} do
+    stub(PersistentFixedWindow, :hit, fn _, _, _, _ -> raise "unexpected defect" end)
+    assert_raise RuntimeError, "unexpected defect", fn -> RateLimit.hit(key, limit: 100, window: window) end
+  end
+
   test "shared denials never grant a second local budget", %{key: key, window: window} do
     stub(PersistentFixedWindow, :hit, fn _, _, _, _ -> {:deny, 123} end)
     reject(InMemory.Local, :hit, 4)
     assert {:deny, 123} = RateLimit.hit(key, limit: 100, window: window, failure_policy: :local)
   end
 
-  for unexpected <- [nil, false, {:error, :timeout}, {:allow, -1}, {:deny, "later"}] do
+  for unexpected <- [nil, false, {:error, :timeout}, {:allow, -1}, {:allow, 1.0}, {:deny, "later"}] do
     @unexpected unexpected
     test "unexpected shared result #{inspect(unexpected)} fails closed", %{key: key, window: window} do
       stub(PersistentFixedWindow, :hit, fn _, _, _, _ -> @unexpected end)
