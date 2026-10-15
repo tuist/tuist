@@ -91,6 +91,8 @@ server:
   appUrl: https://tuist.dev
 
   config:
+    originAppKey:
+      enabled: true
     atlasEmail:
       enabled: true
     # Point server error reporting at the Atlas error-tracking ingest
