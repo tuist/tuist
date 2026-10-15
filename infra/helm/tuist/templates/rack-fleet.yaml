@@ -28,6 +28,18 @@ null, i.e. a present key with no value.
 {{- end }}
 {{- range $host := .Values.rackFleet.hosts }}
 {{- $hostName := required "each rackFleet.hosts entry needs a name" $host.name }}
+{{- /* A host's own `machine` overrides the fleet's, field by field, with the
+same presence rule for runnerCacheVolumeGiB. */}}
+{{- $hostMachine := deepCopy $machine }}
+{{- $hostOverride := $host.machine | default dict }}
+{{- range $field := list "hostCPU" "hostMemoryMB" "guestCapacity" "maxPods" }}
+{{- with get $hostOverride $field }}
+{{- $_ := set $hostMachine $field . }}
+{{- end }}
+{{- end }}
+{{- if and (hasKey $hostOverride "runnerCacheVolumeGiB") (not (kindIs "invalid" $hostOverride.runnerCacheVolumeGiB)) }}
+{{- $_ := set $hostMachine "runnerCacheVolumeGiB" $hostOverride.runnerCacheVolumeGiB }}
+{{- end }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: RackHost
@@ -110,7 +122,7 @@ spec:
     {{- end }}
     {{- end }}
   {{- end }}
-  {{- with $machine }}
+  {{- with $hostMachine }}
   machine:
     {{- toYaml . | nindent 4 }}
   {{- end }}

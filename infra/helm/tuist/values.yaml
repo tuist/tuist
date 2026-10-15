@@ -1685,6 +1685,8 @@ rackFleet:
   #                             # the Node first.
   #                             # cacheVolumesURL is that env's server's
   #                             # cache-volumes endpoint, empty for none
+  #     machine:                # optional; overrides `rackFleet.machine`
+  #       hostCPU: 16           # below for this host only, field by field
   hosts: []
 
   # Rack hosts another env lends this cluster, by Machine name: each gets the
