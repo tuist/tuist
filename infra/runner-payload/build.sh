@@ -44,6 +44,7 @@ tar -xzf "$agent_archive" -C "$work/buildkite-agent"
 install -m 0755 "$work/buildkite-agent/buildkite-agent" "$root/opt/tuist/"
 
 printf '%s\n' "$version" > "$root/VERSION"
+install -m 0644 "$image/payload-interface" "$root/REQUIRES_IMAGE_INTERFACE"
 
 COPYFILE_DISABLE=1 tar -C "$root" -czf "$output" .
 echo "Built runner payload ${version} at ${output}"

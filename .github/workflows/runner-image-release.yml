@@ -50,8 +50,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0
       - run: bash infra/runner-image/tcc-report_test.sh
       - run: bash infra/runner-image/install-payload_test.sh
+      - name: Check the payload interface was bumped
+        if: github.event_name == 'pull_request'
+        run: infra/runner-payload/check-interface.sh "${{ github.event.pull_request.base.sha }}"
 
   plan:
     name: Plan runner image release

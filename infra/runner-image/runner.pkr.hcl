@@ -417,6 +417,11 @@ build {
   }
 
   provisioner "file" {
+    source      = "${path.root}/payload-interface"
+    destination = "/tmp/payload-interface"
+  }
+
+  provisioner "file" {
     source      = "${path.root}/dispatch-poll.sh"
     destination = "/tmp/dispatch-poll.sh"
   }
@@ -463,6 +468,7 @@ build {
     inline = [
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/install-payload.sh /opt/tuist/install-payload.sh",
+      "echo 'admin' | sudo -S install -m 0644 /tmp/payload-interface /opt/tuist/payload-interface",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent /opt/tuist/runner-shell-agent",
@@ -478,7 +484,7 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/environment /opt/tuist/buildkite-hooks/environment",
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/post-command /opt/tuist/buildkite-hooks/post-command",
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/pre-exit /opt/tuist/buildkite-hooks/pre-exit",
-      "rm -rf /tmp/inject-env.sh /tmp/install-payload.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/buildkite-hooks"
+      "rm -rf /tmp/inject-env.sh /tmp/install-payload.sh /tmp/payload-interface /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/buildkite-hooks"
     ]
   }
 

@@ -12,7 +12,7 @@ rather than rebuilding every Xcode image.
   `tuist-gitlab-runner`, `tuist-cas-proxy`, `buildkite-agent`,
   `buildkite-hooks/`
 - `usr/local/bin/tuist-cache-volume`
-- `VERSION`
+- `VERSION` and `REQUIRES_IMAGE_INTERFACE`
 
 Sources stay where they are (`infra/runner-image`, `infra/linux-runner-image`,
 `cas-plugin`); binaries come from `.github/actions/build-runner-image-binaries`.
@@ -41,6 +41,16 @@ digests, unpacks it under `/var/lib/tart-userdata/.runner-payloads/<digest>`
 and shares it read-only as `payload`. A Pod that pins a payload never boots
 without it. In the guest, `install-payload.sh` copies it over the image's
 files before `inject-env.sh` runs, and halts the VM if the install fails.
+
+## Image interface
+
+A payload ships hours before the image built from the same commit. The image
+bakes `infra/runner-image/payload-interface` as `/opt/tuist/payload-interface`
+and the payload records the same file as `REQUIRES_IMAGE_INTERFACE`. An image
+whose interface is lower than the payload's keeps its own copies. A change that
+touches payload sources and image-owned runner-image files must bump it;
+`check-interface.sh` enforces that on pull requests. Payloads must keep working
+on newer images.
 
 ## Rollback
 
