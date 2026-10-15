@@ -126,6 +126,8 @@ You don't need to configure every integration to get Atlas running. Start with t
 
 With [Compose](https://docs.docker.com/compose/), put optional provider settings in `.env`, which is read by both the application and migration service. The default `MCP_PROXY_SERVERS=[]` leaves upstream tool servers unconfigured; you can [connect them later](/docs/mcps). Keep the development demo seeds out of an installation containing real data.
 
+Personal Claude connections need no installation-wide provider setting. Personal ChatGPT sign-in requires an Atlas-authorized OpenAI device-flow client supplied as `ATLAS_CHATGPT_CLIENT_ID`; an API key or another application's client ID is not a substitute. See [personal AI provider setup and MCP tools](/docs/mcps#personal-ai-providers) and [the ChatGPT installation prerequisite](/docs/mcps#enable-chatgpt-sign-in) before enabling it.
+
 With [Helm](https://helm.sh/docs/), inspect the available settings for the version you're running:
 
 ```sh

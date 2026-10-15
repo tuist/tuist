@@ -83,6 +83,24 @@ defmodule AtlasWeb.DocsControllerTest do
     assert Enum.count(LazyHTML.query(document, "#docs-mobile-copy-dropdown")) == 1
   end
 
+  test "personal AI provider documentation is public and covers CRUD and the ChatGPT prerequisite", %{conn: conn} do
+    document = conn |> get("/docs/mcps") |> html_response(200) |> LazyHTML.from_document()
+    assert Enum.count(LazyHTML.query(document, "h2#personal-ai-providers")) == 1
+    assert Enum.count(LazyHTML.query(document, "h2#enable-chatgpt-sign-in")) == 1
+    text = LazyHTML.text(document)
+
+    for name <-
+          ~w(list_llm_provider_connections connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login disconnect_llm_provider ATLAS_CHATGPT_CLIENT_ID) do
+      assert text =~ name
+    end
+
+    assert text =~ "potentially its model or conversation history"
+    assert text =~ "cannot change installation-wide OAuth client configuration"
+    markdown = conn |> get("/docs-markdown/mcps") |> response(200)
+    assert markdown =~ "## Personal AI providers"
+    assert markdown =~ "## Enable ChatGPT sign-in"
+  end
+
   test "trailing slashes share the overview canonical address", %{conn: conn} do
     document = conn |> get("/docs/") |> html_response(200) |> LazyHTML.from_document()
     assert Enum.count(LazyHTML.query(document, "link[rel=canonical][href$='/docs']")) == 1
