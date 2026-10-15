@@ -125,7 +125,8 @@
                     configuration: .any,
                     defaultConfiguration: .any,
                     excludedTargets: .value(["Local"]),
-                    destination: .value(nil)
+                    destination: .value(nil),
+                    coverage: .value(.off)
                 )
                 .willReturn([externalGraphTarget: .test(hash: "external-hash")])
             given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
@@ -681,7 +682,8 @@
                     configuration: .value(configuration),
                     defaultConfiguration: .value(config.project.generatedProject?.generationOptions.defaultConfiguration),
                     excludedTargets: .value([]),
-                    destination: .value(nil)
+                    destination: .value(nil),
+                    coverage: .value(.off)
                 )
                 .willReturn(hashes)
             given(cacheStorage)

@@ -1170,7 +1170,8 @@ import XcodeGraph
                 configuration: configuration,
                 defaultConfiguration: config.project.generatedProject?.generationOptions.defaultConfiguration,
                 excludedTargets: excludedTargets,
-                destination: nil
+                destination: nil,
+                coverage: .off
             )
 
             // Binary replacement in the warm project runs under `.allPossible` whatever profile warms the

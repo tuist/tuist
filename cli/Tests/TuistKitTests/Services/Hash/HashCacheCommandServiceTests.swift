@@ -71,7 +71,8 @@ import XcodeGraph
                     .generationOptions.defaultConfiguration
                 ),
                 excludedTargets: .value([]),
-                destination: .value(nil)
+                destination: .value(nil),
+                coverage: .value(.off)
             ).willReturn([
                 graphTarget: .test(hash: hash),
             ])

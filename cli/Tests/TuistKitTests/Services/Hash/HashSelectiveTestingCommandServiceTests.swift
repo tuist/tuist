@@ -79,7 +79,8 @@ struct HashSelectiveTestingCommandServiceTests {
                     ignoreSelectiveTesting: .value(true),
                     cacheStorage: .any,
                     destination: .value(nil),
-                    schemeName: .value(nil)
+                    schemeName: .value(nil),
+                    coverage: .any
                 )
                 .called(1)
         }
@@ -129,7 +130,8 @@ struct HashSelectiveTestingCommandServiceTests {
             ignoreSelectiveTesting: .any,
             cacheStorage: .any,
             destination: .any,
-            schemeName: .any
+            schemeName: .any,
+            coverage: .any
         ).willReturn(generator)
         given(configLoader)
             .loadConfig(path: .any)
