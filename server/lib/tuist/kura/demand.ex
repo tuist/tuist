@@ -34,6 +34,7 @@ defmodule Tuist.Kura.Demand do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
+  alias Tuist.Billing
   alias Tuist.Environment
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionLifecycle
@@ -247,11 +248,16 @@ defmodule Tuist.Kura.Demand do
   def idle_hold_days, do: @idle_hold_days
 
   @doc """
-  True while an instance of the account sits archived as `:idle` inside its
+  True while an Air account has an instance archived as `:idle` inside its
   hold, with no traffic since. Endpoint resolution reads this to stop telling a
   client that capacity is on its way when its request will not bring it back.
+  An account that has left Air is never held.
   """
-  def idle_hold?(%Account{id: account_id}) do
+  def idle_hold?(%Account{id: account_id} = account) do
+    Billing.effective_plan(account) == :air and idle_archival_held?(account_id)
+  end
+
+  defp idle_archival_held?(account_id) do
     cutoff = DateTime.add(DateTime.utc_now(), -@idle_hold_days * 86_400, :second)
 
     Repo.exists?(

@@ -204,6 +204,14 @@ defmodule Tuist.Kura.DemandTest do
       refute Demand.idle_hold?(account)
     end
 
+    test "releases an account that has left Air" do
+      account = air_account()
+      archived_as(account, :idle, 1, nil)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+
+      refute Demand.idle_hold?(account)
+    end
+
     test "does not hold an ordinary inactive archival" do
       account = air_account()
       archived_as(account, :inactive, 1, nil)

@@ -187,6 +187,15 @@ defmodule Tuist.Kura.LifecycleTest do
     server
   end
 
+  defp expire_idle_hold(account) do
+    account
+    |> reload_lifecycle()
+    |> Ecto.Changeset.change(%{
+      archived_at: DateTime.truncate(DateTime.add(DateTime.utc_now(), -(Demand.idle_hold_days() * 86_400 + 60)), :second)
+    })
+    |> Repo.update!()
+  end
+
   # Moves the archival a minute into the past, so demand recorded by the
   # test lands after it rather than in the same second.
   defp backdate_archival(account) do
@@ -453,14 +462,57 @@ defmodule Tuist.Kura.LifecycleTest do
     test "returns an idle Air archival on resolution once its hold has run out" do
       account = account()
       server = archive_idle(account)
+      expire_idle_hold(account)
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+      assert reload(server).status == :provisioning
+    end
+
+    test "gives an Air instance returned by resolution a fresh week before it drains again" do
+      account = account()
+      server = archive_idle(account)
+      expire_idle_hold(account)
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+      assert reload(server).status == :provisioning
+      server |> reload() |> Ecto.Changeset.change(%{status: :active}) |> Repo.update!()
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :active
 
       account
       |> reload_lifecycle()
-      |> Ecto.Changeset.change(%{
-        archived_at:
-          DateTime.truncate(DateTime.add(DateTime.utc_now(), -(Demand.idle_hold_days() * 86_400 + 60)), :second)
-      })
+      |> Ecto.Changeset.change(%{last_returned_at: ago(8)})
       |> Repo.update!()
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :drain_pending
+      assert reload_lifecycle(account).drain_reason == :idle
+    end
+
+    test "gives an Air instance that was used, went quiet and came back by resolution a fresh week" do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+      account = account()
+      server = archive(account)
+      assert reload_lifecycle(account).drain_reason == :inactive
+
+      Demand.record(account.id)
+      assert :ok = Lifecycle.reconcile()
+      assert reload(server).status == :provisioning
+      server |> reload() |> Ecto.Changeset.change(%{status: :active}) |> Repo.update!()
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :active
+    end
+
+    test "releases the hold for an account that left Air" do
+      account = account()
+      server = archive_idle(account)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      {:ok, _account} = Accounts.update_account(account, %{region: :usa})
 
       Demand.record(account.id)
       assert :ok = Lifecycle.reconcile()

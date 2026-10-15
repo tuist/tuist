@@ -96,7 +96,9 @@ defmodule Tuist.Kura.Lifecycle do
   cache and stopped is archived as `:inactive` and returns on its next demand.
   One whose service period carried no traffic at all is archived as `:idle`,
   and for `Tuist.Kura.Demand.idle_hold_days/0` after that only traffic returns
-  it; resolution and dispatch do once the hold runs out. Every other archival
+  it; resolution and dispatch do once the hold runs out, or as soon as the
+  account leaves Air. A returned instance gets a full window from its return,
+  whatever its traffic clock says. Every other archival
   for inactivity returns on demand recorded after it. Open-source accounts are
   outside the lifecycle entirely: `Tuist.Kura.AccountPolicies` resolves no
   service region for them, so they are never provisioned and never archived.
@@ -116,6 +118,7 @@ defmodule Tuist.Kura.Lifecycle do
 
   alias Tuist.Accounts.Account
   alias Tuist.Billing
+  alias Tuist.Billing.Subscription
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.AccountPolicies
@@ -484,29 +487,60 @@ defmodule Tuist.Kura.Lifecycle do
       )
 
     default_cutoff = DateTime.add(now(), -Environment.kura_inactive_days() * 86_400, :second)
-    idle_hold_cutoff = DateTime.add(now(), -Demand.idle_hold_days() * 86_400, :second)
 
     from(l in AccountRegionLifecycle,
       as: :lifecycle,
       where: l.last_cache_demand_at >= ^default_cutoff,
       where: not exists(live_server_exists),
       where: not exists(destroyed_since_demand_exists),
-      # An instance reclaimed for inactivity, for never storing anything or
-      # under pressure comes back only for demand recorded after its archival,
-      # not for the demand it already had: Air's window is far shorter than the
-      # window this query provisions within.
-      #
-      # An `:idle` one served no traffic at all in the period that ended, and
-      # the demand that kept it warm was resolution or dispatch that moved no
-      # bytes. Returning it for more of the same would cycle it straight back
-      # into service, so until its hold runs out only traffic returns it.
-      where:
-        is_nil(l.drain_reason) or l.drain_reason not in [:inactive, :idle, :unused, :capacity_pressure] or
-          is_nil(l.archived_at) or
-          (l.drain_reason != :idle and l.last_cache_demand_at > l.archived_at) or
-          (l.drain_reason == :idle and
-             (l.last_cache_traffic_at > l.archived_at or
-                (l.last_cache_demand_at > l.archived_at and l.archived_at <= ^idle_hold_cutoff)))
+      where: ^returnable_after_archival()
+    )
+  end
+
+  # An instance reclaimed for inactivity, for never storing anything or under
+  # pressure comes back only for demand recorded after its archival, not for
+  # the demand it already had: Air's window is far shorter than the window
+  # `needing_instance_query/0` provisions within.
+  #
+  # An `:idle` one served no traffic at all in the period that ended, and the
+  # demand that kept it warm was resolution or dispatch that moved no bytes.
+  # Returning it for more of the same would cycle it straight back into
+  # service, so until its hold runs out only traffic returns it. The hold is an
+  # Air rule: an account that has since moved to a paid plan returns on demand
+  # like any other archival. Any live paid subscription counts, which can only
+  # release a hold `Billing.effective_plan/1` would have kept, never keep one
+  # it would have released.
+  defp returnable_after_archival do
+    dynamic(
+      [lifecycle: l],
+      ^not_held_by_archival() or (l.drain_reason != :idle and l.last_cache_demand_at > l.archived_at) or
+        (l.drain_reason == :idle and ^idle_returnable())
+    )
+  end
+
+  defp not_held_by_archival do
+    dynamic(
+      [lifecycle: l],
+      is_nil(l.drain_reason) or l.drain_reason not in [:inactive, :idle, :unused, :capacity_pressure] or
+        is_nil(l.archived_at)
+    )
+  end
+
+  defp idle_returnable do
+    idle_hold_cutoff = DateTime.add(now(), -Demand.idle_hold_days() * 86_400, :second)
+
+    left_air =
+      from(sub in Subscription,
+        where: sub.account_id == parent_as(:lifecycle).account_id,
+        where: sub.status in ^Billing.live_subscription_statuses(),
+        where: sub.plan != :air,
+        select: 1
+      )
+
+    dynamic(
+      [lifecycle: l],
+      l.last_cache_traffic_at > l.archived_at or
+        (l.last_cache_demand_at > l.archived_at and (l.archived_at <= ^idle_hold_cutoff or exists(left_air)))
     )
   end
 
@@ -808,7 +842,7 @@ defmodule Tuist.Kura.Lifecycle do
       not archivable_plan?(plan) ->
         []
 
-      plan == :air and DateTime.before?(air_clock(lifecycle), cutoffs.air) ->
+      plan == :air and DateTime.before?(air_clock(server, lifecycle), cutoffs.air) ->
         [{server, lifecycle, plan, air_inactivity_reason(server, lifecycle)}]
 
       DateTime.before?(lifecycle.last_cache_demand_at, cutoffs.default) ->
@@ -829,8 +863,15 @@ defmodule Tuist.Kura.Lifecycle do
   # on every command whether or not it then uses the cache, which on the demand
   # clock kept instances that served nothing in service indefinitely. A row
   # without traffic yet has gone without it since it was created.
-  defp air_clock(%AccountRegionLifecycle{last_cache_traffic_at: nil, inserted_at: inserted_at}), do: inserted_at
-  defp air_clock(%AccountRegionLifecycle{last_cache_traffic_at: traffic_at}), do: traffic_at
+  #
+  # Never earlier than the current service period's start. A return brought
+  # about by demand alone keeps the traffic stamp from before the archival and
+  # reuses the server row, and reading that stamp as-is would drain the
+  # returned instance on the next sweep instead of giving it its window.
+  # Classification still compares the raw stamp (`air_inactivity_reason/2`).
+  defp air_clock(%Server{} = server, %AccountRegionLifecycle{} = lifecycle) do
+    Enum.max([lifecycle.last_cache_traffic_at || lifecycle.inserted_at, service_started_at(server, lifecycle)], DateTime)
+  end
 
   # `:idle` when the service period ending now carried no traffic at all, so
   # what kept it warm was demand that moved no bytes and resolution alone should
