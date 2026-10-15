@@ -119,7 +119,7 @@ jobs:
         run: |
           start=$(date +%s)
           set +e
-          tuist test TuistApp --no-selective-testing --cache-profile none -- \
+          tuist test TuistApp --no-selective-testing --no-binary-cache -- \
             COMPILATION_CACHE_ENABLE_CACHING=NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             | tail -n 40
           rc=${PIPESTATUS[0]}
