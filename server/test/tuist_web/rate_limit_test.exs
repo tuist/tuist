@@ -61,7 +61,7 @@ defmodule TuistWeb.RateLimitTest do
       window = to_timeout(minute: 1)
       stub(Environment, :redis_url, fn -> "redis://example" end)
       expect(PersistentFixedWindow, :hit, fn "key", ^window, 1, 1 -> exit(:noproc) end)
-      reject(InMemory, :hit, 4)
+      reject(InMemory.Local, :hit, 4)
       assert RateLimit.hit("key", limit: 1, window: window, failure_policy: :local) == {:deny, window}
     end
 

@@ -30,8 +30,16 @@ defmodule TuistWeb.RateLimit.OutageTest do
   end
 
   test "local outage hits do not broadcast to peers", %{key: key, window: window} do
+    owner = self()
     :ok = Phoenix.PubSub.subscribe(Tuist.PubSub, "__ratelimit")
+
+    stub(InMemory, :hit, fn actual_key, scale, limit, increment ->
+      send(owner, {:broadcast_path, actual_key})
+      Mimic.call_original(InMemory, :hit, [actual_key, scale, limit, increment])
+    end)
+
     assert {:allow, 1} = RateLimit.hit(key, limit: 100, window: window, failure_policy: :local)
+    refute_received {:broadcast_path, _}
     refute_receive {:fixed_window, {:fallback, ^key}, ^window, _}
   end
 
@@ -107,6 +115,19 @@ defmodule TuistWeb.RateLimit.OutageTest do
     assert {:deny, 1000} = RateLimit.hit(key, algorithm: :token_bucket, capacity: 100, refill_rate: 1)
     assert_receive {[:tuist, :rate_limit, :shared_failure], ^ref, %{count: 1}, metadata}
     assert metadata == %{algorithm: :token_bucket, policy: :deny, outcome: :deny}
+  end
+
+  test "shared limiter failure events reach the Prometheus reporter", %{key: key, window: window} do
+    %{metrics: metrics} = RateLimitMetrics.event_metrics([])
+    name = String.to_atom("rate_limit_metrics_#{UUIDv7.generate()}")
+    start_supervised!({Peep, name: name, metrics: metrics, storage: :striped})
+    assert {:allow, 1} = RateLimit.hit(key, limit: 100, window: window, failure_policy: :local)
+    text = Tuist.PromEx.StripedPeep.scrape(name)
+    assert text =~ "tuist_rate_limit_shared_failure_total"
+    assert text =~ ~s(algorithm="fixed_window")
+    assert text =~ ~s(policy="local")
+    assert text =~ ~s(outcome="allow")
+    refute text =~ key
   end
 
   test "shared limiter failure metrics are registered without credential labels" do

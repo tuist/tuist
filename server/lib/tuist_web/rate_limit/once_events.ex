@@ -29,8 +29,7 @@ defmodule TuistWeb.RateLimit.OnceEvents do
     result =
       RateLimit.hit("once-events:#{address}",
         limit: Environment.once_events_rate_limit_bucket_size(),
-        window: to_timeout(minute: 1),
-        failure_policy: :local
+        window: to_timeout(minute: 1)
       )
 
     case result do
