@@ -3422,6 +3422,61 @@ absent_over_time(
 - Pending period: 0 minutes
 - Summary: `The public endpoint check stopped producing telemetry`
 
+### Rack Mac mini under heavy thermal pressure
+
+```promql
+max by (cluster, env, instance) (
+  min_over_time(macos_thermal_pressure_level{rack_host="true"}[5m])
+)
+```
+
+- Threshold: `> 1.5` (heavy or worse)
+- Pending period: 5 minutes
+- Severity: critical
+- Already created: rule `cg1ax5ybnxce8e`, folder `Alerts`, group `Rack`
+- Summary: `Rack Mac mini {{ $labels.instance }} has been under heavy thermal
+  pressure for 10 minutes`
+
+`macos_thermal_pressure_level` is macOS's own verdict on whether it is slowing
+the machine down to cool it: 0 nominal, 1 moderate, 2 heavy, 3 trapping,
+4 sleeping. It does not depend on which sensors a chip generation exposes, so it
+is the signal to page on. Moderate is excluded because the fleet briefly reaches
+it under normal load. The `min_over_time` window means every
+sample in it was heavy or worse, so a short spike does not fire.
+
+Scoped to `rack_host="true"`: the rented Macs report the same metric, but their
+cooling is not ours to fix.
+
+Triage: compare with the other minis. One hot mini points at its fan (see the
+next rule) or its tray position; several at once point at the room, so check
+the PDU draw (`capt_rackpdu_outlet_active_power_watts`) and escalate to the
+facility.
+
+### Rack Mac mini fan failing
+
+```promql
+max by (cluster, env, instance, fan) (
+  macos_fan_speed_rpm{rack_host="true"}
+)
+/
+max by (cluster, env, instance, fan) (
+  macos_fan_target_rpm{rack_host="true"} > 0
+)
+```
+
+- Threshold: `< 0.5`
+- Pending period: 10 minutes
+- Severity: critical
+- Already created: rule `fg1ax6arcq7eoe`, folder `Alerts`, group `Rack`
+- Summary: `Rack Mac mini {{ $labels.instance }} fan {{ $labels.fan }} is
+  spinning below half its target`
+
+A Mac mini has one fan, and in a flush-stacked tray a mini that cannot cool
+heats its neighbours. A speed well under the SMC's target is a fan that is
+failing or stopped. An idle M5 Pro mini holds a 1000 rpm target and meets it,
+so the ratio sits at 1 in steady state. The `> 0` filter keeps a zero target
+from dividing.
+
 ### Keep the probe timing labels unaggregated
 
 Adaptive Metrics must not aggregate `instance`, `job`, `probe` or `phase` away
@@ -3443,6 +3498,27 @@ group by (instance, probe, phase) (probe_http_duration_seconds)
 
 Every probe location must come back as its own series. A single
 `instance="<aggregated>"` row means the rule is still applied.
+
+### Keep the rack host sensor labels unaggregated
+
+The rack rules need `instance`, `rack_host`, `cluster`, `env`, `sensor` and
+`fan` on `macos_*`, `outlet` on `capt_rackpdu_outlet_*` and
+`capt_rackhost_outlet_*`, and `instance` on `node_textfile_*`. Adaptive Metrics
+aggregated all of these away until 2026-10-15, which left one fleet-wide sum
+with the rack and the rented Macs mixed together.
+
+Prefix exemptions for `macos_`, `capt_rackpdu_outlet_`, `capt_rackhost_outlet_`
+and `node_textfile_` keep the recommender from proposing the aggregation again.
+An exemption does not remove a rule that is already applied, so if one comes
+back, delete it from the rule set as well.
+
+Verify with:
+
+```promql
+count by (instance) (macos_thermal_pressure_level{rack_host="true"})
+```
+
+Every rack mini must come back as its own series.
 
 ## Warning alerts
 
@@ -5917,6 +5993,35 @@ max by (fleet) (
   not converge on its own.
 - Summary: `Runner fleet {{ $labels.fleet }}: {{ $values.A.Value }} job(s) stuck
   non-terminal in ClickHouse while Postgres says they finished`
+
+### Rack Mac mini host sensors stale
+
+```promql
+max by (cluster, env, instance) (
+  time() - node_textfile_mtime_seconds{
+    job="tuist-macos-node-exporter",
+    rack_host="true",
+    file=~".*/host_sensors.prom"
+  }
+)
+```
+
+- Threshold: `> 300`
+- Pending period: 5 minutes
+- Severity: warning
+- Already created: rule `cg1ax6lncaku8f`, folder `Alerts`, group `Rack`
+- Summary: `Rack Mac mini {{ $labels.instance }} has not refreshed its host
+  sensor readings for over 5 minutes`
+
+The thermal and fan rules evaluate to no data, which the folder treats as OK,
+when `tuist-host-sensors` stops writing. node_exporter keeps serving the last
+file, so the readings freeze rather than disappear. The launchd job writes every
+30 seconds, so a file older than 5 minutes means the job is failing. On the
+host, check `launchctl print system/dev.tuist.host-sensors` and
+`/var/log/tuist-host-sensors.log`.
+
+A mini whose node_exporter is unreachable drops out of this rule too, because
+the series is gone rather than old.
 
 ### Tuist license expires within 30 days
 
