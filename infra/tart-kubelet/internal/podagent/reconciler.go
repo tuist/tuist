@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/payload"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
@@ -149,6 +150,10 @@ type Reconciler struct {
 	Tart     *tart.Client
 	Resolver *envresolver.Resolver
 	Store    *Store
+
+	// Payloads fetches the runner payload a Pod pins with payload.Annotation.
+	// A Pod carrying the annotation never boots without its payload.
+	Payloads *payload.Fetcher
 
 	// TokenMinter mints projected ServiceAccount tokens for Pods
 	// whose Spec.AutomountServiceAccountToken is true. Optional —
@@ -552,6 +557,11 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		return nil
 	}
 
+	payloadDir, err := r.ensurePayload(ctx, pod)
+	if err != nil {
+		return err
+	}
+
 	// Resize the cloned VM to match the Pod's resource requests.
 	// The image is built small (~4 vCPU / 8 GB) so it fits on a
 	// 16 GB image-builder host; at deploy time the host is bigger
@@ -583,6 +593,9 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// false and the VM boots on the cold path. Admission runs later, when the
 	// branch is materialized for a job.
 	sharedDirs := []string{"env:" + envDir + ":ro"}
+	if payloadDir != "" {
+		sharedDirs = append(sharedDirs, "payload:"+payloadDir+":ro")
+	}
 	att, err := r.allocateVolumeBranch(vmName)
 	if err != nil {
 		// A volume failure must never fail the job: it is best-effort warm
@@ -661,6 +674,17 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// the forwarder needs at least an upstream to dial when the
 	// scraper hits it.
 	return nil
+}
+
+func (r *Reconciler) ensurePayload(ctx context.Context, pod *corev1.Pod) (string, error) {
+	ref, ok := pod.Annotations[payload.Annotation]
+	if !ok {
+		return "", nil
+	}
+	if r.Payloads == nil {
+		return "", fmt.Errorf("pod pins runner payload %s but this host has no payload fetcher", ref)
+	}
+	return r.Payloads.Ensure(ctx, ref)
 }
 
 // goldenBaseVMPrefix marks a Tart VM as a per-digest golden base: a

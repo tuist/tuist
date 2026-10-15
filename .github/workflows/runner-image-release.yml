@@ -38,7 +38,7 @@ env:
 
 jobs:
   test-tcc-report:
-    name: Test Finder diagnostics
+    name: Test runner image scripts
     if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     timeout-minutes: 5
@@ -51,6 +51,7 @@ jobs:
         with:
           persist-credentials: false
       - run: bash infra/runner-image/tcc-report_test.sh
+      - run: bash infra/runner-image/install-payload_test.sh
 
   plan:
     name: Plan runner image release

@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Boots the Tuist runner image. The wrapper:
-    1. Runs /opt/tuist/inject-env.sh — materializes /etc/tuist.env
+    1. Runs /opt/tuist/install-payload.sh: installs the runner
+       payload from the tart-kubelet payload mount.
+    2. Runs /opt/tuist/inject-env.sh — materializes /etc/tuist.env
        from the tart-kubelet env mount.
-    2. Sources /etc/tuist.env so the dispatch-poll script sees
+    3. Sources /etc/tuist.env so the dispatch-poll script sees
        the per-Pod TUIST_RUNNER_* vars.
-    3. Execs /opt/tuist/dispatch-poll.sh — polls the Tuist server
+    4. Execs /opt/tuist/dispatch-poll.sh — polls the Tuist server
        for a JIT config and execs ./run.sh on first 200.
 
   This is a LaunchAgent loaded from
@@ -56,7 +58,7 @@
           SA token). Elevate only the injector; dispatch-poll runs
           as runner so the GitHub runner stays non-root.
         -->
-        <string>sudo /opt/tuist/inject-env.sh &amp;&amp; source /etc/tuist.env &amp;&amp; exec /opt/tuist/dispatch-poll.sh</string>
+        <string>sudo /opt/tuist/install-payload.sh &amp;&amp; sudo /opt/tuist/inject-env.sh &amp;&amp; source /etc/tuist.env &amp;&amp; exec /opt/tuist/dispatch-poll.sh</string>
     </array>
 
     <key>RunAtLoad</key>

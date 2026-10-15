@@ -44,6 +44,10 @@ const (
 	// accounting without inspecting mutable cluster state.
 	RuntimeClassRevisionAnnotation = "tuist.dev/runtime-class-revision"
 
+	// RunnerPayloadAnnotation pins the runner payload digest Helm sets on a
+	// macOS RunnerPool. Pods record the payload they booted with.
+	RunnerPayloadAnnotation = "tuist.dev/runner-payload"
+
 	// ReservationTaintKey is the taint the controller puts on a node it
 	// is draining to make room for a pool whose Pods no node can seat
 	// right now. Its value is the pool the node is being held for, and
@@ -570,6 +574,9 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		if revision := pool.Annotations[RuntimeClassRevisionAnnotation]; revision != "" {
 			annotations[RuntimeClassRevisionAnnotation] = revision
 		}
+	}
+	if payload := pool.Annotations[RunnerPayloadAnnotation]; !linuxPod && payload != "" {
+		annotations[RunnerPayloadAnnotation] = payload
 	}
 
 	// Mirror the actions/runner diagnostic log (_diag) to the runner

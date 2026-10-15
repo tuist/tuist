@@ -1222,6 +1222,20 @@ takes it from here and follows a release together.
 {{- end -}}
 
 {{/*
+RunnerPool metadata annotations for a macOS pool: the runner payload its
+VMs install at boot.
+*/}}
+{{- define "tuist.macosRunnerPoolAnnotations" -}}
+{{- with .Values.runnersFleet.runnerPayload }}
+{{- if not (regexMatch "^[a-z0-9.-]+(:[0-9]+)?/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$" .) }}
+  {{- fail (printf "runnersFleet.runnerPayload must be a <registry>/<repository>@sha256:<digest> reference, got %q" .) }}
+{{- end -}}
+annotations:
+  tuist.dev/runner-payload: {{ . | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
 The macOS catalog pools racked at the rack fleet's site, as a list of
 `{name, site}` in JSON: every `runnersFleet.xcodeVersions` entry on the
 catalog's default shape, plus each non-default shape `rackFleet.runners.shapes`

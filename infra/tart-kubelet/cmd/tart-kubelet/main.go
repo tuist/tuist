@@ -41,6 +41,7 @@ import (
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodeagent"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/payload"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/podagent"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
@@ -417,6 +418,7 @@ func main() {
 		Tart:               tartClient,
 		Resolver:           resolver,
 		Store:              store,
+		Payloads:           &payload.Fetcher{Root: filepath.Join(tartClient.UserDataDir, ".runner-payloads")},
 		// 8h TTL: minted once at boot and not rotated, the token must
 		// outlive warm-time + the whole job, because the in-VM metrics
 		// sampler reuses it to POST for the job's full duration (a 1h TTL
