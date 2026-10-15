@@ -8,11 +8,13 @@ struct CargoCacheInvocation {
     let directory: AbsolutePath
     let package: URL
     let compiler: URL
+    let launcher: URL
     let toolchain: URL
     let output: URL
     let name: String
     let files: [String]
     let key: REAPI.Digest
+    let inputHasher: CargoInputHasher
 
     static let ignoredEnvironment = Set([
         "RUSTC_WRAPPER", "CARGO_BUILD_RUSTC_WRAPPER", "CARGO_MAKEFLAGS", "MAKEFLAGS", "MFLAGS",
@@ -73,19 +75,22 @@ struct CargoCacheInvocation {
         guard sysroot.hasPrefix("/") else { return nil }
         let toolchain = URL(fileURLWithPath: sysroot).standardizedFileURL
         let compiler = toolchain.appendingPathComponent("bin/rustc")
-        guard executable.hasPrefix("/"),
-              URL(fileURLWithPath: executable).resolvingSymlinksInPath() == compiler.resolvingSymlinksInPath()
-        else { return nil }
+        guard let launcher = resolve(executable, environment: environment, directory: directory) else { return nil }
+        if launcher != compiler.resolvingSymlinksInPath() {
+            guard environment["RUSTUP_TOOLCHAIN"].map({ !$0.isEmpty }) == true,
+                  launcher == resolve("rustup", environment: environment, directory: directory) else { return nil }
+        }
         let files = ["lib\(name)\(suffix).rlib", "lib\(name)\(suffix).rmeta", "\(name)\(suffix).d"]
         let candidate = CargoCacheInvocation(
             arguments: arguments, environment: environment, directory: directory, package: package,
-            compiler: compiler, toolchain: toolchain, output: URL(fileURLWithPath: out).standardizedFileURL,
-            name: name, files: files, key: REAPI.emptyBlob
+            compiler: compiler, launcher: launcher, toolchain: toolchain,
+            output: URL(fileURLWithPath: out).standardizedFileURL,
+            name: name, files: files, key: REAPI.emptyBlob, inputHasher: CargoInputHasher()
         )
         return CargoCacheInvocation(
             arguments: arguments, environment: environment, directory: directory, package: package,
-            compiler: compiler, toolchain: toolchain, output: candidate.output, name: name, files: files,
-            key: try candidate.fingerprint()
+            compiler: compiler, launcher: launcher, toolchain: toolchain, output: candidate.output, name: name, files: files,
+            key: try candidate.fingerprint(), inputHasher: candidate.inputHasher
         )
     }
 
@@ -96,8 +101,10 @@ struct CargoCacheInvocation {
         var budget = 2_000_000_000
         inputs += try snapshot(package, budget: &budget, inspectSources: true)
         inputs += try snapshot(toolchain.appendingPathComponent("lib"), budget: &budget)
-        let digest = try REAPI.digest(file: compiler)
-        inputs += [compiler.path, digest.hash, String(digest.sizeBytes)]
+        for executable in Set([compiler.resolvingSymlinksInPath(), launcher]).sorted(by: { $0.path < $1.path }) {
+            let digest = try inputHasher.digest(executable)
+            inputs += [executable.path, digest.hash, String(digest.sizeBytes)]
+        }
         return REAPI.digest(try JSONEncoder().encode(inputs))
     }
 
@@ -164,7 +171,7 @@ struct CargoCacheInvocation {
                   at: root, includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey, .fileSizeKey],
                   errorHandler: { _, _ in failed = true; return false }
               ) else { throw CacheError.unsupported }
-        var files: [URL] = []
+        var files: [(file: URL, digest: REAPI.Digest)] = []
         for case let file as URL in entries {
             let properties = try file.resourceValues(forKeys: [
                 .isRegularFileKey,
@@ -179,7 +186,7 @@ struct CargoCacheInvocation {
                 else {
                     throw CacheError.unsupported
                 }
-                files.append(target)
+                files.append((target, try inputHasher.digest(target)))
             }
             if properties.isDirectory == true { continue }
             let content = file.resolvingSymlinksInPath()
@@ -187,22 +194,34 @@ struct CargoCacheInvocation {
             guard files.count < 10000, regular.isRegularFile == true, let size = regular.fileSize,
                   size <= budget else { throw CacheError.unsupported }
             budget -= size
+            let digest: REAPI.Digest
             if inspectSources, file.pathExtension == "rs" {
                 guard size <= 2_000_000 else { throw CacheError.unsupported }
-                let text = try String(contentsOf: file, encoding: .utf8)
-                guard text.range(
-                    of: "\\b(asm|global_asm|link|link_args|extern|include|concat|concat_idents)\\b",
-                    options: .regularExpression
-                ) == nil
-                else { throw CacheError.unsupported }
+                digest = try inputHasher.sourceDigest(content) { data in
+                    guard let text = String(data: data, encoding: .utf8), text.range(
+                        of: "\\b(asm|global_asm|link|link_args|extern|include|concat|concat_idents)\\b",
+                        options: .regularExpression
+                    ) == nil else { throw CacheError.unsupported }
+                }
+            } else {
+                digest = try inputHasher.digest(content)
             }
-            files.append(file)
+            files.append((file, digest))
         }
         guard !failed else { throw CacheError.unsupported }
-        return try files.sorted { $0.path < $1.path }.flatMap { file in
-            let digest = try REAPI.digest(file: file)
-            return [file.path, digest.hash, String(digest.sizeBytes)]
+        return files.sorted { $0.file.path < $1.file.path }.flatMap {
+            [$0.file.path, $0.digest.hash, String($0.digest.sizeBytes)]
         }
+    }
+
+    private static func resolve(_ executable: String, environment: [String: String], directory: AbsolutePath) -> URL? {
+        let base = URL(fileURLWithPath: directory.pathString, isDirectory: true)
+        let candidates = executable.contains("/") ? [URL(fileURLWithPath: executable, relativeTo: base)] :
+            (environment["PATH"] ?? "").components(separatedBy: ":").map {
+                URL(fileURLWithPath: $0.isEmpty ? "." : $0, relativeTo: base).appendingPathComponent(executable)
+            }
+        return candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0.path) })?
+            .standardizedFileURL.resolvingSymlinksInPath()
     }
 
     private static func isIgnored(_ name: String) -> Bool {

@@ -8,6 +8,15 @@ import TuistREAPI
 @testable import TuistCargoCommand
 
 struct CargoCompilationCacheTests {
+    @Test func usesProjectNameAsREAPIInstanceWithinTheAccountTenant() throws {
+        let scope = try #require(CargoCacheScope(fullHandle: "Acme/App"))
+        #expect(scope.accountHandle == "acme")
+        #expect(scope.instanceName == "app")
+        for handle in ["acme", "/app", "acme/", "acme/app/other"] {
+            #expect(CargoCacheScope(fullHandle: handle) == nil)
+        }
+    }
+
     @Test func preservesStandardREAPICompilerStreamsAndSymlinkFields() throws {
         let result = REAPI.ActionResult.with {
             $0.stdoutRaw = Data("compiler output".utf8)
@@ -26,6 +35,47 @@ struct CargoCompilationCacheTests {
         try fixture.removeOutputs()
         #expect(try await cache.restore())
         #expect(try Data(contentsOf: fixture.output.appendingPathComponent(fixture.invocation.files[0])) == Data("library".utf8))
+    }
+
+    @Test(.inTemporaryDirectory) func successfulReuseRefreshesBlobRetention() async throws {
+        let fixture = try await fixture()
+        let cache = try fixture.cache()
+        try await cache.store(stdout: Data(), stderr: Data())
+        let blob = fixture.root.appendingPathComponent("cache/blobs/" + REAPI.digest(Data("library".utf8)).hash)
+        let old = Date().addingTimeInterval(-40 * 24 * 60 * 60)
+        try FileManager.default.setAttributes([.modificationDate: old], ofItemAtPath: blob.path)
+        try fixture.removeOutputs()
+        #expect(try await cache.restore())
+        let used = try #require(FileManager.default.attributesOfItem(atPath: blob.path)[.modificationDate] as? Date)
+        #expect(used > old)
+    }
+
+    @Test(.inTemporaryDirectory) func cancelledRestorationDoesNotMaterializeOutputs() async throws {
+        let fixture = try await fixture()
+        let cache = try fixture.cache()
+        try await cache.store(stdout: Data(), stderr: Data())
+        try fixture.removeOutputs()
+        let outputPath = fixture.invocation.output.appendingPathComponent(fixture.invocation.files[0]).path
+        let restoration = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await cache.restoreLocally()
+        }
+        await #expect(throws: CancellationError.self) { try await restoration.value }
+        #expect(!FileManager.default.fileExists(atPath: outputPath))
+    }
+
+    @Test(.inTemporaryDirectory) func localProbeNeverContactsTheRemoteEvenForMissingBlobs() async throws {
+        let fixture = try await fixture()
+        try await fixture.cache().store(stdout: Data(), stderr: Data())
+        try fixture.removeOutputs()
+        let remote = CargoMemoryCache()
+        let cache = try fixture.cache(remote: remote)
+        #expect(try await cache.restoreLocally())
+        try fixture.removeOutputs()
+        let digest = REAPI.digest(Data("library".utf8))
+        try FileManager.default.removeItem(at: fixture.root.appendingPathComponent("cache/blobs/" + digest.hash))
+        #expect(try await !cache.restoreLocally())
+        #expect(await remote.reads == 0)
     }
 
     @Test(.inTemporaryDirectory) func restoresSplitDebugObjectsWithTheLibrary() async throws {
@@ -72,6 +122,63 @@ struct CargoCompilationCacheTests {
                 try await fixture.prepare()
             }
         }
+    }
+
+    @Test(.inTemporaryDirectory) func acceptsPinnedRustupProxyAndTracksItsContents() async throws {
+        let fixture = try await fixture()
+        let bin = fixture.root.appendingPathComponent("proxy-bin")
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        let rustup = bin.appendingPathComponent("rustup")
+        try "#!/bin/sh\nprintf '%s\\n' '\(fixture.invocation.toolchain.path)'\n".write(
+            to: rustup,
+            atomically: true,
+            encoding: .utf8
+        )
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: rustup.path)
+        let rustc = bin.appendingPathComponent("rustc")
+        try FileManager.default.createSymbolicLink(at: rustc, withDestinationURL: rustup)
+        var environment = fixture.invocation.environment
+        environment["PATH"] = "\(bin.path):/usr/bin:/bin"
+        environment["RUSTUP_TOOLCHAIN"] = "fixture"
+        for executable in ["rustc", rustc.path] {
+            let candidate = try #require(await fixture.prepare(
+                arguments: [executable] + fixture.invocation.arguments.dropFirst(), environment: environment
+            ))
+            #expect(candidate.launcher == rustup.resolvingSymlinksInPath())
+        }
+        let candidate = try #require(await fixture.prepare(
+            arguments: ["rustc"] + fixture.invocation.arguments.dropFirst(), environment: environment
+        ))
+        try "#!/bin/sh\nexit 99\n".write(to: rustup, atomically: true, encoding: .utf8)
+        #expect(try candidate.fingerprint() != candidate.key)
+    }
+
+    @Test(.inTemporaryDirectory) func rejectsUnpinnedOrCustomRustcLaunchers() async throws {
+        let fixture = try await fixture()
+        let bin = fixture.root.appendingPathComponent("proxy-bin")
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        let rustc = bin.appendingPathComponent("rustc")
+        try "#!/bin/sh\nprintf '%s\\n' '\(fixture.invocation.toolchain.path)'\n".write(
+            to: rustc,
+            atomically: true,
+            encoding: .utf8
+        )
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: rustc.path)
+        var environment = fixture.invocation.environment
+        environment["PATH"] = "\(bin.path):/usr/bin:/bin"
+        environment["RUSTUP_TOOLCHAIN"] = "fixture"
+        #expect(try await fixture.prepare(
+            arguments: ["rustc"] + fixture.invocation.arguments.dropFirst(),
+            environment: environment
+        ) == nil)
+        let rustup = bin.appendingPathComponent("rustup")
+        try FileManager.default.moveItem(at: rustc, to: rustup)
+        try FileManager.default.createSymbolicLink(at: rustc, withDestinationURL: rustup)
+        environment["RUSTUP_TOOLCHAIN"] = nil
+        #expect(try await fixture.prepare(
+            arguments: ["rustc"] + fixture.invocation.arguments.dropFirst(),
+            environment: environment
+        ) == nil)
     }
 
     @Test(.inTemporaryDirectory) func sourceResourcesEnvironmentAndCompilerInvalidateTheKey() async throws {
@@ -295,9 +402,14 @@ private actor CargoMemoryCache: REAPICacheStoring {
     private let rejectUploads: Bool
     private var corrupt = false
     private(set) var publications = 0
+    private(set) var reads = 0
 
     init(rejectUploads: Bool = false) { self.rejectUploads = rejectUploads }
-    func actionResult(for _: REAPI.Digest) async throws -> REAPI.ActionResult? { result }
+    func actionResult(for _: REAPI.Digest) async throws -> REAPI.ActionResult? {
+        reads += 1
+        return result
+    }
+
     func storeActionResult(_ result: REAPI.ActionResult, for _: REAPI.Digest) async throws {
         self.result = result
         publications += 1
@@ -313,6 +425,7 @@ private actor CargoMemoryCache: REAPICacheStoring {
 
     func uploadBlobs(_ files: [REAPI.Digest: URL]) async throws { _ = try await uploadAvailableBlobs(files) }
     func downloadBlob(_ digest: REAPI.Digest, to path: URL) async throws {
+        reads += 1
         let data = try #require(blobs[digest])
         try (corrupt ? Data("corrupt".utf8) : data).write(to: path)
     }

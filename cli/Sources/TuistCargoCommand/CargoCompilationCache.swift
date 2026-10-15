@@ -1,23 +1,29 @@
+import FileSystem
 import Foundation
+import Path
+import TuistCore
 import TuistREAPI
 
 struct CargoCompilationCache {
     let invocation: CargoCacheInvocation
     let root: URL
-    let remote: (any REAPICacheStoring)?
+    var remote: (any REAPICacheStoring)?
     let measurement: CargoCacheMeasurement
 
+    private let fileSystem: any FileSysteming
     private let command: Data
     private let action: Data
     private let actionDigest: REAPI.Digest
 
     init(
-        invocation: CargoCacheInvocation, root: URL, remote: (any REAPICacheStoring)?, measurement: CargoCacheMeasurement
+        invocation: CargoCacheInvocation, root: URL, remote: (any REAPICacheStoring)?, measurement: CargoCacheMeasurement,
+        fileSystem: any FileSysteming = FileSystem()
     ) throws {
         self.invocation = invocation
         self.root = root
         self.remote = remote
         self.measurement = measurement
+        self.fileSystem = fileSystem
         command = try REAPI.Command.with {
             $0.arguments = ["tuist-swift-cargo-cache-v1", invocation.key.hash, String(invocation.key.sizeBytes)]
         }.serializedData()
@@ -32,11 +38,22 @@ struct CargoCompilationCache {
     private var index: URL { root.appendingPathComponent("actions/" + actionDigest.hash) }
 
     func restore() async throws -> Bool {
+        if try await restoreLocally() { return true }
+        return try await restoreRemotely()
+    }
+
+    func restoreLocally() async throws -> Bool {
+        try Task.checkCancellation()
         let localStarted = Date()
         let data = try? boundedData(index, maximum: 2_000_000)
         measurement.timing("read", duration: Date().timeIntervalSince(localStarted))
         if let data, let result = try? REAPI.ActionResult(serializedBytes: data),
-           (try? await materialize(result)) == true { return true }
+           (try? await materialize(result, downloadMissing: false)) == true { return true }
+        try Task.checkCancellation()
+        return false
+    }
+
+    func restoreRemotely() async throws -> Bool {
         try Task.checkCancellation()
         guard let remote else { return false }
         do {
@@ -44,7 +61,7 @@ struct CargoCompilationCache {
             let result = try await remote.actionResult(for: actionDigest)
             measurement.timing("read", duration: Date().timeIntervalSince(started))
             guard let result else { return false }
-            return try await materialize(result)
+            return try await materialize(result, downloadMissing: true)
         } catch {
             if error is CancellationError || Task.isCancelled { throw error }
             debug(error)
@@ -54,6 +71,7 @@ struct CargoCompilationCache {
     }
 
     func store(stdout: Data, stderr: Data) async throws {
+        try Task.checkCancellation()
         guard stdout.count + stderr.count <= 1_000_000 else { return }
         try invocation.validateDependencies()
         guard try invocation.fingerprint() == invocation.key else { return }
@@ -75,6 +93,7 @@ struct CargoCompilationCache {
             measurement.reference(digest)
         }
         guard try invocation.fingerprint() == invocation.key else { return }
+        try Task.checkCancellation()
         let localStarted = Date()
         try write(try result.serializedData(), to: index)
         measurement.timing("write", duration: Date().timeIntervalSince(localStarted))
@@ -115,7 +134,7 @@ struct CargoCompilationCache {
         }
     }
 
-    private func materialize(_ result: REAPI.ActionResult) async throws -> Bool {
+    private func materialize(_ result: REAPI.ActionResult, downloadMissing: Bool) async throws -> Bool {
         guard result.exitCode == 0, result.outputDirectories.isEmpty,
               result.outputFileSymlinks.isEmpty, result.outputDirectorySymlinks.isEmpty, result.outputSymlinks.isEmpty,
               !result.hasStdoutDigest, !result.hasStderrDigest,
@@ -134,12 +153,10 @@ struct CargoCompilationCache {
             try REAPI.validate(file.digest)
             guard !file.isExecutable, file.digest.sizeBytes <= 100_000_000, file.digest.sizeBytes <= budget else { return false }
             budget -= file.digest.sizeBytes
-            if (try? REAPI.digest(file: blobPath(file.digest))) != file.digest {
-                missing[file.digest] = staging.appendingPathComponent(file.digest.hash)
-            }
+            if await !containsBlob(file.digest) { missing[file.digest] = staging.appendingPathComponent(file.digest.hash) }
         }
         if !missing.isEmpty {
-            guard let remote else { return false }
+            guard downloadMissing, let remote else { return false }
             let started = Date()
             let downloaded = try await remote.downloadAvailableBlobs(missing)
             let elapsed = Date().timeIntervalSince(started)
@@ -166,6 +183,8 @@ struct CargoCompilationCache {
             guard properties.isRegularFile == true, properties.isSymbolicLink != true,
                   try REAPI.digest(file: temporary) == file.digest else { return false }
         }
+        try Task.checkCancellation()
+        guard try invocation.fingerprint() == invocation.key else { return false }
         for file in result.outputFiles {
             let destination = invocation.output.appendingPathComponent(file.path)
             if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
@@ -179,6 +198,17 @@ struct CargoCompilationCache {
     }
 
     private func blobPath(_ digest: REAPI.Digest) -> URL { root.appendingPathComponent("blobs/" + digest.hash) }
+
+    private func containsBlob(_ digest: REAPI.Digest) async -> Bool {
+        let file = blobPath(digest)
+        guard let path = try? AbsolutePath(validating: file.path),
+              let properties = try? file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
+              properties.isRegularFile == true, properties.isSymbolicLink != true,
+              properties.fileSize == Int(exactly: digest.sizeBytes),
+              (try? REAPI.digest(file: file)) == digest else { return false }
+        await fileSystem.markCacheEntryUsed(at: path)
+        return true
+    }
 
     private func publish(_ file: URL, digest: REAPI.Digest) throws -> URL {
         let destination = blobPath(digest)

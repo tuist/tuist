@@ -41,6 +41,8 @@ final class CargoCacheMeasurement {
         records.append(["record": "reference", "key": Self.key(invocation.key), "object": Self.key(digest)])
     }
 
+    var hasRemoteFailure: Bool { counters["remote_failures", default: 0] > 0 }
+
     func failure(upload: Bool = false) {
         counters[upload ? "background_upload_failures" : "remote_failures", default: 0] += 1
     }

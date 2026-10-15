@@ -13,19 +13,30 @@ struct CargoCompilerObserver {
             arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
         )
         let measurement = invocation.map(CargoCacheMeasurement.init)
-        let cache: CargoCompilationCache?
+        var cache: CargoCompilationCache?
         if let invocation, let measurement, let root = environment["TUIST_CARGO_CACHE_DIR"] {
-            let remote = try? await Self.remote(environment)
             cache = try? CargoCompilationCache(
-                invocation: invocation, root: URL(fileURLWithPath: root), remote: remote, measurement: measurement
+                invocation: invocation, root: URL(fileURLWithPath: root), remote: nil, measurement: measurement
             )
         } else { cache = nil }
         defer { measurement?.write() }
-        if let cache, try await cache.restore() {
+        if let cache, try await cache.restoreLocally() {
+            measurement?.outcome(hit: true)
+            return
+        }
+        if cache != nil {
+            let remote = try? await Self.remote(environment)
+            cache?.remote = remote
+        }
+        if let cache, try await cache.restoreRemotely() {
             measurement?.outcome(hit: true)
             return
         }
         try Task.checkCancellation()
+        if measurement?.hasRemoteFailure == true {
+            cache?.remote = nil
+            if let marker = Self.remoteFailureMarker(environment) { try? Data().write(to: marker, options: .atomic) }
+        }
         measurement?.outcome(hit: false)
         let started = Date()
         var stdout = Data()
@@ -58,14 +69,20 @@ struct CargoCompilerObserver {
         if bounded, let cache { try? await cache.store(stdout: stdout, stderr: stderr) }
     }
 
+    private static func remoteFailureMarker(_ environment: [String: String]) -> URL? {
+        environment["TUIST_CARGO_SESSION"].map { URL(fileURLWithPath: $0).appendingPathComponent("cache-remote-unavailable") }
+    }
+
     private static func remote(_ environment: [String: String]) async throws -> (any REAPICacheStoring)? {
+        if let marker = remoteFailureMarker(environment), FileManager.default.fileExists(atPath: marker.path) { return nil }
         guard let address = environment["TUIST_CARGO_CACHE_REMOTE_URL"], let url = URL(string: address), let host = url.host,
               let namespace = environment["TUIST_CARGO_CACHE_NAMESPACE"],
-              let account = namespace.split(separator: "/").first,
+              let scope = CargoCacheScope(fullHandle: namespace),
               let file = environment["TUIST_CARGO_CACHE_TOKEN_FILE"] else { return nil }
         return try await REAPICacheClient(
             endpoint: GRPCEndpoint(host: host, explicitPort: url.port, isTLS: url.scheme == "https" || url.scheme == "grpcs"),
-            accountHandle: String(account), instanceName: namespace, metadataTimeout: .seconds(3), environment: environment,
+            accountHandle: scope.accountHandle, instanceName: scope.instanceName,
+            metadataTimeout: .seconds(1), environment: environment,
             token: { try String(contentsOfFile: file, encoding: .utf8) }
         )
     }
