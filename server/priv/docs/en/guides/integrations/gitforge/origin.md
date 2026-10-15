@@ -9,7 +9,7 @@
 
 Tuist can post build, test, preview, and bundle reports on pull requests in native [Cursor Origin](https://cursor.com/docs/api/origin) repositories. It updates the app's existing Tuist Run Report instead of posting a new comment for every upload.
 
-This is a Git forge integration, not Cursor Cloud Agent compute or the Cursor plugin/MCP marketplace. Installing the app does not run CI or upload results. Your existing CI or local workflow must report results to Tuist.
+Installing the app does not run builds or tests. Your existing workflows continue uploading results to Tuist, and the integration brings those results into your pull requests.
 
 ## Setup {#setup}
 
@@ -23,28 +23,20 @@ Use an <.localized_link href="/guides/server/authentication#account-tokens">acco
 
 ## Reports and permissions {#reports-and-permissions}
 
-The app requests these scopes:
+When approving the app, you grant the permissions needed to connect repositories and publish reports:
 
-- `repository:pull_requests:read`
-- `repository:pull_requests:reviews:write`, which includes the corresponding review-read permission
+| Permission | Used for |
+| --- | --- |
+| Pull requests: read | Find the open pull request for the reported commit. |
+| Pull request reviews: read and write | Read, post, and update the Tuist Run Report comment. |
+| Repository metadata: read | Discover repositories and their default branches. Included automatically by Origin. |
 
-Repository metadata access is granted automatically during installation. Tuist explicitly includes `repository:metadata:read` when minting narrowed installation tokens so it can read the repository metadata required for project linking. Tuist does not need code access, merge permissions, check-run permissions, or user delegation for comments.
+Tuist does not need access to your source code or permission to merge pull requests.
 
-Report uploads must include the Origin clone URL, Git ref, and full commit SHA. Both current clone URL forms are recognized: `https://origin.cursor.com/owner/repository.git` and the legacy `https://origin.cursor.com/git/owner/repository.git`. A branch ref or `refs/pull/<number>/...` must resolve to a single open pull request whose current head SHA matches the uploaded commit. Reports for superseded commits are skipped. Commit SHAs and failure locations are shown as code in Origin comments; links to Tuist reports and previews remain available.
+To associate results with a pull request, uploads must include the repository's Origin clone URL, Git ref, and full commit SHA. Tuist posts the report only when those identify a single open pull request at its current head commit. Results for superseded commits do not overwrite the current report.
 
 Removing a project connection stops its reporting. **Disconnect** removes the installation's Tuist-side association and its project connections; it does not uninstall the app in Cursor. Uninstall the app in Cursor to revoke its access there.
 
-## Server configuration {#server-configuration}
+## Self-hosted servers {#server-configuration}
 
-Origin installation is available when the deployment has both `TUIST_ORIGIN_APP_ID` and `TUIST_ORIGIN_APP_PRIVATE_KEY`. In development, the card remains visible with setup guidance and a disabled **Connect** button until both are configured. The private key is an Ed25519 PKCS#8 PEM whose public key is registered with that Origin app. Never commit or share the private key. Use independent apps and keys for each environment.
-
-Register these HTTPS URLs for the deployment:
-
-- Installation callback: `<Tuist base URL>/integrations/origin/setup`
-- Webhook: `<Tuist base URL>/webhooks/origin`
-
-Optional repository webhook events are not needed for comments. Tuist accepts installation lifecycle notifications, verifies Cursor's signatures, and queues reconciliation durably. Installation receipts are verified against Cursor's public signing keys and browser-bound consent state, not against the app's private key.
-
-Managed deployments load `ORIGIN_APP/app_id` and `ORIGIN_APP/private_key` together from their environment's 1Password vault when `server.config.originAppKey.enabled` is enabled.
-
-For local development, `server/fnox.toml` loads `Development/ORIGIN_APP/app_id` and `Development/ORIGIN_APP/private_key`. Use an HTTPS tunnel matching the registered callback and Tuist base URL. Apply the Origin database migration before testing installation and project linking.
+If you host your own Tuist server, register and configure an Origin app for your deployment first. Follow the <.localized_link href="/guides/server/self-host/server#platform-origin">Origin self-hosting instructions</.localized_link>, then return to the setup steps above to connect accounts and projects.
