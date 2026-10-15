@@ -189,9 +189,8 @@ public struct CoverageExportService: CoverageExportServicing {
 
         return sources.targets.map { target in
             var product: String?
-            if let productsDirectory {
-                let path = productsDirectory.appending(component: target.name)
-                if FileManager.default.fileExists(atPath: path.pathString) { product = executable(inProduct: path) }
+            if let productsDirectory, let path = Self.product(named: target.name, in: productsDirectory) {
+                product = executable(inProduct: path)
             }
             if product == nil, let platform {
                 product = target.binaries
@@ -226,9 +225,29 @@ public struct CoverageExportService: CoverageExportServicing {
         }
     }
 
+    /// A product by name in the products directory, or hosted in one of its apps: Xcode builds a
+    /// test bundle that runs inside an app into the app's `PlugIns` (`Contents/PlugIns` on macOS),
+    /// not next to it.
+    static func product(named name: String, in directory: AbsolutePath) -> AbsolutePath? {
+        let direct = directory.appending(component: name)
+        if FileManager.default.fileExists(atPath: direct.pathString) { return direct }
+        let apps = ((try? FileManager.default.contentsOfDirectory(atPath: directory.pathString)) ?? [])
+            .filter { $0.hasSuffix(".app") }
+            .sorted()
+        for app in apps {
+            for plugins in [["Contents", "PlugIns"], ["PlugIns"]] {
+                let hosted = directory.appending(components: [app] + plugins + [name])
+                if FileManager.default.fileExists(atPath: hosted.pathString) { return hosted }
+            }
+        }
+        return nil
+    }
+
     /// The binary inside a product: the file itself, or a bundle's executable by its
     /// `CFBundleExecutable` (`Contents/MacOS/<name>` on macOS, `Versions/Current/<name>` in a
-    /// framework, `<name>` elsewhere).
+    /// framework, `<name>` elsewhere). When Xcode built the target's code into a debug dylib
+    /// beside the executable (`<name>.debug.dylib`, for previews and debugging), the executable
+    /// is a stub that carries no coverage mapping, and the dylib is the image to read.
     static func executable(inProduct path: AbsolutePath) -> String? {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: path.pathString, isDirectory: &isDirectory) else { return nil }
@@ -246,7 +265,9 @@ public struct CoverageExportService: CoverageExportServicing {
             .first ?? path.basenameWithoutExt
         for location in [["Contents", "MacOS", executable], ["Versions", "Current", executable], [executable]] {
             let candidate = path.appending(components: location)
-            if FileManager.default.fileExists(atPath: candidate.pathString) { return candidate.pathString }
+            guard FileManager.default.fileExists(atPath: candidate.pathString) else { continue }
+            let debugDylib = candidate.parentDirectory.appending(component: "\(executable).debug.dylib")
+            return FileManager.default.fileExists(atPath: debugDylib.pathString) ? debugDylib.pathString : candidate.pathString
         }
         return nil
     }
@@ -825,6 +846,8 @@ struct CompilationPrefixMaps {
         } ?? components.last ?? path
         var name = (bundle as NSString).deletingPathExtension
         if (bundle as NSString).pathExtension == "a", name.hasPrefix("lib") { name = String(name.dropFirst(3)) }
+        if (bundle as NSString).pathExtension == "dylib",
+           name.hasSuffix(".debug") { name = String(name.dropLast(".debug".count)) }
         return name
     }
 
