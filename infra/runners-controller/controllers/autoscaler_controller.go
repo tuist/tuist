@@ -153,6 +153,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	knobs := scaling.PolicyKnobs{
 		MinWarmPoolFloor: pool.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
 		MaxReplicas:      pool.Spec.Autoscaling.MaxReplicas,
+		IgnoreRecentPeak: !pool.Spec.Autoscaling.HoldRecentPeakOrDefault(),
 	}
 	desired, fleet := r.desiredForPool(ctx, pool, *signals, knobs, logger)
 
@@ -589,6 +590,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 			k = scaling.PolicyKnobs{
 				MinWarmPoolFloor: p.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
 				MaxReplicas:      p.Spec.Autoscaling.MaxReplicas,
+				IgnoreRecentPeak: !p.Spec.Autoscaling.HoldRecentPeakOrDefault(),
 			}
 		}
 

@@ -26,8 +26,16 @@ independent workqueues:
   server's `/api/internal/runners/desired_replicas` endpoint and
   patches `RunnerPool.spec.replicas`. The per-pool policy math lives in
   `internal/scaling/desired.go`; tuning knobs (`minWarmPoolFloor`,
-  `maxReplicas`, `scaleDownCooldownSeconds`) live in the
-  `RunnerPool` spec, so a tuning change is helm-only.
+  `maxReplicas`, `scaleDownCooldownSeconds`, `holdRecentPeak`) live in
+  the `RunnerPool` spec, so a tuning change is helm-only.
+
+  `holdRecentPeak` (default true) keeps a pool sized to the server's
+  hourly p95 of concurrent runners after load falls. A pool whose jobs
+  arrive in one-off bursts (the `ber1` smoke pool, dispatched by hand)
+  sets it false, so after a burst it sizes to load plus
+  `minWarmPoolFloor` instead of holding the burst's runners for an
+  hour. Explicit `runnersFleet.pools` / `runnersFleetLinux.pools`
+  entries render it when their `autoscaling` block sets it.
 
   **Fleet-capacity awareness.** Both Linux shape pools and macOS Xcode
   pools share a capacity budget across siblings, so their warm capacity
