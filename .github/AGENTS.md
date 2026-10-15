@@ -116,6 +116,12 @@ The barrier reads only its own workflow run attempt and fails if its peer fails
 or does not attach within 25 minutes. Keep it outside the timed install command.
 Rerun both jobs together: a failed-job-only retry cannot prove overlap with a
 writer from an earlier attempt.
+
+Kura's clients test shard also runs the portable Xcode lookup fixture lifecycle
+regressions in `kura/spec/e2e/xcode_lookups_lifecycle_spec.sh`. These validate
+cleanup and deletion guards without Xcode or a cache service; actual compiler
+replay remains an opt-in Apple silicon test.
+
 ## SwifterPM E2E credentials
 
 `swifterpm.yml` passes its read-only job token to the E2E task's HTTPS GitHub
