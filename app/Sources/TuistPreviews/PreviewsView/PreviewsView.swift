@@ -54,51 +54,21 @@ public struct PreviewsView: View {
                             )
                             .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
 
-                            VStack(alignment: .leading, spacing: Noora.Spacing.spacing3) {
-                                HStack {
-                                    Text("Track")
-                                        .foregroundStyle(Noora.Colors.surfaceLabelSecondary)
-                                    Spacer()
-                                    Picker("Track", selection: Binding(
-                                        get: { viewModel.selectedTrack },
-                                        set: { selectTrack($0) }
-                                    )) {
-                                        Text("All Tracks").tag(nil as String?)
-                                        ForEach(viewModel.trackOptions, id: \.self) { track in
-                                            Text(track).tag(Optional(track))
-                                        }
-                                    }
-                                    .pickerStyle(.menu)
-                                    .labelsHidden()
-                                    .accessibilityLabel("Track")
-                                    .accessibilityIdentifier("preview-track-picker")
-                                    .disabled(viewModel.trackOptions.isEmpty)
-
-                                    if viewModel.selectedTrack != nil {
-                                        Button("Clear", systemImage: "xmark.circle.fill") {
-                                            selectTrack(nil)
-                                        }
-                                        .buttonStyle(.borderless)
-                                        .accessibilityLabel("Clear track filter")
-                                        .accessibilityIdentifier("clear-preview-track-filter")
-                                    }
-                                }
-                                if !viewModel.isTrackSelectionSupported {
-                                    Text("Update your self-hosted Tuist server to select a track.")
-                                        .font(.footnote)
-                                        .foregroundStyle(Noora.Colors.surfaceLabelSecondary)
-                                }
+                            if !viewModel.isTrackSelectionSupported {
+                                Text("Update your self-hosted Tuist server to select a track.")
+                                    .font(.footnote)
+                                    .foregroundStyle(Noora.Colors.surfaceLabelSecondary)
+                                    .listRowSeparator(.hidden)
+                                    .listRowInsets(
+                                        EdgeInsets(
+                                            top: 0,
+                                            leading: Noora.Spacing.spacing7,
+                                            bottom: Noora.Spacing.spacing4,
+                                            trailing: Noora.Spacing.spacing7
+                                        )
+                                    )
+                                    .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
                             }
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(
-                                EdgeInsets(
-                                    top: 0,
-                                    leading: Noora.Spacing.spacing7,
-                                    bottom: Noora.Spacing.spacing4,
-                                    trailing: Noora.Spacing.spacing7
-                                )
-                            )
-                            .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
                         }
 
                         if viewModel.projects.isEmpty {
@@ -187,6 +157,30 @@ public struct PreviewsView: View {
             }
             .navigationTitle("Previews")
             .navigationBarTitleDisplayMode(.automatic)
+            .toolbar {
+                if viewModel.selectedProject != nil {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Picker("Track", selection: Binding(
+                                get: { viewModel.selectedTrack },
+                                set: { selectTrack($0) }
+                            )) {
+                                Text("All Tracks").tag(nil as String?)
+                                ForEach(viewModel.trackOptions, id: \.self) { track in
+                                    Text(track).tag(Optional(track))
+                                }
+                            }
+                            .pickerStyle(.inline)
+                        } label: {
+                            Text(viewModel.selectedTrack ?? "All Tracks")
+                        }
+                        .disabled(viewModel.trackOptions.isEmpty)
+                        .accessibilityLabel("Filter by track")
+                        .accessibilityValue(viewModel.selectedTrack ?? "All Tracks")
+                        .accessibilityIdentifier("preview-track-menu")
+                    }
+                }
+            }
             .background(Noora.Colors.surfaceBackgroundPrimary)
             .navigationDestination(for: ServerPreview.self) { preview in
                 PreviewView(preview: preview, fullHandle: viewModel.selectedProject!.fullName)
