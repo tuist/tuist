@@ -227,7 +227,7 @@ swift_testing = true
 [[target]]
 name = "AtlasSettingsIOSPreview"
 kind = "apple_application"
-srcs = ["previews/ios/**/*.swift", "ios/Sources/AtlasAIAccounts.swift", "ios/Sources/AtlasAuthentication.swift", "ios/Sources/AtlasSecureStorage.swift"]
+srcs = ["previews/ios/**/*.swift", "ios/Sources/AtlasAIAccounts.swift", "ios/Sources/AtlasAIAccountViews.swift", "ios/Sources/AtlasBrand.swift", "ios/Sources/AtlasAuthentication.swift", "ios/Sources/AtlasSecureStorage.swift"]
 deps = ["./AtlasAuthIOS", "./AtlasAuthFFI"]
 
 [target.attrs]

@@ -27,6 +27,9 @@ struct AtlasSettingsPreview: App {
             NavigationStack {
                 AtlasSettingsView(server: URL(string: "https://atlas.example.org")!, accounts: accounts, signOut: {})
             }
+            .tint(AtlasBrand.accent)
+            .preferredColorScheme(ProcessInfo.processInfo.arguments.contains("--dark") ? .dark : .light)
+            .dynamicTypeSize(ProcessInfo.processInfo.arguments.contains("--large-text") ? .accessibility2 : .large)
         }
     }
 }
