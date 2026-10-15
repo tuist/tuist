@@ -543,7 +543,7 @@ defmodule Tuist.Tests do
       expected_shards = (shard_plan && shard_plan.shard_count) || 1
       record_coverage_data(test, attrs, coverage, shard_index, expected_shards)
 
-      {test_case_ids_with_flaky_run, test_case_runs} =
+      {_newly_flaky_test_case_ids, test_case_runs} =
         create_test_modules(
           test,
           test_modules,
@@ -552,7 +552,7 @@ defmodule Tuist.Tests do
           Coverage.Evidence.test_states(test.project_id, Map.get(attrs, :coverage_evidence))
         )
 
-      run_test_followups(test, test_case_ids_with_flaky_run, test_case_runs)
+      run_test_followups(test, test_case_runs)
 
       if test.status == "failure",
         do:
@@ -663,10 +663,21 @@ defmodule Tuist.Tests do
     end)
   end
 
-  defp run_test_followups(test, flaky_test_case_ids, test_case_runs) do
+  defp run_test_followups(test, test_case_runs) do
+    flaky? = flaky_run?(test, test_case_runs)
+
+    test_case_ids =
+      test_case_runs
+      |> Enum.map(& &1.test_case_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
     Tuist.Tasks.run_async(fn ->
-      enrich(test, "flaky run flag", fn -> mark_test_run_as_flaky(test, flaky_test_case_ids) end)
-      enrich(test, "flaky alert evaluations", fn -> enqueue_flaky_alert_evaluations(test, test_case_runs) end)
+      enrich(test, "flaky run flag", fn -> mark_test_run_as_flaky(test, flaky?) end)
+
+      enrich(test, "flaky alert evaluations", fn ->
+        Automations.enqueue_flaky_alert_evaluations(test.project_id, test_case_ids)
+      end)
 
       enrich(test, "test-created notification", fn ->
         if project = Tuist.Projects.get_project_by_id(test.project_id) do
@@ -785,7 +796,7 @@ defmodule Tuist.Tests do
               Coverage.Evidence.merge_status(existing_test.coverage_evidence_status, attrs.coverage_evidence_status)
             )
 
-          {test_case_ids_with_flaky_run, test_case_runs} =
+          {_newly_flaky_test_case_ids, test_case_runs} =
             OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
               create_test_modules(
                 merged_test,
@@ -851,13 +862,14 @@ defmodule Tuist.Tests do
             merged_test
             |> Map.put(:status, merged_status)
             |> Map.put(:duration, merged_duration)
+            |> Map.put(:is_flaky, merged_test.is_flaky or flaky_run?(merged_test, test_case_runs))
+            |> Map.put(:inserted_at, NaiveDateTime.utc_now())
             |> Map.merge(StressNewTests.merge_run_attrs(existing_test, stress_new_tests))
 
           update_attrs =
             updated_test
             |> Map.from_struct()
             |> Map.drop(@test_struct_non_field_keys)
-            |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
           IngestRepo.insert_all(Test, [update_attrs])
 
@@ -874,7 +886,7 @@ defmodule Tuist.Tests do
                 updated_test.id
               )
 
-          run_test_followups(updated_test, test_case_ids_with_flaky_run, test_case_runs)
+          run_test_followups(updated_test, test_case_runs)
 
           {:ok, %{updated_test | test_case_runs: test_case_runs}}
       end
@@ -1019,30 +1031,23 @@ defmodule Tuist.Tests do
   defp shard_run_ran_at(%DateTime{} = ran_at), do: DateTime.to_naive(ran_at)
   defp shard_run_ran_at(ran_at), do: ran_at
 
-  defp mark_test_run_as_flaky(test, []), do: test
-  defp mark_test_run_as_flaky(%{is_flaky: true} = test, _flaky_ids), do: test
+  defp flaky_run?(%{is_ci: true}, test_case_runs), do: Enum.any?(test_case_runs, & &1.is_flaky)
+  defp flaky_run?(_test, _test_case_runs), do: false
 
-  defp mark_test_run_as_flaky(test, _flaky_ids) do
+  defp mark_test_run_as_flaky(test, false), do: test
+  defp mark_test_run_as_flaky(%{is_flaky: true} = test, _flaky?), do: test
+
+  defp mark_test_run_as_flaky(test, true) do
     updated_test = %{test | is_flaky: true}
 
     attrs =
       updated_test
       |> Map.from_struct()
       |> Map.drop(@test_struct_non_field_keys)
-      |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
+    # Amend only this version; a fresh timestamp could roll back a newer shard merge.
     IngestRepo.insert_all(Test, [attrs])
     updated_test
-  end
-
-  defp enqueue_flaky_alert_evaluations(test, test_case_runs) do
-    test_case_ids =
-      test_case_runs
-      |> Enum.map(& &1.test_case_id)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.uniq()
-
-    Automations.enqueue_flaky_alert_evaluations(test.project_id, test_case_ids)
   end
 
   defp has_any_flaky_test_case?(test_modules) do

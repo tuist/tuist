@@ -98,10 +98,55 @@ defmodule Tuist.Tests.IngestionTest do
     end)
   end
 
-  test "a flaky flag failure on a later shard does not block alerts or notification", %{attrs: attrs, project: project} do
+  test "a delayed first-shard callback cannot overwrite the completed merged run", %{attrs: attrs, project: project} do
+    cases = [%{name: "case", status: "success", duration: 10}]
+    modules = [%{name: "module", status: "success", duration: 10, test_cases: cases}]
+    attrs = Map.merge(attrs, %{is_ci: true, git_commit_sha: "delayed-flag", test_modules: modules})
+    assert {:ok, _passing} = Tests.create_test(attrs)
+    assert_receive {:test_created, _}, 5_000
+    owner = self()
+
+    stub(Tasks, :run_async, fn fun ->
+      send(owner, {:followups, fun})
+      {:ok, self()}
+    end)
+
     plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
-    first_attrs = Map.merge(attrs, %{shard_plan_id: plan.id, shard_index: 0, is_ci: true, test_modules: []})
+    failing_modules = put_in(modules, [Access.at(0), :test_cases, Access.at(0), :status], "failure")
+
+    first_attrs =
+      Map.merge(attrs, %{id: UUIDv7.generate(), shard_plan_id: plan.id, shard_index: 0, test_modules: failing_modules})
+
     assert {:ok, first} = Tests.create_test(first_attrs)
+    assert_receive {:followups, first_followups}, 5_000
+    assert hd(first.test_case_runs).is_flaky
+
+    second_attrs =
+      Map.merge(attrs, %{
+        id: UUIDv7.generate(),
+        shard_plan_id: plan.id,
+        shard_index: 1,
+        duration: 100,
+        xcode_version: "17.0",
+        test_modules: []
+      })
+
+    assert {:ok, second} = Tests.create_test(second_attrs)
+    assert_receive {:followups, second_followups}, 5_000
+    assert second.status == "success"
+    first_followups.()
+    second_followups.()
+
+    assert {:ok, latest} = Tests.get_test(first.id)
+    assert latest.status == "success"
+    assert latest.duration == 100
+    assert latest.xcode_version == "17.0"
+    assert latest.is_flaky == second.is_flaky
+  end
+
+  test "a flaky flag failure on a new run does not block alerts or notification", %{attrs: attrs, project: project} do
+    attrs = cross_run_attrs(attrs)
+    assert {:ok, _passing} = Tests.create_test(attrs)
     assert_receive {:test_created, _}, 5_000
     owner = self()
     stub(Tasks, :run_async, &Task.start/1)
@@ -125,19 +170,94 @@ defmodule Tuist.Tests.IngestionTest do
     end)
 
     capture_log(fn ->
-      second_attrs = Map.merge(attrs, %{id: UUIDv7.generate(), shard_plan_id: plan.id, shard_index: 1, is_ci: true})
+      second_attrs = failing_run_attrs(attrs)
       assert {:ok, second} = Tests.create_test(second_attrs)
-      assert second.id == first.id
       assert_receive {:reported, error, opts}, 5_000
       assert %DBConnection.ConnectionError{message: "flaky flag unavailable"} = error
-      assert opts[:extra] == %{test_run_id: first.id, data: "flaky run flag"}
+      assert opts[:extra] == %{test_run_id: second.id, data: "flaky run flag"}
       assert [{_, _, _, _} | _] = opts[:stacktrace]
       assert_receive {:alerts, project_id, [_case_id]}, 5_000
       assert project_id == project.id
       assert_receive {:test_created, %{id: id}}, 5_000
-      assert id == first.id
+      assert id == second.id
       refute_receive {:alerts, _, _}
     end)
+  end
+
+  test "a flag amendment never outranks a core row one microsecond newer", %{attrs: attrs} do
+    attrs = cross_run_attrs(attrs)
+    assert {:ok, _passing} = Tests.create_test(attrs)
+    assert_receive {:test_created, _}, 5_000
+    owner = self()
+
+    stub(Tasks, :run_async, fn fun ->
+      send(owner, {:followups, fun})
+      {:ok, self()}
+    end)
+
+    assert {:ok, failed} = Tests.create_test(failing_run_attrs(attrs))
+    assert_receive {:followups, followups}, 5_000
+
+    newer = %{
+      failed
+      | status: "success",
+        duration: 100,
+        inserted_at: NaiveDateTime.add(failed.inserted_at, 1, :microsecond)
+    }
+
+    IngestRepo.insert_all(Test, [Map.take(Map.from_struct(newer), Test.__schema__(:fields))])
+
+    stub(IngestRepo, :insert_all, fn schema, rows ->
+      if schema == Test, do: send(owner, {:flag_write, rows})
+      Mimic.call_original(IngestRepo, :insert_all, [schema, rows])
+    end)
+
+    followups.()
+    assert_receive {:flag_write, [amendment]}, 5_000
+    assert amendment.inserted_at == failed.inserted_at
+
+    assert {:ok, latest} = Tests.get_test(failed.id)
+    assert latest.status == "success"
+    assert latest.duration == 100
+    assert latest.inserted_at == newer.inserted_at
+  end
+
+  test "inferred flakiness also flags a run of an already-known flaky case", %{attrs: attrs} do
+    attrs = cross_run_attrs(attrs)
+    assert {:ok, passing} = Tests.create_test(attrs)
+    [run] = passing.test_case_runs
+    assert {:ok, _} = Tests.update_test_case(run.test_case_id, %{is_flaky: true})
+    assert {:ok, failed} = Tests.create_test(failing_run_attrs(attrs))
+    assert hd(failed.test_case_runs).is_flaky
+    assert ClickHouseRepo.one(from(t in Test, hints: ["FINAL"], where: t.id == ^failed.id, select: t.is_flaky))
+  end
+
+  test "a flaky local case run does not flag its parent", %{attrs: attrs} do
+    assert {:ok, local} = Tests.create_test(attrs)
+    assert hd(local.test_case_runs).is_flaky
+    refute ClickHouseRepo.one(from(t in Test, hints: ["FINAL"], where: t.id == ^local.id, select: t.is_flaky))
+  end
+
+  test "a later shard folds its flag into exactly one primary write", %{attrs: attrs, project: project} do
+    plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+    first_attrs = Map.merge(attrs, %{shard_plan_id: plan.id, shard_index: 0, is_ci: true, test_modules: []})
+    assert {:ok, first} = Tests.create_test(first_attrs)
+    assert_receive {:test_created, _}, 5_000
+    owner = self()
+
+    stub(IngestRepo, :insert_all, fn schema, rows ->
+      if schema == Test, do: send(owner, {:parent_write, rows})
+      Mimic.call_original(IngestRepo, :insert_all, [schema, rows])
+    end)
+
+    second_attrs = Map.merge(attrs, %{id: UUIDv7.generate(), shard_plan_id: plan.id, shard_index: 1, is_ci: true})
+    assert {:ok, second} = Tests.create_test(second_attrs)
+    assert second.id == first.id
+    assert second.is_flaky
+    assert_receive {:parent_write, [row]}, 5_000
+    assert row.is_flaky
+    assert row.inserted_at == second.inserted_at
+    refute_receive {:parent_write, _}
   end
 
   test "a blocked alert follow-up does not hold the ingestion response", %{attrs: attrs} do
@@ -183,6 +303,22 @@ defmodule Tuist.Tests.IngestionTest do
     assert project_id == project.id
     assert length(Enum.uniq(ids)) == 2
     refute_receive {:alerts, _, _}
+  end
+
+  defp cross_run_attrs(attrs) do
+    Map.merge(attrs, %{
+      is_ci: true,
+      git_commit_sha: "same-commit",
+      test_modules: [
+        %{name: "module", status: "success", duration: 10, test_cases: [%{name: "case", status: "success", duration: 10}]}
+      ]
+    })
+  end
+
+  defp failing_run_attrs(attrs) do
+    attrs
+    |> Map.merge(%{id: UUIDv7.generate(), status: "failure"})
+    |> put_in([:test_modules, Access.at(0), :test_cases, Access.at(0), :status], "failure")
   end
 
   defp attributes(project_id, account_id) do
