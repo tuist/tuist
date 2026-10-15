@@ -508,6 +508,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.runCommand.targetName),
                     .target(name: Module.shareCommand.targetName),
                     .target(name: Module.inspectCommand.targetName),
+                    .target(name: Module.alert.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
