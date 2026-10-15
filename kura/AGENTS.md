@@ -21,7 +21,10 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   A named destination reconciles the source’s complete retained index before
   taking its hold. Keep this pass serialized, bounded by normal replication
   resources and the intent deadline, cancellable on authoritative abort, and
-  subject to capacity/version/tombstone rules. Repair completion never replaces
+  subject to capacity/version/tombstone rules. Evaluate repair capacity per
+  record at listing and dispatch: an older listing must not cancel newer
+  queued claims. Ordinary backward catch-up keeps its pass-wide cutoff.
+  Repair completion never replaces
   the final full-corpus verification or authorizes promotion.
   Qualification fixtures and their simulator limits are documented in
   [`test/e2e/serving-authority/AGENTS.md`](test/e2e/serving-authority/AGENTS.md).

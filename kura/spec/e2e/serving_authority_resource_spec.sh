@@ -13,6 +13,13 @@ Describe 'Local serving-authority qualification'
     The output should include '"individualInlineHandover":true'
   End
 
+  It 'preserves a segmented corpus through retained-corpus handover'
+    Skip if 'requires KURA_E2E_AUTHORITY_RESOURCES=1 and a local candidate image' qualification_disabled
+    When call run_resource_case segmented-handover
+    The status should be success
+    The output should include '"segmentedHandover":true'
+  End
+
   It 'fences an expired frozen runtime and refuses its dirty restart'
     Skip if 'requires KURA_E2E_AUTHORITY_RESOURCES=1 and a local candidate image' qualification_disabled
     When call run_resource_case pause

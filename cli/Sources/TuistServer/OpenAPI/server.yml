@@ -5449,7 +5449,7 @@ components:
           x-struct:
           x-validate:
         tool:
-          description: The tool that measured the coverage, such as `cover` for Mix or `xccov` for Xcode.
+          description: The tool that measured the coverage, such as `cover` for Mix or `llvm-cov` (`xccov` from older clients) for Xcode.
           type: string
           x-struct:
           x-validate:

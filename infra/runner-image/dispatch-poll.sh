@@ -320,8 +320,31 @@ approve_finder_automation() {
   return 0
 }
 
+# approve_simulator_microphone records a standing microphone approval
+# for iOS Simulator apps. A simulator app that records audio (a video
+# call, `AVAudioSession` in `.playAndRecord`, an `AVCaptureSession` with
+# an audio input) reaches the host microphone through CoreSimulator, and
+# TCC charges that to `com.apple.CoreSimulator.SimulatorTrampoline`.
+# Without a row the request waits on a consent prompt nobody can answer,
+# the app's main thread stalls, and XCUITest fails with `Failed to get
+# matching snapshots: Timed out while evaluating UI query`.
+#
+# Same database, timing, and lock handling as approve_finder_automation,
+# which runs first and waits for the database to appear.
+approve_simulator_microphone() {
+  local db="${RUNNER_TCC_DB}"
+  [ -f "${db}" ] || return 0
+  if /usr/bin/sqlite3 -cmd ".timeout 10000" "${db}" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceMicrophone', 'com.apple.CoreSimulator.SimulatorTrampoline', 0, 2, 3, 1, NULL, NULL, 'UNUSED', NULL, 0, CAST(strftime('%s','now') AS INTEGER));"; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: Simulator microphone approved"
+  else
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not approve Simulator microphone access"
+  fi
+  return 0
+}
+
 stream_tcc_log
 approve_finder_automation
+approve_simulator_microphone
 
 # In-VM cluster DNS for the runner-cache path. When the
 # runners-controller staged TUIST_CLUSTER_DNS_IP (macOS pools in

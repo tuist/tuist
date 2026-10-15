@@ -6118,6 +6118,64 @@ LIMIT 20
   `B`, and the first scheduled evaluation after the update reported
   `health: ok` with no error.
 
+### ClickHouse shadow write lost
+
+```promql
+(
+  sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~"error|dropped"})
+  - sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~"error|dropped"} offset 10m)
+)
+or
+(
+  sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~"error|dropped"})
+  unless sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~"error|dropped"} offset 10m)
+)
+```
+
+- Condition: expression `C`, **Threshold** on `A`, `IS ABOVE 0`. Query `A`
+  relative time range: 15 minutes.
+- Pending period: 0 minutes; keep firing for 10 minutes
+- Label `severity=warning`
+- Folder `Alerts`, group `Server`; no receiver set on the rule
+- Summary: `{{ $values.A.Value }} shadow ClickHouse {{ $labels.kind }} write(s) {{ $labels.result }} in {{ $labels.cluster }} in the last 10 minutes`
+- Set **No Data** to Normal: the counter only has `error` and `dropped` series
+  once a mirror has failed. Error state: Error.
+- `tuist_clickhouse_shadow_write_count` is emitted by
+  `Tuist.IngestRepo.ShadowWrite` for every write it mirrors onto the
+  in-cluster ClickHouse. `result=retried` is a failed attempt that will be
+  tried again and is not alerted on. `result=error` is a write given up on
+  after its last attempt, and `result=dropped` one never attempted because the
+  mirror's `Task.Supervisor` was at its bound. Both mean ClickHouse Cloud holds
+  rows the in-cluster server does not, which parity would only find later. The
+  `kind` label is the write form: `insert_all`, `insert` (which includes the
+  buffer flushes), `alter`.
+- The threshold is `> 0` on purpose: every count is a lost row set, and once
+  `clickhouse_bare_metal_reads` is on it is a wrong read too. On 2026-10-14 at
+  20:22Z the mirror gave up on 7 `coverage_files` inserts from one test run
+  while the run's one-row `coverage_runs` total arrived, so every fold of
+  commit `4eec2ec` read the run but none of its files and published 3.1%
+  coverage instead of 44.4%. This rule would have fired at 20:25Z.
+- This counter is the only signal. `ShadowWrite` logs every give-up with
+  `Logger.error("Shadow ClickHouse write ...")`, but none of those lines reached
+  Loki in the seven days to 2026-10-15 while the counter recorded hundreds of
+  errors.
+- Why not `increase()`: Grafana Cloud adaptive metrics aggregates `instance`
+  away on this metric, and `increase`/`rate` over the stored aggregation
+  return nothing. The rule diffs the summed counter against its value 10
+  minutes earlier instead. The `unless` arm keeps a series that did not exist
+  10 minutes ago, so the first failure on a pod is not lost. A pod restart
+  lowers the sum and makes the difference negative, so it cannot fire the
+  rule, but a restart inside a failure window can hide that window's count.
+- Recovering: once the window is at least 15 minutes old, run
+  `mise run clickhouse:migration <env> repair --from <start> --to <end>` from
+  `infra/` with a few minutes of margin on each side
+  (see [`infra/clickhouse/migration.md`](../../clickhouse/migration.md#repairing-known-gaps)),
+  then refold any coverage commit folded inside the window
+  (`Tuist.Tests.Coverage.Workers.CommitWorker.enqueue/2`).
+- Validated on 2026-10-15 against the past seven days: the expression returns
+  `insert` 44 and `insert_all` 7 at 20:25Z on 2026-10-14, is above zero in
+  about nine hourly samples over the week, and was 0 when evaluated.
+
 ### etcd write-ahead-log synchronization latency
 
 ```promql
