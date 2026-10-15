@@ -77,6 +77,9 @@ on:
       macos_runner_image_tag:
         description: Pre-built macOS 26.5 runner image tag to pin (e.g. `macos-26-5-9d343ebe`); wins over the resolved `runner-image@*` semver for that pool
         required: false
+      runner_payload_version:
+        description: Published runner payload version to pin (e.g. `0.3.1`); wins over the resolved `runner-payload@*` semver. Rolls macOS runners back to a payload without building one.
+        required: false
       capi_image_tag:
         description: Pre-built CAPI provider image tag to pin (e.g. `05057033`); wins over the resolved `capi-scaleway@*` semver. Use when a chart change adds operator flags before the provider image is released.
         required: false
@@ -771,6 +774,7 @@ jobs:
       KURA_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.kura_controller_image_tag }}
       LINUX_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.linux_runner_image_tag }}
       MACOS_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.macos_runner_image_tag }}
+      RUNNER_PAYLOAD_VERSION_INPUT: ${{ inputs.runner_payload_version }}
       CAPI_IMAGE_TAG_INPUT: ${{ inputs.capi_image_tag }}
       RUNNERS_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.runners_controller_image_tag }}
       EGRESS_TREE_AGENT_IMAGE_TAG_INPUT: ${{ inputs.egress_tree_agent_image_tag }}
@@ -868,6 +872,15 @@ jobs:
             echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@' 'tuist/tuist-runners-controller')"
             echo "EGRESS_TREE_AGENT_TAG=$(resolve 'egress-tree-agent@' "$EGRESS_TREE_AGENT_IMAGE_NAME")"
           } >> "$GITHUB_ENV"
+
+          # Pods pin the payload by digest. A version that resolves but
+          # cannot be pinned fails the deploy rather than dropping the pin.
+          runner_payload_version="${RUNNER_PAYLOAD_VERSION_INPUT:-$(resolve 'runner-payload@' 'tuist/tuist-runner-payload')}"
+          if [ -n "$runner_payload_version" ]; then
+            runner_payload_digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner-payload "$runner_payload_version")"
+            echo "Runner payload ${runner_payload_version} is ${runner_payload_digest}"
+            echo "RUNNER_PAYLOAD=ghcr.io/tuist/tuist-runner-payload@${runner_payload_digest}" >> "$GITHUB_ENV"
+          fi
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm kubectl"
@@ -1138,6 +1151,7 @@ jobs:
           }
           add_set "xcresultProcessor.image.tag" "${XCRESULT_PROCESSOR_TAG:-}"
           add_set "runnersFleet.runnerImageSemver" "${RUNNER_IMAGE_SEMVER:-}"
+          add_set "runnersFleet.runnerPayload" "${RUNNER_PAYLOAD:-}"
           # The explicit macos_runner_image_tag input wins over the
           # resolved runner-image@ semver for the default 26.5 pool. Used
           # to pin staging at an in-flight `:macos-26-5-<git-sha>` build

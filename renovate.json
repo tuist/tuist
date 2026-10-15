@@ -33,6 +33,15 @@
     },
     {
       "customType": "regex",
+      "description": "Version pins in the macOS runner payload. Bumps release a new `runner-payload@<semver>`, which server-deployment.yml pins by digest at deploy time. The checksum next to the version is updated by hand.",
+      "fileMatch": ["^infra/runner-payload/buildkite-agent\\.env$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+[A-Z_]+=(?<currentValue>[^\\s]+)"
+      ],
+      "extractVersionTemplate": "^v?(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
       "description": "hetzner-robot-controller image pin in the mgmt-cluster Deployment manifest. Renovate tracks the ghcr tag the release pushes and opens the bump PR; mgmt-cluster-apply.yml rolls it out on merge (the manifest path is in its trigger).",
       "fileMatch": ["^infra/k8s/mgmt/hetzner-robot-controller\\.yaml$"],
       "matchStrings": [

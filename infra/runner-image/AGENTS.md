@@ -119,6 +119,12 @@ added to catch that failed on `admin`'s unwritable cache instead.
 - `/Users/runner/work/<owner>/<repo>` — workspace path the JIT
   config sets via `work_folder: "/Users/runner/work"`; matches
   GitHub-hosted's `GITHUB_WORKSPACE`.
+- `/opt/tuist/install-payload.sh`: runs first at boot and copies the
+  [runner payload](../runner-payload/AGENTS.md) from tart-kubelet's
+  `payload` mount over the image's `/opt/tuist` and `/usr/local/bin`
+  files, so the payload's `dispatch-poll.sh`, agents, hooks and
+  binaries are the ones that run. Without a mount the image's own copies
+  run; a failed install halts the VM.
 - `/opt/tuist/inject-env.sh` — root-owned helper; reads
   tart-kubelet's env mount (`/Volumes/My Shared Files/env/tuist.env`)
   into `/etc/tuist.env`.

@@ -50,3 +50,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
 - Custom-volume mailbox requests forward commit intent to the server. Validate explicit-mode acknowledgement before Store.Acquire and return it to the guest; the host never grants branch publication rights.
 
 - Explicit commit modes use versioned acquisition/authorization paths (macOS .commit-request mailboxes) so older components cannot allocate before rejecting them. Auto retains legacy paths. Echo can_publish and warn on an unauthorized explicit save; publication still rechecks policy.
+
+- A Pod annotated `tuist.dev/runner-payload` (a digest reference) gets that
+  payload shared read-only as `payload` (`internal/payload`). The manifest and
+  layer digests are verified, the archive may hold only regular files and
+  directories, and a fetch failure keeps the Pod in `TartCreateFailed` rather
+  than booting without it. See [runner payload](../runner-payload/AGENTS.md).

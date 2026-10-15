@@ -299,6 +299,24 @@ func TestBuild_RuntimeClassNameStampedWhenSet(t *testing.T) {
 	}
 }
 
+func TestBuild_RunnerPayloadStampedOnMacOSPods(t *testing.T) {
+	payload := "ghcr.io/tuist/tuist-runner-payload@sha256:current"
+	macos := basePool("")
+	macos.Annotations = map[string]string{RunnerPayloadAnnotation: payload}
+	linux := basePool("linux")
+	linux.Annotations = map[string]string{RunnerPayloadAnnotation: payload}
+
+	if got := build(t, macos).Annotations[RunnerPayloadAnnotation]; got != payload {
+		t.Errorf("macOS runner payload annotation = %q, want %q", got, payload)
+	}
+	if got, ok := build(t, linux).Annotations[RunnerPayloadAnnotation]; ok {
+		t.Errorf("Linux runner payload annotation = %q, want absent", got)
+	}
+	if got, ok := build(t, basePool("")).Annotations[RunnerPayloadAnnotation]; ok {
+		t.Errorf("runner payload annotation = %q on a pool that pins none, want absent", got)
+	}
+}
+
 func TestBuild_RuntimeClassNameNilWhenUnset(t *testing.T) {
 	// A pool with no RuntimeClass and no dind sidecar (empty
 	// dindImage) is allowed to fall back to the default runtime.

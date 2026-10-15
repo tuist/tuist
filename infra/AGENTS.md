@@ -327,3 +327,4 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
   are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
 - Shared runner-cache lifecycle: [`runner-cache/AGENTS.md`](runner-cache/AGENTS.md).
+- macOS runner boot payload: [`runner-payload/AGENTS.md`](runner-payload/AGENTS.md).

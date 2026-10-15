@@ -397,17 +397,17 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		switch {
 		case isAlive(p):
 			alive++
-			staleImage := isStaleImage(p, pool)
+			staleGuest := isStaleImage(p, pool) || isStalePayload(p, pool)
 			staleRuntimeClassRevision := isStaleRuntimeClassRevision(p, pool) || isStaleCacheVolumes(p, pool)
 			switch {
-			case staleImage || staleRuntimeClassRevision:
+			case staleGuest || staleRuntimeClassRevision:
 				staleAlive++
-				if staleImage && p.Labels[drainEligibleLabel] == "true" {
+				if staleGuest && p.Labels[drainEligibleLabel] == "true" {
 					markedStale++
 				} else if isIdle(p) {
 					if p.Status.Phase == corev1.PodPending {
 						reapCandidates = append(reapCandidates, p)
-					} else if staleImage {
+					} else if staleGuest {
 						drainCandidates = append(drainCandidates, p)
 					}
 				}
@@ -1071,10 +1071,10 @@ func runnerTerminated(pod *corev1.Pod) *corev1.ContainerStateTerminated {
 }
 
 // isStaleRunner reports whether an alive Pod needs controlled
-// replacement because its image or RuntimeClass revision no longer
+// replacement because its image, payload or RuntimeClass revision no longer
 // matches the pool's current template.
 func isStaleRunner(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
-	return isStaleImage(pod, pool) || isStaleRuntimeClassRevision(pod, pool) || isStaleCacheVolumes(pod, pool)
+	return isStaleImage(pod, pool) || isStalePayload(pod, pool) || isStaleRuntimeClassRevision(pod, pool) || isStaleCacheVolumes(pod, pool)
 }
 
 // isStaleImage returns true when the Pod's runner container image
@@ -1087,6 +1087,19 @@ func isStaleImage(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
 		return false
 	}
 	return pod.Spec.Containers[0].Image != pool.Spec.Image
+}
+
+// isStalePayload reports whether a macOS Pod booted a runner payload other
+// than the one its RunnerPool pins.
+func isStalePayload(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	if pool.Spec.OS == "linux" {
+		return false
+	}
+	payload := pool.Annotations[podtemplate.RunnerPayloadAnnotation]
+	if payload == "" {
+		return false
+	}
+	return pod.Annotations[podtemplate.RunnerPayloadAnnotation] != payload
 }
 
 // isStaleRuntimeClassRevision compares the revision Helm stamped on

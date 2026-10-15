@@ -157,6 +157,7 @@ defmodule Tuist.Runners do
   # cadence that was far shorter than a multi-minute image pull.
   @operator_drain_label "tuist.dev/runner-operator-drain"
   @drain_eligible_label "tuist.dev/drain-eligible"
+  @runner_payload_annotation "tuist.dev/runner-payload"
   @max_claim_attempts_per_dispatch 16
 
   # Dispatch-time volume affinity. `pick_queued` fetches the K
@@ -1742,7 +1743,7 @@ defmodule Tuist.Runners do
             {:error, :pod_committed}
 
           true ->
-            check_image_staleness(namespace, fleet_name, pod)
+            check_staleness(namespace, fleet_name, pod)
         end
 
       _ ->
@@ -1758,12 +1759,12 @@ defmodule Tuist.Runners do
 
   defp operator_drain?(pod), do: get_in(pod, ["metadata", "labels", @operator_drain_label]) == "true"
 
-  defp check_image_staleness(namespace, fleet_name, pod) do
+  defp check_staleness(namespace, fleet_name, pod) do
     with {:ok, pool} <- K8sClient.get_runner_pool(namespace, fleet_name),
          {:ok, pool_image} <- pool_image(pool),
          {:ok, pod_image} <- pod_image(pod) do
       cond do
-        pod_image == pool_image ->
+        pod_image == pool_image and not stale_payload?(pod, pool) ->
           {:ok, node_name_of(pod)}
 
         not drain_eligible?(pod) ->
@@ -1778,7 +1779,9 @@ defmodule Tuist.Runners do
             pod: get_in(pod, ["metadata", "name"]),
             fleet: fleet_name,
             pod_image: pod_image,
-            pool_image: pool_image
+            pool_image: pool_image,
+            pod_payload: runner_payload(pod),
+            pool_payload: runner_payload(pool)
           )
 
           {:error, :drain}
@@ -1801,6 +1804,15 @@ defmodule Tuist.Runners do
     do: {:ok, image}
 
   defp pod_image(_), do: :error
+
+  defp stale_payload?(pod, pool) do
+    case runner_payload(pool) do
+      nil -> false
+      payload -> runner_payload(pod) != payload
+    end
+  end
+
+  defp runner_payload(resource), do: get_in(resource, ["metadata", "annotations", @runner_payload_annotation])
 
   # True when the controller has marked this Pod drain-eligible for the
   # current roll wave. Missing metadata/labels, or the label absent or
