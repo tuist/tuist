@@ -252,6 +252,65 @@ struct XcodeCoverageParserTests {
         }
     }
 
+
+    @Test
+    func listsTheTargetsWithTheirProductsAndFiles() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: "xcode-coverage-parser-tests") { root in
+            let bundle = root.appending(component: "run.xcresult")
+            try await fileSystem.makeDirectory(at: bundle)
+            let subject = XccovStub(reportJSON: report(
+                """
+                {"name": "Lib.framework", "buildProductPath": "/Products/Lib.framework/Versions/A/Lib", "files": [{"path": "/repo/A.swift", "coveredLines": 1, "executableLines": 1}]},
+                {"name": "LibTests.xctest", "buildProductPath": "/Products/LibTests.xctest/Contents/MacOS/LibTests", "files": [{"path": "/repo/A.swift", "coveredLines": 1, "executableLines": 1}, {"path": "/repo/ATests.swift", "coveredLines": 1, "executableLines": 1}]}
+                """
+            )).parser
+
+            let targets = try #require(try await subject.coverageTargets(resultBundlePath: bundle))
+
+            #expect(targets == [
+                XcodeCoverageTarget(name: "Lib.framework", buildProductPath: "/Products/Lib.framework/Versions/A/Lib", files: ["/repo/A.swift"]),
+                XcodeCoverageTarget(
+                    name: "LibTests.xctest",
+                    buildProductPath: "/Products/LibTests.xctest/Contents/MacOS/LibTests",
+                    files: ["/repo/A.swift", "/repo/ATests.swift"]
+                ),
+            ])
+            #expect(targets.map(\XcodeCoverageTarget.isTest) == [false, true])
+            #expect(try await XccovStub(reportJSON: nil).parser.coverageTargets(resultBundlePath: bundle) == nil)
+        }
+    }
+
+    @Test
+    func leavesTheBundlesCoverageAloneWhenTheClientReportedIt() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: "xcode-coverage-parser-tests") { root in
+            let bundle = root.appending(component: "run.xcresult")
+            try await fileSystem.makeDirectory(at: bundle)
+            let stub = XccovStub(reportJSON: report(""))
+            let output = root.appending(component: "coverage.ndjson")
+            func write(clientReported: Bool) throws {
+                try JSONEncoder()
+                    .encode(XcodeCoverageManifest(rootDirectories: ["/repo"], partial: false, files: [], clientReported: clientReported))
+                    .write(to: URL(fileURLWithPath: bundle.appending(component: XcodeCoverageManifest.fileName).pathString))
+            }
+
+            try write(clientReported: true)
+            #expect(try await XCResultParser(coverageParser: stub.parser).parseCoverage(path: bundle, into: output) == nil)
+            #expect(stub.bundleArguments.isEmpty)
+
+            try write(clientReported: false)
+            #expect(try await XCResultParser(coverageParser: stub.parser).parseCoverage(path: bundle, into: output) != nil)
+            #expect(!stub.bundleArguments.isEmpty)
+        }
+    }
+
+    @Test func decodesAManifestWrittenBeforeTheClientReportedFlag() throws {
+        let manifest = try JSONDecoder().decode(
+            XcodeCoverageManifest.self,
+            from: Data(#"{"root_directories": ["/repo"], "partial": true, "files": []}"#.utf8)
+        )
+        #expect(manifest == XcodeCoverageManifest(rootDirectories: ["/repo"], partial: true, files: []))
+        #expect(!manifest.clientReported)
+    }
     @Test
     func reportsNothingForABundleWithoutCoverage() async throws {
         let subject = XccovStub(reportJSON: nil).parser

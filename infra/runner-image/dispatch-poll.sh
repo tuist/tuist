@@ -130,6 +130,103 @@ report_heartbeat() {
   printf '%s' "${1}" >"${STATUS_SHARE}/runner-heartbeat" 2>/dev/null || true
 }
 
+RUNNER_TCC_DB="/Users/runner/Library/Application Support/com.apple.TCC/TCC.db"
+TCC_LOG=/var/log/tuist-runner/tcc.log
+TCC_LOG_PID=""
+
+# stream_tcc_log records TCC's unified-log output from boot on, for
+# report_finder_automation to read on the way out. Streamed rather than
+# read back with `log show` at exit: scanning the log store after a long
+# job takes tens of seconds, and a cut-off scan loses the newest lines,
+# which are the ones that explain a failure near the end of the job.
+stream_tcc_log() {
+  /usr/bin/log stream --level info --style ndjson --predicate 'subsystem == "com.apple.TCC"' >"${TCC_LOG}" 2>/dev/null &
+  TCC_LOG_PID=$!
+}
+
+filter_tcc_log() {
+  # JSON preserves multiline request boundaries. Bound parsing to the latest
+  # MiB; keep the last denial plus recent AppleEvents requests, not file access.
+  tail -c 1048576 "${TCC_LOG}" | jq -Rr '
+    fromjson? | select(.eventMessage != null) |
+    [.timestamp, .processID, .threadID, (.eventMessage | gsub("[\\n\\r\\t]"; " "))] | @tsv
+  ' | LC_ALL=C awk -F '\t' '
+    {
+      message=$4; thread=$2 ":" $3
+      if (match(message, /msgID=[0-9.]+/)) {
+        key=$2 ":" substr(message, RSTART, RLENGTH); current[thread]=key
+      } else key=current[thread]
+      if (key == "") next
+      if (message ~ /service="kTCCServiceAppleEvents"|subject=com\.apple\.finder|Handling access request: kTCCServiceAppleEvents/) apple[key]=1
+      if (message ~ /REQUEST_MSG/ && message ~ /service="/ && message !~ /service="kTCCServiceAppleEvents"/) other[key]=1
+      text=$1 " pid=" $2 " " message
+      if (message ~ /REQUEST_MSG|AUTHREQ_SUBJECT/) request[key]=text
+      if (message ~ /^(AUTHREQ_ATTRIBUTION|AttributionChain:)/ && (attribution[key]=="" || message ~ /responsible=/)) attribution[key]=text
+      if (message ~ /^AUTHREQ_RESULT|^Handling access request: kTCCServiceAppleEvents/) {
+        result[key]=text
+        if (message ~ /authValue[=:][ ]*0([, ]|$)/) { denied[key]=NR; denied_result[key]=text }
+        if (message ~ /authValue[=:][ ]*1([, ]|$)/) uncertain[key]=NR
+      }
+      seen[key]=NR; order[NR]=key
+    }
+    function emit(key, decision) {
+      if (request[key] != "") print substr(request[key],1,1800)
+      if (attribution[key] != "") print substr(attribution[key],1,1800)
+      if (decision == "") decision=result[key]
+      if (decision != "") print substr(decision,1,1800)
+    }
+    END {
+      for (key in denied) if (apple[key] && !other[key] && denied[key]>last) { last=denied[key]; failure=key }
+      if (failure == "") for (key in uncertain) if (apple[key] && !other[key] && uncertain[key]>last) { last=uncertain[key]; failure=key }
+      if (failure != "") emit(failure,denied_result[failure])
+      for (i=NR; i>0 && count<9; i--) {
+        key=order[i]
+        if (seen[key]==i && apple[key] && !other[key] && key!=failure) { emit(key); count++ }
+      }
+    }
+  '
+}
+
+# report_finder_automation appends the state behind scripted Finder
+# access to `${LOG}` on the way out. The Finder approval written at boot
+# (approve_finder_automation) still fails on some jobs with an immediate
+# `Not authorized to send Apple events to Finder (-1743)`, and nothing
+# from those VMs survives them. Written last, after the job's own
+# output, it lands in the bounded tail that publish_runner_log hands to
+# tart-kubelet and that reaches Loki.
+#
+# Keep at most ten request summaries within the host 64 KiB tail. Teardown
+# is best-effort: a stalled stream or report must not prevent VM shutdown.
+report_finder_automation() {
+  local prefix pid timer stream="${TCC_LOG_PID}"
+  prefix="$(date -u +%FT%TZ) dispatch-poll: tcc:"
+  TCC_LOG_PID=""
+  if [ -n "${stream}" ] && jobs -pr | grep -qx "${stream}"; then
+    ( sleep 1; kill -KILL "${stream}" 2>/dev/null ) >/dev/null 2>&1 &
+    timer=$!
+    kill "${stream}" 2>/dev/null || true
+    wait "${stream}" 2>/dev/null || true
+    kill "${timer}" 2>/dev/null || true
+    wait "${timer}" 2>/dev/null || true
+  fi
+  set -m
+  (
+    stat -f "${prefix} db inode=%i birth=%SB mtime=%Sm" -t '%FT%T' "${RUNNER_TCC_DB}" 2>&1 | head -n 1
+    /usr/bin/sqlite3 -readonly -cmd '.timeout 1000' "${RUNNER_TCC_DB}" "SELECT client, auth_value, auth_reason, last_modified FROM access WHERE service = 'kTCCServiceAppleEvents' AND indirect_object_identifier = 'com.apple.finder' LIMIT 10;" 2>&1 |
+      head -n 10 | cut -c1-400 | sed "s|^|${prefix} row |"
+    ps -axo pid=,user=,lstart=,comm= | awk '$NF ~ /(^|\/)tccd$/' | head -n 5 | cut -c1-500 | sed "s|^ *|${prefix} tccd |"
+    [ ! -f "${TCC_LOG}" ] || filter_tcc_log | sed "s|^|${prefix} log |"
+  ) &
+  pid=$!
+  set +m
+  ( sleep 5; kill -TERM -- "-${pid}" 2>/dev/null; sleep 1; kill -KILL -- "-${pid}" 2>/dev/null ) >/dev/null 2>&1 &
+  timer=$!
+  wait "${pid}" 2>/dev/null || true
+  kill -KILL -- "-${pid}" 2>/dev/null || true
+  kill "${timer}" 2>/dev/null || true
+  wait "${timer}" 2>/dev/null || true
+}
+
 # Always halt the VM on script exit. tart-kubelet observes `tart run`
 # exiting and transitions the Pod to a terminal phase; without this
 # trap a non-zero `./run.sh` (errexit), an early `exit 1`
@@ -138,7 +235,7 @@ report_heartbeat() {
 # refilling. The trap fires once on EXIT so the happy path
 # (clean ./run.sh exit) and every error path halt the VM the
 # same way.
-trap '_rc=$?; report_runner_exit "${_rc}"; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; publish_runner_log; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
+trap '_rc=$?; report_runner_exit "${_rc}"; report_finder_automation; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; publish_runner_log; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
 
 if [ ! -f /etc/tuist.env ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: /etc/tuist.env missing; aborting"
@@ -148,6 +245,13 @@ fi
 source /etc/tuist.env
 
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
+
+# GitHub-hosted runners set ImageOS (e.g. `macos26`), and setup actions such
+# as erlef/setup-beam read it to pick a prebuilt binary for the OS. Derived
+# from the booted OS so it follows base-image bumps; the runner forwards it
+# to every step.
+ImageOS="macos$(sw_vers -productVersion | cut -d. -f1)"
+export ImageOS
 
 keep_desktop_interactive() {
   # ByHost screensaver preferences are tied to the cloned VM's
@@ -195,7 +299,7 @@ keep_desktop_interactive
 #
 # Best-effort: a job that never scripts Finder must not wait on this.
 approve_finder_automation() {
-  local db="/Users/runner/Library/Application Support/com.apple.TCC/TCC.db"
+  local db="${RUNNER_TCC_DB}"
   local finder_requirement="X'fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003'"
   local waited=0 failed=0 client
   while [ ! -f "${db}" ] && [ "${waited}" -lt 30 ]; do
@@ -216,7 +320,31 @@ approve_finder_automation() {
   return 0
 }
 
+# approve_simulator_microphone records a standing microphone approval
+# for iOS Simulator apps. A simulator app that records audio (a video
+# call, `AVAudioSession` in `.playAndRecord`, an `AVCaptureSession` with
+# an audio input) reaches the host microphone through CoreSimulator, and
+# TCC charges that to `com.apple.CoreSimulator.SimulatorTrampoline`.
+# Without a row the request waits on a consent prompt nobody can answer,
+# the app's main thread stalls, and XCUITest fails with `Failed to get
+# matching snapshots: Timed out while evaluating UI query`.
+#
+# Same database, timing, and lock handling as approve_finder_automation,
+# which runs first and waits for the database to appear.
+approve_simulator_microphone() {
+  local db="${RUNNER_TCC_DB}"
+  [ -f "${db}" ] || return 0
+  if /usr/bin/sqlite3 -cmd ".timeout 10000" "${db}" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceMicrophone', 'com.apple.CoreSimulator.SimulatorTrampoline', 0, 2, 3, 1, NULL, NULL, 'UNUSED', NULL, 0, CAST(strftime('%s','now') AS INTEGER));"; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: Simulator microphone approved"
+  else
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not approve Simulator microphone access"
+  fi
+  return 0
+}
+
+stream_tcc_log
 approve_finder_automation
+approve_simulator_microphone
 
 # In-VM cluster DNS for the runner-cache path. When the
 # runners-controller staged TUIST_CLUSTER_DNS_IP (macOS pools in

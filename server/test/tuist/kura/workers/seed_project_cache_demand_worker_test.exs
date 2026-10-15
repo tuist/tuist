@@ -228,7 +228,7 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
       assert :ok = Lifecycle.reconcile()
 
       [server] = servers_for(account)
-      age_to(server, Demand.get(account.id, @region), 20)
+      age_to(server, Demand.get(account.id, @region), Environment.kura_air_inactive_days() - 1)
 
       assert :ok = Lifecycle.sweep()
 

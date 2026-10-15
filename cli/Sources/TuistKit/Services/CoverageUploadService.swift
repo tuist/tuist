@@ -10,31 +10,34 @@ import TuistXCResultService
 import XCResultParser
 
 /// A run's coverage, ready to send: inline with the run when small, or already in object
-/// storage (under a run id the client chose) when large.
+/// storage (under a run id the client chose, or the caller's) when large.
 public struct PreparedCoverage: Equatable {
-    public let inline: XcodeCoverageReport?
-    public let upload: XcodeCoverageUpload?
+    public let coverage: TestRunCoverage
     /// The run id the upload was made for; the run must be created with it.
     public let testRunId: String?
 
-    public init(inline: XcodeCoverageReport?, upload: XcodeCoverageUpload?, testRunId: String?) {
-        self.inline = inline
-        self.upload = upload
+    public init(coverage: TestRunCoverage, testRunId: String?) {
+        self.coverage = coverage
         self.testRunId = testRunId
     }
 }
 
-/// Reads a bundle's coverage through the streaming parser and decides how it travels to the
-/// server: DEFLATE-compressed, anything up to the server's inline threshold goes in the run's
-/// request; anything larger is PUT to a signed URL first and the run references it. Both keep
-/// memory flat in the coverage's size. Failures cost the run its coverage, never the run.
+/// Ties a run's coverage to the repository and decides how it travels to the server:
+/// DEFLATE-compressed, anything up to the server's inline threshold goes in the run's request;
+/// anything larger is PUT to a signed URL first and the run references it. Both keep memory flat
+/// in the coverage's size. The coverage is the `llvm-cov` export the run wrote into its bundle
+/// (`CoverageExport`), or, without one, the bundle's `xccov` report read through the streaming
+/// parser. Failures cost the run its coverage, never the run.
 @Mockable
 public protocol CoverageUploadServicing {
+    /// `testRunId` is the id the run will be created with, for an upload that must be made under
+    /// it; nil lets the service choose one, which the caller then has to use.
     func prepare(
         resultBundlePath: AbsolutePath,
         manifest: XcodeCoverageManifest,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        testRunId: String?
     ) async -> PreparedCoverage?
 }
 
@@ -65,16 +68,30 @@ public struct CoverageUploadService: CoverageUploadServicing {
         resultBundlePath: AbsolutePath,
         manifest: XcodeCoverageManifest,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        testRunId: String? = nil
     ) async -> PreparedCoverage? {
         do {
             return try await fileSystem.runInTemporaryDirectory(prefix: "tuist-coverage") { directory -> PreparedCoverage? in
                 let ndjson = directory.appending(component: "coverage.ndjson")
-                guard let summary = try await xcResultService.parseCoverage(
-                    path: resultBundlePath,
-                    manifest: manifest,
-                    into: ndjson
-                ) else { return nil }
+                let tool: String
+                let summary: XcodeCoverageSummary
+                let export = resultBundlePath.appending(component: CoverageExport.fileName)
+                if try await fileSystem.exists(export) {
+                    tool = "llvm-cov"
+                    // The export is the run's intermediate, not part of the bundle, whatever the tie does.
+                    let tied = Result { try CoverageExport.tie(export: export, manifest: manifest, into: ndjson) }
+                    try await fileSystem.remove(export)
+                    summary = try tied.get()
+                } else {
+                    tool = "xccov"
+                    guard let parsed = try await xcResultService.parseCoverage(
+                        path: resultBundlePath,
+                        manifest: manifest,
+                        into: ndjson
+                    ) else { return nil }
+                    summary = parsed
+                }
 
                 let deflated = directory.appending(component: "coverage.ndjson.deflate")
                 try Self.deflate(ndjson, to: deflated)
@@ -91,13 +108,12 @@ public struct CoverageUploadService: CoverageUploadServicing {
                 if size <= threshold {
                     let files = try XcodeCoverageParser.readFiles(at: ndjson).sorted { $0.path < $1.path }
                     return PreparedCoverage(
-                        inline: XcodeCoverageReport(partial: summary.partial, files: files),
-                        upload: nil,
-                        testRunId: nil
+                        coverage: TestRunCoverage(tool: tool, partial: summary.partial, files: files),
+                        testRunId: testRunId
                     )
                 }
 
-                let testRunId = UUID().uuidString.lowercased()
+                let testRunId = testRunId ?? UUID().uuidString.lowercased()
                 let upload = try await createUploadService.createCoverageUpload(
                     fullHandle: fullHandle,
                     serverURL: serverURL,
@@ -106,8 +122,7 @@ public struct CoverageUploadService: CoverageUploadServicing {
                 try await uploader.upload(file: deflated, to: upload.uploadURL)
                 Logger.current.debug("Uploaded \(size) bytes of coverage for \(summary.fileCount) files as \(upload.storageKey)")
                 return PreparedCoverage(
-                    inline: nil,
-                    upload: XcodeCoverageUpload(storageKey: upload.storageKey, partial: summary.partial),
+                    coverage: TestRunCoverage(tool: tool, partial: summary.partial, storageKey: upload.storageKey),
                     testRunId: testRunId
                 )
             }

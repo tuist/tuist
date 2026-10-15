@@ -922,6 +922,51 @@ struct TuistCacheEEAcceptanceTests {
         )
     }
 
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_cached_framework_with_package_resources")
+    ) func generated_ios_cached_framework_with_package_resources() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "CachedFrameworkWithPackageResources.xcodeproj")
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+        let fileSystem = FileSystem()
+
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "Framework",
+                "--build-only",
+                "--no-upload",
+                "--no-selective-testing",
+                "--path",
+                fixtureDirectory.pathString,
+                "--",
+                "-destination",
+                "generic/platform=iOS Simulator",
+                "-derivedDataPath",
+                derivedDataPath.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Framework", by: "FrameworkTests", xcodeprojPath: xcodeprojPath)
+        let productsDirectory = derivedDataPath.appending(components: "Build", "Products", "Debug-iphonesimulator")
+        #expect(try await fileSystem.exists(productsDirectory.appending(component: "Framework.framework")))
+        #expect(try await fileSystem.exists(productsDirectory.appending(component: "ResourcesPackage_ResourcesLib.bundle")))
+    }
+
     /// Removes the targets' binaries from the local cache so the next warm treats them as misses, and returns the
     /// number of cache actions removed.
     private func evictFromLocalCache(_ targets: Set<String>) async throws -> Int {

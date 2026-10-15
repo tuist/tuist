@@ -739,6 +739,37 @@ func TestNodeLabelsMatchTheScalewayKind(t *testing.T) {
 	}
 }
 
+// A host lent to another fleet registers its Node in that fleet, so the
+// operator's own pools stop selecting it and the other fleet's start.
+func TestNodeFleetReplacesTheNodesFleetLabel(t *testing.T) {
+	m := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.NodeFleet = "tuist-staging-rack-fleet" })
+	if got := rackMachineNodeLabels(m)["tuist.dev/fleet"]; got != "tuist-staging-rack-fleet" {
+		t.Fatalf("fleet label = %q, want the node fleet", got)
+	}
+}
+
+// Node labels are per-host and HostConfigHash strips them, so the node fleet
+// has to reach the stamped hash or a running host would never get the new
+// label. A host on the operator's fleet must hash exactly as before, or every
+// rack host would re-push on the deploy that ships the field.
+func TestNodeFleetDriftsOnlyTheLentHost(t *testing.T) {
+	r := &RackAppleSiliconMachineReconciler{DefaultGuestCapacity: 1}
+	host := rackHost("mini-01")
+	own := rackMachine("m")
+	lent := rackMachine("m", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.NodeFleet = "tuist-staging-rack-fleet" })
+	other := rackMachine("m", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.NodeFleet = "tuist-canary-rack-fleet" })
+
+	if want, have := hostConfigHashFor(r.rackFleetConfig(host), r.hostSizing(own)), r.desiredHostConfigHash(own, host); want != have {
+		t.Fatalf("a host on the operator's fleet hashes %s, want the unchanged %s", have, want)
+	}
+	if r.desiredHostConfigHash(own, host) == r.desiredHostConfigHash(lent, host) {
+		t.Fatal("lending the host does not drift it")
+	}
+	if r.desiredHostConfigHash(lent, host) == r.desiredHostConfigHash(other, host) {
+		t.Fatal("moving the host between lent fleets does not drift it")
+	}
+}
+
 // A serial-less inventory record still has to produce a well-formed providerID:
 // a missing serial degrades the identity's durability, it does not break the
 // Machine, so hostOf deliberately does not require one.

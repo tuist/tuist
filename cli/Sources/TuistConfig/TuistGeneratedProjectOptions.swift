@@ -112,6 +112,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         public let disableSandbox: Bool
         public let includeGenerateScheme: Bool
         public let enableCaching: Bool
+        public let enableCoveragePrefixMapping: Bool
         public let registryEnabled: Bool
         public let warningsAsErrors: WarningsAsErrors
         public let defaultSwiftVersion: String
@@ -133,6 +134,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             disableSandbox: Bool,
             includeGenerateScheme: Bool,
             enableCaching: Bool = false,
+            enableCoveragePrefixMapping: Bool = false,
             registryEnabled: Bool = false,
             warningsAsErrors: WarningsAsErrors = .none,
             defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
@@ -153,6 +155,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             self.disableSandbox = disableSandbox
             self.includeGenerateScheme = includeGenerateScheme
             self.enableCaching = enableCaching
+            self.enableCoveragePrefixMapping = enableCoveragePrefixMapping
             self.registryEnabled = registryEnabled
             self.warningsAsErrors = warningsAsErrors
             self.defaultSwiftVersion = defaultSwiftVersion
@@ -177,6 +180,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 disableSandbox: Bool = true,
                 includeGenerateScheme: Bool = true,
                 enableCaching: Bool = false,
+                enableCoveragePrefixMapping: Bool = false,
                 registryEnabled: Bool = false,
                 warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none,
                 defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
@@ -198,6 +202,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                     disableSandbox: disableSandbox,
                     includeGenerateScheme: includeGenerateScheme,
                     enableCaching: enableCaching,
+                    enableCoveragePrefixMapping: enableCoveragePrefixMapping,
                     registryEnabled: registryEnabled,
                     warningsAsErrors: warningsAsErrors,
                     defaultSwiftVersion: defaultSwiftVersion,

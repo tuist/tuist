@@ -6,11 +6,32 @@ Describe 'Local serving-authority qualification'
     node "test/e2e/serving-authority/$1.mjs" "$KURA_E2E_AUTHORITY_IMAGE" "$KURA_E2E_AUTHORITY_OUTPUT/$1"
   }
 
+  It 'preserves inline metadata through individual fetches and retained-corpus handover'
+    Skip if 'requires KURA_E2E_AUTHORITY_RESOURCES=1 and a local candidate image' qualification_disabled
+    When call run_resource_case inline-handover
+    The status should be success
+    The output should include '"individualInlineHandover":true'
+  End
+
+  It 'preserves a segmented corpus through retained-corpus handover'
+    Skip if 'requires KURA_E2E_AUTHORITY_RESOURCES=1 and a local candidate image' qualification_disabled
+    When call run_resource_case segmented-handover
+    The status should be success
+    The output should include '"segmentedHandover":true'
+  End
+
   It 'fences an expired frozen runtime and refuses its dirty restart'
     Skip if 'requires KURA_E2E_AUTHORITY_RESOURCES=1 and a local candidate image' qualification_disabled
     When call run_resource_case pause
     The status should be success
     The output should include '"lateWriteAbsent":true'
+  End
+
+  It 'resumes only the same live writer after explicit fencing and drained uploads'
+    Skip if 'requires KURA_E2E_AUTHORITY_RESOURCES=1 and a local candidate image' qualification_disabled
+    When call run_resource_case resume
+    The status should be success
+    The output should include '"sameWriterResumed":true'
   End
 
   It 'rejects an incomplete corpus under disk pressure and recovers after space is restored'

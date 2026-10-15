@@ -29,7 +29,7 @@ defmodule Tuist.Kura.AdmissionTest do
     pending_server(account, region.id)
 
     stub(Capacity, :pressure_line_gib, fn ^region_id -> 31 end)
-    stub(Capacity, :reserved_gib, fn ^region_id -> 0 end)
+    stub(Capacity, :reserved_gib_by_instance, fn ^region_id -> %{} end)
     stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
 
     candidate = candidate(account, region.id)
@@ -37,13 +37,13 @@ defmodule Tuist.Kura.AdmissionTest do
     assert {:error, :capacity_exhausted} = Admission.admit?(region, candidate)
   end
 
-  test "uses the larger of the observed and desired reservations" do
+  test "counts the pods of an instance that has no row" do
     account = account()
     {:ok, region} = Regions.fetch("us-east")
     region_id = region.id
 
     stub(Capacity, :pressure_line_gib, fn ^region_id -> 31 end)
-    stub(Capacity, :reserved_gib, fn ^region_id -> 16 end)
+    stub(Capacity, :reserved_gib_by_instance, fn ^region_id -> %{"kura-orphan-us-east-1" => 16} end)
     stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
 
     assert {:error, :capacity_exhausted} = Admission.admit?(region, candidate(account, region.id))
@@ -57,7 +57,7 @@ defmodule Tuist.Kura.AdmissionTest do
     candidate = %{current | storage_claim_size: "16Gi"}
 
     stub(Capacity, :pressure_line_gib, fn ^region_id -> 31 end)
-    stub(Capacity, :reserved_gib, fn ^region_id -> 16 end)
+    stub(Capacity, :reserved_gib_by_instance, fn ^region_id -> %{current.provisioner_node_ref => 16} end)
 
     stub(Capacity, :resident_gib, fn
       ^region, %Server{storage_claim_size: "8Gi"} -> 16
@@ -78,7 +78,7 @@ defmodule Tuist.Kura.AdmissionTest do
     candidate = %{current | storage_claim_size: "16Gi"}
 
     stub(Capacity, :pressure_line_gib, fn ^region_id -> 1000 end)
-    stub(Capacity, :reserved_gib, fn ^region_id -> 16 end)
+    stub(Capacity, :reserved_gib_by_instance, fn ^region_id -> %{current.provisioner_node_ref => 16} end)
     stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
     stub(Capacity, :placeable?, fn ^region, %Server{storage_claim_size: "16Gi"} -> false end)
 
@@ -93,7 +93,7 @@ defmodule Tuist.Kura.AdmissionTest do
     candidate = %{current | storage_claim_size: "16Gi"}
 
     stub(Capacity, :pressure_line_gib, fn ^region_id -> 1000 end)
-    stub(Capacity, :reserved_gib, fn ^region_id -> 16 end)
+    stub(Capacity, :reserved_gib_by_instance, fn ^region_id -> %{current.provisioner_node_ref => 16} end)
     stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
     stub(Capacity, :placeable?, fn ^region, _server -> true end)
 
@@ -110,7 +110,7 @@ defmodule Tuist.Kura.AdmissionTest do
     candidate = %{current | storage_claim_size: "16Gi"}
 
     stub(Capacity, :pressure_line_gib, fn ^region_id -> 1000 end)
-    stub(Capacity, :reserved_gib, fn ^region_id -> 16 end)
+    stub(Capacity, :reserved_gib_by_instance, fn ^region_id -> %{current.provisioner_node_ref => 16} end)
     stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
     stub(Capacity, :placeable?, fn ^region, _server -> nil end)
 
@@ -123,7 +123,7 @@ defmodule Tuist.Kura.AdmissionTest do
     region_id = region.id
 
     stub(Capacity, :pressure_line_gib, fn ^region_id -> 1000 end)
-    stub(Capacity, :reserved_gib, fn ^region_id -> 0 end)
+    stub(Capacity, :reserved_gib_by_instance, fn ^region_id -> %{} end)
     stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
     stub(Capacity, :placeable?, fn ^region, _server -> false end)
 
@@ -136,7 +136,7 @@ defmodule Tuist.Kura.AdmissionTest do
     region_id = region.id
 
     stub(Capacity, :pressure_line_gib, fn ^region_id -> 31 end)
-    stub(Capacity, :reserved_gib, fn ^region_id -> 16 end)
+    stub(Capacity, :reserved_gib_by_instance, fn ^region_id -> %{"kura-orphan-us-east-1" => 16} end)
     stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
     stub(Capacity, :placeable?, fn ^region, _server -> false end)
 
@@ -160,7 +160,7 @@ defmodule Tuist.Kura.AdmissionTest do
       })
 
     stub(Capacity, :pressure_line_gib, fn "us-east" -> 1000 end)
-    stub(Capacity, :reserved_gib, fn "us-east" -> 16 end)
+    stub(Capacity, :reserved_gib_by_instance, fn "us-east" -> %{server.provisioner_node_ref => 16} end)
     stub(Capacity, :placeable?, fn _region, _server -> false end)
 
     assert {:error, {"us-east", :capacity_unplaceable}} = Kura.apply_claim_proposal(proposal, "automatic")
@@ -182,13 +182,53 @@ defmodule Tuist.Kura.AdmissionTest do
     test "is the pressure line less the observed reservation when the cluster has seen every row" do
       {:ok, region} = Regions.fetch("us-east")
       region_id = region.id
-      pending_server(account(), region_id)
+      server = pending_server(account(), region_id)
 
       stub(Capacity, :pressure_line_gib, fn ^region_id -> 100 end)
-      stub(Capacity, :reserved_gib, fn ^region_id -> 40 end)
+
+      stub(Capacity, :reserved_gib_by_instance, fn ^region_id ->
+        %{server.provisioner_node_ref => 40}
+      end)
+
       stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
 
       assert Admission.headroom_gib(region) == 60
+    end
+
+    # Compared as region totals, the orphan's 16 GiB of pods made the pod total
+    # equal the rows including the new one, so each admission saw the same
+    # headroom and two instances fit where one did.
+    test "counts pods with no row alongside rows the cluster has not observed yet" do
+      {:ok, region} = Regions.fetch("us-east")
+      region_id = region.id
+      running = pending_server(account(), region_id)
+      pending_server(account(), region_id)
+
+      stub(Capacity, :pressure_line_gib, fn ^region_id -> 100 end)
+
+      stub(Capacity, :reserved_gib_by_instance, fn ^region_id ->
+        %{running.provisioner_node_ref => 16, "kura-orphan-us-east-1" => 16}
+      end)
+
+      stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
+
+      assert Admission.headroom_gib(region) == 52
+    end
+
+    test "admits only one of two returns that each fit the headroom alone" do
+      {:ok, region} = Regions.fetch("us-east")
+      region_id = region.id
+      first = account()
+      second = account()
+
+      stub(Capacity, :pressure_line_gib, fn ^region_id -> 47 end)
+      stub(Capacity, :reserved_gib_by_instance, fn ^region_id -> %{"kura-orphan-us-east-1" => 16} end)
+      stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
+
+      assert :ok = Admission.admit?(region, candidate(first, region_id))
+      pending_server(first, region_id)
+
+      assert {:error, :capacity_exhausted} = Admission.admit?(region, candidate(second, region_id))
     end
 
     test "counts rows the cluster has not observed yet, the way admission does" do
@@ -198,7 +238,7 @@ defmodule Tuist.Kura.AdmissionTest do
       pending_server(account(), region_id)
 
       stub(Capacity, :pressure_line_gib, fn ^region_id -> 100 end)
-      stub(Capacity, :reserved_gib, fn ^region_id -> 0 end)
+      stub(Capacity, :reserved_gib_by_instance, fn ^region_id -> %{} end)
       stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
 
       assert Admission.headroom_gib(region) == 68
@@ -209,7 +249,7 @@ defmodule Tuist.Kura.AdmissionTest do
       region_id = region.id
 
       stub(Capacity, :pressure_line_gib, fn ^region_id -> 100 end)
-      stub(Capacity, :reserved_gib, fn ^region_id -> 110 end)
+      stub(Capacity, :reserved_gib_by_instance, fn ^region_id -> %{"kura-orphan-us-east-1" => 110} end)
 
       assert Admission.headroom_gib(region) == -10
     end
@@ -236,7 +276,7 @@ defmodule Tuist.Kura.AdmissionTest do
     configure_us_east()
 
     stub(Capacity, :pressure_line_gib, fn "us-east" -> 8 end)
-    stub(Capacity, :reserved_gib, fn "us-east" -> 0 end)
+    stub(Capacity, :reserved_gib_by_instance, fn "us-east" -> %{} end)
     stub(Capacity, :resident_gib, fn _region, _server -> 16 end)
 
     assert {:error, :capacity_exhausted} =
@@ -255,7 +295,7 @@ defmodule Tuist.Kura.AdmissionTest do
 
     stub(Environment, :kura_capacity_admission_required?, fn -> true end)
     stub(Capacity, :pressure_line_gib, fn "us-east" -> 8 end)
-    stub(Capacity, :reserved_gib, fn "us-east" -> 0 end)
+    stub(Capacity, :reserved_gib_by_instance, fn "us-east" -> %{} end)
     stub(Capacity, :resident_gib, fn _region, _server -> 16 end)
 
     assert {:error, :capacity_exhausted} = Kura.return_from_archive(archived, "0.5.2", account)

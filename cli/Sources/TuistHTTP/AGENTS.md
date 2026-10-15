@@ -20,3 +20,4 @@ This module provides HTTP client helpers used by server and cache integrations.
 - `TuistURLSessionTransport` materializes the whole response body before returning, so every body a client middleware receives is re-iterable and a failed transfer is replayed from the start rather than resumed.
 - [Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) retry behavior uses one shared policy with environment-configurable retry count and base delay, with bounded attempts and per-attempt delay.
 - Default proxy mode comes from runtime HTTP settings, and the shared session is resolved lazily, reused process-wide, and invalidated when those runtime settings change.
+- Cache integrations may opt into replaying re-iterable uploads only after an explicit pre-forwarding activation rejection. Do not retry ordinary upload failures or transport errors through that exception.

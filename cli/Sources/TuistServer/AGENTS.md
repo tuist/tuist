@@ -12,6 +12,7 @@ This module handles CLI integration with the Tuist Server APIs.
 - Server codebase: `server/AGENTS.md`
 
 ## Invariants
+- `ServerClientActorHeadersMiddleware` adds optional `x-tuist-actor-id` only to authenticated report creates. Claims require explicit `TUIST_ACTOR_ID` or a supplied request header; never infer operating-system usernames. Empty/invalid environment values omit the automatic header. Identifiers are opaque, unverified, 1–128 bytes of printable non-space ASCII. Keep authentication, endpoints, JSON bodies and generated contracts unchanged so older servers can ignore the header. Never attach it to cache/read/admin/artifact requests.
 - `TUIST_URL` overrides config URL and must be a valid URL.
 - OAuth client ID defaults to a built-in value if not provided. OAuth app credentials may carry an issuing `oauthClientID`; refresh uses that server-scoped value and preserves it when rotating tokens. Legacy/API-auth credentials remain compatible without this field.
 - Browser authentication reports OSC 7501 `blocked` with `kind=auth` while waiting for tokens, then restores `working`. This uses the CLI-scoped reporter and is a no-op in other consumers.
@@ -27,3 +28,5 @@ This module handles CLI integration with the Tuist Server APIs.
   nullable measurements, and map rate limits to AuthorizationThrottledError with
   Retry-After. Noora presentation and project/account resolution belong to the
   runner command module.
+
+- Preserve the deprecated `/api/cache/endpoints` API for older clients. Self-hosted clients use `/api/cache/endpoint` to retrieve one main server-configured URL, without demand or provisioning. Hosted URL derivation in TuistCAS never calls discovery.

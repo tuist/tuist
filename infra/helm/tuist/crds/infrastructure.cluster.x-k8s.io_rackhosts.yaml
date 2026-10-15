@@ -30,6 +30,10 @@ spec:
         - jsonPath: .status.power
           name: Power
           type: string
+        - jsonPath: .status.outletDraw.activePowerWatts
+          name: Watts
+          priority: 1
+          type: string
         - jsonPath: .status.quarantined
           name: Quarantined
           type: boolean
@@ -147,6 +151,44 @@ spec:
                         operator's default.
                       type: integer
                   type: object
+                nodeCluster:
+                  description: |-
+                    NodeCluster registers the host's Node in another cluster: the host stays
+                    in this operator's inventory (its Machine, power, OS updates and
+                    bootstrap are this cluster's), but its tart-kubelet joins the cluster
+                    whose kubeconfig the Secret holds, and that cluster's runner pools and
+                    server drive its guests. This cluster then has no Node for the host, so
+                    the Machine is kept off remediation and the host is not re-bootstrapped
+                    for a missing Node. Drain the host's Node before setting it.
+                  properties:
+                    cacheVolumesURL:
+                      description: |-
+                        CacheVolumesURL is the other cluster's server endpoint for macOS custom
+                        cache volumes (`<server>/api/internal/runners/cache-volumes`). Empty
+                        turns custom cache volumes off on the host.
+                      type: string
+                    kubeconfigSecret:
+                      description: |-
+                        KubeconfigSecret names a Secret in the host's namespace whose
+                        `kubeconfig` key is the kubeconfig tart-kubelet authenticates with: a
+                        node identity the other cluster issued for this host's Machine name.
+                      minLength: 1
+                      type: string
+                  required:
+                    - kubeconfigSecret
+                  type: object
+                nodeFleet:
+                  description: |-
+                    NodeFleet is the `tuist.dev/fleet` label on the host's Node when it is not
+                    the operator's fleet: a host lent to the runner pools of another fleet,
+                    such as one another environment's server drives. Runner pools select Nodes
+                    by that label, so the operator's own pools stop placing runners on the
+                    host and pools selecting this value start. The Machine keeps the
+                    operator's fleet, its name and its credentials. A change reaches the host
+                    through the host-config drift loop.
+                  maxLength: 63
+                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                  type: string
                 parked:
                   description: |-
                     Parked keeps the host declared with no Machine: bench work, an RMA, a
@@ -257,7 +299,7 @@ spec:
               description: RackHostStatus is the observed state of one physical host.
               properties:
                 conditions:
-                  description: Conditions are CAPI-style condition entries (PowerReachable).
+                  description: Conditions are CAPI-style condition entries (PowerReachable, HostDrawing).
                   items:
                     description: Condition defines an observation of a Cluster API resource operational state.
                     properties:
@@ -315,6 +357,37 @@ spec:
                     Machine is the name of the CAPI Machine and RackAppleSiliconMachine that
                     make this host a node, and of the Node they register: `<fleet>-<host>`.
                   type: string
+                outletDraw:
+                  description: |-
+                    OutletDraw is what the outlet's meter last read: the outlet's entry in its
+                    RackPDU's status, or the endpoint's own meter for an outlet of its own.
+                    Unset when there is no recent reading. The HostDrawing condition says
+                    what it means for the host.
+                  properties:
+                    activePowerWatts:
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: ActivePowerWatts is the real power drawn, in watts.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    apparentPowerVA:
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: |-
+                        ApparentPowerVA is the apparent power, in volt-amperes. A cord plugged in
+                        to a machine that is off still reads a few VA, an empty outlet none.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    currentAmps:
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: CurrentAmps is the RMS current, in amperes.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                  type: object
                 power:
                   description: |-
                     Power is the last observed outlet state: On, Off, or Unknown when the

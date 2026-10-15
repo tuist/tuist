@@ -8,7 +8,7 @@ export async function fixture(
   image,
   mode,
   output,
-  { limitedTarget = false } = {},
+  { limitedTarget = false, backfillBatchBytes, standbyImage = image } = {},
 ) {
   fs.mkdirSync(output, { recursive: true });
   const prefix = `spec98-mesh-${process.pid}`,
@@ -183,6 +183,9 @@ export async function fixture(
       };
       if (limited)
         Object.assign(env, {
+          // Leave one GiB of logical repair headroom over the source once
+          // pressure is removed; fragmented full rings need space to converge.
+          KURA_CAS_CAPACITY_BYTES: "4294967296",
           KURA_MEMORY_SOFT_LIMIT_BYTES: "6442450944",
           KURA_MEMORY_HARD_LIMIT_BYTES: "6979321856",
         });
@@ -194,6 +197,8 @@ export async function fixture(
           POD_UID: names[i],
           POD_NODE_NAME: `fixture-host-${i}`,
         });
+      if (backfillBatchBytes)
+        env.KURA_BACKFILL_BATCH_BYTES = String(backfillBatchBytes);
       const args = [
         "run",
         "-d",
@@ -208,14 +213,14 @@ export async function fixture(
         `127.0.0.1:${ports[i]}:4000`,
         ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
       ];
-      if (limited) args.push("--tmpfs", "/data:rw,size=5g");
+      if (limited) args.push("--tmpfs", "/data:rw,size=6g");
       if (mode === "active")
         args.push(
           "-v",
           `${output}:/var/run/secrets/kubernetes.io/serviceaccount:ro`,
         );
       created.push(names[i]);
-      docker(...args, image);
+      docker(...args, i === 0 ? image : standbyImage);
     }
     for (let i = 0; i < 2; i++) {
       let ready = false;
@@ -271,7 +276,7 @@ export async function fixture(
 
 export async function handover(
   f,
-  { id = `resource-${process.pid}`, deadlineMs = 300000 } = {},
+  { id = `resource-${process.pid}`, deadlineMs = 300000, beforePromotion } = {},
 ) {
   const { identities, names, grant, report } = f;
   const intent = {
@@ -299,6 +304,7 @@ export async function handover(
   }
   if (source.barrier?.id !== id || target.barrier?.id !== id) return null;
   assert.deepEqual(source.barrier, target.barrier);
+  if (beforePromotion) await beforePromotion(source.barrier);
   grant({
     epoch: 1,
     holder: identities[0],

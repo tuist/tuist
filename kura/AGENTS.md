@@ -9,10 +9,28 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   publication permit on spawned work, or release a retained-corpus hold before
   authoritative abort/completed transfer. Default-off legacy mode must remain
   compatible with the preceding runtime.
+  Handover rejections must identify the verification stage and record on both
+  peers, with bounded reasons and no artifact bodies in logs. Preserve rejection
+  details across mixed runtime versions without weakening the retained-data barrier.
+  Live-writer resumption requires the same process's publication-mutex fencing
+  acknowledgment and drained mutations, then a new CAS epoch bound to that
+  acknowledgment. Keep the unclean marker and refuse restarted incarnations;
+  this acknowledgment never authorizes another replica. Handover batches must
+  negotiate support, bound descriptors and referenced bytes, preserve ordered
+  full-corpus verification, and retain the individual-record fallback.
+  A named destination reconciles the source’s complete retained index before
+  taking its hold. Keep this pass serialized, bounded by normal replication
+  resources and the intent deadline, cancellable on authoritative abort, and
+  subject to capacity/version/tombstone rules. Evaluate repair capacity per
+  record at listing and dispatch: an older listing must not cancel newer
+  queued claims. Ordinary backward catch-up keeps its pass-wide cutoff.
+  Repair completion never replaces
+  the final full-corpus verification or authorizes promotion.
   Qualification fixtures and their simulator limits are documented in
   [`test/e2e/serving-authority/AGENTS.md`](test/e2e/serving-authority/AGENTS.md).
 - High-level architecture overview: `docs/architecture.md` — start here when onboarding or reasoning about how subsystems interact
 - Entry points: `src/main.rs`, `src/app.rs`
+- `src/metrics.rs` exports route and transport-only public latency histograms with identical buckets. Cached and dynamic routes must observe each once. Resource qualification guidance lives in `docs/metrics-cost-controls.md`; record measurements in the pull request description. Hosted collector migration is staged in `../infra/helm/k8s-monitoring/README.md`; preserve route counts/sums and chunking diagnostics, and do not thin replication latency further.
 - Startup recovery: `src/startup.rs` owns the bootstrap health listener, progress watchdog and process signals. Keep cache and peer traffic disabled until exclusive store recovery completes; transfer the existing bound socket into the serving listener. Eviction scan pages and commits advance recovery progress, never a timer heartbeat. Keep interruption typed through cleanup so a requested shutdown exits successfully without reporting startup failure; preserve live reverse pointers until their targets are deleted in the same batch.
 - Bazel dependency fetching: [`src/reapi/asset/AGENTS.md`](src/reapi/asset/AGENTS.md), [protocol and rollout](docs/remote-assets.md).
 - `src/runtime.rs` exposes a race-safe drain notification for cancellable origin fetches. Cache hits bypass origin-download admission; active fetches release their gRPC guards when drain begins.
@@ -36,6 +54,9 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   - Segment rotation only checks quota-visible free space and wakes the supervised reclamation worker. Cleanup runs outside writer locks, one sealed segment per pass, resumes a pending retirement before choosing another, and stops on no availability progress. Pin promotion sources and appended destinations through metadata commits, including detached blocking commits after cancellation. Preserve the active writer and five-segment floor, account for the next rotation when shrinking, and distinguish configured sizing telemetry from effective backfill capacity. Pressure events use `disk_pressure`, never capacity churn. No segment truncation or raw file deletion.
 - Action-cache removal log: `src/action_cache_removals.rs` records the entries and blobs the store removes (after the deleting write commits, in one bounded log for all namespaces), so the snapshot serve path drops them from a cached index before encoding it (see the snapshot passage in `docs/architecture.md`). Record every new removal path there, or the served snapshot keeps advertising what it removed until the next reconcile.
 - Backfill catch-up passes (the pipeline every pull link runs on): `src/backfill/` — `claims.rs` (shared exclusive-claim set, owned by `AppState.backfill_claims`), `pass.rs` (one pass's pipelined list/fetch/apply stages), `window.rs` (horizon and capacity rules). Pass scheduling and the bootstrap failure budget live in the links themselves (`src/sync/`).
+  Individually fetched inline records must preserve the same origin/checksum
+  metadata and feed-echo policy as batched records; losing metadata at the same
+  version can make a fully caught-up replica fail retained-corpus handover.
 - Pull replication (`docs/replication-design.md`): `src/sync/` — `feed.rs` (the bounded arrival feed a sibling reads forward), `replica.rs` (intra-region link: snapshot, backward pass, forward reads), `region.rs` (inter-region link: ascending origin-filtered reads from a per-region watermark, gateway only), `roles.rs` (who pulls from whom, from the membership view and published roles), `coordinator.rs` (opens/closes links, readiness and drain terms). Every present peer is pulled from; a peer that answers 404/405 to a pull route (or serves the region listing without `now`) runs a release that predates pull and settles its link as `unsupported` (a capability gap on `/status/rollout`, never `degraded`). Cross-region lag is `kura_region_sync_lag_seconds` (the remote gateway's newest listed version, sent as the additive `newest_version_ms` on each ascending page and kept in an atomic the store raises after each commit, minus the newest applied); the watermark age grows through idle periods and the per-pod byte counters follow the gateway role, so neither is lag on its own. The push path is gone: `src/replication/` holds only membership and the peer body streaming, the `outbox` column family stays declared but is swept at open, and the `/_internal/replicate/*` receivers in `src/http.rs` are kept solely so a pre-pull self-hosted peer can drain its outbox into this node — delete them once the oldest supported self-hosted release pulls.
 - Runtime configuration and limits: `src/config.rs`, `src/constants.rs`
   - REAPI write decode/staging growth stays nonblocking while holding owned permits. Admission refusals in `src/reapi/admission.rs` carry a standard `google.rpc.RetryInfo` delay of 1–10 seconds; never introduce waiting on shared upload memory or HTTP/2 flow control while holding a partial reservation. Keep upload sizing guidance in `README.md` aligned with the staging/decode charges.

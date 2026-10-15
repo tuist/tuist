@@ -9,6 +9,11 @@ This node covers Helm assets under `infra/helm/`.
 - Atlas standalone and managed deployment: see `atlas/AGENTS.md`.
 - Standalone app charts with their own release boundary, such as Noora Storybook and Slack
 
+Monitoring cost controls must preserve metric identity and operator audit records.
+See `k8s-monitoring/README.md` for the staged Kura and API-server migrations.
+Helm CI starts the production Alloy log pipeline to compile LogQL selectors and
+runs the mixed-version latency expression through promtool.
+
 ## Conventions
 
 - Production enables the Kura authority controller independently of instance
@@ -55,6 +60,7 @@ This node covers Helm assets under `infra/helm/`.
   Machine's `egressBudgetMbps` from its reviewed OnDelete fleet template).
   Staging has standing write access; canary/production require human elevation.
 - Kura archival defaults to hourly sweeps with a 24-hour never-used Air window. Canary inherits the hourly default; staging keeps its five-minute sweep override for lifecycle drills.
+- Production's `node.cluster.x-k8s.io/pool: processor` nodes are untainted and have no memory beyond what the processor's rollout surge needs. Pin other production workloads, in any chart, to `node.cluster.x-k8s.io/pool: general` with a `nodeSelector`. A workload left unpinned can land there and deadlock the processor rollout, and helm then rolls back the whole release. The general pool's limit is CPU requests, not memory: keep one node with room for the server's 1-CPU surge pod, and resize `md-0` in `k8s/clusters/workloads/production/cluster.yaml` rather than squeezing that out.
 - Deploys wait on the tuist, k8s-monitoring and platform releases (Helm 4's
   kstatus wait: a DaemonSet is ready only when every pod it wants is). Nothing
   in them may run a pod on a rack node, which can be dark for days: rack-node
@@ -154,3 +160,5 @@ This node covers Helm assets under `infra/helm/`.
 - Cache-volume agents expose phase/source/result telemetry on a separate port
   9091. Allow scraping only from `observability`, retain the series in staging,
   and keep runner acquisition on 8090 under its existing pod selector.
+
+- `tuist.kuraActivation` is a disabled-by-default, stateless wildcard fallback. Enable exactly one global owner; the matching platform `cacheDNS.activationIngressClass` opt-in reads `nginx-grpc` ingress status for Route53 wildcard DNS. Both activation protocols must use the same dedicated ingress/load balancer; main nginx sends an HTTP/2-forbidden Connection header. Both remain off in every checked-in environment. Regional latency records and their withdrawal barriers stay controller-owned. See `../kura-controller/activation.md` before rollout.

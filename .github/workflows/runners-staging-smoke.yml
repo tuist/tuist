@@ -29,6 +29,21 @@ on:
         description: Run the candidate custom cache APFS tests inside a staging Mac VM
         type: boolean
         default: false
+      vm_isolation:
+        description: Probe, from inside a staging runner VM, that the host, its networks and link-local are unreachable while the internet and the cache carve-outs work
+        type: boolean
+        default: false
+      host_addresses:
+        description: >-
+          Space-separated addresses of the runner host besides its vmnet gateway
+          and public egress address, which the probe finds itself (e.g. its
+          tailnet and Private Network addresses)
+        required: false
+        default: ""
+      private_targets:
+        description: Space-separated host:port pairs on private networks the VM must not reach
+        required: false
+        default: ""
       hold_seconds:
         description: >-
           Seconds to hold the runner busy before finishing. Defaults to 0,
@@ -103,6 +118,18 @@ jobs:
           # somewhere we can curl from the workflow.
           curl -fsSL -o /dev/null -w "github.com → HTTP %{http_code}\n" https://github.com
 
+      # GitHub-hosted runners set ImageOS, and setup actions read it to
+      # pick a prebuilt binary; erlef/setup-beam fails outright without it.
+      - name: ImageOS reaches steps
+        run: |
+          set -euo pipefail
+          echo "ImageOS: ${ImageOS:-<unset>}"
+          [ -n "${ImageOS:-}" ] || { echo "::error::ImageOS is not set in the step environment"; exit 1; }
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
       - name: Hold the runner to produce a billable window
         if: >-
           github.event_name == 'workflow_dispatch' &&
@@ -144,3 +171,119 @@ jobs:
           go-version-file: infra/tart-kubelet/go.mod
       - name: Exercise real APFS and custom cache lifecycle
         run: go test -race -v ./infra/runner-cache/... ./infra/tart-kubelet/internal/podagent ./infra/linux-runner-image/cmd/tuist-cache-volume
+
+  # A runner VM runs customer code, so it must reach the internet and its
+  # cache carve-outs and nothing else: not the host's own listeners on any of
+  # its addresses, not the networks the host sits on, not link-local. A TCP
+  # connect that completes or is refused reached its target; one that times
+  # out was dropped. Only a target with something listening tells the two
+  # apart, which is why the host's own addresses are the core of the probe.
+  vm-isolation:
+    if: github.repository == 'tuist/tuist' && inputs.vm_isolation
+    runs-on: tuist-staging-macos
+    timeout-minutes: 15
+    env:
+      HOST_ADDRESSES: ${{ inputs.host_addresses }}
+      PRIVATE_TARGETS: ${{ inputs.private_targets }}
+    steps:
+      - name: Guest network
+        run: |
+          ifconfig en0 | grep -E "inet6? " || true
+          netstat -rn -f inet | grep -E "^default" || true
+          netstat -rn -f inet6 | grep -E "^default" || true
+          scutil --dns | grep nameserver | sort -u || true
+
+      - name: Internet and carve-outs reachable
+        run: |
+          set -uo pipefail
+          failed=0
+          curl -fsS -m 15 -o /dev/null https://github.com && echo "ok   https://github.com" || { echo "FAIL https://github.com"; failed=1; }
+          dig +short +time=3 +tries=1 github.com | grep -q . && echo "ok   DNS through the vmnet gateway" || { echo "FAIL DNS through the vmnet gateway"; failed=1; }
+          if [ -f /etc/resolver/cluster.local ]; then
+            dns=$(awk '/^nameserver/{print $2; exit}' /etc/resolver/cluster.local)
+            dig +short +time=3 +tries=1 "@${dns}" kubernetes.default.svc.cluster.local | grep -q . \
+              && echo "ok   cluster DNS ${dns}" || { echo "FAIL cluster DNS ${dns}"; failed=1; }
+          fi
+          endpoint="${TUIST_CACHE_ENDPOINT:-}"
+          if [ -n "${endpoint}" ]; then
+            code=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' "${endpoint%/}/up" || true)
+            [ "${code}" = "200" ] && echo "ok   cache ${endpoint%/}/up" || { echo "FAIL cache ${endpoint%/}/up -> ${code}"; failed=1; }
+          else
+            echo "skip cache: TUIST_CACHE_ENDPOINT unset"
+          fi
+          exit "${failed}"
+
+      - name: Host, private networks and link-local unreachable
+        # Runs even when a reachability check fails: a missing carve-out
+        # must not hide what the guest can still reach.
+        if: always()
+        run: |
+          set -uo pipefail
+          gateway=$(route -n get default | awk '/gateway/{print $2}')
+          router6=$(route -n get -inet6 default 2>/dev/null | awk '/gateway/{print $2}')
+          public=$(curl -fsS -m 10 https://api.ipify.org || true)
+          echo "vmnet gateway ${gateway} ${router6}, public egress ${public:-unknown}"
+
+          reached=0
+          probe() {
+            # shellcheck disable=SC2086
+            if out=$(nc ${family:-} -z -G 3 -w 3 "$1" "$2" 2>&1); then verdict="open"
+            elif echo "${out}" | grep -qi "refused"; then verdict="refused"
+            else verdict="dropped"; fi
+            printf '%-8s %s %s\n' "${verdict}" "$1:$2" "$(echo "${out}" | tail -1)"
+            if [ "${verdict}" != "dropped" ]; then reached=1; fi
+          }
+
+          # DNS on the vmnet gateway is the guest's resolver and stays open; the
+          # previous step asserts it.
+          for port in 22 88 3283 5900 5901 8080 8081 9100 10250; do
+            probe "${gateway}" "${port}"
+          done
+          for address in ${public} ${HOST_ADDRESSES}; do
+            for port in 22 53 88 3283 5900 5901 8080 8081 9100 10250; do
+              probe "${address}" "${port}"
+            done
+          done
+          if [ -n "${router6}" ]; then
+            for port in 22 88 3283 5900 8081; do
+              family=-6 probe "${router6}" "${port}"
+            done
+          fi
+          probe 100.100.100.100 53
+          probe 169.254.169.254 80
+          probe 169.254.42.42 80
+          # The cache answers on its carve-out only.
+          cache_host=$(echo "${TUIST_CACHE_ENDPOINT:-}" | sed -E 's#^[a-z]+://([^/:]+).*#\1#')
+          cache_ip=""
+          if [ -n "${cache_host}" ]; then
+            cache_ip=$(dig +short "${cache_host}" 2>/dev/null | grep -E '^[0-9.]+$' | tail -1 || true)
+          fi
+          case "${cache_ip}" in
+            10.*|172.*|192.168.*) probe "${cache_ip}" 22; probe "${cache_ip}" 10250 ;;
+          esac
+          # Sibling guests on the same host run sshd. The ARP table shows
+          # which siblings answered at layer 2, so a drop is not just an
+          # empty subnet.
+          self_ip=$(ipconfig getifaddr en0 || true)
+          siblings=$(mktemp)
+          for n in $(seq 2 254); do
+            ip="192.168.64.${n}"
+            [ "${ip}" = "${self_ip}" ] && continue
+            ( if nc -z -G 2 -w 2 "${ip}" 22 >/dev/null 2>&1; then echo "${ip}" >> "${siblings}"; fi ) &
+          done
+          wait
+          echo "siblings at layer 2: $(arp -an | awk -v self="(${self_ip})" '/192\.168\.64\./ && !/incomplete/ && $2 != self && $2 != "(192.168.64.1)" {print $2}' | tr '\n' ' ')"
+          if [ -s "${siblings}" ]; then
+            sed 's/^/open     sibling /;s/$/:22/' "${siblings}"
+            reached=1
+          else
+            echo "dropped  every sibling guest on :22"
+          fi
+          for target in ${PRIVATE_TARGETS}; do
+            probe "${target%:*}" "${target##*:}"
+          done
+
+          if [ "${reached}" -ne 0 ]; then
+            echo "::error::the runner VM reached the host or a private network"
+            exit 1
+          fi

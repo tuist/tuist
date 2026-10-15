@@ -1,9 +1,28 @@
 import Foundation
+import Mockable
 import Testing
+import TuistCAS
+import TuistEnvironment
+import TuistEnvironmentTesting
+import TuistServer
 
 @testable import TuistKit
 
 struct CacheProxyCommandServiceTests {
+    @Test(.withMockedEnvironment())
+    func missing_discovered_endpoint_starts_local_only() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables = [:]
+        let service = MockGetCacheEndpointServicing()
+        given(service).getCacheEndpoint(serverURL: .any)
+            .willReturn(CacheEndpointResolution(endpoint: nil, maxAge: 5))
+        let store = CacheURLStore(getCacheEndpointService: service, configurationCache: CachedValueStore())
+        let endpoint = try await CacheProxyCommandService(cacheURLStore: store).remoteEndpoint(
+            serverURL: URL(string: "http://localhost:8080")!, accountHandle: "account"
+        )
+        #expect(endpoint == nil)
+    }
+
     @Test func spawn_startsTheExecutableWithSIGTERMUnblockedFromAConcurrencyThread() async throws {
         let (callerBlocksSIGTERM, processIdentifier) = try await Task.detached {
             var mask = sigset_t()

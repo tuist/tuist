@@ -1091,6 +1091,40 @@ defmodule Tuist.ShardsTest do
       assert [%{"estimated_duration_ms" => 30_000}] = result.shard_assignments
     end
 
+    test "prices a concurrent plan at the mean, where a summed plan keeps the P90" do
+      project = ProjectsFixtures.project_fixture()
+      parallel = for index <- 1..8, do: "Parallel#{index}"
+
+      # Every run took four concurrent modules at a time; the third ran its
+      # concurrent modules four times slower, so their median is 10s, their
+      # mean 20s and their P90 above both.
+      for parallel_duration <- [10_000, 10_000, 40_000] do
+        sharded_run_fixture(project, [
+          {10_000 + div(8 * parallel_duration, 4),
+           [
+             module_run("Serial", 10_000, "serial")
+             | Enum.map(parallel, &module_run(&1, parallel_duration, "parallel"))
+           ]}
+        ])
+      end
+
+      params = %{modules: ["Serial" | parallel], shard_total: 1}
+
+      concurrent =
+        Shards.create_shard_plan(
+          project,
+          Map.merge(params, %{reference: "concurrent-modules-mean", concurrent_modules: parallel})
+        )
+
+      summed = Shards.create_shard_plan(project, Map.put(params, :reference, "concurrent-modules-p90"))
+
+      # 10s serial and 8 x 20s / 4 concurrent at the mean.
+      assert [%{"estimated_duration_ms" => 50_000}] = concurrent.shard_assignments
+      # 10s serial and 8 concurrent modules at their P90, summed.
+      assert [%{"estimated_duration_ms" => summed_estimate}] = summed.shard_assignments
+      assert summed_estimate > 10_000 + 8 * 20_000
+    end
+
     test "leaves a rerun shard out of the concurrency it measures" do
       project = ProjectsFixtures.project_fixture()
       plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)

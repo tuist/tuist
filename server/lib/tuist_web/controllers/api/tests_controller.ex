@@ -307,47 +307,12 @@ defmodule TuistWeb.API.TestsController do
              type: :string,
              enum: ["client", "none"],
              description:
-               "Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`)."
+               "Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`)."
            },
            history_fallback_reason: %Schema{
              type: :string,
              description:
                "Why the client could not collect part of the Git history, for example a shallow clone that could not be deepened in time."
-           },
-           changed_files: %Schema{
-             type: :array,
-             maxItems: 10_000,
-             description:
-               "The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.",
-             items: %Schema{
-               type: :object,
-               properties: %{
-                 path: %Schema{type: :string, description: "The path at the head, relative to the repository root."},
-                 previous_path: %Schema{type: :string, nullable: true, description: "The path before a rename."},
-                 status: %Schema{type: :string, enum: ["added", "modified", "deleted", "renamed"]},
-                 git_blob_id: %Schema{
-                   type: :string,
-                   nullable: true,
-                   description: "The file's Git blob at the head; absent for a deleted file."
-                 },
-                 hunks: %Schema{
-                   type: :array,
-                   maxItems: 1_000,
-                   description: "The changed line ranges in the file at the head, inclusive.",
-                   items: %Schema{
-                     type: :object,
-                     properties: %{start: %Schema{type: :integer}, end: %Schema{type: :integer}},
-                     required: [:start, :end]
-                   }
-                 },
-                 truncated: %Schema{
-                   type: :boolean,
-                   description:
-                     "Whether the client stopped listing this file's hunks because the diff exceeded its limits."
-                 }
-               },
-               required: [:path, :status]
-             }
            },
            build_run_id: %Schema{
              type: :string,
@@ -387,7 +352,13 @@ defmodule TuistWeb.API.TestsController do
            skip_test_identifiers: %Schema{
              type: :array,
              items: %Schema{type: :string},
-             description: "The tests the caller asked this run to exclude."
+             description:
+               "The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran."
+           },
+           coverage_enabled: %Schema{
+             type: :boolean,
+             description:
+               "Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown."
            },
            shard_index: %Schema{
              type: :integer,
@@ -406,34 +377,6 @@ defmodule TuistWeb.API.TestsController do
              enum: ["parallel", "serial"],
              description:
                "Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown."
-           },
-           enumerated_tests: %Schema{
-             type: :array,
-             maxItems: 500_000,
-             description:
-               "The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.",
-             items: %Schema{
-               type: :object,
-               properties: %{
-                 module: %Schema{type: :string, description: "The test target."},
-                 suite: %Schema{
-                   type: :string,
-                   description:
-                     "The suite that declares the test, the innermost one when suites nest; empty outside any suite."
-                 },
-                 name: %Schema{type: :string, description: "The test's name as the run reports it, `testExample()`."},
-                 function: %Schema{
-                   type: :string,
-                   description:
-                     "The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test(\"…\")`)."
-                 },
-                 enabled: %Schema{
-                   type: :boolean,
-                   description: "False when the scheme or the test plan disables the test."
-                 }
-               },
-               required: [:module, :name]
-             }
            },
            coverage_evidence: %Schema{
              type: :object,
@@ -815,6 +758,7 @@ defmodule TuistWeb.API.TestsController do
               git_repository_id: test_run.git_repository_id,
               git_dirty: test_run.git_dirty,
               execution_mode: test_run.execution_mode,
+              coverage_enabled: test_run.coverage_enabled,
               account_id: test_run.account_id,
               project_id: selected_project.id,
               account_handle: selected_project.account.name,
@@ -1068,7 +1012,6 @@ defmodule TuistWeb.API.TestsController do
           git_object_format: Map.get(params, :git_object_format),
           history_source: Map.get(params, :history_source),
           history_fallback_reason: Map.get(params, :history_fallback_reason),
-          changed_files: Map.get(params, :changed_files, []),
           git_dirty: Map.get(params, :git_dirty),
           git_remote_url_origin: Map.get(params, :git_remote_url_origin),
           execution_mode: Map.get(params, :execution_mode),
@@ -1086,8 +1029,8 @@ defmodule TuistWeb.API.TestsController do
           shard_index: Map.get(params, :shard_index),
           only_test_identifiers: Map.get(params, :only_test_identifiers, []),
           skip_test_identifiers: Map.get(params, :skip_test_identifiers, []),
+          coverage_enabled: Map.get(params, :coverage_enabled),
           stress_new_tests: Map.get(params, :stress_new_tests),
-          enumerated_tests: Map.get(params, :enumerated_tests),
           coverage_evidence: Map.get(params, :coverage_evidence),
           coverage: Map.get(params, :coverage),
           xcode_coverage: Map.get(params, :xcode_coverage),

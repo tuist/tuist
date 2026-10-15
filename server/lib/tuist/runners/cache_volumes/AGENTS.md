@@ -36,6 +36,12 @@ these schemas persist volume identities and per-job uses.
 
 - Storage history is an account-scoped hourly rollup of per-copy measurement deltas for the selected date range (seven days by default). Seed it with earlier reports, carry unchanged sizes forward, preserve unknown fields, and subtract confirmed deletions. Do not sum repeated reports as new storage or present this series as billable usage.
 
+- Allocation clears a custom volume whose saved head measured at 80% or more of
+  its capacity (`full?/2`) once a use cloned from that head reached 99% of its own
+  (`out_of_space?/2`), under the same row lock and with the same generation
+  bump as deletion, so the use starts a fresh lineage. Unknown sizes never clear.
+  The dashboard warns on such heads and on failed jobs whose copy reached 99%.
+
 - Evict cache data after seven days without a mount. Refresh last_used_at only
   on the first valid attachment report for a use, never allocation, heartbeats
   or publication. A five-minute sweep and allocation/report paths invalidate
@@ -44,7 +50,7 @@ these schemas persist volume identities and per-job uses.
 
 - Volume-count history includes unmeasured allocations and counts each volume only once across its concurrent retained copies. Byte history remains unknown until measured. Gauge trends compare the selected period end with its start (the previous period end). Require a recorded baseline at the boundary for a calculated comparison; never substitute the first later measurement for missing history. The UI follows Jobs by rendering unavailable comparisons with the shared zero-trend fallback.
 
-- Detail analytics scope storage and activity to both account and volume. Aggregate uses by attachment time (hourly up to two days, daily otherwise), count each mount once, and calculate hit rate from known outcomes only. Empty buckets have zero uses and unknown hit rate. Recent jobs use a bounded five-row query; the Jobs tab retains pagination.
+- Detail analytics scope storage and activity to both account and volume. Aggregate uses by attachment time (hourly up to two days, daily otherwise), count each mount once, and calculate hit rate from known outcomes only. Empty buckets have zero uses and unknown hit rate. Detail widgets compare with the previous period like the account widgets: used space through the same boundary-baseline rule, hit rate as a relative change, and job runs as a percentage (absolute "+N" from zero). Recent jobs use a bounded five-row query; the Jobs tab retains pagination.
 
 - Job detail references require account, workflow run and job IDs. Return only attached uses, keeping the latest mount per volume; acknowledged deletion does not remove the historical reference before normal history retention.
 
@@ -97,3 +103,7 @@ these schemas persist volume identities and per-job uses.
 
 - Allocation resolves execution binding and platform in one session query. Apply
   the platform rollout flag to that same result, including pending (425) sessions.
+
+- GitHub custom volumes have bounded exact additional writer branches, editable only through account-update authorization. Empty lists preserve default-branch publishing. Verify same-repository PR head metadata; forks and pull_request_target never qualify. Persist commit intent at allocation, reject intent changes on retry, and record the granting branch. Revoke only removed branch grants under the publication lock; additions/reordering preserve pending saves and default-branch writers. Grants only affect new uses; false always disables publication. Other provider and built-in policies are unchanged.
+
+- Additional GitHub writer grants require verified same-repository PR head metadata. Push/dispatch head_branch may be a tag and cannot authorize an additional branch grant.

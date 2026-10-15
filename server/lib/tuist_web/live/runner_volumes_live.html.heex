@@ -64,6 +64,7 @@
       <div data-part="widgets">
         <.widget
           id="storage-volumes"
+          legend_color={metric_color("volumes")}
           trend_value={storage_trend(data.storage_history, :volumes, @analytics_period).value}
           trend_value_label={
             storage_trend(data.storage_history, :volumes, @analytics_period).value_label
@@ -84,6 +85,7 @@
         />
         <.widget
           id="storage-used"
+          legend_color={metric_color("used_bytes")}
           trend_value={storage_trend(data.storage_history, :used_bytes, @analytics_period).value}
           trend_value_label={
             storage_trend(data.storage_history, :used_bytes, @analytics_period).value_label
@@ -101,6 +103,7 @@
         />
         <.widget
           id="storage-hit-rate"
+          legend_color={metric_color("hit_rate")}
           trend_value={
             hit_rate_trend(data.activity.hit_rate, data.previous_activity.hit_rate).value
           }
@@ -200,7 +203,7 @@
             patch={sort_patch(assigns, "volume")}
             sort_order={@sort_by == "volume" && @sort_order}
           >
-            <.text_cell label={volume.key} />
+            <.text_cell label={volume_name(volume.key)} title={volume.key} />
           </:col>
           <:col
             :let={volume}
@@ -292,6 +295,15 @@
     </.card>
     <div :for={volume <- if(@selected, do: data.volumes, else: [])} data-part="tab-panel">
       <% metrics = stats(data, volume) %>
+      <.alert
+        :if={full_snapshot?(volume, metrics)}
+        id="volume-full-alert"
+        status="warning"
+        type="secondary"
+        size="large"
+        title={dgettext("dashboard_runners", "This volume is almost full")}
+        description={full_snapshot_description(metrics)}
+      />
       <.card
         title={dgettext("dashboard_runners", "Volume details")}
         icon="database"
@@ -356,10 +368,23 @@
           />
         </:actions>
         <div data-part="widgets">
+          <% used_change = storage_trend(data.analytics.storage, :used_bytes, @analytics_period) %>
+          <% hit_rate_change =
+            hit_rate_trend(
+              data.analytics.activity.hit_rate,
+              data.analytics.previous_activity.hit_rate
+            ) %>
+          <% uses_change =
+            uses_trend(data.analytics.activity.uses, data.analytics.previous_activity.uses) %>
           <.widget
             id="volume-used"
+            legend_color={metric_color("used_bytes")}
             title={dgettext("dashboard_runners", "Used space")}
             value={storage_value(data.analytics.storage, :used_bytes)}
+            trend_value={used_change.value}
+            trend_value_label={used_change.value_label}
+            trend_label={used_change.label}
+            trend_type={:neutral}
             description={
               storage_description(List.last(data.analytics.storage) || %{}, :unmeasured_copies)
             }
@@ -369,8 +394,13 @@
           />
           <.widget
             id="volume-hit-rate"
+            legend_color={metric_color("hit_rate")}
             title={dgettext("dashboard_runners", "Hit rate")}
             value={percentage(data.analytics.activity.hit_rate)}
+            trend_value={hit_rate_change.value}
+            trend_value_label={hit_rate_change.value_label}
+            trend_label={hit_rate_change.label}
+            trend_type={:regular}
             description={
               dgettext(
                 "dashboard_runners",
@@ -383,8 +413,13 @@
           />
           <.widget
             id="volume-uses"
+            legend_color={metric_color("uses")}
             title={dgettext("dashboard_runners", "Job runs")}
             value={count(data.analytics.activity.uses)}
+            trend_value={uses_change.value}
+            trend_value_label={uses_change.value_label}
+            trend_label={uses_change.label}
+            trend_type={:neutral}
             description={
               dgettext(
                 "dashboard_runners",
@@ -505,6 +540,53 @@
       </.card>
     </div>
   </.async_result>
+  <.card
+    :if={@selected && @selected.provider == "github" && is_nil(@selected.builtin_name)}
+    title={dgettext("dashboard_runners", "Writer branches")}
+    icon="database"
+  >
+    <.card_section>
+      <p>
+        {dgettext(
+          "dashboard_runners",
+          "Successful default-branch jobs can save changes. Allow additional branches below; other jobs can use the cache without saving changes."
+        )}
+      </p>
+      <.form
+        :if={@can_manage}
+        for={%{}}
+        id="volume-writer-policy"
+        phx-submit="save_writer_branches"
+      >
+        <.text_area
+          id="volume-writer-branches"
+          name="writer_branches"
+          label={dgettext("dashboard_runners", "Additional writer branches")}
+          value={Enum.join(@selected.writer_branches, "\n")}
+          rows={3}
+          max_length={4200}
+          show_character_count={false}
+          placeholder={dgettext("dashboard_runners", "One exact branch name per line")}
+        />
+        <p>
+          {dgettext(
+            "dashboard_runners",
+            "Applies to verified pull requests from branches in this repository. Forks cannot save changes. Removing a branch revokes its pending saves; default-branch saves continue."
+          )}
+        </p>
+        <.button
+          type="submit"
+          variant="primary"
+          label={dgettext("dashboard_runners", "Save writer branches")}
+        />
+      </.form>
+      <p :if={!@can_manage}>
+        {if @selected.writer_branches == [],
+          do: dgettext("dashboard_runners", "Default branch only"),
+          else: Enum.join(@selected.writer_branches, ", ")}
+      </p>
+    </.card_section>
+  </.card>
   <.modal
     id="volume-confirm-delete"
     title={dgettext("dashboard_runners", "Clear volume")}

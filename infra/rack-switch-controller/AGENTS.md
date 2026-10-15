@@ -209,7 +209,7 @@ cd infra/rack-switch-controller
 go build -o rack-switch-controller ./cmd/manager
 ./rack-switch-controller apply --object <RackSwitch yaml> \
   --omada-url https://omada.<tailnet>.ts.net:8043 --site ber1 \
-  --controller-address 100.84.132.92 --credentials-dir <dir> \
+  --controller-address <management.controller.address> --credentials-dir <dir> \
   --omada-ca-file <(kubectl -n omada get secret omada-controller-tls -o jsonpath='{.data.ca\.crt}' | base64 -d)
 ```
 

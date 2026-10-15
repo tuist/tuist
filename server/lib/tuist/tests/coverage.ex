@@ -2,12 +2,19 @@ defmodule Tuist.Tests.Coverage do
   @moduledoc """
   Code coverage for test runs, in a model shared by every build system.
 
-  Xcode coverage is read from the run's result bundle by the shared Swift
-  parser (`xccov view --report` for targets and functions, `xccov view
-  --archive` for per-line execution counts), wherever the bundle is processed:
-  on the server's macOS processors for uploaded bundles, or on the client when
-  it processes the bundle itself. The client ties the files to the repository
-  with the Git blob each had, which only the checkout knows. Mix coverage is
+  Xcode coverage is measured on the client: `llvm-cov export` over the test
+  products with the run's merged profile, which reports code `xccov` leaves
+  out (the binary cache's, and sources compiled with a coverage prefix map),
+  with `xccov view --report` only for which target compiled each file. It
+  arrives as the `coverage` block with `tool` `llvm-cov`, whichever processing
+  mode the run used. Older clients, and runs the client could not export, keep
+  the previous path: the shared Swift parser reads the bundle (`xccov view
+  --report` for targets and functions, `xccov view --archive` for per-line
+  execution counts) wherever the bundle is processed, on the server's macOS
+  processors for uploaded bundles (unless the bundle's manifest says the
+  client reported the coverage), or on the client in local mode. The client
+  ties the files to the repository with the Git blob each had, which only the
+  checkout knows. Mix coverage is
   read by `tuist_ex` from Erlang's `cover` once the suite finished, and arrives
   in the same per-file shape: an OTP application is a target, and the files
   under the project's test paths are test code. JaCoCo (Gradle)
@@ -73,16 +80,17 @@ defmodule Tuist.Tests.Coverage do
   @max_query_parameters 900
 
   @doc """
-  Refolds the commit of the run a command event belongs to once the
-  selective-testing results the event reported are stored, when any target
-  was skipped. Reported coverage reads them to know which targets a run left
-  out, and they are written through a buffer after the run itself, so a fold
-  triggered by the run or by the completion signal can run without them. The
-  refold waits out the buffer.
+  Refolds the commit of the run a command event belongs to once the targets
+  the event reported are stored, when any target was skipped or a repository
+  target came from the binary cache. Reported coverage reads them to know
+  which targets a run left out and whether it ran code without coverage
+  counters, and they are written through a buffer after the run itself, so a
+  fold triggered by the run or by the completion signal can run without them.
+  The refold waits out the buffer.
   """
   def refold_after_selective_testing(%{test_run_id: test_run_id, project_id: project_id}, xcode_graph)
       when is_binary(test_run_id) and test_run_id != "" do
-    with true <- selective_testing_hit?(xcode_graph),
+    with true <- selective_testing_hit?(xcode_graph) or binary_cache_hit?(xcode_graph),
          true <- enabled_for_project?(project_id),
          {:ok, %Test{git_commit_sha: sha, git_dirty: dirty}} when is_binary(sha) and sha != "" and dirty != true <-
            Tests.get_test(test_run_id) do
@@ -104,6 +112,20 @@ defmodule Tuist.Tests.Coverage do
       |> field(:hit, "miss")
       |> to_string()
       |> Kernel.in(["local", "remote"])
+    end)
+  end
+
+  # A remote package's targets carry its revision as their external hash, and
+  # `Coverage.Xcode.uninstrumented_runs/2` leaves them out.
+  defp binary_cache_hit?(xcode_graph) do
+    xcode_graph
+    |> field(:projects, [])
+    |> Enum.flat_map(&field(&1, :targets, []))
+    |> Enum.any?(fn target ->
+      metadata = field(target, :binary_cache_metadata, %{})
+
+      to_string(field(metadata, :hit, "miss")) in ["local", "remote"] and
+        field(field(metadata, :subhashes, %{}), :external, "") == ""
     end)
   end
 
@@ -489,7 +511,13 @@ defmodule Tuist.Tests.Coverage do
   end
 
   @retention_tables %{
-    files: ["coverage_files", "git_commit_files", "test_run_changed_files", "test_run_enumerated_tests"],
+    files: [
+      "coverage_files",
+      "git_commit_files",
+      "test_run_changed_files",
+      "coverage_target_sources",
+      "coverage_test_sources"
+    ],
     runs: ["coverage_runs"]
   }
 

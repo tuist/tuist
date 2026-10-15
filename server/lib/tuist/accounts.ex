@@ -23,6 +23,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
+  alias Tuist.Authentication.TokenVerificationCache
   alias Tuist.Base64
   alias Tuist.Billing
   alias Tuist.Billing.UsagePricing
@@ -34,6 +35,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Identity
   alias Tuist.Kura.Origins
+  alias Tuist.Kura.Registrations
   alias Tuist.Kura.StableEndpoint
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
@@ -730,8 +732,10 @@ defmodule Tuist.Accounts do
 
   def delete_user(%User{} = user) do
     account = get_account_from_user(user)
+    destroy_account_kura_servers(account)
 
     {:ok, _} =
+      result =
       Multi.new()
       |> Multi.run(:delete_command_events, fn _repo, _changes ->
         CommandEvents.delete_account_events(account.id)
@@ -740,10 +744,17 @@ defmodule Tuist.Accounts do
       |> Multi.delete(:delete_account, account)
       |> Multi.delete(:delete_user, user)
       |> Repo.transaction()
+
+    purge_account_storage(account)
+    result
   end
 
   def delete_organization!(%Organization{} = organization) do
-    Repo.delete!(organization)
+    account = get_account_from_organization(organization)
+    destroy_account_kura_servers(account)
+    deleted = Repo.delete!(organization)
+    purge_account_storage(account)
+    deleted
   end
 
   def find_or_create_user_from_oauth2(
@@ -2480,7 +2491,7 @@ defmodule Tuist.Accounts do
   # Bcrypt does CPU-intensive operations and it can easily slow-down requests when
   # there are bursts of requests coming through the API.
   defp verify_pass(token, token_hash) do
-    Bcrypt.verify_pass(
+    TokenVerificationCache.verify_pass(
       token_hash <> Environment.secret_key_password(),
       token.encrypted_token_hash
     )
@@ -2709,25 +2720,18 @@ defmodule Tuist.Accounts do
   end
 
   def delete_account!(%Account{} = account) do
-    destroy_account_kura_servers(account)
+    cond do
+      user?(account) ->
+        account_user = get_user_by_id(account.user_id)
+        delete_user(account_user)
 
-    result =
-      cond do
-        user?(account) ->
-          account_user = get_user_by_id(account.user_id)
-          delete_user(account_user)
-
-        organization?(account) ->
-          {:ok, account_organization} = get_organization_by_id(account.organization_id)
-          delete_organization!(account_organization)
-      end
-
-    purge_account_cache_masters(account)
-    purge_account_gitlab_caches(account)
-    result
+      organization?(account) ->
+        {:ok, account_organization} = get_organization_by_id(account.organization_id)
+        delete_organization!(account_organization)
+    end
   end
 
-  # Runs before the deletion, not after it like the cache-master purge: the
+  # Runs before the deletion, not after it like the storage purges: the
   # `kura_servers` rows cascade with the account, and the reconciler needs them
   # to reach the cluster. Destroying afterwards would find nothing to destroy
   # and leave the instance running forever.
@@ -2741,6 +2745,11 @@ defmodule Tuist.Accounts do
       )
 
       :ok
+  end
+
+  defp purge_account_storage(account) do
+    purge_account_cache_masters(account)
+    purge_account_gitlab_caches(account)
   end
 
   # The runner cache-volume master archive is customer-derived build cache
@@ -2982,7 +2991,7 @@ defmodule Tuist.Accounts do
     # Self-hosting is Enterprise-only, so do not surface a downgraded account's
     # registered node addresses to the CLI even while their leases are still live.
     if Billing.Entitlements.allows?(account, :self_hosted_cache) do
-      Tuist.Kura.Registrations.active_advertised_urls(account)
+      Registrations.active_advertised_urls(account)
     else
       []
     end

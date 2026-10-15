@@ -82,6 +82,29 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert Commits.file_detail(project.id, "abc123", "Missing.swift") == nil
   end
 
+  test "reads a run's scheme off the run, which a client-reported run gets after its coverage published", %{
+    project: project,
+    account: account
+  } do
+    run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1])], %{scheme: nil})
+
+    {:ok, _} =
+      Tuist.Tests.create_test(%{
+        id: run.id,
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        is_ci: true,
+        scheme: "AppTests",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        test_modules: []
+      })
+
+    assert [%{scheme: "AppTests"}] = Commits.runs(project.id, "abc123")
+  end
+
   test "leaves runs from a dirty checkout out, and republishes one version above the latest", %{
     project: project,
     account: account
@@ -548,6 +571,33 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       assert :ok = perform_job(CommitWorker, job.args)
       assert %{complete: true, version: new_version} = Commits.summary(project.id, "abc123")
       assert new_version > version
+    end
+
+    test "refold the commit when a repository target came from the binary cache", %{project: project, account: account} do
+      run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+
+      cached = %{
+        name: "App",
+        projects: [
+          %{
+            "targets" => [
+              %{"name" => "Core", "binary_cache_metadata" => %{"hit" => "remote"}},
+              %{
+                "name" => "Alamofire",
+                "binary_cache_metadata" => %{"hit" => "local", "subhashes" => %{"external" => "5.9.0"}}
+              }
+            ]
+          }
+        ]
+      }
+
+      assert {:ok, %Oban.Job{}} =
+               Coverage.refold_after_selective_testing(%{test_run_id: run.id, project_id: project.id}, cached)
+
+      remote_package_only = update_in(cached, [:projects, Access.at(0), "targets"], &tl/1)
+
+      assert Coverage.refold_after_selective_testing(%{test_run_id: run.id, project_id: project.id}, remote_package_only) ==
+               :skipped
     end
 
     test "schedule nothing when no target was skipped, or the event has no run", %{project: project, account: account} do

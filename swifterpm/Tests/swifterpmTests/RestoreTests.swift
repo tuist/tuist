@@ -25,6 +25,168 @@ struct RestoreTests {
     }
 
     @Test
+    func ensureSourceFallsBackWhenServerRejectsShallowFetch() async throws {
+        try await withTemporaryDirectory { root in
+            try await withLocalHTTPServer { server in
+                let repo = root.appendingPathComponent("Dependency")
+                try await writeMinimalPackageManifest(at: repo, name: "Dependency")
+                let revision = try await initCommittedGitRepository(at: repo)
+                try await serveGitRepositoryWithoutShallowSupport(repo, revision: revision, server: server)
+                let location = server.url(path: "/Dependency.git").absoluteString
+                let pin = ResolvedPin(
+                    identity: "dependency",
+                    kind: "remoteSourceControl",
+                    location: location,
+                    state: ResolvedState(branch: nil, revision: revision, version: nil)
+                )
+                let cache = try await Cache(root: root.appendingPathComponent("cache"))
+
+                let source = try await WorkspaceRestorer.ensureSource(cache: cache, pin: pin, location: location)
+
+                #expect(
+                    try await fileSystem.readFile(at: source.appendingPathComponent("Package.swift").absolutePath)
+                        == fileSystem.readFile(at: repo.appendingPathComponent("Package.swift").absolutePath)
+                )
+                #expect(
+                    try await fileSystem.readTextFile(
+                        at: source.appendingPathComponent(WorkspaceRestorer.sourceRevisionMarkerFilename).absolutePath
+                    ) == revision
+                )
+                #expect(try await !fileSystem.exists(source.appendingPathComponent(".git").absolutePath))
+                #expect(server.requestedPaths == [
+                    "/Dependency.git/info/refs",
+                    "/Dependency.git/info/refs",
+                    "/Dependency.git/git-upload-pack",
+                ])
+
+                let cachedSource = try await WorkspaceRestorer.ensureSource(cache: cache, pin: pin, location: location)
+                #expect(cachedSource.path == source.path)
+                #expect(server.requestedPaths.count == 3)
+            }
+        }
+    }
+
+    @Test
+    func ensureSourceReportsFullFetchFailureAfterShallowRejection() async throws {
+        try await withTemporaryDirectory { root in
+            try await withLocalHTTPServer { server in
+                let repo = root.appendingPathComponent("Dependency")
+                try await writeMinimalPackageManifest(at: repo, name: "Dependency")
+                let revision = try await initCommittedGitRepository(at: repo)
+                try await serveGitRepositoryWithoutShallowSupport(repo, revision: revision, server: server)
+                server.respond(to: "/Dependency.git/git-upload-pack", with: [.status(503)])
+                let location = server.url(path: "/Dependency.git").absoluteString
+                let pin = ResolvedPin(
+                    identity: "dependency",
+                    kind: "remoteSourceControl",
+                    location: location,
+                    state: ResolvedState(branch: nil, revision: revision, version: nil)
+                )
+                let cache = try await Cache(root: root.appendingPathComponent("cache"))
+
+                await #expect(throws: (any Error).self) {
+                    do {
+                        _ = try await WorkspaceRestorer.ensureSource(cache: cache, pin: pin, location: location)
+                    } catch {
+                        #expect(String(describing: error).contains(location))
+                        #expect(String(describing: error).contains("503"))
+                        throw error
+                    }
+                }
+                #expect(try await !fileSystem.exists(cache.sourcePath(pin: pin).absolutePath))
+                #expect(server.requestedPaths == [
+                    "/Dependency.git/info/refs",
+                    "/Dependency.git/info/refs",
+                    "/Dependency.git/git-upload-pack",
+                ])
+            }
+        }
+    }
+
+    @Test
+    func ensureSourceRestoresPinnedSnapshotWhenShallowFetchIsSupported() async throws {
+        try await withTemporaryDirectory { root in
+            let repo = root.appendingPathComponent("Dependency")
+            try await writeMinimalPackageManifest(at: repo, name: "Dependency")
+            let revision = try await initCommittedGitRepository(at: repo)
+            try await fileSystem.atomicWrite("newer content", to: repo.appendingPathComponent("new-file"))
+            try await commitAll(in: repo, message: "newer commit")
+            let pin = ResolvedPin(
+                identity: "dependency",
+                kind: "localSourceControl",
+                location: repo.path,
+                state: ResolvedState(branch: nil, revision: revision, version: nil)
+            )
+            let cache = try await Cache(root: root.appendingPathComponent("cache"))
+
+            let source = try await WorkspaceRestorer.ensureSource(cache: cache, pin: pin, location: repo.path)
+
+            let marker = try await fileSystem.readFile(
+                at: source.appendingPathComponent(WorkspaceRestorer.sourceRevisionMarkerFilename).absolutePath
+            )
+            #expect(String(decoding: marker, as: UTF8.self) == revision)
+            let expectedManifest = try await fileSystem.readFile(at: repo.appendingPathComponent("Package.swift").absolutePath)
+            #expect(try await fileSystem
+                .readFile(at: source.appendingPathComponent("Package.swift").absolutePath) == expectedManifest)
+            #expect(try await !fileSystem.exists(source.appendingPathComponent(".git").absolutePath))
+            #expect(try await !fileSystem.exists(source.appendingPathComponent("new-file").absolutePath))
+        }
+    }
+
+    @Test(arguments: [401, 403, 404, 503])
+    func ensureSourceDoesNotRetryUnrelatedFetchFailures(status: Int) async throws {
+        try await withTemporaryDirectory { root in
+            try await withLocalHTTPServer { server in
+                server.respond(to: "/Dependency.git/info/refs", with: [.status(status)])
+                let location = server.url(path: "/Dependency.git").absoluteString
+                let pin = ResolvedPin(
+                    identity: "dependency",
+                    kind: "remoteSourceControl",
+                    location: location,
+                    state: ResolvedState(branch: nil, revision: String(repeating: "a", count: 40), version: nil)
+                )
+                let cache = try await Cache(root: root.appendingPathComponent("cache"))
+
+                await #expect(throws: (any Error).self) {
+                    try await WorkspaceRestorer.ensureSource(cache: cache, pin: pin, location: location)
+                }
+                #expect(server.requestedPaths == ["/Dependency.git/info/refs"])
+            }
+        }
+    }
+
+    /// A Git smart-HTTP advertisement without the `shallow` capability makes real Git reject
+    /// --depth before sending a pack request. A non-shallow fetch can consume the same pack.
+    private func serveGitRepositoryWithoutShallowSupport(
+        _ repo: URL, revision: String, server: LocalHTTPServer
+    ) async throws {
+        func packet(_ payload: String) -> String {
+            String(format: "%04x", payload.utf8.count + 4) + payload
+        }
+        let advertisement = packet("# service=git-upload-pack\n") + "0000"
+            + packet("\(revision) HEAD\0multi_ack_detailed\n") + "0000"
+        server.respond(to: "/Dependency.git/info/refs", with: [
+            .init(
+                statusCode: 200,
+                headers: ["Content-Type": "application/x-git-upload-pack-advertisement"],
+                body: advertisement
+            ),
+        ])
+        let pack = try await SystemProcess.run(
+            "/usr/bin/git", ["pack-objects", "--all", "--stdout"], workingDirectory: repo
+        ).stdout
+        var response = Data("0008NAK\n".utf8)
+        response.append(pack)
+        server.respond(to: "/Dependency.git/git-upload-pack", with: [
+            .init(
+                statusCode: 200,
+                headers: ["Content-Type": "application/x-git-upload-pack-result"],
+                data: response
+            ),
+        ])
+    }
+
+    @Test
     func restorePackageDoesNotInitializeGitSubmodules() async throws {
         try await withTemporaryDirectory { root in
             let repo = root.appendingPathComponent("BrokenSubmodule")
@@ -96,10 +258,10 @@ struct RestoreTests {
         }
     }
 
-    // Once a checkout populates the cache, the marker written next to Package.swift is what
-    // future resolves compare `pin.revision()` against. If the marker is missing or points to
-    // a different SHA the cache entry is treated as unusable and re-fetched, which is the
-    // second half of the fix for the 12-char cache-key collision.
+    /// Once a checkout populates the cache, the marker written next to Package.swift is what
+    /// future resolves compare `pin.revision()` against. If the marker is missing or points to
+    /// a different SHA the cache entry is treated as unusable and re-fetched, which is the
+    /// second half of the fix for the 12-char cache-key collision.
     @Test
     func restorePackageWritesSourceRevisionMarkerIntoTheCachedSourceDirectory() async throws {
         try await withTemporaryDirectory { root in
@@ -423,7 +585,7 @@ struct RestoreTests {
                             "identity": "local-one",
                             "path": "LocalOne",
                         ],
-                    ]
+                    ],
                 ],
             ]
             var localOneManifest = emptyManifest(name: "LocalOne")
@@ -434,7 +596,7 @@ struct RestoreTests {
                             "identity": "local-two",
                             "path": "../LocalTwo",
                         ],
-                    ]
+                    ],
                 ],
             ]
 
@@ -692,7 +854,10 @@ struct RestoreTests {
             let zipPath = try await makeXCFrameworkZip(root: root, targetName: "Foo")
             let checksum = try Hashing.sha256Hex(await fileSystem.readFile(at: zipPath.absolutePath))
             let archivePath = cache.binaryArtifactArchivePath(url: artifactURL, checksum: checksum)
-            try await fileSystem.makeDirectory(at: archivePath.deletingLastPathComponent().absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.makeDirectory(
+                at: archivePath.deletingLastPathComponent().absolutePath,
+                options: [.createTargetParentDirectories]
+            )
             try await fileSystem.write(
                 await fileSystem.readFile(at: zipPath.absolutePath),
                 to: archivePath
@@ -770,7 +935,10 @@ struct RestoreTests {
             let zipPath = try await makeExecutableArtifactBundleZip(root: root, targetName: "Foo")
             let checksum = try Hashing.sha256Hex(await fileSystem.readFile(at: zipPath.absolutePath))
             let archivePath = cache.binaryArtifactArchivePath(url: artifactURL, checksum: checksum)
-            try await fileSystem.makeDirectory(at: archivePath.deletingLastPathComponent().absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.makeDirectory(
+                at: archivePath.deletingLastPathComponent().absolutePath,
+                options: [.createTargetParentDirectories]
+            )
             try await fileSystem.write(
                 await fileSystem.readFile(at: zipPath.absolutePath),
                 to: archivePath
@@ -845,7 +1013,10 @@ struct RestoreTests {
             let artifactURL = zipPath.absoluteString
             let checksum = try Hashing.sha256Hex(await fileSystem.readFile(at: zipPath.absolutePath))
             let archivePath = cache.binaryArtifactArchivePath(url: artifactURL, checksum: checksum)
-            try await fileSystem.makeDirectory(at: archivePath.deletingLastPathComponent().absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.makeDirectory(
+                at: archivePath.deletingLastPathComponent().absolutePath,
+                options: [.createTargetParentDirectories]
+            )
             try await fileSystem.write(
                 Data("stale archive".utf8),
                 to: archivePath
@@ -1088,7 +1259,8 @@ struct RestoreTests {
             to: repo.appendingPathComponent("Sources/BrokenSubmodule/BrokenSubmodule.swift")
         )
         try await SystemProcess.run(
-            "/bin/ln", ["-s", "DevOnly/ruby", ".ruby_version"], workingDirectory: repo)
+            "/bin/ln", ["-s", "DevOnly/ruby", ".ruby_version"], workingDirectory: repo
+        )
         try await SystemProcess.run("/usr/bin/git", ["init", "-q"], workingDirectory: repo)
         try await SystemProcess.run("/usr/bin/git", ["add", "."], workingDirectory: repo)
         try await SystemProcess.run(
@@ -1271,56 +1443,56 @@ struct RestoreTests {
     func cacheNativeRegistryDownloadsSeedsTheCacheAndLinksTheDownloadBack() async throws {
         try await withLocalHTTPServer { server in
             try await withTemporaryDirectory { root in
-            let checksum = "c944238d439d1d98c9a2f81200299429de52108fee1d82ef395f0a158f6cc77f"
-            server.respond(
-                to: "/example/package/1.1.4",
-                with: [
-                    .ok(
-                        """
-                        {"resources":[{"name":"source-archive","type":"application/zip",\
-                        "checksum":"\(checksum)"}]}
-                        """
-                    ),
-                ]
-            )
-
-            let scratch = root.appendingPathComponent("scratch")
-            let download = scratch.appendingPathComponent("registry/downloads/example/package/1.1.4")
-            try await writeMinimalPackageManifest(at: download, name: "Package")
-            let cache = try await Cache(root: root.appendingPathComponent("cache"))
-            let registryConfig = try await RegistryConfig.load(
-                packageDir: root,
-                configPath: nil,
-                defaultRegistryURL: server.url(path: "").absoluteString
-            )
-            let pin = ResolvedPin(
-                identity: "example.package",
-                kind: "registry",
-                location: "",
-                state: .init(branch: nil, revision: nil, version: "1.1.4")
-            )
-
-            try await WorkspaceRestorer.cacheNativeRegistryDownloads(
-                scratchDir: scratch,
-                cache: cache,
-                registryConfig: registryConfig,
-                resolved: ResolvedPins(originHash: nil, pins: [pin], version: 3)
-            )
-
-            let cached = cache.registrySourcePath(
-                identity: "example.package",
-                version: "1.1.4",
-                registryURL: server.url(path: "").absoluteString
-            )
-            #expect(
-                try await WorkspaceRestorer.cachedRegistrySourceIsUsable(
-                    cached, expectedChecksum: checksum
+                let checksum = "c944238d439d1d98c9a2f81200299429de52108fee1d82ef395f0a158f6cc77f"
+                server.respond(
+                    to: "/example/package/1.1.4",
+                    with: [
+                        .ok(
+                            """
+                            {"resources":[{"name":"source-archive","type":"application/zip",\
+                            "checksum":"\(checksum)"}]}
+                            """
+                        ),
+                    ]
                 )
-            )
-            // The workspace keeps a real registry root whose entries point into the cache, the
-            // layout Xcode expects from a registry download.
-            #expect(fileSystem.isDirectoryAndNotSymlink(download))
-            #expect(fileSystem.isSymlink(download.appendingPathComponent("Package.swift")))
+
+                let scratch = root.appendingPathComponent("scratch")
+                let download = scratch.appendingPathComponent("registry/downloads/example/package/1.1.4")
+                try await writeMinimalPackageManifest(at: download, name: "Package")
+                let cache = try await Cache(root: root.appendingPathComponent("cache"))
+                let registryConfig = try await RegistryConfig.load(
+                    packageDir: root,
+                    configPath: nil,
+                    defaultRegistryURL: server.url(path: "").absoluteString
+                )
+                let pin = ResolvedPin(
+                    identity: "example.package",
+                    kind: "registry",
+                    location: "",
+                    state: .init(branch: nil, revision: nil, version: "1.1.4")
+                )
+
+                try await WorkspaceRestorer.cacheNativeRegistryDownloads(
+                    scratchDir: scratch,
+                    cache: cache,
+                    registryConfig: registryConfig,
+                    resolved: ResolvedPins(originHash: nil, pins: [pin], version: 3)
+                )
+
+                let cached = cache.registrySourcePath(
+                    identity: "example.package",
+                    version: "1.1.4",
+                    registryURL: server.url(path: "").absoluteString
+                )
+                #expect(
+                    try await WorkspaceRestorer.cachedRegistrySourceIsUsable(
+                        cached, expectedChecksum: checksum
+                    )
+                )
+                // The workspace keeps a real registry root whose entries point into the cache, the
+                // layout Xcode expects from a registry download.
+                #expect(fileSystem.isDirectoryAndNotSymlink(download))
+                #expect(fileSystem.isSymlink(download.appendingPathComponent("Package.swift")))
             }
         }
     }
@@ -1329,44 +1501,44 @@ struct RestoreTests {
     func cacheNativeRegistryDownloadsLeavesTheDownloadWhenTheChecksumIsUnavailable() async throws {
         try await withLocalHTTPServer { server in
             try await withTemporaryDirectory { root in
-            server.respond(to: "/example/package/1.1.4", with: [.status(404)])
+                server.respond(to: "/example/package/1.1.4", with: [.status(404)])
 
-            let scratch = root.appendingPathComponent("scratch")
-            let download = scratch.appendingPathComponent("registry/downloads/example/package/1.1.4")
-            try await writeMinimalPackageManifest(at: download, name: "Package")
-            let cache = try await Cache(root: root.appendingPathComponent("cache"))
-            let registryConfig = try await RegistryConfig.load(
-                packageDir: root,
-                configPath: nil,
-                defaultRegistryURL: server.url(path: "").absoluteString
-            )
-            let pin = ResolvedPin(
-                identity: "example.package",
-                kind: "registry",
-                location: "",
-                state: .init(branch: nil, revision: nil, version: "1.1.4")
-            )
-
-            try await WorkspaceRestorer.cacheNativeRegistryDownloads(
-                scratchDir: scratch,
-                cache: cache,
-                registryConfig: registryConfig,
-                resolved: ResolvedPins(originHash: nil, pins: [pin], version: 3)
-            )
-
-            #expect(fileSystem.isDirectoryAndNotSymlink(download))
-            #expect(
-                try await fileSystem.exists(
-                    download.appendingPathComponent("Package.swift").absolutePath
+                let scratch = root.appendingPathComponent("scratch")
+                let download = scratch.appendingPathComponent("registry/downloads/example/package/1.1.4")
+                try await writeMinimalPackageManifest(at: download, name: "Package")
+                let cache = try await Cache(root: root.appendingPathComponent("cache"))
+                let registryConfig = try await RegistryConfig.load(
+                    packageDir: root,
+                    configPath: nil,
+                    defaultRegistryURL: server.url(path: "").absoluteString
                 )
-            )
-            #expect(
-                try await !WorkspaceRestorer.cachedRegistrySourceExists(
-                    cacheRoot: cache.root,
+                let pin = ResolvedPin(
+                    identity: "example.package",
+                    kind: "registry",
+                    location: "",
+                    state: .init(branch: nil, revision: nil, version: "1.1.4")
+                )
+
+                try await WorkspaceRestorer.cacheNativeRegistryDownloads(
+                    scratchDir: scratch,
+                    cache: cache,
                     registryConfig: registryConfig,
-                    pin: pin
+                    resolved: ResolvedPins(originHash: nil, pins: [pin], version: 3)
                 )
-            )
+
+                #expect(fileSystem.isDirectoryAndNotSymlink(download))
+                #expect(
+                    try await fileSystem.exists(
+                        download.appendingPathComponent("Package.swift").absolutePath
+                    )
+                )
+                #expect(
+                    try await !WorkspaceRestorer.cachedRegistrySourceExists(
+                        cacheRoot: cache.root,
+                        registryConfig: registryConfig,
+                        pin: pin
+                    )
+                )
             }
         }
     }
@@ -1440,7 +1612,10 @@ struct RestoreTests {
     @Test
     func cacheNativeSourceCheckoutsFindsTheCheckoutSwiftPMNamedAfterTheMirror() async throws {
         try await withTemporaryDirectory { root in
-            let revision = "cccccccccccccccccccccccccccccccccccccccc"
+            let scratch = root.appendingPathComponent("scratch")
+            let checkout = scratch.appendingPathComponent("checkouts/Dependency-Mirror")
+            try await writeMinimalPackageManifest(at: checkout, name: "Dependency")
+            let revision = try await initCommittedGitRepository(at: checkout)
             let original = "https://example.com/Dependency.git"
             let pin = ResolvedPin(
                 identity: "dependency-mirror",
@@ -1448,9 +1623,6 @@ struct RestoreTests {
                 location: original,
                 state: .init(branch: nil, revision: revision, version: "1.0.0")
             )
-            let scratch = root.appendingPathComponent("scratch")
-            let checkout = scratch.appendingPathComponent("checkouts/Dependency-Mirror")
-            try await writeMinimalPackageManifest(at: checkout, name: "Dependency")
             let cache = try await Cache(root: root.appendingPathComponent("cache"))
 
             try await WorkspaceRestorer.cacheNativeSourceCheckouts(
@@ -1490,6 +1662,9 @@ struct RestoreTests {
             let scratch = root.appendingPathComponent("scratch")
             let checkout = scratch.appendingPathComponent("checkouts/Dependency")
             try await writeMinimalPackageManifest(at: checkout, name: "Dependency")
+            try await fileSystem.atomicWrite(
+                revision, to: checkout.appendingPathComponent(WorkspaceRestorer.sourceRevisionMarkerFilename)
+            )
 
             try await WorkspaceRestorer.cacheNativeSourceCheckouts(
                 scratchDir: scratch,
@@ -1507,14 +1682,21 @@ struct RestoreTests {
         }
     }
 
-    // Native SPM does not initialize submodules that are not referenced by the Swift package
-    // manifest. Such packages have a .gitmodules entry but no corresponding directory in the
-    // checkout. cacheNativeSourceCheckouts must still move these checkouts to the source cache
-    // so subsequent runs use symlinks instead of triggering a native resolve on every call
+    /// Native SPM does not initialize submodules that are not referenced by the Swift package
+    /// manifest. Such packages have a .gitmodules entry but no corresponding directory in the
+    /// checkout. cacheNativeSourceCheckouts must still move these checkouts to the source cache
+    /// so subsequent runs use symlinks instead of triggering a native resolve on every call
     @Test
     func cacheNativeSourceCheckoutsCachesCheckoutWithUninitializedOptionalSubmodule() async throws {
         try await withTemporaryDirectory { root in
-            let revision = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            let scratch = root.appendingPathComponent("scratch")
+            let checkout = scratch.appendingPathComponent("checkouts/OptionalSubmodulePackage")
+            try await writeMinimalPackageManifest(at: checkout, name: "OptionalSubmodulePackage")
+            try await fileSystem.atomicWrite(
+                "[submodule \"extras/companion\"]\n\tpath = extras/companion\n\turl = https://example.com/companion.git\n",
+                to: checkout.appendingPathComponent(".gitmodules")
+            )
+            let revision = try await initCommittedGitRepository(at: checkout)
             let pin = ResolvedPin(
                 identity: "optional-submodule-package",
                 kind: "remoteSourceControl",
@@ -1522,17 +1704,6 @@ struct RestoreTests {
                 state: .init(branch: nil, revision: revision, version: "1.0.0")
             )
             let cache = try await Cache(root: root.appendingPathComponent("cache"))
-            let scratch = root.appendingPathComponent("scratch")
-            let checkout = scratch.appendingPathComponent("checkouts/OptionalSubmodulePackage")
-
-            try await writeMinimalPackageManifest(at: checkout, name: "OptionalSubmodulePackage")
-            // .gitmodules lists a submodule that native SPM never initializes,
-            // so the directory does not exist in the checkout.
-            try await fileSystem.atomicWrite(
-                "[submodule \"extras/companion\"]\n\tpath = extras/companion\n\turl = https://example.com/companion.git\n",
-                to: checkout.appendingPathComponent(".gitmodules")
-            )
-
             try await WorkspaceRestorer.cacheNativeSourceCheckouts(
                 scratchDir: scratch,
                 cache: cache,
@@ -1545,5 +1716,4 @@ struct RestoreTests {
             #expect(try await fileSystem.exists(cached.appendingPathComponent("Package.swift").absolutePath))
         }
     }
-
 }

@@ -268,7 +268,7 @@ components:
           x-struct:
           x-validate:
         history_source:
-          description: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+          description: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
           enum:
             - client
             - none
@@ -283,7 +283,7 @@ components:
           x-struct:
           x-validate:
         skip_test_identifiers:
-          description: The tests the caller asked this run to exclude.
+          description: "The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran."
           items:
             type: string
             x-struct:
@@ -338,50 +338,16 @@ components:
           type: string
           x-struct:
           x-validate:
+        coverage_enabled:
+          description: Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
+          type: boolean
+          x-struct:
+          x-validate:
         stress_new_tests:
           $ref: '#/components/schemas/StressNewTestsResult'
         xcode_coverage_partial:
           description: 'With `xcode_coverage_storage_key`: whether the run left tests out on purpose.'
           type: boolean
-          x-struct:
-          x-validate:
-        enumerated_tests:
-          description: The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.
-          items:
-            properties:
-              enabled:
-                description: False when the scheme or the test plan disables the test.
-                type: boolean
-                x-struct:
-                x-validate:
-              function:
-                description: "The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test(\"…\")`)."
-                type: string
-                x-struct:
-                x-validate:
-              module:
-                description: The test target.
-                type: string
-                x-struct:
-                x-validate:
-              name:
-                description: The test's name as the run reports it, `testExample()`.
-                type: string
-                x-struct:
-                x-validate:
-              suite:
-                description: The suite that declares the test, the innermost one when suites nest; empty outside any suite.
-                type: string
-                x-struct:
-                x-validate:
-            required:
-              - module
-              - name
-            type: object
-            x-struct:
-            x-validate:
-          maxItems: 500000
-          type: array
           x-struct:
           x-validate:
         macos_version:
@@ -399,73 +365,6 @@ components:
           description: Optional client-generated UUID for the test run. If not provided, the server generates one.
           format: uuid
           type: string
-          x-struct:
-          x-validate:
-        changed_files:
-          description: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
-          items:
-            properties:
-              git_blob_id:
-                description: The file's Git blob at the head; absent for a deleted file.
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              hunks:
-                description: The changed line ranges in the file at the head, inclusive.
-                items:
-                  properties:
-                    end:
-                      type: integer
-                      x-struct:
-                      x-validate:
-                    start:
-                      type: integer
-                      x-struct:
-                      x-validate:
-                  required:
-                    - start
-                    - end
-                  type: object
-                  x-struct:
-                  x-validate:
-                maxItems: 1000
-                type: array
-                x-struct:
-                x-validate:
-              path:
-                description: The path at the head, relative to the repository root.
-                type: string
-                x-struct:
-                x-validate:
-              previous_path:
-                description: The path before a rename.
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              status:
-                enum:
-                  - added
-                  - modified
-                  - deleted
-                  - renamed
-                type: string
-                x-struct:
-                x-validate:
-              truncated:
-                description: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
-                type: boolean
-                x-struct:
-                x-validate:
-            required:
-              - path
-              - status
-            type: object
-            x-struct:
-            x-validate:
-          maxItems: 10000
-          type: array
           x-struct:
           x-validate:
         xcode_coverage:
@@ -4832,6 +4731,19 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Project
       x-validate:
+    CacheEndpoint:
+      properties:
+        endpoint:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - endpoint
+      title: CacheEndpoint
+      type: object
+      x-struct:
+      x-validate:
     RunnerWorkflow:
       properties:
         avg_duration_ms:
@@ -5536,7 +5448,7 @@ components:
           x-struct:
           x-validate:
         tool:
-          description: The tool that measured the coverage, such as `cover` for Mix or `xccov` for Xcode.
+          description: The tool that measured the coverage, such as `cover` for Mix or `llvm-cov` (`xccov` from older clients) for Xcode.
           type: string
           x-struct:
           x-validate:
@@ -11794,7 +11706,8 @@ paths:
   /api/cache/endpoints:
     get:
       callbacks: {}
-      description: Returns cache endpoints for the requested account.
+      deprecated: true
+      description: Deprecated for new clients. Hosted clients derive stable cache URLs locally. Self-hosted clients use GET /api/cache/endpoint to discover their main cache URL. This route retains legacy endpoint selection and provisioning behavior.
       operationId: getCacheEndpoints
       parameters:
         - description: The name of the account to get custom cache endpoints for.
@@ -13738,7 +13651,7 @@ paths:
                   x-struct:
                   x-validate:
                 history_source:
-                  description: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+                  description: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                   enum:
                     - client
                     - none
@@ -13753,7 +13666,7 @@ paths:
                   x-struct:
                   x-validate:
                 skip_test_identifiers:
-                  description: The tests the caller asked this run to exclude.
+                  description: "The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran."
                   items:
                     type: string
                     x-struct:
@@ -13808,50 +13721,16 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                coverage_enabled:
+                  description: Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 stress_new_tests:
                   $ref: '#/components/schemas/StressNewTestsResult'
                 xcode_coverage_partial:
                   description: 'With `xcode_coverage_storage_key`: whether the run left tests out on purpose.'
                   type: boolean
-                  x-struct:
-                  x-validate:
-                enumerated_tests:
-                  description: The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.
-                  items:
-                    properties:
-                      enabled:
-                        description: False when the scheme or the test plan disables the test.
-                        type: boolean
-                        x-struct:
-                        x-validate:
-                      function:
-                        description: "The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test(\"…\")`)."
-                        type: string
-                        x-struct:
-                        x-validate:
-                      module:
-                        description: The test target.
-                        type: string
-                        x-struct:
-                        x-validate:
-                      name:
-                        description: The test's name as the run reports it, `testExample()`.
-                        type: string
-                        x-struct:
-                        x-validate:
-                      suite:
-                        description: The suite that declares the test, the innermost one when suites nest; empty outside any suite.
-                        type: string
-                        x-struct:
-                        x-validate:
-                    required:
-                      - module
-                      - name
-                    type: object
-                    x-struct:
-                    x-validate:
-                  maxItems: 500000
-                  type: array
                   x-struct:
                   x-validate:
                 macos_version:
@@ -13869,73 +13748,6 @@ paths:
                   description: Optional client-generated UUID for the test run. If not provided, the server generates one.
                   format: uuid
                   type: string
-                  x-struct:
-                  x-validate:
-                changed_files:
-                  description: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
-                  items:
-                    properties:
-                      git_blob_id:
-                        description: The file's Git blob at the head; absent for a deleted file.
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      hunks:
-                        description: The changed line ranges in the file at the head, inclusive.
-                        items:
-                          properties:
-                            end:
-                              type: integer
-                              x-struct:
-                              x-validate:
-                            start:
-                              type: integer
-                              x-struct:
-                              x-validate:
-                          required:
-                            - start
-                            - end
-                          type: object
-                          x-struct:
-                          x-validate:
-                        maxItems: 1000
-                        type: array
-                        x-struct:
-                        x-validate:
-                      path:
-                        description: The path at the head, relative to the repository root.
-                        type: string
-                        x-struct:
-                        x-validate:
-                      previous_path:
-                        description: The path before a rename.
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      status:
-                        enum:
-                          - added
-                          - modified
-                          - deleted
-                          - renamed
-                        type: string
-                        x-struct:
-                        x-validate:
-                      truncated:
-                        description: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
-                        type: boolean
-                        x-struct:
-                        x-validate:
-                    required:
-                      - path
-                      - status
-                    type: object
-                    x-struct:
-                    x-validate:
-                  maxItems: 10000
-                  type: array
                   x-struct:
                   x-validate:
                 xcode_coverage:
@@ -14365,6 +14177,41 @@ paths:
       summary: Create a new test run.
       tags:
         - Tests
+  /api/cache/endpoint:
+    get:
+      callbacks: {}
+      description: Returns one server-configured cache URL, or null when none is configured. The first configured URL is the main endpoint. This operation never records demand or provisions capacity. Tuist-hosted clients derive their stable hostname locally and do not call this operation.
+      operationId: getCacheEndpoint
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  endpoint:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - endpoint
+                title: CacheEndpoint
+                type: object
+                x-struct:
+                x-validate:
+          description: Main cache endpoint
+          headers:
+            cache-control:
+              description: How long the endpoint configuration can be cached.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get the main self-hosted cache endpoint.
+      tags:
+        - Cache
   /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan:
     post:
       callbacks: {}

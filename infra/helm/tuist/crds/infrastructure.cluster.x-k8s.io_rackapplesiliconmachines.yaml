@@ -129,6 +129,32 @@ spec:
                     the +1 is margin. It is not the concurrent-VM limit; Apple's cap of two is
                     enforced by Tart. Falls back to the operator's global default when unset.
                   type: integer
+                nodeCluster:
+                  description: |-
+                    NodeCluster, when set, is the other cluster the host's Node registers
+                    in: the host's RackHost `nodeCluster`.
+                  properties:
+                    cacheVolumesURL:
+                      description: |-
+                        CacheVolumesURL is the other cluster's server endpoint for macOS custom
+                        cache volumes (`<server>/api/internal/runners/cache-volumes`). Empty
+                        turns custom cache volumes off on the host.
+                      type: string
+                    kubeconfigSecret:
+                      description: |-
+                        KubeconfigSecret names a Secret in the host's namespace whose
+                        `kubeconfig` key is the kubeconfig tart-kubelet authenticates with: a
+                        node identity the other cluster issued for this host's Machine name.
+                      minLength: 1
+                      type: string
+                  required:
+                    - kubeconfigSecret
+                  type: object
+                nodeFleet:
+                  description: |-
+                    NodeFleet, when set, replaces FleetName as the `tuist.dev/fleet` label on
+                    the Node: the host's RackHost `nodeFleet`.
+                  type: string
                 providerID:
                   description: |-
                     ProviderID takes the shape `rack-applesilicon://<site>/<serial>`;

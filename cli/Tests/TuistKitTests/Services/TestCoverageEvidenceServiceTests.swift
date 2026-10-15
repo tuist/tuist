@@ -78,6 +78,20 @@ struct TestCoverageEvidenceServiceTests {
         #expect(TestCoverageEvidenceService.testName(xctestSelector: "testAddWithCompletionHandler:") == "testAdd()")
     }
 
+    @Test func mapsTheReportsAndTheMappingsFilesBackThroughThePrefixMap() throws {
+        var table = TestCoverageEvidenceService.LCOVFunctionTable()
+        table.remap = { $0.replacingOccurrences(of: "/^src", with: "/checkout") }
+        for line in ["SF:/^src/Math.swift", "FN:2,add", "DA:2,1", "end_of_record"] {
+            table.read(Substring(line))
+        }
+        #expect(table.filesByFunction == ["add": ["/checkout/Math.swift"]])
+        #expect(table.executableLines == ["/checkout/Math.swift": IndexSet([2])])
+
+        let mapping = CoverageMapping(files: ["/^src/Math.swift", "/elsewhere/B.swift"], functions: [])
+            .remappingFiles { $0.replacingOccurrences(of: "/^src", with: "/checkout") }
+        #expect(mapping.files == ["/checkout/Math.swift", "/elsewhere/B.swift"])
+    }
+
     @Test func readsFunctionsAndTheirFilesOffLCOV() {
         var table = TestCoverageEvidenceService.LCOVFunctionTable()
         for line in [

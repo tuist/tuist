@@ -1,11 +1,11 @@
 defmodule Tuist.Kura.Workers.ProvisionOnDemandWorker do
   @moduledoc """
-  Brings up an account's Kura instance as soon as a client asks for a cache
-  endpoint the account has no instance serving.
+  Brings up an account's Kura instance as soon as an authenticated cache
+  request reaches the shared activation gateway with no instance serving.
 
-  Cache-endpoint resolution enqueues this when it answers with no Kura
-  endpoint. Without it a returning account waited for its demand to leave the
-  node's buffer (flushed every minute) and then for the reconciler tick (also
+  The activation gateway and legacy cache-endpoint resolution enqueue this
+  when there is no serving Kura endpoint. Without it a returning account waited
+  for its demand to leave the node's buffer (flushed every minute) and then for the reconciler tick (also
   every minute) before its instance even started coming back. This runs the
   same provisioning rules for that one account at once
   (`Tuist.Kura.Lifecycle.provision_account/2`), applies each instance that is

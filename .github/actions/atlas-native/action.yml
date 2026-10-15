@@ -1,0 +1,135 @@
+name: Build or test Atlas native
+description: Run a distinct build or test operation through Once.
+
+inputs:
+  platform:
+    description: android, ios, cli or core
+    required: true
+  operation:
+    description: build or test
+    required: true
+  authenticated:
+    description: Whether this trusted job may authenticate the shared Tuist cache
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/mise-install
+      with:
+        working-directory: atlas-native
+        install: ${{ inputs.platform == 'android' && 'rust kotlin java github:tuist/once' || 'rust github:tuist/once' }}
+
+    - name: Install Once runtime libraries
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y libasound2t64
+
+    - uses: android-actions/setup-android@v3
+      if: inputs.platform == 'android'
+      with:
+        packages: platform-tools
+        log-accepted-android-sdk-licenses: false
+
+    - name: Install Android SDK packages
+      if: inputs.platform == 'android'
+      shell: bash
+      run: |
+        sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.3.13750724"
+        echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724" >> "$GITHUB_ENV"
+
+    - name: Generate Android debug keystore
+      if: inputs.platform == 'android'
+      shell: bash
+      working-directory: atlas-native
+      run: |
+        keystore="$RUNNER_TEMP/atlas-debug.keystore"
+        mise exec -- keytool -genkeypair -noprompt \
+          -keystore "$keystore" -storepass android -keypass android \
+          -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+          -dname "CN=Android Debug,O=Android,C=US"
+        echo "ANDROID_DEBUG_KEYSTORE=$keystore" >> "$GITHUB_ENV"
+
+    - name: Install Rust mobile standard library
+      if: inputs.platform == 'android' || inputs.platform == 'ios'
+      shell: bash
+      working-directory: atlas-native
+      env:
+        TARGET_SURFACE: ${{ inputs.platform }}
+      run: |
+        if [ "$TARGET_SURFACE" = android ]; then
+          mise exec -- rustup target add aarch64-linux-android
+        else
+          mise exec -- rustup target add aarch64-apple-ios-sim
+        fi
+
+    - name: Authenticate the Once cache
+      id: auth
+      if: inputs.authenticated == 'true'
+      continue-on-error: true
+      shell: bash
+      working-directory: atlas-native
+      run: mise exec -- once auth login --provider tuist --no-browser
+
+    - name: Materialize locked Rust dependencies
+      shell: bash
+      working-directory: atlas-native
+      run: mise run prepare:rust
+
+    - name: Validate graph
+      shell: bash
+      working-directory: atlas-native
+      run: mise exec -- once query validate-workspace
+
+    - name: Build native surface
+      if: inputs.operation == 'build'
+      shell: bash
+      working-directory: atlas-native
+      env:
+        TARGET_SURFACE: ${{ inputs.platform }}
+        ONCE_CACHE_PROVIDER: ${{ steps.auth.outcome == 'success' && 'tuist' || 'local' }}
+      run: |
+        mise run "build:$TARGET_SURFACE"
+        if [ "$TARGET_SURFACE" = ios ]; then
+          ditto -c -k --sequesterRsrc --keepParent .once/out/AtlasIOS/Atlas.app Atlas-ios-simulator.zip
+        elif [ "$TARGET_SURFACE" = cli ]; then
+          .once/out/AtlasCLI/atlas --help
+          .once/out/AtlasCLI/atlas sections
+          test "$(.once/out/AtlasCLI/atlas url tasks)" = "https://atlas.tuist.dev/tasks"
+          tar -czf Atlas-cli.tar.gz -C .once/out/AtlasCLI atlas
+        fi
+
+    - name: Test
+      if: inputs.operation == 'test'
+      shell: bash
+      working-directory: atlas-native
+      env:
+        TARGET_SURFACE: ${{ inputs.platform }}
+        ONCE_CACHE_PROVIDER: ${{ steps.auth.outcome == 'success' && 'tuist' || 'local' }}
+      run: mise run "test:$TARGET_SURFACE"
+
+    - name: Upload build artifact
+      if: inputs.operation == 'build'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.platform == 'cli' && format('atlas-native-cli-{0}-{1}', runner.os, runner.arch) || format('atlas-mobile-{0}', inputs.platform) }}
+        path: ${{ inputs.platform == 'android' && 'atlas-native/.once/out/AtlasAndroid/AtlasAndroid.apk' || inputs.platform == 'cli' && 'atlas-native/Atlas-cli.tar.gz' || 'atlas-native/Atlas-ios-simulator.zip' }}
+        if-no-files-found: error
+        retention-days: 14
+        include-hidden-files: true
+
+    - name: Upload test reports
+      if: always() && inputs.operation == 'test'
+      uses: actions/upload-artifact@v4
+      with:
+        name: atlas-native-tests-${{ inputs.platform }}
+        path: |
+          atlas-native/.once/out/AtlasCoreTests/test/
+          atlas-native/.once/out/AtlasAuthTests/test/
+          atlas-native/.once/out/AtlasCLITests/test/
+          atlas-native/.once/out/AtlasIOSTests/test/
+        if-no-files-found: ignore
+        retention-days: 14
+        include-hidden-files: true

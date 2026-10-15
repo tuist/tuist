@@ -79,6 +79,9 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   attached to the same Pod by the runners-controller. The
   runner's `docker` group is pinned to GID 123 to match the
   socket GID dockerd creates in the sidecar.
+- `ImageOS=ubuntu22`, as GitHub-hosted runners set it. Setup actions
+  such as `erlef/setup-beam` read it to pick a prebuilt binary and
+  fail without it. Change it together with the `ubuntu:22.04` base.
 - `/usr/local/lib/android/sdk` — Android SDK, with `ANDROID_HOME`
   and `ANDROID_SDK_ROOT` exported. Same path and same
   bake-it-into-the-image posture as GitHub's hosted Ubuntu image,
@@ -292,3 +295,7 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   Launch hdiutil without RUNNER_TRACKING_ID so GitHub's orphan cleanup cannot
   kill the image helper before dispatch detaches it. Keep job process tracking
   intact for all other commands and preserve the clean-detach publication gate.
+
+- The shared client accepts --commit auto/true/false and forwards intent through Linux HTTP or the macOS mailbox. Explicit modes require a matching response before mounting; unsupported replies fail visibly instead of degrading into a writable cache.
+
+- Explicit commit modes use versioned acquisition/authorization paths (macOS .commit-request mailboxes) so older components cannot allocate before rejecting them. Auto retains legacy paths. Echo can_publish and warn on an unauthorized explicit save; publication still rechecks policy.
