@@ -1557,14 +1557,12 @@ defmodule Tuist.Runners.JobsTest do
       flush_outbox!()
 
       assert %{republished: 0, closed: 0, scanned: 1} =
-               Jobs.repair_replica_divergence(DateTime.add(DateTime.utc_now(), 1, :minute), lookback_floor(),
-                 close_untracked: true
-               )
+               Jobs.repair_replica_divergence(DateTime.add(DateTime.utc_now(), 1, :minute), lookback_floor())
 
       assert {:ok, %{status: "running"}} = Jobs.get_for_account(account.id, 7371)
     end
 
-    test "closes a replica row with no lifecycle row only when asked to" do
+    test "closes a replica row with no lifecycle row" do
       account = account_fixture()
       enqueued_at = DateTime.add(DateTime.utc_now(), -3, :day)
       last_update = DateTime.add(enqueued_at, 10, :minute)
@@ -1582,10 +1580,7 @@ defmodule Tuist.Runners.JobsTest do
       settled_before = DateTime.add(DateTime.utc_now(), 1, :minute)
       floor = DateTime.add(DateTime.utc_now(), -7, :day)
 
-      assert %{republished: 0, closed: 0} = Jobs.repair_replica_divergence(settled_before, floor)
-      assert {:ok, %{status: "queued"}} = Jobs.get_for_account(account.id, 7372)
-
-      assert %{closed: 1} = Jobs.repair_replica_divergence(settled_before, floor, close_untracked: true)
+      assert %{republished: 0, closed: 1} = Jobs.repair_replica_divergence(settled_before, floor)
 
       assert {:ok, job} = Jobs.get_for_account(account.id, 7372)
       assert job.status == "completed"
@@ -1616,8 +1611,7 @@ defmodule Tuist.Runners.JobsTest do
       assert %{closed: 2} =
                Jobs.repair_replica_divergence(
                  DateTime.add(DateTime.utc_now(), 1, :minute),
-                 DateTime.add(DateTime.utc_now(), -7, :day),
-                 close_untracked: true
+                 DateTime.add(DateTime.utc_now(), -7, :day)
                )
 
       assert {:ok, requeued} = Jobs.get_for_account(account.id, 7374)
@@ -1643,9 +1637,7 @@ defmodule Tuist.Runners.JobsTest do
       })
 
       assert %{closed: 0} =
-               Jobs.repair_replica_divergence(DateTime.add(DateTime.utc_now(), 1, :minute), lookback_floor(),
-                 close_untracked: true
-               )
+               Jobs.repair_replica_divergence(DateTime.add(DateTime.utc_now(), 1, :minute), lookback_floor())
 
       assert {:ok, %{status: "queued"}} = Jobs.get_for_account(account.id, 7373)
     end

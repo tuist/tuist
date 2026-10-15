@@ -5875,11 +5875,11 @@ max by (fleet) (
 - Pending period: 15 minutes
 - Already created: rule `ffvr99w48mltsb`, folder `Alerts`, group `Runners`,
   receiver `Slack #notifications 2`.
-- **Paused.** Until the release that ships
-  `Tuist.Runners.Workers.RepairReplicaDivergenceWorker`, the gauge also counted
-  long-running jobs in the minute between their completion and the outbox
-  flush, so it read 10 to 35 every day without any lasting divergence. Unpause
-  once that release is deployed and
+- **Paused.** Until the release that ships the one-off
+  `Tuist.Runners.Workers.RepairReplicaDivergenceWorker` backfill, the gauge
+  also counted long-running jobs in the minute between their completion and the
+  outbox flush, so it read 10 to 35 every day without any lasting divergence.
+  Unpause once that release is deployed and
   `max by (fleet) (tuist_runners_replica_divergence_count{env="production"})`
   reads 0.
 - Counts jobs whose ClickHouse `runner_jobs` row is still
@@ -5888,14 +5888,14 @@ max by (fleet) (
   5 minutes: the replica row must not have changed and the Postgres completion
   must be older than that, so in-flight jobs and normal outbox lag are not
   counted and steady state is 0.
-- `RepairReplicaDivergenceWorker` re-emits each diverged row's Postgres state
-  every 5 minutes, with the same 5-minute settle window, so a diverged row is
-  repaired within about 11 minutes and a reading that persists past the
-  pending period means the repair itself is failing. Each
-  pass that repairs rows logs `runners: repaired ClickHouse runner_jobs rows`
-  and emits the runner recovery telemetry event with
-  `kind: "replica_divergence"`. Repairs that keep recurring mean some write
-  path still loses completions and should be found.
+- Nothing repairs divergence on a schedule, because nothing in the write path
+  should produce it: every outbox event takes its version from the Postgres
+  clock after its row write, so of two writes to one job the later commit
+  carries the later version. A reading here means something bypassed that,
+  such as a new direct `IngestRepo` write to `runner_jobs` or the Postgres
+  primary's clock stepping backwards across a failover. Find the cause, then
+  repair the rows by queuing the backfill again from a live node:
+  `bin/tuist rpc 'Oban.insert!(Tuist.Runners.Workers.RepairReplicaDivergenceWorker.new(%{enqueued_after: "<ISO-8601 floor>"}))'`.
 - Data-correctness, not availability: dispatch reads Postgres directly, so jobs
   keep running while this fires. What breaks is analytics —
   `Runners.Analytics.jobs_duration` filters on a terminal status with non-null

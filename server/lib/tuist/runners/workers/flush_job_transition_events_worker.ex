@@ -16,8 +16,7 @@ defmodule Tuist.Runners.Workers.FlushJobTransitionEventsWorker do
   an `updated_at` read from the database clock after its transition's
   row write, so of two transitions to one job the later commit carries
   the later version, and the RMT's argMax-by-`updated_at` read resolves
-  any interleaving. `RepairReplicaDivergenceWorker` re-emits terminal
-  rows the replica still reads as in flight.
+  any interleaving.
 
   Crash safety: the CH INSERT happens before the PG DELETE, so a
   crash between the two re-flushes the batch next tick. Replayed

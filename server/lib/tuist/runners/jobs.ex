@@ -545,22 +545,21 @@ defmodule Tuist.Runners.Jobs do
   re-emitted through the outbox (`WorkflowJobs.republish_terminal/1`)
   and reaches ClickHouse on the next flush.
 
-  With `close_untracked: true` it also closes the diverged rows that
-  have no lifecycle row at all: jobs from before `runner_workflow_jobs`
-  existed, whose accounts were deleted, or whose lifecycle row is gone
-  for any other reason. Nothing else will ever write those, so they are
-  closed in ClickHouse directly, as `completed` with the `"stale"`
-  conclusion `StaleQueuedJobsWorker` uses for jobs nothing can settle,
-  and `completed_at` at the row's last update. Only rows enqueued before
-  `untracked_before` are closed, so a job whose lifecycle row is still
-  being written is never touched.
+  It also closes the non-terminal rows that have no lifecycle row at all:
+  jobs from before `runner_workflow_jobs` existed, or whose accounts were
+  deleted. Nothing else will ever write those, so they are closed in
+  ClickHouse directly, as `completed` with the `"stale"` conclusion
+  `StaleQueuedJobsWorker` uses for jobs nothing can settle, and
+  `completed_at` at the row's last update. Only rows enqueued more than a
+  day ago are closed, so a job whose lifecycle row is still being written
+  is never touched.
 
-  Scans at most `:limit` candidates (default 5,000). Returns
+  Used once, by `Tuist.Runners.Workers.RepairReplicaDivergenceWorker`.
+  Scans at most `limit` candidates. Returns
   `%{republished: n, closed: n, scanned: n}`; `scanned == limit` means
   the scan was capped and another pass may find more.
   """
-  def repair_replica_divergence(%DateTime{} = settled_before, %DateTime{} = enqueued_floor, opts \\ []) do
-    limit = Keyword.get(opts, :limit, 5_000)
+  def repair_replica_divergence(%DateTime{} = settled_before, %DateTime{} = enqueued_floor, limit \\ 5_000) do
     candidates = list_non_terminal_before(settled_before, enqueued_floor, limit)
     ids = Enum.map(candidates, & &1.workflow_job_id)
     tracked = WorkflowJobs.existing_ids(ids)
@@ -572,17 +571,13 @@ defmodule Tuist.Runners.Jobs do
       |> Enum.map(&%{&1 | log_archived_at: to_utc_datetime(&1.log_archived_at)})
       |> WorkflowJobs.republish_terminal()
 
-    closed =
-      if Keyword.get(opts, :close_untracked, false) do
-        untracked_before = Keyword.get(opts, :untracked_before, DateTime.add(DateTime.utc_now(), -1, :day))
+    untracked_before = DateTime.add(DateTime.utc_now(), -1, :day)
 
-        candidates
-        |> Enum.reject(&MapSet.member?(tracked, &1.workflow_job_id))
-        |> Enum.filter(&DateTime.before?(to_utc_datetime(&1.enqueued_at), untracked_before))
-        |> close_untracked_rows()
-      else
-        0
-      end
+    closed =
+      candidates
+      |> Enum.reject(&MapSet.member?(tracked, &1.workflow_job_id))
+      |> Enum.filter(&DateTime.before?(to_utc_datetime(&1.enqueued_at), untracked_before))
+      |> close_untracked_rows()
 
     %{republished: republished, closed: closed, scanned: length(candidates)}
   end
