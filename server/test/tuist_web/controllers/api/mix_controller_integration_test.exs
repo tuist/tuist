@@ -13,6 +13,7 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
   alias Tuist.Builds.BuildMachineMetric
   alias Tuist.ClickHouseRepo
   alias Tuist.Mix.Build
+  alias Tuist.Mix.Cache
   alias Tuist.Mix.Diagnostic
   alias Tuist.Mix.Step
   alias Tuist.Mix.Timeline
@@ -54,6 +55,42 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
   defp post_report(conn, user, project) do
     assert_receive {:report, payload}, 5_000
     post(conn, "/api/projects/#{user.account.name}/#{project.name}/mix/builds", payload)
+  end
+
+  test "ingests a cache-only compile report and derives caching analytics", %{conn: conn, user: user, project: project} do
+    reporter = reporter([])
+
+    observation = %{
+      dependency: "jason",
+      outcome: "local_hit",
+      key: String.duplicate("a", 64),
+      reason: "",
+      duration_ms: 5,
+      saved_duration_ms: 123,
+      read_bytes: 1_000,
+      read_duration_us: 5_000
+    }
+
+    CompileReporter.record_cache(reporter, observation)
+    :ok = CompileReporter.finish(reporter)
+    assert conn |> post_report(user, project) |> json_response(:created)
+
+    assert %{hits: 1, misses: 0, hit_rate: 100.0, saved_duration_ms: 123} =
+             Cache.summary(project.id,
+               start_datetime: DateTime.add(DateTime.utc_now(), -60),
+               end_datetime: DateTime.add(DateTime.utc_now(), 60)
+             )
+
+    io =
+      Cache.io_analytics(project.id,
+        start_datetime: DateTime.add(DateTime.utc_now(), -60),
+        end_datetime: DateTime.add(DateTime.utc_now(), 60)
+      )
+
+    assert io.transfer.metrics["downloads"] == 1_000
+    assert io.latency.metrics["read"] == 5.0
+    assert io.throughput.metrics["downloads"] == 200_000.0
+    assert io.transfer.metrics["uploads"] == nil
   end
 
   test "tells the page waiting for the project that the user reached it", %{conn: conn, user: user} do

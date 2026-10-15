@@ -20,6 +20,7 @@ This module handles CLI integration with the Tuist Server APIs.
 
 - Persistent task/action/module/file inventory, detail and history endpoints are generated from native server resource schemas. They use project-scoped stable IDs independent of runs, retain nullable measurements and keyset cursor metadata, and keep extensible outcomes as open strings. The additive `duration_samples` metric is optional in generated responses so earlier responses still decode; it counts recorded durations, including zero, rather than all observations. Existing ingestion and per-run read contracts remain unchanged.
 
+- Mix's optional dependency-cache observations are generated from the server build-report schema; keep nullable avoided-compilation estimates, local/remote hits, I/O source provenance, paired measurements and supported reason values aligned. Never derive remote CAS outputs from these client observations; Kura's shared signed REAPI telemetry is authoritative.
 - Gradle and Bazel recorded-step endpoints and the optional Gradle report start timestamp are generated from server controller schemas. Regenerate through `server/mise/tasks/generate-api-cli-code.sh`; preserve opaque step IDs and nullable per-step logs.
 
 - Command event serialization sends effective destinations and all individual subhashes, including embedded products, foreign builds, and UI-test device/runtime inputs. Do not substitute declared graph destinations for missing inputs.

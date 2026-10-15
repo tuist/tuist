@@ -44,6 +44,9 @@ func (r *RackLinuxHostReconciler) reconcileMachine(ctx context.Context, host *in
 		RackLinuxHostLabel:         host.Name,
 		RackLinuxRoleLabel:         host.Spec.Role,
 	}
+	if site := host.Spec.Location.Site; site != "" {
+		labels[infrav1.RackSiteNodeLabel] = site
+	}
 
 	rlm := &infrav1.RackLinuxMachine{ObjectMeta: metav1.ObjectMeta{Name: host.Name, Namespace: host.Namespace}}
 	if _, err := controllerutil.CreateOrPatch(ctx, r.Client, rlm, func() error {

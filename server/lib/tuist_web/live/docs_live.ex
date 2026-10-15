@@ -321,10 +321,10 @@ defmodule TuistWeb.DocsLive do
                 <p>
                   {dgettext(
                     "docs",
-                    "Reuse build artifacts across Xcode, Gradle, and Bazel so work completed in one environment speeds up every other environment."
+                    "Share Xcode, Gradle, and Bazel build artifacts and audited Elixir dependency bundles across machines and CI."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel)} />
+                <.supported_for systems={~w(apple gradle bazel elixir)} />
               </div>
             </.link>
             <.link
@@ -734,7 +734,7 @@ defmodule TuistWeb.DocsLive do
         "- #{markdown_link(dgettext("docs", "Cache"), cache_path)}: " <>
           dgettext(
             "docs",
-            "Reuse build artifacts across Xcode, Gradle, and Bazel so work completed in one environment speeds up every other environment."
+            "Share Xcode, Gradle, and Bazel build artifacts and audited Elixir dependency bundles across machines and CI."
           ),
         "- #{markdown_link(dgettext("docs", "Insights"), build_insights_path)}: " <>
           dgettext(

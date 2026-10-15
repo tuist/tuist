@@ -118,6 +118,12 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "memory_gb" => %{"type" => "integer"},
         "xcode_version" => %{"type" => ["string", "null"]},
         "protected" => %{"type" => "boolean"},
+        "cache_writer_branches" => %{
+          "type" => "array",
+          "items" => %{"type" => "string"},
+          "description" =>
+            "Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch."
+        },
         "inserted_at" => %{"type" => "string"},
         "updated_at" => %{"type" => "string"}
       },
@@ -129,6 +135,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "memory_gb",
         "xcode_version",
         "protected",
+        "cache_writer_branches",
         "inserted_at",
         "updated_at"
       ],
@@ -243,6 +250,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
       memory_gb: profile.memory_gb,
       xcode_version: profile.xcode_version,
       protected: profile.protected,
+      cache_writer_branches: profile.cache_writer_branches || [],
       inserted_at: Formatter.iso8601(profile.inserted_at),
       updated_at: Formatter.iso8601(profile.updated_at)
     }
@@ -537,6 +545,75 @@ defmodule Tuist.MCP.Components.Tools.ListRunnerProfiles do
       MCPTool.json_response(%{profiles: profiles}, __MODULE__)
     else
       {:error, message} -> EMCP.Tool.error(message)
+    end
+  end
+end
+
+defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfileCacheBranches do
+  @moduledoc """
+  Update which branches save a runner profile's cache volumes.
+  """
+
+  use Tuist.MCP.Tool,
+    name: "update_runner_profile_cache_branches",
+    title: "Update Runner Profile Cache Branches",
+    read_only_hint: false,
+    schema: %{
+      "type" => "object",
+      "properties" => %{
+        "account_handle" => %{"type" => "string", "description" => "The account handle."},
+        "profile_name" => %{
+          "type" => "string",
+          "description" => "The profile name, without the runs-on label prefix."
+        },
+        "cache_writer_branches" => %{
+          "type" => "array",
+          "items" => %{"type" => "string"},
+          "description" => "Branch names or * patterns. An empty list follows each repository's default branch."
+        }
+      },
+      "required" => ["account_handle", "profile_name", "cache_writer_branches"],
+      "additionalProperties" => false
+    },
+    output_schema: Tuist.MCP.Components.Tools.RunnerTools.profile_schema()
+
+  alias Tuist.MCP.Components.Tools.RunnerTools
+  alias Tuist.MCP.Tool, as: MCPTool
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      ~s(Replace the branch names or * patterns whose GitHub Actions jobs on a runner profile save custom cache volume changes, for example ["main", "release/*"] or ["*"] for every branch. Pass an empty list to follow each repository's default branch. Narrowing the list discards pending saves it no longer allows. Requires account administration.)
+
+  @impl EMCP.Tool
+  def call(conn, arguments) do
+    with :ok <- MCPTool.validate_input(__MODULE__, arguments),
+         {:ok, account} <- RunnerTools.authorize_profiles_account(arguments, conn.assigns),
+         {:ok, profile} <- fetch_profile(account, arguments["profile_name"]),
+         {:ok, profile} <- update(profile, arguments["cache_writer_branches"]) do
+      MCPTool.json_response(RunnerTools.serialize_profile(profile), __MODULE__)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
+    end
+  end
+
+  defp fetch_profile(account, name) do
+    case Profiles.get_by_name(account, name) do
+      %Profile{} = profile -> {:ok, profile}
+      nil -> {:error, "The runner profile was not found."}
+    end
+  end
+
+  defp update(profile, branches) do
+    case Profiles.update_cache_writer_branches(profile, branches) do
+      {:ok, profile} ->
+        {:ok, profile}
+
+      {:error, _changeset} ->
+        {:error,
+         "Use up to #{Profile.max_cache_writer_branches()} branch names, optionally with * to match any characters."}
     end
   end
 end

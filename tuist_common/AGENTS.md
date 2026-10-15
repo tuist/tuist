@@ -7,6 +7,7 @@ This package contains shared Elixir utilities consumed by multiple Tuist service
 - Centralize low-level integration utilities shared by `server/` and `cache/`.
 - Keep shared telemetry and repository helpers framework-agnostic where practical.
 - Own reusable telemetry plugin implementations shared across services.
+- `ObanLogger` emits compact job lifecycle records without job arguments or metadata. Keep job identity, timings, state and exception diagnostics; `ObanTelemetry` independently reports failures to Sentry.
 
 ## Boundaries
 - App-specific wiring belongs in `server/` or `cache/`.

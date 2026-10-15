@@ -154,6 +154,7 @@ enum SystemProcess {
         _ arguments: [String],
         workingDirectory: URL? = nil,
         environment: [String: String] = [:],
+        customEnvironment: [String: String]? = nil,
         outputLimit: Int = 64 * 1024 * 1024
     ) async throws -> String {
         try await run(
@@ -161,6 +162,7 @@ enum SystemProcess {
             arguments,
             workingDirectory: workingDirectory,
             environment: environment,
+            customEnvironment: customEnvironment,
             outputLimit: outputLimit
         ).stdoutString
     }

@@ -36,6 +36,7 @@ defmodule Tuist.MCP.Server do
     Tools.ListRunnerJobLogs,
     Tools.ListRunnerWorkflows,
     Tools.ListRunnerProfiles,
+    Tools.UpdateRunnerProfileCacheBranches,
     Tools.ListRunnerVolumes,
     Tools.GetRunnerVolume,
     Tools.ListRunnerVolumeJobs,

@@ -18,6 +18,10 @@ defmodule Tuist.Runners.Profile do
       The Xcode version pins the runner image's
       `:macos-<dashes>-<semver>` tag.
 
+  The cache writer policy decides which GitHub jobs running on the
+  profile can save custom cache volumes besides the default branch. See
+  `Tuist.Runners.CacheVolumes`.
+
   Backed by [priv/repo/migrations/20260527130000_create_runner_profiles.exs](priv/repo/migrations/20260527130000_create_runner_profiles.exs)
   and [priv/repo/migrations/20260602144624_add_platform_and_xcode_to_runner_profiles.exs](priv/repo/migrations/20260602144624_add_platform_and_xcode_to_runner_profiles.exs).
   """
@@ -36,6 +40,8 @@ defmodule Tuist.Runners.Profile do
 
   @platforms [:linux, :macos]
 
+  @max_cache_writer_branches 20
+
   schema "runner_profiles" do
     field :name, :string
     # Default `:linux` matches the migration's column default and
@@ -47,6 +53,8 @@ defmodule Tuist.Runners.Profile do
     field :memory_gb, :integer
     field :xcode_version, :string
     field :protected, :boolean, default: false
+    # nil follows each repository's default branch.
+    field :cache_writer_branches, {:array, :string}
 
     belongs_to :account, Account
 
@@ -57,6 +65,8 @@ defmodule Tuist.Runners.Profile do
   All supported platforms.
   """
   def platforms, do: @platforms
+
+  def max_cache_writer_branches, do: @max_cache_writer_branches
 
   @doc """
   Changeset for create / update.
@@ -84,7 +94,8 @@ defmodule Tuist.Runners.Profile do
         :vcpus,
         :memory_gb,
         :xcode_version,
-        :protected
+        :protected,
+        :cache_writer_branches
       ])
       |> validate_required([:account_id, :name, :platform, :vcpus, :memory_gb])
       |> update_change(:name, &normalize_name/1)
@@ -97,6 +108,7 @@ defmodule Tuist.Runners.Profile do
         message: "a profile with this name already exists in this account"
       )
       |> foreign_key_constraint(:account_id)
+      |> validate_cache_writer_branches()
 
     case get_field(changeset, :platform) do
       :linux ->
@@ -115,8 +127,64 @@ defmodule Tuist.Runners.Profile do
     end
   end
 
+  @doc """
+  Changeset for the cache writer branches alone. Unlike `changeset/3` it does
+  not validate the profile's shape against the current catalog.
+  """
+  def cache_writer_changeset(profile, attrs) do
+    profile
+    |> cast(attrs, [:cache_writer_branches])
+    |> validate_cache_writer_branches()
+  end
+
+  defp validate_cache_writer_branches(changeset) do
+    changeset
+    |> update_change(:cache_writer_branches, &normalize_cache_writer_branches/1)
+    |> validate_length(:cache_writer_branches, max: @max_cache_writer_branches)
+    |> validate_change(:cache_writer_branches, &validate_cache_writer_branches/2)
+  end
+
   defp normalize_name(nil), do: nil
   defp normalize_name(name) when is_binary(name), do: name |> String.trim() |> String.downcase()
+
+  defp normalize_cache_writer_branches(nil), do: nil
+
+  # An empty list follows each repository's default branch, like nil.
+  defp normalize_cache_writer_branches(branches) do
+    case branches |> Enum.map(&String.trim/1) |> Enum.uniq() do
+      [] -> nil
+      branches -> branches
+    end
+  end
+
+  defp validate_cache_writer_branches(field, branches) do
+    if Enum.all?(branches, &valid_cache_writer_branch?/1),
+      do: [],
+      else: [{field, "must be branch names, optionally with * wildcards"}]
+  end
+
+  @doc """
+  Whether `branch` is a valid cache writer branch name or `*` pattern.
+  """
+  def valid_cache_writer_branch?(branch) when is_binary(branch) do
+    byte_size(branch) in 1..200 and Regex.match?(~r/\A[a-zA-Z0-9*][a-zA-Z0-9_.\/*-]*\z/, branch) and
+      not String.contains?(branch, ["..", "//"]) and not String.ends_with?(branch, ["/", ".", ".lock"])
+  end
+
+  def valid_cache_writer_branch?(_branch), do: false
+
+  @doc """
+  Whether `branch` matches one of the cache writer patterns. `*` matches any
+  sequence of characters, including `/`.
+  """
+  def cache_writer_branch?(patterns, branch) when is_list(patterns) and is_binary(branch) do
+    Enum.any?(patterns, fn pattern ->
+      source = pattern |> String.split("*") |> Enum.map_join(".*", &Regex.escape/1)
+      Regex.match?(Regex.compile!("\\A" <> source <> "\\z"), branch)
+    end)
+  end
+
+  def cache_writer_branch?(_patterns, _branch), do: false
 
   defp validate_shape(changeset, catalog) do
     vcpus = get_field(changeset, :vcpus)

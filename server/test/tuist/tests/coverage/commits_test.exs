@@ -82,6 +82,29 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert Commits.file_detail(project.id, "abc123", "Missing.swift") == nil
   end
 
+  test "reads a run's scheme off the run, which a client-reported run gets after its coverage published", %{
+    project: project,
+    account: account
+  } do
+    run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1])], %{scheme: nil})
+
+    {:ok, _} =
+      Tuist.Tests.create_test(%{
+        id: run.id,
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        is_ci: true,
+        scheme: "AppTests",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        test_modules: []
+      })
+
+    assert [%{scheme: "AppTests"}] = Commits.runs(project.id, "abc123")
+  end
+
   test "leaves runs from a dirty checkout out, and republishes one version above the latest", %{
     project: project,
     account: account

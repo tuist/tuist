@@ -188,8 +188,8 @@ filter_tcc_log() {
 }
 
 # report_finder_automation appends the state behind scripted Finder
-# access to `${LOG}` on the way out. The Finder approval written at boot
-# (approve_finder_automation) still fails on some jobs with an immediate
+# access to `${LOG}` on the way out. When the Finder approval was written
+# at boot, some jobs failed with an immediate
 # `Not authorized to send Apple events to Finder (-1743)`, and nothing
 # from those VMs survives them. Written last, after the job's own
 # output, it lands in the bounded tail that publish_runner_log hands to
@@ -278,73 +278,24 @@ keep_desktop_interactive() {
 
 keep_desktop_interactive
 
-# approve_finder_automation records a standing approval for scripting
-# Finder, which `create-dmg` and any other `osascript`-driven window
-# styling needs. Without one, the first AppleEvent to Finder waits on a
-# consent prompt nobody can answer and the send fails as `AppleEvent
-# timed out (-1712)`.
-#
-# The decision is read from the session user's TCC database, which tccd
-# only creates once `runner` has logged in, so it cannot be seeded at
-# image build. The system database is not consulted for it.
-#
-# TCC charges the event to the responsible process, not to `osascript`:
-# `Runner.Listener` for GitHub jobs, and this script's `/bin/bash` for
-# the agents it launches directly. A row only matches when it carries
-# Finder's code requirement as `indirect_object_code_identity`.
-#
-# tccd is still writing the database right after login, and the sqlite3
-# CLI fails at once on a lock unless given a busy timeout. Without one,
-# some boots lost the approval to `database is locked`.
-#
-# Best-effort: a job that never scripts Finder must not wait on this.
-approve_finder_automation() {
-  local db="${RUNNER_TCC_DB}"
-  local finder_requirement="X'fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003'"
-  local waited=0 failed=0 client
-  while [ ! -f "${db}" ] && [ "${waited}" -lt 30 ]; do
-    sleep 1
-    waited=$((waited + 1))
-  done
-  if [ ! -f "${db}" ]; then
-    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING per-user TCC.db missing; Finder automation will prompt"
-    return 0
-  fi
-  for client in /Users/runner/actions-runner/bin/Runner.Listener /bin/bash; do
-    if ! /usr/bin/sqlite3 -cmd ".timeout 10000" "${db}" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAppleEvents', '${client}', 1, 2, 3, 1, NULL, 0, 'com.apple.finder', ${finder_requirement}, 0, CAST(strftime('%s','now') AS INTEGER));"; then
-      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not approve Finder automation for ${client}"
-      failed=1
-    fi
-  done
-  [ "${failed}" -eq 0 ] && echo "$(date -u +%FT%TZ) dispatch-poll: Finder automation approved"
-  return 0
-}
-
-# approve_simulator_microphone records a standing microphone approval
-# for iOS Simulator apps. A simulator app that records audio (a video
-# call, `AVAudioSession` in `.playAndRecord`, an `AVCaptureSession` with
-# an audio input) reaches the host microphone through CoreSimulator, and
-# TCC charges that to `com.apple.CoreSimulator.SimulatorTrampoline`.
-# Without a row the request waits on a consent prompt nobody can answer,
-# the app's main thread stalls, and XCUITest fails with `Failed to get
-# matching snapshots: Timed out while evaluating UI query`.
-#
-# Same database, timing, and lock handling as approve_finder_automation,
-# which runs first and waits for the database to appear.
-approve_simulator_microphone() {
-  local db="${RUNNER_TCC_DB}"
-  [ -f "${db}" ] || return 0
-  if /usr/bin/sqlite3 -cmd ".timeout 10000" "${db}" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceMicrophone', 'com.apple.CoreSimulator.SimulatorTrampoline', 0, 2, 3, 1, NULL, NULL, 'UNUSED', NULL, 0, CAST(strftime('%s','now') AS INTEGER));"; then
-    echo "$(date -u +%FT%TZ) dispatch-poll: Simulator microphone approved"
+# check_tcc_approvals logs whether the standing TCC approvals the image
+# build seeded into runner's TCC.db (scripting Finder for `create-dmg`,
+# the iOS Simulator's microphone) are still there. It only reads; see
+# infra/runner-image/AGENTS.md for why the rows are written at build.
+# A missing row means a job that needs it waits on a consent prompt
+# nobody can answer.
+check_tcc_approvals() {
+  local result
+  if result=$(/opt/tuist/tcc-approvals.sh check 2>&1); then
+    echo "$(date -u +%FT%TZ) dispatch-poll: ${result}"
   else
-    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not approve Simulator microphone access"
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING ${result}"
   fi
   return 0
 }
 
 stream_tcc_log
-approve_finder_automation
-approve_simulator_microphone
+check_tcc_approvals
 
 # In-VM cluster DNS for the runner-cache path. When the
 # runners-controller staged TUIST_CLUSTER_DNS_IP (macOS pools in

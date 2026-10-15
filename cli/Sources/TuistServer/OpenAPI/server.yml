@@ -5871,7 +5871,7 @@ components:
           x-struct:
           x-validate:
         tool:
-          description: The tool that measured the coverage, such as `cover` for Mix or `xccov` for Xcode.
+          description: The tool that measured the coverage, such as `cover` for Mix or `llvm-cov` (`xccov` from older clients) for Xcode.
           type: string
           x-struct:
           x-validate:
@@ -9943,6 +9943,15 @@ components:
       x-validate:
     RunnerProfile:
       properties:
+        cache_writer_branches:
+          description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         id:
           type: integer
           x-struct:
@@ -9992,6 +10001,7 @@ components:
         - vcpus
         - memory_gb
         - protected
+        - cache_writer_branches
         - inserted_at
         - updated_at
       title: RunnerProfile
@@ -13855,6 +13865,15 @@ paths:
                   profiles:
                     items:
                       properties:
+                        cache_writer_branches:
+                          description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
                         id:
                           type: integer
                           x-struct:
@@ -13904,6 +13923,7 @@ paths:
                         - vcpus
                         - memory_gb
                         - protected
+                        - cache_writer_branches
                         - inserted_at
                         - updated_at
                       title: RunnerProfile
@@ -21092,6 +21112,117 @@ paths:
                       x-struct:
                       x-validate:
                   type: object
+                  x-struct:
+                  x-validate:
+                dependency_cache:
+                  description: Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                  items:
+                    properties:
+                      dependency:
+                        maxLength: 1024
+                        minLength: 1
+                        type: string
+                        x-struct:
+                        x-validate:
+                      duration_ms:
+                        maximum: 4294967295
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      key:
+                        pattern: ^([a-f0-9]{64})?$
+                        type: string
+                        x-struct:
+                        x-validate:
+                      outcome:
+                        enum:
+                          - local_hit
+                          - remote_hit
+                          - miss
+                          - bypass
+                        type: string
+                        x-struct:
+                        x-validate:
+                      read_bytes:
+                        description: Successful read bytes. Remote CAS payload bytes or local artifact and manifest copy bytes, identified by read_source.
+                        maximum: 9223372036854775807
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      read_duration_us:
+                        description: Successful client transfer or local restore duration in microseconds. Local restores include verification and installation; remote transfers exclude installation.
+                        maximum: 9223372036854775807
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      read_source:
+                        description: Read measurement provenance; legacy observations may omit it.
+                        enum:
+                          - local
+                          - remote
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      reason:
+                        enum:
+                          - ""
+                          - not_enabled
+                          - local_dependency
+                          - custom_compiler
+                          - unmodeled_input
+                          - inputs_changed
+                          - store_failed
+                        type: string
+                        x-struct:
+                        x-validate:
+                      saved_duration_ms:
+                        description: Estimated compilation time avoided on a hit, from the original compilation. Not elapsed build time saved.
+                        maximum: 4294967295
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      write_bytes:
+                        description: Successful write bytes. Remote CAS payload bytes or local artifact and manifest copy bytes, identified by write_source.
+                        maximum: 9223372036854775807
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      write_duration_us:
+                        description: Successful client transfer or local publication duration in microseconds. Local publications include snapshot verification. Excludes compilation.
+                        maximum: 9223372036854775807
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      write_source:
+                        description: Write measurement provenance; legacy observations may omit it.
+                        enum:
+                          - local
+                          - remote
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - dependency
+                      - outcome
+                      - duration_ms
+                    type: object
+                    x-struct:
+                    x-validate:
+                  maxItems: 5000
+                  type: array
                   x-struct:
                   x-validate:
                 diagnostics:
@@ -32450,6 +32581,169 @@ paths:
       summary: Upload a crash report for a test case run.
       tags:
         - Tests
+  /api/accounts/{account_handle}/runners/profiles/{profile_name}:
+    patch:
+      callbacks: {}
+      description: Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. An empty list follows each repository's default branch. Narrowing the list discards pending saves it no longer allows.
+      operationId: updateRunnerProfile
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The profile name, without the runs-on label prefix.
+          in: path
+          name: profile_name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                cache_writer_branches:
+                  description: Branch names or * patterns. An empty list follows each repository's default branch.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+              required:
+                - cache_writer_branches
+              type: object
+              x-struct:
+              x-validate:
+        description: Profile changes
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  cache_writer_branches:
+                    description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  id:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  memory_gb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  name:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  platform:
+                    enum:
+                      - linux
+                      - macos
+                    type: string
+                    x-struct:
+                    x-validate:
+                  protected:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  vcpus:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  xcode_version:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - name
+                  - platform
+                  - vcpus
+                  - memory_gb
+                  - protected
+                  - cache_writer_branches
+                  - inserted_at
+                  - updated_at
+                title: RunnerProfile
+                type: object
+                x-struct:
+                x-validate:
+          description: Updated runner profile
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or malformed fields
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The profile was not found or runners are not enabled
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid branch names
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Update which branches save a runner profile's cache volumes.
+      tags:
+        - Runners
   /api/projects/{account_handle}/{project_handle}/builds:
     get:
       callbacks: {}
