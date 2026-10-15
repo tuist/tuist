@@ -115,36 +115,6 @@ defmodule TuistWeb.RunnerVolumesLive do
     {:noreply, assign(socket, :detail_metric, metric)}
   end
 
-  def handle_event("save_writer_branches", %{"writer_branches" => value}, socket) do
-    account = socket.assigns.selected_account
-
-    with :ok <- Authorization.authorize(:account_update, socket.assigns.current_user, account),
-         %{id: id} <- socket.assigns.selected,
-         true <- is_binary(value) and byte_size(value) <= 4200,
-         branches = value |> String.split("\n", trim: true) |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == "")),
-         {:ok, volume} <- CacheVolumes.update_writer_branches(account.id, id, branches) do
-      {:noreply,
-       socket
-       |> assign(:selected, volume)
-       |> put_flash(
-         :info,
-         dgettext("dashboard_runners", "Writer branches updated. Changes apply to new volume attachments.")
-       )}
-    else
-      failure when failure in [false, {:error, :invalid_parameters}] ->
-        {:noreply,
-         put_flash(
-           socket,
-           :error,
-           dgettext("dashboard_runners", "Could not update writer branches. Use up to 20 exact branch names.")
-         )}
-
-      _ ->
-        {:noreply,
-         put_flash(socket, :error, dgettext("dashboard_runners", "You do not have access to update this volume."))}
-    end
-  end
-
   def handle_event("request_delete", %{"id" => id}, socket), do: request_action(socket, id, :delete)
 
   def handle_event("cancel", _, %{assigns: %{pending_action: nil}} = socket), do: {:noreply, socket}

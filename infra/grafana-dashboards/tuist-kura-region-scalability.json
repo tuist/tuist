@@ -3910,7 +3910,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (cluster, region, le) (sum by (cluster, pod, le) (rate(kura_public_request_latency_seconds_bucket{env=\"$env\"}[5m])) * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info{env=\"$env\"})))",
+                        "expr": "histogram_quantile(0.95, sum by (cluster, region, le) ((sum by (cluster, pod, le) (rate(kura_public_request_latency_by_transport_seconds_bucket{env=\"$env\"}[5m])) or sum by (cluster, pod, le) (rate(kura_public_request_latency_seconds_bucket{env=\"$env\", latency_aggregate!=\"true\"}[5m]))) * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info{env=\"$env\"})))",
                         "legendFormat": "__auto",
                         "instant": true,
                         "range": false,
@@ -5865,7 +5865,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (cluster, region, le) (sum by (cluster, pod, le) (rate(kura_public_request_latency_seconds_bucket{env=\"$env\"}[5m])) * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info{env=\"$env\"})))",
+                        "expr": "histogram_quantile(0.95, sum by (cluster, region, le) ((sum by (cluster, pod, le) (rate(kura_public_request_latency_by_transport_seconds_bucket{env=\"$env\"}[5m])) or sum by (cluster, pod, le) (rate(kura_public_request_latency_seconds_bucket{env=\"$env\", latency_aggregate!=\"true\"}[5m]))) * on (cluster, pod) group_left(region) max by (cluster, pod, region) (kura_node_geo_info{env=\"$env\"})))",
                         "legendFormat": "{{region}}",
                         "instant": false,
                         "range": true

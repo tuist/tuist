@@ -4882,7 +4882,7 @@ final class TestServiceTests: TuistUnitTestCase {
                     shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
                     stressNewTests: .any,
                     gitHistory: .any,
-                    coverageUpload: .any,
+                    coverage: .any,
                     coverageEnabled: .any
                 )
                 .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _, _, _, _, _ in
@@ -5718,7 +5718,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any,
+                coverage: .any,
                 coverageEnabled: .any
             )
             .willReturn(
@@ -5769,7 +5769,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any,
+                coverage: .any,
                 coverageEnabled: .any
             )
             .called(1)
@@ -5814,7 +5814,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
                 stressNewTests: .any,
                 gitHistory: .any,
-                coverageUpload: .any,
+                coverage: .any,
                 coverageEnabled: .any
             )
             .willReturn(

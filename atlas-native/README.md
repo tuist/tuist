@@ -12,16 +12,32 @@ Native clients for Atlas, with a shared Rust core and builds powered by
 | Build, test and cache | Once |
 | Internal distribution | [tuist/atlas-mobile](https://tuist.dev/tuist/atlas-mobile) |
 
-The initial app presents Accounts, Tasks and Notes using the shared Rust catalog.
-Selecting a section opens its authenticated Atlas page in the system browser.
-Authentication remains in the browser; the app does not yet fetch Atlas data,
-store tokens, or provide offline editing. This is a starting point for native
-features, not a WebView wrapper or a completed native Atlas client.
+The app signs in to hosted or self-hosted Atlas using its existing browser login
+page, then presents Accounts, Tasks and Notes using the shared Rust catalog.
+Rust owns OAuth discovery, dynamic public-client registration, S256 PKCE, token
+exchange and refresh. iOS presents a system authentication session and stores
+credentials in Keychain; Android opens the system browser and encrypts credentials
+with an Android Keystore key. Saved sessions are restored on launch. Self-hosted
+servers require HTTPS and OAuth discovery/dynamic registration support.
+
+Both native login screens follow Tuist's welcome layout, backdrop, spacing,
+button treatments and rounded bottom panel, customized with Atlas's azure palette
+and the same Tuist mark used by Atlas's web login and dashboard. They offer Atlas-hosted and self-hosted browser sign-in; provider
+selection happens on the server's login page. Light and dark assets share a
+checked-in generator under `resources/`.
+
+Selecting a section still opens its Atlas page in the system browser, which may
+ask for a separate browser sign-in. Native OAuth tokens do not create browser
+cookies. The app does not yet fetch workspace data or provide offline editing;
+this is a foundation for native features, not a WebView wrapper.
 
 ## Develop
 
 Run all commands from `atlas-native/`. It is a separate Once workspace, so the
-Atlas server's graph and cache remain unchanged.
+Atlas server's graph and cache remain unchanged. Build/test tasks materialize
+locked third-party Rust sources in `.once/vendor` before Once resolves its
+per-crate graph. Run `mise run prepare:rust` first when invoking Once directly.
+Navigation/CLI compilation remains independent of authentication dependencies.
 
 ```sh
 cd atlas-native
@@ -29,7 +45,11 @@ mise install rust github:tuist/once
 ONCE_CACHE_PROVIDER=local mise run check
 ```
 
-The toolchain pins Once 0.67.1, Rust 1.96.0, Kotlin 2.4.10 and ktlint 1.7.1.
+The toolchain pins Once 0.68.2, Rust 1.96.0, Kotlin 2.4.10 and ktlint 1.7.1.
+The preparation workaround is still required: this Once release does not include
+[automatic source materialization](https://github.com/tuist/once/pull/390) yet.
+Once that fix ships, remove the preparation task, its task dependencies and CI
+step, and the three `vendor_dir` attributes together.
 SwiftLint uses the monorepo's pinned version. To test changes to
 Once itself, invoke the executable built from a local Once checkout in this
 workspace in place of `mise exec -- once`.
@@ -139,6 +159,10 @@ mise run build:android
 - Runs automatically only for changes under `atlas-native/`; draft pull requests
   skip all jobs. A manual dispatch remains available.
 - Runs SwiftLint, Rust formatting and Clippy, and ktlint in separate lint jobs.
+- Tests Rust authentication against mock discovery/registration/token responses,
+  including state/PKCE validation and issuing-client preservation on refresh.
+  iOS tests cover the real Rust bridge and Keychain persistence semantics with
+  a process-local adapter; the simulator app includes its own Keychain entitlement.
 - Builds the Rust CLI, Android and iOS in build jobs, independently of the core,
   CLI and iOS test jobs. The Swift tests exercise the adapter against the real
   Rust library.

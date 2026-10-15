@@ -9,6 +9,11 @@ This node covers Helm assets under `infra/helm/`.
 - Atlas standalone and managed deployment: see `atlas/AGENTS.md`.
 - Standalone app charts with their own release boundary, such as Noora Storybook and Slack
 
+Monitoring cost controls must preserve metric identity and operator audit records.
+See `k8s-monitoring/README.md` for the staged Kura and API-server migrations.
+Helm CI starts the production Alloy log pipeline to compile LogQL selectors and
+runs the mixed-version latency expression through promtool.
+
 ## Conventions
 
 - `server.config.originAppKey.enabled` adds the registered Origin App ID and Ed25519 private PEM to the managed server-config ExternalSecret. Trim only the App ID, never the private PEM or log key material. It defaults off and is enabled in production, canary, and staging after each environment's own `ORIGIN_APP/app_id` and `ORIGIN_APP/private_key` fields exist in its `tuist-k8s-<env>` vault. The App ID field is configurable with `appIdField`. Each environment uses an independent app and signing key.

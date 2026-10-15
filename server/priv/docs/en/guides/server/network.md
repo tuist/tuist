@@ -45,6 +45,7 @@ Jobs that run on <.localized_link href="/guides/features/runners">Tuist Runners<
 | 62.210.194.125 | `62.210.194.125/32` |
 | 62.210.194.173 | `62.210.194.173/32` |
 | 62.210.195.116 | `62.210.195.116/32` |
+| 149.6.170.31 | `149.6.170.31/32` |
 
 #### Linux {#tuist-runners-linux}
 
@@ -71,5 +72,9 @@ in infra/helm/platform/values-tuist.yaml (the controller fails closed if the
 active Floating IP is outside that allowlist). When reserving additional
 Floating IPs in the tuist-workloads project, add their /32s to BOTH places
 *before* they are ever used as egress.
+
+The macOS runner table includes the rack's single WAN address, which is
+`management.edge.wan.address` in infra/rack-switch-fleet/sites/ber1.json.
+Update both when a rack's upstream address changes or a new rack site is added.
 -->
 

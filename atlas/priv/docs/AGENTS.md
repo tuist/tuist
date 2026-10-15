@@ -2,6 +2,7 @@
 
 These English Markdown pages are public at `/docs`. They describe Atlas for people evaluating or operating their own organizational workspace.
 
+- The MCPs guide covers per-user OAuth and encrypted shared bearer API keys; shared keys give all permitted callers the same upstream access. Never include real keys in examples.
 - Publish the overview, MCPs guide, and self-hosting guide. Other draft guides remain under `plans/atlas-documentation-drafts/` until their implementation and validation are ready.
 - Keep installation instructions consistent with the implemented configuration and release commands. Clearly distinguish implemented behavior from planned self-hosting work.
 - Write guides around the reader's sequence of decisions and actions. Explain why a setting or command is needed where the reader uses it, and keep optional services separate from the initial installation.

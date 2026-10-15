@@ -36,6 +36,15 @@ individual inline fetches and checks the full retained barrier. Its optional
 `KURA_E2E_INLINE_RECORDS` and `KURA_E2E_INLINE_INTERVAL_MS` extend the same workload
 for sequential resource comparisons; failed runs retain measurements and logs.
 `KURA_E2E_AUTHORITY_STANDBY_IMAGE` exercises adjacent-version batch negotiation.
+`segmented-handover.mjs IMAGE DIR` writes a paced 1 GiB segmented corpus,
+verifies every body after handover, and captures the same four resource axes.
+Run baseline and candidate sequentially, including its settled cooldown.
+Set `KURA_E2E_SEGMENT_RECORDS=2048` for a 4 GiB full-ring qualification.
+That mode captures the entire retained source subset while both holds are active
+and checks its count against the matching fully verified receipts, then reads
+the newest retained body after promotion. Reads on a full
+serving ring can trigger eviction, so walking it after promotion is not a frozen
+corpus check. It does not require evicted uploads to survive.
 `resume.mjs` interrupts the local authority API, holds an admitted upload across
 expiry and supplies explicit fencing/resumption grants; it verifies drained
 publication, recovery when a replacement grant arrives after expiry, retained

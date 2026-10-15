@@ -17,6 +17,9 @@ directly in that same workflow. Keep permission decisions in the workflow:
 - Generate an ephemeral Android debug keystore and export
   `ANDROID_DEBUG_KEYSTORE`; Once does not create a key automatically on clean
   runners. The standard public debug password is `android`, not a secret.
+- Materialize locked Cargo sources with `mise run prepare:rust` before validating
+  the Once graph. Core tests include the independent Rust authentication suite;
+  upload its normalized reports alongside the navigation reports.
 - Install only the tools used by the selected platform. Linux needs Once's ALSA
   runtime library. Only Android/iOS need Rust cross-compilation standard
   libraries; CLI and core tests use the host toolchain.

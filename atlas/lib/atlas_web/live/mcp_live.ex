@@ -181,24 +181,57 @@ defmodule AtlasWeb.MCPLive do
 
   defp server_fields(assigns) do
     ~H"""
-    <.text_input id={"#{@prefix}-name"} field={@form[:name]} label={gettext("Name")} />
+    <.text_input
+      id={"#{@prefix}-name"}
+      field={@form[:name]}
+      label={gettext("Name")}
+      placeholder="integral"
+      hint={gettext("Use lowercase letters, numbers, hyphens, or underscores; start with a letter.")}
+    />
     <.text_input id={"#{@prefix}-url"} field={@form[:url]} label={gettext("Server URL")} />
-    <.text_input
-      id={"#{@prefix}-authorization-url"}
-      field={@form[:authorization_url]}
-      label={gettext("Authorization URL")}
-    />
-    <.text_input id={"#{@prefix}-token-url"} field={@form[:token_url]} label={gettext("Token URL")} />
-    <.text_input
-      id={"#{@prefix}-registration-url"}
-      field={@form[:registration_url]}
-      label={gettext("Registration URL (optional)")}
-    />
-    <.text_input
-      id={"#{@prefix}-scopes"}
-      field={@form[:scope_list]}
-      label={gettext("OAuth scopes (space separated)")}
-    />
+    <.select id={"#{@prefix}-auth-type"} field={@form[:auth_type]} label={gettext("Authentication")}>
+      <:item value="oauth2" label={gettext("OAuth (per user)")} />
+      <:item value="bearer_token" label={gettext("Bearer token (shared API key)")} />
+    </.select>
+    <%= if @form[:auth_type].value == "bearer_token" do %>
+      <.alert
+        status="warning"
+        type="secondary"
+        size="small"
+        title={
+          gettext(
+            "All Atlas callers use this key's upstream access. Only read-only tools are exposed."
+          )
+        }
+      />
+      <.text_input
+        id={"#{@prefix}-bearer-token"}
+        field={@form[:bearer_token]}
+        value={Map.get(@form.params, "bearer_token", "")}
+        input_type="password"
+        label={gettext("API key")}
+        placeholder={gettext("Paste the key without the Bearer prefix")}
+        hint={gettext("Stored encrypted. Leave blank when editing to keep the saved key.")}
+        autocomplete="new-password"
+      />
+    <% else %>
+      <.text_input
+        id={"#{@prefix}-authorization-url"}
+        field={@form[:authorization_url]}
+        label={gettext("Authorization URL")}
+      />
+      <.text_input id={"#{@prefix}-token-url"} field={@form[:token_url]} label={gettext("Token URL")} />
+      <.text_input
+        id={"#{@prefix}-registration-url"}
+        field={@form[:registration_url]}
+        label={gettext("Registration URL (optional)")}
+      />
+      <.text_input
+        id={"#{@prefix}-scopes"}
+        field={@form[:scope_list]}
+        label={gettext("OAuth scopes (space separated)")}
+      />
+    <% end %>
     """
   end
 
@@ -216,7 +249,7 @@ defmodule AtlasWeb.MCPLive do
           <.modal
             id="add-mcp-server-modal"
             title={gettext("Add server")}
-            description={gettext("Connect an upstream server using per-user authorization.")}
+            description={gettext("Connect an upstream server using OAuth or a shared API key.")}
             header_type="icon"
             header_size="large"
             on_dismiss="close_server_modal"
@@ -467,12 +500,12 @@ defmodule AtlasWeb.MCPLive do
   defp auth_label(:none), do: gettext("None")
 
   defp status_label(:connected), do: gettext("Connected")
-  defp status_label(:shared_credentials), do: gettext("Shared")
+  defp status_label(:shared_credentials), do: gettext("Key configured")
   defp status_label(:not_connected), do: gettext("Not connected")
   defp status_label(:needs_authorization), do: gettext("Reconnect required")
   defp status_label(:expired), do: gettext("Expired")
 
-  defp status_color(status) when status in [:connected, :shared_credentials], do: "success"
+  defp status_color(:connected), do: "success"
   defp status_color(status) when status in [:needs_authorization, :expired], do: "destructive"
   defp status_color(_status), do: "neutral"
 

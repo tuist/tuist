@@ -145,6 +145,7 @@ config :logger, :console,
     :route,
     :request_path,
     :status,
+    :cache_outcome,
     :duration_ms,
     :auth_account_handle,
     # Source of the request. A failed authentication carries no account, so

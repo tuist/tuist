@@ -49,7 +49,7 @@ struct RunnerVolumeShowCommandServiceTests {
             configLoader: try await RunnerVolumeTestData.configLoader(fullHandle: nil)
         )
 
-        await #expect(throws: RunnerVolumeShowCommandServiceError.missingAccount) {
+        await #expect(throws: RunnerAccountError.missingAccount) {
             try await subject.run(volumeID: RunnerVolumeTestData.id, account: nil, path: "/project", json: false)
         }
     }

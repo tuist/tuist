@@ -155,6 +155,45 @@ func TestCustomVolumeMailboxUsesHostIdentity(t *testing.T) {
 	}
 }
 
+func TestCustomMailboxResponsePublication(t *testing.T) {
+	dir := t.TempDir()
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	if err := os.WriteFile(filepath.Join(dir, "a.request.response.tmp"), []byte("stale"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if published, err := publishResponse(root, "a.request.response", []byte(`{"id":"a"}`)); err != nil || !published {
+		t.Fatal(published, err)
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, "a.request.response")); err != nil || string(data) != `{"id":"a"}` {
+		t.Fatal(string(data), err)
+	}
+	if published, err := publishResponse(root, "a.request.response", []byte(`{"id":"b"}`)); err != nil || published {
+		t.Fatal("replaced an existing response", published, err)
+	}
+	target := filepath.Join(t.TempDir(), "target")
+	if err := os.Symlink(target, filepath.Join(dir, "b.request.response")); err != nil {
+		t.Fatal(err)
+	}
+	if published, err := publishResponse(root, "b.request.response", []byte(`{"id":"b"}`)); err != nil || published {
+		t.Fatal("replaced a guest symlink", published, err)
+	}
+	if _, err := os.Lstat(target); !os.IsNotExist(err) {
+		t.Fatal("followed a guest symlink")
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, "a.request.response")); err != nil || string(data) != `{"id":"a"}` {
+		t.Fatal(string(data), err)
+	}
+	for _, name := range []string{"a.request.response.tmp", "b.request.response.tmp"} {
+		if _, err := os.Lstat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Fatal("left temporary response", name)
+		}
+	}
+}
+
 func TestCustomVolumeReusesAndRefreshesHostToken(t *testing.T) {
 	kube := fake.NewSimpleClientset()
 	requests := 0

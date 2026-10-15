@@ -107,11 +107,15 @@ func (r *RackHostReconciler) reconcileMachine(ctx context.Context, host *infrav1
 }
 
 func (r *RackHostReconciler) machineLabels(host *infrav1.RackHost) map[string]string {
-	return map[string]string{
+	labels := map[string]string{
 		clusterv1.ClusterNameLabel: r.Machines.ClusterName,
 		"tuist.dev/fleet":          r.Machines.FleetName,
 		RackHostLabel:              host.Name,
 	}
+	if site := host.Spec.Location.Site; site != "" {
+		labels[infrav1.RackSiteNodeLabel] = site
+	}
+	return labels
 }
 
 func (r *RackHostReconciler) keepInfraMachine(ctx context.Context, host *infrav1.RackHost, key types.NamespacedName) error {
