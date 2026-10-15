@@ -13,6 +13,7 @@ This module contains core domain abstractions and shared models used across the 
 ## Invariants
 - Analytics types are Codable and designed for transport to the server.
 - Models encode run metadata (command args, environment, git info, cache endpoints).
+- Cargo compilation entries use the shared `cargo` cache category (`Cargo/`), with 30-day retention and the support-cache byte share. Include it in the central support-cache eviction order. Its entry glob must reach individual action/blob files and staging entries below project directories, so a hot project cannot protect all historical contents from eviction. Feature modules must not create unbounded parallel cache roots.
 - Restoring a test-products snapshot retains the graph, selective-testing state, and build link, but must not replay the original build's binary cache lookups as activity in each test shard.
 
 ## Related Context

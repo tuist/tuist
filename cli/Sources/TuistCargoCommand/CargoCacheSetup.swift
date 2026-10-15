@@ -1,9 +1,28 @@
 import Crypto
+import FileSystem
 import Foundation
 import TuistCAS
+import TuistCore
 import TuistServer
 
 struct CargoCacheSetup {
+    private let cacheDirectoriesProvider: any CacheDirectoriesProviding
+    private let fileSystem: any FileSysteming
+    private let cacheURLStore: any CacheURLStoring
+    private let getCacheTokenService: any GetCacheTokenServicing
+
+    init(
+        cacheDirectoriesProvider: any CacheDirectoriesProviding = CacheDirectoriesProvider(),
+        fileSystem: any FileSysteming = FileSystem(),
+        cacheURLStore: any CacheURLStoring = CacheURLStore(),
+        getCacheTokenService: any GetCacheTokenServicing = GetCacheTokenService()
+    ) {
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
+        self.fileSystem = fileSystem
+        self.cacheURLStore = cacheURLStore
+        self.getCacheTokenService = getCacheTokenService
+    }
+
     struct Session {
         let environment: [String: String]
         let refresh: Task<Void, Never>?
@@ -15,20 +34,20 @@ struct CargoCacheSetup {
             let identity = SHA256.hash(data: Data(
                 "swift-cargo-v1/\(context.reporting.serverURL.absoluteString)/\(context.reporting.handle.lowercased())".utf8
             )).map { String(format: "%02x", $0) }.joined()
-            guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
-            let cache = caches.appendingPathComponent("tuist/cargo-swift/\(identity)")
-            try FileManager.default.createDirectory(
-                at: cache, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]
-            )
+            let path = try cacheDirectoriesProvider.cacheDirectory(for: .cargo).appending(component: identity)
+            try await fileSystem.makeDirectory(at: path)
+            try? await SupportCachePruner(cacheDirectoriesProvider: cacheDirectoriesProvider, fileSystem: fileSystem).prune()
+            let cache = URL(fileURLWithPath: path.pathString)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: cache.path)
             var environment = context.environment.filter { !$0.key.hasPrefix("TUIST_CARGO_CACHE_") }
             environment["TUIST_CARGO_CACHE_DIR"] = cache.path
             var refresh: Task<Void, Never>?
             do {
-                let endpoint = try await CacheURLStore().getCacheURL(
+                let endpoint = try await cacheURLStore.getCacheURL(
                     for: context.reporting.serverURL,
                     accountHandle: context.reporting.handle.split(separator: "/").first.map(String.init)
                 )
-                let service = GetCacheTokenService()
+                let service = getCacheTokenService
                 let token = try await service.getCacheToken(
                     serverURL: context.reporting.serverURL, fullHandle: context.reporting.handle
                 )
