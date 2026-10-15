@@ -1577,7 +1577,7 @@ msgstr ""
 #: lib/atlas_web/live/llm_provider_settings_live.ex:13
 #: lib/atlas_web/live/llm_provider_settings_live.ex:161
 #, elixir-autogen, elixir-format
-msgid "AI providers"
+msgid "AI accounts"
 msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:284
@@ -1617,7 +1617,7 @@ msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:84
 #, elixir-autogen, elixir-format
-msgid "Could not disconnect the provider."
+msgid "Could not disconnect the account."
 msgstr ""
 
 #: lib/atlas_web/controllers/llm_connections_controller.ex:28
@@ -1658,12 +1658,12 @@ msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:81
 #, elixir-autogen, elixir-format
-msgid "Provider disconnected from Atlas."
+msgid "Account disconnected from Atlas."
 msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:313
 #, elixir-autogen, elixir-format
-msgid "Save token"
+msgid "Save connection"
 msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:262
@@ -1678,7 +1678,7 @@ msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:220
 #, elixir-autogen, elixir-format
-msgid "This is a Claude Code subscription token, not an Anthropic API key. Saving it does not verify access. Provider terms and subscription eligibility apply."
+msgid "This is a Claude Code subscription token, not an Anthropic API key. Saving it does not verify access. Subscription terms and eligibility apply."
 msgstr ""
 
 #: lib/atlas_web/components/account_menu.ex:31
@@ -1693,44 +1693,36 @@ msgstr ""
 msgid "Account settings"
 msgstr ""
 
-#: lib/atlas_web/live/llm_provider_settings_live.ex:168
+#: lib/atlas_web/live/llm_provider_settings_live.ex:183
+#: lib/atlas_web/live/llm_provider_settings_live.ex:193
 #, elixir-autogen, elixir-format
-msgid "Add AI provider"
-msgstr ""
-
-#: lib/atlas_web/live/llm_provider_settings_live.ex:330
-#, elixir-autogen, elixir-format
-msgid "Add a provider to use your personal Claude or ChatGPT account with Atlas."
-msgstr ""
-
-#: lib/atlas_web/live/llm_provider_settings_live.ex:178
-#, elixir-autogen, elixir-format
-msgid "Add provider"
+msgid "Connect account"
 msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:207
 #, elixir-autogen, elixir-format
-msgid "Choose provider"
+msgid "Choose service"
 msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:446
 #, elixir-autogen, elixir-format
-msgid "ChatGPT OAuth"
+msgid "ChatGPT subscription"
 msgstr ""
 
-#: lib/atlas_web/live/llm_provider_settings_live.ex:169
+#: lib/atlas_web/live/llm_provider_settings_live.ex:184
+#: lib/atlas_web/live/llm_provider_settings_live.ex:331
 #, elixir-autogen, elixir-format
-msgid "Choose a provider to connect to your Atlas account."
+msgid "Connect your Claude or ChatGPT account to Atlas."
 msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:445
 #, elixir-autogen, elixir-format
-msgid "Claude Code token"
+msgid "Claude Code subscription"
 msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:163
 #, elixir-autogen, elixir-format
-msgid "Connect your personal accounts for future agent sessions."
+msgid "Connect your Claude or ChatGPT account for future agent sessions."
 msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:205
@@ -1745,17 +1737,17 @@ msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:396
 #, elixir-autogen, elixir-format
-msgid "Disconnect %{provider}? Atlas will delete its saved credentials. This does not revoke access at the provider."
+msgid "Disconnect %{provider}? Atlas will delete its saved credentials. Revoke access separately in your Claude or OpenAI account settings."
 msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:384
 #, elixir-autogen, elixir-format
-msgid "Disconnect provider"
+msgid "Disconnect account"
 msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:328
 #, elixir-autogen, elixir-format
-msgid "No AI providers connected"
+msgid "No AI accounts connected"
 msgstr ""
 
 #: lib/atlas_web/live/account_settings_live.ex:26
@@ -1770,12 +1762,12 @@ msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:335
 #, elixir-autogen, elixir-format
-msgid "Provider"
+msgid "Service"
 msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:323
 #, elixir-autogen, elixir-format
-msgid "Providers"
+msgid "Connected accounts"
 msgstr ""
 
 #: lib/atlas_web/live/llm_provider_settings_live.ex:385

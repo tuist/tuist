@@ -35,6 +35,10 @@
     }
   }
 
+  & [data-part="mobile-category-selector"] {
+    display: none;
+  }
+
   /* Section group (line divider + content divider + items) */
   & [data-part="nav-section"] {
     display: flex;
@@ -189,6 +193,11 @@
       display: flex;
       justify-content: flex-end;
       padding: var(--noora-spacing-5) 0;
+    }
+
+    & [data-part="mobile-category-selector"] {
+      display: block;
+      padding: var(--noora-spacing-7) var(--noora-spacing-4) 0;
     }
 
     & [data-part="docs-sidebar"][data-mobile-open] {

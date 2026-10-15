@@ -10,7 +10,7 @@ defmodule AtlasWeb.LLMProviderSettingsLive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign(:page_title, gettext("AI providers"))
+     |> assign(:page_title, gettext("AI accounts"))
      |> assign(:login, nil)
      |> assign(:busy, false)
      |> assign(:cancel_start?, false)
@@ -89,10 +89,10 @@ defmodule AtlasWeb.LLMProviderSettingsLive do
          |> assign(:disconnect_provider, nil)
          |> assign_providers()
          |> push_event("close-modal", %{id: "disconnect-provider-modal"})
-         |> put_flash(:info, gettext("Provider disconnected from Atlas."))}
+         |> put_flash(:info, gettext("Account disconnected from Atlas."))}
 
       {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, gettext("Could not disconnect the provider."))}
+        {:noreply, put_flash(socket, :error, gettext("Could not disconnect the account."))}
     end
   end
 
@@ -172,16 +172,16 @@ defmodule AtlasWeb.LLMProviderSettingsLive do
     <section id="llm-provider-settings" data-part="account-settings-page">
       <div data-part="header">
         <div data-part="text">
-          <h1 data-part="title">{gettext("AI providers")}</h1>
+          <h1 data-part="title">{gettext("AI accounts")}</h1>
           <p data-part="description">
-            {gettext("Connect your personal accounts for future agent sessions.")}
+            {gettext("Connect your Claude or ChatGPT account for future agent sessions.")}
           </p>
         </div>
         <.modal
           id="add-provider-modal"
           data-part="provider-modal"
-          title={gettext("Add AI provider")}
-          description={gettext("Choose a provider to connect to your Atlas account.")}
+          title={gettext("Connect account")}
+          description={gettext("Connect your Claude or ChatGPT account to Atlas.")}
           header_type="icon"
           on_dismiss="close_provider_modal"
           on_open_change="provider_modal_changed"
@@ -190,7 +190,7 @@ defmodule AtlasWeb.LLMProviderSettingsLive do
           <:trigger :let={attrs}>
             <.button
               id="add-ai-provider"
-              label={gettext("Add provider")}
+              label={gettext("Connect account")}
               size="medium"
               phx-click="open_provider_modal"
               {attrs}
@@ -204,7 +204,7 @@ defmodule AtlasWeb.LLMProviderSettingsLive do
                 id="llm-provider-select"
                 name="provider"
                 value={@selected_provider}
-                label={gettext("Choose provider")}
+                label={gettext("Choose service")}
                 on_value_change="select_provider"
               >
                 <:item value="claude" label="Claude" />
@@ -227,7 +227,7 @@ defmodule AtlasWeb.LLMProviderSettingsLive do
               <code data-part="provider-code">claude setup-token</code>
               <p data-part="description">
                 {gettext(
-                  "This is a Claude Code subscription token, not an Anthropic API key. Saving it does not verify access. Provider terms and subscription eligibility apply."
+                  "This is a Claude Code subscription token, not an Anthropic API key. Saving it does not verify access. Subscription terms and eligibility apply."
                 )}
               </p>
               <.form
@@ -311,7 +311,7 @@ defmodule AtlasWeb.LLMProviderSettingsLive do
               <:action :if={@selected_provider == "claude"}>
                 <.button
                   id="save-claude-provider"
-                  label={gettext("Save token")}
+                  label={gettext("Save connection")}
                   form="claude-provider-form"
                   type="submit"
                   size="medium"
@@ -321,19 +321,17 @@ defmodule AtlasWeb.LLMProviderSettingsLive do
           </:footer>
         </.modal>
       </div>
-      <.card title={gettext("Providers")} icon="lock">
+      <.card title={gettext("Connected accounts")} icon="lock">
         <.card_section data-part="providers-table-section">
           <div :if={@providers_empty?} id="providers-empty-state">
             <.table_empty_state
               icon="lock"
-              title={gettext("No AI providers connected")}
-              subtitle={
-                gettext("Add a provider to use your personal Claude or ChatGPT account with Atlas.")
-              }
+              title={gettext("No AI accounts connected")}
+              subtitle={gettext("Connect your Claude or ChatGPT account to Atlas.")}
             />
           </div>
           <.table :if={!@providers_empty?} id="ai-providers-table" rows={@streams.providers}>
-            <:col :let={{_id, provider}} label={gettext("Provider")}>
+            <:col :let={{_id, provider}} label={gettext("Service")}>
               <.text_and_description_cell
                 label={provider_name(provider.provider)}
                 description={credential_type(provider.provider)}
@@ -377,7 +375,7 @@ defmodule AtlasWeb.LLMProviderSettingsLive do
       </.card>
       <.modal
         id="disconnect-provider-modal"
-        title={gettext("Disconnect provider")}
+        title={gettext("Disconnect account")}
         description={gettext("Remove the saved credentials from your Atlas account.")}
         header_type="icon"
         on_dismiss="cancel_disconnect"
@@ -390,7 +388,7 @@ defmodule AtlasWeb.LLMProviderSettingsLive do
         </:trigger>
         <p :if={@disconnect_provider} data-part="disconnect-provider-description">
           {gettext(
-            "Disconnect %{provider}? Atlas will delete its saved credentials. This does not revoke access at the provider.",
+            "Disconnect %{provider}? Atlas will delete its saved credentials. Revoke access separately in your Claude or OpenAI account settings.",
             provider: provider_name(@disconnect_provider)
           )}
         </p>
@@ -439,8 +437,8 @@ defmodule AtlasWeb.LLMProviderSettingsLive do
 
   defp provider_name("claude"), do: "Claude"
   defp provider_name("chatgpt"), do: "ChatGPT"
-  defp credential_type("claude"), do: gettext("Claude Code token")
-  defp credential_type("chatgpt"), do: gettext("ChatGPT OAuth")
+  defp credential_type("claude"), do: gettext("Claude Code subscription")
+  defp credential_type("chatgpt"), do: gettext("ChatGPT subscription")
   defp empty_form, do: to_form(%{"token" => ""}, as: "claude")
   defp schedule_poll(login), do: Process.send_after(self(), {:poll_chatgpt, login.login_id}, login.interval * 1000)
   defp audited(user, fun), do: Audit.with_context(%{actor: user, interface: "dashboard"}, fun)

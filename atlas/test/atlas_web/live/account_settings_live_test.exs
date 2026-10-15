@@ -12,7 +12,7 @@ defmodule AtlasWeb.AccountSettingsLiveTest do
     {:ok, view, _html} = live(conn, ~p"/settings")
     assert has_element?(view, "#account-layout")
     assert has_element?(view, "#account-general-link [data-selected]")
-    assert has_element?(view, "#account-ai-providers-link[href='/settings/llm-providers']")
+    assert has_element?(view, "#account-ai-providers-link[href='/settings/llm-providers']", "AI accounts")
     assert has_element?(view, "#account-settings-name", user.name)
     assert has_element?(view, "#account-settings-email", user.email)
     assert has_element?(view, "#account-layout header [data-part='left-section'] a[href='/']")

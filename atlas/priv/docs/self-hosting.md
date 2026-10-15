@@ -126,7 +126,7 @@ You don't need to configure every integration to get Atlas running. Start with t
 
 With [Compose](https://docs.docker.com/compose/), put optional provider settings in `.env`, which is read by both the application and migration service. The default `MCP_PROXY_SERVERS=[]` leaves upstream tool servers unconfigured; you can [connect them later](/docs/mcps). Keep the development demo seeds out of an installation containing real data.
 
-Personal Claude connections need no installation-wide provider setting. Personal ChatGPT sign-in requires an Atlas-authorized OpenAI device-flow client supplied as `ATLAS_CHATGPT_CLIENT_ID`; an API key or another application's client ID is not a substitute. See [personal AI provider setup and MCP tools](/docs/mcps#personal-ai-providers) and [the ChatGPT installation prerequisite](/docs/mcps#enable-chatgpt-sign-in) before enabling it.
+People can [connect their own Claude or ChatGPT accounts](/docs/ai-accounts) from account settings. Claude connections need no installation-wide setting; ChatGPT requires the administrator setup below.
 
 With [Helm](https://helm.sh/docs/), inspect the available settings for the version you're running:
 
@@ -135,6 +135,15 @@ helm show values oci://ghcr.io/tuist/charts/atlas --version VERSION
 ```
 
 You can configure external services through the application Secret and environment values. If you'd prefer the chart to manage [PostgreSQL](https://www.postgresql.org/docs/18/index.html), its bundled database configuration requires [CloudNativePG](https://cloudnative-pg.io/documentation/). Managed secret synchronization requires [External Secrets Operator](https://external-secrets.io/), as do the chart's bundled vector storage and backup secret synchronization. These are choices you can make later; they're not prerequisites for the base installation.
+
+## Enable ChatGPT sign-in
+
+To let people connect their [ChatGPT](https://chatgpt.com/) subscriptions, supply `ATLAS_CHATGPT_CLIENT_ID` in Atlas's application environment. This must be an [OAuth](https://oauth.net/2/) client authorized for Atlas with OpenAI's required device authorization flow enabled. Do not reuse Codex's or another application's client ID, and do not substitute an OpenAI API key. If you do not have an appropriately authorized client, leave ChatGPT sign-in disabled.
+
+- With [Compose](https://docs.docker.com/compose/), add the client ID to the deployment's private `.env` file.
+- With [Helm](https://helm.sh/docs/), include it in the Secret referenced by `appSecretName`.
+
+Restart Atlas after changing the setting. A configured client enables the sign-in form, but real-account authorization still depends on OpenAI's eligibility and authorization policies. Users then follow [Connect Claude or ChatGPT](/docs/ai-accounts); they cannot change this installation-wide setting from their account or the account-management tools.
 
 ## Backups and upgrades
 
