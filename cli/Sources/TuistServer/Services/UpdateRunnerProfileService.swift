@@ -7,17 +7,18 @@ public typealias RunnerProfileUpdateResult = Operations.updateRunnerProfile.Outp
 
 @Mockable
 public protocol UpdateRunnerProfileServicing {
-    /// Replaces the branches whose jobs save the profile's cache volumes. `nil` follows each repository's default
-    /// branch.
+    /// Replaces the branches whose jobs save the profile's cache volumes. An empty list follows each repository's
+    /// default branch.
     func updateCacheWriterBranches(
         accountHandle: String,
         serverURL: URL,
         profileName: String,
-        branches: [String]?
+        branches: [String]
     ) async throws -> RunnerProfileUpdateResult
 }
 
 enum UpdateRunnerProfileServiceError: LocalizedError, Equatable {
+    case badRequest(String)
     case forbidden(String)
     case notFound(String)
     case unprocessableContent(String)
@@ -25,7 +26,7 @@ enum UpdateRunnerProfileServiceError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case let .forbidden(message), let .notFound(message), let .unprocessableContent(message):
+        case let .badRequest(message), let .forbidden(message), let .notFound(message), let .unprocessableContent(message):
             return message
         case let .unknownError(statusCode):
             return "We could not update the runner profile due to an unknown Tuist response of \(statusCode)."
@@ -40,19 +41,18 @@ public struct UpdateRunnerProfileService: UpdateRunnerProfileServicing {
         accountHandle: String,
         serverURL: URL,
         profileName: String,
-        branches: [String]?
+        branches: [String]
     ) async throws -> RunnerProfileUpdateResult {
         let client = Client.authenticated(serverURL: serverURL)
-        let body: Operations.updateRunnerProfile.Input.Body.jsonPayload = if let branches {
-            .init(cache_writer_branches: branches)
-        } else {
-            .init(follow_default_branch: true)
-        }
         let response = try await client.updateRunnerProfile(
-            .init(path: .init(account_handle: accountHandle, profile_name: profileName), body: .json(body))
+            .init(
+                path: .init(account_handle: accountHandle, profile_name: profileName),
+                body: .json(.init(cache_writer_branches: branches))
+            )
         )
         switch response {
         case let .ok(value): return try value.body.json
+        case let .badRequest(value): throw UpdateRunnerProfileServiceError.badRequest(try value.body.json.message)
         case let .forbidden(value): throw UpdateRunnerProfileServiceError.forbidden(try value.body.json.message)
         case let .notFound(value): throw UpdateRunnerProfileServiceError.notFound(try value.body.json.message)
         case let .unprocessableContent(value):

@@ -5,21 +5,9 @@ import TuistEnvironment
 import TuistHTTP
 import TuistServer
 
-enum RunnerProfileCommandServiceError: LocalizedError, Equatable {
-    case missingAccount
-
-    var errorDescription: String? {
-        "Pass --account or configure a project full handle."
-    }
-}
-
 enum RunnerProfileOutput {
-    static func saveCacheFrom(_ branches: [String]?) -> String {
-        switch branches {
-        case nil: "Default branch"
-        case let branches? where branches.isEmpty: "No branches"
-        case let branches?: branches.joined(separator: ", ")
-        }
+    static func saveCacheFrom(_ branches: [String]) -> String {
+        branches.isEmpty ? "Default branch" : branches.joined(separator: ", ")
     }
 }
 
@@ -46,7 +34,7 @@ struct RunnerProfileListCommandService: RunnerProfileListCommandServicing {
     }
 
     func run(account: String?, path: String?, json: Bool) async throws {
-        let (accountHandle, serverURL) = try await resolveAccount(
+        let (accountHandle, serverURL) = try await RunnerAccount.resolve(
             account: account,
             path: path,
             configLoader: configLoader,
@@ -85,7 +73,7 @@ struct RunnerProfileListCommandService: RunnerProfileListCommandServicing {
 }
 
 protocol RunnerProfileUpdateCommandServicing {
-    func run(name: String, branches: [String]?, account: String?, path: String?, json: Bool) async throws
+    func run(name: String, branches: [String], account: String?, path: String?, json: Bool) async throws
 }
 
 struct RunnerProfileUpdateCommandService: RunnerProfileUpdateCommandServicing {
@@ -106,8 +94,8 @@ struct RunnerProfileUpdateCommandService: RunnerProfileUpdateCommandServicing {
         self.updateRunnerProfileService = updateRunnerProfileService
     }
 
-    func run(name: String, branches: [String]?, account: String?, path: String?, json: Bool) async throws {
-        let (accountHandle, serverURL) = try await resolveAccount(
+    func run(name: String, branches: [String], account: String?, path: String?, json: Bool) async throws {
+        let (accountHandle, serverURL) = try await RunnerAccount.resolve(
             account: account,
             path: path,
             configLoader: configLoader,
@@ -124,27 +112,12 @@ struct RunnerProfileUpdateCommandService: RunnerProfileUpdateCommandServicing {
             try Noora.current.json(profile)
             return
         }
-        if let branches = profile.cache_writer_branches {
-            Noora.current.success("Profile \(profile.name) saves cache from \(branches.joined(separator: ", ")).")
-        } else {
+        if profile.cache_writer_branches.isEmpty {
             Noora.current.success("Profile \(profile.name) saves cache from each repository's default branch.")
+        } else {
+            Noora.current.success(
+                "Profile \(profile.name) saves cache from \(profile.cache_writer_branches.joined(separator: ", "))."
+            )
         }
     }
-}
-
-private func resolveAccount(
-    account: String?,
-    path: String?,
-    configLoader: ConfigLoading,
-    serverEnvironmentService: ServerEnvironmentServicing,
-    fullHandleService: FullHandleServicing
-) async throws -> (String, URL) {
-    let directory = try await Environment.current.pathRelativeToWorkingDirectory(path)
-    let config = try await configLoader.loadConfig(path: directory)
-    guard let accountHandle = try account ?? config.fullHandle.map({ try fullHandleService.parse($0).accountHandle }),
-          !accountHandle.isEmpty
-    else {
-        throw RunnerProfileCommandServiceError.missingAccount
-    }
-    return (accountHandle, try serverEnvironmentService.url(configServerURL: config.url))
 }

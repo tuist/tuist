@@ -686,7 +686,7 @@ public protocol APIProtocol: Sendable {
     func createCrashReport(_ input: Operations.createCrashReport.Input) async throws -> Operations.createCrashReport.Output
     /// Update which branches save a runner profile's cache volumes.
     ///
-    /// Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. Pass `follow_default_branch: true` (or `cache_writer_branches: null`) to follow each repository's default branch instead. Narrowing the list discards pending saves it no longer allows.
+    /// Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. An empty list follows each repository's default branch. Narrowing the list discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -2692,7 +2692,7 @@ extension APIProtocol {
     }
     /// Update which branches save a runner profile's cache volumes.
     ///
-    /// Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. Pass `follow_default_branch: true` (or `cache_writer_branches: null`) to follow each repository's default branch instead. Narrowing the list discards pending saves it no longer allows.
+    /// Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. An empty list follows each repository's default branch. Narrowing the list discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -16692,10 +16692,10 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/RunnerProfile`.
         public struct RunnerProfile: Codable, Hashable, Sendable {
-            /// Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. null follows each repository's default branch.
+            /// Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
             ///
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/cache_writer_branches`.
-            public var cache_writer_branches: [Swift.String]?
+            public var cache_writer_branches: [Swift.String]
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/id`.
             public var id: Swift.Int
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/inserted_at`.
@@ -16722,7 +16722,7 @@ public enum Components {
             /// Creates a new `RunnerProfile`.
             ///
             /// - Parameters:
-            ///   - cache_writer_branches: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. null follows each repository's default branch.
+            ///   - cache_writer_branches: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
             ///   - id:
             ///   - inserted_at:
             ///   - memory_gb:
@@ -16733,7 +16733,7 @@ public enum Components {
             ///   - vcpus:
             ///   - xcode_version:
             public init(
-                cache_writer_branches: [Swift.String]? = nil,
+                cache_writer_branches: [Swift.String],
                 id: Swift.Int,
                 inserted_at: Foundation.Date,
                 memory_gb: Swift.Int,
@@ -26455,10 +26455,10 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload`.
                         public struct profilesPayloadPayload: Codable, Hashable, Sendable {
-                            /// Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. null follows each repository's default branch.
+                            /// Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/cache_writer_branches`.
-                            public var cache_writer_branches: [Swift.String]?
+                            public var cache_writer_branches: [Swift.String]
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/id`.
                             public var id: Swift.Int
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/inserted_at`.
@@ -26485,7 +26485,7 @@ public enum Operations {
                             /// Creates a new `profilesPayloadPayload`.
                             ///
                             /// - Parameters:
-                            ///   - cache_writer_branches: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. null follows each repository's default branch.
+                            ///   - cache_writer_branches: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
                             ///   - id:
                             ///   - inserted_at:
                             ///   - memory_gb:
@@ -26496,7 +26496,7 @@ public enum Operations {
                             ///   - vcpus:
                             ///   - xcode_version:
                             public init(
-                                cache_writer_branches: [Swift.String]? = nil,
+                                cache_writer_branches: [Swift.String],
                                 id: Swift.Int,
                                 inserted_at: Foundation.Date,
                                 memory_gb: Swift.Int,
@@ -71226,7 +71226,7 @@ public enum Operations {
     }
     /// Update which branches save a runner profile's cache volumes.
     ///
-    /// Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. Pass `follow_default_branch: true` (or `cache_writer_branches: null`) to follow each repository's default branch instead. Narrowing the list discards pending saves it no longer allows.
+    /// Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. An empty list follows each repository's default branch. Narrowing the list discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -71273,29 +71273,19 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// Branch names or * patterns. null follows each repository's default branch.
+                    /// Branch names or * patterns. An empty list follows each repository's default branch.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json/cache_writer_branches`.
-                    public var cache_writer_branches: [Swift.String]?
-                    /// Set to true to follow each repository's default branch instead of a list.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json/follow_default_branch`.
-                    public var follow_default_branch: Swift.Bool?
+                    public var cache_writer_branches: [Swift.String]
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - cache_writer_branches: Branch names or * patterns. null follows each repository's default branch.
-                    ///   - follow_default_branch: Set to true to follow each repository's default branch instead of a list.
-                    public init(
-                        cache_writer_branches: [Swift.String]? = nil,
-                        follow_default_branch: Swift.Bool? = nil
-                    ) {
+                    ///   - cache_writer_branches: Branch names or * patterns. An empty list follows each repository's default branch.
+                    public init(cache_writer_branches: [Swift.String]) {
                         self.cache_writer_branches = cache_writer_branches
-                        self.follow_default_branch = follow_default_branch
                     }
                     public enum CodingKeys: String, CodingKey {
                         case cache_writer_branches
-                        case follow_default_branch
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/content/application\/json`.
@@ -71324,10 +71314,10 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. null follows each repository's default branch.
+                        /// Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/cache_writer_branches`.
-                        public var cache_writer_branches: [Swift.String]?
+                        public var cache_writer_branches: [Swift.String]
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/id`.
                         public var id: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/inserted_at`.
@@ -71354,7 +71344,7 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - cache_writer_branches: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. null follows each repository's default branch.
+                        ///   - cache_writer_branches: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
                         ///   - id:
                         ///   - inserted_at:
                         ///   - memory_gb:
@@ -71365,7 +71355,7 @@ public enum Operations {
                         ///   - vcpus:
                         ///   - xcode_version:
                         public init(
-                            cache_writer_branches: [Swift.String]? = nil,
+                            cache_writer_branches: [Swift.String],
                             id: Swift.Int,
                             inserted_at: Foundation.Date,
                             memory_gb: Swift.Int,
@@ -71443,6 +71433,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateRunnerProfile.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateRunnerProfile.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Missing or malformed fields
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.updateRunnerProfile.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.updateRunnerProfile.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }

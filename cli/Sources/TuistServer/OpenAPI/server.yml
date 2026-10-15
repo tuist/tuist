@@ -9169,12 +9169,11 @@ components:
     RunnerProfile:
       properties:
         cache_writer_branches:
-          description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. null follows each repository's default branch.
+          description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
           items:
             type: string
             x-struct:
             x-validate:
-          nullable: true
           type: array
           x-struct:
           x-validate:
@@ -13026,12 +13025,11 @@ paths:
                     items:
                       properties:
                         cache_writer_branches:
-                          description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. null follows each repository's default branch.
+                          description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
                           items:
                             type: string
                             x-struct:
                             x-validate:
-                          nullable: true
                           type: array
                           x-struct:
                           x-validate:
@@ -27969,7 +27967,7 @@ paths:
   /api/accounts/{account_handle}/runners/profiles/{profile_name}:
     patch:
       callbacks: {}
-      description: "Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. Pass `follow_default_branch: true` (or `cache_writer_branches: null`) to follow each repository's default branch instead. Narrowing the list discards pending saves it no longer allows."
+      description: Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. An empty list follows each repository's default branch. Narrowing the list discards pending saves it no longer allows.
       operationId: updateRunnerProfile
       parameters:
         - description: The account handle.
@@ -27994,20 +27992,16 @@ paths:
             schema:
               properties:
                 cache_writer_branches:
-                  description: Branch names or * patterns. null follows each repository's default branch.
+                  description: Branch names or * patterns. An empty list follows each repository's default branch.
                   items:
                     type: string
                     x-struct:
                     x-validate:
-                  nullable: true
                   type: array
                   x-struct:
                   x-validate:
-                follow_default_branch:
-                  description: Set to true to follow each repository's default branch instead of a list.
-                  type: boolean
-                  x-struct:
-                  x-validate:
+              required:
+                - cache_writer_branches
               type: object
               x-struct:
               x-validate:
@@ -28020,12 +28014,11 @@ paths:
               schema:
                 properties:
                   cache_writer_branches:
-                    description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. null follows each repository's default branch.
+                    description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
                     items:
                       type: string
                       x-struct:
                       x-validate:
-                    nullable: true
                     type: array
                     x-struct:
                     x-validate:
@@ -28086,6 +28079,12 @@ paths:
                 x-struct:
                 x-validate:
           description: Updated runner profile
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or malformed fields
         '403':
           content:
             application/json:

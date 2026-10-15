@@ -13,28 +13,17 @@ struct RunnerProfileCommandTests {
      "cache_writer_branches":["main","release/*"],"inserted_at":"2026-10-15T10:00:00Z","updated_at":"2026-10-15T10:00:00Z"}
     """
 
-    @Test func parsesRepeatedBranchesAndTheDefaultBranchFlag() throws {
+    @Test func parsesRepeatedBranchesAndDefaultsToTheDefaultBranch() throws {
         let command = try RunnerProfileUpdateCommand.parse([
             "ci", "--save-cache-from", "main", "--save-cache-from", "release/*", "--account", "acme", "--json",
         ])
         #expect(command.name == "ci")
         #expect(command.saveCacheFrom == ["main", "release/*"])
-        #expect(!command.saveCacheFromDefaultBranch)
         #expect(command.options.account == "acme")
         #expect(command.options.json)
 
-        let reset = try RunnerProfileUpdateCommand.parse(["ci", "--save-cache-from-default-branch"])
+        let reset = try RunnerProfileUpdateCommand.parse(["ci"])
         #expect(reset.saveCacheFrom.isEmpty)
-        #expect(reset.saveCacheFromDefaultBranch)
-    }
-
-    @Test func requiresExactlyOneBranchSource() {
-        #expect(throws: (any Error).self) { try RunnerProfileUpdateCommand.parseAsRoot(["ci"]) }
-        #expect(throws: (any Error).self) {
-            try RunnerProfileUpdateCommand.parseAsRoot([
-                "ci", "--save-cache-from", "main", "--save-cache-from-default-branch",
-            ])
-        }
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora, arguments: [false, true])
@@ -58,12 +47,12 @@ struct RunnerProfileCommandTests {
         #expect(ui().contains(json ? "cache_writer_branches" : "main, release/*"))
     }
 
-    @Test(.withMockedEnvironment(), .withMockedNoora, arguments: [["main", "release/*"], nil] as [[String]?])
-    func updatesTheBranchesThatSaveCache(branches: [String]?) async throws {
+    @Test(.withMockedEnvironment(), .withMockedNoora, arguments: [["main", "release/*"], []] as [[String]])
+    func updatesTheBranchesThatSaveCache(branches: [String]) async throws {
         let service = MockUpdateRunnerProfileServicing()
-        let json = branches == nil ? Self.profile.replacingOccurrences(
+        let json = branches.isEmpty ? Self.profile.replacingOccurrences(
             of: "[\"main\",\"release/*\"]",
-            with: "null"
+            with: "[]"
         ) : Self.profile
         let response: RunnerProfileUpdateResult = try RunnerVolumeTestData.decode(json)
         given(service).updateCacheWriterBranches(
@@ -86,6 +75,6 @@ struct RunnerProfileCommandTests {
             profileName: .value("ci"),
             branches: .value(branches)
         ).called(1)
-        #expect(ui().contains(branches == nil ? "default branch" : "main, release/*"))
+        #expect(ui().contains(branches.isEmpty ? "default branch" : "main, release/*"))
     }
 }
