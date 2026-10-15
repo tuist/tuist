@@ -260,6 +260,34 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert reasons(reported) == [:unbuilt_file_unknown, :uninstrumented_code]
   end
 
+  test "a run whose product code all came from the binary cache without counters is partial", %{
+    project: project,
+    account: account
+  } do
+    # Every product target was a plain hit, so the run measured no product line
+    # and lists only its test files; what it took from the cache is still the
+    # commit's to judge, rather than a run that never gathered coverage.
+    head =
+      CoverageFixtures.run_with_coverage(project, account, [file("Tests/AppTests.swift", [1, 0], is_test: true)], %{
+        git_commit_sha: "head"
+      })
+
+    binary_cache(project, head, ["Core", "Text"])
+
+    assert %{kind: "partial", covered_lines: 0, executable_lines: 0} = reported = Reported.compute(project, "head")
+    assert :uninstrumented_code in reasons(reported)
+
+    assert Instrumentation.incomplete_targets(project.id, Commits.runs(project.id, "head")) == %{
+             "App" => ["Core", "Text"]
+           }
+  end
+
+  test "a run that reported no file at all is no run of the commit", %{project: project, account: account} do
+    CoverageFixtures.run_with_coverage(project, account, [], %{git_commit_sha: "head"})
+
+    assert Commits.runs(project.id, "head") == []
+  end
+
   test "a run that took only resource bundles and macros from the binary cache is measured", %{
     project: project,
     account: account

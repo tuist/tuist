@@ -382,6 +382,7 @@ defmodule Tuist.Tests.Coverage do
         git_commit_sha: test.git_commit_sha || "",
         covered_lines: covered,
         executable_lines: executable,
+        files: folded.files + others.files_count,
         partial: coverage.partial or others.partial or others.shards_count + 1 < expected_shards,
         version:
           (others.shards_count + 1) * @shard_count_weight +
@@ -426,6 +427,7 @@ defmodule Tuist.Tests.Coverage do
         from(f in reports,
           select: %{
             shards_count: fragment("uniqExact(?)", f.shard_index),
+            files_count: count(),
             partial_rows: fragment("countIf(?)", f.partial),
             newest_report_at: max(f.inserted_at)
           }
@@ -435,6 +437,7 @@ defmodule Tuist.Tests.Coverage do
 
     %{
       files: files,
+      files_count: summary.files_count,
       shards_count: summary.shards_count,
       partial: summary.partial_rows > 0,
       newest_report_at: summary.newest_report_at || ~N[1970-01-01 00:00:00]
@@ -472,7 +475,12 @@ defmodule Tuist.Tests.Coverage do
   @doc """
   The published totals of every run of the project that gathered coverage,
   one row per run with the scheme they were measured for and whether the run
-  was partial. `shas:` narrows it to the runs of those commits, read through
+  was partial. A run gathered coverage when it measured a product line or its
+  reports listed a file: a run whose product code all came from the binary
+  cache without counters lists only its test files, and what it took from the
+  cache is still the commit's to judge (`Tuist.Tests.Coverage.Instrumentation`).
+  Rows published before the count existed carry 0 and count by their lines.
+  `shas:` narrows it to the runs of those commits, read through
   the table's index on the SHA rather than across the project's history.
   """
   def run_totals_query(project_id, opts \\ []) do
@@ -493,7 +501,9 @@ defmodule Tuist.Tests.Coverage do
     from(c in CoverageRun,
       where: c.project_id == ^project_id,
       group_by: c.test_run_id,
-      having: fragment("argMax(?, ?)", c.executable_lines, c.version) > 0
+      having:
+        fragment("argMax(?, ?)", c.executable_lines, c.version) > 0 or
+          fragment("argMax(?, ?)", c.files, c.version) > 0
     )
   end
 
