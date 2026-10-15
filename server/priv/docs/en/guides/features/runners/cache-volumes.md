@@ -127,7 +127,7 @@ GitHub Actions jobs that run on the profile, including volumes created later:
 - **Additional branches**: up to 20 exact branch names. Pull requests from these
   branches in the same repository also save. Wildcards are not supported. Push,
   schedule and manual-dispatch runs on these branches do not save.
-- **Save from any branch**: push, schedule, manual-dispatch and pull-request jobs
+- **From any branch**: push, schedule, manual-dispatch and pull-request jobs
   from any branch or tag in the repository save.
 
 Fork pull requests and `pull_request_target` never save. Buildkite, GitLab and

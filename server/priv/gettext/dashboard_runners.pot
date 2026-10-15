@@ -1703,11 +1703,6 @@ msgstr ""
 msgid "Additional branches"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:222
-#, elixir-autogen, elixir-format
-msgid "Save from any branch"
-msgstr ""
-
 #: lib/tuist_web/live/runner_profiles_live.ex:355
 #, elixir-autogen, elixir-format
 msgid "Any branch"
@@ -1738,4 +1733,9 @@ msgstr ""
 #: lib/tuist_web/live/runner_profiles_live.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Successful jobs from any branch in the repository save. Forks never do."
+msgstr ""
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:222
+#, elixir-autogen, elixir-format
+msgid "From any branch"
 msgstr ""
