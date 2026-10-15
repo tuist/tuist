@@ -109,27 +109,27 @@ defmodule Tuist.Runners.ProfilesTest do
       assert updated.memory_gb == 2
     end
 
-    test "stores a normalized cache writer policy", %{account: account} do
+    test "stores an ordered, deduplicated cache writer list and can follow the default branch again", %{
+      account: account
+    } do
       {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
-      assert profile.cache_writer_branches == []
-      refute profile.cache_any_branch_writes
+      assert is_nil(profile.cache_writer_branches)
 
       assert {:ok, updated} =
-               Profiles.update(profile, %{
-                 "cache_writer_branches" => ["release/1.0", "feature", "feature"],
-                 "cache_any_branch_writes" => true
-               })
+               Profiles.update(profile, %{"cache_writer_branches" => ["release/*", " main ", "main", "*"]})
 
-      assert updated.cache_writer_branches == ["feature", "release/1.0"]
-      assert updated.cache_any_branch_writes
+      assert updated.cache_writer_branches == ["release/*", "main", "*"]
+      assert {:ok, %{cache_writer_branches: nil}} = Profiles.update(updated, %{"cache_writer_branches" => nil})
+      assert {:ok, %{cache_writer_branches: []}} = Profiles.update(profile, %{"cache_writer_branches" => []})
     end
 
-    test "rejects wildcards, invalid refs and more than the branch limit", %{account: account} do
+    test "rejects invalid refs and more than the branch limit", %{account: account} do
       {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
 
       for value <- [
             "main",
-            ["*"],
+            ["a b"],
+            ["a?b"],
             ["a\nb"],
             ["a..b"],
             ["x.lock"],
@@ -141,6 +141,21 @@ defmodule Tuist.Runners.ProfilesTest do
 
         assert errors[:cache_writer_branches]
       end
+    end
+  end
+
+  describe "Profile.cache_writer_branch?/2" do
+    test "matches exact names and * across path segments" do
+      assert Profile.cache_writer_branch?(["main"], "main")
+      refute Profile.cache_writer_branch?(["main"], "main-2")
+      assert Profile.cache_writer_branch?(["release/*"], "release/1.0")
+      assert Profile.cache_writer_branch?(["release/*"], "release/a/b")
+      refute Profile.cache_writer_branch?(["release/*"], "releases/1.0")
+      assert Profile.cache_writer_branch?(["feature*"], "feature/x")
+      assert Profile.cache_writer_branch?(["*"], "anything/at/all")
+      refute Profile.cache_writer_branch?(["v1.0"], "v1x0")
+      refute Profile.cache_writer_branch?([], "main")
+      refute Profile.cache_writer_branch?(["*"], nil)
     end
   end
 

@@ -179,7 +179,7 @@ defmodule Tuist.Runners.Profiles do
 
     changeset = Profile.changeset(profile, attrs, catalog_opts_for(platform))
 
-    if Enum.any?([:cache_writer_branches, :cache_any_branch_writes], &Map.has_key?(changeset.changes, &1)) do
+    if Map.has_key?(changeset.changes, :cache_writer_branches) do
       Repo.transaction(fn ->
         with {:ok, profile} <- Repo.update(changeset),
              :ok <- CacheVolumes.revoke_profile_writers(profile) do

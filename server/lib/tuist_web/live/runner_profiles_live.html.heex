@@ -196,10 +196,7 @@
                 <span data-part="section-heading">
                   <span data-part="title">{dgettext("dashboard_runners", "Save cache from")}</span>
                   <span data-part="summary">
-                    {cache_saving_summary(
-                      @form_cache_any_branch_writes,
-                      @form_cache_writer_branches
-                    )}
+                    {cache_saving_summary(@form_cache_writer_branches)}
                   </span>
                 </span>
                 <span data-part="section-chevron"><.chevron_down /></span>
@@ -211,48 +208,62 @@
                 aria-labelledby="runner-profile-cache-saving-toggle"
                 hidden={not @form_cache_saving_expanded}
               >
-                <div data-part="toggle-label">
-                  <.toggle
-                    id={"runner-profile-cache-any-branch-#{@form_cache_any_branch_writes}"}
-                    checked={@form_cache_any_branch_writes}
-                    phx-click="toggle_cache_any_branch_writes"
+                <div data-part="branch-tags">
+                  <.tag
+                    :for={branch <- shown_cache_writer_branches(assigns)}
+                    label={branch}
+                    dismissible
+                    on_dismiss="remove_cache_writer_branch"
+                    dismiss_value={branch}
                   />
-                  <div data-part="label-text">
-                    <span data-part="title">
-                      {dgettext("dashboard_runners", "From any branch")}
-                    </span>
-                    <span data-part="description">
-                      {dgettext(
-                        "dashboard_runners",
-                        "Successful jobs from any branch in the repository save. Forks never do."
-                      )}
-                    </span>
-                  </div>
+                  <span
+                    :if={@form_cache_writer_branches == []}
+                    data-part="empty-branches"
+                  >
+                    {dgettext("dashboard_runners", "No branches save their changes.")}
+                  </span>
                 </div>
                 <.form
-                  :if={not @form_cache_any_branch_writes}
                   for={%{}}
-                  id="runner-profile-cache-writer-branches-form"
-                  phx-change="update_cache_writer_branches"
+                  id={"runner-profile-cache-writer-branch-form-#{@form_cache_branch_input}"}
+                  data-part="branch-input"
+                  phx-submit="add_cache_writer_branch"
                 >
-                  <.text_area
-                    id="runner-profile-cache-writer-branches"
-                    name="cache_writer_branches"
-                    label={dgettext("dashboard_runners", "Additional branches")}
-                    value={@form_cache_writer_branches}
-                    rows={3}
-                    max_length={4200}
-                    show_character_count={false}
-                    placeholder={dgettext("dashboard_runners", "One exact branch name per line")}
-                    hint={
-                      dgettext(
-                        "dashboard_runners",
-                        "Pull requests from these branches also save."
-                      )
-                    }
-                    phx-debounce="200"
+                  <.text_input
+                    type="basic"
+                    id={"runner-profile-cache-writer-branch-#{@form_cache_branch_input}"}
+                    name="branch"
+                    value=""
+                    placeholder={dgettext("dashboard_runners", "e.g. main, release/* or *")}
+                    phx-mounted={@form_cache_branch_input > 0 && JS.focus()}
+                  />
+                  <.button
+                    type="submit"
+                    variant="secondary"
+                    label={dgettext("dashboard_runners", "Add")}
                   />
                 </.form>
+                <span data-part="hint">
+                  {if is_nil(@form_cache_writer_branches),
+                    do:
+                      dgettext(
+                        "dashboard_runners",
+                        "Follows each repository's default branch until you change it."
+                      ),
+                    else:
+                      dgettext(
+                        "dashboard_runners",
+                        "Jobs and pull requests from matching branches in the repository save their changes. Forks never do."
+                      )}
+                </span>
+                <.button
+                  :if={not is_nil(@form_cache_writer_branches)}
+                  type="button"
+                  variant="secondary"
+                  size="small"
+                  label={dgettext("dashboard_runners", "Use default branch")}
+                  phx-click="use_default_cache_writer_branch"
+                />
               </div>
             </section>
           </div>

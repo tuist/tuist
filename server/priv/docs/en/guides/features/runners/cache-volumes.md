@@ -116,24 +116,25 @@ from different jobs are not merged. Never cache credentials or irreplaceable dat
 
 The GitHub action accepts `commit: auto` (the default), `commit: 'false'` (discard
 this job's changes), and `commit: 'true'` (request a save). Both `auto` and `true`
-remain subject to the runner profile's cache saving policy and successful job completion;
+remain subject to the runner profile's **Save cache from** list and successful job completion;
 `true` cannot grant a branch permission or save a failed job. If the job lacks permission at attachment, the action emits a warning and its changes are discarded.
 
 Account administrators configure **Save cache from** on each runner profile under
-**Runners → Profiles**. The policy applies to every custom volume attached by
-GitHub Actions jobs that run on the profile, including volumes created later:
+**Runners → Profiles**. The list applies to every custom volume attached by
+GitHub Actions jobs that run on the profile, including volumes created later.
+Until you change it, the list follows each repository's default branch.
 
-- **Default branch** (the default): only the default-branch events above save.
-- **Additional branches**: up to 20 exact branch names. Pull requests from these
-  branches in the same repository also save. Wildcards are not supported. Push,
-  schedule and manual-dispatch runs on these branches do not save.
-- **From any branch**: push, schedule, manual-dispatch and pull-request jobs
-  from any branch or tag in the repository save.
+Once you add or remove a branch, the list holds up to 20 branch names. `*`
+matches any characters, so `release/*` covers `release/1.0` and `*` covers every
+branch. Successful push, schedule and manual-dispatch jobs, and pull requests
+from the same repository, save their changes when their branch matches. On push
+and manual-dispatch runs, a tag with a matching name also matches. An empty list
+means no job saves. **Use default branch** returns to following the default branch.
 
 Fork pull requests and `pull_request_target` never save. Buildkite, GitLab and
-built-in macOS volume policies are unchanged. Narrowing the policy or deleting
-the profile revokes pending saves it no longer allows; default-branch saves
-continue. Widening the policy applies to new volume attachments.
+built-in macOS volume policies are unchanged. Changing the list or deleting the
+profile revokes pending saves it no longer allows; a deleted profile falls back
+to the default branch. Additions apply to new volume attachments.
 
 
 ## Capacity and retention {#capacity-and-retention}

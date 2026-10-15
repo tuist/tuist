@@ -195,7 +195,7 @@
     & [data-part="section-panel"] {
       display: flex;
       flex-direction: column;
-      gap: var(--noora-spacing-6);
+      gap: var(--noora-spacing-4);
       padding-top: var(--noora-spacing-5);
 
       &[hidden] {
@@ -203,27 +203,34 @@
       }
     }
 
-    & [data-part="toggle-label"] {
+    & [data-part="branch-tags"] {
       display: flex;
-      flex-direction: row;
-      align-items: flex-start;
-      gap: var(--noora-spacing-5);
+      flex-wrap: wrap;
+      gap: var(--noora-spacing-2);
 
-      & > [data-part="label-text"] {
-        display: flex;
-        flex-direction: column;
-        gap: var(--noora-spacing-2);
-
-        & > [data-part="title"] {
-          color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-        }
-
-        & > [data-part="description"] {
-          color: var(--noora-surface-label-secondary);
-          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-        }
+      & > [data-part="empty-branches"] {
+        color: var(--noora-surface-label-tertiary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
       }
+    }
+
+    & [data-part="branch-input"] {
+      display: flex;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+
+      & > .noora-text-input {
+        flex-grow: 1;
+      }
+    }
+
+    & [data-part="section-panel"] > [data-part="hint"] {
+      color: var(--noora-surface-label-tertiary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & [data-part="section-panel"] > .noora-button {
+      align-self: flex-start;
     }
   }
 }

@@ -142,6 +142,7 @@ defmodule Tuist.Runners.CacheVolumes do
           provider_instance: identity.provider_instance,
           scope_id: identity.scope_id,
           repository: job.repository,
+          default_branch: Map.get(identity, :default_branch),
           inserted_at: timestamp,
           updated_at: timestamp
         })
@@ -159,7 +160,9 @@ defmodule Tuist.Runners.CacheVolumes do
       head = VolumeHeads.get_head(volume.account_id, storage_name(volume))
 
       use_attrs =
-        Map.merge(Map.take(attrs, [:pod_name, :pod_uid, :node_name]), %{
+        attrs
+        |> Map.take([:pod_name, :pod_uid, :node_name])
+        |> Map.merge(%{
           id: Ecto.UUID.generate(),
           volume_id: volume.id,
           generation: volume.generation,
@@ -170,12 +173,10 @@ defmodule Tuist.Runners.CacheVolumes do
           workflow_job_id: job.workflow_job_id,
           workflow_run_id: job.workflow_run_id,
           commit_mode: attrs.commit_mode,
-          writer_branch: if(identity.trusted, do: nil, else: Map.get(identity, :writer_branch)),
-          writer_profile_id: granting_profile_id(grant),
-          can_publish: attrs.commit_mode != "false" and grant != :denied,
           inserted_at: timestamp,
           updated_at: timestamp
         })
+        |> Map.merge(writer_fields(identity, grant, attrs.commit_mode))
 
       Repo.insert_all(Usage, [use_attrs],
         on_conflict: :nothing,
@@ -190,7 +191,8 @@ defmodule Tuist.Runners.CacheVolumes do
         Ecto.Changeset.change(volume,
           last_used_at: if(volume.deleted_at, do: nil, else: volume.last_used_at),
           deleted_at: nil,
-          repository: job.repository
+          repository: job.repository,
+          default_branch: Map.get(identity, :default_branch, volume.default_branch)
         )
       )
 
@@ -216,63 +218,91 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
-  # Default-branch jobs always write. The job's runner profile can also let
-  # verified same-repository GitHub jobs from other branches write.
-  defp writer_grant(%{trusted: true}, _profile), do: :default_branch
-
-  defp writer_grant(identity, %Profile{} = profile) do
-    if profile_allows?(profile, identity), do: {:profile, profile.id}, else: :denied
+  # The job's runner profile decides which GitHub branches save. Without a custom
+  # branch list, or without a profile, the repository's default branch saves, as
+  # it does for the other providers.
+  defp writer_grant(%{provider: "github"} = identity, %Profile{cache_writer_branches: patterns} = profile)
+       when is_list(patterns) do
+    if Profile.cache_writer_branch?(patterns, Map.get(identity, :writer_branch)), do: {:ok, profile.id}, else: :denied
   end
 
-  defp writer_grant(_identity, nil), do: :denied
+  defp writer_grant(%{trusted: true}, profile), do: {:ok, profile && profile.id}
+  defp writer_grant(_identity, _profile), do: :denied
 
-  defp granting_profile_id({:profile, id}), do: id
-  defp granting_profile_id(_grant), do: nil
-
-  defp profile_allows?(%Profile{cache_any_branch_writes: true}, identity),
-    do: Map.get(identity, :any_branch_writer, false)
-
-  defp profile_allows?(%Profile{cache_writer_branches: branches}, identity) do
-    Map.get(identity, :same_repository, false) and is_binary(Map.get(identity, :writer_branch)) and
-      identity.writer_branch in branches
+  defp writer_fields(identity, grant, commit_mode) do
+    %{
+      writer_branch: Map.get(identity, :writer_branch),
+      writer_default_branch: identity.trusted,
+      writer_profile_id:
+        case grant do
+          {:ok, id} -> id
+          _ -> nil
+        end,
+      can_publish: commit_mode != "false" and grant != :denied
+    }
   end
 
-  defp writer_profile(job, %{trusted: false, provider: "github"}),
+  defp writer_profile(job, %{provider: "github"}),
     do: Profiles.lock_for_dispatch_label(job.account_id, Map.get(job, :requested_dispatch_label))
 
   defp writer_profile(_job, _identity), do: nil
 
   @doc """
-  Revokes pending saves granted by a runner profile whose policy no longer
-  allows them. Call inside the transaction that updated or deleted the profile
-  row, after the row was written. Default-branch saves are never revoked, and
-  policy additions only affect new attachments.
+  Revokes pending saves granted under a runner profile's previous policy that
+  its current policy no longer allows. A deleted profile falls back to the
+  default branch. Call inside the transaction that updated or deleted the
+  profile row, after the row was written. Additions only affect new attachments.
   """
-  def revoke_profile_writers(%Profile{cache_any_branch_writes: true}), do: :ok
+  def revoke_profile_writers({:deleted, %Profile{} = profile}),
+    do: revoke_profile_writers(%{profile | cache_writer_branches: nil})
 
-  def revoke_profile_writers(%Profile{id: id, cache_writer_branches: branches}),
-    do: revoke_writers(from(u in Usage, where: is_nil(u.writer_branch) or u.writer_branch not in ^branches), id)
-
-  def revoke_profile_writers({:deleted, %Profile{id: id}}), do: revoke_writers(Usage, id)
-
-  defp revoke_writers(query, profile_id) do
+  def revoke_profile_writers(%Profile{id: id, cache_writer_branches: patterns}) do
     revoked =
-      from(u in query,
-        where: u.writer_profile_id == ^profile_id and u.can_publish and u.status not in ["published", "discarded"]
+      from(u in Usage,
+        where: u.writer_profile_id == ^id and u.can_publish and u.status not in ["published", "discarded"]
+      )
+      |> Repo.all()
+      |> Enum.reject(&writer_allowed?(patterns, &1))
+      |> Enum.map(& &1.id)
+
+    if revoked != [] do
+      # Publication reads can_publish under the volume lock.
+      Repo.all(
+        from(v in Volume,
+          where: v.id in subquery(from(u in Usage, where: u.id in ^revoked, select: u.volume_id)),
+          order_by: v.id,
+          lock: "FOR UPDATE",
+          select: v.id
+        )
       )
 
-    # Publication reads can_publish under the volume lock.
+      Repo.update_all(
+        from(u in Usage, where: u.id in ^revoked and u.status not in ["published", "discarded"]),
+        set: [can_publish: false]
+      )
+    end
+
+    :ok
+  end
+
+  defp writer_allowed?(nil, use), do: use.writer_default_branch
+  defp writer_allowed?(patterns, use), do: Profile.cache_writer_branch?(patterns, use.writer_branch)
+
+  @doc """
+  Default branches of the account's GitHub repositories with custom volumes,
+  most recently used first.
+  """
+  def default_branches(account_id) do
     Repo.all(
       from(v in Volume,
-        where: v.id in subquery(from(u in revoked, select: u.volume_id)),
-        order_by: v.id,
-        lock: "FOR UPDATE",
-        select: v.id
+        where:
+          v.account_id == ^account_id and v.provider == "github" and is_nil(v.builtin_name) and
+            not is_nil(v.default_branch),
+        group_by: v.default_branch,
+        order_by: [desc_nulls_last: max(v.last_used_at)],
+        select: v.default_branch
       )
     )
-
-    Repo.update_all(revoked, set: [can_publish: false])
-    :ok
   end
 
   defp ensure_job_capacity!(job, identity, attrs) do

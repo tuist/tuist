@@ -53,8 +53,8 @@ defmodule Tuist.Runners.Profile do
     field :memory_gb, :integer
     field :xcode_version, :string
     field :protected, :boolean, default: false
-    field :cache_writer_branches, {:array, :string}, default: []
-    field :cache_any_branch_writes, :boolean, default: false
+    # nil follows each repository's default branch.
+    field :cache_writer_branches, {:array, :string}
 
     belongs_to :account, Account
 
@@ -95,8 +95,7 @@ defmodule Tuist.Runners.Profile do
         :memory_gb,
         :xcode_version,
         :protected,
-        :cache_writer_branches,
-        :cache_any_branch_writes
+        :cache_writer_branches
       ])
       |> validate_required([:account_id, :name, :platform, :vcpus, :memory_gb])
       |> update_change(:name, &normalize_name/1)
@@ -133,19 +132,37 @@ defmodule Tuist.Runners.Profile do
   defp normalize_name(nil), do: nil
   defp normalize_name(name) when is_binary(name), do: name |> String.trim() |> String.downcase()
 
-  defp normalize_cache_writer_branches(nil), do: []
-  defp normalize_cache_writer_branches(branches), do: branches |> Enum.uniq() |> Enum.sort()
+  defp normalize_cache_writer_branches(nil), do: nil
+  defp normalize_cache_writer_branches(branches), do: branches |> Enum.map(&String.trim/1) |> Enum.uniq()
 
   defp validate_cache_writer_branches(field, branches) do
-    if Enum.all?(branches, &valid_branch_name?/1),
+    if Enum.all?(branches, &valid_cache_writer_branch?/1),
       do: [],
-      else: [{field, "must be exact branch names without wildcards"}]
+      else: [{field, "must be branch names, optionally with * wildcards"}]
   end
 
-  defp valid_branch_name?(branch) do
-    byte_size(branch) in 1..200 and Regex.match?(~r/\A[a-zA-Z0-9][a-zA-Z0-9_.\/-]*\z/, branch) and
+  @doc """
+  Whether `branch` is a valid cache writer branch name or `*` pattern.
+  """
+  def valid_cache_writer_branch?(branch) when is_binary(branch) do
+    byte_size(branch) in 1..200 and Regex.match?(~r/\A[a-zA-Z0-9*][a-zA-Z0-9_.\/*-]*\z/, branch) and
       not String.contains?(branch, ["..", "//"]) and not String.ends_with?(branch, ["/", ".", ".lock"])
   end
+
+  def valid_cache_writer_branch?(_branch), do: false
+
+  @doc """
+  Whether `branch` matches one of the cache writer patterns. `*` matches any
+  sequence of characters, including `/`.
+  """
+  def cache_writer_branch?(patterns, branch) when is_list(patterns) and is_binary(branch) do
+    Enum.any?(patterns, fn pattern ->
+      source = pattern |> String.split("*") |> Enum.map_join(".*", &Regex.escape/1)
+      Regex.match?(Regex.compile!("\\A" <> source <> "\\z"), branch)
+    end)
+  end
+
+  def cache_writer_branch?(_patterns, _branch), do: false
 
   defp validate_shape(changeset, catalog) do
     vcpus = get_field(changeset, :vcpus)
