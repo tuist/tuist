@@ -28,6 +28,16 @@ if [ -f "${JOB_ENV}" ]; then
   source "${JOB_ENV}"
 fi
 
+# Scope the helper to Origin; GitHub SSH and existing HTTPS helpers stay unchanged.
+if [ -n "${TUIST_ORIGIN_CHECKOUT_TOKEN:-}" ]; then
+  export TUIST_ORIGIN_CHECKOUT_TOKEN
+  export TUIST_RUNNER_REPORT_URL
+  helper_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/origin-credentials"
+  git config --global credential.https://origin.cursor.com.useHttpPath true || return 1
+  git config --global --replace-all credential.https://origin.cursor.com.helper '' || return 1
+  git config --global --add credential.https://origin.cursor.com.helper "!\"${helper_path}\"" || return 1
+fi
+
 # Never `exit` from here. The agent sources this hook from a wrapper that
 # dumps the environment afterwards to learn what changed; exiting skips
 # that dump, and an empty dump is read as "the hook early-exited", so

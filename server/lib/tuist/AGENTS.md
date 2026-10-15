@@ -80,6 +80,7 @@ This directory contains the core business logic and domain modules for the serve
 - Command Events: `server/lib/tuist/command_events/AGENTS.md`
 - Ecto: `server/lib/tuist/ecto/AGENTS.md`
 - Github: `server/lib/tuist/github/AGENTS.md`
+- Origin: `server/lib/tuist/origin/AGENTS.md`
 - Http: `server/lib/tuist/http/AGENTS.md`
 - Ingestion: `server/lib/tuist/ingestion/AGENTS.md`
 - Key Value Store: `server/lib/tuist/key_value_store/AGENTS.md`

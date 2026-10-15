@@ -1945,6 +1945,7 @@ while true; do
       bk_token=$(sed -n 's/.*"buildkite_acquisition_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
       bk_job_uuid=$(sed -n 's/.*"buildkite_job_uuid"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
       bk_report_token=$(sed -n 's/.*"buildkite_report_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+      origin_checkout_grant=$(sed -n 's/.*"origin_checkout_grant"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
       if [ -z "${jit}" ] && [ -z "${bk_token}" ] && [ "${gitlab_job}" != "true" ]; then
         echo "$(date -u +%FT%TZ) dispatch-poll: 200 but no runner credential; retrying"
         sleep "${interval}"
@@ -2002,6 +2003,7 @@ while true; do
           # from inside the job at all.
           printf 'TUIST_RUNNER_REPORT_TOKEN=%s\n' "${bk_report_token}"
           printf 'TUIST_RUNNER_REPORT_URL=%s\n' "${TUIST_RUNNER_DISPATCH_URL%/dispatch}"
+          printf 'TUIST_ORIGIN_CHECKOUT_TOKEN=%s\n' "${origin_checkout_grant}"
         } >"${job_env_tmp}"
         if sudo tee /etc/tuist-runner-job.env <"${job_env_tmp}" >/dev/null 2>&1; then
           sudo chmod 0644 /etc/tuist-runner-job.env 2>/dev/null || true

@@ -82,6 +82,8 @@ defmodule TuistWeb.Endpoint do
 
   plug GitHubWebhookLoggingPlug
 
+  plug TuistWeb.Plugs.OriginWebhookPlug
+
   plug WebhookPlug,
     at: "/webhooks/github",
     handler: GitHubController,

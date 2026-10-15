@@ -140,6 +140,12 @@ added to catch that failed on `admin`'s unwritable cache instead.
   the one image because which one runs is decided per job at dispatch,
   so a warm Pod has to be able to serve either; forking the image would
   split the warm pool to save one binary.
+- Native Origin repositories use Tuist's Origin-only Git credential helper.
+  Dispatch stages `TUIST_ORIGIN_CHECKOUT_TOKEN`, a separate job/repository-bound
+  grant restored by the environment hook after sanitization. The helper mints
+  fresh read-only, single-repository tokens through Tuist; Buildkite's automatic
+  Origin credentials are hosted-agent-only. Never send the Origin signing key
+  to a VM or change GitHub's checkout authentication. Keep the Linux copy in step.
 - `/opt/tuist/buildkite-hooks/` — global agent hooks (`--hooks-path`),
   so they run for every job regardless of what the customer's
   repository defines. `environment` re-exports the cache settings the

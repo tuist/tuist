@@ -19,7 +19,7 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
             dgettext("dashboard_projects", "You are not authorized to perform this action.")
     end
 
-    project = Repo.preload(selected_project, vcs_connection: :github_app_installation)
+    project = Repo.preload(selected_project, vcs_connection: [:github_app_installation, :origin_app_installation])
     has_vcs_connection = Projects.has_vcs_connection?(project)
 
     socket =

@@ -6,6 +6,7 @@ This directory holds Phoenix configuration for the server.
 - Environment-specific configuration (dev, test, prod).
 - Runtime config and endpoint settings.
 - Request logging filters Google One Tap credentials alongside passwords, secrets and tokens.
+- Filter Origin `installation_receipt` callback parameters; the raw receipt must not enter request logs.
 - Marketing's esbuild `noora/hooks` alias resolves individual Noora hook sources
   so unused charting and form runtimes stay out of the marketing bundle.
 

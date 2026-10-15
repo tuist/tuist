@@ -5,6 +5,8 @@ defmodule Tuist.Runners.BuildkiteTest do
   import Mimic
 
   alias Tuist.FeatureFlags
+  alias Tuist.Origin.Client, as: OriginClient
+  alias Tuist.Origin.Installation, as: OriginInstallation
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Buildkite
@@ -803,6 +805,42 @@ defmodule Tuist.Runners.BuildkiteTest do
       # holds no ServiceAccount token — use the same path.
       assert {:ok, %{workflow_job_id: ^workflow_job_id}} =
                ReportToken.verify(acquisition.report_token)
+    end
+
+    test "dispatch includes a separate Origin checkout grant from the protected job payload", %{
+      account: account,
+      workflow_job_id: workflow_job_id,
+      job_uuid: job_uuid
+    } do
+      Repo.insert!(
+        OriginInstallation.changeset(%OriginInstallation{}, %{
+          account_id: account.id,
+          installation_id: "inst-#{account.id}",
+          namespace_id: "ns-#{account.id}",
+          namespace_slug: "org"
+        })
+      )
+
+      job = Repo.get!(Job, job_uuid)
+
+      stub(Client, :get_job, fn _, _, _ ->
+        {:ok,
+         %{
+           "id" => job_uuid,
+           "env" => %{
+             "BUILDKITE_JOB_ID" => job_uuid,
+             "BUILDKITE_ORGANIZATION_SLUG" => job.organization_slug,
+             "BUILDKITE_REPO" => "https://origin.cursor.com/org/repo.git"
+           }
+         }}
+      end)
+
+      stub(OriginClient, :repositories, fn _ -> {:ok, [%{"id" => "repo-1", "fullName" => "org/repo"}]} end)
+      stub(Client, :issue_acquisition_token, fn _, _, _, _ -> {:ok, %{token: "bkjat_opaque"}} end)
+
+      assert {:ok, acquisition} = Buildkite.mint_acquisition(account.id, workflow_job_id)
+      assert is_binary(acquisition.origin_checkout_grant)
+      refute acquisition.origin_checkout_grant == acquisition.report_token
     end
 
     test "fails when Buildkite declines to issue a token", %{

@@ -512,17 +512,24 @@ defmodule Tuist.VCS do
     end
   end
 
-  def post_vcs_pull_request_comment(%{
-        git_ref: git_ref,
-        git_remote_url_origin: git_remote_url_origin,
-        git_commit_sha: git_commit_sha,
-        project: project,
-        preview_url: preview_url,
-        preview_qr_code_url: preview_qr_code_url,
-        test_run_url: test_run_url,
-        bundle_url: bundle_url,
-        build_url: build_url
-      }) do
+  def post_vcs_pull_request_comment(%{project: project} = params) do
+    case Repo.preload(project, :vcs_connection).vcs_connection do
+      %{provider: :origin} -> Tuist.Origin.Reports.post_comment(params, &get_vcs_comment_body/1)
+      _ -> post_github_pull_request_comment(params)
+    end
+  end
+
+  defp post_github_pull_request_comment(%{
+         git_ref: git_ref,
+         git_remote_url_origin: git_remote_url_origin,
+         git_commit_sha: git_commit_sha,
+         project: project,
+         preview_url: preview_url,
+         preview_qr_code_url: preview_qr_code_url,
+         test_run_url: test_run_url,
+         bundle_url: bundle_url,
+         build_url: build_url
+       }) do
     repository_full_handle =
       if is_nil(git_remote_url_origin) do
         nil
@@ -805,6 +812,8 @@ defmodule Tuist.VCS do
   defp format_bundle_download_size(size) when is_integer(size), do: ByteFormatter.format_bytes(size)
 
   defp commit_link(nil, _git_remote_url_origin), do: ""
+
+  defp commit_link(git_commit_sha, "https://cursor.com/" <> _), do: String.slice(git_commit_sha, 0, 9)
 
   defp commit_link(git_commit_sha, git_remote_url_origin),
     do: "[#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha})"
@@ -1196,7 +1205,7 @@ defmodule Tuist.VCS do
     location_text = "#{path}:#{failure.line_number}"
     repo_handle = project.vcs_connection && project.vcs_connection.repository_full_handle
 
-    if repo_handle && commit_sha not in [nil, ""] do
+    if repo_handle && project.vcs_connection.provider == :github && commit_sha not in [nil, ""] do
       "[`#{location_text}`](https://github.com/#{repo_handle}/blob/#{commit_sha}/#{path}#L#{failure.line_number})"
     else
       "`#{location_text}`"

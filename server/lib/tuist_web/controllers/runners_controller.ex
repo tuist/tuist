@@ -404,7 +404,8 @@ defmodule TuistWeb.RunnersController do
       buildkite_acquisition_token: credential.token,
       buildkite_job_uuid: credential.job_uuid,
       buildkite_organization_slug: credential.organization_slug,
-      buildkite_report_token: credential.report_token
+      buildkite_report_token: credential.report_token,
+      origin_checkout_grant: Map.get(credential, :origin_checkout_grant)
     }
   end
 

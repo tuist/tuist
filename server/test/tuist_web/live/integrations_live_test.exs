@@ -5,6 +5,9 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Origin
+  alias Tuist.Origin.Client, as: OriginClient
+  alias Tuist.Projects
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.GitLab
   alias Tuist.VCS
@@ -41,6 +44,53 @@ defmodule TuistWeb.IntegrationsLiveTest do
       |> log_in_user(user)
 
     %{conn: conn, user: user, project: selected_project, organization: organization, account: account}
+  end
+
+  test "Origin selects only native repositories and connects the selected account project", context do
+    %{conn: conn, account: account, user: user, project: project} = context
+    stub(Tuist.Environment, :origin_app_credentials, fn -> %{app_id: "app-tuist"} end)
+
+    stub(OriginClient, :get_installation, fn _ ->
+      {:ok, %{"id" => "origin-inst", "appId" => "app-tuist", "target" => %{"id" => "ns", "slug" => "org"}}}
+    end)
+
+    assert {:ok, _} = Origin.connect(account, user, %{"installation_id" => "origin-inst", "namespace_id" => "ns"})
+
+    stub(OriginClient, :repositories, fn _ ->
+      {:ok,
+       [%{"id" => "repo", "fullName" => "org/native"}, %{"id" => "mirror", "fullName" => "org/mirror", "mirror" => %{}}]}
+    end)
+
+    {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/integrations")
+    html = render_async(lv)
+    assert html =~ "org/native"
+    refute html =~ "org/mirror"
+    assert has_element?(lv, "#origin-integration button[disabled]", "Connect repository")
+    render_click(lv, "select-origin-project", %{"project_id" => to_string(project.id)})
+    render_click(lv, "select-origin-repository", %{"repository_id" => "repo"})
+    assert has_element?(lv, "#origin-repository-dropdown-label-portal", "org/native")
+    refute has_element?(lv, "#origin-integration button[disabled]", "Connect repository")
+    html = render_click(lv, "connect-origin-project")
+    assert html =~ "tuist → org/native"
+    assert Tuist.Repo.preload(Projects.get_project_by_id(project.id), :vcs_connection).vcs_connection.provider == :origin
+
+    {:ok, settings, _} = live(conn, ~p"/#{account.name}/#{project.name}/settings/bundles")
+    assert has_element?(settings, "button:not([disabled])", "Add threshold")
+    refute has_element?(settings, "[data-part=github-connect-alert]")
+  end
+
+  test "Origin renders repository loading failures without hiding disconnect", %{conn: conn, account: account, user: user} do
+    stub(Tuist.Environment, :origin_app_credentials, fn -> %{app_id: "app-tuist"} end)
+
+    stub(OriginClient, :get_installation, fn _ ->
+      {:ok, %{"id" => "origin-inst", "appId" => "app-tuist", "target" => %{"id" => "ns", "slug" => "org"}}}
+    end)
+
+    assert {:ok, _} = Origin.connect(account, user, %{"installation_id" => "origin-inst", "namespace_id" => "ns"})
+    stub(OriginClient, :repositories, fn _ -> {:error, :transport} end)
+    {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/integrations")
+    assert render_async(lv) =~ "Unable to load Origin repositories"
+    assert has_element?(lv, "button", "Disconnect Origin")
   end
 
   test "renders integrations page with GitHub section", %{conn: conn, organization: organization} do
@@ -375,7 +425,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
         VCSFixtures.github_app_installation_fixture(account_id: other_org.account.id)
 
       {:ok, other_connection} =
-        Tuist.Projects.create_vcs_connection(%{
+        Projects.create_vcs_connection(%{
           project_id: other_project.id,
           provider: :github,
           repository_full_handle: "other-org/other-repo",
@@ -388,7 +438,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       render_hook(lv, "delete-connection", %{"connection_id" => other_connection.id})
 
       # Then: the connection should still exist
-      assert {:ok, _} = Tuist.Projects.get_vcs_connection(other_connection.id)
+      assert {:ok, _} = Projects.get_vcs_connection(other_connection.id)
     end
   end
 
@@ -409,7 +459,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       )
 
     {:ok, connection} =
-      Tuist.Projects.create_vcs_connection(%{
+      Projects.create_vcs_connection(%{
         project_id: project.id,
         provider: :github,
         repository_full_handle: "org/repo",
@@ -445,7 +495,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     assert updated.installation_id == installation.installation_id
     assert updated.private_key == installation.private_key
     assert updated.webhook_secret == installation.webhook_secret
-    assert {:ok, ^connection} = Tuist.Projects.get_vcs_connection(connection.id)
+    assert {:ok, ^connection} = Projects.get_vcs_connection(connection.id)
 
     lv |> form("form[phx-submit=save-github-api-url]", %{"github_api_url" => ""}) |> render_submit()
     assert {:ok, cleared} = VCS.get_github_app_installation_for_account(account.id)
@@ -571,8 +621,8 @@ defmodule TuistWeb.IntegrationsLiveTest do
     render_hook(lv, "select-repository", %{"repository" => "test-org/test-repo"})
     render_hook(lv, "create-connection", %{})
 
-    assert Tuist.Projects.get_project_by_id(project.id).default_branch == "develop"
-    assert [%{id: project_id}] = Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
+    assert Projects.get_project_by_id(project.id).default_branch == "develop"
+    assert [%{id: project_id}] = Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
     assert project_id == project.id
   end
 
@@ -596,7 +646,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     html = render_hook(lv, "create-connection", %{})
 
     assert html =~ "The selected repository is not accessible to this account&#39;s GitHub App installation."
-    assert Tuist.Projects.projects_by_vcs_repository_full_handle("victim-org/victim-repo") == []
+    assert Projects.projects_by_vcs_repository_full_handle("victim-org/victim-repo") == []
   end
 
   test "rejects a repository when the installation repositories cannot be fetched", %{
@@ -617,7 +667,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     html = render_hook(lv, "create-connection", %{})
 
     assert html =~ "The selected repository is not accessible to this account&#39;s GitHub App installation."
-    assert Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo") == []
+    assert Projects.projects_by_vcs_repository_full_handle("test-org/test-repo") == []
   end
 
   test "reuses the repositories loaded at mount when creating a connection", %{
@@ -641,7 +691,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     render_hook(lv, "select-repository", %{"repository" => "test-org/test-repo"})
     render_hook(lv, "create-connection", %{})
 
-    assert [%{id: project_id}] = Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
+    assert [%{id: project_id}] = Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
     assert project_id == project.id
     assert :counters.get(calls, 1) == 1
   end
@@ -670,7 +720,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     render_hook(lv, "select-repository", %{"repository" => "test-org/test-repo"})
     render_hook(lv, "create-connection", %{})
 
-    assert [%{id: project_id}] = Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
+    assert [%{id: project_id}] = Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
     assert project_id == project.id
   end
 

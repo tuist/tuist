@@ -398,6 +398,7 @@ defmodule TuistWeb.API.BundlesController do
         project_id: project.id,
         git_commit_sha: bundle.git_commit_sha,
         bundle_name: bundle.name,
+        bundle_inserted_at: DateTime.to_iso8601(bundle.inserted_at),
         git_ref: bundle.git_ref,
         install_size: bundle.install_size,
         download_size: bundle.download_size

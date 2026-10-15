@@ -1339,6 +1339,16 @@ defmodule Tuist.Environment do
       github_app_private_key(secrets) != nil
   end
 
+  def origin_app_credentials do
+    with app_id when is_binary(app_id) and app_id != "" <- System.get_env("TUIST_ORIGIN_APP_ID"),
+         encoded when is_binary(encoded) <- System.get_env("TUIST_ORIGIN_APP_PRIVATE_KEY_BASE64"),
+         {:ok, private_key} <- Base.decode64(encoded) do
+      %{app_id: app_id, private_key: private_key}
+    else
+      _ -> nil
+    end
+  end
+
   def google_oauth_client_id(secrets \\ secrets()) do
     get([:google, :oauth_client_id], secrets)
   end

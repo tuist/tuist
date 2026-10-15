@@ -5,6 +5,9 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
   alias Tuist.Bundles.Workers.BundleThresholdWorker
   alias Tuist.Environment
   alias Tuist.GitHub.Client
+  alias Tuist.Origin.Client, as: OriginClient
+  alias Tuist.Origin.Installation
+  alias Tuist.Projects
   alias TuistTestSupport.Fixtures.BundlesFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -14,6 +17,68 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
   end
 
   describe "perform/1" do
+    test "Origin publishes head-scoped failing checks, retries errors and skips suspended installations" do
+      project = ProjectsFixtures.project_fixture()
+
+      installation =
+        Repo.insert!(
+          Installation.changeset(%Installation{}, %{
+            account_id: project.account_id,
+            installation_id: "inst-#{project.id}",
+            namespace_id: "ns-#{project.id}",
+            namespace_slug: "org"
+          })
+        )
+
+      assert {:ok, _} =
+               Projects.create_vcs_connection(%{
+                 project_id: project.id,
+                 provider: :origin,
+                 repository_full_handle: "org/repo",
+                 origin_repository_id: "repo",
+                 origin_app_installation_id: installation.id
+               })
+
+      BundlesFixtures.bundle_threshold_fixture(project: project, deviation_bytes: 100)
+      BundlesFixtures.bundle_fixture(project: project, install_size: 1000, git_branch: "main")
+      stub(Environment, :origin_app_credentials, fn -> %{app_id: "app-tuist"} end)
+      stub(OriginClient, :repositories, fn _ -> {:ok, [%{"id" => "repo", "fullName" => "org/repo"}]} end)
+
+      stub(OriginClient, :get_pull_request, fn _, _, 7 ->
+        {:ok, %{"state" => "open", "number" => 7, "head" => %{"sha" => "current-head"}}}
+      end)
+
+      job = %Oban.Job{
+        id: 1,
+        args: %{
+          "project_id" => project.id,
+          "bundle_id" => UUIDv7.generate(),
+          "bundle_name" => "App",
+          "git_commit_sha" => "current-head",
+          "git_ref" => "refs/pull/7/head",
+          "install_size" => 1101,
+          "download_size" => 500,
+          "bundle_inserted_at" => "2026-10-14T09:00:00Z"
+        }
+      }
+
+      expect(OriginClient, :post_check_run, fn _, "org/repo", params ->
+        assert params.headSha == "current-head"
+        assert params.checkRun.conclusion == "failure"
+        assert params.checkRun.externalUpdatedAt == "2026-10-14T09:00:00Z"
+        assert params.checkRun.output.summary =~ "0.001101 MB"
+        refute Map.has_key?(params.checkRun, :actions)
+        {:ok, %{}}
+      end)
+
+      assert :ok = BundleThresholdWorker.perform(job)
+      stub(OriginClient, :post_check_run, fn _, _, _ -> {:error, {:http, 503}} end)
+      assert {:error, {:http, 503}} = BundleThresholdWorker.perform(job)
+      Repo.update!(Installation.changeset(installation, %{suspended: true}))
+      reject(&OriginClient.post_check_run/3)
+      assert :ok = BundleThresholdWorker.perform(job)
+    end
+
     test "skips when bundle has no git_commit_sha" do
       project = ProjectsFixtures.project_fixture()
 

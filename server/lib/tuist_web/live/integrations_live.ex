@@ -3,9 +3,12 @@ defmodule TuistWeb.IntegrationsLive do
   use TuistWeb, :live_view
   use Noora
 
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
   alias Tuist.FeatureFlags
+  alias Tuist.Origin
+  alias Tuist.Origin.Client, as: OriginClient
   alias Tuist.Projects
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.GitLab
@@ -18,7 +21,7 @@ defmodule TuistWeb.IntegrationsLive do
   @buildkite_form_fields [:organization_slug, :agent_token]
 
   @impl true
-  def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
+  def mount(_params, session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
     if Authorization.authorize(:account_update, current_user, selected_account) != :ok do
       raise UnauthorizedError,
             dgettext("dashboard_integrations", "You are not authorized to perform this action.")
@@ -46,6 +49,10 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(selected_account: selected_account)
       |> assign(github_app_installation: github_installation)
       |> assign(vcs_connections: vcs_connections)
+      |> assign(origin_configured?: Tuist.Environment.origin_app_credentials() != nil)
+      |> assign(pending_origin: session["pending_origin"])
+      |> assign(origin_project_id: nil, origin_repository_id: nil)
+      |> assign_origin_installation()
       |> assign(selected_project_id: nil)
       |> assign(selected_repository_full_handle: nil)
       |> assign(github_client_url: if(default_to_enterprise?, do: "", else: VCS.default_client_url()))
@@ -78,6 +85,49 @@ defmodule TuistWeb.IntegrationsLive do
       end)
 
     {:ok, socket}
+  end
+
+  @impl true
+  def handle_event("select-origin-project", %{"project_id" => id}, socket) do
+    {:noreply, assign(socket, :origin_project_id, id)}
+  end
+
+  @impl true
+  def handle_event("select-origin-repository", %{"repository_id" => id}, socket) do
+    {:noreply, assign(socket, :origin_repository_id, id)}
+  end
+
+  @impl true
+  def handle_event("connect-origin-project", _, socket) do
+    case Origin.connect_project(
+           socket.assigns.selected_account,
+           socket.assigns.current_user,
+           socket.assigns.origin_project_id,
+           socket.assigns.origin_repository_id
+         ) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(vcs_connections: vcs_connections(socket.assigns.selected_account, force: true))
+         |> assign(origin_project_id: nil, origin_repository_id: nil)}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard_integrations", "Unable to connect Origin repository."))}
+    end
+  end
+
+  @impl true
+  def handle_event("disconnect-origin", _, socket) do
+    case Origin.disconnect(socket.assigns.selected_account, socket.assigns.current_user) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign_origin_installation()
+         |> assign(vcs_connections: vcs_connections(socket.assigns.selected_account, force: true))}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard_integrations", "Unable to disconnect Origin."))}
+    end
   end
 
   @impl true
@@ -660,5 +710,20 @@ defmodule TuistWeb.IntegrationsLive do
     account.projects
     |> Enum.filter(& &1.vcs_connection)
     |> Enum.map(& &1.vcs_connection)
+  end
+
+  defp assign_origin_installation(socket) do
+    installation = Origin.installation_for_account(socket.assigns.selected_account.id)
+    socket = assign(socket, :origin_installation, installation)
+
+    if installation && not installation.suspended do
+      assign_async(socket, :origin_repositories, fn ->
+        with {:ok, repositories} <- OriginClient.repositories(installation) do
+          {:ok, %{origin_repositories: Enum.reject(repositories, &(not is_nil(&1["mirror"])))}}
+        end
+      end)
+    else
+      assign(socket, :origin_repositories, AsyncResult.ok([]))
+    end
   end
 end

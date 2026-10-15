@@ -14,10 +14,16 @@ defmodule TuistWeb.Helpers.VCSLinks do
   attr :rest, :global
 
   def repository_link(assigns) do
-    assigns = assign(assigns, :github_base_url, GitHubHost.base_url(assigns.project))
+    base_url =
+      case assigns.project.vcs_connection do
+        %{provider: :origin} -> "https://cursor.com/codebase"
+        _ -> GitHubHost.base_url(assigns.project)
+      end
+
+    assigns = assign(assigns, :github_base_url, base_url)
 
     ~H"""
-    <%= if has_github_vcs?(@project) do %>
+    <%= if has_github_vcs?(@project) or match?(%{vcs_connection: %{provider: :origin}}, @project) do %>
       <a
         href={"#{@github_base_url}/#{@project.vcs_connection.repository_full_handle}"}
         target="_blank"

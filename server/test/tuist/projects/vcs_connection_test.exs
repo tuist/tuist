@@ -7,6 +7,21 @@ defmodule Tuist.Projects.VCSConnectionTest do
   alias TuistTestSupport.Fixtures.VCSFixtures
 
   describe "changeset/2" do
+    test "Origin connections require an Origin installation and reject GitHub credentials" do
+      attrs = %{
+        project_id: 1,
+        provider: :origin,
+        repository_full_handle: "org/repo",
+        origin_repository_id: "repo-1",
+        origin_app_installation_id: UUIDv7.generate()
+      }
+
+      assert VCSConnection.changeset(%VCSConnection{}, attrs).valid?
+      refute VCSConnection.changeset(%VCSConnection{}, Map.delete(attrs, :origin_app_installation_id)).valid?
+
+      refute VCSConnection.changeset(%VCSConnection{}, Map.put(attrs, :github_app_installation_id, UUIDv7.generate())).valid?
+    end
+
     test "is valid with valid attributes" do
       # Given
       project = Repo.preload(ProjectsFixtures.project_fixture(), :account)

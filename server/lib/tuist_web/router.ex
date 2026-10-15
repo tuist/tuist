@@ -645,6 +645,10 @@ defmodule TuistWeb.Router do
     get "/github/setup", GitHubAppSetupController, :setup
     get "/github/manifest/start", GitHubAppManifestController, :start
     get "/github/manifest/callback", GitHubAppManifestController, :callback
+    get "/origin/install", OriginAppController, :install
+    get "/origin/setup", OriginAppController, :setup
+    get "/origin/continue", OriginAppController, :continue
+    post "/origin/connect", OriginAppController, :connect
     get "/slack/callback", SlackOAuthController, :callback
   end
 
@@ -1036,6 +1040,7 @@ defmodule TuistWeb.Router do
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
     post "/runners/jobs/logs", RunnerJobReportsController, :logs
     post "/runners/jobs/finish", RunnerJobReportsController, :finish
+    post "/runners/jobs/origin-credentials", OriginAppController, :runner_credentials
     post "/runners/jobs/cache/download", RunnerJobCacheController, :download
     post "/runners/jobs/cache/uploads", RunnerJobCacheController, :start_upload
     post "/runners/jobs/cache/uploads/part", RunnerJobCacheController, :upload_part
