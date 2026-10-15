@@ -66,6 +66,7 @@ defmodule TuistWeb.RunnerProfilesLive do
          |> assign(:form_xcode_version, profile.xcode_version)
          |> assign(:form_cache_any_branch_writes, profile.cache_any_branch_writes)
          |> assign(:form_cache_writer_branches, Enum.join(profile.cache_writer_branches, "\n"))
+         |> assign(:form_cache_saving_expanded, false)
          |> assign(:form_error, nil)
          |> push_event("open-modal", %{id: @modal_id})}
     end
@@ -86,6 +87,10 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   def handle_event("update_form_name", %{"value" => name}, socket) do
     {:noreply, socket |> assign(:form_name, name) |> assign(:form_error, nil)}
+  end
+
+  def handle_event("toggle_cache_saving_section", _params, socket) do
+    {:noreply, assign(socket, :form_cache_saving_expanded, not socket.assigns.form_cache_saving_expanded)}
   end
 
   def handle_event("toggle_cache_any_branch_writes", _params, socket) do
@@ -147,11 +152,7 @@ defmodule TuistWeb.RunnerProfilesLive do
       "vcpus" => assigns.form_vcpus,
       "memory_gb" => assigns.form_memory_gb,
       "cache_any_branch_writes" => assigns.form_cache_any_branch_writes,
-      "cache_writer_branches" =>
-        assigns.form_cache_writer_branches
-        |> String.split("\n")
-        |> Enum.map(&String.trim/1)
-        |> Enum.reject(&(&1 == ""))
+      "cache_writer_branches" => parse_cache_writer_branches(assigns.form_cache_writer_branches)
     }
 
     attrs =
@@ -276,6 +277,7 @@ defmodule TuistWeb.RunnerProfilesLive do
     |> assign(:form_name, "")
     |> assign(:form_cache_any_branch_writes, false)
     |> assign(:form_cache_writer_branches, "")
+    |> assign(:form_cache_saving_expanded, false)
     |> assign(:form_error, nil)
     |> set_platform_defaults("linux")
   end
@@ -347,19 +349,32 @@ defmodule TuistWeb.RunnerProfilesLive do
   end
 
   @doc """
-  Which branches save cache volume changes for jobs on the profile.
+  One-line summary of the cache saving policy being edited, shown on the
+  collapsed section.
   """
-  def cache_saving_label(%Profile{cache_any_branch_writes: true}), do: dgettext("dashboard_runners", "Any branch")
-  def cache_saving_label(%Profile{cache_writer_branches: []}), do: dgettext("dashboard_runners", "Default branch")
+  def cache_saving_summary(true, _branches), do: dgettext("dashboard_runners", "Any branch in the repository saves.")
 
-  def cache_saving_label(%Profile{cache_writer_branches: branches}),
-    do:
-      dngettext(
-        "dashboard_runners",
-        "Default branch and %{count} more",
-        "Default branch and %{count} more",
-        length(branches)
-      )
+  def cache_saving_summary(false, branches) do
+    case parse_cache_writer_branches(branches) do
+      [] ->
+        dgettext("dashboard_runners", "Only the default branch saves.")
+
+      branches ->
+        dngettext(
+          "dashboard_runners",
+          "The default branch and %{count} more branch save.",
+          "The default branch and %{count} more branches save.",
+          length(branches)
+        )
+    end
+  end
+
+  defp parse_cache_writer_branches(value) do
+    value
+    |> String.split("\n")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
 
   @doc """
   Platform a profile runs on. Reads off the stored `platform` field.

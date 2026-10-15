@@ -155,32 +155,39 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       assert %{name: "default", vcpus: 8, memory_gb: 32} = Profiles.get_by_name(account, "default")
     end
 
-    test "edits the cache saving policy and shows it in the table", %{conn: conn, account: account} do
+    test "edits the cache saving policy in a collapsed section", %{conn: conn, account: account} do
       {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
       {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/profiles")
-      assert html =~ "Default branch"
+      refute html =~ ~s(<th><span>Cache saving</span></th>)
 
-      render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      assert html =~ "Only the default branch saves."
+      assert html =~ ~s(aria-expanded="false")
+      assert html =~ ~r/id="runner-profile-cache-saving-panel"[^>]*hidden/
 
-      render_hook(lv, "update_cache_writer_branches", %{"cache_writer_branches" => " release/1.0\n\nfeature \n"})
+      html = render_hook(lv, "toggle_cache_saving_section", %{})
+      assert html =~ ~s(aria-expanded="true")
+      refute html =~ ~r/id="runner-profile-cache-saving-panel"[^>]*hidden/
 
-      html = render_hook(lv, "save_profile", %{})
+      html =
+        render_hook(lv, "update_cache_writer_branches", %{"cache_writer_branches" => " release/1.0\n\nfeature \n"})
+
+      assert html =~ "The default branch and 2 more branches save."
+      render_hook(lv, "save_profile", %{})
 
       assert %{cache_writer_branches: ["feature", "release/1.0"], cache_any_branch_writes: false} =
                Profiles.get_by_name(account, "ci")
 
-      assert html =~ "Default branch and 2 more"
-
-      render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
-      assert render(lv) =~ "release/1.0"
-      render_hook(lv, "toggle_cache_any_branch_writes", %{})
-      refute has_element?(lv, "#runner-profile-cache-writer-branches")
-      html = render_hook(lv, "save_profile", %{})
+      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      assert html =~ "release/1.0"
+      assert html =~ ~s(aria-expanded="false")
+      html = render_hook(lv, "toggle_cache_any_branch_writes", %{})
+      assert html =~ "Any branch in the repository saves."
+      refute html =~ ~s(id="runner-profile-cache-writer-branches")
+      render_hook(lv, "save_profile", %{})
 
       assert %{cache_writer_branches: ["feature", "release/1.0"], cache_any_branch_writes: true} =
                Profiles.get_by_name(account, "ci")
-
-      assert html =~ "Any branch"
     end
 
     test "surfaces invalid cache writer branches without saving them", %{conn: conn, account: account} do

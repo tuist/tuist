@@ -61,8 +61,8 @@ msgid "Branch"
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:89
-#: lib/tuist_web/live/runner_profiles_live.html.heex:239
-#: lib/tuist_web/live/runner_profiles_live.html.heex:376
+#: lib/tuist_web/live/runner_profiles_live.html.heex:267
+#: lib/tuist_web/live/runner_profiles_live.html.heex:401
 #: lib/tuist_web/live/runner_volumes_live.ex:268
 #: lib/tuist_web/live/runner_volumes_live.html.heex:560
 #: lib/tuist_web/live/runner_workflows_live.html.heex:89
@@ -745,8 +745,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_job_live.ex:265
 #: lib/tuist_web/live/runner_jobs_live.ex:580
 #: lib/tuist_web/live/runner_jobs_live.ex:624
-#: lib/tuist_web/live/runner_profiles_live.ex:367
-#: lib/tuist_web/live/runner_profiles_live.ex:384
+#: lib/tuist_web/live/runner_profiles_live.ex:382
+#: lib/tuist_web/live/runner_profiles_live.ex:399
 #: lib/tuist_web/live/runner_workflows_live.ex:241
 #: lib/tuist_web/live/runners_live.ex:368
 #: lib/tuist_web/live/runners_live.ex:370
@@ -773,8 +773,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_job_live.ex:262
 #: lib/tuist_web/live/runner_jobs_live.ex:579
 #: lib/tuist_web/live/runner_jobs_live.ex:621
-#: lib/tuist_web/live/runner_profiles_live.ex:368
-#: lib/tuist_web/live/runner_profiles_live.ex:385
+#: lib/tuist_web/live/runner_profiles_live.ex:383
+#: lib/tuist_web/live/runner_profiles_live.ex:400
 #: lib/tuist_web/live/runner_workflows_live.ex:240
 #: lib/tuist_web/live/runners_live.ex:367
 #: lib/tuist_web/live/runners_live.ex:369
@@ -800,7 +800,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:418
 #: lib/tuist_web/live/runner_jobs_live.html.heex:632
 #: lib/tuist_web/live/runner_profiles_live.html.heex:76
-#: lib/tuist_web/live/runner_profiles_live.html.heex:267
+#: lib/tuist_web/live/runner_profiles_live.html.heex:295
 #: lib/tuist_web/live/runner_volumes_live.html.heex:216
 #: lib/tuist_web/live/runner_volumes_live.html.heex:322
 #, elixir-autogen, elixir-format
@@ -860,22 +860,22 @@ msgstr ""
 msgid "Search by job name..."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:248
+#: lib/tuist_web/live/runner_profiles_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Create profile"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:313
+#: lib/tuist_web/live/runner_profiles_live.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:300
+#: lib/tuist_web/live/runner_profiles_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "Edit"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:264
+#: lib/tuist_web/live/runner_profiles_live.html.heex:292
 #, elixir-autogen, elixir-format
 msgid "Label"
 msgstr ""
@@ -891,27 +891,27 @@ msgstr ""
 msgid "New profile"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:327
+#: lib/tuist_web/live/runner_profiles_live.html.heex:352
 #, elixir-autogen, elixir-format
 msgid "No profiles yet"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:254
+#: lib/tuist_web/live/runner_profiles_live.ex:255
 #, elixir-autogen, elixir-format
 msgid "Profile %{name} created."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:208
+#: lib/tuist_web/live/runner_profiles_live.ex:209
 #, elixir-autogen, elixir-format
 msgid "Profile %{name} deleted."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:257
+#: lib/tuist_web/live/runner_profiles_live.ex:258
 #, elixir-autogen, elixir-format
 msgid "Profile %{name} updated."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:244
+#: lib/tuist_web/live/runner_profiles_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "Profile limit reached (%{max})."
 msgstr ""
@@ -922,7 +922,7 @@ msgstr ""
 msgid "Profiles"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:280
+#: lib/tuist_web/live/runner_profiles_live.html.heex:308
 #, elixir-autogen, elixir-format
 msgid "RAM"
 msgstr ""
@@ -932,17 +932,17 @@ msgstr ""
 msgid "Resources"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:249
+#: lib/tuist_web/live/runner_profiles_live.html.heex:277
 #, elixir-autogen, elixir-format
 msgid "Save changes"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:277
+#: lib/tuist_web/live/runner_profiles_live.html.heex:305
 #, elixir-autogen, elixir-format
 msgid "vCPU"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:329
+#: lib/tuist_web/live/runner_profiles_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "Create one to let your workflows reference Tuist runners by name."
 msgstr ""
@@ -962,7 +962,7 @@ msgstr ""
 msgid "Select resources"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:286
+#: lib/tuist_web/live/runner_profiles_live.html.heex:311
 #: lib/tuist_web/live/runner_volumes_live.ex:214
 #: lib/tuist_web/live/runner_volumes_live.html.heex:247
 #: lib/tuist_web/live/runner_volumes_live.html.heex:330
@@ -970,7 +970,7 @@ msgstr ""
 msgid "Last used"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:345
+#: lib/tuist_web/live/runner_profiles_live.ex:347
 #, elixir-autogen, elixir-format
 msgid "Never"
 msgstr ""
@@ -990,28 +990,28 @@ msgstr ""
 msgid "Becomes part of your runs-on label, so it can't be renamed later."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:422
+#: lib/tuist_web/live/runner_profiles_live.ex:437
 #, elixir-autogen, elixir-format
 msgid "Select platform"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:343
-#: lib/tuist_web/live/runner_profiles_live.html.heex:383
+#: lib/tuist_web/live/runner_profiles_live.html.heex:368
+#: lib/tuist_web/live/runner_profiles_live.html.heex:408
 #, elixir-autogen, elixir-format
 msgid "Delete profile"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:364
+#: lib/tuist_web/live/runner_profiles_live.html.heex:389
 #, elixir-autogen, elixir-format
 msgid "Delete profile %{name}? This can't be undone."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:356
+#: lib/tuist_web/live/runner_profiles_live.html.heex:381
 #, elixir-autogen, elixir-format
 msgid "Workflows using runs-on: %{label} will fail to dispatch until they're updated."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:215
+#: lib/tuist_web/live/runner_profiles_live.ex:216
 #, elixir-autogen, elixir-format
 msgid "This profile is a default and can't be deleted."
 msgstr ""
@@ -1080,23 +1080,23 @@ msgid "No Xcode versions are configured yet. Contact support."
 msgstr ""
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:95
-#: lib/tuist_web/live/runner_profiles_live.html.heex:274
+#: lib/tuist_web/live/runner_profiles_live.html.heex:302
 #, elixir-autogen, elixir-format
 msgid "Operating system"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:453
-#: lib/tuist_web/live/runner_profiles_live.ex:455
+#: lib/tuist_web/live/runner_profiles_live.ex:468
+#: lib/tuist_web/live/runner_profiles_live.ex:470
 #, elixir-autogen, elixir-format
 msgid "Select Xcode version"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:403
+#: lib/tuist_web/live/runner_profiles_live.ex:418
 #, elixir-autogen, elixir-format
 msgid "Ubuntu 22.04 LTS"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:458
+#: lib/tuist_web/live/runner_profiles_live.ex:473
 #, elixir-autogen, elixir-format
 msgid "Xcode %{version}"
 msgstr ""
@@ -1418,7 +1418,7 @@ msgstr ""
 msgid "Every recent workflow run was skipped or cancelled"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:404
+#: lib/tuist_web/live/runner_profiles_live.ex:419
 #, elixir-autogen, elixir-format
 msgid "Tahoe"
 msgstr ""
@@ -1673,7 +1673,7 @@ msgstr ""
 msgid "No previous data"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:219
+#: lib/tuist_web/live/runner_profiles_live.html.heex:246
 #, elixir-autogen, elixir-format
 msgid "One exact branch name per line"
 msgstr ""
@@ -1698,45 +1698,44 @@ msgstr ""
 msgid "The saved snapshot uses %{used} of %{capacity}. If a job runs out of space on it, the next job starts from an empty volume and saves a new snapshot."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:214
+#: lib/tuist_web/live/runner_profiles_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Additional branches"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:352
-#, elixir-autogen, elixir-format
-msgid "Any branch"
-msgstr ""
-
-#: lib/tuist_web/live/runner_profiles_live.html.heex:186
-#: lib/tuist_web/live/runner_profiles_live.html.heex:283
+#: lib/tuist_web/live/runner_profiles_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "Cache saving"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:353
-#, elixir-autogen, elixir-format
-msgid "Default branch"
-msgstr ""
-
-#: lib/tuist_web/live/runner_profiles_live.ex:357
-#, elixir-autogen, elixir-format
-msgid "Default branch and %{count} more"
-msgid_plural "Default branch and %{count} more"
-msgstr[0] ""
-msgstr[1] ""
-
-#: lib/tuist_web/live/runner_profiles_live.html.heex:195
+#: lib/tuist_web/live/runner_profiles_live.html.heex:222
 #, elixir-autogen, elixir-format
 msgid "Save from any branch"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:198
+#: lib/tuist_web/live/runner_profiles_live.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Successful jobs from any branch in the repository save cache volume changes. Forks never save."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:221
+#: lib/tuist_web/live/runner_profiles_live.html.heex:248
 #, elixir-autogen, elixir-format
 msgid "The default branch always saves. Pull requests from these branches save too."
 msgstr ""
+
+#: lib/tuist_web/live/runner_profiles_live.ex:355
+#, elixir-autogen, elixir-format
+msgid "Any branch in the repository saves."
+msgstr ""
+
+#: lib/tuist_web/live/runner_profiles_live.ex:360
+#, elixir-autogen, elixir-format
+msgid "Only the default branch saves."
+msgstr ""
+
+#: lib/tuist_web/live/runner_profiles_live.ex:363
+#, elixir-autogen, elixir-format
+msgid "The default branch and %{count} more branch save."
+msgid_plural "The default branch and %{count} more branches save."
+msgstr[0] ""
+msgstr[1] ""
