@@ -649,6 +649,29 @@ defmodule TuistWeb.API.PreviewsController do
     })
   end
 
+  operation(:tracks,
+    summary: "List the available preview tracks for a project.",
+    description:
+      "Returns all nonempty track names in the authorized project, independently of preview pagination and filters. Track names are deduplicated case-insensitively and sorted.",
+    operation_id: "listPreviewTracks",
+    parameters: [
+      account_handle: [in: :path, type: :string, required: true, description: "The handle of the account."],
+      project_handle: [in: :path, type: :string, required: true, description: "The handle of the project."]
+    ],
+    responses: %{
+      ok:
+        {"Available preview tracks.", "application/json",
+         %Schema{title: "PreviewTracks", type: :array, items: %Schema{type: :string}}},
+      unauthorized: {"Authentication is required.", "application/json", Error},
+      forbidden: {"The authenticated subject cannot read this project's previews.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def tracks(%{assigns: %{selected_project: project}} = conn, _params) do
+    json(conn, AppBuilds.list_preview_tracks(project))
+  end
+
   operation(:latest,
     summary: "Get the latest preview for a binary.",
     description:

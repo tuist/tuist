@@ -9,8 +9,6 @@ public struct PreviewsView: View {
     @EnvironmentObject var errorHandling: ErrorHandling
     @EnvironmentObject private var authenticationService: AuthenticationService
     @State var viewModel = PreviewsViewModel()
-    @State private var trackFilter = ""
-    @State private var isTrackFilterPresented = false
     @State private var navigationPath = NavigationPath()
     @State private var pressedPreviewId: String?
     private let imagePrefetcher = ImagePrefetcher()
@@ -53,6 +51,52 @@ public struct PreviewsView: View {
                             .listRowSeparator(.hidden)
                             .listRowInsets(
                                 EdgeInsets(top: 0, leading: Noora.Spacing.spacing7, bottom: 0, trailing: Noora.Spacing.spacing7)
+                            )
+                            .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
+
+                            VStack(alignment: .leading, spacing: Noora.Spacing.spacing3) {
+                                HStack {
+                                    Text("Track")
+                                        .foregroundStyle(Noora.Colors.surfaceLabelSecondary)
+                                    Spacer()
+                                    Picker("Track", selection: Binding(
+                                        get: { viewModel.selectedTrack },
+                                        set: { selectTrack($0) }
+                                    )) {
+                                        Text("All Tracks").tag(nil as String?)
+                                        ForEach(viewModel.trackOptions, id: \.self) { track in
+                                            Text(track).tag(Optional(track))
+                                        }
+                                    }
+                                    .pickerStyle(.menu)
+                                    .labelsHidden()
+                                    .accessibilityLabel("Track")
+                                    .accessibilityIdentifier("preview-track-picker")
+                                    .disabled(viewModel.trackOptions.isEmpty)
+
+                                    if viewModel.selectedTrack != nil {
+                                        Button("Clear", systemImage: "xmark.circle.fill") {
+                                            selectTrack(nil)
+                                        }
+                                        .buttonStyle(.borderless)
+                                        .accessibilityLabel("Clear track filter")
+                                        .accessibilityIdentifier("clear-preview-track-filter")
+                                    }
+                                }
+                                if !viewModel.isTrackSelectionSupported {
+                                    Text("Update your self-hosted Tuist server to select a track.")
+                                        .font(.footnote)
+                                        .foregroundStyle(Noora.Colors.surfaceLabelSecondary)
+                                }
+                            }
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(
+                                EdgeInsets(
+                                    top: 0,
+                                    leading: Noora.Spacing.spacing7,
+                                    bottom: Noora.Spacing.spacing4,
+                                    trailing: Noora.Spacing.spacing7
+                                )
                             )
                             .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
                         }
@@ -141,36 +185,6 @@ public struct PreviewsView: View {
                     try await viewModel.onAppear()
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        trackFilter = viewModel.selectedTrack ?? ""
-                        isTrackFilterPresented = true
-                    } label: {
-                        Label(viewModel.selectedTrack ?? "All tracks", systemImage: "line.3.horizontal.decrease.circle")
-                            .labelStyle(.titleAndIcon)
-                    }
-                    .disabled(viewModel.selectedProject == nil)
-                }
-            }
-            .alert("Filter by track", isPresented: $isTrackFilterPresented) {
-                TextField("Track name", text: $trackFilter)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                Button("Filter") {
-                    errorHandling.fireAndHandleError {
-                        try await viewModel.selectTrack(trackFilter)
-                    }
-                }
-                Button("All tracks") {
-                    errorHandling.fireAndHandleError {
-                        try await viewModel.selectTrack(nil)
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Enter the exact track name, such as QA or beta.")
-            }
             .navigationTitle("Previews")
             .navigationBarTitleDisplayMode(.automatic)
             .background(Noora.Colors.surfaceBackgroundPrimary)
@@ -187,6 +201,12 @@ public struct PreviewsView: View {
                 guard let url = userActivity.webpageURL else { return }
                 handleOpenURL(url)
             }
+        }
+    }
+
+    private func selectTrack(_ track: String?) {
+        errorHandling.fireAndHandleError {
+            try await viewModel.selectTrack(track)
         }
     }
 

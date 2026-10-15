@@ -10,11 +10,18 @@ import TuistSimulator
 @Suite struct PreviewsViewModelTests {
     private let previewsService = MockListPreviewsServicing()
     private let projectsService = MockListProjectsServicing()
+    private let tracksService = MockListPreviewTracksServicing()
     private let environmentService = MockServerEnvironmentServicing()
     private let appStorage = MockAppStoring()
     private let serverURL = URL(string: "https://self-hosted.example.com")!
 
-    private func subject(previewsService: ListPreviewsServicing? = nil) -> PreviewsViewModel {
+    private func subject(
+        previewsService: ListPreviewsServicing? = nil,
+        tracksService: ListPreviewTracksServicing? = nil
+    ) -> PreviewsViewModel {
+        if tracksService == nil {
+            given(self.tracksService).listPreviewTracks(fullHandle: .any, serverURL: .any).willReturn([])
+        }
         given(environmentService).url().willReturn(serverURL)
         given(appStorage)
             .set(.any as Parameter<SelectedProjectFullHandleKey.Type>, value: .any)
@@ -22,6 +29,7 @@ import TuistSimulator
         return PreviewsViewModel(
             listProjectsService: projectsService,
             listPreviewsService: previewsService ?? self.previewsService,
+            listPreviewTracksService: tracksService ?? self.tracksService,
             serverEnvironmentService: environmentService,
             appStorage: appStorage
         )
@@ -163,6 +171,95 @@ import TuistSimulator
         #expect(!subject.isLoadingMore)
     }
 
+    @Test func track_choices_come_from_the_complete_server_list_and_survive_filtering() async throws {
+        let subject = subject(tracksService: tracksService)
+        given(tracksService).listPreviewTracks(fullHandle: .any, serverURL: .value(serverURL))
+            .willReturn(["beta", "nightly", "QA"])
+        given(previewsService)
+            .listPreviews(
+                displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
+                page: .any, pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
+            )
+            .willReturn(.test(previews: [.test(track: "QA")]))
+        try await subject.selectProject(.test())
+        #expect(subject.availableTracks == ["beta", "nightly", "QA"])
+
+        try await subject.selectTrack("qa")
+        #expect(subject.trackOptions == ["beta", "nightly", "qa"])
+        #expect(subject.previews.count == 1)
+
+        try await subject.selectTrack(nil)
+        #expect(subject.selectedTrack == nil)
+        #expect(subject.trackOptions == ["beta", "nightly", "QA"])
+        verify(tracksService).listPreviewTracks(fullHandle: .any, serverURL: .any).called(.once)
+    }
+
+    @Test func switching_projects_replaces_track_choices() async throws {
+        let subject = subject(tracksService: tracksService)
+        given(tracksService).listPreviewTracks(fullHandle: .any, serverURL: .any)
+            .willProduce { fullHandle, _ in fullHandle == "team/app" ? ["QA"] : ["beta"] }
+        given(previewsService)
+            .listPreviews(
+                displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
+                page: .any, pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
+            )
+            .willReturn(.test(previews: []))
+        try await subject.selectProject(.test(fullName: "team/app"))
+        try await subject.selectTrack("QA")
+
+        try await subject.selectProject(.test(fullName: "team/other"))
+
+        #expect(subject.selectedTrack == nil)
+        #expect(subject.trackOptions == ["beta"])
+    }
+
+    @Test func older_servers_without_track_discovery_still_allow_browsing() async throws {
+        let subject = subject(tracksService: tracksService)
+        given(tracksService).listPreviewTracks(fullHandle: .any, serverURL: .any).willReturn(nil)
+        given(previewsService)
+            .listPreviews(
+                displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
+                page: .any, pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
+            )
+            .willReturn(.test(previews: [.test(id: "legacy", track: "QA")]))
+
+        try await subject.selectProject(.test())
+
+        #expect(subject.previews.map(\.id) == ["legacy"])
+        #expect(subject.availableTracks.isEmpty)
+        #expect(!subject.isTrackSelectionSupported)
+        #expect(!subject.isLoadingPreviews)
+    }
+
+    @Test(arguments: [false, true])
+    func superseded_track_discovery_does_not_change_another_projects_choices(fails: Bool) async throws {
+        enum Failure: Error { case offline }
+        let response = AsyncThrowingStream<[String]?, Error>.makeStream()
+        let started = AsyncStream<Void>.makeStream()
+        let subject = subject(tracksService: SuspendedTracksService(response: response.stream, didStart: started.continuation))
+        given(previewsService)
+            .listPreviews(
+                displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
+                page: .any, pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
+            )
+            .willReturn(.test(previews: []))
+        let stale = Task { try await subject.selectProject(.test(fullName: "team/app")) }
+        var startedIterator = started.stream.makeAsyncIterator()
+        await startedIterator.next()
+        try await subject.selectProject(.test(fullName: "team/other"))
+        if fails {
+            response.continuation.finish(throwing: Failure.offline)
+        } else {
+            response.continuation.yield(["stale-track"])
+            response.continuation.finish()
+        }
+        try await stale.value
+
+        #expect(subject.selectedProject?.fullName == "team/other")
+        #expect(subject.trackOptions == ["beta"])
+        #expect(!subject.isLoadingPreviews)
+    }
+
     @Test func failed_pagination_can_be_retried() async throws {
         enum Failure: Error, Equatable { case offline }
         let subject = subject()
@@ -183,6 +280,20 @@ import TuistSimulator
         await #expect(throws: Failure.offline) { try await subject.loadMorePreviews() }
         #expect(!subject.isLoadingMore)
         #expect(subject.hasMorePreviews)
+    }
+}
+
+private struct SuspendedTracksService: ListPreviewTracksServicing {
+    let response: AsyncThrowingStream<[String]?, Error>
+    let didStart: AsyncStream<Void>.Continuation
+
+    func listPreviewTracks(fullHandle: String, serverURL _: URL) async throws -> [String]? {
+        guard fullHandle == "team/app" else { return ["beta"] }
+        didStart.yield()
+        for try await tracks in response {
+            return tracks
+        }
+        throw CancellationError()
     }
 }
 

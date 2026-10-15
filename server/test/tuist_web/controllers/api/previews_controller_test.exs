@@ -1022,6 +1022,57 @@ defmodule TuistWeb.PreviewsControllerTest do
     end
   end
 
+  describe "GET /api/projects/:account_handle/:project_handle/previews/tracks" do
+    test "lists all project tracks beyond a preview page, excluding untracked builds and other projects", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      tracks = Enum.map(1..25, &"track-#{String.pad_leading(to_string(&1), 2, "0")}")
+      Enum.each(tracks, &AppBuildsFixtures.preview_fixture(project: project, track: &1))
+      AppBuildsFixtures.preview_fixture(project: project, track: "QA")
+      AppBuildsFixtures.preview_fixture(project: project, track: "qa")
+      AppBuildsFixtures.preview_fixture(project: project, track: "")
+      AppBuildsFixtures.preview_fixture(track: "private-other-project")
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/tracks")
+        |> json_response(:ok)
+
+      assert Enum.map(response, &String.downcase/1) == ["qa" | tracks]
+    end
+
+    test "returns an empty list when a project has no named tracks", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      AppBuildsFixtures.preview_fixture(project: project, track: "")
+
+      assert conn
+             |> Authentication.put_current_user(user)
+             |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/tracks")
+             |> json_response(:ok) == []
+    end
+
+    test "requires preview-read authorization", %{conn: conn, project: project, account: account} do
+      other_user = AccountsFixtures.user_fixture()
+      AppBuildsFixtures.preview_fixture(project: project, track: "secret")
+
+      response =
+        conn
+        |> Authentication.put_current_user(other_user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/tracks")
+        |> json_response(:forbidden)
+
+      assert response["message"] =~ "not authorized to read preview"
+    end
+  end
+
   describe "GET /api/projects/:account_handle/:project_handle/previews" do
     test "omitting track or sending an empty track returns all tracks", %{
       conn: conn,

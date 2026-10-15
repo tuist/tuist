@@ -108,11 +108,11 @@ Release notes are optional plain text, up to 10,000 characters. They appear on t
 
 Release notes are additive metadata, not part of a preview's identity. Uploads from old and new clients still group into the same preview across platforms. The first nonblank notes are retained: a later upload can fill notes that were previously absent, but cannot overwrite existing notes. Omitting `release_notes`, sending `null`, or sending an empty or whitespace-only string never clears notes. Existing previews are not backfilled and remain valid without notes.
 
-The list API's optional `track` query parameter matches a whole track name, case-insensitively, consistent with existing track storage. Omit it or send an empty value (`?track=`) to list all tracks. Track names remain open strings, not a fixed list of values. The iOS app's **All tracks** action omits the filter.
+The list API's optional `track` query parameter matches a whole track name, case-insensitively, consistent with existing track storage. Omit it or send an empty value (`?track=`) to list all tracks. Track names remain open strings, not a fixed list of values. The iOS app's **All Tracks** selection and **Clear** action omit the filter. Its native track picker loads the complete project-scoped choices from `GET /api/projects/:account_handle/:project_handle/previews/tracks`, independently of preview pagination. That endpoint returns a sorted array of nonempty track names, deduplicated case-insensitively, under the same preview-read authorization as listing builds.
 
 Old clients can continue uploading and listing previews without sending either field. New clients accept older responses that omit track or notes, and ignore unknown response properties added by future servers. API integrations should likewise ignore unknown response properties so additive metadata remains compatible.
 
-Self-hosted deployments need a server version that supports release notes and track filtering, together with an updated CLI and app, to use these features. Older servers may ignore notes or unknown query parameters. If a server returns previews from another track despite an active filter, the iOS app reports that filtering is unsupported rather than presenting misleading results. The macOS app first requests the latest compatible preview per app; on older servers that select distinct apps before applying platform filters, it falls back to paginated history without imposing a cutoff that could hide an available build.
+Self-hosted deployments need a server version that supports release notes and track filtering, together with an updated CLI and app, to use these features. Older servers may ignore notes or unknown query parameters. If track discovery is unavailable, the iOS app keeps unfiltered browsing available and explains that selecting a track requires an updated server. If a server returns previews from another track despite an active filter, the iOS app reports that filtering is unsupported rather than presenting misleading results. The macOS app first requests the latest compatible preview per app; on older servers that select distinct apps before applying platform filters, it falls back to paginated history without imposing a cutoff that could hide an available build.
 
 ## Tuist macOS app {#tuist-macos-app}
 
@@ -138,7 +138,7 @@ When you now click on "Run" in the Preview page, the macOS app will automaticall
     </a>
 </div>
 
-Similarly to the macOS app, the Tuist iOS apps streamlines accessing and running your previews. Each preview shows its track, and the filter button lets you enter an exact track name or return to all tracks. The filter applies across pages, not just to the previews already loaded.
+Similarly to the macOS app, the Tuist iOS app streamlines accessing and running your previews. Each preview shows its track. Use the native **Track** picker below the project selector to choose an available track without typing its name. The current selection stays visible; choose **All Tracks** or tap **Clear** to remove the filter. Choices cover the entire project, and filtering applies across pages, not just to previews already loaded.
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 

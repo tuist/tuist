@@ -170,6 +170,16 @@ defmodule Tuist.AppBuilds do
     |> Repo.update!()
   end
 
+  def list_preview_tracks(%Project{id: project_id}) do
+    Repo.all(
+      from p in Preview,
+        where: p.project_id == ^project_id and p.track != "",
+        group_by: p.track,
+        order_by: p.track,
+        select: min(fragment("?::text", p.track))
+    )
+  end
+
   def list_previews(attrs, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 

@@ -21,6 +21,7 @@ enum PreviewsViewModelError: LocalizedError, Equatable {
 final class PreviewsViewModel: Sendable {
     private let listProjectsService: ListProjectsServicing
     private let listPreviewsService: ListPreviewsServicing
+    private let listPreviewTracksService: ListPreviewTracksServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let appStorage: AppStoring
 
@@ -28,6 +29,21 @@ final class PreviewsViewModel: Sendable {
     private(set) var previews: [ServerPreview] = []
     private(set) var selectedProject: ServerProject?
     private(set) var selectedTrack: String?
+    private(set) var availableTracks: [String] = []
+    private(set) var isTrackSelectionSupported = true
+
+    var trackOptions: [String] {
+        var options = availableTracks
+        if let selectedTrack {
+            if let index = options.firstIndex(where: { $0.caseInsensitiveCompare(selectedTrack) == .orderedSame }) {
+                options[index] = selectedTrack
+            } else {
+                options.append(selectedTrack)
+            }
+        }
+        return options
+    }
+
     private var loadID = UUID()
 
     private var currentPage = 1
@@ -41,11 +57,13 @@ final class PreviewsViewModel: Sendable {
     init(
         listProjectsService: ListProjectsServicing = ListProjectsService(),
         listPreviewsService: ListPreviewsServicing = ListPreviewsService(),
+        listPreviewTracksService: ListPreviewTracksServicing = ListPreviewTracksService(),
         serverEnvironmentService: ServerEnvironmentServicing = AppServerEnvironmentService(),
         appStorage: AppStoring = AppStorage()
     ) {
         self.listProjectsService = listProjectsService
         self.listPreviewsService = listPreviewsService
+        self.listPreviewTracksService = listPreviewTracksService
         self.serverEnvironmentService = serverEnvironmentService
         self.appStorage = appStorage
     }
@@ -63,9 +81,11 @@ final class PreviewsViewModel: Sendable {
     func selectProject(_ project: ServerProject) async throws {
         selectedProject = project
         selectedTrack = nil
+        availableTracks = []
+        isTrackSelectionSupported = true
         previews = []
         try? appStorage.set(SelectedProjectFullHandleKey.self, value: selectedProject?.fullName)
-        try await loadPreviews(for: project)
+        try await loadPreviews(for: project, reloadTracks: true)
     }
 
     func selectTrack(_ track: String?) async throws {
@@ -75,7 +95,7 @@ final class PreviewsViewModel: Sendable {
         try await loadPreviews(for: selectedProject)
     }
 
-    private func loadPreviews(for project: ServerProject) async throws {
+    private func loadPreviews(for project: ServerProject, reloadTracks: Bool = false) async throws {
         loadID = UUID()
         currentPage = 1
         hasMorePreviews = true
@@ -86,6 +106,18 @@ final class PreviewsViewModel: Sendable {
             if requestID == loadID { isLoadingPreviews = false }
         }
         try await loadPreviewsPage(for: project, page: currentPage)
+        guard reloadTracks, requestID == loadID else { return }
+        do {
+            let tracks = try await listPreviewTracksService.listPreviewTracks(
+                fullHandle: project.fullName, serverURL: serverEnvironmentService.url()
+            )
+            guard requestID == loadID else { return }
+            availableTracks = tracks ?? []
+            isTrackSelectionSupported = tracks != nil
+        } catch {
+            guard requestID == loadID else { return }
+            throw error
+        }
     }
 
     func loadMorePreviews() async throws {
@@ -125,7 +157,7 @@ final class PreviewsViewModel: Sendable {
 
         guard let selectedProject else { return }
         do {
-            try await loadPreviews(for: selectedProject)
+            try await loadPreviews(for: selectedProject, reloadTracks: true)
         } catch {
             isRefreshingPreviews = false
             throw error
@@ -165,10 +197,12 @@ final class PreviewsViewModel: Sendable {
         guard let project = projects.first(where: { $0.fullName == storedProjectFullHandle }) ?? projects.first else { return }
         if selectedProject?.fullName != project.fullName {
             selectedTrack = nil
+            availableTracks = []
+            isTrackSelectionSupported = true
             previews = []
         }
         selectedProject = project
-        try await loadPreviews(for: project)
+        try await loadPreviews(for: project, reloadTracks: true)
     }
 
     private func loadPreviewsPage(for project: ServerProject, page: Int) async throws {
