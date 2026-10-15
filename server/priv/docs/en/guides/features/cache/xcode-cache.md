@@ -152,11 +152,13 @@ The coverage-prefix settings participate in binary-cache and selective-testing h
 
 Xcode builds the packages added through `Project.packages` from their own manifests, so they don't read the build settings of generated projects. Without prefix mapping, their compilations, and those of the targets that import them, only hit the cache from the same checkout.
 
-On Xcode 27 and later, with `enableCaching`, `tuist generate` writes the prefix mapping settings for these packages to `<Workspace>.xcworkspace/xcshareddata/tuist/xcode-cache.xcconfig`. `tuist xcodebuild`, `tuist build`, and `tuist test` apply it through the `XCODE_XCCONFIG_FILE` environment variable, unless that variable is already set. When you run `xcodebuild` directly, pass the file with `-xcconfig`:
+On Xcode 27 and later, with `enableCaching`, `tuist generate` writes the prefix mapping settings for these packages to an xcconfig file inside the generated workspace. Build with `tuist xcodebuild`, `tuist build`, or `tuist test`, which apply it automatically:
 
 ```bash
-xcodebuild build -workspace App.xcworkspace -scheme App -xcconfig App.xcworkspace/xcshareddata/tuist/xcode-cache.xcconfig
+tuist xcodebuild build -workspace App.xcworkspace -scheme App
 ```
+
+If you invoke `xcodebuild` some other way, pass `<Workspace>.xcworkspace/xcshareddata/tuist/xcode-cache.xcconfig` with `-xcconfig`. Tuist doesn't apply the file when the `XCODE_XCCONFIG_FILE` environment variable is already set.
 
 Builds started from Xcode don't apply the file, so package compilations there keep path-dependent cache keys. The mappings expect the packages in Xcode's default checkout location, the `SourcePackages` directory of the workspace's derived data; with `-clonedSourcePackagesDirPath`, package sources stay unmapped. Packages integrated through `Tuist/Package.swift` don't need the file.
 
