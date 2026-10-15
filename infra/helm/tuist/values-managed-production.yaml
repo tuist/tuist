@@ -1347,12 +1347,14 @@ rackFleet:
       nodeCluster:
         kubeconfigItem: BER1_RUNNER_B01_STAGING_KUBECONFIG
       # Sized for staging's macOS shape benchmark
-      # (https://github.com/tuist/tuist/pull/14199): two 8 vCPU guests or one
-      # 16 vCPU guest, which leaves the host 2 of its 18 cores and at least 16
-      # of its 64 GB. Drop it once the benchmark is done.
+      # (https://github.com/tuist/tuist/pull/14199): two 8 vCPU / 19 GB guests
+      # or one 16 vCPU / 38 GB guest, leaving the host 2 of its 18 cores.
+      # Memory is twice the 8 vCPU guest's, so it binds guest count at the
+      # same point CPU does, as on every other rack host. Drop it once the
+      # benchmark is done.
       machine:
         hostCPU: 16
-        hostMemoryMB: 49152
+        hostMemoryMB: 38912
     - name: ber1-runner-b02
       serial: CRXK0M2VFY
       address: 10.10.0.102
