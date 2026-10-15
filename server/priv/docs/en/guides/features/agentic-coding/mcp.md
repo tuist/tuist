@@ -339,6 +339,28 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |
 | `get_bazel_cache_event` | Get one raw Bazel remote-cache observation. | `account_handle`, `project_handle`, `cache_event_id` |
 
+#### Tasks, actions, modules and files
+
+These project-scoped tools inspect persistent build identities across runs. Start with a list tool, then pass the returned stable ID to its detail or history tool with `account_handle` and `project_handle`. No build or invocation identifier is required. Detail tools return analytics for the chosen period alongside the native identity. Their metrics include `duration_samples`, the number of observations with recorded timing: genuine zero durations count, missing timing does not. This count may be lower than the observation count; unavailable duration statistics remain null.
+
+| Toolchain | List | Detail | History |
+| --- | --- | --- | --- |
+| Gradle tasks | `list_gradle_tasks` | `get_gradle_task` | `list_gradle_task_executions` |
+| Xcode cache actions | `list_xcode_cache_actions` | `get_xcode_cache_action` | `list_xcode_cache_action_events` |
+| Generated Xcode modules | `list_xcode_modules` | `get_xcode_module` | `list_xcode_module_cache_events` |
+| Bazel cache actions | `list_bazel_cache_actions` | `get_bazel_cache_action` | `list_bazel_cache_action_events` |
+| Once actions | `list_once_actions` | `get_once_action` | `list_once_action_executions` |
+| Mix files | `list_mix_files` | `get_mix_file` | `list_mix_file_compilations` |
+| Mix modules | `list_mix_modules` | `get_mix_module` | `list_mix_module_compilations` |
+
+The tools accept bounded `start_at`/`end_at` filters, `environment` (`any`, `ci`, or `local`) and an exact `branch`. List tools accept `q`; history supports opaque `after`/`before` cursors. Unknown timing or cache observations remain unavailable rather than becoming zero or misses. History references the recorded parent and native execution for drill-down using the existing run tools.
+
+Xcode and Bazel cache-action identities represent exact cache keys/digests, not a logical compilation operation across input changes. Mix module durations measure the containing file's compilation, not independently measured module work. Once actions use declared target/capability/index slots when the client reported the target mappings; diagnostic labels alone are not stable identities. Existing clients and run-level tools remain supported unchanged. Older Kura reports without a valid producer event UUID continue to appear in run-level cache tools but are not indexed into these new persistent histories.
+
+Analytics reads have bounded memory and execution time. If a query exceeds those limits, the tool returns an error instead of inventing an empty result.
+
+New observations are indexed after deployment; this feature does not backfill existing run telemetry. Identity metadata outlives individual observations under the <.localized_link href="/guides/server/data-retention">data-retention policy</.localized_link>.
+
 #### Tests
 
 | Tool | Description | Required parameters |

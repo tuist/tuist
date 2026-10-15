@@ -3,6 +3,7 @@
 This directory contains the core business logic and domain modules for the server.
 
 ## Responsibilities
+- Persistent build identities and observation queries live in `build_entities/`; see [build_entities/AGENTS.md](build_entities/AGENTS.md). Keep catalog writes buffered and duplicate-insensitive, native facts authoritative, and public terminology toolchain-specific.
 - `Tuist.BuildMetrics` normalizes Bazel, Once, Gradle and Xcode build records into one Grafana health contract. Keep aggregation in each database, apply project/range filters before aggregation, exclude processing/unfinished records, retain missing evidence as null or unknown, and preserve source-specific public run identifiers for links. Once has no elapsed cache-savings report.
 - `Tests.list_flaky_test_cases/3` applies the same identity filters to the rows and pagination count. Preserve Flop operators for suite/module filters; the search box matches test names, suite/class names, and module names. Time and environment filters scope flaky-run statistics without excluding currently flagged tests.
 - `Projects.projects_by_full_handles/1` is the batch lookup for signed analytics ingestion. Resolve current and retained account handles through `account_handle_reservations` to the owning account ID so queued events and Kura storage-tenant fallbacks survive renames. This is attribution, not authorization.

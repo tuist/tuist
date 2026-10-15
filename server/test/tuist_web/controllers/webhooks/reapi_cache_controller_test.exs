@@ -5,6 +5,8 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
   import Ecto.Query
 
   alias Tuist.Accounts
+  alias Tuist.BuildEntities
+  alias Tuist.BuildEntities.Identity
   alias Tuist.ClickHouseRepo
   alias Tuist.ReapiCache.CacheEvent
   alias Tuist.Repo
@@ -252,6 +254,64 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
       [event] = events
       assert event.id == event_id
       assert event.action_digest == "content-digest-newer-kura"
+    end
+
+    test "existing Kura batches populate the catalog and replay-safe history", %{conn: conn, project: project} do
+      event = %{
+        "account_handle" => project.account.name,
+        "project_handle" => project.name,
+        "client_kind" => "bazel",
+        "operation" => "action_cache",
+        "outcome" => "hit",
+        "action_digest" => "compile-digest",
+        "action_mnemonic" => "CppCompile",
+        "target_label" => "//:app",
+        "size" => 512,
+        "duration_us" => 2_000,
+        "observed_at_ms" => System.system_time(:millisecond),
+        "invocation_id" => "invocation-existing-protocol"
+      }
+
+      events = [
+        Map.put(event, "event_id", UUIDv7.generate()),
+        Map.merge(event, %{"event_id" => UUIDv7.generate(), "outcome" => "write"}),
+        Map.merge(event, %{"event_id" => UUIDv7.generate(), "operation" => "cas"}),
+        Map.put(event, "action_digest", "legacy-digest")
+      ]
+
+      {body, signature} = sign_request(%{"events" => events})
+
+      for _ <- 1..2 do
+        response =
+          conn
+          |> put_req_header("content-type", "application/json")
+          |> put_req_header("x-cache-signature", signature)
+          |> put_req_header("x-cache-endpoint", "cache.tuist.dev")
+          |> post(~p"/webhooks/reapi-cache", body)
+
+        assert json_response(response, 202) == %{"accepted" => 4, "rejected" => 0}
+      end
+
+      identity = %{
+        "action_digest_hash" => "compile-digest",
+        "action_mnemonic" => "CppCompile",
+        "target_label" => "//:app"
+      }
+
+      entity_id = Identity.id(project.id, :bazel, "cache_action", identity)
+      assert {[%{id: ^entity_id, observations: 2}], _meta} = BuildEntities.list(project.id, :bazel, "cache_action")
+
+      {rows, _meta} = BuildEntities.history(project.id, :bazel, "cache_action", entity_id)
+      assert length(rows) == 2
+      assert Enum.sort(Enum.map(rows, & &1.cache_status)) == ["hit_remote", "write"]
+      assert Enum.all?(rows, &(&1.parent_id == event["invocation_id"] and is_nil(&1.is_ci) and &1.duration_ms == 2))
+
+      assert %{total: %{observations: 2, hits: 1, misses: 0, hit_rate: 100.0}} =
+               BuildEntities.analytics(project.id, :bazel, "cache_action", entity_id)
+
+      assert ClickHouseRepo.exists?(
+               from(e in CacheEvent, where: e.project_id == ^project.id and e.action_digest == "legacy-digest")
+             )
     end
 
     test "ignores non-Bazel cache events", %{conn: conn, project: project} do

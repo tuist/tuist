@@ -5,6 +5,7 @@ defmodule Tuist.Builds do
 
   import Ecto.Query
 
+  alias Tuist.BuildEntities
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
   alias Tuist.Builds.BuildIssue
@@ -343,6 +344,7 @@ defmodule Tuist.Builds do
       end)
 
     CacheableTask.Buffer.insert_all(tasks)
+    BuildEntities.Producers.xcode_build(build, tasks)
   end
 
   defp create_machine_metrics(build, metrics) when is_list(metrics) do

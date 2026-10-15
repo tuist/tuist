@@ -7,6 +7,7 @@ defmodule Tuist.Gradle do
 
   import Ecto.Query
 
+  alias Tuist.BuildEntities
   alias Tuist.Builds.Build, as: BuildRun
   alias Tuist.Builds.BuildMachineMetric
   alias Tuist.ClickHouseFlop
@@ -56,7 +57,8 @@ defmodule Tuist.Gradle do
       Build.Buffer.insert(build_entry)
 
       if !Enum.empty?(tasks) do
-        create_tasks(build_id, attrs.project_id, tasks, now)
+        task_entries = create_tasks(build_id, attrs.project_id, tasks, now)
+        BuildEntities.Producers.gradle_build(build_entry, Enum.zip(tasks, task_entries))
       end
 
       machine_metrics = Map.get(attrs, :machine_metrics, [])
@@ -201,6 +203,7 @@ defmodule Tuist.Gradle do
       end)
 
     Enum.each(task_entries, &Task.Buffer.insert/1)
+    task_entries
   end
 
   defp value_or(map, key, default), do: Map.get(map, key) || default

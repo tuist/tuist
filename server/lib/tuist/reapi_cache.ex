@@ -5,6 +5,7 @@ defmodule Tuist.ReapiCache do
 
   alias Tuist.Bazel.CacheActionNames
   alias Tuist.Bazel.Invocation
+  alias Tuist.BuildEntities
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.ClickHouseTimeSeries
@@ -27,8 +28,10 @@ defmodule Tuist.ReapiCache do
         %{
           # A producer-supplied event_id becomes the row's identity so a
           # retried Kura batch dedupes via the INSERT block token below.
-          # Falls back to a server-minted UUIDv7 for an older Kura node.
-          id: Map.get(event, :event_id) || UUIDv7.generate(),
+          # Falls back to a server-minted UUIDv7 for an older Kura node, or for
+          # an event_id that is not a UUID (the webhook only requires a string),
+          # so such an event is still ingested.
+          id: row_id(event),
           client_kind: event.client_kind,
           operation: event.operation,
           outcome: event.outcome,
@@ -53,11 +56,34 @@ defmodule Tuist.ReapiCache do
         }
       end)
 
-    IngestRepo.insert_all(
-      CacheEvent,
-      entries,
-      DedupToken.insert_all_opts(events, "reapi-cache-events")
-    )
+    result =
+      IngestRepo.insert_all(
+        CacheEvent,
+        entries,
+        DedupToken.insert_all_opts(events, "reapi-cache-events")
+      )
+
+    BuildEntities.Producers.bazel_cache_events(events, entries)
+    result
+  end
+
+  @doc """
+  The producer-supplied `event_id` as the canonical UUID the event's row is
+  stored under, or `:error` when the event has none or it is not a UUID. Only
+  events with one have a row identity that is stable across retries.
+  """
+  def producer_event_id(event) do
+    case Map.get(event, :event_id) do
+      id when is_binary(id) and byte_size(id) == 36 -> Ecto.UUID.cast(id)
+      _ -> :error
+    end
+  end
+
+  defp row_id(event) do
+    case producer_event_id(event) do
+      {:ok, id} -> id
+      :error -> UUIDv7.generate()
+    end
   end
 
   defp output_path(event) do

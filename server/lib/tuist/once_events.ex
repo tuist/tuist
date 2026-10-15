@@ -19,10 +19,13 @@ defmodule Tuist.OnceEvents do
 
   alias Ecto.Multi
   alias Phoenix.PubSub
+  alias Tuist.BuildEntities
   alias Tuist.OnceEvents.Action
   alias Tuist.OnceEvents.CacheEvent
   alias Tuist.OnceEvents.Run
   alias Tuist.OnceEvents.SystemSample
+  alias Tuist.OnceEvents.TargetExecution
+  alias Tuist.OnceEvents.TargetInstance
   alias Tuist.OnceEvents.TestCaseRun
   alias Tuist.OnceEvents.TestSuiteRun
   alias Tuist.Repo
@@ -333,6 +336,47 @@ defmodule Tuist.OnceEvents do
     {:ok, length(ids)}
   end
 
+  @doc """
+  Index completed actions of recently terminal runs, including abandoned runs
+  that never sent `RunCompleted`. Replays also repair missed emission during
+  a rollout; deterministic observation IDs keep the sweep duplicate-insensitive.
+
+  The cutoff is fixed for the sweep and runs are read in 100-row keyset batches
+  through the terminal-time index. This is bounded recovery, not a backfill.
+  """
+  def publish_recent_build_entities(within_seconds \\ 7_200) do
+    now = DateTime.truncate(DateTime.utc_now(), :microsecond)
+    cutoff = DateTime.add(now, -within_seconds, :second)
+
+    query =
+      from(r in Run,
+        where: r.finalization in ["finalized", "lost"] and r.finalized_at >= ^cutoff and r.finalized_at <= ^now,
+        order_by: [asc: r.finalized_at, asc: r.id],
+        limit: 100
+      )
+
+    {:ok, publish_build_entity_batches(query, nil, 0)}
+  end
+
+  defp publish_build_entity_batches(query, cursor, count) do
+    page =
+      case cursor do
+        nil -> query
+        {at, id} -> where(query, [r], fragment("(?, ?) > (?, ?)", r.finalized_at, r.id, ^at, type(^id, :binary_id)))
+      end
+
+    case Repo.all(page) do
+      [] ->
+        count
+
+      runs ->
+        for run <- runs, do: BuildEntities.Producers.once_run(run, list_action_slots(run))
+        last = List.last(runs)
+
+        publish_build_entity_batches(query, {last.finalized_at, last.id}, count + length(runs))
+    end
+  end
+
   # Replaces a run's duration and cache event roll-ups with the sums over its
   # own rows.
   #
@@ -483,6 +527,83 @@ defmodule Tuist.OnceEvents do
     {_count, _} = Repo.insert_all(SystemSample, [row], on_conflict: :nothing)
     broadcast_run(run, {:system_sampled, run.run_id})
     :ok
+  end
+
+  @doc """
+  Record which stable `target_id` a run-local target instance resolves to.
+  Idempotent on `(once_run_id, target_instance_id)`.
+  """
+  def ingest_target_instance(%Run{} = run, attrs) do
+    row = %{
+      id: UUIDv7.generate(),
+      once_run_id: run.id,
+      target_instance_id: attrs.target_instance_id,
+      target_id: attrs.target_id,
+      configuration_digest: Map.get(attrs, :configuration_digest),
+      inserted_at: DateTime.truncate(DateTime.utc_now(), :second)
+    }
+
+    {_count, _} =
+      Repo.insert_all(TargetInstance, [row],
+        on_conflict: :nothing,
+        conflict_target: [:once_run_id, :target_instance_id]
+      )
+
+    :ok
+  end
+
+  @doc """
+  Record which target instance a run-local target execution runs. Idempotent
+  on `(once_run_id, target_execution_id)`.
+  """
+  def ingest_target_execution(%Run{} = run, attrs) do
+    row = %{
+      id: UUIDv7.generate(),
+      once_run_id: run.id,
+      target_execution_id: attrs.target_execution_id,
+      target_instance_id: attrs.target_instance_id,
+      attempt: Map.get(attrs, :attempt, 0),
+      inserted_at: DateTime.truncate(DateTime.utc_now(), :second)
+    }
+
+    {_count, _} =
+      Repo.insert_all(TargetExecution, [row],
+        on_conflict: :nothing,
+        conflict_target: [:once_run_id, :target_execution_id]
+      )
+
+    :ok
+  end
+
+  @doc """
+  A run's actions with the stable `target_id` of their target execution, or
+  `nil` when the client never reported the target mapping. One query per run.
+  """
+  def list_action_slots(%Run{} = run) do
+    Repo.all(
+      from(a in Action,
+        left_join: e in TargetExecution,
+        on: e.once_run_id == a.once_run_id and e.target_execution_id == a.target_execution_id,
+        left_join: i in TargetInstance,
+        on: i.once_run_id == e.once_run_id and i.target_instance_id == e.target_instance_id,
+        where: a.once_run_id == ^run.id,
+        select: %{
+          id: a.id,
+          target_execution_id: a.target_execution_id,
+          target_id: i.target_id,
+          capability: a.capability,
+          action_index: a.action_index,
+          identifier: a.identifier,
+          display_name: a.display_name,
+          result: a.result,
+          was_cached: a.was_cached,
+          cache_key: a.cache_key,
+          duration_ms: a.duration_ms,
+          started_at: a.started_at,
+          finished_at: a.finished_at
+        }
+      )
+    )
   end
 
   @doc """

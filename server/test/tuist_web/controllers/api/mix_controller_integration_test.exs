@@ -8,6 +8,8 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
   import Ecto.Query
   import Phoenix.ConnTest
 
+  alias Tuist.BuildEntities
+  alias Tuist.BuildEntities.Identity
   alias Tuist.Builds.BuildMachineMetric
   alias Tuist.ClickHouseRepo
   alias Tuist.Mix.Build
@@ -165,6 +167,23 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
     assert %{total: 2, rows: [greeter_file, macros_file]} = Tuist.Mix.compiled_files_page(build, sort_by: "name")
     assert greeter_file.compile_dependencies_count == 1
     assert macros_file.compile_dependents_count == 1
+
+    for {kind, field, names} <- [
+          {"file", "path", ["lib/greeter.ex", "lib/macros.ex"]},
+          {"module", "module", ["Greeter", "Macros"]}
+        ] do
+      {entries, _meta} = BuildEntities.list(project.id, :mix, kind)
+      assert Enum.sort(Enum.map(entries, & &1.name)) == names
+
+      for name <- names do
+        entity_id = Identity.id(project.id, :mix, kind, %{field => name})
+
+        assert {[%{parent_id: parent_id, status: "unknown", cache_status: "none"}], _meta} =
+                 BuildEntities.history(project.id, :mix, kind, entity_id)
+
+        assert parent_id == build.id
+      end
+    end
 
     assert [%{category: "type_check", title: "Type checking Greeter", path: "lib/greeter.ex", duration_ms: 9}] =
              ClickHouseRepo.all(from(s in Step, where: s.build_id == ^build.id))

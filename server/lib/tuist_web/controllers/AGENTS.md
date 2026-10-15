@@ -3,6 +3,7 @@
 This area owns Phoenix controllers for HTML and API endpoints.
 
 ## Responsibilities
+- `API.BuildEntityController` supplies additive native task/action/module/file controllers using shared resource descriptors and schemas. Authorize project build-read before domain queries, keep IDs scoped to project/system/kind, share bounded Params with MCP, and convert QueryLimitError to 503 rather than empty history. Existing ingestion and run-level controllers remain unchanged.
 - `LlmsTxtController` serves `/llms.txt` as the agent-facing index and `/llms-full.txt` as the complete English documentation Markdown export, including runtime CLI reference pages. Both are public plain-text responses cached for one hour.
 - `MarketingMarkdownController` serves landing-page guides and original legal documents at `/marketing-markdown[/<page>]`, plus full original static statements at `/marketing-markdown/source/<page>`, without sessions or language redirects. Unknown paths return uncacheable 404s; preserve on-premise forwarding and public marketing classification.
 - `ProjectSitemapController` serves a sitemap index and bounded public-project root pages. Select only public handles and disable caching to reflect visibility changes; never enumerate private records, settings, or unbounded build histories.
