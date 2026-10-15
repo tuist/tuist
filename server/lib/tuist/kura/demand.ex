@@ -390,9 +390,11 @@ defmodule Tuist.Kura.Demand do
     Repo.transaction(fn ->
       live_account_ids = lock_live_account_ids(Enum.map(rows, & &1.account_id))
 
+      # Overlapping batches must acquire conflict-key locks in the same order.
       rows =
         rows
         |> Enum.filter(&MapSet.member?(live_account_ids, &1.account_id))
+        |> Enum.sort_by(&{&1.account_id, &1.service_region})
         |> Enum.map(fn row ->
           row
           |> Map.put(:id, UUIDv7.generate())

@@ -10,6 +10,11 @@ remote-write rules against a local Prometheus receiver, and check all migrated
 latency queries across mixed-version rollout states. These checks need no cloud
 credentials and must never write to the production telemetry destinations.
 
+The existing runner-image release workflow runs the portable TCC report tests
+on PRs with read-only permissions and without persisted checkout credentials
+or the release token. Release planning is disabled on PRs and depends on the
+tests on release events. PR concurrency must not block release serialization.
+
 UI evidence for pull request discussions lives in `screenshots/`. Capture the
 actual UI with demo data and link images using immutable commit URLs.
 
@@ -36,7 +41,11 @@ when authentication succeeds. Main builds publish the tested artifacts to the
 private Tuist project's `nightly` preview track after distinct build, test and
 language-specific lint jobs pass; pull requests never publish. The single
 `atlas-mobile.yml` pipeline's automatic path filters include only `atlas-native/**`
-and all jobs skip draft pull requests. Mobile artifacts are debug Android APKs and
+and all jobs skip draft pull requests. Rust auth dependencies are resolved during
+Once graph loading, so SwiftLint jobs install Rust as well as SwiftLint/Once.
+The composite materializes locked third-party sources before graph validation;
+core test jobs run both navigation and authentication suites.
+Mobile artifacts are debug Android APKs and
 arm64 iOS simulator bundles, not store releases. The CLI is uploaded as a
 host-labeled archive that preserves its executable permission, not a Tuist preview.
 The Tuist project must be connected to `tuist/tuist` for GitHub OIDC access.
@@ -169,6 +178,10 @@ Atlas releases publish the image and standalone Helm chart with the same version
 ## Cloudflare configuration
 
 `workflows/cloudflare-config-tests.yml` runs the crawler-exemption scope regressions without credentials on pull requests and main changes. These tests do not validate Cloudflare's API expression parser or modify the live zone.
+
+## SwifterPM diagnostics
+
+The SwifterPM E2E workflow probes public Git HTTP status and isolated Git access after a failure. Keep probes credential-free and do not log authorization headers or change the test result.
 
 ## CodeQL
 
