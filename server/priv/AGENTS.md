@@ -39,6 +39,7 @@ This directory contains database migrations and other private assets.
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
 - REAPI cache output hints default to empty strings for historical rows and older Kura nodes. Append physical ClickHouse columns in schema order; these identifiers correlate profile descriptions and are never repository source links.
+- The Origin installation migration creates indexes concurrently and validates its provider constraint separately after adding it without validation, so existing connection writes are not blocked by an index build or constraint scan. The installation column keeps its UUID type when its nullability changes.
 - Migration filename versions must be unique within each repository. Check for collisions against main when adding migrations, and update explicit test file references if renaming a migration. Mix cache creation and I/O metrics use `20261009120100` and `20261010110100`; their prototype versions `20261009120000` and `20261010110000` collided with upstream migrations. Reconcile locally applied prototype history against the actual tables/columns before migrating.
 - Runner cache migrations create indexes concurrently with DDL transactions and
   migration locks disabled; verify both forward migration and rollback.
