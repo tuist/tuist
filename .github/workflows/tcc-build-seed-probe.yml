@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        attempt: [control-1]
+        attempt: [candidate-1]
     runs-on: tuist-staging-macos
     timeout-minutes: 75
     steps:
@@ -61,6 +61,12 @@ jobs:
           xcrun simctl boot "$udid"; xcrun simctl bootstatus "$udid" -b
           for service in microphone camera; do xcrun simctl privacy "$udid" grant "$service" dev.tuist.MediaRepro; done
           cd "$RUNNER_TEMP/MediaRepro"
+          xcodebuild test-without-building -project MediaRepro.xcodeproj -scheme MediaRepro -destination "id=$udid" \
+            -only-testing:MediaReproUITests/MediaUITests/test1_baseline \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
+            > "$RUNNER_TEMP/diag/baseline-test.log" 2>&1
+          if grep -q "Test Case.*test1_baseline.*passed" "$RUNNER_TEMP/diag/baseline-test.log"; then v=PASS; else v=FAIL; fi
+          echo "RESULT baseline-ui-test $v" | tee -a "$RUNNER_TEMP/diag/results.txt"
           xcodebuild test-without-building -project MediaRepro.xcodeproj -scheme MediaRepro -destination "id=$udid" \
             -only-testing:MediaReproUITests/MediaUITests/test6_mic \
             -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
