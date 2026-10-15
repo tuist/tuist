@@ -2,15 +2,14 @@
   "apiVersion": "dashboard.grafana.app/v1",
   "kind": "Dashboard",
   "metadata": {
-    "name": "tuist-ber1-rack"
+    "name": "tuist-racks"
   },
   "spec": {
-    "uid": "tuist-ber1-rack",
-    "title": "BER1 Rack",
+    "uid": "tuist-racks",
+    "title": "Racks",
     "tags": [
       "tuist",
-      "rack",
-      "ber1"
+      "rack"
     ],
     "editable": true,
     "graphTooltip": 1,
@@ -47,6 +46,73 @@
           "regex": "",
           "skipUrlSync": false,
           "type": "datasource"
+        },
+        {
+          "current": {
+            "selected": false,
+            "text": "tuist-production",
+            "value": "tuist-production"
+          },
+          "datasource": "$datasource",
+          "definition": "label_values(capt_rackhost_power_reachable, cluster)",
+          "hide": 0,
+          "includeAll": false,
+          "label": "Cluster",
+          "multi": false,
+          "name": "cluster",
+          "options": [],
+          "query": {
+            "qryType": 1,
+            "query": "label_values(capt_rackhost_power_reachable, cluster)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 2,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "current": {},
+          "datasource": "$datasource",
+          "definition": "label_values(capt_rackhost_power_reachable{cluster=\"$cluster\"}, site)",
+          "hide": 0,
+          "includeAll": false,
+          "label": "Site",
+          "multi": false,
+          "name": "site",
+          "options": [],
+          "query": {
+            "qryType": 1,
+            "query": "label_values(capt_rackhost_power_reachable{cluster=\"$cluster\"}, site)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 2,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "current": {
+            "selected": false,
+            "text": "1000",
+            "value": "1000"
+          },
+          "description": "The site uplink's committed rate in Mbps, drawn against throughput and its 95th percentile.",
+          "hide": 0,
+          "label": "Commit (Mbps)",
+          "name": "commit_mbps",
+          "options": [
+            {
+              "selected": true,
+              "text": "1000",
+              "value": "1000"
+            }
+          ],
+          "query": "1000",
+          "skipUrlSync": false,
+          "type": "textbox"
         }
       ]
     },
@@ -54,7 +120,7 @@
       {
         "id": 100,
         "type": "row",
-        "title": "Uplink (Cogent, wan0 on the active edge)",
+        "title": "Uplink (wan0 on the active edge)",
         "collapsed": false,
         "panels": [],
         "gridPos": {
@@ -68,7 +134,7 @@
         "id": 1,
         "type": "timeseries",
         "title": "Uplink throughput",
-        "description": "wan0 is the Cogent VLAN bond on the edges. Only the VRRP master carries traffic, so the sum over both edges is the link. Receive is download into the rack, transmit is upload. The commit is 1 Gbps on a 10G port.",
+        "description": "wan0 is the uplink VLAN bond on the site's edges. Only the VRRP master carries traffic, so the sum over the edges is the link. Receive is download into the rack, transmit is upload. The commit line is the dashboard's commit variable.",
         "datasource": "$datasource",
         "gridPos": {
           "x": 0,
@@ -101,7 +167,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(rate(node_network_receive_bytes_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m])) * 8",
+            "expr": "sum((rate(node_network_receive_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 8",
             "legendFormat": "download",
             "refId": "A",
             "range": true,
@@ -110,9 +176,18 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(rate(node_network_transmit_bytes_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m])) * 8",
+            "expr": "sum((rate(node_network_transmit_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 8",
             "legendFormat": "upload",
             "refId": "B",
+            "range": true,
+            "instant": false
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "vector($commit_mbps * 1e6)",
+            "legendFormat": "commit",
+            "refId": "C",
             "range": true,
             "instant": false
           }
@@ -122,7 +197,7 @@
         "id": 2,
         "type": "stat",
         "title": "95th percentile, last 30 days",
-        "description": "Cogent bills the 95th percentile of 5-minute samples against the 1 Gbps commit. A rolling 30 days, not the billing month.",
+        "description": "Transit is billed on the 95th percentile of 5-minute samples against the commit. A rolling 30 days, not the billing month.",
         "datasource": "$datasource",
         "gridPos": {
           "x": 16,
@@ -140,16 +215,8 @@
               "mode": "absolute",
               "steps": [
                 {
-                  "color": "green",
+                  "color": "blue",
                   "value": null
-                },
-                {
-                  "color": "yellow",
-                  "value": 800000000
-                },
-                {
-                  "color": "red",
-                  "value": 1000000000
                 }
               ]
             }
@@ -173,7 +240,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "quantile_over_time(0.95, (sum(rate(node_network_receive_bytes_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m])) * 8)[30d:5m])",
+            "expr": "quantile_over_time(0.95, (sum((rate(node_network_receive_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 8)[30d:5m])",
             "legendFormat": "download",
             "refId": "A",
             "range": false,
@@ -182,9 +249,18 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "quantile_over_time(0.95, (sum(rate(node_network_transmit_bytes_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m])) * 8)[30d:5m])",
+            "expr": "quantile_over_time(0.95, (sum((rate(node_network_transmit_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 8)[30d:5m])",
             "legendFormat": "upload",
             "refId": "B",
+            "range": false,
+            "instant": true
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "vector($commit_mbps * 1e6)",
+            "legendFormat": "commit",
+            "refId": "C",
             "range": false,
             "instant": true
           }
@@ -227,7 +303,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance) (rate(node_network_transmit_bytes_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m]) + rate(node_network_receive_bytes_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m])) * 8",
+            "expr": "sum by (instance) ((rate(node_network_transmit_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m]) + rate(node_network_receive_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 8",
             "legendFormat": "{{instance}}",
             "refId": "A",
             "range": true,
@@ -272,7 +348,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance) (rate(node_network_receive_errs_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m]) + rate(node_network_transmit_errs_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m]))",
+            "expr": "sum by (instance) ((rate(node_network_receive_errs_total{cluster=\"$cluster\", device=\"wan0\"}[5m]) + rate(node_network_transmit_errs_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
             "legendFormat": "errors {{instance}}",
             "refId": "A",
             "range": true,
@@ -281,7 +357,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance) (rate(node_network_receive_drop_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m]) + rate(node_network_transmit_drop_total{device=\"wan0\", instance=~\"ber1-edge-.*\"}[5m]))",
+            "expr": "sum by (instance) ((rate(node_network_receive_drop_total{cluster=\"$cluster\", device=\"wan0\"}[5m]) + rate(node_network_transmit_drop_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
             "legendFormat": "drops {{instance}}",
             "refId": "B",
             "range": true,
@@ -306,7 +382,7 @@
         "id": 5,
         "type": "stat",
         "title": "Probe success",
-        "description": "Probed every 30 s from each rack Linux host. Any HTTP status counts: what is measured is reaching the service.",
+        "description": "Probed every 30 s from each of the site's Linux hosts. Any HTTP status counts: what is measured is reaching the service.",
         "datasource": "$datasource",
         "gridPos": {
           "x": 0,
@@ -353,7 +429,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "min by (target) (probe_success{job=\"rack-path\"})",
+            "expr": "min by (target) (((probe_success{job=\"rack-path\", cluster=\"$cluster\", target!=\"uplink-gateway\"} or probe_success{job=\"rack-path\", cluster=\"$cluster\", target=\"uplink-gateway\", gateway_site=\"$site\"})) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
             "legendFormat": "{{target}}",
             "refId": "A",
             "range": false,
@@ -365,7 +441,7 @@
         "id": 6,
         "type": "timeseries",
         "title": "Round trip (ICMP)",
-        "description": "cogent-gateway is the first hop; anycast-reference is 1.1.1.1. A rise on both points at the uplink, on the reference only at Cogent's network beyond the gateway.",
+        "description": "uplink-gateway is the site's first hop; anycast-reference is 1.1.1.1. A rise on both points at the uplink, on the reference only at the transit network beyond the gateway.",
         "datasource": "$datasource",
         "gridPos": {
           "x": 0,
@@ -398,7 +474,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "avg by (target) (probe_icmp_duration_seconds{job=\"rack-path\", phase=\"rtt\"})",
+            "expr": "avg by (target) (((probe_icmp_duration_seconds{job=\"rack-path\", cluster=\"$cluster\", target!=\"uplink-gateway\", phase=\"rtt\"} or probe_icmp_duration_seconds{job=\"rack-path\", cluster=\"$cluster\", target=\"uplink-gateway\", gateway_site=\"$site\", phase=\"rtt\"})) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
             "legendFormat": "{{target}}",
             "refId": "A",
             "range": true,
@@ -443,7 +519,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "avg by (target) (probe_duration_seconds{job=\"rack-path\", target!~\"cogent-gateway|anycast-reference\"})",
+            "expr": "avg by (target) ((probe_duration_seconds{job=\"rack-path\", cluster=\"$cluster\", target!~\"uplink-gateway|anycast-reference\"}) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
             "legendFormat": "{{target}}",
             "refId": "A",
             "range": true,
@@ -488,7 +564,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "1 - avg by (target) (avg_over_time(probe_success{job=\"rack-path\", target=~\"cogent-gateway|anycast-reference\"}[15m]))",
+            "expr": "1 - avg by (target) ((avg_over_time((probe_success{job=\"rack-path\", cluster=\"$cluster\", target!=\"uplink-gateway\", target=~\"uplink-gateway|anycast-reference\"} or probe_success{job=\"rack-path\", cluster=\"$cluster\", target=\"uplink-gateway\", gateway_site=\"$site\", target=~\"uplink-gateway|anycast-reference\"})[15m:])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
             "legendFormat": "{{target}}",
             "refId": "A",
             "range": true,
@@ -546,7 +622,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "max by (instance) (macos_sensor_temperature_celsius{rack_host=\"true\", sensor=~\"PMU tdie.*\"})",
+            "expr": "max by (instance) ((macos_sensor_temperature_celsius{cluster=\"$cluster\", rack_host=\"true\", sensor=~\"PMU tdie.*\"}) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
             "legendFormat": "{{instance}}",
             "refId": "A",
             "range": true,
@@ -591,7 +667,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "max by (instance) (macos_thermal_pressure_level{rack_host=\"true\"})",
+            "expr": "max by (instance) ((macos_thermal_pressure_level{cluster=\"$cluster\", rack_host=\"true\"}) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
             "legendFormat": "{{instance}}",
             "refId": "A",
             "range": true,
@@ -636,7 +712,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "max by (instance) (macos_fan_speed_rpm{rack_host=\"true\"})",
+            "expr": "max by (instance) ((macos_fan_speed_rpm{cluster=\"$cluster\", rack_host=\"true\"}) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
             "legendFormat": "{{instance}}",
             "refId": "A",
             "range": true,
@@ -681,7 +757,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (host) (capt_rackhost_outlet_active_power_watts{cluster=\"tuist-production\"})",
+            "expr": "sum by (host) (capt_rackhost_outlet_active_power_watts{cluster=\"$cluster\", site=\"$site\"})",
             "legendFormat": "{{host}}",
             "refId": "A",
             "range": true,
@@ -753,7 +829,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "max by (ats) (capt_rackats_redundant{cluster=\"tuist-production\"})",
+            "expr": "max by (ats) (capt_rackats_redundant{cluster=\"$cluster\", site=\"$site\"})",
             "legendFormat": "{{ats}}",
             "refId": "A",
             "range": false,
@@ -812,7 +888,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "max by (switch) (rack_switch_up{cluster=\"tuist-production\"})",
+            "expr": "max by (switch) (rack_switch_up{cluster=\"$cluster\", site=\"$site\"})",
             "legendFormat": "{{switch}}",
             "refId": "A",
             "range": false,
@@ -867,8 +943,8 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(max by (host) (capt_rackhost_power_reachable{cluster=\"tuist-production\"}))",
-            "legendFormat": "minis",
+            "expr": "sum(max by (host) (capt_rackhost_power_reachable{cluster=\"$cluster\", site=\"$site\"}))",
+            "legendFormat": "reachable",
             "refId": "A",
             "range": false,
             "instant": true
@@ -876,8 +952,8 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "count(max by (host) (capt_rackhost_power_reachable{cluster=\"tuist-production\"}))",
-            "legendFormat": "of",
+            "expr": "count(max by (host) (capt_rackhost_power_reachable{cluster=\"$cluster\", site=\"$site\"}))",
+            "legendFormat": "hosts",
             "refId": "B",
             "range": false,
             "instant": true

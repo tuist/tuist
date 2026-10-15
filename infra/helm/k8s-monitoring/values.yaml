@@ -1027,8 +1027,9 @@ k8s-monitoring:
       # from it, which is what a KuraInstance's nodeSelector pins
       # (Tuist.Kura.Regions node_pool, one pool per region), so that a node
       # counts towards its region's capacity before a cache pod lands on it.
+      # The rack dashboards read a rack node's site from it.
       metricLabelsAllowlist:
-        - nodes=[node.cluster.x-k8s.io/pool]
+        - nodes=[node.cluster.x-k8s.io/pool,node.cluster.x-k8s.io/rack-site]
       rbac:
         extraRules:
           - apiGroups: ["kura.tuist.dev"]
@@ -2447,18 +2448,22 @@ k8s-monitoring:
           forward_to = [prometheus.remote_write.tuist_alloy_receiver.receiver]
         }
 
-        // The rack's view of its uplink and of the services its jobs pull
-        // from, probed from inside the rack: round trip to the Cogent gateway
-        // and to an anycast reference, and connect, TLS and first-byte
-        // timings to GitHub, GitHub's registry, Tigris and the Tuist edge.
-        // Any status counts as a response; what is measured is the path.
+        // A rack's view of its uplink and of the services its jobs pull from,
+        // probed from inside every rack: round trip to each site's uplink
+        // gateway and to an anycast reference, and connect, TLS and
+        // first-byte timings to GitHub, GitHub's registry, Tigris and the
+        // Tuist edge. Any status counts as a response; what is measured is
+        // the path. A site's gateway is `management.edge.wan.gateway` in
+        // infra/rack-switch-fleet/sites/<site>.json, labelled gateway_site so
+        // a dashboard pairs it with that site's own hosts.
         prometheus.exporter.blackbox "rack_path" {
           config = "{ modules: { icmp: { prober: icmp, timeout: 5s, icmp: { preferred_ip_protocol: ip4, ip_protocol_fallback: false } }, https: { prober: http, timeout: 10s, http: { preferred_ip_protocol: ip4, ip_protocol_fallback: false, no_follow_redirects: true, valid_status_codes: [200, 301, 302, 307, 308, 400, 401, 403, 404] } } } }"
 
           target {
-            name    = "cogent-gateway"
+            name    = "uplink-gateway-ber1"
             address = "149.6.170.30"
             module  = "icmp"
+            labels  = {"gateway_site" = "ber1"}
           }
 
           target {
@@ -2498,6 +2503,12 @@ k8s-monitoring:
             source_labels = ["job"]
             regex = "(?:.*/)?([^/]+)"
             target_label = "target"
+          }
+          rule {
+            source_labels = ["target"]
+            regex = "uplink-gateway-.+"
+            target_label = "target"
+            replacement = "uplink-gateway"
           }
           rule {
             target_label = "job"

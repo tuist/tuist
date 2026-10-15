@@ -374,6 +374,13 @@ and the Mac fleets' dashboards and alerts select a fleet by it: the PN VLAN
 alert in `infra/helm/k8s-monitoring/alerts.md` excludes rack minis by
 `-rack-fleet-`.
 
+**The Machine carries the host's site** as `node.cluster.x-k8s.io/rack-site`
+(`infrav1.RackSiteNodeLabel`), and so does a rack Linux host's. Cluster API
+syncs labels in that domain from a Machine to its Node, kube-state-metrics
+allowlists it, and the Racks dashboard reads a node's site from
+`kube_node_labels` rather than from its name. A host with no `location.site`
+gets no label.
+
 **The fleet's MachineHealthCheck remediates through the host.** A check only
 marks a Machine (`OwnerRemediated=False`); its owner remediates it. The
 RackHost controller deletes a Machine so marked and makes a new one, which
