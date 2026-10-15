@@ -56,10 +56,18 @@ jobs:
         run: |
           if [ -z "$ROUNDS" ]; then
             ROUNDS='[
+              {"shape": "6vcpu-14gb", "guests": 1},
+              {"shape": "6vcpu-14gb", "guests": 2},
+              {"shape": "8vcpu-19gb", "guests": 2},
+              {"shape": "8vcpu-24gb", "guests": 1},
+              {"shape": "8vcpu-24gb", "guests": 2},
+              {"shape": "12vcpu-28gb", "guests": 1},
               {"shape": "16vcpu-48gb", "guests": 1}
             ]'
           fi
-          echo "rounds=$(jq -c '[.[] | . + {slots: [range(1; .guests + 1)]}]' <<< "$ROUNDS")" >> "$GITHUB_OUTPUT"
+          # Two passes, the second in reverse order, so drift over the night
+          # (thermals, the host's caches) does not favour one shape.
+          echo "rounds=$(jq -c '[.[] | . + {slots: [range(1; .guests + 1)]}] as $r | [($r[] | . + {pass: 1}), ($r | reverse | .[] | . + {pass: 2})]' <<< "$ROUNDS")" >> "$GITHUB_OUTPUT"
 
   round:
     needs: plan
@@ -73,6 +81,7 @@ jobs:
       runs_on: bench-ber1-${{ matrix.round.shape }}
       shape: ${{ matrix.round.shape }}
       guests: ${{ matrix.round.guests }}
+      pass: ${{ matrix.round.pass }}
       slots: ${{ toJSON(matrix.round.slots) }}
       app_tests: ${{ github.event_name == 'push' || inputs.app_tests }}
     secrets: inherit
@@ -91,9 +100,9 @@ jobs:
       - name: Tabulate
         run: |
           {
-            echo "| Shape | Guests | Slot | Guest vCPU | Guest GiB | CLI builds (s) | CLI median (s) | TuistApp test (s) | TuistApp exit | Build avg CPU % | Build time at >=90% CPU | Peak mem GiB |"
-            echo "|---|---|---|---|---|---|---|---|---|---|---|---|"
-            jq -rs 'sort_by(.guest_vcpus, .guests, .slot)[] | "| \(.shape) | \(.guests) | \(.slot) | \(.guest_vcpus) | \(.guest_memory_gib) | \(.cli_build_seconds // [] | map(tostring) | join(" / ")) | \(.cli_build_seconds // [] | sort | if length > 0 then .[length / 2 | floor] else null end) | \(.app_test_seconds) | \(.app_test_exit) | \(.avg_cpu_percent) | \(.pegged_percent)% | \(.peak_memory_gib) |"' results/*.json
+            echo "| Shape | Guests | Pass | Slot | Guest vCPU / GiB | CLI builds (s) | CLI CPU % | Unit tests build (s) | Unit CPU % / >=90% | TuistApp test (s) | Peak mem GiB |"
+            echo "|---|---|---|---|---|---|---|---|---|---|---|"
+            jq -rs 'sort_by(.guest_vcpus, .guest_memory_gib, .guests, .pass, .slot)[] | "| \(.shape) | \(.guests) | \(.pass) | \(.slot) | \(.guest_vcpus) / \(.guest_memory_gib) | \(.cli_build_seconds // [] | map(tostring) | join(" / ")) | \(.cli_avg_cpu_percent) | \(.unit_build_seconds) (exit \(.unit_build_exit)) | \(.unit_avg_cpu_percent) / \(.unit_pegged_percent)% | \(.app_test_seconds) (exit \(.app_test_exit)) | \(.peak_memory_gib) |"' results/*.json
           } >> "$GITHUB_STEP_SUMMARY"
           jq -s . results/*.json > results.json
       - uses: actions/upload-artifact@v4

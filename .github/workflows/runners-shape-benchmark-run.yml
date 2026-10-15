@@ -1,6 +1,6 @@
 name: Runners Shape Benchmark Run
 
-# One shape of runners-shape-benchmark.yml: the same cold workloads in each
+# One round of runners-shape-benchmark.yml: the same cold workloads in each
 # of `slots` at once.
 
 on:
@@ -12,6 +12,10 @@ on:
       shape:
         type: string
         required: true
+      pass:
+        description: Which pass of the benchmark this round belongs to
+        type: number
+        default: 1
       guests:
         description: Guests running at once on the host
         type: number
@@ -29,7 +33,7 @@ permissions:
 
 jobs:
   run:
-    name: ${{ inputs.shape }} x${{ inputs.guests }} slot ${{ matrix.slot }}
+    name: ${{ inputs.shape }} x${{ inputs.guests }} pass ${{ inputs.pass }} slot ${{ matrix.slot }}
     runs-on: ${{ inputs.runs_on }}
     timeout-minutes: 120
     strategy:
@@ -44,6 +48,7 @@ jobs:
       SHAPE: ${{ inputs.shape }}
       SLOT: ${{ matrix.slot }}
       GUESTS: ${{ inputs.guests }}
+      PASS: ${{ inputs.pass }}
     steps:
       - name: Describe the guest
         run: |
@@ -87,14 +92,13 @@ jobs:
           chmod +x "$RUNNER_TEMP/sampler.sh"
           nohup "$RUNNER_TEMP/sampler.sh" "$RUNNER_TEMP/samples.txt" >/dev/null 2>&1 &
           echo $! > "$RUNNER_TEMP/sampler.pid"
-      # Three cold builds per guest, each into an empty DerivedData, so one VM
-      # boot yields three samples. Each build's window is kept so the CPU
-      # figures cover the builds alone.
-      - name: Build the CLI cold
+      # Each workload runs into an empty DerivedData with no binary or
+      # compilation cache, and its window is kept so CPU figures cover it alone.
+      - name: Build the CLI cold, twice
         run: |
           tuist generate tuist --cache-profile none --no-open
           times=()
-          for i in 1 2 3; do
+          for i in 1 2; do
             rm -rf "$RUNNER_TEMP/dd-cli"
             start=$(date +%s)
             rc=0
@@ -108,11 +112,36 @@ jobs:
               tail -n 60 "$RUNNER_TEMP/cli-build-$i.log"
               exit "$rc"
             fi
-            echo "$start $end" >> "$RUNNER_TEMP/build-windows.txt"
+            echo "$start $end" >> "$RUNNER_TEMP/cli-windows.txt"
             times+=("$(( end - start ))")
             echo "build $i: $(( end - start ))s"
           done
+          rm -rf "$RUNNER_TEMP/dd-cli"
           echo "cli_build_seconds=[$(IFS=,; echo "${times[*]}")]" >> "$RUNNER_TEMP/result.env"
+      # Every unit test target and the modules under them: a much wider graph
+      # than the CLI alone, so it shows how far extra cores carry.
+      - name: Build the unit tests cold
+        continue-on-error: true
+        run: |
+          tuist generate --cache-profile none --no-open
+          start=$(date +%s)
+          rc=0
+          xcodebuild build-for-testing -workspace Tuist.xcworkspace -scheme TuistUnitTests -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "$RUNNER_TEMP/dd-unit" \
+            COMPILATION_CACHE_ENABLE_CACHING=NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            > "$RUNNER_TEMP/unit-build.log" 2>&1 || rc=$?
+          end=$(date +%s)
+          tail -n 5 "$RUNNER_TEMP/unit-build.log"
+          [ "$rc" -eq 0 ] || tail -n 60 "$RUNNER_TEMP/unit-build.log"
+          echo "$start $end" > "$RUNNER_TEMP/unit-windows.txt"
+          rm -rf "$RUNNER_TEMP/dd-unit"
+          {
+            echo "unit_build_seconds=$(( end - start ))"
+            echo "unit_build_exit=$rc"
+            echo "unit_build_start=$start"
+            echo "unit_build_end=$end"
+          } >> "$RUNNER_TEMP/result.env"
+          exit "$rc"
       - name: Build and test TuistApp cold
         if: ${{ inputs.app_tests }}
         continue-on-error: true
@@ -134,33 +163,45 @@ jobs:
           kill "$(cat "$RUNNER_TEMP/sampler.pid")" 2>/dev/null || true
           # shellcheck disable=SC1090
           source "$RUNNER_TEMP/result.env"
-          # CPU over the CLI builds' windows, peak memory over the whole job.
-          stats=$(awk '
-            NR == FNR {ws[NR] = $1; we[NR] = $2; nw = NR; next}
-            {if ($3 > m) m = $3
-             for (i = 1; i <= nw; i++) if ($1 >= ws[i] && $1 <= we[i]) {n++; s += $2; if ($2 >= 90) p++; break}}
-            END {if (n) printf "%.0f %.0f %.1f\n", s/n, p*100/n, m; else printf "null null %.1f\n", m}' \
-            "$RUNNER_TEMP/build-windows.txt" "$RUNNER_TEMP/samples.txt" 2>/dev/null || echo "null null null")
-          read -r avg pegged peak <<< "$stats"
+          # CPU over one workload's windows: average, and share of samples at
+          # or above 90%.
+          window_stats() {
+            awk '
+              NR == FNR {ws[NR] = $1; we[NR] = $2; nw = NR; next}
+              {for (i = 1; i <= nw; i++) if ($1 >= ws[i] && $1 <= we[i]) {n++; s += $2; if ($2 >= 90) p++; break}}
+              END {if (n) printf "%.0f %.0f\n", s/n, p*100/n; else print "null null"}' \
+              "$1" "$RUNNER_TEMP/samples.txt" 2>/dev/null || echo "null null"
+          }
+          read -r cli_cpu cli_pegged <<< "$(window_stats "$RUNNER_TEMP/cli-windows.txt")"
+          read -r unit_cpu unit_pegged <<< "$(window_stats "$RUNNER_TEMP/unit-windows.txt")"
+          peak=$(awk '{if ($3 > m) m = $3} END {printf "%.1f\n", m + 0}' "$RUNNER_TEMP/samples.txt" 2>/dev/null || echo null)
           mkdir -p bench
-          cat > "bench/$SHAPE-x$GUESTS-$SLOT.json" <<EOF
+          out="bench/$SHAPE-x$GUESTS-p$PASS-$SLOT.json"
+          cat > "$out" <<EOF
           {
             "shape": "$SHAPE",
             "guests": $GUESTS,
+            "pass": $PASS,
             "slot": $SLOT,
             "guest_vcpus": ${guest_vcpus:-null},
             "guest_memory_gib": ${guest_memory_gib:-null},
             "cli_build_seconds": ${cli_build_seconds:-null},
+            "cli_avg_cpu_percent": ${cli_cpu},
+            "cli_pegged_percent": ${cli_pegged},
+            "unit_build_seconds": ${unit_build_seconds:-null},
+            "unit_build_exit": ${unit_build_exit:-null},
+            "unit_build_start": ${unit_build_start:-null},
+            "unit_build_end": ${unit_build_end:-null},
+            "unit_avg_cpu_percent": ${unit_cpu},
+            "unit_pegged_percent": ${unit_pegged},
             "app_test_seconds": ${app_test_seconds:-null},
             "app_test_exit": ${app_test_exit:-null},
-            "avg_cpu_percent": ${avg},
-            "pegged_percent": ${pegged},
             "peak_memory_gib": ${peak}
           }
           EOF
-          cat "bench/$SHAPE-x$GUESTS-$SLOT.json"
+          cat "$out"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: bench-${{ inputs.shape }}-x${{ inputs.guests }}-${{ matrix.slot }}
+          name: bench-${{ inputs.shape }}-x${{ inputs.guests }}-p${{ inputs.pass }}-${{ matrix.slot }}
           path: bench/*.json
