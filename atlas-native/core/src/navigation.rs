@@ -26,6 +26,12 @@ pub static SECTIONS: &[Section] = &[
         description: c"Shared knowledge and documents",
         url: c"https://atlas.tuist.dev/library/notes",
     },
+    Section {
+        id: "ai-providers",
+        title: c"AI providers",
+        description: c"Connect your personal Claude and ChatGPT accounts",
+        url: c"https://atlas.tuist.dev/settings/llm-providers",
+    },
 ];
 
 pub fn field(section: i32, field: i32) -> Option<&'static CStr> {
@@ -88,6 +94,7 @@ mod tests {
                 "https://atlas.tuist.dev/commercial/sales/accounts",
                 "https://atlas.tuist.dev/tasks",
                 "https://atlas.tuist.dev/library/notes",
+                "https://atlas.tuist.dev/settings/llm-providers",
             ]
         );
     }

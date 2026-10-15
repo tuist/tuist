@@ -62,6 +62,10 @@ Once's required APK signing. Local setups need `ANDROID_DEBUG_KEYSTORE` or
 Silicon macOS, Xcode, and an installed iOS simulator runtime. Do not switch this workspace to Gradle,
 SwiftPM, or generated Xcode projects to work around Once build failures.
 
+## Personal AI provider settings
+
+- The shared catalog exposes `AI providers` at `/settings/llm-providers` on the selected Atlas server. iOS, Android, and CLI share this destination; configuration currently opens in the system browser like the other workspace sections and may require a separate sign-in. Provider credentials stay encrypted on Atlas, not in native preferences or model tool arguments. A native API-backed settings screen and user-triggered agent execution are separate follow-up features.
+
 ## Boundaries
 
 - Navigation C strings are immutable, process-lifetime pointers. Never free them
