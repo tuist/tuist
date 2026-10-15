@@ -24,27 +24,39 @@ public struct NooraDropdown<Option: Identifiable & CustomStringConvertible>: Vie
                 }
             }
         } label: {
-            HStack(spacing: Noora.Spacing.spacing2) {
-                Text(currentOption.description)
-                    .font(.title2)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-
-                NooraIcon(.chevronDown)
-                    .frame(width: 20, height: 20)
-                    .foregroundColor(Noora.Colors.buttonSecondaryLabel)
-            }
-            .padding(Noora.Spacing.spacing3)
-            .background(Noora.Colors.surfaceBackgroundTertiary)
-            .cornerRadius(Noora.CornerRadius.medium)
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(
-                        Color(light: Noora.Colors.neutralGray24Alpha, dark: Color(hex: 0x696C72, alpha: 0.45)),
-                        lineWidth: 0.5
-                    )
-            )
+            NooraDropdownLabel(text: currentOption.description)
         }
+    }
+}
+
+public struct NooraDropdownLabel: View {
+    private let text: String
+
+    public init(text: String) {
+        self.text = text
+    }
+
+    public var body: some View {
+        HStack(spacing: Noora.Spacing.spacing2) {
+            Text(text)
+                .font(.title2)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+
+            NooraIcon(.chevronDown)
+                .frame(width: 20, height: 20)
+                .foregroundColor(Noora.Colors.buttonSecondaryLabel)
+        }
+        .padding(Noora.Spacing.spacing3)
+        .background(Noora.Colors.surfaceBackgroundTertiary)
+        .cornerRadius(Noora.CornerRadius.medium)
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(
+                    Color(light: Noora.Colors.neutralGray24Alpha, dark: Color(hex: 0x696C72, alpha: 0.45)),
+                    lineWidth: 0.5
+                )
+        )
     }
 }
 

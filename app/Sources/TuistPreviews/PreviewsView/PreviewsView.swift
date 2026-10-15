@@ -54,6 +54,38 @@ public struct PreviewsView: View {
                             )
                             .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
 
+                            HStack(spacing: Noora.Spacing.spacing3) {
+                                Text("Showing")
+                                    .font(.title2)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(Noora.Colors.surfaceLabelPrimary)
+
+                                Menu {
+                                    Picker("Track", selection: Binding(
+                                        get: { viewModel.selectedTrack },
+                                        set: { selectTrack($0) }
+                                    )) {
+                                        Text("All Tracks").tag(nil as String?)
+                                        ForEach(viewModel.trackOptions, id: \.self) { track in
+                                            Text(track).tag(Optional(track))
+                                        }
+                                    }
+                                    .pickerStyle(.inline)
+                                } label: {
+                                    NooraDropdownLabel(text: viewModel.selectedTrack ?? "All Tracks")
+                                }
+                                .disabled(viewModel.trackOptions.isEmpty)
+                                .accessibilityLabel("Filter by track")
+                                .accessibilityValue(viewModel.selectedTrack ?? "All Tracks")
+                                .accessibilityIdentifier("preview-track-menu")
+                            }
+                            .padding(.bottom, Noora.Spacing.spacing4)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(
+                                EdgeInsets(top: 0, leading: Noora.Spacing.spacing7, bottom: 0, trailing: Noora.Spacing.spacing7)
+                            )
+                            .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
+
                             if !viewModel.isTrackSelectionSupported {
                                 Text("Update your self-hosted Tuist server to select a track.")
                                     .font(.footnote)
@@ -157,30 +189,6 @@ public struct PreviewsView: View {
             }
             .navigationTitle("Previews")
             .navigationBarTitleDisplayMode(.automatic)
-            .toolbar {
-                if viewModel.selectedProject != nil {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Menu {
-                            Picker("Track", selection: Binding(
-                                get: { viewModel.selectedTrack },
-                                set: { selectTrack($0) }
-                            )) {
-                                Text("All Tracks").tag(nil as String?)
-                                ForEach(viewModel.trackOptions, id: \.self) { track in
-                                    Text(track).tag(Optional(track))
-                                }
-                            }
-                            .pickerStyle(.inline)
-                        } label: {
-                            Text(viewModel.selectedTrack ?? "All Tracks")
-                        }
-                        .disabled(viewModel.trackOptions.isEmpty)
-                        .accessibilityLabel("Filter by track")
-                        .accessibilityValue(viewModel.selectedTrack ?? "All Tracks")
-                        .accessibilityIdentifier("preview-track-menu")
-                    }
-                }
-            }
             .background(Noora.Colors.surfaceBackgroundPrimary)
             .navigationDestination(for: ServerPreview.self) { preview in
                 PreviewView(preview: preview, fullHandle: viewModel.selectedProject!.fullName)
