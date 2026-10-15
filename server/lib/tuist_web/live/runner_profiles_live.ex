@@ -67,6 +67,8 @@ defmodule TuistWeb.RunnerProfilesLive do
          |> assign(:form_memory_gb, profile.memory_gb)
          |> assign(:form_xcode_version, profile.xcode_version)
          |> assign(:form_cache_writer_branches, profile.cache_writer_branches)
+         |> assign(:form_cache_branch_value, "")
+         |> assign(:form_cache_branch_error, nil)
          |> assign(:form_cache_saving_expanded, false)
          |> assign(:form_error, nil)
          |> push_event("open-modal", %{id: @modal_id})}
@@ -94,8 +96,8 @@ defmodule TuistWeb.RunnerProfilesLive do
     {:noreply, assign(socket, :form_cache_saving_expanded, not socket.assigns.form_cache_saving_expanded)}
   end
 
-  def handle_event("add_cache_writer_branch", %{"branch" => branch}, socket) when is_binary(branch) do
-    branch = String.trim(branch)
+  def handle_event("add_cache_writer_branch", %{"branch" => value}, socket) when is_binary(value) do
+    branch = String.trim(value)
 
     cond do
       branch == "" ->
@@ -108,13 +110,15 @@ defmodule TuistWeb.RunnerProfilesLive do
          socket
          |> assign(:form_cache_writer_branches, Enum.uniq(branches ++ [branch]))
          |> update(:form_cache_branch_input, &(&1 + 1))
-         |> assign(:form_error, nil)}
+         |> assign(:form_cache_branch_value, "")
+         |> assign(:form_cache_branch_error, nil)}
 
       true ->
         {:noreply,
-         assign(
-           socket,
-           :form_error,
+         socket
+         |> assign(:form_cache_branch_value, value)
+         |> assign(
+           :form_cache_branch_error,
            dgettext("dashboard_runners", "Use a branch name, optionally with * to match any characters.")
          )}
     end
@@ -122,11 +126,11 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   def handle_event("remove_cache_writer_branch", %{"data" => branch}, socket) do
     branches = List.delete(shown_cache_writer_branches(socket.assigns), branch)
-    {:noreply, socket |> assign(:form_cache_writer_branches, branches) |> assign(:form_error, nil)}
+    {:noreply, socket |> assign(:form_cache_writer_branches, branches) |> assign(:form_cache_branch_error, nil)}
   end
 
   def handle_event("use_default_cache_writer_branch", _params, socket) do
-    {:noreply, socket |> assign(:form_cache_writer_branches, nil) |> assign(:form_error, nil)}
+    {:noreply, socket |> assign(:form_cache_writer_branches, nil) |> assign(:form_cache_branch_error, nil)}
   end
 
   def handle_event("select_platform", params, socket) do
@@ -301,6 +305,8 @@ defmodule TuistWeb.RunnerProfilesLive do
     |> assign(:form_name, "")
     |> assign(:form_cache_writer_branches, nil)
     |> assign(:form_cache_branch_input, 0)
+    |> assign(:form_cache_branch_value, "")
+    |> assign(:form_cache_branch_error, nil)
     |> assign(:form_cache_saving_expanded, false)
     |> assign(:form_error, nil)
     |> set_platform_defaults("linux")

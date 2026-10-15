@@ -202,10 +202,15 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
       html = render_hook(lv, "add_cache_writer_branch", %{"branch" => "feature branch"})
 
-      assert html =~ "Use a branch name, optionally with * to match any characters."
+      assert html =~ ~r/data-variant="destructive">.*Use a branch name, optionally with \* to match any characters\./s
+      refute html =~ ~s(class="noora-alert")
+      refute html =~ "Jobs and pull requests from these branches save their changes."
       refute html =~ ~s(<span data-part="label">feature branch<)
+      assert html =~ ~s(value="feature branch")
+      html = render_hook(lv, "add_cache_writer_branch", %{"branch" => "feature"})
+      refute html =~ "Use a branch name, optionally with * to match any characters."
       render_hook(lv, "save_profile", %{})
-      assert %{cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
+      assert %{cache_writer_branches: ["main", "feature"]} = Profiles.get_by_name(account, "ci")
     end
   end
 end

@@ -233,8 +233,10 @@
                     type="basic"
                     id={"runner-profile-cache-writer-branch-#{@form_cache_branch_input}"}
                     name="branch"
-                    value=""
+                    value={@form_cache_branch_value}
                     placeholder={dgettext("dashboard_runners", "e.g. main, release/* or *")}
+                    error={@form_cache_branch_error}
+                    show_error_message={false}
                     phx-mounted={@form_cache_branch_input > 0 && JS.focus()}
                   />
                   <.button
@@ -243,7 +245,12 @@
                     label={dgettext("dashboard_runners", "Add")}
                   />
                 </.form>
-                <span data-part="hint">
+                <.hint_text
+                  :if={@form_cache_branch_error}
+                  label={@form_cache_branch_error}
+                  variant="destructive"
+                />
+                <span :if={is_nil(@form_cache_branch_error)} data-part="hint">
                   {dgettext(
                     "dashboard_runners",
                     "Jobs and pull requests from these branches save their changes. Use * as a wildcard."
