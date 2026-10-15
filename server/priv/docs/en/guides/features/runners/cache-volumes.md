@@ -119,7 +119,7 @@ this job's changes), and `commit: 'true'` (request a save). Both `auto` and `tru
 remain subject to the runner profile's cache saving policy and successful job completion;
 `true` cannot grant a branch permission or save a failed job. If the job lacks permission at attachment, the action emits a warning and its changes are discarded.
 
-Account administrators configure **Cache saving** on each runner profile under
+Account administrators configure **Save cache from** on each runner profile under
 **Runners → Profiles**. The policy applies to every custom volume attached by
 GitHub Actions jobs that run on the profile, including volumes created later:
 

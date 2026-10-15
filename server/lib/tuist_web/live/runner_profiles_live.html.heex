@@ -194,7 +194,7 @@
                 phx-click="toggle_cache_saving_section"
               >
                 <span data-part="section-heading">
-                  <span data-part="title">{dgettext("dashboard_runners", "Cache saving")}</span>
+                  <span data-part="title">{dgettext("dashboard_runners", "Save cache from")}</span>
                   <span data-part="summary">
                     {cache_saving_summary(
                       @form_cache_any_branch_writes,
@@ -224,7 +224,7 @@
                     <span data-part="description">
                       {dgettext(
                         "dashboard_runners",
-                        "Successful jobs from any branch in the repository save cache volume changes. Forks never save."
+                        "Successful jobs from any branch in the repository save. Forks never do."
                       )}
                     </span>
                   </div>
@@ -247,7 +247,7 @@
                     hint={
                       dgettext(
                         "dashboard_runners",
-                        "The default branch always saves. Pull requests from these branches save too."
+                        "Pull requests from these branches also save."
                       )
                     }
                     phx-debounce="200"

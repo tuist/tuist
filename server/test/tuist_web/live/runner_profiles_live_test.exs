@@ -161,7 +161,7 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       refute html =~ ~s(<th><span>Cache saving</span></th>)
 
       html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
-      assert html =~ "Only the default branch saves."
+      assert html =~ ~r/data-part="summary">\s*Default branch\s*</
       assert html =~ ~s(aria-expanded="false")
       assert html =~ ~r/id="runner-profile-cache-saving-panel"[^>]*hidden/
 
@@ -172,7 +172,7 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       html =
         render_hook(lv, "update_cache_writer_branches", %{"cache_writer_branches" => " release/1.0\n\nfeature \n"})
 
-      assert html =~ "The default branch and 2 more branches save."
+      assert html =~ ~r/data-part="summary">\s*Default branch \+ 2 more\s*</
       render_hook(lv, "save_profile", %{})
 
       assert %{cache_writer_branches: ["feature", "release/1.0"], cache_any_branch_writes: false} =
@@ -182,7 +182,7 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       assert html =~ "release/1.0"
       assert html =~ ~s(aria-expanded="false")
       html = render_hook(lv, "toggle_cache_any_branch_writes", %{})
-      assert html =~ "Any branch in the repository saves."
+      assert html =~ ~r/data-part="summary">\s*Any branch\s*</
       refute html =~ ~s(id="runner-profile-cache-writer-branches")
       render_hook(lv, "save_profile", %{})
 

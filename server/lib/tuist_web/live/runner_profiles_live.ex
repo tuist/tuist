@@ -349,21 +349,21 @@ defmodule TuistWeb.RunnerProfilesLive do
   end
 
   @doc """
-  One-line summary of the cache saving policy being edited, shown on the
+  Summary of the cache saving policy being edited, shown on the
   collapsed section.
   """
-  def cache_saving_summary(true, _branches), do: dgettext("dashboard_runners", "Any branch in the repository saves.")
+  def cache_saving_summary(true, _branches), do: dgettext("dashboard_runners", "Any branch")
 
   def cache_saving_summary(false, branches) do
     case parse_cache_writer_branches(branches) do
       [] ->
-        dgettext("dashboard_runners", "Only the default branch saves.")
+        dgettext("dashboard_runners", "Default branch")
 
       branches ->
         dngettext(
           "dashboard_runners",
-          "The default branch and %{count} more branch save.",
-          "The default branch and %{count} more branches save.",
+          "Default branch + %{count} more",
+          "Default branch + %{count} more",
           length(branches)
         )
     end
