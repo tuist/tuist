@@ -2,7 +2,9 @@
 //! capacity-rejected data, so every retained body and metadata record is checked.
 use crate::{
     backfill::{
-        pass::{BackfillPassOutcome, BackfillPassTuning, run_backfill_pass_with_tuning},
+        pass::{
+            BackfillPassOutcome, BackfillPassTuning, PassSource, run_backfill_pass_with_tuning,
+        },
         window::BackfillWindow,
     },
     http::BackfillBodyManifestMeta,
@@ -298,6 +300,7 @@ async fn reconcile_retained_corpus(
     // Keep ordinary capacity/version/tombstone rules; the subsequent full
     // verification, never pass completion, is what authorizes the transfer.
     let mut tuning = BackfillPassTuning::from_config(&state.config);
+    tuning.source = PassSource::RetainedIndex;
     tuning.feed_rows = false;
     tuning.bandwidth_shaped = false;
     let cancel = CancellationToken::new();
@@ -775,6 +778,85 @@ mod tests {
         // A retry after freezing is idempotent and needs no peer I/O.
         server.abort();
         verify_inner(state, request).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn retained_repair_keeps_newer_work_queued_before_capacity_cutoff() {
+        use crate::segment::{reference::SegmentReference, state::SegmentState};
+
+        let source = test_context(|_| {}).await;
+        let target = test_context(|config| config.cas_capacity_bytes = Some(1)).await;
+        for (ctx, key, version) in [
+            (&source, "newer", 1000),
+            (&source, "older", 400),
+            (&target, "older", 400),
+        ] {
+            ctx.state
+                .store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    b"retained body",
+                    version,
+                )
+                .await
+                .unwrap();
+        }
+        let mut ring = SegmentState::default();
+        for (index, stat) in [500, 600, 650, 700, 750].into_iter().enumerate() {
+            let mut reference =
+                SegmentReference::new(format!("capacity-{index}"), index as u64 + 1);
+            reference.max_version_ms = Some(stat);
+            match index {
+                0 => ring.old.push(reference),
+                1 | 2 => ring.current.push(reference),
+                _ => ring.new.push(reference),
+            }
+        }
+        target
+            .state
+            .store
+            .install_segment_state_for_testing(ring)
+            .await
+            .unwrap();
+        let (url, server) = serve(source.state.clone()).await;
+        let request = begin_request(&target.state, url);
+        *source.state.store.handover_hold.lock().unwrap() = Some(request.intent.id.clone());
+        let entries = source
+            .state
+            .store
+            .backfill_index_page_ascending(0, None, 10, u64::MAX, None)
+            .unwrap()
+            .entries;
+        assert_eq!(entries.len(), 2);
+        let mut expected = Vec::new();
+        for entry in entries {
+            expected.push(
+                record(
+                    &source.state,
+                    entry.kind,
+                    &entry.record_id,
+                    entry.version_ms,
+                )
+                .await
+                .unwrap()
+                .unwrap(),
+            );
+        }
+        // The older retained record is already present. Listing it must not
+        // cancel the newer missing record queued in the same response page.
+        assert!(expected.iter().any(|r| r.version == 1000));
+        verify_inner(&target.state, request).await.unwrap();
+        for record in expected {
+            verify_record(&target.state, &record).await.unwrap();
+        }
+        assert_eq!(
+            target.state.store.handover_hold.lock().unwrap().as_deref(),
+            Some("repair")
+        );
+        server.abort();
     }
 
     #[tokio::test]

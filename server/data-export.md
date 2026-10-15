@@ -61,13 +61,15 @@ GitHub's repository retention settings.
 ### Atlas upstream server configuration
 
 Atlas stores administrator-managed upstream server names, endpoint and OAuth
-authorization addresses, requested scopes, read-only policy, and timestamps in
-`mcp_server_configurations`. These installation-level records contain no
-credentials. Per-user authorization tokens remain encrypted in
-`mcp_oauth_sessions` and are excluded from exports. Removing a managed server
-deletes its associated sessions. Export the server rows with the installation's
-configuration records when the request covers Atlas operations; retain them
-until an administrator removes them.
+authorization addresses, authentication type, requested scopes, read-only policy,
+and timestamps in `mcp_server_configurations`. Shared bearer API keys are stored
+encrypted in that table's `bearer_token` column and are excluded from exports,
+management-tool responses, and audit arguments. Per-user authorization tokens
+remain encrypted in `mcp_oauth_sessions` and are excluded from exports. Removing
+a managed server deletes its shared key and associated sessions; switching to
+OAuth clears its shared key. Export only the non-credential server columns with
+the installation's configuration records when the request covers Atlas
+operations; retain them until an administrator removes them.
 
 ### Error Diagnostics
 
@@ -309,7 +311,13 @@ The network address is recorded so that authentication failures, which carry no
 account, can be attributed to a source at all; it is the only personal data in
 these records beyond the account handle. Sign-in attempts additionally carry an
 explicit outcome. Logs deliberately exclude credentials, tokens, and request
-bodies.
+bodies. Genuine action-cache misses additionally carry `cache_outcome=miss`;
+only 1% of their routine GET 404 completion entries are retained. Operator-access
+audit records and unexpected failures are exempt from that sampling. Oban
+lifecycle logs retain worker, job ID, queue, attempt, state, and timings, but do
+not copy job arguments or metadata. Bounded exception diagnostics can still
+contain worker-provided details. These changes introduce no new data store or
+retention duration.
 
 ### Website localization analytics
 

@@ -447,6 +447,7 @@ defmodule TuistWeb.API.CacheController do
 
     if is_nil(cache_action_item) do
       conn
+      |> assign(:cache_outcome, :miss)
       |> put_status(:not_found)
       |> json(%{message: "The item doesn't exist in the cache."})
     else

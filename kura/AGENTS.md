@@ -21,12 +21,16 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   A named destination reconciles the source’s complete retained index before
   taking its hold. Keep this pass serialized, bounded by normal replication
   resources and the intent deadline, cancellable on authoritative abort, and
-  subject to capacity/version/tombstone rules. Repair completion never replaces
+  subject to capacity/version/tombstone rules. Evaluate repair capacity per
+  record at listing and dispatch: an older listing must not cancel newer
+  queued claims. Ordinary backward catch-up keeps its pass-wide cutoff.
+  Repair completion never replaces
   the final full-corpus verification or authorizes promotion.
   Qualification fixtures and their simulator limits are documented in
   [`test/e2e/serving-authority/AGENTS.md`](test/e2e/serving-authority/AGENTS.md).
 - High-level architecture overview: `docs/architecture.md` — start here when onboarding or reasoning about how subsystems interact
 - Entry points: `src/main.rs`, `src/app.rs`
+- `src/metrics.rs` exports route and transport-only public latency histograms with identical buckets. Cached and dynamic routes must observe each once. Resource qualification guidance lives in `docs/metrics-cost-controls.md`; record measurements in the pull request description. Hosted collector migration is staged in `../infra/helm/k8s-monitoring/README.md`; preserve route counts/sums and chunking diagnostics, and do not thin replication latency further.
 - Startup recovery: `src/startup.rs` owns the bootstrap health listener, progress watchdog and process signals. Keep cache and peer traffic disabled until exclusive store recovery completes; transfer the existing bound socket into the serving listener. Eviction scan pages and commits advance recovery progress, never a timer heartbeat. Keep interruption typed through cleanup so a requested shutdown exits successfully without reporting startup failure; preserve live reverse pointers until their targets are deleted in the same batch.
 - Bazel dependency fetching: [`src/reapi/asset/AGENTS.md`](src/reapi/asset/AGENTS.md), [protocol and rollout](docs/remote-assets.md).
 - `src/runtime.rs` exposes a race-safe drain notification for cancellable origin fetches. Cache hits bypass origin-download admission; active fetches release their gRPC guards when drain begins.

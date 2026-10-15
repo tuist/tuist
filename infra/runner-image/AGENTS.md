@@ -81,6 +81,49 @@ right after login. Without a busy timeout, `sqlite3` failed with
 whose log tail reaches Loki, search the `tuist-macos-tart-kubelet`
 `runner log` lines for it.
 
+Some jobs still fail with an immediate `-1743` although boot logs approval.
+`dispatch-poll.sh` streams TCC at Info level as newline-delimited JSON, so
+multiline request bodies retain their service and target fields. At exit it
+appends `dispatch-poll: tcc:` lines after the job output: Finder grant rows,
+database inode/birth time, tccd start times, and AppleEvents request summaries.
+Requests are keyed by daemon PID and message ID; no-ID attribution/decision
+events use the most recent request on the same daemon thread. This is
+best-effort adjacency, not a proven cause or perfect correlation after dropped
+events. Other explicit services are excluded. Parse only the latest MiB;
+retain the last observed `authValue=0` denial and nine recent requests, capped
+below the host's 200-line/64-KiB tail. An `authValue=1` undetermined state is a
+fallback only when no explicit denial is captured. Older requests can fall
+outside this window.
+
+Stream shutdown has a one-second kill grace; report work has a five-second
+deadline and one-second grace, so diagnostics do not indefinitely delay normal
+VM teardown. Only still-running shell-owned stream jobs are signalled, and the
+saved PID is cleared. Capture failure must not change the job's exit code.
+The raw stream is temporary inside the guest and grows for the job lifetime;
+only the bounded report is exported. No grants, probes, or daemon reloads are
+introduced. Remove the capture when the failure is understood.
+
+The iOS Simulator's microphone is another TCC gap. A simulator app that
+records audio (`AVAudioSession` in `.playAndRecord`, `AVAudioEngine`'s
+input node, or a video-call SDK) reaches the host microphone through
+coreaudiod. TCC charges that to `com.apple.CoreSimulator.SimulatorTrampoline`
+in the session user's database. Without a row, the user tccd shows a
+consent prompt nobody answers. The app's audio call never returns, its main
+thread stalls, and XCUITest fails with `Failed to get matching snapshots:
+Timed out while evaluating UI query` or `Unable to monitor event loop`.
+`dispatch-poll.sh` (`approve_simulator_microphone`) writes the same row
+GitHub-hosted images ship (bundle-ID client, `client_type` 0), at boot,
+after `approve_finder_automation` has waited for the database. The guest
+logs `Simulator microphone approved`. The iOS-level permission inside the
+simulator (`simctl privacy`, the in-app alert) is separate and stays the
+job's responsibility. Simulators have no camera, so
+`AVCaptureDevice.default(for: .video)` is nil there on any host.
+
+Run `bash infra/runner-image/tcc-report_test.sh` from the checkout. Tests use
+synthetic JSON and temporary SQLite/processes, never host privacy APIs. The
+existing release workflow runs them on PRs and before releases with a separate
+read-only test job; PR events never plan, build, publish, or deploy images.
+
 The sanity checks at the end of the Packer template run as `sudo
 -u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
 leaves them pointed at `/Users/admin` and they assert against the

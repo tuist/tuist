@@ -76,7 +76,8 @@ defmodule Tuist.Application do
   end
 
   defp start_telemetry do
-    Oban.Telemetry.attach_default_logger()
+    Oban.Telemetry.attach_default_logger(events: [:notifier, :peer, :plugin, :queue, :stager])
+    TuistCommon.ObanLogger.attach()
     TuistCommon.ObanTelemetry.attach()
     TransportLogger.attach(:tuist)
     QueryErrorContext.attach()
@@ -364,6 +365,7 @@ defmodule Tuist.Application do
           {Cachex, [:tuist, []]},
           Tuist.Authentication.TokenVerificationCache,
           Tuist.Authentication.SubjectCache,
+          Tuist.OpenGraphImages,
           TuistWeb.PublicOverviewCache,
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},

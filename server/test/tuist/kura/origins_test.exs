@@ -1,11 +1,14 @@
 defmodule Tuist.Kura.OriginsTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.Accounts
   alias Tuist.Kura.OriginRollup
   alias Tuist.Kura.Origins
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
+
+  setup :set_mimic_from_context
 
   setup do
     user = AccountsFixtures.user_fixture()
@@ -70,6 +73,38 @@ defmodule Tuist.Kura.OriginsTest do
   end
 
   describe "upsert_many/1" do
+    test "inserts rows in account, origin and date order", %{account: first} do
+      second = AccountsFixtures.account_fixture()
+      earlier = ~D[2025-12-31]
+      later = ~D[2026-01-01]
+
+      rows = [
+        Map.put(row(second, "FR", 1, 0), :date, earlier),
+        Map.put(row(first, "US-VA", 2, 1), :date, earlier),
+        Map.put(row(first, "FR", 3, 2), :date, later),
+        Map.put(row(first, "FR", 4, 3), :date, earlier)
+      ]
+
+      test_pid = self()
+
+      stub(Repo, :insert_all, fn schema, rows, opts ->
+        send(test_pid, {:insert_all, schema, rows})
+        Mimic.call_original(Repo, :insert_all, [schema, rows, opts])
+      end)
+
+      assert {:ok, 4} = Origins.upsert_many(rows)
+      assert_received {:insert_all, OriginRollup, inserted_rows}
+
+      assert Enum.map(inserted_rows, &{&1.account_id, &1.origin, &1.date}) == [
+               {first.id, "FR", earlier},
+               {first.id, "FR", later},
+               {first.id, "US-VA", earlier},
+               {second.id, "FR", earlier}
+             ]
+
+      assert Repo.aggregate(OriginRollup, :count) == 4
+    end
+
     test "adds to what the day already holds rather than replacing it", %{account: account} do
       Origins.upsert_many([row(account, "FR", 3, 1)])
       Origins.upsert_many([row(account, "FR", 4, 2)])

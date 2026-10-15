@@ -1,12 +1,13 @@
 import ArgumentParser
 import Foundation
+import TuistNooraExtension
 import TuistSupport
 
 /// Tells the server that every test run gathering coverage for a commit has reported. Meant for
 /// the last job of a CI pipeline, the one that depends on every test job: the commit's coverage
 /// is then complete, it chains into its branch's trend, and the pull request's `tuist/coverage`
 /// check, pending until now, gets its verdict.
-public struct CoverageCompleteCommand: AsyncParsableCommand {
+public struct CoverageCompleteCommand: AsyncParsableCommand, NooraReadyCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -39,6 +40,8 @@ public struct CoverageCompleteCommand: AsyncParsableCommand {
 
     @Flag(help: "Print the commit's coverage as JSON.", envKey: .coverageCompleteJSON)
     var json: Bool = false
+
+    public var jsonThroughNoora: Bool = true
 
     public func run() async throws {
         try await CoverageCompleteCommandService().run(

@@ -1120,12 +1120,12 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
-  # Public EU West runs on these four OVH nodes in Gravelines. Keep the
+  # Public EU West runs on these five OVH nodes in Gravelines. Keep the
   # historical pool name: live KuraInstances, local PVs and gateways still
   # select it. All Dedibox hosts have been retired.
   eu-west:
     enabled: true
-    replicas: 4
+    replicas: 5
     endpoint: ovh-us
     nodePool: kura-dedibox
     machine:

@@ -73,6 +73,11 @@ runs:
       working-directory: atlas-native
       run: mise exec -- once auth login --provider tuist --no-browser
 
+    - name: Materialize locked Rust dependencies
+      shell: bash
+      working-directory: atlas-native
+      run: mise run prepare:rust
+
     - name: Validate graph
       shell: bash
       working-directory: atlas-native
@@ -122,6 +127,7 @@ runs:
         name: atlas-native-tests-${{ inputs.platform }}
         path: |
           atlas-native/.once/out/AtlasCoreTests/test/
+          atlas-native/.once/out/AtlasAuthTests/test/
           atlas-native/.once/out/AtlasCLITests/test/
           atlas-native/.once/out/AtlasIOSTests/test/
         if-no-files-found: ignore
