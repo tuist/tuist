@@ -173,7 +173,7 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       render_hook(lv, "add_cache_writer_branch", %{"branch" => "feature"})
       html = render_hook(lv, "remove_cache_writer_branch", %{"data" => "main"})
       assert html =~ "Jobs and pull requests from these branches save their changes. Use * as a wildcard."
-      refute html =~ ~r/data-part="summary">\s*release/
+      refute html =~ ~s(data-part="summary")
       html = render_hook(lv, "toggle_cache_saving_section", %{})
       assert html =~ ~r/data-part="summary">\s*release\/\*, feature\s*</
       assert html =~ "Use default branch"

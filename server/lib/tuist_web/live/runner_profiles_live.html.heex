@@ -195,14 +195,8 @@
               >
                 <span data-part="section-heading">
                   <span data-part="title">{dgettext("dashboard_runners", "Save cache from")}</span>
-                  <span data-part="summary">
-                    {if @form_cache_saving_expanded,
-                      do:
-                        dgettext(
-                          "dashboard_runners",
-                          "Jobs and pull requests from these branches save their changes. Use * as a wildcard."
-                        ),
-                      else: cache_saving_summary(@form_cache_writer_branches)}
+                  <span :if={not @form_cache_saving_expanded} data-part="summary">
+                    {cache_saving_summary(@form_cache_writer_branches)}
                   </span>
                 </span>
                 <span data-part="section-chevron"><.chevron_down /></span>
@@ -249,6 +243,12 @@
                     label={dgettext("dashboard_runners", "Add")}
                   />
                 </.form>
+                <span data-part="hint">
+                  {dgettext(
+                    "dashboard_runners",
+                    "Jobs and pull requests from these branches save their changes. Use * as a wildcard."
+                  )}
+                </span>
                 <.button
                   :if={not is_nil(@form_cache_writer_branches)}
                   type="button"

@@ -1715,7 +1715,7 @@ msgid_plural "%{branches} + %{count} more"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:249
+#: lib/tuist_web/live/runner_profiles_live.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "Add"
 msgstr ""
@@ -1725,7 +1725,7 @@ msgstr ""
 msgid "No branches"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:229
+#: lib/tuist_web/live/runner_profiles_live.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "No branches save their changes."
 msgstr ""
@@ -1740,12 +1740,12 @@ msgstr ""
 msgid "Use default branch"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:243
+#: lib/tuist_web/live/runner_profiles_live.html.heex:237
 #, elixir-autogen, elixir-format
 msgid "e.g. main, release/* or *"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:201
+#: lib/tuist_web/live/runner_profiles_live.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "Jobs and pull requests from these branches save their changes. Use * as a wildcard."
 msgstr ""
