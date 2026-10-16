@@ -261,6 +261,8 @@ defmodule AtlasWeb.Router do
       live "/", OverviewLive, :index
       live "/demo", DemoLive, :index
       live "/tasks", TasksLive, :index
+      live "/people/time-off", TimeOffLive, :index
+      live "/people/time-off/settings", TimeOffLive, :settings
       live "/commercial/sales", SalesLive, :index
       live "/commercial/sales/accounts", AccountsLive, :index
       live "/commercial/sales/accounts/:id", AccountLive, :show
