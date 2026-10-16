@@ -2840,6 +2840,7 @@ absent_over_time(
 
 - Pending period: 0 minutes
 - Severity: critical
+- Grafana rule: `bg1ewhe80qosgc`
 - Summary: `Oban queue-age telemetry is missing for
   {{ $labels.queue }} in {{ $labels.cluster }}`
 
