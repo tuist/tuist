@@ -385,7 +385,10 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       XcodeFixtures.xcode_target_fixture(command_event_id: event.id, name: "A", binary_cache_hit: :local)
       Commits.signal_complete(project, "c0")
 
-      assert %{git_commit_sha: "c0", reported_kind: "partial", coverage: 0.0} = History.head_commit(project, "feature")
+      assert %{git_commit_sha: "c0", reported_kind: "partial", coverage: coverage} =
+               History.head_commit(project, "feature")
+
+      assert coverage == 0.0
       assert "feature" in History.branches(project)
       assert Enum.map(History.commit_cursor_page(project, "feature").commits, &Commits.status/1) == [:incomplete]
     end
