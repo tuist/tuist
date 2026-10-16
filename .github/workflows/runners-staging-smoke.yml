@@ -96,8 +96,10 @@ jobs:
               const container = original.spec.template.spec.containers.find(c => c.image === 'ghcr.io/tuist/tuist-xcresult-processor:0.196.2');
               assert(container, 'Expected current processor image');
               container.image = 'ghcr.io/tuist/tuist-xcresult-processor:0.206.0';
+              // The chart emits this upgrade-only clearing field; the API prunes null.
+              if (planned.spec.strategy.type === 'Recreate' && planned.spec.strategy.rollingUpdate === null) delete planned.spec.strategy.rollingUpdate;
             }
-            assert.deepEqual(original, planned, 'No unrelated resource changes');
+            assert(same(original, planned), 'No unrelated resource changes');
           }
           console.log('Preflight passed: exactly two new stable pools, catalog environment, and processor image; nothing else changes.');
           JS
