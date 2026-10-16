@@ -120,28 +120,42 @@ defmodule Tuist.OAuth.NoCacheTest do
     end
   end
 
-  test "client grants and public scopes remain authoritative" do
+  test "client grant additions and removals remain authoritative" do
     client = create_client()
-    name = "scope:#{client.id}"
-    scope = Repo.insert!(%Scope{name: name, public: true})
+    scope = create_scope()
     assert Clients.authorized_scopes(client) == []
-    assert Enum.any?(Scopes.public(), &(&1.id == scope.id))
-    assert Enum.any?(Scopes.all(), &(&1.id == scope.id))
+    update_client_scopes(client, [scope])
+    assert Enum.map(Clients.authorized_scopes(client), & &1.name) == [scope.name]
+    update_client_scopes(client, [])
+    assert Clients.authorized_scopes(client) == []
+  end
 
+  test "public scopes observe visibility changes after an earlier lookup" do
+    scope = create_scope()
+    assert Enum.any?(Scopes.public(), &(&1.id == scope.id))
+    scope |> Ecto.Changeset.change(public: false) |> Repo.update!()
+    refute Enum.any?(Scopes.public(), &(&1.id == scope.id))
+    assert Enum.any?(Scopes.all(), &(&1.id == scope.id))
+  end
+
+  test "all scopes observe deletion after an earlier lookup" do
+    scope = create_scope()
+    assert Enum.any?(Scopes.all(), &(&1.id == scope.id))
+    Repo.delete!(scope)
+    refute Enum.any?(Scopes.all(), &(&1.id == scope.id))
+  end
+
+  defp create_scope do
+    Repo.insert!(%Scope{name: "scope:#{Ecto.UUID.generate()}", public: true})
+  end
+
+  defp update_client_scopes(client, scopes) do
     Client
     |> Repo.get!(client.id)
     |> Repo.preload(:authorized_scopes)
     |> Ecto.Changeset.change()
-    |> Ecto.Changeset.put_assoc(:authorized_scopes, [scope])
+    |> Ecto.Changeset.put_assoc(:authorized_scopes, scopes)
     |> Repo.update!()
-
-    assert Enum.map(Clients.authorized_scopes(client), & &1.name) == [name]
-    scope |> Ecto.Changeset.change(public: false) |> Repo.update!()
-    refute Enum.any?(Scopes.public(), &(&1.id == scope.id))
-    assert Enum.any?(Scopes.all(), &(&1.id == scope.id))
-    Repo.delete!(Repo.get!(Scope, scope.id))
-    refute Enum.any?(Scopes.all(), &(&1.id == scope.id))
-    assert Clients.authorized_scopes(client) == []
   end
 
   defp create_client do
