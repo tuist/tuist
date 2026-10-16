@@ -6082,9 +6082,11 @@ max by (fleet) (
 ```
 
 - Pending period: 15 minutes
-- Already created: rule `ffvr99w48mltsb`, folder `Alerts`, group `Runners`.
-  It carries no receiver of its own (the one it was created with was dropped on
-  2026-09-10), so it routes through the default notification policy.
+- Already created: rule `ffvr99w48mltsb`, folder `Alerts`, group `Runners`,
+  receiver `Slack #notifications 2`. An edit on 2026-09-10 dropped the receiver,
+  leaving the rule on the default notification policy, and it was restored on
+  2026-10-16. A Grafana rule update replaces the whole rule, so carry
+  `notification_settings` over when editing it.
 - Unpaused on 2026-10-16, once the one-off backfill had repaired every
   diverged row and the gauge read 0.
 - Counts jobs whose ClickHouse `runner_jobs` row is still
