@@ -8,7 +8,8 @@ This node covers the Tuist Android companion app under `android/`. The app provi
   - `TuistApplication.kt` - Hilt application class
   - `data/` - Data layer (auth, network, models, environment config)
   - `navigation/` - Navigation graph and routes
-  - `ui/` - Compose UI (theme, login screen, projects screen)
+  - `ui/home/` - Extensible landing screen; see `app/src/main/java/dev/tuist/app/ui/home/AGENTS.md`.
+  - `ui/` - Compose UI (theme, login, Home dashboard, previews, profile). Home is the default tab and shows the five newest previews for the selected project with a link to the full Previews browser. `navigation/HomeScreen.kt` owns a shared `PreviewsViewModel` so both tabs use the same project selection and data; tab navigation saves and restores each tab's state.
 - `app/src/main/res/` - Resources (icons, drawables, strings, themes)
 
 ## Technology Stack

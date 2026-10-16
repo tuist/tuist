@@ -229,7 +229,7 @@ private fun PreviewsContent(
 }
 
 @Composable
-private fun ProjectDropdown(
+internal fun ProjectDropdown(
     projects: List<dev.tuist.app.api.model.Project>,
     selectedProject: dev.tuist.app.api.model.Project,
     onProjectSelected: (dev.tuist.app.api.model.Project) -> Unit,
@@ -283,7 +283,7 @@ private fun ProjectDropdown(
 }
 
 @Composable
-private fun PreviewRow(preview: Preview, onClick: () -> Unit) {
+internal fun PreviewRow(preview: Preview, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

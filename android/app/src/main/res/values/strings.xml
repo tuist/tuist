@@ -8,6 +8,9 @@
     <string name="sign_in_google">Sign in with Google</string>
     <string name="sign_in_github">Sign in with GitHub</string>
     <string name="projects_title">Projects</string>
+    <string name="home_title">Home</string>
+    <string name="recent_previews">Recent previews</string>
+    <string name="see_all">See all</string>
     <string name="previews_title">Previews</string>
     <string name="sign_out">Sign out</string>
     <string name="retry">Retry</string>

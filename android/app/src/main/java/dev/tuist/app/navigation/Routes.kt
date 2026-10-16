@@ -14,6 +14,9 @@ sealed class Routes {
 @Serializable
 sealed class HomeTabs {
     @Serializable
+    data object Home : HomeTabs()
+
+    @Serializable
     data object Previews : HomeTabs()
 
     @Serializable

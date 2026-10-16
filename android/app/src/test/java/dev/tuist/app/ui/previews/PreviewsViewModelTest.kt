@@ -140,6 +140,7 @@ class PreviewsViewModelTest {
         val state = viewModel.uiState.value as PreviewsUiState.Success
         assertEquals(project2, state.selectedProject)
         assertEquals(previews2, state.previews)
+        assertEquals(previews2, state.recentPreviews)
     }
 
     @Test
@@ -233,6 +234,48 @@ class PreviewsViewModelTest {
         viewModel.signOut()
 
         verify(exactly = 1) { authRepository.signOut() }
+    }
+
+    @Test
+    fun `recent previews contains five newest without limiting the full list`() {
+        val previews = (8 downTo 1).map { index ->
+            createPreview("$index", "Preview $index").copy(insertedAt = "2025-01-0${index}T00:00:00Z")
+        }
+        val state = PreviewsUiState.Success(
+            projects = listOf(createProject(1, "tuist/app")),
+            selectedProject = createProject(1, "tuist/app"),
+            previews = previews,
+            hasMorePreviews = true,
+        )
+
+        assertEquals(listOf("8", "7", "6", "5", "4"), state.recentPreviews.map { it.id })
+        assertEquals(8, state.previews.size)
+    }
+
+    @Test
+    fun `recent previews supports empty and short lists`() {
+        val state = PreviewsUiState.Success(
+            projects = listOf(createProject(1, "tuist/app")),
+            selectedProject = createProject(1, "tuist/app"),
+            previews = emptyList(),
+            hasMorePreviews = false,
+        )
+        assertTrue(state.recentPreviews.isEmpty())
+        val preview = createPreview("1", "Preview")
+        assertEquals(listOf(preview), state.copy(previews = listOf(preview)).recentPreviews)
+    }
+
+    @Test
+    fun `recent previews preserves server order without parsing timestamps`() {
+        val older = createPreview("older", "Older").copy(insertedAt = "invalid")
+        val newer = createPreview("newer", "Newer").copy(insertedAt = "2025-01-02T00:00:00Z")
+        val state = PreviewsUiState.Success(
+            projects = listOf(createProject(1, "tuist/app")),
+            selectedProject = createProject(1, "tuist/app"),
+            previews = listOf(newer, older),
+            hasMorePreviews = false,
+        )
+        assertEquals(listOf("newer", "older"), state.recentPreviews.map { it.id })
     }
 
     private fun createProject(id: Int, fullName: String): Project {
