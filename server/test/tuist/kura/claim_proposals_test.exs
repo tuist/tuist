@@ -557,6 +557,30 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert Repo.get!(ClaimProposal, proposal.id).status == :open
     end
 
+    test "a full rack cache holds back the account's growth in every region", %{account: account, server: server} do
+      us_east = pin!(server, "16Gi")
+      rack = account |> insert_server!("ber1-runners") |> pin!("16Gi")
+
+      proposal =
+        Repo.insert!(%ClaimProposal{
+          account_id: account.id,
+          region: "us-east",
+          direction: :grow,
+          current_claim_size: "16Gi",
+          recommended_claim_size: "32Gi",
+          evidence: %{"region" => "us-east"}
+        })
+
+      refuse_growth_in("ber1-runners")
+
+      assert {:error, {"ber1-runners", :capacity_exhausted}} = Kura.apply_claim_proposal(proposal, "automatic")
+
+      assert Repo.get!(Server, us_east.id).storage_claim_size == "16Gi"
+      assert Repo.get!(Server, rack.id).storage_claim_size == "16Gi"
+      assert PlacerClaims.claim_for(account) == nil
+      assert Repo.get!(ClaimProposal, proposal.id).status == :open
+    end
+
     test "a claim that moved since the proposal supersedes instead of applying", %{account: account} do
       seed_churn_rollups(account, 14, @today)
       {:ok, _summary} = ClaimProposals.sweep(@today)

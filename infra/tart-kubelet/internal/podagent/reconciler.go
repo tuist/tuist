@@ -188,6 +188,11 @@ type Reconciler struct {
 	// event emission.
 	Recorder record.EventRecorder
 
+	// Images picks where a golden base's image is pulled from: a rack image
+	// cache that holds it (`--image-mirror`), else the image's own registry.
+	// Nil pulls every image from its own registry.
+	Images *ImageSources
+
 	// goldenMu guards goldenLocks; goldenLocks serializes golden-base
 	// materialization per image digest so two Pods admitted close
 	// together don't both run the one-time pull+clone for the same
@@ -392,13 +397,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if err := r.createPod(ctx, pod); err != nil {
-		logger.Error(err, "create failed; will retry")
+		reason := "TartCreateFailed"
+		if errors.Is(err, errMirrorSyncing) {
+			reason = "ImageCacheSyncing"
+			logger.Info("waiting for the rack image cache", "reason", err.Error())
+		} else {
+			logger.Error(err, "create failed; will retry")
+		}
 		// Surface the failure to the API server immediately so
 		// `kubectl describe pod` shows it.
 		_ = r.publishStatus(ctx, pod, &corev1.PodStatus{
 			Phase:   corev1.PodPending,
 			Message: err.Error(),
-			Reason:  "TartCreateFailed",
+			Reason:  reason,
 		})
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
@@ -704,7 +715,7 @@ func isGoldenVMName(name string) bool {
 //
 // CONTRACT: this prefix and the hash (the same 8-byte SHA-256 prefix of the
 // image ref that goldenVMName embeds) MUST match the runners-controller's
-// `podtemplate.goldenNodeLabelPrefix` / `goldenNodeAffinityKey`. They live in
+// `podtemplate.goldenNodeLabelPrefix` / `GoldenNodeAffinityKey`. They live in
 // separate Go modules, coupled by convention, not shared code.
 const goldenNodeLabelPrefix = "tuist.dev/golden-"
 
@@ -771,23 +782,12 @@ func (r *Reconciler) ensureGolden(ctx context.Context, image string) (name strin
 		log.FromContext(ctx).Error(getErr, "golden warm-path probe failed; taking cold path (may re-pull)", "golden", name)
 	}
 
-	// Cold path: pull + materialize once. Mirror the disk-pressure
-	// handling the per-recycle pull used to have so a full host frees
-	// space and retries rather than wedging the digest's first
-	// provision. RunOnceReclaim is the aggressive variant: under genuine
-	// no-space it evicts even within-retention unreferenced goldens,
-	// which a non-aggressive pass would keep.
-	if pullErr := r.Tart.Pull(ctx, image); pullErr != nil {
-		if r.GC != nil && IsNoSpaceError(pullErr) {
-			r.GC.RunOnceReclaim(ctx)
-			if pullErr2 := r.Tart.Pull(ctx, image); pullErr2 != nil {
-				return "", false, fmt.Errorf("tart pull (after gc): %w", pullErr2)
-			}
-		} else {
-			return "", false, fmt.Errorf("tart pull: %w", pullErr)
-		}
+	// Cold path: pull + materialize once.
+	pulled, err := r.pullGoldenImage(ctx, image)
+	if err != nil {
+		return "", false, err
 	}
-	if cloneErr := r.Tart.Clone(ctx, image, name); cloneErr != nil {
+	if cloneErr := r.Tart.CloneFrom(ctx, pulled.ref, name, pulled.insecure); cloneErr != nil {
 		// A half-created golden (clone failed mid-way) would make every
 		// later clone-from-golden fail. Best-effort delete so the next
 		// provision re-materializes from scratch.
@@ -795,6 +795,63 @@ func (r *Reconciler) ensureGolden(ctx context.Context, image string) (name strin
 		return "", false, fmt.Errorf("materialize golden base: %w", cloneErr)
 	}
 	return name, true, nil
+}
+
+// pullGoldenImage pulls image from the first rack image cache that holds it,
+// by the digest the cache served, and from image's own registry when none
+// does or a cache's pull fails. The golden keeps the name image gives it, so
+// where the bytes came from changes nothing a Pod, a Node label or the GC
+// keys on.
+func (r *Reconciler) pullGoldenImage(ctx context.Context, image string) (imagePull, error) {
+	logger := log.FromContext(ctx)
+	mirrors, err := r.Images.sources(ctx, image)
+	if err != nil {
+		return imagePull{}, err
+	}
+	for _, pull := range mirrors {
+		err := r.pullWithReclaim(ctx, pull)
+		if err == nil {
+			return pull, nil
+		}
+		if IsNoSpaceError(err) {
+			return imagePull{}, err
+		}
+		logger.Error(err, "pull from the rack image cache failed; pulling from the upstream", "image", image, "mirror", pull.mirror)
+	}
+	upstream := imagePull{ref: image}
+	if err := r.pullWithReclaim(ctx, upstream); err != nil {
+		return imagePull{}, err
+	}
+	return upstream, nil
+}
+
+// pullWithReclaim mirrors the disk-pressure handling the per-recycle pull
+// used to have: a full host frees space and retries once rather than wedging
+// the digest's first provision. RunOnceReclaim is the aggressive variant:
+// under genuine no-space it evicts even within-retention unreferenced
+// goldens, which a non-aggressive pass would keep.
+func (r *Reconciler) pullWithReclaim(ctx context.Context, pull imagePull) error {
+	source := "upstream"
+	if pull.mirror != "" {
+		source = "mirror"
+	}
+	start := time.Now()
+	err := r.Tart.PullFrom(ctx, pull.ref, pull.insecure)
+	recordImagePull(source, err, time.Since(start).Seconds())
+	if err == nil {
+		return nil
+	}
+	if r.GC == nil || !IsNoSpaceError(err) {
+		return fmt.Errorf("tart pull: %w", err)
+	}
+	r.GC.RunOnceReclaim(ctx)
+	start = time.Now()
+	err = r.Tart.PullFrom(ctx, pull.ref, pull.insecure)
+	recordImagePull(source, err, time.Since(start).Seconds())
+	if err != nil {
+		return fmt.Errorf("tart pull (after gc): %w", err)
+	}
+	return nil
 }
 
 // lockGolden returns the unlock func for the per-golden-name mutex,

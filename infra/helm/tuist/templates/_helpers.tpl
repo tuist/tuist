@@ -1308,3 +1308,45 @@ Secret, and the new name drifts the host onto it.
 {{- end -}}
 {{- $item | lower | replace "_" "-" | trunc 63 -}}
 {{- end -}}
+
+{{/*
+The rack's VM image caches as tart-kubelet's `--image-mirror` entries,
+comma-separated in the order of `rackFleet.imageCache.nodes`: empty unless
+the caches run and the hosts are routed through them. The rack-nodes chart
+runs each cache at the same address and port.
+*/}}
+{{- define "tuist.rackImageMirrors" -}}
+{{- $cache := .Values.rackFleet.imageCache | default dict -}}
+{{- $mirrors := list -}}
+{{- if and $cache.enabled $cache.routeHosts -}}
+{{- $upstream := required "rackFleet.imageCache.upstream is required" $cache.upstream -}}
+{{- range $node := (required "rackFleet.imageCache.nodes needs a node to route the hosts to" $cache.nodes) -}}
+{{- $address := required (printf "rackFleet.imageCache.nodes[%s].address is required" $node.name) $node.address -}}
+{{- $mirrors = append $mirrors (printf "%s=http://%s:%d" $upstream $address (int $cache.port)) -}}
+{{- end -}}
+{{- end -}}
+{{- join "," $mirrors -}}
+{{- end -}}
+
+{{/*
+The rack hosts routed through the image caches, comma-separated, for
+`--rackhost-image-mirror-hosts`. Each is a `rackFleet.hosts[].name`, or `*`
+for every host; a name the inventory does not have fails the render rather
+than routing nothing.
+*/}}
+{{- define "tuist.rackImageMirrorHosts" -}}
+{{- $routed := .Values.rackFleet.imageCache.routeHosts | default list -}}
+{{- if not (kindIs "slice" $routed) -}}
+{{- fail "rackFleet.imageCache.routeHosts is a list of rackFleet.hosts[].name, or [\"*\"] for every host" -}}
+{{- end -}}
+{{- $known := list -}}
+{{- range (.Values.rackFleet.hosts | default list) -}}
+{{- $known = append $known .name -}}
+{{- end -}}
+{{- range $routed -}}
+{{- if and (ne . "*") (not (has . $known)) -}}
+{{- fail (printf "rackFleet.imageCache.routeHosts names %s, which is not in rackFleet.hosts" .) -}}
+{{- end -}}
+{{- end -}}
+{{- join "," $routed -}}
+{{- end -}}

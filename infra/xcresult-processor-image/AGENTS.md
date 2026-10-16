@@ -163,8 +163,8 @@ before reading a NotReady processor as a dependency outage.
 Without the probe (`xcresultProcessor.readinessProbe.enabled: false`),
 tart-kubelet sets `PodReady=True` as soon as the VM has an IP, so such a VM
 reads `1/1 Running` forever, the Deployment reports `Available=True`, and
-`:process_xcresult` simply stops being consumed. This has happened twice, from unrelated causes with the same outward
-shape:
+`:process_xcresult` simply stops being consumed. This has happened twice,
+from unrelated causes with the same outward shape:
 
 - **2026-06-26.** A clobbered host VM-to-internet NAT left the guest
   unable to complete a TCP handshake to the Tailscale control plane.
