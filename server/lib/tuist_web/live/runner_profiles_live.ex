@@ -5,7 +5,6 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
-  alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Profile
@@ -39,32 +38,9 @@ defmodule TuistWeb.RunnerProfilesLive do
      |> assign(:modal_id, @modal_id)
      |> assign(:delete_modal_id, @delete_modal_id)
      |> assign(:deleting_profile, nil)
-     |> assign_default_branches()
      |> assign_profiles()
      |> reset_form()}
   end
-
-  # Volumes record their repository's default branch. Before any has, look it
-  # up on GitHub without blocking the page.
-  defp assign_default_branches(%{assigns: %{selected_account: account}} = socket) do
-    case CacheVolumes.default_branches(account.id) do
-      [] ->
-        socket = assign(socket, :default_branches, [])
-
-        if connected?(socket),
-          do: start_async(socket, :default_branches, fn -> CacheVolumes.github_default_branches(account.id) end),
-          else: socket
-
-      branches ->
-        assign(socket, :default_branches, branches)
-    end
-  end
-
-  @impl true
-  def handle_async(:default_branches, {:ok, branches}, socket),
-    do: {:noreply, assign(socket, :default_branches, branches)}
-
-  def handle_async(:default_branches, {:exit, _reason}, socket), do: {:noreply, socket}
 
   @impl true
   def handle_params(_params, _uri, socket), do: {:noreply, socket}
@@ -88,7 +64,8 @@ defmodule TuistWeb.RunnerProfilesLive do
          |> assign(:form_vcpus, profile.vcpus)
          |> assign(:form_memory_gb, profile.memory_gb)
          |> assign(:form_xcode_version, profile.xcode_version)
-         |> assign(:form_cache_writer_branches, profile.cache_writer_branches)
+         |> assign(:form_cache_writer_default_branch, profile.cache_writer_default_branch)
+         |> assign(:form_cache_writer_branches, profile.cache_writer_branches || [])
          |> assign(:form_cache_branch_value, "")
          |> assign(:form_cache_branch_error, nil)
          |> assign(:form_cache_saving_expanded, false)
@@ -126,11 +103,9 @@ defmodule TuistWeb.RunnerProfilesLive do
         {:noreply, socket}
 
       Profile.valid_cache_writer_branch?(branch) ->
-        branches = shown_cache_writer_branches(socket.assigns)
-
         {:noreply,
          socket
-         |> assign(:form_cache_writer_branches, Enum.uniq(branches ++ [branch]))
+         |> update(:form_cache_writer_branches, &Enum.uniq(&1 ++ [branch]))
          |> update(:form_cache_branch_input, &(&1 + 1))
          |> assign(:form_cache_branch_value, "")
          |> assign(:form_cache_branch_error, nil)}
@@ -147,12 +122,14 @@ defmodule TuistWeb.RunnerProfilesLive do
   end
 
   def handle_event("remove_cache_writer_branch", %{"data" => branch}, socket) do
-    branches = with [] <- List.delete(shown_cache_writer_branches(socket.assigns), branch), do: nil
-    {:noreply, socket |> assign(:form_cache_writer_branches, branches) |> assign(:form_cache_branch_error, nil)}
+    {:noreply,
+     socket
+     |> update(:form_cache_writer_branches, &List.delete(&1, branch))
+     |> assign(:form_cache_branch_error, nil)}
   end
 
-  def handle_event("use_default_cache_writer_branch", _params, socket) do
-    {:noreply, socket |> assign(:form_cache_writer_branches, nil) |> assign(:form_cache_branch_error, nil)}
+  def handle_event("toggle_cache_writer_default_branch", _params, socket) do
+    {:noreply, update(socket, :form_cache_writer_default_branch, &(not &1))}
   end
 
   def handle_event("select_platform", params, socket) do
@@ -202,6 +179,7 @@ defmodule TuistWeb.RunnerProfilesLive do
       "platform" => assigns.form_platform,
       "vcpus" => assigns.form_vcpus,
       "memory_gb" => assigns.form_memory_gb,
+      "cache_writer_default_branch" => assigns.form_cache_writer_default_branch,
       "cache_writer_branches" => assigns.form_cache_writer_branches
     }
 
@@ -325,7 +303,8 @@ defmodule TuistWeb.RunnerProfilesLive do
     socket
     |> assign(:form_mode, :new)
     |> assign(:form_name, "")
-    |> assign(:form_cache_writer_branches, nil)
+    |> assign(:form_cache_writer_default_branch, true)
+    |> assign(:form_cache_writer_branches, [])
     |> assign(:form_cache_branch_input, 0)
     |> assign(:form_cache_branch_value, "")
     |> assign(:form_cache_branch_error, nil)
@@ -401,35 +380,32 @@ defmodule TuistWeb.RunnerProfilesLive do
   end
 
   @doc """
-  Branches shown as badges. Without a custom list, the profile follows each
-  repository's default branch, shown by its name when known.
+  Summary of the branches being edited, shown on the collapsed section.
   """
-  def shown_cache_writer_branches(%{form_cache_writer_branches: nil, default_branches: branches}), do: branches
-  def shown_cache_writer_branches(%{form_cache_writer_branches: branches}), do: branches
+  def cache_saving_summary(default_branch?, branches) do
+    labels = if default_branch?, do: [dgettext("dashboard_runners", "Default branch") | branches], else: branches
 
-  @doc """
-  Summary of the branches being edited, shown on the collapsed section. A
-  profile that follows the default branch shows the default branch names.
-  """
-  def cache_saving_summary([]), do: dgettext("dashboard_runners", "Default branch")
+    cond do
+      "*" in branches ->
+        dgettext("dashboard_runners", "Any branch")
 
-  def cache_saving_summary(branches) do
-    if "*" in branches do
-      dgettext("dashboard_runners", "Any branch")
-    else
-      case Enum.split(branches, 2) do
-        {shown, []} ->
-          Enum.join(shown, ", ")
+      labels == [] ->
+        dgettext("dashboard_runners", "No branches")
 
-        {shown, rest} ->
-          dngettext(
-            "dashboard_runners",
-            "%{branches} + %{count} more",
-            "%{branches} + %{count} more",
-            length(rest),
-            branches: Enum.join(shown, ", ")
-          )
-      end
+      true ->
+        case Enum.split(labels, 2) do
+          {shown, []} ->
+            Enum.join(shown, ", ")
+
+          {shown, rest} ->
+            dngettext(
+              "dashboard_runners",
+              "%{branches} + %{count} more",
+              "%{branches} + %{count} more",
+              length(rest),
+              branches: Enum.join(shown, ", ")
+            )
+        end
     end
   end
 

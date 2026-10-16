@@ -1145,7 +1145,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
       }
     end
 
-    test "without a custom list the repository's default branch saves", %{job: job, account: account, profile: profile} do
+    test "by default the repository's default branch saves", %{job: job, account: account, profile: profile} do
       assert {:ok, %{can_publish: true} = main} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main"))
 
       assert %{writer_profile_id: profile_id, writer_default_branch: true, writer_branch: "main"} =
@@ -1162,7 +1162,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert is_nil(Repo.get!(Usage, legacy_use.id).writer_profile_id)
 
       assert volume(account).default_branch == "main"
-      assert CacheVolumes.default_branches(account.id) == ["main"]
     end
 
     test "a matching verified branch saves only when its job succeeds", %{
@@ -1190,15 +1189,21 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert is_nil(volume(account).head_id)
     end
 
-    test "custom lists replace the default branch and match * patterns", %{job: job, profile: profile} do
+    test "additional branches match * patterns and the default branch can be turned off", %{job: job, profile: profile} do
       set_policy(profile, %{cache_writer_branches: ["release/*"]})
-      assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main"))
+      assert {:ok, %{can_publish: true}} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main"))
 
       assert {:ok, %{can_publish: true}} =
                CacheVolumes.allocate_for_job(job, branch_identity("release/1.0"), attrs("release"))
 
       assert {:ok, %{can_publish: false}} =
                CacheVolumes.allocate_for_job(job, branch_identity("releases"), attrs("releases"))
+
+      set_policy(profile, %{cache_writer_default_branch: false})
+      assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("off-main"))
+
+      assert {:ok, %{can_publish: true}} =
+               CacheVolumes.allocate_for_job(job, branch_identity("release/2.0"), attrs("off-release"))
 
       set_policy(profile, %{cache_writer_branches: ["*"]})
 
@@ -1211,7 +1216,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
       set_policy(profile, %{cache_writer_branches: []})
       assert is_nil(Repo.get!(Profile, profile.id).cache_writer_branches)
-      assert {:ok, %{can_publish: true}} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("default"))
+      assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("none"))
     end
 
     test "jobs outside the profile never receive its grants", %{
@@ -1241,25 +1246,30 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, buildkite, attrs("buildkite"))
     end
 
-    test "changing the list revokes pending saves it no longer allows", %{job: job, profile: profile} do
+    test "narrowing the policy revokes pending saves it no longer allows", %{job: job, profile: profile} do
       set_policy(profile, %{cache_writer_branches: ["*"]})
       {:ok, main} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main"))
       {:ok, feature} = CacheVolumes.allocate_for_job(job, branch_identity("feature"), attrs("feature"))
       {:ok, release} = CacheVolumes.allocate_for_job(job, branch_identity("release/1.0"), attrs("release"))
 
       set_policy(profile, %{cache_writer_branches: ["feature", "release/*"]})
+      assert Repo.get!(Usage, main.id).can_publish
+      assert Repo.get!(Usage, feature.id).can_publish
+      assert Repo.get!(Usage, release.id).can_publish
+
+      set_policy(profile, %{cache_writer_default_branch: false})
       refute Repo.get!(Usage, main.id).can_publish
       assert Repo.get!(Usage, feature.id).can_publish
       assert Repo.get!(Usage, release.id).can_publish
 
-      set_policy(profile, %{cache_writer_branches: nil})
+      set_policy(profile, %{cache_writer_default_branch: true, cache_writer_branches: nil})
       refute Repo.get!(Usage, feature.id).can_publish
       refute Repo.get!(Usage, release.id).can_publish
       {:ok, main} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main-again"))
       assert main.can_publish
     end
 
-    test "custom lists revoke pending saves allocated before uses recorded their profile", %{
+    test "turning off the default branch revokes pending saves allocated before uses recorded their profile", %{
       job: job,
       account: account,
       profile: profile
@@ -1295,6 +1305,9 @@ defmodule Tuist.Runners.CacheVolumesTest do
       end
 
       set_policy(profile, %{cache_writer_branches: ["release/*"]})
+      assert Repo.get!(Usage, legacy.id).can_publish
+
+      set_policy(profile, %{cache_writer_default_branch: false})
       refute Repo.get!(Usage, legacy.id).can_publish
       assert Repo.get!(Usage, unrelated.id).can_publish
       complete(job)
@@ -1306,17 +1319,17 @@ defmodule Tuist.Runners.CacheVolumesTest do
       legacy = %{job | requested_dispatch_label: ""}
       {:ok, legacy_main} = CacheVolumes.allocate_for_job(legacy, main_identity(), attrs("legacy-main"))
       {:ok, main} = CacheVolumes.allocate_for_job(job, main_identity(), attrs("main"))
-      profile = set_policy(profile, %{cache_writer_branches: ["main", "feature", "retained"]})
+      profile = set_policy(profile, %{cache_writer_branches: ["feature", "retained"]})
       {:ok, removed} = CacheVolumes.allocate_for_job(job, branch_identity("feature"), attrs("removed"))
       {:ok, retained} = CacheVolumes.allocate_for_job(job, branch_identity("retained"), attrs("retained"))
 
-      for branches <- [["retained", "feature", "main"], ["new", "main", "feature", "retained"]] do
+      for branches <- [["retained", "feature"], ["new", "feature", "retained"]] do
         set_policy(profile, %{cache_writer_branches: branches})
 
         for use <- [legacy_main, main, removed, retained], do: assert(Repo.get!(Usage, use.id).can_publish)
       end
 
-      profile = set_policy(profile, %{cache_writer_branches: ["main", "retained"]})
+      profile = set_policy(profile, %{cache_writer_branches: ["retained"]})
       refute Repo.get!(Usage, removed.id).can_publish
       assert Repo.get!(Usage, retained.id).can_publish
 

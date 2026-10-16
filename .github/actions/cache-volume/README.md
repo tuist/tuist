@@ -61,21 +61,22 @@ Linux and macOS fleets must have cache volumes enabled.
 ### Choosing which branches save
 
 Account administrators configure **Save cache from** on each runner profile under
-**Runners → Profiles**. The list applies to every custom volume attached by
+**Runners → Profiles**. The settings apply to every custom volume attached by
 GitHub Actions jobs that run on the profile, including volumes created later.
-Until you change it, the list follows each repository's default branch.
 
-Once you add or remove a branch, the list holds up to 20 branch names. `*`
-matches any characters, so `release/*` covers `release/1.0` and `*` covers every
-branch. Successful push, schedule and manual-dispatch jobs, and pull requests
-from the same repository, save their changes when their branch matches. On push
-and manual-dispatch runs, a tag with a matching name also matches. Removing every
-branch, or **Use default branch**, returns to following the default branch.
+**Default branch** is on by default, so jobs on each repository's default branch
+save their changes. Turn it off to save only from the additional branches.
+
+**Additional branches** holds up to 20 branch names that also save. `*` matches
+any characters, so `release/*` covers `release/1.0` and `*` covers every branch.
+Successful push, schedule and manual-dispatch jobs, and pull requests from the
+same repository, save their changes when their branch matches. On push and
+manual-dispatch runs, a tag with a matching name also matches.
 
 Fork pull requests and `pull_request_target` never save. Buildkite, GitLab and
-built-in macOS volume policies are unchanged. Changing the list or deleting the
-profile revokes pending saves it no longer allows; a deleted profile falls back
-to the default branch. Additions apply to new volume attachments.
+built-in macOS volume policies are unchanged. Narrowing these settings or deleting
+the profile revokes pending saves they no longer allow; a deleted profile falls
+back to the default branch. Additions apply to new volume attachments.
 
 ## Releases
 

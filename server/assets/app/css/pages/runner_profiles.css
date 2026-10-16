@@ -203,15 +203,26 @@
       }
     }
 
+    & [data-part="additional-branches"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      }
+
+      & > [data-part="hint"] {
+        color: var(--noora-surface-label-tertiary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+    }
+
     & [data-part="branch-tags"] {
       display: flex;
       flex-wrap: wrap;
       gap: var(--noora-spacing-2);
-
-      & > [data-part="unknown-default-branch"] {
-        color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-      }
     }
 
     & [data-part="branch-input"] {
@@ -222,15 +233,6 @@
       & > .noora-text-input {
         flex-grow: 1;
       }
-    }
-
-    & [data-part="section-panel"] > [data-part="hint"] {
-      color: var(--noora-surface-label-tertiary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-    }
-
-    & [data-part="section-panel"] > .noora-button {
-      align-self: flex-start;
     }
   }
 }

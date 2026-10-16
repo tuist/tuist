@@ -109,10 +109,11 @@ defmodule Tuist.Runners.ProfilesTest do
       assert updated.memory_gb == 2
     end
 
-    test "stores an ordered, deduplicated cache writer list and can follow the default branch again", %{
+    test "stores the default branch toggle and an ordered, deduplicated list of additional branches", %{
       account: account
     } do
       {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+      assert profile.cache_writer_default_branch
       assert is_nil(profile.cache_writer_branches)
 
       assert {:ok, updated} =
@@ -121,6 +122,14 @@ defmodule Tuist.Runners.ProfilesTest do
       assert updated.cache_writer_branches == ["release/*", "main", "*"]
       assert {:ok, %{cache_writer_branches: nil}} = Profiles.update(updated, %{"cache_writer_branches" => nil})
       assert {:ok, %{cache_writer_branches: nil}} = Profiles.update(updated, %{"cache_writer_branches" => []})
+
+      assert {:ok, %{cache_writer_default_branch: false, cache_writer_branches: ["release/*", "main", "*"]}} =
+               Profiles.update_cache_writer_policy(updated, %{cache_writer_default_branch: false})
+
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.update_cache_writer_policy(updated, %{cache_writer_default_branch: nil})
+
+      assert errors[:cache_writer_default_branch]
     end
 
     test "rejects invalid refs and more than the branch limit", %{account: account} do

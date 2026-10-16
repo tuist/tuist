@@ -167,65 +167,50 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       assert html =~ ~r/id="_lv_portal_wrap_runner-profile-modal-title-portal">\s*New profile\s*</
     end
 
-    test "summarizes the default branch by the names recorded on the account's volumes", %{
-      conn: conn,
-      account: account
-    } do
-      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
-
-      record_default_branch(account, "develop")
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
-      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
-      assert html =~ ~r/data-part="summary">\s*develop\s*</
-    end
-
     test "edits the branches that save cache in a collapsed section", %{conn: conn, account: account} do
-      record_default_branch(account, "main")
       {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
 
       html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
-      assert html =~ ~r/data-part="summary">\s*main\s*</
+      assert html =~ ~r/data-part="summary">\s*Default branch\s*</
       assert html =~ ~s(aria-expanded="false")
       assert html =~ ~r/id="runner-profile-cache-saving-panel"[^>]*hidden/
-      assert html =~ ~r/class="noora-tag"[^>]*>\s*<span data-part="label">main</
+      assert html =~ ~s(id="runner-profile-cache-default-branch-true")
+      refute html =~ ~s(class="noora-tag")
 
       html = render_hook(lv, "toggle_cache_saving_section", %{})
       assert html =~ ~s(aria-expanded="true")
       refute html =~ ~r/id="runner-profile-cache-saving-panel"[^>]*hidden/
 
       render_hook(lv, "add_cache_writer_branch", %{"branch" => " release/* "})
-      render_hook(lv, "add_cache_writer_branch", %{"branch" => "feature"})
-      html = render_hook(lv, "remove_cache_writer_branch", %{"data" => "main"})
-      assert html =~ "Jobs and pull requests from these branches save their changes. Use * as a wildcard."
+      html = render_hook(lv, "add_cache_writer_branch", %{"branch" => "feature"})
+      assert html =~ ~r/class="noora-tag"[^>]*>\s*<span data-part="label">release\/\*</
+      assert html =~ "Jobs and pull requests from these branches also save their changes. Use * as a wildcard."
       refute html =~ ~s(data-part="summary")
       html = render_hook(lv, "toggle_cache_saving_section", %{})
+      assert html =~ ~r/data-part="summary">\s*Default branch, release\/\* \+ 1 more\s*</
+      html = render_hook(lv, "toggle_cache_writer_default_branch", %{})
+      assert html =~ ~s(id="runner-profile-cache-default-branch-false")
       assert html =~ ~r/data-part="summary">\s*release\/\*, feature\s*</
-      assert html =~ "Use default branch"
       render_hook(lv, "save_profile", %{})
-      assert %{cache_writer_branches: ["release/*", "feature"]} = Profiles.get_by_name(account, "ci")
+
+      assert %{cache_writer_default_branch: false, cache_writer_branches: ["release/*", "feature"]} =
+               Profiles.get_by_name(account, "ci")
 
       render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      render_hook(lv, "remove_cache_writer_branch", %{"data" => "release/*"})
+      html = render_hook(lv, "remove_cache_writer_branch", %{"data" => "feature"})
+      assert html =~ ~r/data-part="summary">\s*No branches\s*</
       html = render_hook(lv, "add_cache_writer_branch", %{"branch" => "*"})
       assert html =~ ~r/data-part="summary">\s*Any branch\s*</
-      html = render_hook(lv, "use_default_cache_writer_branch", %{})
-      assert html =~ ~r/data-part="summary">\s*main\s*</
+      render_hook(lv, "remove_cache_writer_branch", %{"data" => "*"})
+      html = render_hook(lv, "toggle_cache_writer_default_branch", %{})
+      assert html =~ ~r/data-part="summary">\s*Default branch\s*</
       render_hook(lv, "save_profile", %{})
-      assert %{cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
-
-      render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
-      render_hook(lv, "add_cache_writer_branch", %{"branch" => "release/*"})
-      render_hook(lv, "remove_cache_writer_branch", %{"data" => "main"})
-      html = render_hook(lv, "remove_cache_writer_branch", %{"data" => "release/*"})
-      assert html =~ ~r/data-part="summary">\s*main\s*</
-      assert html =~ ~r/class="noora-tag"[^>]*>\s*<span data-part="label">main</
-      render_hook(lv, "save_profile", %{})
-      assert %{cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
+      assert %{cache_writer_default_branch: true, cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
     end
 
     test "rejects invalid cache writer branches before adding them", %{conn: conn, account: account} do
-      record_default_branch(account, "main")
       {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
       {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles")
 
@@ -234,72 +219,15 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
 
       assert html =~ ~r/data-variant="destructive">.*Use a branch name, optionally with \* to match any characters\./s
       refute html =~ ~s(class="noora-alert")
-      refute html =~ "Jobs and pull requests from these branches save their changes."
+      refute html =~ "Jobs and pull requests from these branches also save their changes."
       refute html =~ ~s(<span data-part="label">feature branch<)
       assert html =~ ~s(value="feature branch")
       html = render_hook(lv, "add_cache_writer_branch", %{"branch" => "feature"})
       refute html =~ "Use a branch name, optionally with * to match any characters."
       render_hook(lv, "save_profile", %{})
-      assert %{cache_writer_branches: ["main", "feature"]} = Profiles.get_by_name(account, "ci")
+
+      assert %{cache_writer_default_branch: true, cache_writer_branches: ["feature"]} =
+               Profiles.get_by_name(account, "ci")
     end
-
-    test "looks the default branch up on GitHub before any volume has recorded it", %{conn: conn, account: account} do
-      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
-      account_id = account.id
-
-      for {repository, offset} <- [{"acme/app", 0}, {"acme/lib", -60}] do
-        Tuist.Repo.insert!(%Tuist.Runners.WorkflowJob{
-          workflow_job_id: System.unique_integer([:positive]),
-          account_id: account.id,
-          fleet_name: "test",
-          status: "completed",
-          repository: repository,
-          enqueued_at: DateTime.add(DateTime.utc_now(), offset)
-        })
-      end
-
-      stub(Tuist.VCS, :get_github_app_installation_for_account, fn ^account_id -> {:ok, %{id: 1}} end)
-
-      stub(Tuist.GitHub.Client, :get_repository, fn
-        %{id: 1}, "acme/app" -> {:ok, %{"default_branch" => "develop"}}
-        %{id: 1}, "acme/lib" -> {:ok, %{"default_branch" => "master"}}
-      end)
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
-      render_async(lv)
-      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
-      assert html =~ ~r/data-part="summary">\s*develop, master\s*</
-    end
-
-    test "shows no placeholder branch when the default branch is unknown", %{conn: conn, account: account} do
-      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
-      stub(Tuist.VCS, :get_github_app_installation_for_account, fn _ -> {:error, :not_found} end)
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
-      render_async(lv)
-      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
-      assert html =~ ~r/data-part="summary">\s*Default branch\s*</
-      refute html =~ ~s(class="noora-tag")
-      assert html =~ "Include it, such as main, when you add branches."
-
-      render_hook(lv, "add_cache_writer_branch", %{"branch" => "develop"})
-      render_hook(lv, "save_profile", %{})
-      assert %{cache_writer_branches: ["develop"]} = Profiles.get_by_name(account, "ci")
-    end
-  end
-
-  defp record_default_branch(account, branch) do
-    Tuist.Repo.insert!(%Tuist.Runners.CacheVolumes.Volume{
-      account_id: account.id,
-      provider: "github",
-      provider_instance: "github.com",
-      scope_id: "1",
-      repository: "acme/app",
-      key: "deps-#{branch}",
-      architecture: "arm64",
-      uid: 501,
-      default_branch: branch,
-      last_used_at: DateTime.utc_now()
-    })
   end
 end
