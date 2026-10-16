@@ -13,11 +13,39 @@ defmodule Atlas.LLMs.ChatGPTTest do
       assert opts[:json] == %{client_id: "atlas-owned-client"}
       assert opts[:retry] == false
       assert opts[:redirect] == false
+      assert opts[:finch] == [conn_opts: [transport_opts: [timeout: 5_000]]]
       {:ok, %{status: 200, body: %{"device_auth_id" => "device-id", "usercode" => "USER-CODE", "interval" => "5"}}}
     end)
 
     assert {:ok, %{"user_code" => "USER-CODE", "verification_url" => "https://auth.openai.com/codex/device"}} =
              ChatGPT.start()
+  end
+
+  test "device authorization builds a bounded Req transport with Atlas HTTP defaults" do
+    expect(Config, :client_id, fn -> {:ok, "atlas-owned-client"} end)
+
+    expect(Finch, :stream_while, fn request, pool, acc, callback, options ->
+      assert request.host == "auth.openai.com"
+      assert request.path == "/api/accounts/deviceauth/usercode"
+      refute pool == Atlas.Finch
+      assert options[:receive_timeout] == 15_000
+
+      events = [
+        {:status, 200},
+        {:headers, [{"content-type", "application/json"}]},
+        {:data, JSON.encode!(%{device_auth_id: "device-id", user_code: "USER-CODE", interval: 5})}
+      ]
+
+      acc =
+        Enum.reduce(events, acc, fn event, acc ->
+          {:cont, acc} = callback.(event, acc)
+          acc
+        end)
+
+      {:ok, acc}
+    end)
+
+    assert {:ok, %{"user_code" => "USER-CODE"}} = ChatGPT.start()
   end
 
   test "device authorization exchanges the provider-issued PKCE verifier" do

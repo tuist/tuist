@@ -67,7 +67,10 @@ defmodule Atlas.MCP.Tools.PollChatGPTProviderLoginTest do
     assert {:error, _} = execute_tool(PollChatGPTProviderLogin, conn, %{})
   end
 
-  test "poll calls do not audit login handles", %{conn: conn, login: login} do
+  test "poll calls do not audit login handles", %{user: user, conn: conn, login: login} do
+    expect(ChatGPT, :poll, fn _pending -> {:error, :authorization_pending} end)
+    allow_poll(user)
+
     response =
       Server.handle_message(conn, %{
         "jsonrpc" => "2.0",

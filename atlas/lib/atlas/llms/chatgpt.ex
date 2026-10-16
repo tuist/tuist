@@ -104,7 +104,7 @@ defmodule Atlas.LLMs.ChatGPT do
       retry: false,
       redirect: false,
       receive_timeout: 15_000,
-      connect_options: [timeout: 5_000]
+      finch: [conn_opts: [transport_opts: [timeout: 5_000]]]
     ]
 
     case Req.post(options ++ body_options) do
