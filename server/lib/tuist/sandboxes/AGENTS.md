@@ -23,8 +23,10 @@ consumer is Claude Managed Agents `self_hosted` environments.
   event returned; a listing with a cursor asks Anthropic for
   `created_at[gte]=<processed_at>` and drops everything up to and
   including the event id, so events sharing a timestamp are neither
-  lost nor repeated. `next_after` is nil only while the session has no
-  events. The agent is created on first use with the
+  lost nor repeated. A listing that stops at the page cap with pages
+  left hands out `"<bound>|<event_id>|<page>"` instead, so the next call
+  continues the same listing from Anthropic's next page. `next_after` is
+  nil only while the session has no events. The agent is created on first use with the
   environment's `agent_model` and `agent_system_prompt` and cached in
   `anthropic_agent_id`; a per-session `model` override gets an uncached
   agent, and `agent_id` runs an existing one. The row id is generated
