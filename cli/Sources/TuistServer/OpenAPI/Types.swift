@@ -15284,7 +15284,7 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/TestCaseRunsIndexPage`.
         public typealias TestCaseRunsIndexPage = Swift.Int
-        /// The page number to return.
+        /// The page number for legacy offset pagination. Omit to use cursor pagination. Cannot be combined with `after` or `before`.
         ///
         /// - Remark: Generated from `#/components/schemas/BuildsIndexPage`.
         public typealias BuildsIndexPage = Swift.Int
@@ -31929,6 +31929,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/scheme`.
                         public var scheme: Swift.String?
+                        /// When the build started. Null when unavailable, including historical builds.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/started_at`.
+                        public var started_at: Foundation.Date?
                         /// Build status.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/status`.
@@ -31971,6 +31975,7 @@ public enum Operations {
                         ///   - macos_version: macOS version.
                         ///   - model_identifier: Machine model identifier.
                         ///   - scheme: The scheme that was built.
+                        ///   - started_at: When the build started. Null when unavailable, including historical builds.
                         ///   - status: Build status.
                         ///   - url: URL to view the build in the dashboard.
                         ///   - xcode_version: Xcode version.
@@ -31995,6 +32000,7 @@ public enum Operations {
                             macos_version: Swift.String? = nil,
                             model_identifier: Swift.String? = nil,
                             scheme: Swift.String? = nil,
+                            started_at: Foundation.Date? = nil,
                             status: Operations.getBuild.Output.Ok.Body.jsonPayload.statusPayload,
                             url: Swift.String,
                             xcode_version: Swift.String? = nil
@@ -32019,6 +32025,7 @@ public enum Operations {
                             self.macos_version = macos_version
                             self.model_identifier = model_identifier
                             self.scheme = scheme
+                            self.started_at = started_at
                             self.status = status
                             self.url = url
                             self.xcode_version = xcode_version
@@ -32044,6 +32051,7 @@ public enum Operations {
                             case macos_version
                             case model_identifier
                             case scheme
+                            case started_at
                             case status
                             case url
                             case xcode_version
@@ -49190,6 +49198,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/scheme`.
                         public var scheme: Swift.String?
+                        /// When the build started. Null when unavailable, including historical builds.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/started_at`.
+                        public var started_at: Foundation.Date?
                         /// Build status.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/status`.
@@ -49232,6 +49244,7 @@ public enum Operations {
                         ///   - macos_version: macOS version.
                         ///   - model_identifier: Machine model identifier.
                         ///   - scheme: The scheme that was built.
+                        ///   - started_at: When the build started. Null when unavailable, including historical builds.
                         ///   - status: Build status.
                         ///   - url: URL to view the build in the dashboard.
                         ///   - xcode_version: Xcode version.
@@ -49256,6 +49269,7 @@ public enum Operations {
                             macos_version: Swift.String? = nil,
                             model_identifier: Swift.String? = nil,
                             scheme: Swift.String? = nil,
+                            started_at: Foundation.Date? = nil,
                             status: Operations.getBuild_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.statusPayload,
                             url: Swift.String,
                             xcode_version: Swift.String? = nil
@@ -49280,6 +49294,7 @@ public enum Operations {
                             self.macos_version = macos_version
                             self.model_identifier = model_identifier
                             self.scheme = scheme
+                            self.started_at = started_at
                             self.status = status
                             self.url = url
                             self.xcode_version = xcode_version
@@ -49305,6 +49320,7 @@ public enum Operations {
                             case macos_version
                             case model_identifier
                             case scheme
+                            case started_at
                             case status
                             case url
                             case xcode_version
@@ -59534,6 +59550,26 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/query/values`.
                 public var values: [Swift.String]?
+                /// Filter to builds executed on CI (true) or locally (false).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/query/is_ci`.
+                public var is_ci: Swift.Bool?
+                /// Only return builds created at or after this Unix timestamp in seconds (inclusive).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/query/from`.
+                public var from: Swift.Int64?
+                /// Only return builds created at or before this Unix timestamp in seconds (inclusive).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/query/to`.
+                public var to: Swift.Int64?
+                /// Pass the `end_cursor` from a previous response to fetch the next (older) page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/query/after`.
+                public var after: Swift.String?
+                /// Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/query/before`.
+                public var before: Swift.String?
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/query/page_size`.
@@ -59552,6 +59588,11 @@ public enum Operations {
                 ///   - git_branch: Filter by git branch.
                 ///   - tags: Filter by tags. Returns builds containing ALL specified tags.
                 ///   - values: Filter by custom values (key:value format). Returns builds matching ALL specified values. Example: ticket:PROJ-1234
+                ///   - is_ci: Filter to builds executed on CI (true) or locally (false).
+                ///   - from: Only return builds created at or after this Unix timestamp in seconds (inclusive).
+                ///   - to: Only return builds created at or before this Unix timestamp in seconds (inclusive).
+                ///   - after: Pass the `end_cursor` from a previous response to fetch the next (older) page.
+                ///   - before: Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
                 ///   - page_size:
                 ///   - page:
                 public init(
@@ -59562,6 +59603,11 @@ public enum Operations {
                     git_branch: Swift.String? = nil,
                     tags: [Swift.String]? = nil,
                     values: [Swift.String]? = nil,
+                    is_ci: Swift.Bool? = nil,
+                    from: Swift.Int64? = nil,
+                    to: Swift.Int64? = nil,
+                    after: Swift.String? = nil,
+                    before: Swift.String? = nil,
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil
                 ) {
@@ -59572,6 +59618,11 @@ public enum Operations {
                     self.git_branch = git_branch
                     self.tags = tags
                     self.values = values
+                    self.is_ci = is_ci
+                    self.from = from
+                    self.to = to
+                    self.after = after
+                    self.before = before
                     self.page_size = page_size
                     self.page = page
                 }
@@ -59750,6 +59801,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/scheme`.
                             public var scheme: Swift.String?
+                            /// When the build started. Null when unavailable, including historical builds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/started_at`.
+                            public var started_at: Foundation.Date?
                             /// Build status.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/200/content/json/buildsPayload/status`.
@@ -59791,6 +59846,7 @@ public enum Operations {
                             ///   - model_identifier: Machine model identifier.
                             ///   - ran_by: The account that triggered the build.
                             ///   - scheme: The scheme that was built.
+                            ///   - started_at: When the build started. Null when unavailable, including historical builds.
                             ///   - status: Build status.
                             ///   - url: URL to view the build in the dashboard.
                             ///   - xcode_version: Xcode version.
@@ -59812,6 +59868,7 @@ public enum Operations {
                                 model_identifier: Swift.String? = nil,
                                 ran_by: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.ran_byPayload? = nil,
                                 scheme: Swift.String? = nil,
+                                started_at: Foundation.Date? = nil,
                                 status: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload,
                                 url: Swift.String,
                                 xcode_version: Swift.String? = nil
@@ -59833,6 +59890,7 @@ public enum Operations {
                                 self.model_identifier = model_identifier
                                 self.ran_by = ran_by
                                 self.scheme = scheme
+                                self.started_at = started_at
                                 self.status = status
                                 self.url = url
                                 self.xcode_version = xcode_version
@@ -59855,6 +59913,7 @@ public enum Operations {
                                 case model_identifier
                                 case ran_by
                                 case scheme
+                                case started_at
                                 case status
                                 case url
                                 case xcode_version
@@ -59926,6 +59985,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listBuilds.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listBuilds.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request was invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/get(listBuilds)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listBuilds.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listBuilds.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
@@ -80185,6 +80295,26 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/values`.
                 public var values: [Swift.String]?
+                /// Filter to builds executed on CI (true) or locally (false).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/is_ci`.
+                public var is_ci: Swift.Bool?
+                /// Only return builds created at or after this Unix timestamp in seconds (inclusive).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/from`.
+                public var from: Swift.Int64?
+                /// Only return builds created at or before this Unix timestamp in seconds (inclusive).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/to`.
+                public var to: Swift.Int64?
+                /// Pass the `end_cursor` from a previous response to fetch the next (older) page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/after`.
+                public var after: Swift.String?
+                /// Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/before`.
+                public var before: Swift.String?
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/page_size`.
@@ -80203,6 +80333,11 @@ public enum Operations {
                 ///   - git_branch: Filter by git branch.
                 ///   - tags: Filter by tags. Returns builds containing ALL specified tags.
                 ///   - values: Filter by custom values (key:value format). Returns builds matching ALL specified values. Example: ticket:PROJ-1234
+                ///   - is_ci: Filter to builds executed on CI (true) or locally (false).
+                ///   - from: Only return builds created at or after this Unix timestamp in seconds (inclusive).
+                ///   - to: Only return builds created at or before this Unix timestamp in seconds (inclusive).
+                ///   - after: Pass the `end_cursor` from a previous response to fetch the next (older) page.
+                ///   - before: Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
                 ///   - page_size:
                 ///   - page:
                 public init(
@@ -80213,6 +80348,11 @@ public enum Operations {
                     git_branch: Swift.String? = nil,
                     tags: [Swift.String]? = nil,
                     values: [Swift.String]? = nil,
+                    is_ci: Swift.Bool? = nil,
+                    from: Swift.Int64? = nil,
+                    to: Swift.Int64? = nil,
+                    after: Swift.String? = nil,
+                    before: Swift.String? = nil,
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil
                 ) {
@@ -80223,6 +80363,11 @@ public enum Operations {
                     self.git_branch = git_branch
                     self.tags = tags
                     self.values = values
+                    self.is_ci = is_ci
+                    self.from = from
+                    self.to = to
+                    self.after = after
+                    self.before = before
                     self.page_size = page_size
                     self.page = page
                 }
@@ -80401,6 +80546,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/scheme`.
                             public var scheme: Swift.String?
+                            /// When the build started. Null when unavailable, including historical builds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/started_at`.
+                            public var started_at: Foundation.Date?
                             /// Build status.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/status`.
@@ -80442,6 +80591,7 @@ public enum Operations {
                             ///   - model_identifier: Machine model identifier.
                             ///   - ran_by: The account that triggered the build.
                             ///   - scheme: The scheme that was built.
+                            ///   - started_at: When the build started. Null when unavailable, including historical builds.
                             ///   - status: Build status.
                             ///   - url: URL to view the build in the dashboard.
                             ///   - xcode_version: Xcode version.
@@ -80463,6 +80613,7 @@ public enum Operations {
                                 model_identifier: Swift.String? = nil,
                                 ran_by: Operations.listBuilds_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.buildsPayloadPayload.ran_byPayload? = nil,
                                 scheme: Swift.String? = nil,
+                                started_at: Foundation.Date? = nil,
                                 status: Operations.listBuilds_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload,
                                 url: Swift.String,
                                 xcode_version: Swift.String? = nil
@@ -80484,6 +80635,7 @@ public enum Operations {
                                 self.model_identifier = model_identifier
                                 self.ran_by = ran_by
                                 self.scheme = scheme
+                                self.started_at = started_at
                                 self.status = status
                                 self.url = url
                                 self.xcode_version = xcode_version
@@ -80506,6 +80658,7 @@ public enum Operations {
                                 case model_identifier
                                 case ran_by
                                 case scheme
+                                case started_at
                                 case status
                                 case url
                                 case xcode_version
@@ -80577,6 +80730,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listBuilds_space__lpar_2_rpar_.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listBuilds_space__lpar_2_rpar_.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request was invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/get(listBuilds (2))/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listBuilds_space__lpar_2_rpar_.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listBuilds_space__lpar_2_rpar_.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
