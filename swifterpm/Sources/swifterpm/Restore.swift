@@ -5,6 +5,7 @@ enum WorkspaceRestorer {
         let packageRef: [String: String]
         let packagePath: URL
         let canonicalizeLocalBinaryPaths: Bool
+        let manifestCacheFile: URL?
 
         func manifestLoadError(_ error: any Error) -> ToolError {
             let identity = packageRef["identity"] ?? packagePath.lastPathComponent
@@ -116,7 +117,8 @@ enum WorkspaceRestorer {
             do {
                 manifest = try await ManifestLoader.dumpPackage(
                     packageDir: context.packagePath,
-                    disableSandbox: disableSandbox
+                    disableSandbox: disableSandbox,
+                    cacheFile: context.manifestCacheFile
                 )
             } catch {
                 throw context.manifestLoadError(error)
@@ -403,7 +405,8 @@ enum WorkspaceRestorer {
                 PackageContext(
                     packageRef: rootPackageRef(packageDir),
                     packagePath: packageDir,
-                    canonicalizeLocalBinaryPaths: true
+                    canonicalizeLocalBinaryPaths: true,
+                    manifestCacheFile: nil
                 )
             )
             let manifest = try await ManifestLoader.dumpPackage(
@@ -423,7 +426,10 @@ enum WorkspaceRestorer {
                             name: ManifestParser.packageName(localPackage.manifest)
                         ),
                         packagePath: localPackage.packagePath,
-                        canonicalizeLocalBinaryPaths: true
+                        canonicalizeLocalBinaryPaths: true,
+                        manifestCacheFile: ManifestLoader.localCacheFilePath(
+                            rootPackageDir: packageDir, packageDir: localPackage.packagePath
+                        )
                     )
                 )
             }
@@ -449,7 +455,8 @@ enum WorkspaceRestorer {
                         disableSandbox: disableSandbox
                     ),
                     packagePath: packagePath,
-                    canonicalizeLocalBinaryPaths: false
+                    canonicalizeLocalBinaryPaths: false,
+                    manifestCacheFile: nil
                 )
             }
         )
@@ -1409,7 +1416,8 @@ enum WorkspaceRestorer {
         scratchDir: URL,
         mirrors: MirrorConfig,
         resolved: ResolvedPins,
-        disableSandbox: Bool
+        disableSandbox: Bool,
+        sourceCacheDirectory: URL? = nil
     ) async throws {
         try await assertNoEditedDependencies(scratchDir: scratchDir)
         var dependencies: [[String: Any]] = []
@@ -1457,11 +1465,12 @@ enum WorkspaceRestorer {
         let manifest = try await ManifestLoader.dumpPackage(
             packageDir: packageDir, disableSandbox: disableSandbox
         )
-        for localPackage in try await ManifestFileSystemDependencyGraph.collect(
+        let localPackages = try await ManifestFileSystemDependencyGraph.collect(
             rootPackageDir: packageDir,
             rootManifest: manifest,
             disableSandbox: disableSandbox
-        ) {
+        )
+        for localPackage in localPackages {
             let ref = fileSystemPackageRef(
                 localPackage.dependency,
                 packagePath: localPackage.packagePath,
@@ -1505,6 +1514,13 @@ enum WorkspaceRestorer {
             JSONFormatter.prettyData(state),
             to: scratchDir.appendingPathComponent("workspace-state.json")
         )
+        var retainedPackages = try resolved.pins.map {
+            try packagePathForPin(scratchDir: scratchDir, pin: $0, mirrors: mirrors)
+        } + localPackages.map(\.packagePath)
+        if let sourceCacheDirectory {
+            retainedPackages += resolved.pins.compactMap { try? Cache.sourcePath(root: sourceCacheDirectory, pin: $0) }
+        }
+        try? await ManifestCache.prune(scratchDirectory: scratchDir, keeping: retainedPackages)
     }
 
     private static func existingWorkspacePrebuilts(scratchDir: URL) async throws -> [[String: Any]] {
@@ -1558,7 +1574,8 @@ enum WorkspaceRestorer {
 
             let manifest = try await ManifestLoader.dumpPackage(
                 packageDir: context.packagePath,
-                disableSandbox: disableSandbox
+                disableSandbox: disableSandbox,
+                cacheFile: context.manifestCacheFile
             )
             let targetArtifacts = try await ConcurrentTasks.map(
                 try ManifestParser.binaryTargets(manifest)

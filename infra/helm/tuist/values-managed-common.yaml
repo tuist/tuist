@@ -579,8 +579,14 @@ runnersFleet:
     - vcpus: 6
       memoryGb: 14
       default: true
+  xcodeOverrides:
+    "27.1":
+      # Published before merge; remove this bootstrap pin with RC retirement
+      # after a versioned runner-image release includes the stable profile.
+      imageTag: macos-27-1-e99ae738
   xcodeVersions:
     - xcodeVersion: "27.2-beta"
+    - xcodeVersion: "27.1"
     - xcodeVersion: "27.1-rc"
     - xcodeVersion: "27.0"
     - xcodeVersion: "26.6"

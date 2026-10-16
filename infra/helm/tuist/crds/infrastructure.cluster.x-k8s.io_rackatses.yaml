@@ -222,6 +222,9 @@ spec:
                       RackATSInput is one source as the switch reported it at the last
                       observation.
                     properties:
+                      current:
+                        description: Current is the current the card reports on the source, in amperes.
+                        type: string
                       detail:
                         description: Detail is what the card reported that the state was read from.
                         type: string
@@ -289,6 +292,41 @@ spec:
                   description: ObservedGeneration is the generation the card was last converged to.
                   format: int64
                   type: integer
+                outputs:
+                  description: |-
+                    Outputs are the switch's outputs at the last observation, as the card
+                    serves them under powerDistributions/1/outputs.
+                  items:
+                    description: RackATSOutput is one output of the switch as its card reported it.
+                    properties:
+                      activePower:
+                        type: string
+                      apparentPower:
+                        type: string
+                      current:
+                        description: |-
+                          Current, Voltage, ActivePower and ApparentPower are the measures the
+                          controller recognises, in amperes, volts, watts and volt-amperes.
+                        type: string
+                      detail:
+                        description: Detail is every measure the card reported, verbatim.
+                        type: string
+                      output:
+                        description: Output is the output's number on the card.
+                        format: int32
+                        type: integer
+                      voltage:
+                        type: string
+                    required:
+                      - output
+                    type: object
+                  type: array
+                outputsMessage:
+                  description: |-
+                    OutputsMessage is why the outputs could not be read at the last
+                    observation, with what the card answered. The rest of the observation
+                    stands without them.
+                  type: string
                 preferredSource:
                   description: |-
                     PreferredSource is the preferred source the card reports, 0 when it

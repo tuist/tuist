@@ -267,4 +267,3 @@ export_fixture() { echo "$FLEET_ROOT/tests/fixtures/ber1-tor-b-tftp-export.cfg";
     run fleet_removed_lines "$current" "$merged"
     [ "${#output}" -eq 0 ]
 }
-

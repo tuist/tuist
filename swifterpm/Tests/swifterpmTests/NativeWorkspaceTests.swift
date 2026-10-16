@@ -257,6 +257,7 @@ struct NativeWorkspaceTests {
         try await git(repo, ["-c", "user.name=Tests", "-c", "user.email=tests@example.com", "commit", "-qm", "ignore"])
         let revision = try await git(repo, ["rev-parse", "HEAD"]).trimmingCharacters(in: .whitespacesAndNewlines)
         try await fileSystem.atomicWrite("{}", to: repo.appendingPathComponent(".build/swifterpm/manifests/package.json"))
+        try await fileSystem.atomicWrite("{}", to: repo.appendingPathComponent(".build/swifterpm/manifests/package.json.inputs.json"))
         try await fileSystem.atomicWrite("cache directory", to: repo.appendingPathComponent(".build/CACHEDIR.TAG"))
         try await fileSystem.atomicWrite("native", to: repo.appendingPathComponent(".build/.buildSystem_debug"))
         #expect(try await PinnedSourceSnapshot.isPristine(repo, revision: revision))

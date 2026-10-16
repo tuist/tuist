@@ -5,6 +5,31 @@ import Testing
 @testable import SwifterPMCore
 
 struct NativeRegistryAuthenticationTests {
+    @Test(.inTemporaryDirectory)
+    func compatibilityChecksUseTheNativeResolutionEnvironment() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let directory = URL(fileURLWithPath: root.pathString)
+        let swift = directory.appendingPathComponent("swift")
+        try await fileSystem.atomicWrite("#!/bin/sh\nprintf 'Swift version 6.4\n'\n", to: swift)
+        try await SystemProcess.run("/bin/chmod", ["+x", swift.path])
+        let credentials = ["SWIFTPM_REGISTRY_TOKEN": "fixture-token"]
+        let resolution = credentials.merging(
+            ["PATH": "\(root.pathString):/usr/bin:/bin"], uniquingKeysWith: { _, new in new }
+        )
+        try await Environment.$values.withValue(credentials) {
+            try await Environment.withManifestEnvironment(["PATH": "/nonexistent"], resolutionEnvironment: resolution) {
+                let plan = try await NativeRegistryAuthentication.prepare(
+                    packageDir: directory.appendingPathComponent("absent"),
+                    registryConfigurationPath: nil,
+                    defaultRegistryURL: nil,
+                    disableSandbox: true,
+                    scmToRegistryTransformation: .disabled
+                )
+                #expect(plan == .native)
+            }
+        }
+    }
+
     @Test(arguments: [
         ("Apple Swift version 6.2.3 (swiftlang-6.2.3)", false),
         ("Swift version 6.3", false),

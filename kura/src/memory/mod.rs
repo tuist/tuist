@@ -545,6 +545,31 @@ impl MemoryController {
         }))
     }
 
+    /// Admission for decoding an upload in memory, under the same per-request
+    /// limit as `try_acquire_reapi_materialization`. Write decoding borrows
+    /// the ceiling headroom above a full floor while pressure is normal: the
+    /// permit lives until the upload persists, which the server bounds, unlike
+    /// a response a slow client holds.
+    pub fn try_acquire_reapi_write_decode(
+        &self,
+        requested_bytes: usize,
+    ) -> Result<Option<MemoryPermit>, ()> {
+        if requested_bytes == 0 {
+            return Ok(None);
+        }
+        if requested_bytes > self.reapi_materialization_limit_bytes() {
+            return Err(());
+        }
+        let transient = self.try_reserve_transient_with(
+            requested_bytes as u64,
+            AdmissionClass::Foreground,
+            TransientElasticity::MayBorrowCeilingHeadroom,
+        )?;
+        Ok(Some(MemoryPermit {
+            _transient: transient,
+        }))
+    }
+
     pub fn try_acquire_response_materialization(
         &self,
         content_bytes: usize,

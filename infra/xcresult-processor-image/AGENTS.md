@@ -78,7 +78,8 @@ at least as new an Xcode as any active runner-image profile.
 The Xcode version is declared inline in
 `.github/workflows/server-production-deployment.yml`'s
 `release-xcresult-processor-image.Build image` step (current value is
-the `XCODE_VERSION` env var on that step). Bump it alongside the
+the `XCODE_VERSION` env var on that step, currently `27.1`). Track the
+newest stable runner Xcode, not prerelease profiles. Bump it alongside the
 runner-image profile list when promoting a new Xcode to the fleet:
 
 1. Publish a Layer 1 image with the new Xcode — first run
@@ -246,14 +247,15 @@ what made the two incidents above look alike from the outside.
 
 **Detection.** Readiness, when enabled, only gates rollouts; it pages nobody, and
 ExternalSecrets cannot see this class of failure at all, so it is caught
-in the metrics pipeline too. Four rules in
+in the metrics pipeline too. Five rules in
 [`../helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md)
 cover it, and they are cause-independent by design:
 
 | Rule | Catches |
 |---|---|
 | `Remote processing queue has no consumer` | The queue not draining, whatever the reason. Read from Postgres by the Linux web pods, so it survives total loss of this fleet. |
-| `xcresult processor guest metrics unavailable fleet-wide` | No guest PromEx endpoint answering anywhere, independent of the readiness probe. |
+| `xcresult processor guest metrics unavailable fleet-wide` | No guest PromEx endpoint answering anywhere in production, independent of the readiness probe. |
+| `xcresult processor guest metrics unavailable in canary or staging` | The same for the single-replica clusters, with a 30 minute pending period so a slow image pull during a deploy does not page. |
 | `xcresult processor guest metrics unavailable on one host` | Half capacity, including a mini that is powered on but never joined the cluster. |
 | `xcresult processor replicas unavailable` | The scheduling half: a replica stuck `Pending` while the Deployment still reports `Available=True`. |
 
