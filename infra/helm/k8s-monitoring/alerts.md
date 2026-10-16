@@ -6472,9 +6472,23 @@ in its first 25 minutes on 2026-10-15 BER1 downloaded 3.5 and 2.9 Gbps over two
 
 ### Rack power draw near its contracted limit
 
+The rule's draw, written `<rack draw>` below and expanded in Grafana:
+
 ```promql
-sum by (site) (capt_rackpdu_outlet_active_power_watts{cluster="tuist-production"})
-/ on (site) max by (site) (capt_racksite_contracted_power_watts{cluster="tuist-production"})
+sum by (site) (
+  capt_rackpdu_outlet_active_power_watts{cluster="tuist-production"}
+  or (
+    (
+      capt_rackats_output_current_amps{cluster="tuist-production"}
+      * on (site, ats, output) capt_rackats_output_voltage_volts{cluster="tuist-production"}
+    )
+    unless on (site, ats) capt_rackpdu_chain{cluster="tuist-production"}
+  )
+)
+```
+
+```promql
+<rack draw> / on (site) max by (site) (capt_racksite_contracted_power_watts{cluster="tuist-production"})
 ```
 
 - Threshold: `> 0.8`
@@ -6484,7 +6498,7 @@ sum by (site) (capt_rackpdu_outlet_active_power_watts{cluster="tuist-production"
 - Summary: `{{ $labels.site }} rack draw is {{ humanize $values.B.Value }}W,
   {{ humanizePercentage $values.A.Value }} of its contracted power`
 
-The rule has a second query, `B`, which is the numerator alone, so the summary
+The rule has a second query, `B`, which is `<rack draw>` alone, so the summary
 can show the draw in watts. The divisor is the site's contracted power in
 effect. It comes from `contracted_power` in the site definition
 (`infra/rack-switch-fleet/sites/<site>.json`), as dated steps, and the RackSite
@@ -6507,17 +6521,25 @@ site definition changes. If the draw goes over the contracted power by up to
 Above 10%, it may switch off the feeders. Firing at 80% leaves room to move
 load or order more power before either happens.
 
-The sum covers only what the PDUs meter. Loads plugged straight into
-`ber1-ats-1` (`ber1-mgmt`, `ber1-tor-a`, `ber1-edge-a`, `ber1-store-a` and the
-KVMs) are left out, because the RackATS controller exports input voltage,
-active source and transfer state but no output draw. So the real draw is
-higher than the rule shows. The facility's meter (NTT Berlin 2) is the
-authoritative reading. A PDU the operator cannot read drops all its outlet
-series, which makes the sum smaller. That case is covered by
-[Rack power equipment not observed](#rack-power-equipment-not-observed).
+The draw is every PDU outlet's active power, plus the output of each transfer
+switch that feeds no reporting PDU. At BER1 that switch is `ber1-ats-1`, which
+powers `ber1-mgmt`, `ber1-tor-a`, `ber1-edge-a`, `ber1-store-a` and the KVMs
+directly. `capt_rackpdu_chain` names the switch behind each PDU while that PDU
+reports draw, so a chain is never counted twice. A PDU that stops reporting
+hands its load back to its switch's meter. The transfer switches report only
+output current and voltage, so their part is current times voltage in VA,
+which is at least the real wattage. Their current comes in 0.1 A steps and
+reads coarsely at low load, off by a step or two. That is tens of VA against a
+threshold in kW. The facility's meter (NTT Berlin 2) is the authoritative
+reading.
 
-Triage: `topk(10, capt_rackpdu_outlet_active_power_watts{site="ber1"})` shows
-which outlets grew.
+A switch the operator cannot read drops its output series, and so does a PDU
+its outlet series. Either makes the draw smaller, and
+[Rack power equipment not observed](#rack-power-equipment-not-observed) covers
+both.
+
+Triage: `topk(10, capt_rackpdu_outlet_active_power_watts{site="ber1"})` and
+`capt_rackats_output_current_amps{site="ber1"}` show what grew.
 
 ### Rack has no contracted power
 
