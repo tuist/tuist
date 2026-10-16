@@ -290,9 +290,9 @@ impl MemoryController {
         // The raw `memory.current >= hard_limit` arm is deliberately un-hysteresed. On a warm
         // serving node the kernel keeps clean page cache charged until forced to reclaim, so once
         // the cumulative footprint crosses the hard watermark this stays effectively steady state.
-        // That is the intended trade for cache nodes: hold drop-behind and mmap-serving denial on
-        // so request serving keeps borrowing from clean file cache instead of the container
-        // sitting close to its limit.
+        // Hold drop-behind on so new writes trade clean file-cache warmth for request
+        // capacity. Resident mmap serving remains bounded separately: only the working-set
+        // arm or actual pressure denies it, not a raw charge full of inactive clean pages.
         let working_set_reclaim =
             self.observe_working_set(sample.working_set_bytes) != MemoryPressure::Normal;
         self.inner.reclaim_file_cache.store(
@@ -348,8 +348,8 @@ impl MemoryController {
     // at the hard watermark as steady state, and only recedes under
     // allocation demand — a gate on it is a latch, not a gate (see
     // `observe_container`). The raw charge still drives `reclaim_file_cache`,
-    // which selects a serving mode (drop-behind, mmap denial) rather than
-    // blocking work.
+    // which selects drop-behind rather than blocking work. Mmap denial follows
+    // actual pressure and the working-set arm, not inactive clean-file charge.
 
     pub fn allow_manifest_cache_admission(&self) -> bool {
         self.pressure() == MemoryPressure::Normal
@@ -805,7 +805,11 @@ impl MemoryController {
         region: MmapRegion,
         requested_bytes: usize,
     ) -> Option<MmapMemoryPermit> {
-        if requested_bytes == 0 || self.should_reclaim_file_cache() {
+        if requested_bytes == 0
+            || self.pressure() != MemoryPressure::Normal
+            || MemoryPressure::from_u8(self.inner.working_set_state.load(Ordering::Relaxed))
+                != MemoryPressure::Normal
+        {
             return None;
         }
         let mut regions = self
@@ -1413,6 +1417,41 @@ mod tests {
                 .is_some()
         );
         assert!(controller.allow_background_admission());
+    }
+
+    #[test]
+    fn inactive_clean_file_charge_does_not_deny_bounded_resident_mappings() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::with_runtime_limit(metrics, 240, 100, 200);
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 220,
+                pressure_bytes: 60,
+                working_set_bytes: 80,
+                reclaimable_inactive_file_bytes: 140,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(controller.should_reclaim_file_cache());
+        let permit = controller.try_acquire_mmap_serving(mmap_region("resident", 1), 1);
+        assert!(permit.is_some());
+        drop(permit);
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 220,
+                pressure_bytes: 60,
+                working_set_bytes: 180,
+                reclaimable_inactive_file_bytes: 40,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(
+            controller
+                .try_acquire_mmap_serving(mmap_region("resident", 1), 1)
+                .is_none()
+        );
     }
 
     #[test]

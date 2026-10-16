@@ -40,7 +40,7 @@ use crate::{
         RESPONSE_STREAM_SEND_BUFFER_BYTES, SYNC_LONG_POLL_MAX_SECS, SYNC_LONG_POLL_RECHECK_MS,
         response_stream_chunk_bytes,
     },
-    io::is_fd_pool_exhausted_error,
+    io::{PersistentFile, is_fd_pool_exhausted_error, run_blocking_file_operation},
     memory::{
         MemoryController, MemoryPressure, ResponseStreamAdmissionPatience,
         ResponseStreamMemoryPermit, ResponseTransportGuard,
@@ -3377,6 +3377,39 @@ enum BackfillSpoolError {
     Internal(String),
 }
 
+/// Writes borrowed owned-reader chunks without a second Tokio file buffer.
+/// Each blocking operation retains the descriptor lease and input bytes.
+struct BackfillSpoolWriter {
+    file: PersistentFile,
+    position: u64,
+}
+
+impl tokio::io::AsyncWrite for BackfillSpoolWriter {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        bytes: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let this = self.get_mut();
+        Poll::Ready(
+            run_blocking_file_operation(|| this.file.write_all_at(bytes, this.position)).map(
+                |()| {
+                    this.position += bytes.len() as u64;
+                    bytes.len()
+                },
+            ),
+        )
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
 struct BackfillBodiesSpool {
     path: std::path::PathBuf,
     file_len: u64,
@@ -3420,11 +3453,14 @@ async fn spool_backfill_bodies_inner(
         .map_err(BackfillSpoolError::Internal)?;
     let path = temp_file_path(&directory, "bodies");
     let cleanup = TempFileCleanup::new_unreserved(path.clone());
-    let mut file = state
-        .io
-        .create_file(&path)
-        .await
-        .map_err(BackfillSpoolError::Internal)?;
+    let mut file = BackfillSpoolWriter {
+        file: state
+            .io
+            .create_new_persistent_file(&path)
+            .await
+            .map_err(BackfillSpoolError::Internal)?,
+        position: 0,
+    };
 
     let mut reservations = Vec::new();
     let mut file_len = 0_u64;
@@ -3552,9 +3588,7 @@ async fn spool_backfill_bodies_inner(
         }
     }
 
-    file.flush().await.map_err(|error| {
-        BackfillSpoolError::Internal(format!("failed to flush backfill spool: {error}"))
-    })?;
+    drop(file);
 
     Ok(BackfillBodiesSpool {
         path,
@@ -6896,23 +6930,30 @@ mod tests {
             0,
             contents.len() as u64,
         ));
-        let mut writer = context
-            .state
-            .io
-            .create_file(&destination)
-            .await
-            .expect("create backfill spool destination");
+        let mut writer = BackfillSpoolWriter {
+            file: context
+                .state
+                .io
+                .create_new_persistent_file(&destination)
+                .await
+                .expect("create backfill spool destination"),
+            position: 0,
+        };
+        writer.write_all(b"hdr").await.expect("write spool prefix");
 
         let copied = copy_artifact_reader_owned(&mut reader, &mut writer, 64 * 1_024)
             .await
             .expect("copy backfill spool body");
         writer.flush().await.expect("flush backfill spool body");
+        assert_eq!(writer.position, copied + 3);
+        writer.write_all(&[]).await.expect("empty spool write");
         drop(writer);
 
         assert_eq!(copied, contents.len() as u64);
+        let expected = [b"hdr".as_slice(), contents.as_slice()].concat();
         assert_eq!(
             std::fs::read(destination).expect("read backfill spool destination"),
-            contents
+            expected
         );
     }
 

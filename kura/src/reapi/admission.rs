@@ -61,10 +61,12 @@ struct RetryInfo {
     retry_delay: Option<protobuf::Duration>,
 }
 
-fn write_admission_rejected(message: &str) -> Status {
+// Try-only decode/staging refusals have no queued backlog, so use the idle
+// jitter window. Critical memory shedding retains the saturated window.
+fn write_admission_rejected(message: &str, retry_ceiling_seconds: u64) -> Status {
     let retry = RetryInfo {
         retry_delay: Some(protobuf::Duration {
-            seconds: crate::backpressure::retry_after_seconds(10) as i64,
+            seconds: crate::backpressure::retry_after_seconds(retry_ceiling_seconds) as i64,
             nanos: 0,
         }),
     };
@@ -226,6 +228,7 @@ impl GrpcWriteAdmission {
                 self.metrics.record_decode_rejected();
                 write_admission_rejected(
                     "server is limiting concurrent remote-execution write decoding; retry the write",
+                    crate::backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS,
                 )
             })
     }
@@ -244,6 +247,7 @@ impl GrpcWriteAdmission {
                 self.metrics.record_staging_rejected();
                 write_admission_rejected(
                     "server is limiting concurrent ByteStream staging; retry the write",
+                    crate::backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS,
                 )
             })?;
         Ok((policy, reservation.stream_staging_bytes / 2))
@@ -429,6 +433,7 @@ pub(super) async fn reject_overloaded_grpc_writes(
             .record_memory_action("grpc_write_rejected_critical");
         return grpc_status_response(write_admission_rejected(
             "server is shedding writes due to memory pressure; retry the write",
+            crate::backpressure::SATURATED_RETRY_AFTER_CEILING_SECONDS,
         ));
     }
     next.run(request).await
@@ -463,6 +468,7 @@ pub(super) async fn admit_grpc_write_decode(
         Err(()) => {
             return grpc_status_response(write_admission_rejected(
                 "server is limiting concurrent remote-execution write decoding; retry the write",
+                crate::backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS,
             ));
         }
     };
@@ -660,6 +666,31 @@ mod tests {
     }
 
     #[test]
+    fn write_rejections_encode_the_supplied_retry_window() {
+        for ceiling in [
+            crate::backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS,
+            crate::backpressure::SATURATED_RETRY_AFTER_CEILING_SECONDS,
+        ] {
+            for _ in 0..32 {
+                let error = write_admission_rejected("busy", ceiling);
+                assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+                let status = rpc::Status::decode(error.details()).unwrap();
+                assert_eq!(status.code, tonic::Code::ResourceExhausted as i32);
+                assert_eq!(status.message, "busy");
+                assert_eq!(status.details.len(), 1);
+                assert_eq!(
+                    status.details[0].type_url,
+                    "type.googleapis.com/google.rpc.RetryInfo"
+                );
+                let retry = RetryInfo::decode(status.details[0].value.as_slice()).unwrap();
+                let delay = retry.retry_delay.unwrap();
+                assert!((1..=ceiling as i64).contains(&delay.seconds));
+                assert_eq!(delay.nanos, 0);
+            }
+        }
+    }
+
+    #[test]
     fn rejected_write_admission_has_bounded_standard_retry_info_and_releases_memory() {
         let metrics = crate::metrics::Metrics::new("eu-west".into(), "tenant".into());
         let mib = 1024 * 1024;
@@ -686,7 +717,10 @@ mod tests {
             );
             let retry = RetryInfo::decode(status.details[0].value.as_slice()).unwrap();
             let delay = retry.retry_delay.unwrap();
-            assert!((1..=10).contains(&delay.seconds));
+            assert!(
+                (1..=crate::backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS as i64)
+                    .contains(&delay.seconds)
+            );
             assert_eq!(delay.nanos, 0);
         }
         // Failed growth keeps only the already-owned decode permit, never a waiter.
@@ -857,16 +891,19 @@ mod tests {
     fn a_large_write_fits_a_budget_smaller_than_two_staging_windows() {
         let metrics = crate::metrics::Metrics::new("eu-west".into(), "tenant".into());
         let mebibyte = 1024 * 1024;
-        // Watermarks chosen so the transient budget lands at 32 MiB, the pool a
-        // 176 MiB memory floor fits to.
+        // The pool fits exactly two staging windows before the decoder owns
+        // its buffers, so staging must expose the narrower admitted window.
         let memory = MemoryController::with_runtime_limit(
             metrics.clone(),
             256 * mebibyte,
             64 * mebibyte,
-            96 * mebibyte,
+            64 * mebibyte + 2 * FOREGROUND_STAGING_WINDOW_BYTES,
         );
         memory.observe(mebibyte);
-        assert_eq!(memory.transient_capacity_bytes(), 32 * mebibyte);
+        assert_eq!(
+            memory.transient_capacity_bytes(),
+            2 * FOREGROUND_STAGING_WINDOW_BYTES
+        );
 
         let admission = GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics())
             .expect("the initial reservation should fit");
@@ -877,7 +914,7 @@ mod tests {
             .expect("the first chunk's decode buffers should fit");
         let (policy, _) = admission
             .try_configure_staging(FOREGROUND_STAGING_WINDOW_BYTES)
-            .expect("a full-window write must be admitted on a 32 MiB budget");
+            .expect("a full-window write must fit alongside its decode buffers");
         // Bounded, not Foreground: the window is narrower than the upload, so
         // completed ranges are released as it goes.
         assert_eq!(policy, FileCachePolicy::Bounded);
@@ -997,11 +1034,17 @@ mod tests {
         admission
             .try_configure_staging(64 * mebibyte)
             .expect("the staging working set should fit");
-        assert_eq!(memory.transient_reserved_bytes(), 34 * mebibyte);
+        assert_eq!(
+            memory.transient_reserved_bytes(),
+            2 * mebibyte + 2 * FOREGROUND_STAGING_WINDOW_BYTES
+        );
         admission
             .try_grow_decode(64 * mebibyte, 0)
             .expect("a later maximum-sized message should fit before decoding");
-        assert_eq!(memory.transient_reserved_bytes(), 160 * mebibyte);
+        assert_eq!(
+            memory.transient_reserved_bytes(),
+            128 * mebibyte + 2 * FOREGROUND_STAGING_WINDOW_BYTES
+        );
         assert_eq!(
             admission
                 .reservation

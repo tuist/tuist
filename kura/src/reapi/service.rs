@@ -2991,22 +2991,23 @@ impl ByteStream for ReapiService {
                     "server is limiting concurrent ByteStream reads; retry shortly",
                 )
             })?;
-        // Page-cache-resident whole-blob identity reads are served from a
-        // mapping of the artifact, the way the HTTP path serves them: copying
-        // out of the mapping on the async worker avoids a blocking-pool
-        // hand-off per chunk. The residency gate keeps disk faults off the
-        // workers, and any miss falls back to the streaming reader with
-        // identical bytes. A ranged read streams only its range instead of
-        // mapping and charging the whole blob.
+        // Multi-chunk resident reads amortize mapping setup. On 64-bit Linux,
+        // a single-chunk response can instead fill its protobuf Vec with the
+        // owned reader's nonblocking cache probe, without a temporary VMA or
+        // blocking hand-off on a hit. Other platforms retain mapped serving.
+        // Ranges and the HTTP zero-copy mapped Bytes path are unchanged.
         let whole_blob = read_offset == 0 && bytes_to_read == manifest.size;
-        let mapped = if resource.compressor == BlobCompressor::Zstd || !whole_blob {
-            None
-        } else {
-            match self.state.store.try_mmap_artifact_bytes(&manifest).await {
-                Ok(Some(bytes)) if bytes.len() as u64 == manifest.size => Some(bytes),
-                _ => None,
-            }
-        };
+        let single_nowait_chunk = cfg!(all(target_os = "linux", target_pointer_width = "64"))
+            && bytes_to_read <= stream_chunk_bytes as u64;
+        let mapped =
+            if resource.compressor == BlobCompressor::Zstd || !whole_blob || single_nowait_chunk {
+                None
+            } else {
+                match self.state.store.try_mmap_artifact_bytes(&manifest).await {
+                    Ok(Some(bytes)) if bytes.len() as u64 == manifest.size => Some(bytes),
+                    _ => None,
+                }
+            };
         let stream: Self::ReadStream = if let Some(bytes) = mapped {
             self.state
                 .metrics
@@ -12628,8 +12629,42 @@ mod tests {
         received
     }
 
+    #[cfg(all(target_os = "linux", target_pointer_width = "64"))]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_single_chunk_identity_reads_use_the_owned_reader() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        for size in [
+            crate::constants::RESPONSE_STREAM_MIN_CHUNK_BYTES - 1,
+            crate::constants::RESPONSE_STREAM_CHUNK_BYTES,
+        ] {
+            let context = test_context(|_| {}).await;
+            let (channel, shutdown_tx, server) = connect_test_routes(context.state.clone()).await;
+            let mut client = ByteStreamClient::new(channel);
+            let blob = (0..size)
+                .map(|i| (i.wrapping_mul(17) % 251) as u8)
+                .collect::<Vec<_>>();
+            let hash = hex::encode(Sha256::digest(&blob));
+            client
+                .write(tokio_stream::iter(chunked_write_requests(
+                    &format!("uploads/single-chunk/blobs/{hash}/{size}"),
+                    &blob,
+                    true,
+                )))
+                .await
+                .expect("upload should persist");
+            let resource = format!("blobs/{hash}/{size}");
+            assert_eq!(read_bytestream(&mut client, &resource, 0, 0).await, blob);
+            let metrics = context.state.metrics.render();
+            assert!(metrics.contains("path=\"streaming\""));
+            assert!(!metrics.contains("path=\"mmap\""));
+            let _ = shutdown_tx.send(());
+            let _ = server.await;
+        }
+    }
+
     // A ranged identity read streams only its range: it must not map, and
-    // charge the mapped pool for, the whole blob. Full reads may map.
+    // charge the mapped pool for, the whole blob. Multi-chunk full reads may map.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn bytestream_ranged_identity_reads_stream_only_their_range() {
         use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;

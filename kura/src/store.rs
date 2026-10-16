@@ -1129,6 +1129,22 @@ enum SegmentArtifactSource<'a> {
     },
 }
 
+#[derive(Clone, Copy)]
+enum SegmentAppendInput<'a> {
+    Reader,
+    Memory(&'a [u8]),
+    #[cfg(target_os = "linux")]
+    CompleteFile(&'a PersistentFile),
+}
+
+enum BackfillSegmentSource<'a> {
+    Path(StagedArtifactPath<'a>),
+    Reader {
+        reader: &'a mut (dyn AsyncRead + Unpin + Send),
+        size: u64,
+    },
+}
+
 impl<'a> StagedArtifactPath<'a> {
     pub fn new(path: &'a Path, file_cache_policy: FileCachePolicy) -> Self {
         Self {
@@ -3383,6 +3399,29 @@ impl Store {
             drop(reservation);
         }
 
+        #[cfg(target_os = "linux")]
+        if durability == ApplyDurability::Sync {
+            // This path accepts a completed private staging file, never an
+            // incoming stream. Retain its descriptor until segment durability.
+            let source = self.io.open_persistent_read_file(source_path).await?;
+            if !run_segment_file_operation(|| source.has_len(size))
+                .map_err(|error| format!("failed to validate staged segment source: {error}"))?
+            {
+                return Err("staged segment source is shorter than declared size".into());
+            }
+            let result = self
+                .append_reader_to_segment_inner(
+                    &mut tokio::io::empty(),
+                    size,
+                    SegmentAppendInput::CompleteFile(&source),
+                    Some(source_path),
+                    file_cache_policy,
+                    durability,
+                )
+                .await;
+            self.io.remove_file_if_exists(source_path).await;
+            return result;
+        }
         let mut source = self.io.open_file(source_path).await?;
         let result = self
             .append_reader_to_segment(
@@ -3431,7 +3470,7 @@ impl Store {
         self.append_reader_to_segment_inner(
             &mut empty,
             bytes.len() as u64,
-            Some(bytes),
+            SegmentAppendInput::Memory(bytes),
             source_cache_path,
             file_cache_policy,
             durability,
@@ -3654,7 +3693,7 @@ impl Store {
         self.append_reader_to_segment_inner(
             source,
             size,
-            None,
+            SegmentAppendInput::Reader,
             source_cache_path,
             file_cache_policy,
             durability,
@@ -3666,7 +3705,7 @@ impl Store {
         &self,
         source: &mut R,
         size: u64,
-        preloaded: Option<&[u8]>,
+        input: SegmentAppendInput<'_>,
         source_cache_path: Option<&Path>,
         file_cache_policy: FileCachePolicy,
         durability: ApplyDurability,
@@ -3674,7 +3713,13 @@ impl Store {
     where
         R: AsyncRead + Unpin,
     {
-        if preloaded.is_some_and(|bytes| bytes.len() as u64 != size) {
+        #[cfg(target_os = "linux")]
+        if matches!(input, SegmentAppendInput::CompleteFile(_))
+            && durability != ApplyDurability::Sync
+        {
+            return Err("complete-file copy requires synchronous durability to retain its source descriptor".into());
+        }
+        if matches!(input, SegmentAppendInput::Memory(bytes) if bytes.len() as u64 != size) {
             return Err("preloaded segment source length does not match declared size".into());
         }
         // Append the bytes under the write lock (which also fsyncs the outgoing
@@ -3698,7 +3743,7 @@ impl Store {
             writer.len_unknown = true;
             let buffer_bytes = usize::try_from(size.min(SEGMENT_COPY_BUFFER_BYTES as u64))
                 .expect("segment copy buffer length fits usize");
-            let mut buffer = if preloaded.is_some() {
+            let mut buffer = if matches!(input, SegmentAppendInput::Memory(_)) {
                 Vec::new()
             } else {
                 try_allocate_exact_vec(buffer_bytes).ok_or_else(|| {
@@ -3707,46 +3752,113 @@ impl Store {
             };
             let mut copied = 0_u64;
             let mut advised_through = 0_u64;
+            #[cfg(target_os = "linux")]
+            let mut kernel_copy_enabled = true;
             while copied < size {
-                let (chunk, read) = if let Some(bytes) = preloaded {
-                    let start = copied as usize;
-                    let end = start
-                        .saturating_add(SEGMENT_COPY_BUFFER_BYTES)
-                        .min(bytes.len());
-                    (&bytes[start..end], end - start)
-                } else {
-                    let remaining = usize::try_from((size - copied).min(buffer_bytes as u64))
-                        .expect("copy chunk fits usize");
-                    buffer.clear();
-                    let mut limited_source = (&mut *source).take(remaining as u64);
-                    limited_source
-                        .read_buf(&mut buffer)
-                        .await
-                        .map_err(|error| {
-                            format!(
-                                "failed to read source while appending into segment {}: {error}",
-                                segment_path.display()
+                #[cfg(target_os = "linux")]
+                let copy_window = (size - copied).min(
+                    FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+                        - copied % FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES,
+                );
+                #[cfg(target_os = "linux")]
+                let kernel_copied: Option<usize> = match input {
+                    #[cfg(target_os = "linux")]
+                    SegmentAppendInput::CompleteFile(file) if kernel_copy_enabled => {
+                        let result = run_segment_file_operation(|| {
+                            file.try_copy_range_to(
+                                writer
+                                    .file
+                                    .as_ref()
+                                    .expect("active segment writer should hold a file"),
+                                copied,
+                                offset.saturating_add(copied),
+                                copy_window as usize,
                             )
-                        })?;
-                    let read = buffer.len();
-                    (&buffer[..], read)
+                        })
+                        .map_err(|error| format!("failed to copy staged segment range: {error}"))?;
+                        if result.is_none() {
+                            kernel_copy_enabled = false;
+                        }
+                        result
+                    }
+                    _ => None,
                 };
-                if read == 0 {
-                    break;
-                }
-                run_segment_file_operation(|| {
-                    writer
-                        .file
-                        .as_ref()
-                        .expect("active segment writer should hold a file")
-                        .write_all_at(chunk, offset.saturating_add(copied))
-                })
-                .map_err(|error| {
-                    format!(
-                        "failed to append into segment {}: {error}",
-                        segment_path.display()
-                    )
-                })?;
+                #[cfg(not(target_os = "linux"))]
+                let kernel_copied: Option<usize> = None;
+                let read = if let Some(copied) = kernel_copied {
+                    copied
+                } else {
+                    let (chunk, read) = if let SegmentAppendInput::Memory(bytes) = input {
+                        let start = copied as usize;
+                        let end = start
+                            .saturating_add(SEGMENT_COPY_BUFFER_BYTES)
+                            .min(bytes.len());
+                        (&bytes[start..end], end - start)
+                    } else {
+                        let remaining = usize::try_from((size - copied).min(buffer_bytes as u64))
+                            .expect("copy chunk fits usize");
+                        buffer.clear();
+                        match input {
+                            #[cfg(target_os = "linux")]
+                            SegmentAppendInput::CompleteFile(file) => {
+                                let remaining = remaining.min(copy_window as usize);
+                                run_segment_file_operation(|| {
+                                    loop {
+                                        match rustix::io::pread(
+                                            file.as_std(),
+                                            &mut buffer.spare_capacity_mut()[..remaining],
+                                            copied,
+                                        ) {
+                                            Ok((initialized, _)) => {
+                                                let read = initialized.len();
+                                                // SAFETY: pread initialized exactly this prefix
+                                                // of the existing admitted allocation.
+                                                unsafe { buffer.set_len(read) };
+                                                break Ok(());
+                                            }
+                                            Err(rustix::io::Errno::INTR) => continue,
+                                            Err(error) => break Err(error),
+                                        }
+                                    }
+                                })
+                                .map_err(|error| {
+                                    format!("failed to read staged segment source: {error}")
+                                })?;
+                            }
+                            SegmentAppendInput::Reader | SegmentAppendInput::Memory(_) => {
+                                let mut limited_source = (&mut *source).take(remaining as u64);
+                                limited_source
+                                .read_buf(&mut buffer)
+                                .await
+                                .map_err(|error| {
+                                    format!(
+                                        "failed to read source while appending into segment {}: {error}",
+                                        segment_path.display()
+                                    )
+                                })?;
+                            }
+                        }
+                        let read = buffer.len();
+                        (&buffer[..], read)
+                    };
+                    if read == 0 {
+                        break;
+                    }
+                    run_segment_file_operation(|| {
+                        writer
+                            .file
+                            .as_ref()
+                            .expect("active segment writer should hold a file")
+                            .write_all_at(chunk, offset.saturating_add(copied))
+                    })
+                    .map_err(|error| {
+                        format!(
+                            "failed to append into segment {}: {error}",
+                            segment_path.display()
+                        )
+                    })?;
+                    read
+                };
                 copied = copied.saturating_add(read as u64);
 
                 if copied.saturating_sub(advised_through)
@@ -3758,21 +3870,20 @@ impl Store {
                 {
                     let destination = writer
                         .file
-                        .take()
+                        .as_ref()
                         .expect("active segment writer should hold a file");
                     run_segment_file_operation(|| destination.sync_data()).map_err(|error| {
                         format!("failed to sync segment {}: {error}", segment_path.display())
                     })?;
-                    drop(destination);
-                    if let Err(error) = self
-                        .io
-                        .drop_cached_pages(
-                            &segment_path,
+                    // Positioned writes have completed, with no detached file
+                    // buffer. Retain the leased descriptor through sync/advice;
+                    // reopening early also preserves speculative EOF blocks on XFS.
+                    if let Err(error) = run_segment_file_operation(|| {
+                        destination.drop_cached_pages(
                             offset.saturating_add(advised_through),
                             copied - advised_through,
                         )
-                        .await
-                    {
+                    }) {
                         self.io
                             .metrics()
                             .record_memory_action("segment_file_cache_drop_failed");
@@ -3802,9 +3913,6 @@ impl Store {
                             ));
                         }
                     }
-                    writer.file = Some(Arc::new(
-                        self.io.open_persistent_append_file(&segment_path).await?,
-                    ));
                     advised_through = copied;
                     self.io
                         .metrics()
@@ -5880,6 +5988,67 @@ impl Store {
         origin_region: Option<&str>,
         content_sha256: Option<&str>,
     ) -> Result<BackfillStageOutcome, String> {
+        self.stage_backfill_segmented_source(
+            batch,
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            BackfillSegmentSource::Path(staged),
+            version_ms,
+            origin_region,
+            content_sha256,
+        )
+        .await
+    }
+
+    /// The caller owns a complete immutable disk spool and validates the whole
+    /// body extent before this call. Ignored records leave the reader untouched;
+    /// the caller must drain their exact body before parsing the next frame.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn stage_backfill_segmented_reader<R>(
+        &self,
+        batch: &mut BackfillApplyBatch,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        reader: &mut R,
+        size: u64,
+        version_ms: u64,
+        origin_region: Option<&str>,
+        content_sha256: Option<&str>,
+    ) -> Result<BackfillStageOutcome, String>
+    where
+        R: AsyncRead + Unpin + Send,
+    {
+        self.stage_backfill_segmented_source(
+            batch,
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            BackfillSegmentSource::Reader { reader, size },
+            version_ms,
+            origin_region,
+            content_sha256,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn stage_backfill_segmented_source(
+        &self,
+        batch: &mut BackfillApplyBatch,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        source: BackfillSegmentSource<'_>,
+        version_ms: u64,
+        origin_region: Option<&str>,
+        content_sha256: Option<&str>,
+    ) -> Result<BackfillStageOutcome, String> {
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
@@ -5894,27 +6063,49 @@ impl Store {
             server_stamped: false,
         };
         let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
-        let size = self.io.metadata_len(staged.path).await?;
+        let (size, file_cache_policy) = match &source {
+            BackfillSegmentSource::Path(staged) => (
+                self.io.metadata_len(staged.path).await?,
+                staged.file_cache_policy,
+            ),
+            BackfillSegmentSource::Reader { size, .. } => (*size, FileCachePolicy::Bounded),
+        };
         let (location, evicted_segments, durability_seq) = {
             let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
             match self.segment_apply_precheck(&artifact_id, &spec).await? {
                 SegmentApplyPrecheck::Ignored { .. } => {
-                    self.io.remove_file_if_exists(staged.path).await;
+                    if let BackfillSegmentSource::Path(staged) = &source {
+                        self.io.remove_file_if_exists(staged.path).await;
+                    }
                     return Ok(BackfillStageOutcome::Converged);
                 }
                 SegmentApplyPrecheck::Proceed { .. } => {}
             }
-            self.append_to_segment(
-                staged.path,
-                size,
-                staged.file_cache_policy,
-                ApplyDurability::DeferredBatch,
-            )
-            .await?
+            match source {
+                BackfillSegmentSource::Path(staged) => {
+                    self.append_to_segment(
+                        staged.path,
+                        size,
+                        file_cache_policy,
+                        ApplyDurability::DeferredBatch,
+                    )
+                    .await?
+                }
+                BackfillSegmentSource::Reader { mut reader, .. } => {
+                    self.append_reader_to_segment(
+                        &mut reader,
+                        size,
+                        None,
+                        file_cache_policy,
+                        ApplyDurability::DeferredBatch,
+                    )
+                    .await?
+                }
+            }
         };
         self.evict_segments(evicted_segments).await?;
         batch.max_durability_seq = batch.max_durability_seq.max(durability_seq);
-        if staged.file_cache_policy.should_drop(
+        if file_cache_policy.should_drop(
             self.memory.should_reclaim_file_cache(),
             self.memory.foreground_transient_reserved_bytes(),
         ) {
@@ -9740,6 +9931,9 @@ impl Store {
             .await;
         #[cfg(test)]
         self.hit_failpoint(FailpointName::BeforeWalFsync).await?;
+        // Give already-ready commit workers one scheduler turn to publish
+        // before capturing the prefix, without a fixed batching sleep.
+        tokio::task::yield_now().await;
         let target = self.wal_pending_seq.load(Ordering::Acquire);
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.flush_wal(true))
@@ -12863,6 +13057,168 @@ mod tests {
         );
     }
 
+    #[cfg(target_os = "linux")]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn complete_file_cross_filesystem_fallback_preserves_all_bytes() {
+        use std::os::unix::fs::MetadataExt;
+
+        let Ok(source_directory) = tempfile::Builder::new()
+            .prefix("kura-copy-range-")
+            .tempdir_in("/dev/shm")
+        else {
+            eprintln!("no separate tmpfs available for cross-filesystem qualification");
+            return;
+        };
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.tmp_dir = source_directory.path().to_path_buf();
+        });
+        let source_path = config.tmp_dir.join("uploads").join("cross-filesystem");
+        let payload = (0..1024 * 1024 + 17)
+            .map(|i| (i % 251) as u8)
+            .collect::<Vec<_>>();
+        std::fs::write(&source_path, &payload).expect("source bytes");
+        if std::fs::metadata(&source_path)
+            .expect("source metadata")
+            .dev()
+            == std::fs::metadata(&config.data_dir)
+                .expect("destination metadata")
+                .dev()
+        {
+            eprintln!("source and destination are not distinct filesystems");
+            return;
+        }
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Gradle,
+                "ios",
+                "cross-filesystem",
+                "application/octet-stream",
+                StagedArtifactPath::new(&source_path, FileCachePolicy::Bounded),
+                100,
+            )
+            .await
+            .expect("EXDEV must fall back to bounded positional IO");
+        let manifest = store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "cross-filesystem")
+            .await
+            .expect("manifest lookup")
+            .expect("durable manifest");
+        assert_eq!(read_manifest_bytes(&store, &manifest).await, payload);
+        println!("cross_filesystem_fallback_verified_bytes={}", payload.len());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn complete_file_short_copy_reconciles_the_segment_tail() {
+        let (_temp_dir, config, store) = temp_store();
+        let source_path = config.tmp_dir.join("uploads").join("short-complete-file");
+        let original = b"immutable but externally shortened";
+        std::fs::write(&source_path, original).expect("short source");
+        let source = store
+            .io
+            .open_persistent_read_file(&source_path)
+            .await
+            .expect("source descriptor");
+        let sequence_before = store.pending_seq.load(Ordering::Acquire);
+        let deferred_error = store
+            .append_reader_to_segment_inner(
+                &mut tokio::io::empty(),
+                original.len() as u64,
+                SegmentAppendInput::CompleteFile(&source),
+                Some(&source_path),
+                FileCachePolicy::Bounded,
+                ApplyDurability::DeferredBatch,
+            )
+            .await
+            .err()
+            .expect("a source scoped to append cannot cover deferred synchronization");
+        assert!(deferred_error.contains("synchronous durability"));
+        assert_eq!(store.pending_seq.load(Ordering::Acquire), sequence_before);
+        let error = store
+            .append_reader_to_segment_inner(
+                &mut tokio::io::empty(),
+                original.len() as u64 + 7,
+                SegmentAppendInput::CompleteFile(&source),
+                Some(&source_path),
+                FileCachePolicy::Bounded,
+                ApplyDurability::Sync,
+            )
+            .await
+            .err()
+            .expect("incomplete range cannot publish durability");
+        assert!(
+            error.contains("appended") && error.contains("expected"),
+            "{error}"
+        );
+        let next = b"next valid append";
+        let (location, _, _) = store
+            .append_preloaded_to_segment(
+                next,
+                None,
+                FileCachePolicy::Bounded,
+                ApplyDurability::Sync,
+            )
+            .await
+            .expect("next append should reconcile partial file length");
+        assert!(
+            location.offset >= original.len() as u64,
+            "an uncertain partial tail must not be reused"
+        );
+        let bytes = std::fs::read(store.segment_path(&location.segment_id)).expect("segment bytes");
+        assert_eq!(&bytes[..original.len()], original);
+        assert_eq!(
+            &bytes[location.offset as usize..location.offset as usize + next.len()],
+            next
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn bounded_segment_copy_retains_one_writer_across_cache_advice() {
+        let (_temp_dir, config, store) = temp_store();
+        let source = config.tmp_dir.join("uploads").join("retained-writer");
+        let size = usize::try_from(2 * FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES + 13)
+            .expect("test source fits usize");
+        let payload = (0..size)
+            .map(|index| (index.wrapping_mul(17) % 251) as u8)
+            .collect::<Vec<_>>();
+        std::fs::write(&source, &payload).expect("source should write");
+        let opens_before = segment_append_opens(&store);
+        let drops_before = memory_action_count(&store, "segment_file_cache_drop");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Gradle,
+                "ios",
+                "retained-writer",
+                "application/octet-stream",
+                StagedArtifactPath::new(&source, FileCachePolicy::Bounded),
+                100,
+            )
+            .await
+            .expect("bounded artifact should persist");
+        assert_eq!(segment_append_opens(&store) - opens_before, 1);
+        assert_eq!(
+            memory_action_count(&store, "segment_file_cache_drop") - drops_before,
+            3,
+            "two completed intervals and the durable ragged tail must release"
+        );
+        let manifest = store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "retained-writer")
+            .await
+            .expect("fetch should succeed")
+            .expect("artifact should exist");
+        assert_eq!(read_manifest_bytes(&store, &manifest).await, payload);
+        let io = store.io.clone();
+        let memory = store.memory.clone();
+        drop(store);
+        let reopened = Store::open(&config, io, memory).expect("durable store should reopen");
+        let manifest = reopened
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "retained-writer")
+            .await
+            .expect("reopened lookup")
+            .expect("acknowledged manifest must survive reopen");
+        assert_eq!(read_manifest_bytes(&reopened, &manifest).await, payload);
+    }
+
     #[tokio::test]
     async fn damped_persist_skips_identical_republish_of_a_fresh_entry() {
         let (_temp_dir, _config, store) = temp_store();
@@ -15089,7 +15445,7 @@ mod tests {
         )
     }
 
-    /// A per-record segment sync reopens the active segment file afterwards.
+    /// Counts leased writer opens; clean-range advice must retain that writer.
     fn segment_append_opens(store: &Store) -> u64 {
         rendered_count(
             store,
@@ -15192,9 +15548,9 @@ mod tests {
                 .await
                 .expect("segmented record should stage");
         }
-        // 20,000 KiB staged: every 8 MiB crossed flushes once while staging.
+        // The fixture crosses several complete dirty windows before commit.
         let intervals = (records * record_bytes) as u64 / FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES;
-        assert_eq!(intervals, 2);
+        assert!(intervals >= 2, "fixture must cross multiple drop intervals");
         assert_eq!(
             store.segment_fsync_count.load(Ordering::Relaxed) - fsyncs_before,
             intervals

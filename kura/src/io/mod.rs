@@ -655,6 +655,56 @@ impl PersistentFile {
         Ok(())
     }
 
+    /// Copies only the requested immutable source extent. The caller still owns
+    /// destination synchronization and must handle a short copy or fallback.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn try_copy_range_to(
+        &self,
+        destination: &Self,
+        source_offset: u64,
+        destination_offset: u64,
+        length: usize,
+    ) -> Result<Option<usize>, io::Error> {
+        use std::os::fd::AsRawFd;
+
+        let mut source_offset = i64::try_from(source_offset)
+            .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
+        let mut destination_offset = i64::try_from(destination_offset)
+            .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
+        // SAFETY: Both leased files remain open for this synchronous call; the
+        // offsets are private scalars, and no shared seek position is changed.
+        let copied = unsafe {
+            libc::copy_file_range(
+                self.file.as_raw_fd(),
+                &mut source_offset,
+                destination.file.as_raw_fd(),
+                &mut destination_offset,
+                length,
+                0,
+            )
+        };
+        if copied > 0 {
+            return Ok(Some(copied as usize));
+        }
+        if copied == 0 {
+            // Some kernels/filesystems report zero for unsupported sources.
+            // A bounded positional read distinguishes that from actual EOF.
+            return Ok(None);
+        }
+        let error = io::Error::last_os_error();
+        match error.raw_os_error() {
+            Some(
+                libc::ENOSYS
+                | libc::EOPNOTSUPP
+                | libc::EXDEV
+                | libc::EINVAL
+                | libc::EINTR
+                | libc::EPERM,
+            ) => Ok(None),
+            _ => Err(error),
+        }
+    }
+
     pub fn sync_data(&self) -> Result<(), io::Error> {
         sync_segment_data(&self.file)
     }
@@ -914,6 +964,119 @@ mod tests {
         };
 
         assert!(error.contains("parent traversal component"));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn persistent_range_copy_preserves_offsets_bounds_and_real_errors() {
+        use std::io::{Seek, SeekFrom};
+        use std::os::unix::fs::FileExt;
+
+        let directory = tempdir().expect("test directory");
+        let controller = IoController::new(
+            Metrics::new("test".into(), "test".into()),
+            8,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("controller");
+        let payload = (0..16384).map(|i| (i % 251) as u8).collect::<Vec<_>>();
+        let source_path = directory.path().join("source");
+        std::fs::write(&source_path, &payload).expect("source bytes");
+        let source = controller
+            .open_persistent_read_file(&source_path)
+            .await
+            .expect("source");
+        let destination_path = directory.path().join("destination");
+        let destination = controller
+            .open_persistent_append_file(&destination_path)
+            .await
+            .expect("destination");
+        destination
+            .write_all_at(&vec![0xee; 20000], 0)
+            .expect("sentinels");
+        let mut source_cursor = source.as_std();
+        let mut destination_cursor = destination.as_std();
+        source_cursor
+            .seek(SeekFrom::Start(7))
+            .expect("source cursor");
+        destination_cursor
+            .seek(SeekFrom::Start(11))
+            .expect("destination cursor");
+        let mut copied = 0;
+        let mut kernel_bytes = 0;
+        while copied < 8192 {
+            match source
+                .try_copy_range_to(
+                    &destination,
+                    4096 + copied as u64,
+                    8192 + copied as u64,
+                    8192 - copied,
+                )
+                .expect("copy or supported fallback")
+            {
+                Some(count) => {
+                    assert!(count > 0 && count <= 8192 - copied);
+                    copied += count;
+                    kernel_bytes += count;
+                }
+                None => {
+                    let mut remaining = vec![0; 8192 - copied];
+                    source
+                        .as_std()
+                        .read_exact_at(&mut remaining, 4096 + copied as u64)
+                        .expect("fallback read");
+                    destination
+                        .write_all_at(&remaining, 8192 + copied as u64)
+                        .expect("fallback write");
+                    copied = 8192;
+                }
+            }
+        }
+        destination.sync_data().expect("destination durability");
+        assert_eq!(source_cursor.stream_position().expect("source position"), 7);
+        assert_eq!(
+            destination_cursor
+                .stream_position()
+                .expect("destination position"),
+            11
+        );
+        let actual = std::fs::read(&destination_path).expect("destination bytes");
+        assert!(actual[..8192].iter().all(|byte| *byte == 0xee));
+        assert_eq!(&actual[8192..16384], &payload[4096..12288]);
+        assert!(actual[16384..].iter().all(|byte| *byte == 0xee));
+        assert_eq!(
+            source
+                .try_copy_range_to(&destination, u64::MAX, 0, 1)
+                .expect_err("invalid offset")
+                .kind(),
+            io::ErrorKind::InvalidInput
+        );
+        let write_only = controller
+            .open_persistent(
+                "test",
+                "write-only file",
+                &directory.path().join("write-only"),
+                |path| {
+                    std::fs::OpenOptions::new()
+                        .create_new(true)
+                        .write(true)
+                        .open(path)
+                },
+            )
+            .await
+            .expect("write-only file");
+        write_only
+            .write_all_at(b"not a readable source", 0)
+            .expect("write-only data");
+        assert_eq!(
+            write_only
+                .try_copy_range_to(&destination, 0, 0, 1)
+                .expect_err("real EBADF is not a fallback")
+                .raw_os_error(),
+            Some(libc::EBADF)
+        );
+        println!("observed_kernel_copy_bytes={kernel_bytes}");
     }
 
     #[tokio::test]

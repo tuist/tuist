@@ -55,12 +55,15 @@ impl SegmentReader {
             .min(max_bytes as u64)
             .min(READ_CHUNK_BYTES as u64) as usize;
         let offset = self.offset;
-        let read = || read_chunk_from_file(self.handle.as_std(), offset, len);
-        let bytes = match tokio::runtime::Handle::current().runtime_flavor() {
-            tokio::runtime::RuntimeFlavor::MultiThread => tokio::task::block_in_place(read),
-            _ => read(),
+        let mut bytes = Vec::with_capacity(len);
+        if !try_read_chunk_nowait(self.handle.as_std(), offset, len, &mut bytes)? {
+            let mut read = || read_chunk_into_buffer(self.handle.as_std(), offset, len, &mut bytes);
+            match tokio::runtime::Handle::current().runtime_flavor() {
+                tokio::runtime::RuntimeFlavor::MultiThread => tokio::task::block_in_place(read),
+                _ => read(),
+            }
+            .map_err(io::Error::other)?;
         }
-        .map_err(io::Error::other)?;
         if bytes.is_empty() {
             return Err(truncated_segment_error(self.remaining));
         }
@@ -146,22 +149,91 @@ fn read_chunk(handle: Arc<PersistentFile>, offset: u64, len: usize) -> Result<Ve
     read_chunk_from_file(handle.as_std(), offset, len)
 }
 
-#[cfg(unix)]
 fn read_chunk_from_file(file: &std::fs::File, offset: u64, len: usize) -> Result<Vec<u8>, String> {
     let mut bytes = Vec::with_capacity(len);
-    rustix::io::pread(file, rustix::buffer::spare_capacity(&mut bytes), offset)
-        .map_err(|error| format!("failed to read segment at offset {offset}: {error}"))?;
-    bytes.truncate(len);
+    read_chunk_into_buffer(file, offset, len, &mut bytes)?;
     Ok(bytes)
 }
 
-#[cfg(windows)]
-fn read_chunk_from_file(file: &std::fs::File, offset: u64, len: usize) -> Result<Vec<u8>, String> {
-    let mut bytes = vec![0; len];
-    let read = read_at(file, &mut bytes, offset)
-        .map_err(|error| format!("failed to read segment at offset {offset}: {error}"))?;
-    bytes.truncate(read);
-    Ok(bytes)
+fn read_chunk_into_buffer(
+    file: &std::fs::File,
+    offset: u64,
+    len: usize,
+    bytes: &mut Vec<u8>,
+) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        rustix::io::pread(file, rustix::buffer::spare_capacity(bytes), offset)
+            .map_err(|error| format!("failed to read segment at offset {offset}: {error}"))?;
+        bytes.truncate(len);
+    }
+    #[cfg(windows)]
+    {
+        bytes.resize(len, 0);
+        let read = read_at(file, bytes, offset)
+            .map_err(|error| format!("failed to read segment at offset {offset}: {error}"))?;
+        bytes.truncate(read);
+    }
+    Ok(())
+}
+
+/// Attempts only immediately available buffered I/O; never substitutes a plain
+/// potentially blocking pread on the async worker. Unsupported/cold/zero results
+/// retain the same allocation for the existing blocking fallback.
+fn try_read_chunk_nowait(
+    file: &std::fs::File,
+    offset: u64,
+    len: usize,
+    bytes: &mut Vec<u8>,
+) -> io::Result<bool> {
+    debug_assert!(bytes.is_empty());
+    debug_assert!(bytes.capacity() >= len);
+    #[cfg(all(target_os = "linux", target_pointer_width = "64"))]
+    {
+        use std::os::fd::AsRawFd;
+
+        let offset = i64::try_from(offset).map_err(|_| {
+            io::Error::new(io::ErrorKind::InvalidInput, "segment offset exceeds i64")
+        })?;
+        let vector = libc::iovec {
+            iov_base: bytes.spare_capacity_mut()[..len].as_mut_ptr().cast(),
+            iov_len: len,
+        };
+        // SAFETY: the leased file and writable spare capacity live through the
+        // synchronous syscall. Only its returned initialized prefix is exposed.
+        let read = unsafe { libc::preadv2(file.as_raw_fd(), &vector, 1, offset, libc::RWF_NOWAIT) };
+        if read > 0 {
+            let read = read as usize;
+            if read > len {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "oversized nowait read",
+                ));
+            }
+            // SAFETY: the kernel initialized precisely this bounded prefix.
+            unsafe { bytes.set_len(read) };
+            return Ok(true);
+        }
+        if read == 0 {
+            // Linux 5.9/5.10 could report zero on a NOWAIT cache miss. The
+            // blocking fallback, not this probe, decides actual EOF/truncation.
+            return Ok(false);
+        }
+        let error = io::Error::last_os_error();
+        match error.raw_os_error() {
+            Some(libc::EAGAIN)
+            | Some(libc::EINTR)
+            | Some(libc::ENOSYS)
+            | Some(libc::EOPNOTSUPP)
+            | Some(libc::EINVAL) => Ok(false),
+            _ => Err(error),
+        }
+    }
+    #[cfg(not(all(target_os = "linux", target_pointer_width = "64")))]
+    {
+        let _ = (file, offset, len, bytes);
+        Ok(false)
+    }
 }
 
 fn truncated_segment_error(remaining: u64) -> io::Error {
@@ -180,9 +252,95 @@ fn read_at(file: &std::fs::File, bytes: &mut [u8], offset: u64) -> std::io::Resu
 
 #[cfg(all(test, unix))]
 mod tests {
-    use std::{os::unix::fs::FileExt as _, sync::Arc, time::Duration};
+    use std::{io::Write as _, os::unix::fs::FileExt as _, sync::Arc, time::Duration};
 
     use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn owned_reads_preserve_partial_cursor_and_truncation_retry() {
+        let directory = tempfile::tempdir().expect("create reader directory");
+        let path = directory.path().join("partial-reader");
+        std::fs::write(&path, b"abcde").expect("write reader source");
+        let controller = crate::io::IoController::new(
+            crate::metrics::Metrics::new("local".into(), "reader-test".into()),
+            1,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("create I/O controller");
+        let handle = Arc::new(
+            controller
+                .open_persistent_read_file(&path)
+                .await
+                .expect("open source"),
+        );
+        let mut reader = SegmentReader::new(handle, 2, 5);
+        assert_eq!(
+            reader.read_chunk_owned(8).await.expect("partial read"),
+            b"cde"
+        );
+        assert_eq!((reader.offset, reader.remaining), (5, 2));
+        assert_eq!(
+            reader
+                .read_chunk_owned(8)
+                .await
+                .expect_err("short source must fail")
+                .kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+        assert_eq!((reader.offset, reader.remaining), (5, 2));
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .expect("open append")
+            .write_all(b"fg")
+            .expect("extend source");
+        assert_eq!(
+            reader.read_chunk_owned(8).await.expect("retry exact tail"),
+            b"fg"
+        );
+        assert_eq!((reader.offset, reader.remaining), (7, 0));
+        assert!(
+            reader
+                .read_chunk_owned(8)
+                .await
+                .expect("complete reader")
+                .is_empty()
+        );
+    }
+
+    #[cfg(all(target_os = "linux", target_pointer_width = "64"))]
+    #[test]
+    fn nowait_probe_or_fallback_reuses_the_admitted_allocation() {
+        let mut file = tempfile::tempfile().expect("create source");
+        let contents = (0..65_549).map(|i| (i % 251) as u8).collect::<Vec<_>>();
+        file.write_all(&contents).expect("write source");
+        let mut bytes = Vec::with_capacity(513);
+        let allocation = bytes.as_ptr();
+        let direct = try_read_chunk_nowait(&file, 13, 513, &mut bytes).expect("nowait probe");
+        if direct {
+            assert!(!bytes.is_empty());
+            assert_eq!(bytes, contents[13..13 + bytes.len()]);
+        } else {
+            assert!(
+                bytes.is_empty(),
+                "probe miss must not expose uninitialized bytes"
+            );
+            read_chunk_into_buffer(&file, 13, 513, &mut bytes).expect("blocking fallback");
+            assert_eq!(bytes, contents[13..526]);
+        }
+        assert_eq!(bytes.as_ptr(), allocation);
+        assert!(bytes.len() <= 513);
+        let mut invalid = Vec::with_capacity(1);
+        assert_eq!(
+            try_read_chunk_nowait(&file, u64::MAX, 1, &mut invalid)
+                .expect_err("offset overflow must reject")
+                .kind(),
+            io::ErrorKind::InvalidInput
+        );
+        assert!(invalid.is_empty());
+        println!("NOWAIT probe used cached fastpath: {direct}");
+    }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 16)]
     #[ignore = "performance benchmark run manually"]

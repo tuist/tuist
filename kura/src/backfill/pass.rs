@@ -13,11 +13,15 @@ use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, AtomicU64, Ordering},
 };
-use std::time::Duration;
+use std::{
+    pin::Pin,
+    task::{Context, Poll},
+    time::Duration,
+};
 
 use reqwest::header::RETRY_AFTER;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, ReadBuf},
     sync::mpsc,
     time::{Instant, sleep, sleep_until},
 };
@@ -44,6 +48,7 @@ use crate::{
         BackfillBodyFramePrelude, BackfillEntriesPage, BackfillEntry, BackfillUnavailable,
         read_backfill_body_frame_prelude,
     },
+    io::{PersistentFile, run_blocking_file_operation},
     reapi::chunking::is_recipe_key,
     replication::{read_bounded_body, stream_response_to_temp},
     state::SharedState,
@@ -55,6 +60,62 @@ use crate::{
 /// spool or per-artifact stream (a reservation window, not the full object
 /// size, because a valid artifact may be as large as the container).
 const TRANSFER_MEMORY_WINDOW_BYTES: u64 = 16 * 1024 * 1024;
+const APPLY_SPOOL_BUFFER_BYTES: usize = 64 * 1024;
+
+/// Sequential private spool reads borrow the admitted BufReader storage.
+/// The blocking helper retains the descriptor and buffer through each read;
+/// no detached read or intermediate Tokio file buffer outlives cancellation.
+struct BackfillSpoolReader {
+    file: PersistentFile,
+    position: u64,
+}
+
+struct CompleteSpoolBody {
+    len: u64,
+}
+
+fn complete_spool_body(
+    position: u64,
+    buffered: usize,
+    len: u64,
+    spool_len: u64,
+) -> Result<CompleteSpoolBody, PassAbort> {
+    let start = position
+        .checked_sub(buffered as u64)
+        .ok_or_else(|| PassAbort::Hard("backfill spool cursor precedes its buffer".to_owned()))?;
+    let end = start
+        .checked_add(len)
+        .ok_or_else(|| PassAbort::Hard("backfill body extent overflow".to_owned()))?;
+    if end > spool_len {
+        return Err(PassAbort::Hard(
+            "backfill body extends beyond its complete spool".to_owned(),
+        ));
+    }
+    Ok(CompleteSpoolBody { len })
+}
+
+impl AsyncRead for BackfillSpoolReader {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        let this = self.get_mut();
+        let result = run_blocking_file_operation(|| {
+            let mut file = this.file.as_std();
+            loop {
+                match std::io::Read::read(&mut file, buf.initialize_unfilled()) {
+                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                    result => break result,
+                }
+            }
+        });
+        Poll::Ready(result.map(|read| {
+            this.position += read as u64;
+            buf.advance(read);
+        }))
+    }
+}
 
 /// Per-entry allowance for frame overhead (header + record id + manifest
 /// meta) when sizing the spool reservation of a batch response whose peer
@@ -998,13 +1059,28 @@ async fn apply_spooled_batch(
         .hit_failpoint(FailpointName::AfterBackfillBodiesSpoolBeforeApply)
         .await
         .map_err(PassAbort::Hard)?;
+    let _reader_memory = cancellable(
+        context,
+        context
+            .state
+            .memory
+            .reserve_background_transient(APPLY_SPOOL_BUFFER_BYTES as u64),
+    )
+    .await?
+    .map_err(|()| PassAbort::Hard("backfill spool reader admission closed".to_owned()))?;
     let file = context
         .state
         .io
-        .open_file(&spool.path)
+        .open_persistent_read_file(&spool.path)
         .await
         .map_err(PassAbort::Hard)?;
-    let mut reader = tokio::io::BufReader::new(file);
+    let spool_len = run_blocking_file_operation(|| file.as_std().metadata())
+        .map_err(|error| PassAbort::Hard(format!("failed to stat backfill spool: {error}")))?
+        .len();
+    let mut reader = tokio::io::BufReader::with_capacity(
+        APPLY_SPOOL_BUFFER_BYTES,
+        BackfillSpoolReader { file, position: 0 },
+    );
     for item in items {
         if context.cancel.is_cancelled() {
             return Err(PassAbort::Cancelled);
@@ -1024,6 +1100,12 @@ async fn apply_spooled_batch(
                 prelude.record_id, item.key.record_id
             )));
         }
+        let complete_body = complete_spool_body(
+            reader.get_ref().position,
+            reader.buffer().len(),
+            prelude.body_len,
+            spool_len,
+        )?;
         match prelude.disposition {
             BackfillBodyDisposition::Absent => {
                 context.guard.resolve_absent(&item.key);
@@ -1041,8 +1123,14 @@ async fn apply_spooled_batch(
                 })?;
             }
             BackfillBodyDisposition::Present => {
-                match apply_present_frame(context, &prelude, &mut reader, Some(&mut apply_batch))
-                    .await?
+                match apply_present_frame(
+                    context,
+                    &prelude,
+                    &mut reader,
+                    Some(&mut apply_batch),
+                    Some(complete_body),
+                )
+                .await?
                 {
                     PresentApply::Applied => {
                         context.guard.resolve_applied(&item.key);
@@ -1137,10 +1225,11 @@ async fn apply_present_frame<R>(
     context: &PassContext<'_>,
     prelude: &BackfillBodyFramePrelude,
     reader: &mut R,
-    deferred: Option<&mut BackfillApplyBatch>,
+    mut deferred: Option<&mut BackfillApplyBatch>,
+    complete_body: Option<CompleteSpoolBody>,
 ) -> Result<PresentApply, PassAbort>
 where
-    R: tokio::io::AsyncRead + Unpin,
+    R: AsyncBufRead + Unpin + Send,
 {
     let meta = prelude
         .meta
@@ -1290,6 +1379,48 @@ where
             }
         }
         BackfillRecordKind::SegmentArtifact => {
+            if let Some(complete) = complete_body {
+                if complete.len != prelude.body_len {
+                    return Err(PassAbort::Hard("backfill body extent changed".to_owned()));
+                }
+                if let Some(batch) = deferred.as_deref_mut() {
+                    let mut source = reader.take(prelude.body_len);
+                    let staged = state
+                        .store
+                        .stage_backfill_segmented_reader(
+                            batch,
+                            producer,
+                            &meta.namespace_id,
+                            &meta.key,
+                            &meta.content_type,
+                            &mut source,
+                            prelude.body_len,
+                            prelude.version_ms,
+                            meta.origin_region.as_deref(),
+                            meta.content_sha256.as_deref(),
+                        )
+                        .await
+                        .map_err(PassAbort::Hard)?;
+                    // A converged pre-check does not read input. Still consume its
+                    // exact frame before parsing another tuple; never ignore a short body.
+                    while source.limit() > 0 {
+                        let bytes = source.fill_buf().await.map_err(|error| {
+                            PassAbort::Hard(format!("failed to drain backfill body: {error}"))
+                        })?;
+                        if bytes.is_empty() {
+                            return Err(PassAbort::Hard(
+                                "short converged backfill body".to_owned(),
+                            ));
+                        }
+                        let consumed = bytes.len();
+                        source.consume(consumed);
+                    }
+                    return Ok(match staged {
+                        BackfillStageOutcome::Staged => PresentApply::Staged,
+                        BackfillStageOutcome::Converged => PresentApply::Applied,
+                    });
+                }
+            }
             let reservation = state
                 .tmp_staging_budget
                 .try_reserve(prelude.body_len.max(1))
@@ -1302,21 +1433,33 @@ where
                 .map_err(PassAbort::Hard)?;
             let path = temp_file_path(&directory, "apply");
             let mut cleanup = TempFileCleanup::new(path.clone(), reservation);
-            let mut file = state.io.create_file(&path).await.map_err(PassAbort::Hard)?;
-            let copied = tokio::io::copy(&mut reader.take(prelude.body_len), &mut file)
+            let file = state
+                .io
+                .create_new_persistent_file(&path)
                 .await
-                .map_err(|error| {
-                    PassAbort::Hard(format!("failed to stage backfill body: {error}"))
+                .map_err(PassAbort::Hard)?;
+            let mut source = reader.take(prelude.body_len);
+            let mut copied = 0_u64;
+            loop {
+                let bytes = source.fill_buf().await.map_err(|error| {
+                    PassAbort::Hard(format!("failed to read backfill body: {error}"))
                 })?;
+                if bytes.is_empty() {
+                    break;
+                }
+                run_blocking_file_operation(|| file.write_all_at(bytes, copied)).map_err(
+                    |error| PassAbort::Hard(format!("failed to stage backfill body: {error}")),
+                )?;
+                let written = bytes.len();
+                source.consume(written);
+                copied += written as u64;
+            }
             if copied != prelude.body_len {
                 return Err(PassAbort::Hard(format!(
                     "backfill body for {} yielded {copied} bytes, expected {}",
                     prelude.record_id, prelude.body_len
                 )));
             }
-            file.flush().await.map_err(|error| {
-                PassAbort::Hard(format!("failed to flush backfill body: {error}"))
-            })?;
             drop(file);
             let staged_path = StagedArtifactPath::new(&path, FileCachePolicy::Bounded);
             let result = match deferred {
@@ -1509,7 +1652,7 @@ async fn apply_individual_response(
             "backfill artifact response bounced a fetch-individually frame".to_owned(),
         )),
         BackfillBodyDisposition::Present => {
-            match apply_present_frame(context, &prelude, &mut reader, None).await? {
+            match apply_present_frame(context, &prelude, &mut reader, None, None).await? {
                 PresentApply::Applied => {
                     context.guard.resolve_applied(key);
                     context
@@ -1917,6 +2060,50 @@ mod tests {
             );
             sleep(Duration::from_millis(50)).await;
         }
+    }
+
+    #[test]
+    fn complete_spool_extent_accounts_for_prefetch_and_rejects_invalid_ranges() {
+        assert_eq!(complete_spool_body(16, 13, 29, 32).unwrap().len, 29);
+        assert!(complete_spool_body(16, 13, 30, 32).is_err());
+        assert!(complete_spool_body(0, 1, 1, 32).is_err());
+        assert!(complete_spool_body(u64::MAX, 0, 1, u64::MAX).is_err());
+    }
+
+    #[tokio::test]
+    async fn spool_reader_preserves_ragged_cursor_and_empty_read() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .io
+            .create_dir_all(&context.state.config.tmp_dir)
+            .await
+            .unwrap();
+        let path = context.state.config.tmp_dir.join("private-spool-reader");
+        let payload: Vec<u8> = (0..(64 * 1024 + 111))
+            .map(|index| (index * 17) as u8)
+            .collect();
+        tokio::fs::write(&path, &payload).await.unwrap();
+        let file = context
+            .state
+            .io
+            .open_persistent_read_file(&path)
+            .await
+            .unwrap();
+        let mut reader = BackfillSpoolReader { file, position: 0 };
+        let mut actual = Vec::new();
+        for len in [1, 17, 8193, 65535].into_iter().cycle() {
+            assert_eq!(reader.read(&mut []).await.unwrap(), 0);
+            let remaining = payload.len() - actual.len();
+            let mut chunk = vec![0; len.min(remaining)];
+            reader.read_exact(&mut chunk).await.unwrap();
+            actual.extend_from_slice(&chunk);
+            if actual.len() == payload.len() {
+                break;
+            }
+        }
+        assert_eq!(actual, payload);
+        assert_eq!(reader.read(&mut [0; 1]).await.unwrap(), 0);
     }
 
     #[tokio::test]

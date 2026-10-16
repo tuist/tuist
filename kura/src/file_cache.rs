@@ -1,7 +1,7 @@
 use crate::memory::{ForegroundAdmissionTimeout, ForegroundMemoryReservation, MemoryController};
 
-pub const FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES: u64 = 8 * 1024 * 1024;
-pub const FOREGROUND_STAGING_WINDOW_BYTES: u64 = 16 * 1024 * 1024;
+pub const FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES: u64 = 4 * 1024 * 1024;
+pub const FOREGROUND_STAGING_WINDOW_BYTES: u64 = FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FileCachePolicy {
@@ -93,13 +93,18 @@ mod tests {
             24 * 1024 * 1024,
             56 * 1024 * 1024,
         );
+        let blocker = memory
+            .try_reserve_foreground_memory(
+                memory.transient_capacity_bytes() - 2 * FOREGROUND_STAGING_WINDOW_BYTES,
+            )
+            .expect("the unused staging headroom should fit");
         let first = reserve_foreground_staging(&memory, FOREGROUND_STAGING_WINDOW_BYTES)
             .await
             .expect("first reservation should fit");
         assert_eq!(
             first.file_cache_policy(),
             FileCachePolicy::Foreground {
-                reservation_bytes: 32 * 1024 * 1024,
+                reservation_bytes: 2 * FOREGROUND_STAGING_WINDOW_BYTES,
             }
         );
 
@@ -110,6 +115,7 @@ mod tests {
         tokio::task::yield_now().await;
         assert!(!waiting.is_finished());
         drop(first);
+        drop(blocker);
 
         let second = waiting
             .await
@@ -128,7 +134,7 @@ mod tests {
             metrics.clone(),
             64 * 1024 * 1024,
             24 * 1024 * 1024,
-            32 * 1024 * 1024,
+            28 * 1024 * 1024,
         );
 
         let reservation = reserve_foreground_staging(&memory, FOREGROUND_STAGING_WINDOW_BYTES)
@@ -136,7 +142,7 @@ mod tests {
             .expect("clamped reservation should fit");
 
         assert_eq!(reservation.file_cache_policy(), FileCachePolicy::Bounded);
-        assert_eq!(memory.transient_reserved_bytes(), 8 * 1024 * 1024);
+        assert_eq!(memory.transient_reserved_bytes(), 4 * 1024 * 1024);
 
         let tiny_memory = MemoryController::with_runtime_limit(
             metrics,
@@ -197,6 +203,39 @@ mod tests {
             768 * MIB,
             Some(64 * MIB),
         )
+    }
+
+    #[tokio::test]
+    async fn staging_window_boundaries_charge_both_actual_windows() {
+        let memory = floor_governed_memory();
+        for size in [
+            FOREGROUND_STAGING_WINDOW_BYTES - 1,
+            FOREGROUND_STAGING_WINDOW_BYTES,
+            FOREGROUND_STAGING_WINDOW_BYTES + 1,
+            3 * FOREGROUND_STAGING_WINDOW_BYTES + 7,
+        ] {
+            let staged = reserve_foreground_staging(&memory, size)
+                .await
+                .expect("boundary staging must fit");
+            let expected = if size > FOREGROUND_STAGING_WINDOW_BYTES {
+                FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+            } else {
+                size
+            };
+            assert_eq!(memory.transient_reserved_bytes(), 2 * expected);
+            assert_eq!(
+                staged.file_cache_policy(),
+                if size > FOREGROUND_STAGING_WINDOW_BYTES {
+                    FileCachePolicy::Bounded
+                } else {
+                    FileCachePolicy::Foreground {
+                        reservation_bytes: 2 * expected,
+                    }
+                }
+            );
+            drop(staged);
+            assert_eq!(memory.transient_reserved_bytes(), 0);
+        }
     }
 
     #[tokio::test]
