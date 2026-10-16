@@ -106,7 +106,8 @@ defmodule TuistEx.Analytics.Coverage do
   # prepared counts in its own code. Nil when nothing counts.
   defp line_entries(config) do
     cover? = Process.whereis(:cover_server) != nil
-    native? = :code.get_coverage_mode() != :none
+    # Without the JIT the runtime has no coverage mode to ask about: asking raises.
+    native? = :code.coverage_support() and :code.get_coverage_mode() != :none
 
     if cover? or native? do
       {cover_entries, compiled, calls} =
