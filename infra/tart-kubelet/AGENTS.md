@@ -28,8 +28,10 @@ workflow code runs in the guest. Never expose host credentials or masters.
   tainted `tuist.dev/prewarming:NoSchedule` while `podagent.Prewarmer` pulls
   the images of its fleet's macOS RunnerPools that keep a warm floor or have
   `spec.replicas > 0`, warm floors first, through `ensureGolden` (the path a
-  Pod's first VM takes). Decision: a taint, not a cordon, because the operator
-  cordons rack hosts by hand and tart-kubelet must never lift that. Runner Pods
+  Pod's first VM takes). An image the rack's image cache is still fetching
+  (`errMirrorSyncing`) is asked for again every 30 seconds, not skipped.
+  Decision: a taint, not a cordon, because the operator cordons rack hosts by
+  hand and tart-kubelet must never lift that. Runner Pods
   do not tolerate it, and the runners-controller leaves tainted Nodes out of
   fleet capacity (`nodeFilterReason`), so the allocator agrees with the
   scheduler. A restart on a registered Node never taints or prewarms: that

@@ -568,8 +568,10 @@ takes the Kura region with it.
   or the pull fails, tart-kubelet pulls from ghcr.io as before. The golden
   keeps the name the Pod's image gives it, so Pods, golden Node labels, the
   runners-controller's affinity and the GC key on nothing new.
-- **Pre-pull.** A joining host's prewarm (tuist/tuist#14171) materializes
-  through the same `ensureGolden`, so it goes through the cache too.
+- **Pre-pull.** A joining host's prewarm (`podagent.Prewarmer`) materializes
+  through the same `ensureGolden`, so it goes through the cache too, and it
+  asks again every 30 seconds for an image the cache is still fetching rather
+  than letting Pods onto the host to wait on that fetch.
 - **Integrity.** Tart does not check a blob against its digest. The cache's
   bytes are what zot fetched over TLS and wrote under its digest, and the hop
   to the mini is the machines segment, which carries only our hosts; guests
