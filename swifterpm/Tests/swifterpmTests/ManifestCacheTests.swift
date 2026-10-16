@@ -91,7 +91,7 @@ struct ManifestCacheTests {
             try await fileSystem.atomicWrite("keep", to: unrelated)
             try await WorkspaceRestorer.writeWorkspaceState(
                 packageDir: root, scratchDir: scratch, mirrors: MirrorConfig(),
-                resolved: ResolvedPins(originHash: nil, pins: [], version: 3), disableSandbox: false
+                resolved: ResolvedPins(originHash: nil, pins: [], version: 3), disableSandbox: true
             )
             #expect(try await fileSystem.exists(stale.absolutePath) == false)
             #expect(try await fileSystem.exists(unrelated.absolutePath))
@@ -104,7 +104,7 @@ struct ManifestCacheTests {
         let package = try #require(FileSystem.temporaryTestDirectory).fileURL
         try await writeMinimalPackageManifest(at: package, name: "Root")
         try await ManifestCache.withContext(packageDirectory: package, scratchDirectory: nil) {
-            let first = try await ManifestLoader.dumpPackageJSON(packageDir: package, disableSandbox: false)
+            let first = try await ManifestLoader.dumpPackageJSON(packageDir: package, disableSandbox: true)
             let cache = ManifestLoader.cacheFilePath(packageDir: package)
             let before = try await fileSystem.fileMetadata(at: cache.absolutePath)?.lastModificationDate
             let manifest = package.appendingPathComponent("Package.swift")
@@ -112,7 +112,7 @@ struct ManifestCacheTests {
             try await Task.sleep(for: .milliseconds(20))
             try await fileSystem.atomicWrite(contents, to: manifest)
 
-            let second = try await ManifestLoader.dumpPackageJSON(packageDir: package, disableSandbox: false)
+            let second = try await ManifestLoader.dumpPackageJSON(packageDir: package, disableSandbox: true)
             #expect(first == second)
             #expect(try await fileSystem.fileMetadata(at: cache.absolutePath)?.lastModificationDate == before)
 
@@ -132,9 +132,9 @@ struct ManifestCacheTests {
         let package = try #require(FileSystem.temporaryTestDirectory).fileURL
         try await writeMinimalPackageManifest(at: package, name: "Before")
         try await ManifestCache.withContext(packageDirectory: package, scratchDirectory: nil) {
-            _ = try await ManifestLoader.dumpPackageJSON(packageDir: package, disableSandbox: false)
+            _ = try await ManifestLoader.dumpPackageJSON(packageDir: package, disableSandbox: true)
             try await writeMinimalPackageManifest(at: package, name: "After")
-            let manifest = try await ManifestLoader.dumpPackage(packageDir: package, disableSandbox: false)
+            let manifest = try await ManifestLoader.dumpPackage(packageDir: package, disableSandbox: true)
             #expect(ManifestParser.packageName(manifest) == "After")
         }
     }
@@ -266,7 +266,7 @@ struct ManifestCacheTests {
         ]
         try await ManifestCache.withContext(packageDirectory: package, scratchDirectory: scratch) {
             let first = try await ManifestFileSystemDependencyGraph.collect(
-                rootPackageDir: package, rootManifest: rootManifest, disableSandbox: false
+                rootPackageDir: package, rootManifest: rootManifest, disableSandbox: true
             )
             #expect(first.count == 1)
             let cache = ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: local)
@@ -279,21 +279,21 @@ struct ManifestCacheTests {
             try await WorkspaceRestorer.restorePackage(
                 scratchDir: scratch, packageDir: package, cache: sources,
                 registryConfig: RegistryConfig(), mirrors: MirrorConfig(), resolved: resolved,
-                progress: nil, disableSandbox: false
+                progress: nil, disableSandbox: true
             )
             try await WorkspaceRestorer.writeWorkspaceState(
                 packageDir: package, scratchDir: scratch, mirrors: MirrorConfig(),
-                resolved: resolved, disableSandbox: false
+                resolved: resolved, disableSandbox: true
             )
             #expect(try await fileSystem.exists(ManifestLoader.legacyCacheFilePath(packageDir: local).absolutePath) == false)
             let second = try await ManifestFileSystemDependencyGraph.collect(
-                rootPackageDir: package, rootManifest: rootManifest, disableSandbox: false
+                rootPackageDir: package, rootManifest: rootManifest, disableSandbox: true
             )
             #expect(second.count == 1)
             #expect(try await fileSystem.fileMetadata(at: cache.absolutePath)?.lastModificationDate == before)
             try await writeMinimalPackageManifest(at: local, name: "ChangedLocal")
             let changed = try await ManifestFileSystemDependencyGraph.collect(
-                rootPackageDir: package, rootManifest: rootManifest, disableSandbox: false
+                rootPackageDir: package, rootManifest: rootManifest, disableSandbox: true
             )
             #expect(ManifestParser.packageName(changed[0].manifest) == "ChangedLocal")
         }
@@ -309,19 +309,19 @@ struct ManifestCacheTests {
         try await ManifestCache.withContext(packageDirectory: root, scratchDirectory: scratch) {
             try await Environment.withCachedDirectoryMaterialization(mode) {
                 try await fileSystem.replaceWithRegistryDownloadDirectory(source: source, destination: download)
-                let first = try await ManifestLoader.dumpPackageJSON(packageDir: download, disableSandbox: false)
+                let first = try await ManifestLoader.dumpPackageJSON(packageDir: download, disableSandbox: true)
                 let cache = ManifestLoader.cacheFilePath(packageDir: download)
                 #expect(cache.path.hasPrefix(scratch.appendingPathComponent("swifterpm/manifests").path))
                 let before = try await fileSystem.fileMetadata(at: cache.absolutePath)?.lastModificationDate
 
                 try await fileSystem.replaceWithRegistryDownloadDirectory(source: source, destination: download)
-                let second = try await ManifestLoader.dumpPackageJSON(packageDir: download, disableSandbox: false)
+                let second = try await ManifestLoader.dumpPackageJSON(packageDir: download, disableSandbox: true)
                 #expect(second == first)
                 #expect(try await fileSystem.fileMetadata(at: cache.absolutePath)?.lastModificationDate == before)
 
                 try await writeMinimalPackageManifest(at: source, name: "ChangedDependency")
                 try await fileSystem.replaceWithRegistryDownloadDirectory(source: source, destination: download)
-                let changed = try await ManifestLoader.dumpPackage(packageDir: download, disableSandbox: false)
+                let changed = try await ManifestLoader.dumpPackage(packageDir: download, disableSandbox: true)
                 #expect(ManifestParser.packageName(changed) == "ChangedDependency")
             }
         }
@@ -331,7 +331,7 @@ struct ManifestCacheTests {
         try await PackageInfoCacheWriter.write(
             packageDir: package, scratchDir: scratch,
             resolved: ResolvedPins(originHash: nil, pins: [], version: 3),
-            mirrors: MirrorConfig(), cacheDir: nil, disableSandbox: false, quiet: true
+            mirrors: MirrorConfig(), cacheDir: nil, disableSandbox: true, quiet: true
         )
     }
 }

@@ -23,14 +23,16 @@ func withTemporaryDirectory<T>(_ body: (URL) async throws -> T) async throws -> 
     }
 }
 
-func writeCachedManifest(_ manifest: [String: Any], packageDir: URL, cacheFile: URL? = nil) async throws {
+func writeCachedManifest(
+    _ manifest: [String: Any], packageDir: URL, cacheFile: URL? = nil, disableSandbox: Bool = false
+) async throws {
     try await fileSystem.makeDirectory(
         at: packageDir.absolutePath, options: [.createTargetParentDirectories])
     try await writeMinimalPackageManifest(at: packageDir, name: "Fixture")
     let cachePath = cacheFile ?? ManifestLoader.cacheFilePath(packageDir: packageDir)
     try await ManifestCache.write(
         JSONFormatter.prettyData(manifest), at: cachePath,
-        inputs: ManifestCache.inputs(packageDir: packageDir, disableSandbox: false)
+        inputs: ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)
     )
 }
 
