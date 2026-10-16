@@ -41,6 +41,16 @@ function formatMilliseconds(milliseconds) {
   return formatSeconds(milliseconds / 1000);
 }
 
+function formatTooltipTemplate(template, value) {
+  const formatted =
+    template === "{value}%"
+      ? Math.round(value * 10) / 10
+      : template === "{value}"
+        ? formatNumber(value)
+        : value;
+  return template.replace("{value}", formatted);
+}
+
 function formatBytes(bytes) {
   if (bytes >= 1_000_000_000) {
     return `${(bytes / 1_000_000_000).toFixed(0)} GB`;
@@ -756,7 +766,7 @@ function tooltipFormatter(options = {}) {
           if (fn in tooltipFormatters)
             formatted = tooltipFormatters[fn](rawValue);
         } else {
-          formatted = options.valueFormat.replace("{value}", rawValue);
+          formatted = formatTooltipTemplate(options.valueFormat, rawValue);
         }
       }
       if (formatted) title = `${title} · ${formatted}`;
@@ -803,10 +813,7 @@ export function tooltipSeries(param, options = {}) {
         formattedValue = tooltipFormatters[functionName](value);
       }
     } else {
-      formattedValue = options.valueFormat.replace(
-        "{value}",
-        options.valueFormat === "{value}" ? formatNumber(value) : value,
-      );
+      formattedValue = formatTooltipTemplate(options.valueFormat, value);
     }
   } else {
     formattedValue = formatNumber(value);
