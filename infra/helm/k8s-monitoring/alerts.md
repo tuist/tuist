@@ -2783,6 +2783,7 @@ queue rather than on any particular cause.
 ```promql
 max by (cluster, env, queue) (
   tuist_oban_queue_oldest_available_age_seconds{
+    cluster=~"tuist-production|tuist-staging|tuist-canary",
     queue=~"process_xcresult|process_build"
   }
 ) > 900
@@ -2790,6 +2791,7 @@ max by (cluster, env, queue) (
 
 - Pending period: 5 minutes
 - Severity: critical
+- Grafana rule: `fg1efz3p68740a`
 - Summary: `No consumer is draining the {{ $labels.queue }} Oban queue in
   {{ $labels.cluster }}: the oldest job has been runnable for over 15
   minutes`
@@ -2800,6 +2802,8 @@ rather than the polling node's own producers. Every node running PromEx
 therefore reports it, including the always-healthy web pods, so the
 signal survives the complete loss of the deployment that consumes the
 queue. `max by` is required: the same gauge is reported once per pod.
+Only production emits it today, so the rule is silent in staging and
+canary, and the `cluster` matcher keeps the pentest cluster out.
 
 Age, not depth. A queue that is never empty because arrivals are served
 promptly and a queue with no consumer at all both sit at a non-zero
@@ -3347,21 +3351,32 @@ identity. Without this, every rule above silently evaluates to nothing.
 ### xcresult processor replicas unavailable
 
 ```promql
-kube_deployment_status_replicas_available{
-  namespace=~"tuist|tuist-staging|tuist-canary",
-  deployment="tuist-tuist-xcresult-processor"
-}
-<
-kube_deployment_spec_replicas{
-  namespace=~"tuist|tuist-staging|tuist-canary",
-  deployment="tuist-tuist-xcresult-processor"
-}
+max by (cluster, env, namespace, deployment) (
+  kube_deployment_spec_replicas{
+    namespace=~"tuist|tuist-staging|tuist-canary",
+    deployment="tuist-tuist-xcresult-processor"
+  }
+)
+-
+max by (cluster, env, namespace, deployment) (
+  kube_deployment_status_replicas_available{
+    namespace=~"tuist|tuist-staging|tuist-canary",
+    deployment="tuist-tuist-xcresult-processor"
+  }
+)
+> 0
 ```
 
 - Pending period: 45 minutes
 - Severity: warning
-- Summary: `xcresult processor has unavailable replicas in
-  {{ $labels.namespace }}`
+- Summary: `{{ $values.A.Value | printf "%.0f" }} xcresult processor replica(s)
+  unavailable in {{ $labels.namespace }} ({{ $labels.cluster }})`
+- Grafana rule: `cg1efzyensg74a`
+
+The value is the number of missing replicas. Spec minus available, not
+`available < spec`: that form returns the available count, which is 0 in
+a total outage and never crosses a `> 0` threshold. `max by` keeps the
+two sides joined when kube-state-metrics moves to another pod.
 
 Catches the scheduling half of the same outage: on 2026-08-12 one of the
 two replicas sat `Pending` for over four hours while the Deployment
