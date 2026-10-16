@@ -76,7 +76,8 @@ at least as new an Xcode as any active runner-image profile.
 The Xcode version is declared inline in
 `.github/workflows/server-production-deployment.yml`'s
 `release-xcresult-processor-image.Build image` step (current value is
-the `XCODE_VERSION` env var on that step). Bump it alongside the
+the `XCODE_VERSION` env var on that step, currently `27.1`). Track the
+newest stable runner Xcode, not prerelease profiles. Bump it alongside the
 runner-image profile list when promoting a new Xcode to the fleet:
 
 1. Publish a Layer 1 image with the new Xcode — first run

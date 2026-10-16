@@ -23,6 +23,9 @@ Release archive. Default Debug binary-cache hits cannot be optimized by the
 archive's Release setting and make the bundle-size check depend on cache warmth.
 Keep simulator build/test generation on its normal configuration.
 
+The xcresult processor follows the newest stable runner Xcode, not beta or
+RC toolchains. Its matching macOS + Xcode base must be published before release.
+
 Stable cache certificate readiness is an operator bootstrap check documented in
 `infra/cache-dns/README.md`, not a gate on routine server deployments. The Kura
 controller verifies TLS before advertising stable endpoints.
