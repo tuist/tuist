@@ -25,6 +25,10 @@ name: Runners Staging Smoke Test
 on:
   workflow_dispatch:
     inputs:
+      runner_label:
+        description: Runner label to target (defaults to tuist-staging-macos)
+        required: false
+        default: ""
       custom_cache_apfs:
         description: Run the candidate custom cache APFS tests inside a staging Mac VM
         type: boolean
@@ -70,9 +74,24 @@ jobs:
     # dispatch label and is sufficient to pick a runner — no need
     # to also list `self-hosted` (which is advertised on the
     # runner but isn't an authorization boundary).
-    runs-on: tuist-staging-macos
+    runs-on: ${{ inputs.runner_label || 'tuist-staging-macos' }}
     timeout-minutes: 10
     steps:
+      - name: Runner payload
+        run: |
+          share="/Volumes/My Shared Files"
+          echo "Shares: $(ls "$share" 2>&1 | tr '\n' ' ')"
+          echo "Payload VERSION: $(cat "$share/payload/VERSION" 2>&1)"
+          echo "Payload requires interface: $(cat "$share/payload/REQUIRES_IMAGE_INTERFACE" 2>&1)"
+          echo "Image provides interface: $(cat /opt/tuist/payload-interface 2>&1)"
+          echo "--- install-payload log"
+          grep -h install-payload /var/log/tuist-runner/stdout.log /var/log/tuist-runner/stderr.log 2>&1 || echo "(none)"
+          echo "--- installed vs payload"
+          for f in opt/tuist/dispatch-poll.sh opt/tuist/buildkite-agent opt/tuist/runner-shell-agent usr/local/bin/tuist-cache-volume; do
+            echo "$f installed=$(shasum -a 256 "/$f" 2>&1 | cut -c1-16) payload=$(shasum -a 256 "$share/payload/$f" 2>&1 | cut -c1-16) owner=$(stat -f '%Su:%Sg %Lp' "/$f" 2>&1)"
+          done
+          /opt/tuist/buildkite-agent --version
+
       - name: Show environment
         run: |
           echo "Hostname:    $(hostname)"
