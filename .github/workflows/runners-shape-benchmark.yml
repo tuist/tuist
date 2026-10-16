@@ -56,13 +56,9 @@ jobs:
         run: |
           if [ -z "$ROUNDS" ]; then
             ROUNDS='[
-              {"shape": "6vcpu-14gb", "guests": 1},
-              {"shape": "6vcpu-14gb", "guests": 2},
-              {"shape": "8vcpu-19gb", "guests": 2},
-              {"shape": "8vcpu-24gb", "guests": 1},
+              {"shape": "9vcpu-27gb", "guests": 2},
               {"shape": "8vcpu-24gb", "guests": 2},
-              {"shape": "12vcpu-28gb", "guests": 1},
-              {"shape": "16vcpu-48gb", "guests": 1}
+              {"shape": "6vcpu-14gb", "guests": 2}
             ]'
           fi
           # Two passes, the second in reverse order, so drift over the night
