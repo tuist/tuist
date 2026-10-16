@@ -12,6 +12,8 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Boruta.Ecto.AccessTokens
+  alias Boruta.Ecto.Codes
   alias Boruta.Ecto.Token
   alias Tuist.Environment
   alias Tuist.Repo
@@ -81,7 +83,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
   test "rejects a code revoked in the database after an earlier lookup", %{conn: conn} do
     client_id = register_client(conn)
     code = authorize(conn, client_id)
-    assert Boruta.Ecto.Codes.get_by(value: code).revoked_at == nil
+    assert Codes.get_by(value: code).revoked_at == nil
 
     Token
     |> Repo.get_by!(value: code)
@@ -113,7 +115,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
              })
              |> json_response(200)
 
-    assert Boruta.Ecto.AccessTokens.get_by(refresh_token: refresh_token).refresh_token_revoked_at == nil
+    assert AccessTokens.get_by(refresh_token: refresh_token).refresh_token_revoked_at == nil
 
     Token
     |> Repo.get_by!(refresh_token: refresh_token)

@@ -111,6 +111,7 @@ defmodule Tuist.OAuth.NoCacheTest do
                authorization_details: []
              })
 
+    # Boruta never caches codes by ID; that variant retains database-path parity coverage.
     lookups = [[value: code.value], [id: code.id], [value: code.value, redirect_uri: code.redirect_uri]]
     for lookup <- lookups, do: refute(OAuthToken.revoked?(Codes.get_by(lookup), :access_token))
     update_token(code, revoked_at: DateTime.utc_now())
