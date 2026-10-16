@@ -56,23 +56,31 @@ RC profile, and a claimed job can return to the queue after its pool is retired.
    execution and this data reconciliation. Agents must not request or approve their
    own elevation. Staging needs no elevation. The Atlas read-only Postgres tools
    cannot execute this update.
-3. Through the authorized release console, rerun the **same idempotent statements**
-   from the migration. Record both returned counts each pass. Do not run a broad
-   update over live claims:
+3. With authorized Pod-exec access, rerun the **same idempotent statements**
+   from the migration using the deployed release. Record both returned counts
+   each pass. Do not run a broad update over live claims. `eval` starts only the
+   repository, not another web server; unlike `rpc`, it also works when the
+   deployed release has `RELEASE_DISTRIBUTION=none`:
 
-   ```elixir
-   migration = Tuist.Repo.Migrations.MoveXcode271RcRunnerProfilesToStable
+   ```sh
+   /app/bin/tuist eval '
+   Application.load(:tuist)
+   {:ok, {:ok, counts}, _apps} = Ecto.Migrator.with_repo(Tuist.Repo, fn _repo ->
+     migration = Tuist.Repo.Migrations.MoveXcode271RcRunnerProfilesToStable
 
-   unless Code.ensure_loaded?(migration) do
-     Code.require_file(Application.app_dir(:tuist,
-       "priv/repo/migrations/20261016130000_move_xcode_27_1_rc_runner_profiles_to_stable.exs"))
-   end
+     unless Code.ensure_loaded?(migration) do
+       Code.require_file(Application.app_dir(:tuist,
+         "priv/repo/migrations/20261016130000_move_xcode_27_1_rc_runner_profiles_to_stable.exs"))
+     end
 
-   Tuist.Repo.transaction(fn ->
-     profiles = Tuist.Repo.query!(migration.profile_statement()).num_rows
-     jobs = Tuist.Repo.query!(migration.queued_jobs_statement()).num_rows
-     %{profiles: profiles, queued_jobs: jobs}
+     Tuist.Repo.transaction(fn ->
+       profiles = Tuist.Repo.query!(migration.profile_statement()).num_rows
+       jobs = Tuist.Repo.query!(migration.queued_jobs_statement()).num_rows
+       %{profiles: profiles, queued_jobs: jobs}
+     end)
    end)
+   IO.inspect(counts, label: "RC reconciliation")
+   '
    ```
 
 4. Reconcile and check every 30–60 minutes as RC work drains. Continue until both

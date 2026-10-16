@@ -675,6 +675,8 @@ versioned release includes stable. Keep the bootstrap image for rollback.
 The default stays 26.6. Follow the [retirement runbook](xcode-27.1-retirement.md)
 for merge prerequisites and required post-rollout reconciliation, including
 profiles saved by old replicas and jobs requeued after their claims release.
+Use the documented release `eval` with `Ecto.Migrator.with_repo/2` for this
+reconciliation; `rpc` is unavailable when release distribution is disabled.
 
 The file lives under `infra/runner-image/**`, so editing it triggers
 a runner-image release. Adding a profile builds only that profile;
