@@ -575,6 +575,11 @@ runnersFleet:
     - vcpus: 6
       memoryGb: 14
       default: true
+  xcodeOverrides:
+    "27.1-rc":
+      # RC is retired from the build matrix. Keep existing profiles usable
+      # until the stable runner image is released and their pins migrate.
+      imageTag: macos-27-1-rc-0.34.1
   xcodeVersions:
     - xcodeVersion: "27.2-beta"
     - xcodeVersion: "27.1-rc"

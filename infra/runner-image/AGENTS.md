@@ -656,7 +656,7 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["27.2-beta", "27.1", "27.1-rc", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
+["27.2-beta", "27.1", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
 
 Beta entries follow the `<major>.<minor>-beta` shape (matching the
@@ -669,12 +669,14 @@ channel a later `Release Candidate 2` moves. The longer
 `release-candidate` would push the 12 vCPU shape pool's
 `tuist.dev/runner-pool` label past Kubernetes' 63-character limit.
 
-Xcode 27.1 stable is built alongside `27.1-rc`; retain the RC
-channel while customer Runner Profiles still name it. Both are build
-`27A9275`, but the stable image uses `/Applications/Xcode_27.1.app`
-and its own `macos-27-1` runner tag. Enable its Helm catalog entry only
-after the runner-image release publishes that tag. The catalog default
-remains 26.6.
+Xcode 27.1 stable replaces `27.1-rc` in the build profiles. Both are
+build `27A9275`, but the stable image uses `/Applications/Xcode_27.1.app`
+and its own `macos-27-1` runner tag. Until saved RC profiles migrate to
+stable, the existing RC pools pin `macos-27-1-rc-0.34.1` rather than
+following releases that no longer publish RC images. After the stable
+runner-image release, enable its Helm catalog entry, migrate saved RC
+profiles, and remove the RC catalog entry and image override together.
+The catalog default remains 26.6.
 
 The file lives under `infra/runner-image/**`, so editing it triggers
 a runner-image release. Adding a profile builds only that profile;

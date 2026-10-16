@@ -16,6 +16,14 @@ runs the mixed-version latency expression through promtool.
 
 ## Conventions
 
+- Xcode 27.1 stable replaces RC in the runner-image build list. While saved
+  profiles still name `27.1-rc`, its catalog pools pin the published
+  `macos-27-1-rc-0.34.1` image so new releases need not publish RC images.
+  After the stable runner-image release, add its catalog entry and per-env
+  overrides, migrate saved RC profiles, then remove the RC catalog entry,
+  image override, and per-env scaling overrides together. Keep 26.6 as the
+  default and warm floor unless intentionally changing the default.
+
 - `server.config.originAppKey.enabled` adds the registered Origin App ID and Ed25519 private PEM to the managed server-config ExternalSecret. Trim only the App ID, never the private PEM or log key material. It defaults off and is enabled in production, canary, and staging after each environment's own `ORIGIN_APP/app_id` and `ORIGIN_APP/private_key` fields exist in its `tuist-k8s-<env>` vault. The App ID field is configurable with `appIdField`. Each environment uses an independent app and signing key.
 
 - Production enables the Kura authority controller independently of instance
