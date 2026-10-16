@@ -23,6 +23,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.AttachDocumentToInsuranceClaim
   alias Atlas.MCP.Tools.AttachDocumentToInsurancePolicy
   alias Atlas.MCP.Tools.BrowseUrl
+  alias Atlas.MCP.Tools.CancelChatGPTProviderLogin
   alias Atlas.MCP.Tools.CancelInsurancePolicy
   alias Atlas.MCP.Tools.CheckLetterDelivery
   alias Atlas.MCP.Tools.CheckOutAirGappedLicense
@@ -30,6 +31,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CompleteOutreachNextStep
   alias Atlas.MCP.Tools.CompleteTask
   alias Atlas.MCP.Tools.ConfirmTaxCertificateDelivery
+  alias Atlas.MCP.Tools.ConnectClaudeProvider
   alias Atlas.MCP.Tools.ConvertGTMOpportunity
   alias Atlas.MCP.Tools.CreateAccount
   alias Atlas.MCP.Tools.CreateAccountNote
@@ -83,6 +85,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DetachDocumentFromFinancing
   alias Atlas.MCP.Tools.DetachDocumentFromInsuranceClaim
   alias Atlas.MCP.Tools.DetachDocumentFromInsurancePolicy
+  alias Atlas.MCP.Tools.DisconnectLLMProvider
   alias Atlas.MCP.Tools.DismissNudge
   alias Atlas.MCP.Tools.DismissOutreachNextStep
   alias Atlas.MCP.Tools.DisposeAsset
@@ -192,6 +195,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListInsurancePolicies
   alias Atlas.MCP.Tools.ListInvoices
   alias Atlas.MCP.Tools.ListLicenses
+  alias Atlas.MCP.Tools.ListLLMProviderConnections
   alias Atlas.MCP.Tools.ListNotes
   alias Atlas.MCP.Tools.ListOutreachCandidates
   alias Atlas.MCP.Tools.ListOutreachContacts
@@ -217,6 +221,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.MatchFinancingPayment
   alias Atlas.MCP.Tools.NotifyGTMOpportunity
   alias Atlas.MCP.Tools.PlaceAssetInService
+  alias Atlas.MCP.Tools.PollChatGPTProviderLogin
   alias Atlas.MCP.Tools.PrepareGTMOpportunityOutreach
   alias Atlas.MCP.Tools.PublishPOC
   alias Atlas.MCP.Tools.QueryTuistClickhouse
@@ -257,6 +262,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SetFinancingAccountingTreatment
   alias Atlas.MCP.Tools.SetFinancingLines
   alias Atlas.MCP.Tools.SetPOCContext
+  alias Atlas.MCP.Tools.StartChatGPTProviderLogin
   alias Atlas.MCP.Tools.TerminateFinancing
   alias Atlas.MCP.Tools.UnlinkAssetFromInsuranceClaim
   alias Atlas.MCP.Tools.UnlinkProjectDomain
@@ -465,6 +471,12 @@ defmodule Atlas.MCP.Server do
   ]
   @static_tools [
     GetMCPConnectionStatus,
+    ListLLMProviderConnections,
+    ConnectClaudeProvider,
+    StartChatGPTProviderLogin,
+    PollChatGPTProviderLogin,
+    CancelChatGPTProviderLogin,
+    DisconnectLLMProvider,
     CreateMCPServer,
     DeleteMCPServer,
     GetNudgeAnalyticsStatus,
@@ -891,6 +903,10 @@ defmodule Atlas.MCP.Server do
   defp audit_arguments("create_mcp_server", arguments) when is_map(arguments) do
     Map.drop(arguments, ["bearer_token", :bearer_token])
   end
+
+  defp audit_arguments(name, _arguments)
+       when name in ~w(connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
+       do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments
 

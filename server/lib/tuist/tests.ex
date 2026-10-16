@@ -1941,12 +1941,13 @@ defmodule Tuist.Tests do
     # row is built: it decides `is_new` for every test case and
     # `is_default_branch` for every run row, and both used to mean a separate
     # Postgres round trip on a path that already runs per ingested test run.
-    default_branch = project_default_branch(test.project_id)
+    project = Tuist.Projects.get_project_by_id(test.project_id)
+    default_branch = project && project.default_branch
     is_default_branch = default_branch?(test.git_branch, default_branch)
 
     test_case_run_data =
       OpenTelemetry.Tracer.with_span "tests.get_test_case_run_data" do
-        get_test_case_run_data(test, test_modules, default_branch)
+        get_test_case_run_data(test, test_modules, project)
       end
 
     test_case_ids = collect_test_case_ids(test.project_id, test_modules)
@@ -2064,7 +2065,7 @@ defmodule Tuist.Tests do
     :ok
   end
 
-  defp get_test_case_run_data(test, test_modules, default_branch) do
+  defp get_test_case_run_data(test, test_modules, project) do
     all_test_cases =
       Enum.flat_map(test_modules, fn module_attrs ->
         module_name = Map.get(module_attrs, :name)
@@ -2095,7 +2096,7 @@ defmodule Tuist.Tests do
 
     mark_test_case_runs_as_flaky(test.project_id, test.git_commit_sha, historical_flaky_runs)
 
-    test_case_data = check_new_test_cases(test, test_case_data, default_branch)
+    test_case_data = check_new_test_cases(test_case_data, project)
 
     Map.new(test_case_data, fn data ->
       {data.identity_key, %{status: data.status, is_flaky: data.is_flaky, is_new: data.is_new}}
@@ -2208,19 +2209,28 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp check_new_test_cases(test, test_case_data, default_branch) do
-    if is_nil(default_branch) do
-      Enum.map(test_case_data, &Map.put(&1, :is_new, false))
-    else
-      existing_on_default_branch =
-        get_test_case_ids_with_ci_runs_on_branch(test.project_id, default_branch)
+  # A test case is new until it has run in CI on the default branch, or on a
+  # commit the default branch has since reached (a merge queue's, typically).
+  defp check_new_test_cases(test_case_data, %Project{default_branch: default_branch} = project)
+       when is_binary(default_branch) and default_branch != "" do
+    existing_on_default_branch = get_test_case_ids_with_ci_runs_on_branch(project.id, default_branch)
 
-      Enum.map(test_case_data, fn data ->
-        is_new = data.test_case_id not in existing_on_default_branch
-        Map.put(data, :is_new, is_new)
-      end)
-    end
+    landed =
+      test_case_data
+      |> Enum.map(& &1.test_case_id)
+      |> Enum.reject(&MapSet.member?(existing_on_default_branch, &1))
+      |> then(&test_case_ids_landed_on_default_branch(project, default_branch, &1))
+
+    Enum.map(test_case_data, fn data ->
+      is_new =
+        not MapSet.member?(existing_on_default_branch, data.test_case_id) and
+          not MapSet.member?(landed, data.test_case_id)
+
+      Map.put(data, :is_new, is_new)
+    end)
   end
+
+  defp check_new_test_cases(test_case_data, _project), do: Enum.map(test_case_data, &Map.put(&1, :is_new, false))
 
   defp project_default_branch(project_id) do
     project = Tuist.Projects.get_project_by_id(project_id)
@@ -2258,6 +2268,47 @@ defmodule Tuist.Tests do
     )
     |> ClickHouseRepo.all()
     |> MapSet.new()
+  end
+
+  @doc """
+  Of `test_case_ids`, the ones that ran in CI within the trailing ninety days
+  on a commit that is now on the default branch's history, whatever branch
+  the run reported. A merge queue's run tests the commit the default branch
+  moves to, so a test case it ran is known once that commit lands, and never
+  if it does not. Without the account's commit graph nothing is.
+  """
+  def test_case_ids_landed_on_default_branch(_project, _default_branch, []), do: MapSet.new()
+
+  def test_case_ids_landed_on_default_branch(%Project{} = project, default_branch, test_case_ids) do
+    if GitHistory.default_branch_known?(project.account_id, default_branch) do
+      landed_test_case_ids(project, default_branch, test_case_ids)
+    else
+      MapSet.new()
+    end
+  end
+
+  defp landed_test_case_ids(project, default_branch, test_case_ids) do
+    ninety_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -90, :day)
+
+    runs =
+      all_by_uuid_chunks(test_case_ids, fn ids ->
+        from(r in TestCaseRun,
+          where: r.project_id == ^project.id,
+          where: fragment("? IN (?)", r.test_case_id, type(^ids, {:array, Ecto.UUID})),
+          where: r.is_ci == true,
+          where: r.ran_at >= ^ninety_days_ago,
+          where: r.git_commit_sha != "",
+          distinct: true,
+          select: {r.test_case_id, r.git_commit_sha}
+        )
+      end)
+
+    landed =
+      project.account_id
+      |> GitHistory.default_branch_shas(default_branch, runs |> Enum.map(&elem(&1, 1)) |> Enum.uniq())
+      |> MapSet.new()
+
+    for {test_case_id, sha} <- runs, MapSet.member?(landed, sha), into: MapSet.new(), do: test_case_id
   end
 
   @doc """
