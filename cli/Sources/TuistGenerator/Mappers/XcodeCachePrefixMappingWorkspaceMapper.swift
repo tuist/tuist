@@ -46,15 +46,18 @@ import XcodeGraph
 ///
 /// The CAS plugin settings don't reach the package targets either, so without the
 /// xcconfig they cache only in Xcode's builtin store, never through the Tuist proxy. When
-/// the projects route through the plugin, the xcconfig carries the same plugin settings.
-/// The plugin options go only to the targets that don't set
-/// `COMPILATION_CACHE_ENABLE_CACHING` themselves, so generated targets keep one copy.
+/// the projects route through the plugin, the xcconfig carries the same plugin settings as
+/// `$(inherited:default=…)`: they have no spec default, so a value set anywhere below the
+/// xcconfig, the projects' own included, wins. The plugin options go only to the targets
+/// without `TUIST_GENERATED_PROJECT`, so generated targets keep a single copy.
 public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
     static let prefixMappingSettings = ["SWIFT_OTHER_PREFIX_MAPPINGS", "CLANG_OTHER_PREFIX_MAPPINGS"]
     static let enablePrefixMappingSettings = ["SWIFT_ENABLE_PREFIX_MAPPING", "CLANG_ENABLE_PREFIX_MAPPING"]
     static let rootDirectorySetting = "TUIST_PREFIX_MAPPING_ROOT_DIR"
     static let sourcePackagesDirectorySetting = "TUIST_SOURCE_PACKAGES_DIR"
-    /// Resolved through `COMPILATION_CACHE_ENABLE_CACHING`, which generated projects set to `YES`.
+    /// Set to `YES` in generated projects, so the xcconfig can tell their targets from the packages'.
+    static let generatedProjectSetting = "TUIST_GENERATED_PROJECT"
+    /// Resolved through `TUIST_GENERATED_PROJECT`: only its unset variant is defined.
     static let packageCASPluginFlagsSetting = "TUIST_PACKAGE_CAS_PLUGIN_FLAGS"
     /// Xcode checks packages out into `<DerivedData>/SourcePackages`, next to
     /// `<DerivedData>/Index.noindex/DataStore`. `OBJROOT` and `SYMROOT` don't anchor it:
@@ -97,6 +100,7 @@ public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
             base[Self.rootDirectorySetting] = .string(rootDirectory.pathString)
             if hasXcodePackages {
                 base[Self.sourcePackagesDirectorySetting] = .string(Self.sourcePackagesDirectory)
+                base[Self.generatedProjectSetting] = "YES"
             }
             for setting in Self.prefixMappingSettings {
                 base[setting] = Self.appending(mappings, to: base[setting])
@@ -178,7 +182,7 @@ public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
         }
         if let fullHandle = tuist.fullHandle, !casPluginSettings.isEmpty {
             for (key, value) in casPluginSettings {
-                lines.append("\(key) = \(xcconfigValue(value))")
+                lines.append("\(key) = $(inherited:default=\(xcconfigValue(value)))")
             }
             let flags = XcodeCacheSettingsProjectMapper.casPluginOptionFlags(
                 fullHandle: fullHandle,
@@ -186,8 +190,7 @@ public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
             )
             lines += [
                 "\(packageCASPluginFlagsSetting)_ = \(flags.joined(separator: " "))",
-                "\(packageCASPluginFlagsSetting)_NO = $(\(packageCASPluginFlagsSetting)_)",
-                "OTHER_SWIFT_FLAGS = $(inherited) $(\(packageCASPluginFlagsSetting)_$(COMPILATION_CACHE_ENABLE_CACHING))",
+                "OTHER_SWIFT_FLAGS = $(inherited) $(\(packageCASPluginFlagsSetting)_$(\(generatedProjectSetting)))",
             ]
         }
         return lines.joined(separator: "\n") + "\n"

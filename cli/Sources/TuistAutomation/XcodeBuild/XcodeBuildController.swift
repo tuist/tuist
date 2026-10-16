@@ -355,20 +355,48 @@ public struct XcodeBuildController: XcodeBuildControlling {
         var environment = Environment.current.variables
         environment["NSUnbufferedIO"] = "YES"
         environment.merge(XcodeBuildEnvironment.additionalVariables) { _, new in new }
-        if environment["XCODE_XCCONFIG_FILE"] == nil,
-           let xcconfigPath = try await xcodeCachePackagesXCConfigPath(arguments: arguments)
-        {
-            logger.debug("Applying the Xcode cache package settings in \(xcconfigPath.pathString)")
-            environment["XCODE_XCCONFIG_FILE"] = xcconfigPath.pathString
-        }
-        for try await event in commandRunner.run(arguments: command, environment: environment) {
-            switch event {
-            case let .standardOutput(bytes):
-                log(bytes)
-            case let .standardError(bytes):
-                log(bytes, isError: true)
+
+        func execute(environment: [String: String]) async throws {
+            for try await event in commandRunner.run(arguments: command, environment: environment) {
+                switch event {
+                case let .standardOutput(bytes):
+                    log(bytes)
+                case let .standardError(bytes):
+                    log(bytes, isError: true)
+                }
             }
         }
+
+        guard let xcconfigPath = try await xcodeCachePackagesXCConfigPath(arguments: arguments) else {
+            try await execute(environment: environment)
+            return
+        }
+        logger.debug("Applying the Xcode cache package settings in \(xcconfigPath.pathString)")
+        guard let userXCConfig = environment["XCODE_XCCONFIG_FILE"] else {
+            environment["XCODE_XCCONFIG_FILE"] = xcconfigPath.pathString
+            try await execute(environment: environment)
+            return
+        }
+        // `XCODE_XCCONFIG_FILE` takes a single file, so both go through one that includes them.
+        // The package settings come last to extend the user's through `$(inherited)`.
+        let userXCConfigPath = try AbsolutePath(
+            validating: userXCConfig,
+            relativeTo: try await Environment.current.currentWorkingDirectory()
+        )
+        try await fileSystem.runInTemporaryDirectory(prefix: "xcodebuild-xcconfig") { [environment] directory in
+            let wrapperPath = directory.appending(component: "xcode-cache.xcconfig")
+            try await fileSystem.writeText(
+                Self.xcconfig(including: [userXCConfigPath, xcconfigPath]),
+                at: wrapperPath
+            )
+            var environment = environment
+            environment["XCODE_XCCONFIG_FILE"] = wrapperPath.pathString
+            try await execute(environment: environment)
+        }
+    }
+
+    static func xcconfig(including paths: [AbsolutePath]) -> String {
+        paths.map { "#include \"\($0.pathString)\"\n" }.joined()
     }
     
     /// The `XcodeCachePackagesXCConfig` that `tuist generate` wrote into the workspace passed with

@@ -158,7 +158,7 @@ On Xcode 27 and later, with `enableCaching`, `tuist generate` writes the Xcode c
 tuist xcodebuild build -workspace App.xcworkspace -scheme App
 ```
 
-If you invoke `xcodebuild` some other way, pass `<Workspace>.xcworkspace/xcshareddata/tuist/xcode-cache.xcconfig` with `-xcconfig`. Tuist doesn't apply the file when the `XCODE_XCCONFIG_FILE` environment variable is already set.
+If you invoke `xcodebuild` some other way, pass `<Workspace>.xcworkspace/xcshareddata/tuist/xcode-cache.xcconfig` with `-xcconfig`. When the `XCODE_XCCONFIG_FILE` environment variable is already set, Tuist applies both files.
 
 Builds started from Xcode don't apply the file, so package compilations there keep path-dependent cache keys. The mappings expect the packages in Xcode's default checkout location, the `SourcePackages` directory of the workspace's derived data; with `-clonedSourcePackagesDirPath`, package sources stay unmapped. Packages integrated through `Tuist/Package.swift` don't need the file.
 

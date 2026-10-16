@@ -389,6 +389,7 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         // Then
         for project in mapped.projects {
             #expect(project.settings.base["TUIST_SOURCE_PACKAGES_DIR"] == .string("$(INDEX_DATA_STORE_DIR)/../../SourcePackages"))
+            #expect(project.settings.base["TUIST_GENERATED_PROJECT"] == .string("YES"))
             #expect(project.settings.base["SWIFT_OTHER_PREFIX_MAPPINGS"] == .array(["$(inherited)"] + packagesMappings))
             #expect(project.settings.base["CLANG_OTHER_PREFIX_MAPPINGS"] == .array(["$(inherited)"] + packagesMappings))
         }
@@ -447,8 +448,8 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
     }
 
     /// The package targets don't read the CAS plugin settings either, so the xcconfig carries
-    /// them, and gives the plugin options only to the targets that don't enable caching
-    /// themselves.
+    /// them without overriding a value set below it, and gives the plugin options only to the
+    /// targets outside generated projects.
     @Test(.withMockedXcodeController)
     func map_whenProjectsUseTheCASPlugin_writesThePluginSettingsToThePackagesXCConfig() async throws {
         // Given
@@ -489,14 +490,13 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         }
         let contents = String(decoding: try #require(file.contents), as: UTF8.self)
         #expect(contents.hasSuffix("""
-        COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
-        COMPILATION_CACHE_ENABLE_PLUGIN = YES
-        COMPILATION_CACHE_PLUGIN_PATH = $HOME/.local/state/tuist/libtuist_cas_plugin.dylib
-        COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/cas-proxy.sock
-        COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES = YES
+        COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = $(inherited:default=YES)
+        COMPILATION_CACHE_ENABLE_PLUGIN = $(inherited:default=YES)
+        COMPILATION_CACHE_PLUGIN_PATH = $(inherited:default=$HOME/.local/state/tuist/libtuist_cas_plugin.dylib)
+        COMPILATION_CACHE_REMOTE_SERVICE_PATH = $(inherited:default=$HOME/.local/state/tuist/cas-proxy.sock)
+        COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES = $(inherited:default=YES)
         TUIST_PACKAGE_CAS_PLUGIN_FLAGS_ = -cas-plugin-option tuist-instance=tuist/app -cas-plugin-option tuist-upload=false
-        TUIST_PACKAGE_CAS_PLUGIN_FLAGS_NO = $(TUIST_PACKAGE_CAS_PLUGIN_FLAGS_)
-        OTHER_SWIFT_FLAGS = $(inherited) $(TUIST_PACKAGE_CAS_PLUGIN_FLAGS_$(COMPILATION_CACHE_ENABLE_CACHING))
+        OTHER_SWIFT_FLAGS = $(inherited) $(TUIST_PACKAGE_CAS_PLUGIN_FLAGS_$(TUIST_GENERATED_PROJECT))
 
         """))
     }
