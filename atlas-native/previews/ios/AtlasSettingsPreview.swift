@@ -4,6 +4,7 @@ import SwiftUI
 @main
 struct AtlasSettingsPreview: App {
     @State private var openedURL: URL?
+    @StateObject private var holidays = AtlasTimeOffPreviewData()
     @StateObject private var accounts = AtlasAIAccounts { request in
         let response: String
         switch request["action"] as? String {
@@ -30,8 +31,23 @@ struct AtlasSettingsPreview: App {
 
     var body: some Scene {
         WindowGroup {
-            NavigationStack {
-                AtlasSettingsView(server: URL(string: "https://atlas.example.org")!, accounts: accounts, signOut: {})
+            Group {
+                if ProcessInfo.processInfo.arguments.contains("--workspace") {
+                    AtlasWorkspaceView(server: URL(string: "https://atlas.example.org")!, holidayRequest: holidays.request) {
+                        AtlasSettingsView(server: URL(string: "https://atlas.example.org")!, accounts: accounts, signOut: {})
+                    }
+                } else {
+                    NavigationStack {
+                        if ProcessInfo.processInfo.arguments.contains("--time-off") {
+                            AtlasTimeOffView(
+                                title: AtlasCore.sections().first(where: { $0.screen == "time-off" })!.title,
+                                request: holidays.request
+                            )
+                        } else {
+                            AtlasSettingsView(server: URL(string: "https://atlas.example.org")!, accounts: accounts, signOut: {})
+                        }
+                    }
+                }
             }
             .environment(\.openURL, OpenURLAction { url in
                 openedURL = url
