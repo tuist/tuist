@@ -368,6 +368,48 @@ defmodule Tuist.GitHistory do
     )
   end
 
+  @doc "Whether any of the account's repositories has `default_branch` placed on its graph."
+  def default_branch_known?(_account_id, default_branch) when default_branch in [nil, ""], do: false
+
+  def default_branch_known?(account_id, default_branch) do
+    Repo.exists?(
+      from(r in Ref,
+        join: g in Repository,
+        on: g.id == r.repository_id,
+        where: g.account_id == ^account_id and r.name == ^default_branch and not is_nil(r.head_sha)
+      )
+    )
+  end
+
+  @doc """
+  Of `shas`, the ones on `default_branch`'s first-parent history in any of the
+  account's repositories. A commit is there once a run sees the branch at it
+  or at a descendant, which is also how a merge queue's commit lands: the
+  queue moves the branch to the commit it tested.
+  """
+  def default_branch_shas(_account_id, _default_branch, []), do: []
+
+  def default_branch_shas(_account_id, default_branch, _shas) when default_branch in [nil, ""], do: []
+
+  def default_branch_shas(account_id, default_branch, shas) do
+    shas
+    |> Enum.uniq()
+    |> Enum.chunk_every(@insert_chunk_size)
+    |> Enum.flat_map(fn chunk ->
+      Repo.all(
+        from(c in Commit,
+          join: r in Ref,
+          on: r.id == c.ref_id,
+          join: g in Repository,
+          on: g.id == r.repository_id and g.id == c.repository_id,
+          where: g.account_id == ^account_id and r.name == ^default_branch and c.sha in ^chunk,
+          distinct: true,
+          select: c.sha
+        )
+      )
+    end)
+  end
+
   @doc """
   The first-parent chain of a commit down to the first commit a ref owns, as
   `%{sha, depth, ref_id, position}` nearest first: the commits no ref placed
