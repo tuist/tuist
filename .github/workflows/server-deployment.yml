@@ -587,12 +587,44 @@ jobs:
         name: helm dependency update
         run: helm dependency update "$TAILSCALE_CHART_PATH"
       - if: steps.check-values.outputs.exists == 'true'
-        name: helm upgrade --install tailscale-operator
+        # Earlier versions of the chart created its Connector, ProxyClasses
+        # and ProxyGroups as hooks, which Helm deleted and recreated on every
+        # upgrade (see the chart's templates/_helpers.tpl). They are ordinary
+        # release resources now, and Helm only takes over an existing object
+        # that carries its ownership metadata, so stamp it on before
+        # upgrading. Metadata only: the operator does not restart a proxy for
+        # it, and objects that already have it are left as they are.
+        name: Let Helm adopt the chart's tailscale.com resources
         run: |
-          helm upgrade --install "$TAILSCALE_RELEASE_NAME" "$TAILSCALE_CHART_PATH" \
-            --namespace "$TAILSCALE_NAMESPACE" --create-namespace \
-            -f "$TAILSCALE_CHART_PATH/values-${{ inputs.environment }}.yaml" \
-            --timeout 10m --wait
+          set -euo pipefail
+          if ! kubectl get crd proxygroups.tailscale.com >/dev/null 2>&1; then
+            echo "No tailscale.com CRDs yet; nothing to adopt."
+            exit 0
+          fi
+          kubectl get connectors.tailscale.com,proxyclasses.tailscale.com,proxygroups.tailscale.com \
+            -l app.kubernetes.io/name=tuist-tailscale-operator -o name |
+            while read -r resource; do
+              kubectl label --overwrite "$resource" app.kubernetes.io/managed-by=Helm
+              kubectl annotate --overwrite "$resource" \
+                meta.helm.sh/release-name="$TAILSCALE_RELEASE_NAME" \
+                meta.helm.sh/release-namespace="$TAILSCALE_NAMESPACE"
+            done
+      - if: steps.check-values.outputs.exists == 'true'
+        name: helm upgrade --install tailscale-operator
+        # On a cluster without the tailscale.com CRDs, the first pass installs
+        # them and leaves out the chart's Connector, ProxyClasses and
+        # ProxyGroups, which only render once the CRDs exist; the second
+        # renders them.
+        run: |
+          set -euo pipefail
+          passes=1
+          kubectl get crd proxygroups.tailscale.com >/dev/null 2>&1 || passes=2
+          for _ in $(seq "$passes"); do
+            helm upgrade --install "$TAILSCALE_RELEASE_NAME" "$TAILSCALE_CHART_PATH" \
+              --namespace "$TAILSCALE_NAMESPACE" --create-namespace \
+              -f "$TAILSCALE_CHART_PATH/values-${{ inputs.environment }}.yaml" \
+              --timeout 10m --wait
+          done
 
   platform-install:
     # Installs / upgrades the platform chart (cert-manager, ingress-nginx,
