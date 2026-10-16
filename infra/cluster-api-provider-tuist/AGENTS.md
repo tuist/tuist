@@ -2034,9 +2034,20 @@ optional field with a controller-side default over a required one.
 
 The Linux self-join is rendered **once**, at bootstrap
 (`renderLinuxBootstrapScript`), by whichever provider pod holds the leader lease
-at that moment. Nothing re-runs it. That makes every capability the script
-installs a one-shot decision, and it fails in a way that looks like anything but
-a provisioning bug.
+at that moment. Once a run has completed, nothing applies it again. That makes
+every capability the script installs a one-shot decision, and it fails in a way
+that looks like anything but a provisioning bug.
+
+The SSH form can still be *dialed* twice. A successful bootstrap is recorded
+only by the Machine's status patch, and a provider pod that terminates between
+the SSH run and that patch leaves the next reconcile to dial the host again.
+The script therefore opens with a guard: a host whose
+`/var/lib/tuist/joined-node` names this node and whose kubelet is active exits
+0, and the marker is written as the script's last step. Re-running the join on a
+live node deletes Cilium's sysctl drop-ins, re-applies the distribution's
+`rp_filter` defaults and restarts containerd. On 2026-10-16 that happened to
+the second `kura-scw-fr-par` box, and the kubelet could not reach any pod on it
+for about five minutes.
 
 During a rolling provider upgrade the chart applies the new provider Deployment
 and the fleet MachineDeployments in the same release. With `maxUnavailable: 0`
