@@ -335,7 +335,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             cacheSources: Set<TargetQuery>,
             configuration: String,
             cacheStorage: CacheStoring,
-            targetHashes: [TargetReference: TargetContentHash] = [:]
+            targetHashes: [TargetReference: TargetContentHash] = [:],
+            coverage: BinaryCacheCoverage = .off
         ) -> [GraphMapping] {
             var mappers = self.default(
                 config: config,
@@ -351,9 +352,13 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 ),
                 configuration: configuration,
                 cacheStorage: cacheStorage,
+                coverage: coverage,
                 precomputedTargetHashes: targetHashes
             )
             mappers.append(focusTargetsGraphMapper)
+            if coverage != .off {
+                mappers.append(InstrumentedBinaryCacheWarmGraphMapper())
+            }
             mappers.append(TreeShakePrunedTargetsGraphMapper())
             // Runs after the cache replacement so the schemes also build the cache hits kept as source.
             mappers.append(GenerateCacheableSchemesGraphMapper(targets: targets))

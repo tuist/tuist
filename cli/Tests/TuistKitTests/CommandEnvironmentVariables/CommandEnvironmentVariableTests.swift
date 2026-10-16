@@ -971,8 +971,10 @@ struct CommandEnvironmentVariableTests {
         setVariable(.cachePath, value: "/cache/path")
         setVariable(.cacheWarmScratchDirectory, value: "/cache/warm-scratch-directory")
         setVariable(.cacheTargets, value: "Fmk1,Fmk2")
+        setVariable(.cacheCoverage, value: "true")
 
         let commandWithEnvVars = try CacheWarmCommand.parse([])
+        #expect(commandWithEnvVars.coverage == true)
         #expect(commandWithEnvVars.externalOnly == true)
         #expect(commandWithEnvVars.cacheProfile == "development")
         #expect(commandWithEnvVars.generateOnly == true)
@@ -991,10 +993,12 @@ struct CommandEnvironmentVariableTests {
             "--print-hashes",
             "--configuration", "CacheConfig",
             "--path", "/cache/path",
+            "--coverage",
             "--",
             "Fmk1", "Fmk2",
         ])
         #expect(commandWithArgs.externalOnly == true)
+        #expect(commandWithArgs.coverage == true)
         #expect(commandWithArgs.cacheProfile == "development")
         #expect(commandWithArgs.generateOnly == true)
         #expect(commandWithArgs.noUpload == true)

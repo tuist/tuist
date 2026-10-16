@@ -487,6 +487,7 @@ public enum EnvKey: String, CaseIterable {
     case cachePath = "TUIST_CACHE_PATH"
     case cacheWarmScratchDirectory = "TUIST_CACHE_WARM_SCRATCH_DIRECTORY"
     case cacheTargets = "TUIST_CACHE_TARGETS"
+    case cacheCoverage = "TUIST_CACHE_COVERAGE"
 
     // HASH CACHE
 

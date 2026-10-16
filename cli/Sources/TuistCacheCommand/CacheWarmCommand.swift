@@ -86,6 +86,18 @@
         )
         var printHashes: Bool = false
 
+        @Flag(
+            name: .long,
+            help: """
+            When passed, the project's own targets are built with code coverage and stored under the cache key a \
+            `tuist test` run that collects coverage reads, so such runs link cached binaries their coverage measures. \
+            The plain binaries other builds read are not warmed by this run; warm them with a run without the flag. \
+            Only debug configurations can be warmed with coverage.
+            """,
+            envKey: .cacheCoverage
+        )
+        var coverage: Bool = false
+
         public func run() async throws {
             if printHashes {
                 AlertController.current.warning(.alert(
@@ -111,7 +123,8 @@
                 generateOnly: generateOnly,
                 noUpload: noUpload,
                 cacheProfile: cacheProfile,
-                scratchDirectory: scratchDirectory
+                scratchDirectory: scratchDirectory,
+                coverage: coverage
             )
         }
     }

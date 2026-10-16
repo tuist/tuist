@@ -11,9 +11,11 @@
 /// without coverage resolve the reference to nothing, so their compiler invocations, and the
 /// compilation cache keys derived from them, stay as they were.
 enum AtomicCoverageCounters {
+    static let swiftFlags = "-Xllvm -instrprof-atomic-counter-update-all"
+    static let cFlags = "-fprofile-update=atomic"
     private static let flags: [(setting: String, value: String)] = [
-        ("OTHER_SWIFT_FLAGS", "-Xllvm -instrprof-atomic-counter-update-all"),
-        ("OTHER_CFLAGS", "-fprofile-update=atomic"),
+        ("OTHER_SWIFT_FLAGS", swiftFlags),
+        ("OTHER_CFLAGS", cFlags),
     ]
 
     /// `arguments` with the settings added. A setting the caller already overrides is extended
