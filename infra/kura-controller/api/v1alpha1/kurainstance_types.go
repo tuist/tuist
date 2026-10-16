@@ -227,6 +227,16 @@ type NodeLocalNetwork struct {
 	// Nameservers the pods resolve through instead of cluster DNS.
 	// +kubebuilder:validation:MinItems=1
 	Nameservers []string `json:"nameservers"`
+
+	// PeerHost is the in-cluster name the account's other mesh regions dial
+	// this instance's peer plane at, `<service>.<namespace>.svc.cluster.local`
+	// in the controller's node-local peer egress namespace. Nothing in the
+	// cluster routes to a node-local pod, so the controller backs the name
+	// with a Tailscale egress Service to the node the gateway pod runs on and
+	// a host-network SNI demux there that forwards to the pod
+	// (NodeLocalPeerReconciler). The leaf covers it and the pods advertise it
+	// as their peer gateway URL. Requires Mesh.
+	PeerHost string `json:"peerHost,omitempty"`
 }
 
 // KuraInstanceRolloutHealth aggregates the per-pod `/status/rollout` reports

@@ -628,6 +628,9 @@ DNS.6 = private-eu.kura.internal
 DNS.7 = private-ap.kura.internal
 DNS.8 = kura-ap-sibling.kura.internal
 DNS.9 = private-ap-sibling.kura.internal
+DNS.10 = peer.acme-eu-west-1.kura.test
+DNS.11 = kura-acme-ber1-peer.tailscale-operator.svc.cluster.local
+DNS.12 = kura-eu.kura-acme-ber1-headless.kura.svc.cluster.local
 EOF
 
   openssl genrsa -out "${KURA_MTLS_CERT_DIR}/ca.key" 2048 >/dev/null 2>&1

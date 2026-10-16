@@ -9,6 +9,7 @@ defmodule Tuist.Kura.MeshTest do
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
   alias Tuist.Kura.Mesh
+  alias Tuist.Kura.Regions
   alias Tuist.Kura.Registrations
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -160,6 +161,44 @@ defmodule Tuist.Kura.MeshTest do
       # Split out for the node's static seed: platform-stable managed
       # endpoints only, so volatile self-hosted membership stays dynamic.
       assert enrollment.managed_peers == [expected]
+    end
+  end
+
+  describe "network_peer_urls/2" do
+    test "gives the rack's cache the public peer host of every other mesh region of the account" do
+      account = AccountsFixtures.organization_fixture().account
+      handle = String.downcase(account.name)
+
+      stub(Kura, :server_regions_for_account, fn _ ->
+        ["ber1-runners", "eu-west", "us-east", "hetzner-staging-runners"]
+      end)
+
+      assert Mesh.network_peer_urls(account, Regions.get("ber1-runners")) == [
+               "https://peer.#{handle}-eu-west-1.kura.tuist.dev:7443",
+               "https://peer.#{handle}-us-east-1.kura.tuist.dev:7443"
+             ]
+    end
+
+    test "gives every other region of the account the rack cache's peer host" do
+      account = AccountsFixtures.organization_fixture().account
+      handle = String.downcase(account.name)
+      stub(Kura, :server_regions_for_account, fn _ -> ["ber1-runners", "eu-west", "scw-fr-par-runners"] end)
+
+      for region_id <- ["eu-west", "scw-fr-par-runners"] do
+        assert Mesh.network_peer_urls(account, Regions.get(region_id)) == [
+                 "https://kura-#{handle}-ber1-peer.tailscale-operator.svc.cluster.local:7443"
+               ]
+      end
+    end
+
+    test "is empty for an account without a rack cache, and for a lone rack cache" do
+      account = AccountsFixtures.organization_fixture().account
+
+      stub(Kura, :server_regions_for_account, fn _ -> ["eu-west", "us-east"] end)
+      assert Mesh.network_peer_urls(account, Regions.get("eu-west")) == []
+
+      stub(Kura, :server_regions_for_account, fn _ -> ["ber1-runners"] end)
+      assert Mesh.network_peer_urls(account, Regions.get("ber1-runners")) == []
     end
   end
 

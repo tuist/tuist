@@ -801,4 +801,37 @@ defmodule Tuist.Kura.RegionsTest do
       assert Regions.peer_public_url("acme", region) == nil
     end
   end
+
+  describe "node_local_peer_host/2 and node_local_peer_url/2" do
+    test "puts the rack's cache in the mesh behind an in-cluster peer host" do
+      region = Regions.get("ber1-runners")
+
+      assert Regions.node_local?(region)
+      assert Regions.mesh?(region)
+      assert Regions.peer_public_host("acme", region) == nil
+
+      assert Regions.node_local_peer_host("Acme", region) ==
+               "kura-acme-ber1-peer.tailscale-operator.svc.cluster.local"
+
+      assert Regions.node_local_peer_url("Acme", region) ==
+               "https://kura-acme-ber1-peer.tailscale-operator.svc.cluster.local:7443"
+    end
+
+    test "fits the longest account handle in a Service name" do
+      host = Regions.node_local_peer_host(String.duplicate("a", 32), Regions.get("ber1-runners"))
+      [service | _] = String.split(host, ".")
+
+      assert String.length(service) <= 63
+    end
+
+    test "return nil for regions on the cluster network" do
+      for id <- ["eu-west", "scw-fr-par-runners", "local-controller"] do
+        region = Regions.get(id)
+
+        refute Regions.node_local?(region)
+        assert Regions.node_local_peer_host("acme", region) == nil
+        assert Regions.node_local_peer_url("acme", region) == nil
+      end
+    end
+  end
 end

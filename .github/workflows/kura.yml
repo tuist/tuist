@@ -407,7 +407,7 @@ jobs:
           - shard_name: discovery-faults-handoff
             specs: "spec/e2e/discovery_spec.sh spec/e2e/faults_spec.sh spec/e2e/handoff_spec.sh"
           - shard_name: authorization-mtls
-            specs: "spec/e2e/authorization_spec.sh spec/e2e/mtls_spec.sh"
+            specs: "spec/e2e/authorization_spec.sh spec/e2e/mtls_spec.sh spec/e2e/node_local_peer_spec.sh"
           - shard_name: large-artifact
             specs: "spec/e2e/large_artifact_spec.sh"
           - shard_name: gateway-throughput

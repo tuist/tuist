@@ -25,6 +25,10 @@
 {{- $imageTag := .Values.kuraController.image.tag }}
 {{- $tlsClusterIssuer := .Values.kuraController.tlsClusterIssuer | default .Values.kuraController.grpcClusterIssuer }}
 {{- $publicWildcard := .Values.kuraController.publicWildcardCertificate }}
+{{- /* Node-local mesh instances (the BER1 rack's cache) are dialled by the
+other regions through the same Tailscale egress ProxyGroup the CAPI operator
+reaches rack hosts through. */}}
+{{- $nodeLocalPeerEgress := .Values.macosFleet.tailscaleEgress }}
 {{- if and $publicWildcard.enabled (not $tlsClusterIssuer) }}
 {{- fail "kuraController.publicWildcardCertificate.enabled requires kuraController.tlsClusterIssuer: nothing would issue the wildcard, and every public Ingress would fall back to the ingress controller's self-signed default." }}
 {{- end }}
@@ -192,6 +196,41 @@ subjects:
     name: {{ $name }}
     namespace: {{ $namespace }}
 ---
+{{- if $nodeLocalPeerEgress.enabled }}
+# The egress Services that let the other regions dial a node-local mesh
+# instance live beside the ProxyGroup's other egress Services, outside the
+# controller's namespace (NodeLocalPeerReconciler).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-node-local-peer-egress
+  namespace: {{ $nodeLocalPeerEgress.namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+rules:
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get, list, create, update, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-node-local-peer-egress
+  namespace: {{ $nodeLocalPeerEgress.namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-node-local-peer-egress
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
+---
+{{- end }}
 # Namespaced Role granting the controller's SA read on the single
 # kube-system/kube-dns Service. peer-demux's discoverClusterDNS reads its
 # ClusterIP to wire the per-region peer plane's in-cluster DNS, which a
@@ -391,6 +430,11 @@ spec:
             - --deployment-environment={{ .Values.kuraController.telemetry.deploymentEnvironment | default "production" }}
             {{- if .Values.kuraController.privateReplication.enabled }}
             - --private-replication=true
+            {{- end }}
+            {{- if $nodeLocalPeerEgress.enabled }}
+            - --node-local-peer-egress-namespace={{ $nodeLocalPeerEgress.namespace }}
+            - --node-local-peer-egress-proxy-group={{ $nodeLocalPeerEgress.proxyGroup }}
+            - --node-local-peer-tailnet-domain={{ required "macosFleet.tailscaleEgress.magicDNSSuffix is required when the egress is enabled" $nodeLocalPeerEgress.magicDNSSuffix }}
             {{- end }}
             {{- if .Values.kuraController.stableDNS.enabled }}
             - --stable-dns-zone-id={{ required "kuraController.stableDNS.hostedZoneId is required" .Values.kuraController.stableDNS.hostedZoneId }}

@@ -460,7 +460,14 @@ the cluster reaches it.
   name. Kura exports its traces there too.
 - **Being reached.** A pod the cluster has to read from is reached through the
   API server: the Kura controller samples node-local pods through a
-  port-forward, which goes through the kubelet.
+  port-forward, which goes through the kubelet. The one exception is Kura's
+  peer plane, which the account's other regions pull the rack's cache from:
+  each instance has a Tailscale egress Service on the `macmini-egress`
+  ProxyGroup that lands on its storage node's :7443, where the Kura
+  controller's host-network demux forwards by SNI to the pod (see "Node-local
+  pod networks" in `infra/kura-controller/AGENTS.md`). The rack's cache pulls
+  from those regions the other way, out through the edge to their public peer
+  hosts.
 
 ## Deploys and the rack's health
 

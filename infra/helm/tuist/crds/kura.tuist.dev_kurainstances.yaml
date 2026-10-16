@@ -298,6 +298,8 @@ spec:
                       minItems: 1
                       items:
                         type: string
+                    peerHost:
+                      type: string
                 storageClassName:
                   type: string
                 storageSize:

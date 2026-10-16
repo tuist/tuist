@@ -1,0 +1,98 @@
+# A node-local region (the BER1 rack's cache) in an account mesh with a managed
+# region, on networks shaped like production's:
+#
+#   - kura-us and kura-ap are one managed region's two replicas, on the
+#     cluster network.
+#   - kura-eu is the rack's instance. It sits on the rack network alone and
+#     reaches out only to the internet, where the managed region's public peer
+#     demux answers for its public peer host.
+#   - The cluster reaches the rack only through rack-demux, standing in for the
+#     Tailscale egress Service plus the kura-controller's node-local demux: it
+#     answers for the instance's in-cluster peer host and forwards by SNI to the
+#     pod's address on the rack network, with no resolver.
+#
+# Both demuxes pass TLS through, so every peer connection is end-to-end mTLS
+# against the shared test CA, as it is against the account CA.
+x-peer-tls: &peer_tls
+  KURA_INTERNAL_PORT: "7443"
+  KURA_INTERNAL_TLS_CA_CERT_PATH: /etc/kura/mtls/ca.pem
+  KURA_INTERNAL_TLS_CERT_PATH: /etc/kura/mtls/peer.pem
+  KURA_INTERNAL_TLS_KEY_PATH: /etc/kura/mtls/peer.key
+  KURA_TENANT_ID: acme
+
+services:
+  kura-us:
+    environment:
+      <<: *peer_tls
+      KURA_REGION: eu-west
+      KURA_NODE_URL: https://kura-us.kura.internal:7443
+      KURA_PEERS: https://kura-ap.kura.internal:7443,https://kura-acme-ber1-peer.tailscale-operator.svc.cluster.local:7443
+      KURA_DISCOVERY_DNS_NAME: ""
+      KURA_PEER_GATEWAY_URL: https://peer.acme-eu-west-1.kura.test:7443
+    volumes:
+      - kura-us-data:/var/cache/kura
+      - ${KURA_MTLS_CERT_DIR}:/etc/kura/mtls:ro
+    networks: !override
+      cluster:
+        aliases: [kura-us.kura.internal]
+
+  kura-ap:
+    environment:
+      <<: *peer_tls
+      KURA_REGION: eu-west
+      KURA_NODE_URL: https://kura-ap.kura.internal:7443
+      KURA_PEERS: https://kura-us.kura.internal:7443,https://kura-acme-ber1-peer.tailscale-operator.svc.cluster.local:7443
+      KURA_DISCOVERY_DNS_NAME: ""
+      KURA_PEER_GATEWAY_URL: https://peer.acme-eu-west-1.kura.test:7443
+    depends_on: !override
+      kura-us:
+        condition: service_healthy
+    volumes:
+      - kura-ap-data:/var/cache/kura
+      - ${KURA_MTLS_CERT_DIR}:/etc/kura/mtls:ro
+    networks: !override
+      cluster:
+        aliases: [kura-ap.kura.internal]
+
+  kura-eu:
+    environment:
+      <<: *peer_tls
+      KURA_REGION: ber1-runners
+      KURA_NODE_URL: https://kura-eu.kura-acme-ber1-headless.kura.svc.cluster.local:7443
+      KURA_PEERS: https://peer.acme-eu-west-1.kura.test:7443
+      KURA_DISCOVERY_DNS_NAME: ""
+      KURA_PEER_GATEWAY_URL: https://kura-acme-ber1-peer.tailscale-operator.svc.cluster.local:7443
+    depends_on: !override {}
+    volumes:
+      - kura-eu-data:/var/cache/kura
+      - ${KURA_MTLS_CERT_DIR}:/etc/kura/mtls:ro
+    networks: !override
+      rack:
+        ipv4_address: 10.254.254.17
+      internet: {}
+
+  public-demux:
+    image: nginx:1.27.3-alpine
+    volumes:
+      - ./test/e2e/node-local-peer/public-demux.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      cluster: {}
+      internet:
+        aliases: [peer.acme-eu-west-1.kura.test]
+
+  rack-demux:
+    image: nginx:1.27.3-alpine
+    volumes:
+      - ./test/e2e/node-local-peer/rack-demux.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      cluster:
+        aliases: [kura-acme-ber1-peer.tailscale-operator.svc.cluster.local]
+      rack: {}
+
+networks:
+  cluster: {}
+  internet: {}
+  rack:
+    ipam:
+      config:
+        - subnet: 10.254.254.0/24

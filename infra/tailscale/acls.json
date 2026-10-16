@@ -455,6 +455,21 @@
 			"ip":  ["tcp:22", "tcp:10250"],
 		},
 
+		// Production cluster -> the Kura peer plane on BER1's storage nodes.
+		// The rack's cache replicates with each account's other regions, which
+		// pull from it over the account's mTLS peer protocol. Nothing in the
+		// cluster routes to a rack pod, so they dial the instance's egress
+		// Service on the macmini-egress ProxyGroup, which lands on the node's
+		// :7443, where the kura-controller's node-local demux forwards by SNI
+		// to the pod (infra/kura-controller/AGENTS.md, "Node-local pod
+		// networks"). The account CA is the authentication; this grant is
+		// reachability. The edges hold no cache.
+		{
+			"src": ["tag:tuist-k8s-production"],
+			"dst": ["tag:tuist-rack-node"],
+			"ip":  ["tcp:7443"],
+		},
+
 		// The BER1 switches -> the Omada controller in the production cluster,
 		// on its device ports only. The switches are not on the tailnet: their
 		// traffic reaches it through the rack's edge node, translated to the
@@ -945,6 +960,7 @@
 				"192.168.0.16:443",
 				"tag:tuist-rack-edge:22",
 				"tag:tuist-rack-node:10250",
+				"tag:tuist-rack-node:7443",
 				"tag:tuist-macmini-production:22",
 			],
 		},
@@ -1021,6 +1037,7 @@
 				"tag:tuist-rack-node:22",
 				"tag:tuist-rack-edge:10250",
 				"tag:tuist-rack-node:10250",
+				"tag:tuist-rack-node:7443",
 				"10.10.0.101:22",
 				"10.10.0.103:22",
 				"10.10.0.104:22",
@@ -1034,6 +1051,7 @@
 				// segment are not granted, even if an edge advertised them.
 				"10.10.0.2:22",
 				"10.10.0.11:22",
+				"tag:tuist-rack-edge:7443",
 				"10.10.0.101:5900",
 				"10.10.0.110:22",
 				"192.168.0.16:80",

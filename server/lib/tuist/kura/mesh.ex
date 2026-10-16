@@ -187,6 +187,48 @@ defmodule Tuist.Kura.Mesh do
     )
   end
 
+  @doc """
+  The managed peers an instance of the account in `region` has to be told
+  about because it cannot discover them on the cluster network.
+
+  Managed instances find each other through the account peer Service, which
+  only works for pods on the cluster network. A node-local instance (the BER1
+  rack's cache) resolves no cluster name and reaches no pod, so it is given the
+  public peer URL of each of the account's other mesh regions, the same URLs a
+  self-hosted node dials. Nothing in the cluster reaches a node-local pod
+  either, so every other mesh region of the account is given the node-local
+  instance's peer URL, which the kura-controller routes to it. Empty for an
+  account with no node-local region.
+  """
+  def network_peer_urls(%Account{} = account, %Regions{} = region) do
+    tenant = Identity.tenant_id(account)
+
+    other_regions =
+      account.id
+      |> Kura.server_regions_for_account()
+      |> Enum.uniq()
+      |> Enum.reject(&(&1 == region.id))
+      |> Enum.map(&Regions.get/1)
+      |> Enum.filter(&(match?(%Regions{}, &1) and Regions.mesh?(&1) and not Regions.retired?(&1)))
+
+    urls =
+      cond do
+        not Regions.mesh?(region) ->
+          []
+
+        Regions.node_local?(region) ->
+          Enum.map(other_regions, &Regions.peer_public_url(tenant, &1))
+
+        true ->
+          Enum.map(other_regions, &Regions.node_local_peer_url(tenant, &1))
+      end
+
+    urls
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
   defp managed_peer_urls(%Account{} = account) do
     account.id
     |> Kura.server_regions_for_account()

@@ -3200,16 +3200,21 @@ func peerTLSSecretDataValid(data map[string][]byte, instance *kurav1alpha1.KuraI
 	}); err != nil {
 		return false
 	}
-	// In mesh mode the stored leaf must also cover the public peer host so
-	// external nodes can verify it; a leaf predating MeshPublicPeerHost is
-	// reissued rather than served.
-	if caCertPEM != nil && instance.Spec.MeshPublicPeerHost != "" {
-		if _, err := cert.Verify(x509.VerifyOptions{
-			DNSName:   instance.Spec.MeshPublicPeerHost,
-			Roots:     roots,
-			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		}); err != nil {
-			return false
+	// In mesh mode the stored leaf must also cover the hosts peers outside
+	// the pod network dial it at; a leaf predating either is reissued rather
+	// than served.
+	if caCertPEM != nil {
+		for _, host := range []string{instance.Spec.MeshPublicPeerHost, nodeLocalPeerHost(instance)} {
+			if host == "" {
+				continue
+			}
+			if _, err := cert.Verify(x509.VerifyOptions{
+				DNSName:   host,
+				Roots:     roots,
+				KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+			}); err != nil {
+				return false
+			}
 		}
 	}
 	return hasExtKeyUsage(cert, x509.ExtKeyUsageClientAuth)
@@ -3320,6 +3325,11 @@ func peerTLSDNSNames(instance *kurav1alpha1.KuraInstance) []string {
 	// must cover it too.
 	if instance.Spec.MeshPublicPeerHost != "" {
 		names = append(names, instance.Spec.MeshPublicPeerHost)
+	}
+	// The other regions dial a node-local instance through its egress name,
+	// so that is the SNI they verify it against.
+	if host := nodeLocalPeerHost(instance); host != "" {
+		names = append(names, host)
 	}
 	return names
 }
@@ -4743,9 +4753,10 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	if crossRegionRuntimeEnabled(instance) {
 		discoveryDNSName = accountPeerServiceDNSName(instance)
 	}
-	// A node-local pod resolves no cluster name, and outside the mesh it has no
-	// peer to find, so it is given no peer Service to look up.
-	if instance.Spec.NodeLocalNetwork != nil && !instance.Spec.Mesh {
+	// A node-local pod resolves no cluster name and reaches no pod, so it is
+	// given no peer Service to look up. In the mesh it finds the other
+	// regions through their public peer hosts in KURA_PEERS instead.
+	if instance.Spec.NodeLocalNetwork != nil {
 		discoveryDNSName = ""
 	}
 	env := []corev1.EnvVar{
@@ -4806,10 +4817,19 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	// reach). It reaches this node via the `?scope=global` status path, which
 	// returns this gateway URL; in-cluster peers use Local-scope discovery
 	// (KURA_DISCOVERY_DNS_NAME above) and dial pod-to-pod directly.
+	//
+	// A node-local instance advertises its egress name the same way, so the
+	// other regions, which can only reach it through that name, record it
+	// under the URL they dial.
 	if meshManagedPeerTLS(instance) && instance.Spec.MeshPublicPeerHost != "" {
 		env = append(env, corev1.EnvVar{
 			Name:  "KURA_PEER_GATEWAY_URL",
 			Value: fmt.Sprintf("https://%s:%d", instance.Spec.MeshPublicPeerHost, peerPort),
+		})
+	} else if host := nodeLocalPeerHost(instance); meshManagedPeerTLS(instance) && host != "" {
+		env = append(env, corev1.EnvVar{
+			Name:  "KURA_PEER_GATEWAY_URL",
+			Value: fmt.Sprintf("https://%s:%d", host, peerPort),
 		})
 	}
 	// Seed the account's self-hosted nodes as static peers so the managed

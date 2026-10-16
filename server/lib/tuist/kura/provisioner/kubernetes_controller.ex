@@ -366,7 +366,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     manifest_revision_string(
       region,
       storage_claim(account, region, server),
-      self_hosted_peers(account, region, entitlements),
+      mesh_peers(self_hosted_peers(account, region, entitlements), account, region),
       entitlements,
       effective_egress(account, region, entitlements)
     ) <> endpoint_identity_revision(account) <> serving_revision(account)
@@ -413,7 +413,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp render_manifest(name, image_tag, account, region, server, external_peers, entitlements) do
     account_handle = Identity.tenant_id(account)
     endpoint_handle = Identity.endpoint_handle(account)
-    external_peers = entitled_self_hosted_peers(region, external_peers, entitlements)
+    external_peers = mesh_peers(entitled_self_hosted_peers(region, external_peers, entitlements), account, region)
     claim = storage_claim(account, region, server)
     egress = effective_egress(account, region, entitlements)
 
@@ -479,7 +479,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "replicas" => replicas(region),
           "nodeSelector" => instance_node_selector(region, server),
           "tolerations" => tolerations(region),
-          "nodeLocalNetwork" => node_local_network(region),
+          "nodeLocalNetwork" => node_local_network(region, account_handle),
           "extraEnv" => auth_env(region, claim, entitlements)
         }
         |> Map.merge(StableEndpoint.intent(%{server | account: account}, region))
@@ -644,6 +644,20 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     if self_hosted_peers_entitled?(region, entitlements), do: peer_urls, else: []
   end
 
+  # The account's managed peers the instance cannot discover on the cluster
+  # network (`Mesh.network_peer_urls/2`), beside its self-hosted ones. Not
+  # gated on the self-hosted entitlement: they are the account's own managed
+  # regions, which every plan replicates between. Folded into the revision
+  # with the self-hosted peers, so an account gaining or losing its rack cache
+  # re-applies the instances that dial it.
+  defp mesh_peers(self_hosted_peers, account, %Regions{} = region) do
+    if mesh_enabled?(region) do
+      Enum.uniq(self_hosted_peers ++ Mesh.network_peer_urls(account, region))
+    else
+      self_hosted_peers
+    end
+  end
+
   # The desired revision the reconciler compares against the live CR's
   # annotation. Both the reconcile check (manifest_revision/2) and the applied
   # manifest (manifest/7) build it here so they can never disagree and loop.
@@ -674,6 +688,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           Enum.map(get_in(config, [:node_local_network, :nameservers]) || [], &"nameserver=#{&1}") ++
           if(config[:node_local_network] && config[:otlp_traces_endpoint],
             do: ["otlp=#{config[:otlp_traces_endpoint]}"],
+            else: []
+          ) ++
+          if(config[:node_local_peer_host_template],
+            do: ["node-local-peer=#{config[:node_local_peer_host_template]}"],
             else: []
           )
 
@@ -1055,18 +1073,32 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # A region whose pods run on a pod network the cluster does not route
   # (`Regions` `node_local_network`): its pods resolve through the region's
   # nameservers and the controller samples them through the API server.
-  defp node_local_network(%Regions{provisioner_config: %{node_local_network: %{nameservers: [_ | _] = nameservers}}}) do
-    %{"nameservers" => nameservers}
+  # In the mesh it also carries the name the account's other regions dial it
+  # at (`Regions.node_local_peer_host/2`).
+  defp node_local_network(%Regions{} = region, account_handle) do
+    case node_local_nameservers(region) do
+      nil ->
+        nil
+
+      nameservers ->
+        case Regions.node_local_peer_host(account_handle, region) do
+          nil -> %{"nameservers" => nameservers}
+          host -> %{"nameservers" => nameservers, "peerHost" => host}
+        end
+    end
   end
 
-  defp node_local_network(_), do: nil
+  defp node_local_nameservers(%Regions{provisioner_config: %{node_local_network: %{nameservers: [_ | _] = nameservers}}}),
+    do: nameservers
+
+  defp node_local_nameservers(_), do: nil
 
   # Such a pod reaches no Service: analytics go to the server's public URL.
   # Its traces go where the environment points node-local instances
   # (telemetry_env/1), and stay off without one rather than queueing for the
   # in-cluster collector, which it cannot reach.
   defp node_local_env(%Regions{} = region) do
-    case node_local_network(region) do
+    case node_local_nameservers(region) do
       nil -> []
       _ -> [env_var("KURA_ANALYTICS_SERVER_URL", tuist_base_url(region))] ++ node_local_traces_off(region)
     end

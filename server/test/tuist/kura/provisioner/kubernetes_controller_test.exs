@@ -28,6 +28,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     # unpersisted accounts, so the unoverridden answer is stubbed here and the
     # tests that care about an override state their own.
     stub(EgressLimits, :override_for, fn _account, _region -> nil end)
+    # The peers an instance cannot discover on the cluster network come from the
+    # account's other servers in the database; tests that care state them.
+    stub(Mesh, :network_peer_urls, fn _account, _region -> [] end)
 
     stub(EgressLimits, :effective_limits, fn _account, region, region_floor ->
       %{floor_mbps: region_floor, burst_mbps: Regions.egress_burst_mbps(region)}
@@ -2186,7 +2189,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       spec = KubernetesController.manifest("kura-tuist-ber1", "0.5.2", account, region, %Server{})["spec"]
 
       assert spec["replicas"] == 1
-      refute Map.has_key?(spec, "mesh")
+      assert spec["mesh"]
+      refute Map.has_key?(spec, "meshPublicPeerHost")
       assert spec["privateHost"] == "tuist-ber1-runners-staging.kura.tuist.dev"
       assert spec["ingressClassName"] == "kura-ber1-runners"
       assert spec["clientCIDRs"] == ["10.10.0.0/24"]
@@ -2197,8 +2201,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
              ]
 
       # Tailscale's resolver answers the tailnet and fails anything else over
-      # to the public resolvers.
-      assert spec["nodeLocalNetwork"] == %{"nameservers" => ["100.100.100.100", "1.1.1.1", "8.8.8.8"]}
+      # to the public resolvers. The peer host is where the account's other
+      # regions reach the instance.
+      assert spec["nodeLocalNetwork"] == %{
+               "nameservers" => ["100.100.100.100", "1.1.1.1", "8.8.8.8"],
+               "peerHost" => "kura-tuist-ber1-peer.tailscale-operator.svc.cluster.local"
+             }
 
       # The pod reaches no Service: the server and analytics through the
       # public URL, and traces to the collector at its tailnet name.
@@ -2220,6 +2228,63 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == ""
+    end
+
+    test "points the rack's cache at the account's other regions through their public peer hosts" do
+      stub(Tuist.Environment, :env, fn -> :prod end)
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
+      stub(Mesh, :network_peer_urls, &Mimic.call_original(Mesh, :network_peer_urls, [&1, &2]))
+      stub(Tuist.Kura, :server_regions_for_account, fn 1 -> ["ber1-runners", "eu-west", "us-east"] end)
+      region = Regions.get("ber1-runners")
+      account = %Account{id: 1, name: "qonto", subscriptions: []}
+
+      spec = KubernetesController.manifest("kura-qonto-ber1", "0.5.2", account, region, %Server{})["spec"]
+
+      assert spec["meshExternalPeers"] == [
+               "https://peer.qonto-eu-west-1.kura.tuist.dev:7443",
+               "https://peer.qonto-us-east-1.kura.tuist.dev:7443"
+             ]
+
+      env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_MESH_PEERS_SYNC"] == "true"
+      assert env["KURA_REPLICATION_PULL"] == "true"
+    end
+
+    test "points the account's other regions at the rack's cache through its peer host" do
+      stub(Tuist.Environment, :env, fn -> :prod end)
+      stub(StableEndpoint, :intent, fn server, region -> StableEndpoint.intent(server, region, []) end)
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
+      stub(Mesh, :network_peer_urls, &Mimic.call_original(Mesh, :network_peer_urls, [&1, &2]))
+      stub(Tuist.Kura, :server_regions_for_account, fn 1 -> ["ber1-runners", "eu-west"] end)
+      account = %Account{id: 1, name: "qonto", subscriptions: []}
+
+      for region_id <- ["eu-west", "scw-fr-par-runners"] do
+        region = Regions.get(region_id)
+        spec = KubernetesController.manifest("kura-qonto-#{region_id}", "0.5.2", account, region, %Server{})["spec"]
+
+        assert spec["meshExternalPeers"] == [
+                 "https://kura-qonto-ber1-peer.tailscale-operator.svc.cluster.local:7443"
+               ]
+      end
+    end
+
+    test "re-applies the account's instances when it gains a rack cache, and nobody else's" do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
+      stub(Mesh, :network_peer_urls, &Mimic.call_original(Mesh, :network_peer_urls, [&1, &2]))
+      region = Regions.get("eu-west")
+      server = %Server{account: %Account{id: 1, name: "qonto"}}
+
+      stub(Tuist.Kura, :server_regions_for_account, fn 1 -> ["eu-west", "us-east"] end)
+      without_rack = KubernetesController.manifest_revision(server, region)
+      refute without_rack =~ "+peers-"
+
+      stub(Tuist.Kura, :server_regions_for_account, fn 1 -> ["eu-west", "us-east", "ber1-runners"] end)
+      with_rack = KubernetesController.manifest_revision(server, region)
+      assert with_rack =~ "+peers-"
+      refute with_rack == without_rack
     end
 
     test "keeps cluster-routed private regions on the cluster network" do

@@ -47,6 +47,7 @@ func main() {
 	var privateReplication bool
 	var servingAuthority bool
 	var connectivityDiagnosticsInstances string
+	var nodeLocalPeerEgressNamespace, nodeLocalPeerEgressProxyGroup, nodeLocalPeerTailnetDomain string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -60,6 +61,9 @@ func main() {
 	flag.BoolVar(&servingAuthority, "serving-authority", false, "Enable opt-in positively fenced serving grants; never enables timeout promotion")
 	flag.BoolVar(&privateReplication, "private-replication", false, "Derive OVH peer topology from converged private host routes")
 	flag.StringVar(&connectivityDiagnosticsInstances, "connectivity-diagnostics-instances", "", "Comma-separated exact KuraInstance names enabling built-in connectivity telemetry in watch-namespace")
+	flag.StringVar(&nodeLocalPeerEgressNamespace, "node-local-peer-egress-namespace", "", "Namespace of the Tailscale egress Services that let the cluster dial node-local mesh instances; empty leaves them unreachable from other regions")
+	flag.StringVar(&nodeLocalPeerEgressProxyGroup, "node-local-peer-egress-proxy-group", "", "Tailscale egress ProxyGroup the node-local peer egress Services bind to")
+	flag.StringVar(&nodeLocalPeerTailnetDomain, "node-local-peer-tailnet-domain", "", "MagicDNS suffix the node-local peer egress Services resolve a node name under, e.g. tail1234.ts.net")
 
 	flag.StringVar(&stableZone, "stable-dns-zone-id", "", "Delegated cache.tuist.dev Route53 hosted zone; empty disables stable DNS")
 	flag.StringVar(&stableOwner, "stable-dns-owner", "", "Unique cluster identity for shared box health checks")
@@ -195,6 +199,26 @@ func main() {
 		Image:     os.Getenv("KURA_PEER_DEMUX_IMAGE"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup PeerDemuxReconciler")
+		os.Exit(1)
+	}
+
+	// The egress namespace is outside the manager's cache, so its Services
+	// go through a client of their own rather than an informer there.
+	egressClient, err := client.New(restConfig, client.Options{Scheme: scheme})
+	if err != nil {
+		setupLog.Error(err, "create node-local peer egress API client")
+		os.Exit(1)
+	}
+	if err := (&controllers.NodeLocalPeerReconciler{
+		Client:           mgr.GetClient(),
+		EgressClient:     egressClient,
+		Scheme:           mgr.GetScheme(),
+		Image:            os.Getenv("KURA_PEER_DEMUX_IMAGE"),
+		EgressNamespace:  nodeLocalPeerEgressNamespace,
+		EgressProxyGroup: nodeLocalPeerEgressProxyGroup,
+		TailnetDomain:    nodeLocalPeerTailnetDomain,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup NodeLocalPeerReconciler")
 		os.Exit(1)
 	}
 

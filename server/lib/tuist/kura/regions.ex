@@ -546,13 +546,21 @@ defmodule Tuist.Kura.Regions do
     # route to and which routes to no Service, so the pods resolve names
     # through public resolvers and call the server through its public URL,
     # and the controller samples them through the API server
-    # (`nodeLocalNetwork`). That also rules out the peer mesh: one replica,
-    # no mesh, until the site has a second storage node to pair with.
+    # (`nodeLocalNetwork`).
+    #
+    # It still replicates with the account's other regions, in both
+    # directions, over the ordinary account mesh. It pulls from them by
+    # dialing out to their public peer hosts, like a self-hosted node does.
+    # They pull from it through `node_local_peer_host_template`, an in-cluster
+    # name the kura-controller backs with a Tailscale egress Service to the
+    # storage node and a demux there that forwards by SNI to the pod.
+    #
+    # One replica until the site has a second storage node to pair with.
     %{
       id: "ber1-runners",
       site: "ber1",
       replicas: 1,
-      mesh: false,
+      node_local_peer_host_template: "kura-{account_handle}-{cluster_id}-peer.tailscale-operator.svc.cluster.local",
       ingress_class_name: "kura-ber1-runners",
       display_name: "BER1 rack (runner cache)",
       cluster_id: "ber1",
@@ -561,7 +569,8 @@ defmodule Tuist.Kura.Regions do
       # bare-metal pools.
       storage_class: "scw-local-nvme",
       # Sized by the account's claim like scw-fr-par-runners. With one replica
-      # and no mesh, a raised claim rebuilds the cache cold.
+      # a raised claim rebuilds the volume, which refills from the account's
+      # other regions rather than starting cold.
       storage_size: "50Gi",
       storage_governed: true,
       runner_platforms: [:macos],
@@ -902,6 +911,46 @@ defmodule Tuist.Kura.Regions do
   def peer_public_host(_handle, _region), do: nil
 
   @doc """
+  True iff the region's pods run on a pod network the cluster does not route
+  to (the BER1 rack's storage nodes): they reach the internet through their
+  node, and nothing in the cluster reaches them.
+  """
+  def node_local?(%__MODULE__{provisioner_config: %{node_local_network: %{}}}), do: true
+  def node_local?(_), do: false
+
+  @doc """
+  The in-cluster host the account's other mesh regions dial a node-local
+  region's instance at, or `nil` for a region that is not node-local or not in
+  the mesh. The kura-controller backs it with a Tailscale egress Service to the
+  instance's node and a demux there (`nodeLocalNetwork.peerHost`), and covers
+  it in the peer-cert SAN.
+  """
+  def node_local_peer_host(
+        handle,
+        %__MODULE__{provisioner_config: %{node_local_peer_host_template: template, cluster_id: cluster_id}} = region
+      )
+      when is_binary(handle) and is_binary(template) do
+    if mesh?(region) do
+      template
+      |> String.replace("{account_handle}", String.downcase(handle))
+      |> String.replace("{cluster_id}", cluster_id)
+    end
+  end
+
+  def node_local_peer_host(_handle, _region), do: nil
+
+  @doc """
+  The peer URL the account's other mesh regions dial a node-local region's
+  instance at, or `nil` when the region has no node-local peer host.
+  """
+  def node_local_peer_url(handle, %__MODULE__{} = region) do
+    case node_local_peer_host(handle, region) do
+      nil -> nil
+      host -> "https://#{host}:#{@peer_port}"
+    end
+  end
+
+  @doc """
   The public peer URL (`https://<peer_public_host>:<peer_port>`) a self-hosted
   node dials to join this region's managed mesh, or `nil` when the region has
   no public peer host.
@@ -1130,11 +1179,12 @@ defmodule Tuist.Kura.Regions do
             else: Tuist.Environment.kura_tuist_base_url()
           ),
         node_local_network: node_local_network,
+        node_local_peer_host_template: Map.get(spec, :node_local_peer_host_template),
         otlp_traces_endpoint: if(node_local_network, do: Tuist.Environment.kura_node_local_otlp_traces_endpoint()),
         # The runner-cache node replicates with the account's other nodes
-        # over the in-cluster peer mesh (cache content stays coherent; the
-        # runner hot path remains node-local over the Private Network). A
-        # node-local region reaches no peer, so it opts out.
+        # over the peer mesh (cache content stays coherent; the runner hot
+        # path stays on the site's own network). A node-local region joins
+        # through its peer host instead of the cluster network.
         mesh: Map.get(spec, :mesh, true)
       }
     }
