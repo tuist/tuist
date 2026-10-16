@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { diskUsage } from "./disk-usage.mjs";
 import {
   profile,
   bodyChunks,
@@ -23,6 +24,46 @@ test("production recipe preserves observed count, bytes and large-body tail", ()
   assert.equal(p.capacity, 57804891095);
   assert.deepEqual(p.sizes, profile("production").sizes);
   assert.throws(() => profile("prodution"));
+});
+
+test("disk samples retain totals for disappearing files without hiding other failures", () => {
+  const vanished =
+    "du: cannot access '/data/tmp/uploads/upload-fixture': No such file or directory\ncommand terminated with exit code 1\n";
+  assert.deepEqual(
+    diskUsage(() => "123\t/data\n"),
+    { disk: "123\t/data\n" },
+  );
+  const fail = (overrides = {}) => {
+    throw Object.assign(
+      new Error("du failed"),
+      { status: 1, stdout: "123\t/data\n", stderr: vanished },
+      overrides,
+    );
+  };
+  const sample = diskUsage(() => fail());
+  assert.equal(sample.disk, "123\t/data\n");
+  assert.equal(sample.diskSamplingRaces, 1);
+  assert.equal(sample.diskSamplingWarnings.length, 1);
+  for (const overrides of [
+    { status: null, signal: "SIGTERM" },
+    { stdout: "" },
+    { stderr: "du: cannot read directory '/data': Permission denied" },
+    { stderr: vanished + "unexpected failure\n" },
+    { stderr: "command terminated with exit code 1\n" },
+  ])
+    assert.throws(() => diskUsage(() => fail(overrides)), /du failed/);
+});
+
+test("record-count diagnostic preserves counts and budgets without production body I/O", () => {
+  const p = profile("records"),
+    full = profile("production");
+  assert.equal(p.sizes.length, full.sizes.length);
+  assert(p.sizes.every((size) => size === 16));
+  assert.equal(p.actions, full.actions);
+  assert.equal(p.capacity, full.capacity);
+  assert.equal(p.volume, full.volume);
+  assert.equal(p.deadlineMs, full.deadlineMs);
+  assert.equal(p.historyBytes, 0);
 });
 
 test("fragmentation calibration measures retained holes and rejects an oversized or small-body-only deficit", () => {
@@ -73,6 +114,7 @@ test("expected failure requires convergence churn, actual request timeouts and s
   assert.equal(classify(failure(), source, target), "repair-timeout");
   for (const override of [
     { profile: "smoke" },
+    { profile: "records" },
     { error: "disk full" },
     { setupVerified: false },
     { sourceResumed: false },

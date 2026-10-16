@@ -6,6 +6,7 @@ import { execFileSync } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
 import { profile, classify, runtimeResources } from "./profile.mjs";
+import { diskUsage } from "./disk-usage.mjs";
 
 const { values: options } = parseArgs({
   options: Object.fromEntries(
@@ -61,6 +62,10 @@ assert.notEqual(
 );
 const p = profile(options.profile),
   output = options.output;
+assert(
+  p.name !== "records" || options.scenario === "fresh",
+  "the record-count diagnostic requires the fresh scenario",
+);
 assert(
   !fs.existsSync(output),
   "output must be new; never overwrite earlier evidence",
@@ -181,7 +186,7 @@ function snapshot(phase) {
       memoryMin: exec(replica, "cat", "/sys/fs/cgroup/memory.min"),
       memoryMax: exec(replica, "cat", "/sys/fs/cgroup/memory.max"),
       memoryEvents: exec(replica, "cat", "/sys/fs/cgroup/memory.events"),
-      disk: exec(replica, "du", "-sk", "/data"),
+      ...diskUsage(() => exec(replica, "du", "-sk", "/data")),
       net: exec(replica, "cat", "/proc/net/dev"),
     });
   fs.appendFileSync(`${output}/resources.jsonl`, JSON.stringify(sample) + "\n");
@@ -592,6 +597,22 @@ try {
       }
       if (progress.phase === "runtime_ready") {
         verifyMemoryBudget();
+        save(
+          "cpu.json",
+          Object.fromEntries(
+            ["source", "target"].map((replica) => {
+              const info = exec(replica, "cat", "/proc/cpuinfo");
+              return [
+                replica,
+                {
+                  logicalProcessors: (info.match(/^processor\s*:/gm) ?? [])
+                    .length,
+                  firstProcessor: info.split(/\n\s*\n/)[0],
+                },
+              ];
+            }),
+          ),
+        );
         snapshot("empty");
         exec(
           "client",

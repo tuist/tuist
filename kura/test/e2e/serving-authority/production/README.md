@@ -48,6 +48,11 @@ node kura/test/e2e/serving-authority/production/staging.mjs \
 
 Use `--profile smoke --scenario fresh --expect pass` first to check the harness
 lifecycle with a small corpus. Smoke does not qualify a runtime for production.
+Use `--profile records --scenario fresh --expect pass` to isolate record-count
+overhead: it keeps all 151,943 blobs and 77,017 ActionResults, the same runtime
+budgets and deadline, but gives every segmented blob a 16-byte body. It requires
+the complete corpus on both replicas before measurement. This diagnostic removes
+large-body I/O and is never a substitute for the production qualification matrix.
 For a proposed fix, use `--expect pass` and repeat both `fresh` and `fragmented`
 production scenarios on the same host and budgets. Keep the baseline output;
 each run requires a new output directory.
@@ -89,6 +94,18 @@ cancellation/restart variant, not the earlier production signature of completed
 walks followed by eviction revisits. Preserve this distinction when interpreting
 subsequent results; a valid failed workload is not automatically the same failure.
 
+The request-lifetime candidate completed seven repair revisits but still failed
+the fragmented case at 300.807 seconds. A full-size fresh-volume control then
+failed at 301.705 seconds with zero missing bodies and zero request timeouts:
+its reconciliation took 1.88 seconds, but full verification did not produce a
+receipt. Both runs safely resumed source writes after abort. These separate
+repair convergence from verification throughput; neither result qualifies the
+candidate for rollout. On that same host, the record-count diagnostic passed:
+228,962-record receipts in 30.295 seconds, complete handover in 32.930 seconds,
+and original-session HTTP/gRPC fencing checks passed. All 12 resources and both
+PVs were reclaimed. The much larger full-body cost remains to be separated from
+hardware hashing throughput; the reduced-body pass is diagnostic evidence only.
+
 A passing run requires matching full retained-corpus receipts, positive source
 revocation, destination activation, rejection of writes on the original source
 HTTP/2 and gRPC sessions, and successful destination writes. The runtime barrier
@@ -110,6 +127,10 @@ a proxy caps aggregate retained-body responses at 500 Mbit/s. It avoids adding
 the transatlantic RTT between the available staging hosts, but does not reproduce
 production network topology, disk contention or exact physical fragmentation.
 The recorded achieved transfer rate matters, not just its configured ceiling.
+`cpu.json` records the processor model and instruction flags as well as logical
+CPU count. Equal CPU ceilings do not imply equal hashing throughput: the initial
+staging host was an Intel Xeon E-2236 without SHA-NI. The fresh-volume failure
+there does not by itself establish the same verification time on another CPU.
 
 Authority is supplied by the existing TLS ConfigMap simulator, reachable only
 inside these labelled fixture pods. The runtimes' Kubernetes hostname resolves
@@ -136,6 +157,10 @@ oversized blob runs alone. Only idempotent seed uploads may retry a connection
 reset, at most twice, with each retry recorded. Qualification requests never
 inherit those retries. CPU/memory/disk samples include preparation as well as
 before, during and after handover.
+Disk samples retain `du`'s valid total when a concurrently deleted descendant
+disappears during its walk, and record the warning and count. Other disk command
+failures still stop the run. This avoids turning normal temporary-file cleanup
+into a spurious runtime failure without suppressing inaccessible storage.
 
 The shaping proxy currently uses HTTP/1.1 on the internal peer plane. It does not
 reproduce mTLS negotiation or HTTP/2 stream cancellation. Treat a reproduced

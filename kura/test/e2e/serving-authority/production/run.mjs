@@ -372,6 +372,14 @@ try {
         "standby holes must be 1–5 GB and include a largest body; reject transfer-bound or unrepresentative baselines",
       );
   }
+  if (p.name === "records")
+    assert(
+      result.shape.sourceRows === records.length + p.actions &&
+        result.shape.targetRows === result.shape.sourceRows &&
+        retained.length === records.length &&
+        result.shape.missingBlobs === 0,
+      "record-count control requires the complete corpus on both replicas",
+    );
   result.setupVerified = true;
   save("before", await Promise.all([0, 1].map(report)));
   progress("measurement_ready");

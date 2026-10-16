@@ -19,10 +19,11 @@ const histogram = [
   [36, 16964122021],
 ];
 export function profile(name) {
-  assert(["smoke", "production"].includes(name), "unknown profile");
+  assert(["smoke", "records", "production"].includes(name), "unknown profile");
   const production = name === "production";
+  const fullCount = name !== "smoke";
   const sizes = [];
-  for (const [count, total] of production
+  for (const [count, total] of fullCount
     ? histogram
     : [
         [256, 256 * 16384],
@@ -60,12 +61,15 @@ export function profile(name) {
       const j = sizes.findIndex((size, n) => n >= i && size === 814310767);
       [sizes[i], sizes[j]] = [sizes[j], sizes[i]];
     }
+  // Isolate record traversal and verification overhead from body I/O. This
+  // diagnostic keeps the full count and budgets, but cannot qualify a rollout.
+  if (name === "records") sizes.fill(16);
   return {
     name,
     sizes,
-    actions: production ? 77017 : 128,
-    capacity: production ? 57804891095 : 3 * GiB,
-    volume: production ? "64Gi" : "8Gi",
+    actions: fullCount ? 77017 : 128,
+    capacity: fullCount ? 57804891095 : 3 * GiB,
+    volume: fullCount ? "64Gi" : "8Gi",
     historyBytes: production ? 20 * GiB : 0,
     divergenceBytes: production ? 9 * GiB : 16 * 1048576,
     fillerSize: production ? 128 * 1048576 : 1048576,

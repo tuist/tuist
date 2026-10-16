@@ -45,6 +45,10 @@ function resourceSummary(i) {
     diskBytesBefore: disk(first),
     diskBytesAfter: disk(last),
     diskBytesPeak: Math.max(...measured.map((r) => disk(r.replicas[i]))),
+    diskSamplingRaces: resources.reduce(
+      (sum, sample) => sum + (sample.replicas[i].diskSamplingRaces ?? 0),
+      0,
+    ),
     anonymousBytesPeak: Math.max(
       ...measured.map((r) => stat(r.replicas[i].memory, "anon")),
     ),
@@ -68,6 +72,9 @@ const summary = {
   persistentChannelChecks: result.persistentChannelChecks,
   requestTimeouts: result.requestTimeouts,
   repairRevisits: result.repairRevisits,
+  cpu: fs.existsSync(`${directory}/cpu.json`)
+    ? JSON.parse(read("cpu.json"))
+    : { unavailable: true },
   replicas: [0, 1].map((i) => ({
     name: i === 0 ? "source" : "target",
     metrics: Object.fromEntries(

@@ -12,6 +12,8 @@ A proxy caps aggregate retained-body transfer at 500 Mbit/s during measurement.
 Do not use cross-region RTT, increased deadlines, unequal ring capacities or
 extra destination storage to manufacture a passing production qualification.
 A smoke pass only verifies harness plumbing. Keep full-size corpus checks and
+the `records` profile diagnostic-only: it preserves record count and budgets
+while replacing body I/O with 16-byte blobs, and cannot qualify a rollout. Keep
 strict expected-failure classification; a generic timeout is not the observed
 repair-churn failure. Never import actual record identifiers or artifact bodies.
 Calibrate the initial missing bytes on the warm standby and retain that evidence;
