@@ -1,289 +1,292 @@
-name: Runners Staging Smoke Test
-
-# Manual smoke test for the staging Tuist Runners pool. Targets
-# `runs-on: tuist-staging-macos` so the staging tier's warm Pods
-# (configured in infra/helm/tuist/values-managed-staging.yaml as
-# `runnersFleet.replicas: 2`) pick up this job.
-#
-# Use this to validate, end-to-end:
-#   1. workflow_job: queued webhook reaches the staging server.
-#   2. Tuist.Runners.Dispatch finds an idle Pod and mints a JIT
-#      config from GitHub.
-#   3. The runner VM polls /api/internal/runners/dispatch on
-#      staging.tuist.dev, claims the JIT, registers as a runner.
-#   4. GH dispatches this job to the registered runner.
-#   5. The job runs on the runner VM.
-#   6. After completion the Pod terminates and the reconciler's
-#      next 60 s tick creates a replacement.
-#   7. When the account runs a private runner-cache Kura node, the
-#      VM reaches it over the Scaleway PN (TUIST_CACHE_ENDPOINT),
-#      proving the macOS runner-cache data plane end-to-end.
-#
-# Triggered manually only — we don't want every push to staging
-# burning runner cycles.
+name: Xcode 27.1 staging validation
 
 on:
   workflow_dispatch:
     inputs:
-      custom_cache_apfs:
-        description: Run the candidate custom cache APFS tests inside a staging Mac VM
+      reuse_additive:
+        description: Validate the already-deployed additive rollout without upgrading it again
         type: boolean
         default: false
-      vm_isolation:
-        description: Probe, from inside a staging runner VM, that the host, its networks and link-local are unreachable while the internet and the cache carve-outs work
-        type: boolean
-        default: false
-      host_addresses:
-        description: >-
-          Space-separated addresses of the runner host besides its vmnet gateway
-          and public egress address, which the probe finds itself (e.g. its
-          tailnet and Private Network addresses)
-        required: false
-        default: ""
-      private_targets:
-        description: Space-separated host:port pairs on private networks the VM must not reach
-        required: false
-        default: ""
-      hold_seconds:
-        description: >-
-          Seconds to hold the runner busy before finishing. Defaults to 0,
-          which keeps the dispatch smoke as fast as it has always been.
-          Set it (e.g. 300) when the point is to produce a billable job
-          window: runner usage is metered in compute-unit milliseconds and
-          the Price divides by 60000, so a job shorter than a minute
-          contributes a quantity that rounds down to zero on its own.
-          Sub-minute runs still accumulate across the billing period, but a
-          single long run makes one legible invoice line instead of one
-          assembled from fragments.
-        required: false
-        default: "0"
 
-  # Also fires when this workflow file itself changes on the
-  # feat/runners-shape-2 branch. The smoke isn't a default CI
-  # hook (would burn a runner slot on every PR), but during the
-  # staging bring-up we want edits to the smoke definition to
-  # re-validate against the live fleet without manual dispatch.
-  # The `paths` filter scopes the auto-fire to changes to this
-  # file alone; every other push to the branch needs an explicit
-  # `gh workflow run runners-staging-smoke.yml`.
-  push:
-    branches:
-      - feat/runners-shape-2
-    paths:
-      - .github/workflows/runners-staging-smoke.yml
-
-# Smoke job runs shell inside the Tart VM and curls public
-# github.com plus the account's private runner-cache over the PN —
-# it never reads or mutates repo state, so the GITHUB_TOKEN needs
-# zero scopes.
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
-  smoke:
-    if: github.repository == 'tuist/tuist'
-    # Single-label form. `tuist-staging-macos` is the pool's unique
-    # dispatch label and is sufficient to pick a runner — no need
-    # to also list `self-hosted` (which is advertised on the
-    # runner but isn't an authorization boundary).
-    runs-on: tuist-staging-macos
-    timeout-minutes: 10
-    steps:
-      - name: Show environment
-        run: |
-          echo "Hostname:    $(hostname)"
-          echo "macOS:       $(sw_vers -productVersion)"
-          echo "Architecture: $(uname -m)"
-          echo "Xcode path:  $(xcode-select -p)"
-          # Confirm we're inside a Tart VM. The VM's hostname is
-          # set by Tart and the host CPU model leaks via sysctl.
-          sysctl -n machdep.cpu.brand_string
-
-      - name: Public reachability check
-        run: |
-          set -euo pipefail
-          # Public GH should be reachable (the runner already
-          # registered, so this had better work). This is the
-          # only network assertion the smoke covers; the
-          # negative-isolation test that used to live here was
-          # removed because the previous shape leaned on
-          # KUBERNETES_SERVICE_HOST being injected (it isn't —
-          # Tart VMs don't get the K8s env contract that Pods
-          # do) so the assertion passed vacuously via DNS
-          # failure. Tart VM egress isolation is not enforced
-          # by the runner-namespace NetworkPolicy (vmnet
-          # bypasses CNI) and there's no in-cluster endpoint we
-          # can dial from inside the VM as a proxy for "is the
-          # cluster reachable" — the perimeter gate lives on the
-          # Mac mini's security group at the IaaS layer, not
-          # somewhere we can curl from the workflow.
-          curl -fsSL -o /dev/null -w "github.com → HTTP %{http_code}\n" https://github.com
-
-      # GitHub-hosted runners set ImageOS, and setup actions read it to
-      # pick a prebuilt binary; erlef/setup-beam fails outright without it.
-      - name: ImageOS reaches steps
-        run: |
-          set -euo pipefail
-          echo "ImageOS: ${ImageOS:-<unset>}"
-          [ -n "${ImageOS:-}" ] || { echo "::error::ImageOS is not set in the step environment"; exit 1; }
-      - uses: erlef/setup-beam@v1
-        with:
-          otp-version: "28"
-          elixir-version: "1.19"
-
-      - name: Hold the runner to produce a billable window
-        if: >-
-          github.event_name == 'workflow_dispatch' &&
-          inputs.hold_seconds != '' && inputs.hold_seconds != '0'
-        run: |
-          set -euo pipefail
-          seconds="${{ inputs.hold_seconds }}"
-          echo "Holding this runner for ${seconds}s so the job window is billable."
-          sleep "${seconds}"
-
-      - name: Kura runner-cache reachable over the PN
-        run: |
-          set -uo pipefail
-          endpoint="${TUIST_CACHE_ENDPOINT:-}"
-          if [ -z "${endpoint}" ]; then
-            echo "TUIST_CACHE_ENDPOINT unset — dispatch handed this fleet no private runner-cache URL; skipping the PN cache probe."
-            exit 0
-          fi
-          echo "TUIST_CACHE_ENDPOINT=${endpoint}"
-          # macOS runners reach the cache over the Scaleway PN in
-          # node-port form (http://<node PN IP>:<NodePort>). A 200 on
-          # /up proves the VM routes onto the PN and the cache serves.
-          code=$(curl -sS -m 10 -o /tmp/up -w '%{http_code}' "${endpoint%/}/up")
-          echo "GET ${endpoint%/}/up → HTTP ${code}"
-          cat /tmp/up 2>/dev/null || true; echo
-          [ "${code}" = "200" ] || { echo "::error::cache /up over the PN returned ${code}"; exit 1; }
-          echo "Runner reached the Kura runner-cache over the PN."
-
-  custom-cache-apfs:
-    if: github.repository == 'tuist/tuist' && inputs.custom_cache_apfs
-    runs-on: tuist-staging-macos
-    timeout-minutes: 15
-    permissions:
-      contents: read
+  prepare:
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/chore/add-release-to-ci'
+    runs-on: tuist-linux
+    environment: server-k8s-staging
+    concurrency:
+      group: server-deploy-staging-deploy
+      cancel-in-progress: false
+    timeout-minutes: 75
+    outputs:
+      runner_label: ${{ steps.profile.outputs.runner_label }}
+      profile_created: ${{ steps.profile.outputs.profile_created }}
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
         with:
-          go-version-file: infra/tart-kubelet/go.mod
-      - name: Exercise real APFS and custom cache lifecycle
-        run: go test -race -v ./infra/runner-cache/... ./infra/tart-kubelet/internal/podagent ./infra/linux-runner-image/cmd/tuist-cache-volume
+          ref: d8bd05a85d4e1a33ba2f22ed22b0785d05830aba
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm kubectl node yq"
+          cache: "false"
+      - uses: 1password/install-cli-action@v4
+        with:
+          version: 2.31.1
+      - name: Load staging deployment credentials
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-staging" --vault tuist-k8s-staging --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify an already-deployed additive rollout
+        if: inputs.reuse_additive
+        run: |
+          set -euo pipefail
+          helm status tuist -n tuist-staging -o json | jq -e '.info.status == "deployed"'
+          helm status tuist-xcresult-processor -n tuist-staging -o json | jq -e '.info.status == "deployed"'
+          kubectl rollout status deployment/tuist-tuist-server -n tuist-staging --timeout=120s
+          kubectl rollout status deployment/tuist-tuist-xcresult-processor -n tuist-staging --timeout=120s
+          kubectl get runnerpools -n tuist-runners tuist-tuist-runner-pool-macos-27-1 tuist-tuist-runner-pool-macos-ber1-27-1 -o json | jq -e '.items | length == 2 and all(.[]; .spec.image == "ghcr.io/tuist/tuist-runner:macos-27-1-0.36.0" and .status.observedImage == .spec.image)'
+          kubectl get deployment tuist-tuist-xcresult-processor -n tuist-staging -o json | jq -e '.spec.template.spec.containers | any(.[]; .image == "ghcr.io/tuist/tuist-xcresult-processor:0.206.0")'
+          helm get values tuist -n tuist-staging -o json | jq -e '.runnersFleet.xcodeVersions | any(.[]; .xcodeVersion == "27.1") and any(.[]; .xcodeVersion == "27.1-rc") and any(.[]; .xcodeVersion == "26.6" and .default == true)'
+      - name: Preflight exact additive changes against the installed chart
+        if: ${{ !inputs.reuse_additive }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [ "$(helm status tuist -n tuist-staging -o json | jq -r '.version')" = 816 ]
+          [ "$(helm status tuist-xcresult-processor -n tuist-staging -o json | jq -r '.version')" = 2 ]
+          helm get values tuist -n tuist-staging -o json > current-values.json
+          node <<'JS'
+          const fs = require('node:fs');
+          const current = JSON.parse(fs.readFileSync('current-values.json'));
+          const versions = current.runnersFleet.xcodeVersions;
+          if (versions.some(v => v.xcodeVersion === '27.1')) throw new Error('Stable already present: re-plan rather than overwrite');
+          versions.splice(1, 0, {xcodeVersion: '27.1'});
+          fs.writeFileSync('stable-overlay.json', JSON.stringify({runnersFleet: {
+            xcodeVersions: versions,
+            xcodeOverrides: {'27.1': {imageTag: 'macos-27-1-0.36.0', autoscaling: {enabled: true, minWarmPoolFloor: 0, maxReplicas: 1}}}
+          }}));
+          JS
+          helm get manifest tuist -n tuist-staging > before-tuist.yaml
+          helm upgrade tuist infra/helm/tuist -n tuist-staging --reuse-values --no-hooks --dry-run=server -o json -f stable-overlay.json > plan-tuist.json
+          jq -r .manifest plan-tuist.json > after-tuist.yaml
+          helm get manifest tuist-xcresult-processor -n tuist-staging > before-processor.yaml
+          helm upgrade tuist-xcresult-processor infra/helm/xcresult-processor -n tuist-staging --reuse-values --no-hooks --dry-run=server -o json --set-string xcresultProcessor.image.tag=0.206.0 > plan-processor.json
+          jq -r .manifest plan-processor.json > after-processor.yaml
+          for file in before-tuist after-tuist before-processor after-processor; do
+            yq eval-all -o=json -I=0 '[.]' "$file.yaml" > "$file.json"
+          done
+          node <<'JS'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const {isDeepStrictEqual: same} = require('node:util');
+          const read = name => new Map(JSON.parse(fs.readFileSync(name + '.json')).filter(Boolean).map(r => [JSON.stringify([r.kind, r.metadata.namespace, r.metadata.name]), r]));
+          for (const release of ['tuist', 'processor']) {
+            const before = read('before-' + release), after = read('after-' + release);
+            assert([...before.keys()].every(k => after.has(k)), 'No removals');
+            const added = [...after.keys()].filter(k => !before.has(k));
+            const changed = [...before.keys()].filter(k => !same(before.get(k), after.get(k)));
+            assert.equal(changed.length, 1);
+            const original = structuredClone(before.get(changed[0])), planned = after.get(changed[0]);
+            assert.equal(original.kind, 'Deployment');
+            if (release === 'tuist') {
+              assert.deepEqual(added.map(k => after.get(k).metadata.name).sort(), ['tuist-tuist-runner-pool-macos-27-1', 'tuist-tuist-runner-pool-macos-ber1-27-1']);
+              for (const key of added) {
+                assert.equal(after.get(key).kind, 'RunnerPool');
+                assert.equal(after.get(key).spec.image, 'ghcr.io/tuist/tuist-runner:macos-27-1-0.36.0');
+              }
+              assert.equal(original.metadata.name, 'tuist-tuist-server');
+              original.spec.template.spec.containers.forEach((c, i) => {
+                c.env = c.env.map(e => ['TUIST_RUNNER_MACOS_XCODE_VERSIONS', 'TUIST_RUNNERS_SITE_POOLS'].includes(e.name) ? planned.spec.template.spec.containers[i].env.find(n => n.name === e.name) : e);
+              });
+            } else {
+              assert.equal(added.length, 0);
+              assert.equal(original.metadata.name, 'tuist-tuist-xcresult-processor');
+              const container = original.spec.template.spec.containers.find(c => c.image === 'ghcr.io/tuist/tuist-xcresult-processor:0.196.2');
+              assert(container, 'Expected current processor image');
+              container.image = 'ghcr.io/tuist/tuist-xcresult-processor:0.206.0';
+              // The chart emits this upgrade-only clearing field; the API prunes null.
+              if (planned.spec.strategy.type === 'Recreate' && planned.spec.strategy.rollingUpdate === null) delete planned.spec.strategy.rollingUpdate;
+            }
+            assert(same(original, planned), 'No unrelated resource changes');
+          }
+          console.log('Preflight passed: exactly two new stable pools, catalog environment, and processor image; nothing else changes.');
+          JS
+      - name: Apply additive stable pools without changing the experimental chart
+        if: ${{ !inputs.reuse_additive }}
+        run: |
+          set -euo pipefail
+          helm upgrade tuist infra/helm/tuist -n tuist-staging --reuse-values --no-hooks --rollback-on-failure --wait --timeout 10m -f stable-overlay.json
+          kubectl rollout status deployment/tuist-tuist-server -n tuist-staging --timeout=120s
+          helm upgrade tuist-xcresult-processor infra/helm/xcresult-processor -n tuist-staging --reuse-values --no-hooks --rollback-on-failure --wait --timeout 30m --set-string xcresultProcessor.image.tag=0.206.0
+          kubectl rollout status deployment/tuist-tuist-xcresult-processor -n tuist-staging --timeout=120s
+      - name: Create isolated staging smoke profile
+        id: profile
+        run: |
+          set -euo pipefail
+          name="xcode271-smoke-${GITHUB_RUN_ID}"
+          kubectl exec -n tuist-staging deployment/tuist-tuist-server -- env SMOKE_PROFILE_NAME="$name" /app/bin/tuist eval '
+          Application.load(:tuist)
+          {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.Repo, fn _ ->
+            account = Tuist.Accounts.get_account_by_handle("tuist") || raise "Missing internal account"
+            name = System.fetch_env!("SMOKE_PROFILE_NAME")
+            if Tuist.Runners.Profiles.get_by_name(account, name), do: raise("Refuse to reuse an existing profile")
+            unless Tuist.Runners.Profile.prefix() == "tuist-staging-", do: raise("Not staging")
+            {:ok, _} = Tuist.Runners.Profiles.create(account, %{name: name, platform: "macos", vcpus: 6, memory_gb: 14, xcode_version: "27.1", cache_writer_default_branch: false})
+            IO.puts("Created isolated stable smoke profile")
+          end)
+          '
+          echo "runner_label=tuist-staging-${name}" >> "$GITHUB_OUTPUT"
+          echo "profile_created=true" >> "$GITHUB_OUTPUT"
 
-  # A runner VM runs customer code, so it must reach the internet and its
-  # cache carve-outs and nothing else: not the host's own listeners on any of
-  # its addresses, not the networks the host sits on, not link-local. A TCP
-  # connect that completes or is refused reached its target; one that times
-  # out was dropped. Only a target with something listening tells the two
-  # apart, which is why the host's own addresses are the core of the probe.
-  vm-isolation:
-    if: github.repository == 'tuist/tuist' && inputs.vm_isolation
-    runs-on: tuist-staging-macos
+  smoke:
+    needs: prepare
+    runs-on: ${{ needs.prepare.outputs.runner_label }}
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      test_run_id: ${{ steps.upload.outputs.test_run_id }}
+    steps:
+      - name: Verify stable toolchain and expected build
+        run: |
+          set -euo pipefail
+          sw_vers
+          xcode-select -p
+          xcodebuild -version | tee "$RUNNER_TEMP/xcode-version.txt"
+          grep -Fx 'Xcode 27.1' "$RUNNER_TEMP/xcode-version.txt"
+          grep -Fx 'Build version 27A9275' "$RUNNER_TEMP/xcode-version.txt"
+          [ "$(xcode-select -p)" = /Applications/Xcode_27.1.app/Contents/Developer ]
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked tuist"
+          cache: "false"
+      - name: Generate isolated macOS library and XCTest project
+        run: |
+          set -euo pipefail
+          echo "TUIST_BIN=$(mise which tuist)" >> "$GITHUB_ENV"
+          fixture="$RUNNER_TEMP/xcode271-smoke"
+          mkdir -p "$fixture/Sources" "$fixture/Tests"
+          cat > "$fixture/Tuist.swift" <<'SWIFT'
+          import ProjectDescription
+          let tuist = Tuist(fullHandle: "tuist/tuist", url: "https://staging.tuist.dev", project: .tuist())
+          SWIFT
+          cat > "$fixture/Project.swift" <<'SWIFT'
+          import ProjectDescription
+          let project = Project(name: "Smoke", targets: [
+              .target(name: "Smoke", destinations: [.mac], product: .framework, bundleId: "dev.tuist.xcode271.smoke", infoPlist: .default, sources: ["Sources/**"]),
+              .target(name: "SmokeTests", destinations: [.mac], product: .unitTests, bundleId: "dev.tuist.xcode271.smoke.tests", infoPlist: .default, sources: ["Tests/**"], dependencies: [.target(name: "Smoke")])
+          ], schemes: [.scheme(name: "Smoke", shared: true, buildAction: .buildAction(targets: ["Smoke"]), testAction: .targets(["SmokeTests"]))])
+          SWIFT
+          cat > "$fixture/Sources/Smoke.swift" <<'SWIFT'
+          public enum Smoke { public static func sum(_ a: Int, _ b: Int) -> Int { a + b } }
+          SWIFT
+          cat > "$fixture/Tests/SmokeTests.swift" <<'SWIFT'
+          import XCTest
+          @testable import Smoke
+          final class SmokeTests: XCTestCase {
+              func testStableToolchain() { XCTAssertEqual(Smoke.sum(2, 3), 5) }
+          }
+          SWIFT
+          "$(mise which tuist)" auth login --url https://staging.tuist.dev
+          "$(mise which tuist)" generate --path "$fixture" --no-open
+      - name: Build and run XCTest on stable 27.1
+        run: |
+          set -euo pipefail
+          fixture="$RUNNER_TEMP/xcode271-smoke"
+          TUIST_INSPECT_TEST_MODE=off xcodebuild test -workspace "$fixture/Smoke.xcworkspace" -scheme Smoke -destination 'platform=macOS' -derivedDataPath "$fixture/DerivedData" -resultBundlePath "$fixture/Smoke.xcresult" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+      - name: Upload xcresult for remote staging processing
+        id: upload
+        env:
+          TUIST_INSPECT_TEST_WAIT: "YES"
+        run: |
+          set -euo pipefail
+          fixture="$RUNNER_TEMP/xcode271-smoke"
+          "$TUIST_BIN" auth login --url https://staging.tuist.dev
+          "$TUIST_BIN" inspect test "$fixture/Smoke.xcresult" --path "$fixture" --mode remote 2>&1 | tee "$RUNNER_TEMP/xcresult-upload.log"
+          id=$(grep -Eo 'https://staging.tuist.dev/tuist/tuist/tests/test-runs/[0-9a-f-]{36}' "$RUNNER_TEMP/xcresult-upload.log" | tail -1 | awk -F/ '{print $NF}')
+          [ -n "$id" ]
+          echo "test_run_id=$id" >> "$GITHUB_OUTPUT"
+
+  verify-and-cleanup:
+    if: always() && needs.prepare.outputs.profile_created == 'true'
+    needs: [prepare, smoke]
+    runs-on: tuist-linux
+    environment: server-k8s-staging
     timeout-minutes: 15
     env:
-      HOST_ADDRESSES: ${{ inputs.host_addresses }}
-      PRIVATE_TARGETS: ${{ inputs.private_targets }}
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
-      - name: Guest network
+      - uses: actions/checkout@v4
+        with:
+          ref: d8bd05a85d4e1a33ba2f22ed22b0785d05830aba
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v4
+        with:
+          version: 2.31.1
+      - name: Load staging deployment credentials
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
-          ifconfig en0 | grep -E "inet6? " || true
-          netstat -rn -f inet | grep -E "^default" || true
-          netstat -rn -f inet6 | grep -E "^default" || true
-          scutil --dns | grep nameserver | sort -u || true
-
-      - name: Internet and carve-outs reachable
+          set -euo pipefail
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-staging" --vault tuist-k8s-staging --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify successful server-side processing and persisted test case
+        if: needs.smoke.result == 'success'
+        env:
+          TEST_RUN_ID: ${{ needs.smoke.outputs.test_run_id }}
         run: |
-          set -uo pipefail
-          failed=0
-          curl -fsS -m 15 -o /dev/null https://github.com && echo "ok   https://github.com" || { echo "FAIL https://github.com"; failed=1; }
-          dig +short +time=3 +tries=1 github.com | grep -q . && echo "ok   DNS through the vmnet gateway" || { echo "FAIL DNS through the vmnet gateway"; failed=1; }
-          if [ -f /etc/resolver/cluster.local ]; then
-            dns=$(awk '/^nameserver/{print $2; exit}' /etc/resolver/cluster.local)
-            dig +short +time=3 +tries=1 "@${dns}" kubernetes.default.svc.cluster.local | grep -q . \
-              && echo "ok   cluster DNS ${dns}" || { echo "FAIL cluster DNS ${dns}"; failed=1; }
-          fi
-          endpoint="${TUIST_CACHE_ENDPOINT:-}"
-          if [ -n "${endpoint}" ]; then
-            code=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' "${endpoint%/}/up" || true)
-            [ "${code}" = "200" ] && echo "ok   cache ${endpoint%/}/up" || { echo "FAIL cache ${endpoint%/}/up -> ${code}"; failed=1; }
-          else
-            echo "skip cache: TUIST_CACHE_ENDPOINT unset"
-          fi
-          exit "${failed}"
-
-      - name: Host, private networks and link-local unreachable
-        # Runs even when a reachability check fails: a missing carve-out
-        # must not hide what the guest can still reach.
+          set -euo pipefail
+          kubectl exec -n tuist-staging deployment/tuist-tuist-server -- env SMOKE_TEST_RUN_ID="$TEST_RUN_ID" /app/bin/tuist eval '
+          Application.load(:tuist)
+          {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.IngestRepo, fn repo ->
+            {:ok, id} = Ecto.UUID.cast(System.fetch_env!("SMOKE_TEST_RUN_ID"))
+            Enum.reduce_while(1..60, nil, fn _, _ ->
+              result = repo.query!("SELECT status, xcode_version FROM test_runs WHERE id = '\''#{id}'\'' ORDER BY inserted_at DESC LIMIT 1")
+              case result.rows do
+                [["success", xcode]] ->
+                  unless String.starts_with?(xcode, "27.1"), do: raise("Unexpected Xcode: #{xcode}")
+                  [[count]] = repo.query!("SELECT count() FROM test_case_runs WHERE test_run_id = '\''#{id}'\'' AND status = '\''success'\''").rows
+                  if count < 1, do: raise("No persisted passing test case")
+                  IO.puts(Jason.encode!(%{test_run_id: id, status: "success", xcode_version: xcode, passing_test_cases: count}))
+                  {:halt, :ok}
+                [[status, _]] when status in ["failed_processing", "failure"] -> raise "Processing failed: #{status}"
+                _ -> Process.sleep(5_000); {:cont, nil}
+              end
+            end) || raise "Timed out waiting for xcresult processing"
+          end)
+          '
+      - name: Remove only the isolated smoke profile
         if: always()
         run: |
-          set -uo pipefail
-          gateway=$(route -n get default | awk '/gateway/{print $2}')
-          router6=$(route -n get -inet6 default 2>/dev/null | awk '/gateway/{print $2}')
-          public=$(curl -fsS -m 10 https://api.ipify.org || true)
-          echo "vmnet gateway ${gateway} ${router6}, public egress ${public:-unknown}"
-
-          reached=0
-          probe() {
-            # shellcheck disable=SC2086
-            if out=$(nc ${family:-} -z -G 3 -w 3 "$1" "$2" 2>&1); then verdict="open"
-            elif echo "${out}" | grep -qi "refused"; then verdict="refused"
-            else verdict="dropped"; fi
-            printf '%-8s %s %s\n' "${verdict}" "$1:$2" "$(echo "${out}" | tail -1)"
-            if [ "${verdict}" != "dropped" ]; then reached=1; fi
-          }
-
-          # DNS on the vmnet gateway is the guest's resolver and stays open; the
-          # previous step asserts it.
-          for port in 22 88 3283 5900 5901 8080 8081 9100 10250; do
-            probe "${gateway}" "${port}"
-          done
-          for address in ${public} ${HOST_ADDRESSES}; do
-            for port in 22 53 88 3283 5900 5901 8080 8081 9100 10250; do
-              probe "${address}" "${port}"
-            done
-          done
-          if [ -n "${router6}" ]; then
-            for port in 22 88 3283 5900 8081; do
-              family=-6 probe "${router6}" "${port}"
-            done
-          fi
-          probe 100.100.100.100 53
-          probe 169.254.169.254 80
-          probe 169.254.42.42 80
-          # The cache answers on its carve-out only.
-          cache_host=$(echo "${TUIST_CACHE_ENDPOINT:-}" | sed -E 's#^[a-z]+://([^/:]+).*#\1#')
-          cache_ip=""
-          if [ -n "${cache_host}" ]; then
-            cache_ip=$(dig +short "${cache_host}" 2>/dev/null | grep -E '^[0-9.]+$' | tail -1 || true)
-          fi
-          case "${cache_ip}" in
-            10.*|172.*|192.168.*) probe "${cache_ip}" 22; probe "${cache_ip}" 10250 ;;
-          esac
-          # Sibling guests on the same host run sshd. The ARP table shows
-          # which siblings answered at layer 2, so a drop is not just an
-          # empty subnet.
-          self_ip=$(ipconfig getifaddr en0 || true)
-          siblings=$(mktemp)
-          for n in $(seq 2 254); do
-            ip="192.168.64.${n}"
-            [ "${ip}" = "${self_ip}" ] && continue
-            ( if nc -z -G 2 -w 2 "${ip}" 22 >/dev/null 2>&1; then echo "${ip}" >> "${siblings}"; fi ) &
-          done
-          wait
-          echo "siblings at layer 2: $(arp -an | awk -v self="(${self_ip})" '/192\.168\.64\./ && !/incomplete/ && $2 != self && $2 != "(192.168.64.1)" {print $2}' | tr '\n' ' ')"
-          if [ -s "${siblings}" ]; then
-            sed 's/^/open     sibling /;s/$/:22/' "${siblings}"
-            reached=1
-          else
-            echo "dropped  every sibling guest on :22"
-          fi
-          for target in ${PRIVATE_TARGETS}; do
-            probe "${target%:*}" "${target##*:}"
-          done
-
-          if [ "${reached}" -ne 0 ]; then
-            echo "::error::the runner VM reached the host or a private network"
-            exit 1
-          fi
+          set -euo pipefail
+          kubectl exec -n tuist-staging deployment/tuist-tuist-server -- env SMOKE_PROFILE_NAME="xcode271-smoke-${GITHUB_RUN_ID}" /app/bin/tuist eval '
+          Application.load(:tuist)
+          {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.Repo, fn _ ->
+            account = Tuist.Accounts.get_account_by_handle("tuist") || raise "Missing internal account"
+            case Tuist.Runners.Profiles.get_by_name(account, System.fetch_env!("SMOKE_PROFILE_NAME")) do
+              nil -> IO.puts("Smoke profile already absent")
+              profile ->
+                unless profile.platform == :macos and profile.xcode_version == "27.1" and profile.vcpus == 6 and profile.memory_gb == 14 and not profile.protected, do: raise("Unexpected profile; refusing deletion")
+                {:ok, _} = Tuist.Runners.Profiles.delete(profile)
+                IO.puts("Removed isolated smoke profile")
+            end
+          end)
+          '
