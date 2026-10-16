@@ -1380,6 +1380,17 @@ VM, and the emulator's `-accel-check` passes. Nesting depth matters for
 benchmarks: on our bare metal an emulator in Kata is two levels deep, the
 same as an emulator on a hosted CI VM.
 
+Measured on the staging OVH host (Ryzen 7 9700X), 4 vCPU, API 34 x86_64
+Pixel 6, emulator directly on the host vs in an unprivileged Kata Pod on the
+KVM kernel with `/dev/kvm` from the plugin: cold boot 15.1 s vs 28.7 s;
+Macrobenchmark `timeToInitialDisplayMs` (15 cold starts, first excluded)
+median 504 ms vs 733 ms with CV 4.1% vs 5.0%. Nesting costs roughly 1.5 to
+2x in absolute time but barely widens the spread, so baseline comparisons
+stay meaningful as long as baseline and candidate run on the same pool. A
+runc Pod running the same workload needs more memory than the Kata one,
+because the emulator's host-side QEMU memory and page cache count against
+the container there.
+
 ## Linux cache volumes
 
 Local reflink image clones are implemented in
