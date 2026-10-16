@@ -109,6 +109,40 @@ struct TuistGeneratedProjectManifestMapperTests {
         #expect(typed == expected)
     }
 
+    @Test(arguments: [false, true])
+    func generationOptions_roundTripsNonDefaultManifest(enableCachingPrefixMapping: Bool) throws {
+        var options = ProjectDescription.Config.GenerationOptions.options(
+            resolveDependenciesWithSystemScm: true,
+            disablePackageVersionLocking: true,
+            clonedSourcePackagesDirPath: .relativeToRoot("Packages"),
+            staticSideEffectsWarningTargets: .excluding(["Feature"]),
+            enforceExplicitDependencies: true,
+            defaultConfiguration: "Custom",
+            optionalAuthentication: true
+        )
+        options.additionalPackageResolutionArguments = ["--verbose"]
+        options.buildInsightsDisabled = true
+        options.testInsightsDisabled = true
+        options.disableSandbox = false
+        options.includeGenerateScheme = true
+        options.enableCaching = true
+        options.enableCachingPrefixMapping = enableCachingPrefixMapping
+        options.enableCoveragePrefixMapping = true
+        options.registryEnabled = true
+        options.warningsAsErrors = .only([.outdatedDependencies, .staticSideEffects])
+        options.defaultSwiftVersion = "6"
+        options.manifestEnvironment = ["CUSTOM_*"]
+        options.onOutdatedDependencies = .fail
+        options.projectFormat = .xcproj
+
+        let decoded = try JSONDecoder().decode(
+            ProjectDescription.Config.GenerationOptions.self,
+            from: JSONEncoder().encode(options)
+        )
+
+        #expect(decoded == options)
+    }
+
     @Test func generationOptions_decodesManifestWithoutCachingPrefixMapping() throws {
         let options = ProjectDescription.Config.GenerationOptions.options(enableCaching: true)
         var json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(options)) as? [String: Any])
@@ -152,6 +186,26 @@ struct TuistGeneratedProjectManifestMapperTests {
             #expect(throws: DecodingError.self) {
                 try JSONDecoder().decode(TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.self, from: data)
             }
+        }
+    }
+
+    @Test(arguments: [
+        "resolveDependenciesWithSystemScm", "disablePackageVersionLocking", "enforceExplicitDependencies",
+        "optionalAuthentication", "buildInsightsDisabled", "testInsightsDisabled", "disableSandbox",
+        "includeGenerateScheme", "enableCaching", "enableCachingPrefixMapping", "enableCoveragePrefixMapping",
+        "registryEnabled",
+    ])
+    func generationOptions_decodesEachBooleanIndependently(key: String) throws {
+        let options = ProjectDescription.Config.GenerationOptions.options()
+        var json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(options)) as? [String: Any])
+        json[key] = !(try #require(json[key] as? Bool))
+        let data = try JSONSerialization.data(withJSONObject: json)
+        let manifest = try JSONDecoder().decode(ProjectDescription.Config.GenerationOptions.self, from: data)
+        let configuration = try JSONDecoder().decode(TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.self, from: data)
+
+        for encoded in [try JSONEncoder().encode(manifest), try JSONEncoder().encode(configuration)] {
+            let reencoded = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+            #expect(NSDictionary(dictionary: reencoded).isEqual(to: json))
         }
     }
 

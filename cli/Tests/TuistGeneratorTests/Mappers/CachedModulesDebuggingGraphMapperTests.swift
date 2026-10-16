@@ -670,6 +670,25 @@ struct CachedModulesDebuggingGraphMapperTests {
         let withoutPrefixMapping = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
         #expect(withoutPrefixMapping.hasPrefix("command source -s 0 "))
         #expect(!withoutPrefixMapping.contains("target.source-map"))
+        #expect(withoutPrefixMapping
+            .contains("\nsettings set symbols.cas-path \"\(projectPath.pathString)/Compilation cache/builtin\"\n"))
+        #expect(withoutPrefixMapping.contains("\nsettings set symbols.cas-plugin-path \"\"\n"))
+
+        environment["COMPILATION_CACHE_ENABLE_PLUGIN"] = "YES"
+        environment["COMPILATION_CACHE_PLUGIN_PATH"] = projectPath.appending(component: "libtuist_cas_plugin.dylib").pathString
+        environment["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] = projectPath.appending(component: "cas-proxy.sock").pathString
+        environment["OTHER_SWIFT_FLAGS"] = "$(inherited) -cas-plugin-option tuist-instance=test/project"
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment, workingDirectory: projectPath)
+        let withoutPrefixMappingWithPlugin = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        #expect(!withoutPrefixMappingWithPlugin.contains("target.source-map"))
+        #expect(withoutPrefixMappingWithPlugin
+            .contains("\nsettings set symbols.cas-path \"\(projectPath.pathString)/Compilation cache/plugin\"\n"))
+        #expect(withoutPrefixMappingWithPlugin
+            .contains("\nsettings set symbols.cas-plugin-path \"\(projectPath.pathString)/libtuist_cas_plugin.dylib\"\n"))
+        #expect(withoutPrefixMappingWithPlugin
+            .contains(
+                "\nsettings set symbols.cas-plugin-options \"remote-service-path=\(projectPath.pathString)/cas-proxy.sock\" \"tuist-instance=test/project\"\n"
+            ))
 
         environment["COMPILATION_CACHE_ENABLE_CACHING"] = "NO"
         _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment, workingDirectory: projectPath)
