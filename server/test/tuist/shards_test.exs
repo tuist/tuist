@@ -2357,6 +2357,28 @@ defmodule Tuist.ShardsTest do
       assert {:ok, shard} = Shards.get_shard_for_plan_id(project, account, plan.id, 0)
       assert shard.modules != []
     end
+
+    test "fetches a just-created suite shard when the routed read replica has not received it yet" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      %{plan: plan} =
+        Shards.create_shard_plan(project, %{
+          reference: "fresh-suite-plan",
+          modules: ["AppTests"],
+          test_suites: ["AppTests/LoginTests", "AppTests/SignupTests"],
+          granularity: "suite",
+          shard_total: 2
+        })
+
+      stub(ClickHouseRepo, :one, fn _queryable -> nil end)
+      stub(ClickHouseRepo, :preload, fn struct, _preloads -> struct end)
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+      stub(Tuist.Storage, :generate_download_url, fn _key, _account -> "https://download.example.com" end)
+
+      assert {:ok, shard} = Shards.get_shard_for_plan_id(project, account, plan.id, 0)
+      assert shard.modules == ["AppTests"]
+    end
   end
 
   describe "get_shard/4" do
