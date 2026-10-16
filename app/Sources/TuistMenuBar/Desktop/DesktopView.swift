@@ -154,22 +154,38 @@ private struct SignedInDesktopView: View {
     }
 
     private var home: some View {
-        List(selection: $selectedPreviewID) {
-            Section {
-                ForEach(model.recentPreviews) { preview in
-                    DesktopPreviewRow(preview: preview)
-                        .tag(preview.id)
+        ScrollView {
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    if model.recentPreviews.isEmpty {
+                        emptyState
+                            .frame(maxWidth: .infinity, minHeight: 160)
+                    } else {
+                        ForEach(model.recentPreviews) { preview in
+                            Button {
+                                selectedPreviewID = preview.id
+                            } label: {
+                                DesktopPreviewRow(preview: preview)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 8)
+                                    .background(
+                                        selectedPreviewID == preview.id ? Color.accentColor.opacity(0.12) : .clear,
+                                        in: RoundedRectangle(cornerRadius: 8)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    Divider()
+                    Button("View All Previews", systemImage: "arrow.right") { section = .previews }
+                        .buttonStyle(.link)
                 }
-            } header: {
-                HStack {
-                    Text("Recent previews")
-                    Spacer()
-                    Button("See All") { section = .previews }
-                        .buttonStyle(.borderless)
-                }
+                .padding(8)
+            } label: {
+                Label("Recent previews", systemImage: "app.badge")
             }
+            .padding(16)
         }
-        .overlay { emptyState }
     }
 
     private var previewList: some View {

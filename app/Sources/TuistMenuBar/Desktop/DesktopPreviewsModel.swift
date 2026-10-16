@@ -24,7 +24,7 @@ final class DesktopPreviewsModel {
     var searchText = ""
 
     var recentPreviews: [ServerPreview] {
-        Array(previews.prefix(5))
+        Array(previews.prefix(3))
     }
 
     var filteredPreviews: [ServerPreview] {

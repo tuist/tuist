@@ -22,7 +22,7 @@ public final class PreviewsViewModel {
     public var selectedProject: ServerProject? { projectContext.selectedProject }
     var previews: [ServerPreview] { loadedFullHandle == projectContext.selectedFullHandle ? items : [] }
     public var recentPreviews: [ServerPreview] {
-        Array(previews.prefix(5))
+        Array(previews.prefix(3))
     }
 
     private(set) var isLoadingMore = false

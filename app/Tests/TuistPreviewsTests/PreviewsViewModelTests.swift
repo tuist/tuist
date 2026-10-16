@@ -34,7 +34,7 @@ struct PreviewsViewModelTests {
         given(appStorage).set(.any as Parameter<RecentProjectsKey.Type>, value: .any).willReturn()
     }
 
-    @Test func recent_previews_are_limited_to_five_newest_without_limiting_the_browser() async throws {
+    @Test func recent_previews_are_limited_to_three_newest_without_limiting_the_browser() async throws {
         given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
         stubPreviews(
             (1 ... 8).reversed().map { .test(id: "\($0)", insertedAt: Date(timeIntervalSince1970: Double($0))) },
@@ -43,7 +43,7 @@ struct PreviewsViewModelTests {
 
         try await subject.onAppear()
 
-        #expect(subject.recentPreviews.map(\.id) == ["8", "7", "6", "5", "4"])
+        #expect(subject.recentPreviews.map(\.id) == ["8", "7", "6"])
         #expect(subject.previews.count == 8)
     }
 

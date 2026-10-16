@@ -35,6 +35,31 @@ struct ProjectContextTests {
         #expect(!context.isLoading)
     }
 
+    @Test func quick_switcher_prioritizes_selection_and_recents_without_duplicates() async throws {
+        let context = makeContext()
+        #expect(context.switcherProjects.isEmpty)
+        try await context.load()
+        context.selectProject("tuist/cli")
+        context.selectProject("other/mobile")
+
+        #expect(context.switcherProjects.map(\.fullName) == ["other/mobile", "tuist/cli", "tuist/app"])
+    }
+
+    @Test func quick_switcher_is_bounded_without_truncating_project_discovery() async throws {
+        let available = (0 ..< 10).map { ServerProject.test(id: $0, fullName: "tuist/project-\($0)") }
+        let service = ChangingProjectsService(projects: available)
+        let context = makeContext(service: service)
+        try await context.load()
+        context.selectProject("tuist/project-8")
+        context.selectProject("tuist/project-9")
+
+        #expect(context.switcherProjects.map(\.fullName) == [
+            "tuist/project-9", "tuist/project-8", "tuist/project-0", "tuist/project-1", "tuist/project-2",
+        ])
+        #expect(context.projects.count == 10)
+        #expect(context.projects(matching: "project-7").map(\.fullName) == ["tuist/project-7"])
+    }
+
     @Test func selection_is_restored_for_the_same_server_and_account() async throws {
         let first = makeContext()
         try await first.load()
@@ -83,11 +108,13 @@ struct ProjectContextTests {
         try await context.refresh()
         #expect(context.selectedFullHandle == "other/mobile")
         #expect(context.recentProjects.map(\.fullName) == ["other/mobile"])
+        #expect(context.switcherProjects.map(\.fullName) == ["other/mobile"])
 
         service.projects = []
         try await context.refresh()
         #expect(context.selectedProject == nil)
         #expect(context.recentProjects.isEmpty)
+        #expect(context.switcherProjects.isEmpty)
         #expect(try storage.get(ProjectSelectionsKey.self)["https://tuist.dev/alice"] == nil)
     }
 

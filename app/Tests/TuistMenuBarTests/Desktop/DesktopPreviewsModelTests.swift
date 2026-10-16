@@ -35,13 +35,13 @@ struct DesktopPreviewsModelTests {
         )
     }
 
-    @Test func home_shows_five_newest_and_browser_keeps_all_previews() async throws {
+    @Test func home_shows_three_newest_and_browser_keeps_all_previews() async throws {
         given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
         stubPage((1 ... 8).reversed().map { .test(id: "\($0)", insertedAt: Date(timeIntervalSince1970: Double($0))) })
 
         try await subject.refresh()
 
-        #expect(subject.recentPreviews.map(\.id) == ["8", "7", "6", "5", "4"])
+        #expect(subject.recentPreviews.map(\.id) == ["8", "7", "6"])
         #expect(subject.filteredPreviews.count == 8)
         #expect(!subject.isLoading)
     }

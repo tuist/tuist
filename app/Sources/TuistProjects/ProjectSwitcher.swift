@@ -10,51 +10,38 @@ public struct ProjectSwitcher: View {
     }
 
     public var body: some View {
-        Button {
-            isPresented = true
-        } label: {
-            HStack(spacing: 8) {
-                #if os(macOS)
-                    Image(systemName: "square.stack.3d.up")
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(context.selectedFullHandle?.split(separator: "/").last.map(String.init) ?? "Choose a project")
-                            .font(.headline)
-                        if let organization = context.selectedFullHandle?.split(separator: "/").first {
-                            Text(String(organization))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+        Group {
+            #if os(macOS)
+                Button { isPresented = true } label: { switcherLabel }
+                    .buttonStyle(.plain)
+                    .help("Switch Project")
+                    .popover(isPresented: $isPresented, arrowEdge: .trailing) {
+                        NavigationStack {
+                            ProjectPicker(context: context) { isPresented = false }
                         }
+                        .frame(width: 380, height: 460)
                     }
-                    Spacer(minLength: 0)
-                #else
-                    Text(context.selectedFullHandle ?? "Choose a project")
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-                        .frame(maxWidth: 220, alignment: .leading)
-                        .fixedSize(horizontal: true, vertical: false)
-                #endif
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
-            }
-            .lineLimit(1)
-            #if os(iOS)
-                .padding(.horizontal, 8)
-            #endif
-                .contentShape(Rectangle())
-        }
-        .accessibilityLabel("Project: \(context.selectedFullHandle ?? "None selected")")
-        .accessibilityHint("Switch the project for Home and Previews")
-        #if os(macOS)
-            .buttonStyle(.plain)
-            .help("Switch Project")
-            .popover(isPresented: $isPresented, arrowEdge: .trailing) {
-                NavigationStack {
-                    ProjectPicker(context: context) { isPresented = false }
+            #else
+                Menu {
+                    ForEach(context.switcherProjects, id: \.fullName) { project in
+                        Button {
+                            context.selectProject(project.fullName)
+                        } label: {
+                            if project.fullName == context.selectedFullHandle {
+                                Label(project.fullName, systemImage: "checkmark")
+                            } else {
+                                Text(project.fullName)
+                            }
+                        }
+                        .accessibilityIdentifier("quick-project-\(project.fullName)")
+                    }
+                    Divider()
+                    Button("Switch project…", systemImage: "arrow.left.arrow.right") { isPresented = true }
+                } label: {
+                    switcherLabel
                 }
-                .frame(width: 380, height: 460)
-            }
-        #else
-            .buttonStyle(.borderless)
+                .menuOrder(.fixed)
+                .buttonStyle(.borderless)
                 .labelStyle(.titleAndIcon)
                 .fixedSize(horizontal: true, vertical: false)
                 .sheet(isPresented: $isPresented) {
@@ -66,10 +53,43 @@ public struct ProjectSwitcher: View {
                                 }
                             }
                     }
-                    .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
                 }
+            #endif
+        }
+        .accessibilityLabel("Project: \(context.selectedFullHandle ?? "None selected")")
+        .accessibilityHint("Switch the project for Home and Previews")
+    }
+
+    private var switcherLabel: some View {
+        HStack(spacing: 8) {
+            #if os(macOS)
+                Image(systemName: "square.stack.3d.up")
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(context.selectedFullHandle?.split(separator: "/").last.map(String.init) ?? "Choose a project")
+                        .font(.headline)
+                    if let organization = context.selectedFullHandle?.split(separator: "/").first {
+                        Text(String(organization))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 0)
+            #else
+                Text(context.selectedFullHandle ?? "Choose a project")
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .frame(maxWidth: 220, alignment: .leading)
+                    .fixedSize(horizontal: true, vertical: false)
+            #endif
+            Image(systemName: "chevron.down")
+                .font(.caption.weight(.semibold))
+        }
+        .lineLimit(1)
+        #if os(iOS)
+            .padding(.horizontal, 8)
         #endif
+            .contentShape(Rectangle())
     }
 }
 

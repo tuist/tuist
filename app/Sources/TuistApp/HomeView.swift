@@ -4,7 +4,6 @@
     import TuistNoora
     import TuistPreviews
     import TuistProjects
-    import TuistServer
 
     struct HomeView: View {
         @EnvironmentObject private var errorHandling: ErrorHandling
@@ -19,56 +18,13 @@
 
         var body: some View {
             NavigationStack(path: $navigationPath) {
-                List {
-                    Section {
-                        if viewModel.isInitialLoading {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        } else if let selectedProject = viewModel.selectedProject {
-                            if viewModel.recentPreviews.isEmpty {
-                                PreviewsEmptyStateView(
-                                    title: "No previews found",
-                                    buttonTitle: "Refresh",
-                                    isLoading: viewModel.isRefreshingPreviews
-                                ) {
-                                    refresh()
-                                }
-                            } else {
-                                ForEach(viewModel.recentPreviews) { preview in
-                                    PreviewRowView(preview: preview) {
-                                        navigationPath.append(
-                                            PreviewDestination(preview: preview, fullHandle: selectedProject.fullName)
-                                        )
-                                    }
-                                    .listRowInsets(EdgeInsets())
-                                    .listRowSeparator(.hidden)
-                                }
-                            }
-                        } else {
-                            PreviewsEmptyStateView(
-                                title: "No Tuist projects found",
-                                buttonTitle: "Refresh",
-                                isLoading: viewModel.isRefreshingProjects
-                            ) {
-                                errorHandling.fireAndHandleError {
-                                    try await viewModel.refreshProjects()
-                                }
-                            }
-                        }
-                    } header: {
-                        HStack {
-                            Text("Recent previews")
-                                .font(.headline)
-                                .foregroundStyle(Noora.Colors.surfaceLabelPrimary)
-                            Spacer()
-                            Button("See all", action: onSeeAllPreviews)
-                                .textCase(nil)
-                        }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        recentPreviewsCard
                     }
-                    .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
+                    .padding(20)
                 }
-                .listStyle(.insetGrouped)
-                .scrollContentBackground(.hidden)
+                .scrollBounceBehavior(.always)
                 .background(Noora.Colors.surfaceBackgroundPrimary)
                 .navigationTitle("Home")
                 .toolbar {
@@ -87,6 +43,80 @@
                     PreviewView(preview: destination.preview, fullHandle: destination.fullHandle)
                 }
             }
+        }
+
+        private var recentPreviewsCard: some View {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 12) {
+                    Image(systemName: "app.badge")
+                        .font(.title2)
+                        .foregroundStyle(.tint)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Recent previews")
+                            .font(.headline)
+                        Text("Latest shared apps")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(16)
+
+                if viewModel.isInitialLoading {
+                    ProgressView("Loading previews…")
+                        .frame(maxWidth: .infinity)
+                        .padding(24)
+                } else if let selectedProject = viewModel.selectedProject {
+                    if viewModel.recentPreviews.isEmpty {
+                        cardMessage("No previews yet", isLoading: viewModel.isRefreshingPreviews, action: refresh)
+                    } else {
+                        ForEach(viewModel.recentPreviews) { preview in
+                            PreviewRowView(preview: preview, style: .compact) {
+                                navigationPath.append(
+                                    PreviewDestination(preview: preview, fullHandle: selectedProject.fullName)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    cardMessage("No Tuist projects found", isLoading: viewModel.isRefreshingProjects) {
+                        errorHandling.fireAndHandleError {
+                            try await viewModel.refreshProjects()
+                        }
+                    }
+                }
+
+                Button(action: onSeeAllPreviews) {
+                    HStack {
+                        Text("View all previews")
+                        Spacer()
+                        Image(systemName: "arrow.right")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .padding(16)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.tint)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Noora.Colors.surfaceBackgroundTertiary, in: RoundedRectangle(cornerRadius: 20))
+        }
+
+        private func cardMessage(_ title: String, isLoading: Bool, action: @escaping () -> Void) -> some View {
+            VStack(spacing: 12) {
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                if isLoading {
+                    ProgressView()
+                } else {
+                    Button("Refresh", action: action)
+                        .buttonStyle(.bordered)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(24)
         }
 
         private func refresh() {

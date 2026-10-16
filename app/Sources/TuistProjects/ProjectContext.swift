@@ -28,6 +28,17 @@ public final class ProjectContext {
         recentFullHandles.compactMap { handle in projects.first { $0.fullName == handle } }
     }
 
+    public var switcherProjects: [ServerProject] {
+        var result: [ServerProject] = []
+        var handles = Set<String>()
+        for project in [selectedProject].compactMap({ $0 }) + recentProjects + projects {
+            guard handles.insert(project.fullName).inserted else { continue }
+            result.append(project)
+            if result.count == 5 { break }
+        }
+        return result
+    }
+
     private let scope: String
     private let listProjectsService: ListProjectsServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
