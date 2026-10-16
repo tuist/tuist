@@ -7,6 +7,7 @@ defmodule Tuist.Gradle.Timeline do
   alias Tuist.Builds.BuildMachineMetric
   alias Tuist.ClickHouseRepo
   alias Tuist.Gradle.ArtifactTransform
+  alias Tuist.Gradle.Build
   alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Gradle.Task
 
@@ -36,16 +37,17 @@ defmodule Tuist.Gradle.Timeline do
         :duration_ms
       ])
 
+    query = metric_query(build)
+
     if Keyword.get(opts, :include_metrics, true) do
-      metrics = ClickHouseRepo.all(from(m in BuildMachineMetric, where: m.gradle_build_id == ^build.id))
+      metrics = ClickHouseRepo.all(query)
       normalize(build, tasks, configuration, transforms, metrics)
     else
-      origin = timestamp(build.started_at) || recorded_origin(build)
+      origin = timestamp(build.started_at) || recorded_origin(build, query)
 
       last_sample =
         ClickHouseRepo.one(
-          from(m in BuildMachineMetric,
-            where: m.gradle_build_id == ^build.id,
+          from(m in query,
             select: fragment("maxOrNull(?)", m.timestamp)
           )
         )
@@ -58,18 +60,18 @@ defmodule Tuist.Gradle.Timeline do
   end
 
   def available?(build) do
-    origin = timestamp(build.started_at) || recorded_origin(build)
+    query = metric_query(build)
+    origin = timestamp(build.started_at) || recorded_origin(build, query)
 
     ClickHouseRepo.exists?(step_query(build, origin)) or
       (is_number(origin) and
-         ClickHouseRepo.exists?(
-           from(m in BuildMachineMetric, where: m.gradle_build_id == ^build.id and m.timestamp * 1000 >= ^origin)
-         ))
+         ClickHouseRepo.exists?(from(m in query, where: m.timestamp * 1000 >= ^origin)))
   end
 
   def bootstrap(build) do
-    metrics = ClickHouseRepo.all(from(m in BuildMachineMetric, where: m.gradle_build_id == ^build.id))
-    origin = timestamp(build.started_at) || recorded_origin(build)
+    query = metric_query(build)
+    metrics = ClickHouseRepo.all(query)
+    origin = timestamp(build.started_at) || recorded_origin(build, query)
 
     build
     |> normalize([], [], [], metrics, origin)
@@ -137,7 +139,9 @@ defmodule Tuist.Gradle.Timeline do
     from(row in subquery(rows), where: ^origin_available and row.start_ms >= 0 and row.duration_ms >= 0)
   end
 
-  defp recorded_origin(build) do
+  defp recorded_origin(build), do: recorded_origin(build, metric_query(build))
+
+  defp recorded_origin(build, query) do
     operations =
       Enum.map([Task, ConfigurationOperation, ArtifactTransform], fn schema ->
         ClickHouseRepo.one(
@@ -150,13 +154,45 @@ defmodule Tuist.Gradle.Timeline do
 
     metric =
       ClickHouseRepo.one(
-        from(row in BuildMachineMetric,
-          where: row.gradle_build_id == ^build.id,
+        from(row in query,
           select: fragment("minOrNull(?) * 1000", row.timestamp)
         )
       )
 
     [metric | operations] |> Enum.reject(&is_nil/1) |> Enum.min(fn -> nil end)
+  end
+
+  defp metric_query(build) do
+    scoped = from(m in BuildMachineMetric, where: m.gradle_build_id == ^build.id and m.project_id == ^build.project_id)
+
+    if Map.get(build, :submission_auth, "") != "" or ClickHouseRepo.exists?(scoped) do
+      scoped
+    else
+      lower = NaiveDateTime.add(build.inserted_at, -60, :second)
+      upper = NaiveDateTime.add(build.inserted_at, 60, :second)
+
+      legacy =
+        from(m in BuildMachineMetric,
+          where: m.gradle_build_id == ^build.id and is_nil(m.project_id),
+          where: m.inserted_at >= ^lower and m.inserted_at <= ^upper
+        )
+
+      if ClickHouseRepo.exists?(legacy), do: legacy_metric_query(build, legacy, lower, upper), else: scoped
+    end
+  end
+
+  defp legacy_metric_query(build, legacy, lower, upper) do
+    # Old samples are admitted only when the UUID identifies one project and
+    # the ingestion times agree, even if the parent and sample TTLs diverge.
+    legacy_parent =
+      from(b in Build,
+        where: b.id == ^build.id and b.inserted_at >= ^lower and b.inserted_at <= ^upper,
+        group_by: b.id,
+        having: fragment("uniqExact(?)", b.project_id) == 1 and fragment("any(?)", b.project_id) == ^build.project_id,
+        select: b.id
+      )
+
+    from(m in legacy, where: m.gradle_build_id in subquery(legacy_parent))
   end
 
   defp rows(schema, build, fields) do

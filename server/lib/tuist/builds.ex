@@ -59,21 +59,18 @@ defmodule Tuist.Builds do
   # common detail-page/callback traffic, then falls back to the unbounded
   # lookup for older build URLs.
   def get_build(id, opts \\ []) do
-    project_id = Keyword.get(opts, :project_id)
+    with {:ok, uuid} <- Ecto.UUID.cast(id),
+         project_id when not is_nil(project_id) <- Keyword.get(opts, :project_id) || unique_build_project(uuid) do
+      build =
+        ClickHouseRepo.one(get_build_query(uuid, project_id, recent_build_lookup_floor())) ||
+          ClickHouseRepo.one(get_build_query(uuid, project_id))
 
-    case Ecto.UUID.cast(id) do
-      {:ok, uuid} ->
-        build =
-          ClickHouseRepo.one(get_build_query(uuid, project_id, recent_build_lookup_floor())) ||
-            ClickHouseRepo.one(get_build_query(uuid, project_id))
-
-        case build do
-          nil -> {:error, :not_found}
-          build -> {:ok, build}
-        end
-
-      _ ->
-        {:error, :not_found}
+      case build do
+        nil -> {:error, :not_found}
+        build -> {:ok, Tuist.ReportActor.preload(build)}
+      end
+    else
+      _ -> {:error, :not_found}
     end
   end
 
@@ -81,25 +78,17 @@ defmodule Tuist.Builds do
     DateTime.add(DateTime.utc_now(), -@build_lookup_recent_window_days, :day)
   end
 
-  defp get_build_query(uuid, nil) do
-    from(b in Build,
-      where: b.id == ^uuid,
-      order_by: [desc: b.updated_at],
-      limit: 1
-    )
+  # ID-only MCP references must identify one project, including historical rows.
+  defp unique_build_project(uuid) do
+    case ClickHouseRepo.all(from(b in Build, where: b.id == ^uuid, select: b.project_id, distinct: true, limit: 2)) do
+      [project_id] -> project_id
+      _ -> nil
+    end
   end
 
   defp get_build_query(uuid, project_id) do
     from(b in Build,
       where: b.project_id == ^project_id and b.id == ^uuid,
-      order_by: [desc: b.updated_at],
-      limit: 1
-    )
-  end
-
-  defp get_build_query(uuid, nil, inserted_at_floor) do
-    from(b in Build,
-      where: b.id == ^uuid and b.inserted_at >= ^inserted_at_floor,
       order_by: [desc: b.updated_at],
       limit: 1
     )
@@ -165,7 +154,7 @@ defmodule Tuist.Builds do
         )
       end
 
-      if build.status == "failure",
+      if build.status == "failure" and build.submission_auth != "network_trusted",
         do:
           Publisher.publish(
             "build.failed",
@@ -573,7 +562,7 @@ defmodule Tuist.Builds do
 
     {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
 
-    results = Repo.preload(results, preload)
+    results = results |> Repo.preload(preload) |> Tuist.ReportActor.preload()
 
     {results, meta}
   end

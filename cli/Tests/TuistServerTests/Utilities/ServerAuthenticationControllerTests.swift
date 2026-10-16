@@ -305,6 +305,7 @@ struct ServerAuthenticationControllerTests {
         let error = RefreshAuthTokenServiceError.unauthorized("Invalid token")
         given(refreshAuthTokenService).refreshTokens(serverURL: .value(serverURL), refreshToken: .any).willThrow(error)
         given(serverCredentialsStore).delete(serverURL: .value(serverURL)).willReturn()
+        given(serverCredentialsStore).store(credentials: .any, serverURL: .value(serverURL)).willReturn()
 
         try await ServerCredentialsStore.$current.withValue(serverCredentialsStore) {
             try await Date.$now.withValue({ date }) {
@@ -898,7 +899,7 @@ struct ServerAuthenticationControllerTests {
     @Test(
         .withMockedEnvironment(),
         .withMockedDependencies()
-    ) func executeRefresh_deletes_credentials_when_oauth_refresh_token_is_rejected() async throws {
+    ) func executeRefresh_preserves_credentials_when_oauth_refresh_token_is_rejected() async throws {
         let date = Date()
         try await Date.$now.withValue({ date }) {
             // Given
@@ -912,6 +913,7 @@ struct ServerAuthenticationControllerTests {
                 .test(accessToken: accessToken.token, refreshToken: refreshToken.token)
             )
             given(serverCredentialsStore).delete(serverURL: .value(serverURL)).willReturn()
+            given(serverCredentialsStore).store(credentials: .any, serverURL: .value(serverURL)).willReturn()
             given(refreshOAuthTokenService)
                 .refreshTokens(serverURL: .value(serverURL), refreshToken: .value(refreshToken.token))
                 .willThrow(error)
@@ -920,8 +922,41 @@ struct ServerAuthenticationControllerTests {
             await #expect(throws: error) {
                 try await subject.executeRefresh(serverURL: serverURL, forceRefresh: false)
             }
-            verify(serverCredentialsStore).delete(serverURL: .value(serverURL)).called(1)
+            verify(serverCredentialsStore).delete(serverURL: .value(serverURL)).called(0)
         }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies())
+    mutating func rejected_credentials_fail_fast_in_later_authenticated_and_network_workflows() async throws {
+        subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            cachedValueStore: CachedValueStore()
+        )
+        let store = try #require(ServerCredentialsStore.mocked)
+        let url: URL = .test()
+        let access = try JWT.make(expiryDate: Date().addingTimeInterval(-100), typ: "access")
+        let refresh = try JWT.make(expiryDate: Date().addingTimeInterval(100), typ: "refresh")
+        let credentials = TestStore(ServerCredentials(accessToken: access.token, refreshToken: refresh.token))
+        given(store).read(serverURL: .value(url)).willProduce { _ in credentials.value }
+        given(store).store(credentials: .any, serverURL: .value(url)).willProduce { value, _ in credentials.value = value }
+        let rejected = RefreshAuthTokenServiceError.unauthorized("revoked")
+        given(refreshAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .any).willThrow(rejected)
+        await #expect(throws: rejected) { try await subject.executeRefresh(serverURL: url, forceRefresh: false) }
+        #expect(credentials.value.rejected == true)
+        for enabled in ["false", "true"] {
+            try await Environment.$current.withValue(Environment(
+                variables: ["TUIST_NETWORK_TRUSTED_PUBLISHING": enabled],
+                arguments: []
+            )) {
+                let start = ContinuousClock.now
+                await #expect(throws: ServerReportPublishingError.invalidCredentials) {
+                    try await subject.authenticationToken(serverURL: url)
+                }
+                #expect(start.duration(to: .now) < .seconds(1))
+            }
+        }
+        verify(refreshAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .any).called(1)
+        verify(store).delete(serverURL: .any).called(0)
     }
 
     @Test(

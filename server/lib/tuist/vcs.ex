@@ -1299,6 +1299,7 @@ defmodule Tuist.VCS do
 
     from(b in Builds.Build)
     |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
+    |> where([b], b.submission_auth != "network_trusted")
     |> where([b], b.status not in ["processing", "failed_processing"])
     |> order_by([b], desc: b.inserted_at)
     |> ClickHouseRepo.all()
@@ -1326,6 +1327,7 @@ defmodule Tuist.VCS do
 
     from(b in Gradle.Build)
     |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
+    |> where([b], b.submission_auth != "network_trusted")
     |> order_by([b], desc: b.inserted_at)
     |> ClickHouseRepo.all()
     |> Enum.filter(&(&1.root_project_name != ""))
@@ -1352,6 +1354,7 @@ defmodule Tuist.VCS do
 
     from(t in Tests.Test)
     |> where([t], t.project_id == ^project.id and like(t.git_ref, ^git_ref_pattern))
+    |> where([t], t.submission_auth != "network_trusted")
     |> order_by([t], desc: t.inserted_at)
     |> ClickHouseRepo.all()
     |> Enum.group_by(& &1.build_system)

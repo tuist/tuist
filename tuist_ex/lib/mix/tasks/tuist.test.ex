@@ -75,6 +75,7 @@ defmodule Mix.Tasks.Tuist.Test do
   alias TuistEx.Analytics.Shards
   alias TuistEx.Analytics.Subprocess
   alias TuistEx.Analytics.TempDir
+  alias TuistEx.Auth
 
   @formatter ExUnitFormatter
   @preferred_cli_env :test
@@ -316,21 +317,24 @@ defmodule Mix.Tasks.Tuist.Test do
   defp upload_history(history, upload) do
     analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
 
-    case Isolated.run(fn -> upload.(history, analytics_options) end, 300_000) do
-      problems when is_list(problems) ->
-        Enum.each(problems, &Report.debug("tuist analytics: " <> &1))
+    if not Auth.network_publishing?(analytics_options) do
+      case Isolated.run(fn -> upload.(history, analytics_options) end, 300_000) do
+        problems when is_list(problems) ->
+          Enum.each(problems, &Report.debug("tuist analytics: " <> &1))
 
-      {:error, reason} ->
-        Report.debug("tuist analytics: the Git history upload failed: #{inspect(reason)}")
+        {:error, reason} ->
+          Report.debug("tuist analytics: the Git history upload failed: #{inspect(reason)}")
+      end
     end
   end
 
-  # On CI, or with coverage, unless `TUIST_GIT_UPLOAD_ENABLED=false`.
+  # On authenticated CI, or with coverage, unless `TUIST_GIT_UPLOAD_ENABLED=false`.
   defp collect_history(options) do
     coverage? = options[:coverage] == true
     analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
 
-    with true <- GitHistory.enabled?(coverage?),
+    with true <-
+           not Auth.network_publishing?(analytics_options) and GitHistory.enabled?(coverage?),
          %{} = history <-
            Isolated.run(
              fn ->
@@ -351,6 +355,15 @@ defmodule Mix.Tasks.Tuist.Test do
 
   defp with_coverage(payload, options, opts, history) do
     {snapshot, payload} = Map.pop(payload, :coverage_snapshot)
+
+    if Auth.network_publishing?(opts) do
+      payload
+    else
+      do_with_coverage(payload, snapshot, options, opts, history)
+    end
+  end
+
+  defp do_with_coverage(payload, snapshot, options, opts, history) do
     payload = if history, do: Map.merge(payload, GitHistory.payload(history)), else: payload
 
     with snapshot when is_list(snapshot) <- snapshot,

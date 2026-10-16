@@ -182,6 +182,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
           :__meta__,
           :project,
           :ran_by_account,
+          :actor_account,
           :issues,
           :files,
           :targets,
