@@ -434,14 +434,52 @@ onto `/opt/local-path-provisioner`, so images and volumes land on `/data` from
 the node's first boot. `/` stays ext4 because a stick finds the install it made
 by mounting the ext4 partitions. Changing the layout is a reinstall.
 
-Every rack Linux node runs the local CNI and carries `cilium.io/no-schedule=true`,
-because the rack's networks at home sit inside the cluster's pod CIDR (192.168.0.0/16 in staging and production alike). A storage node
-that serves pods through Services needs the cluster's CNI, which is a
-`RackLinuxMachine` change to make once the rack's networks no longer overlap.
+A rack Linux node runs the local CNI and carries `cilium.io/no-schedule=true`,
+unless its host sets `publicAddress` (below). The edges hold addresses in the
+rack's management VLAN, 192.168.0.0/24, which sits inside the cluster's pod
+CIDR (192.168.0.0/16 in staging and production alike), so they stay off
+Cilium for good. A storage node holds no address in that range.
 
-### Pods on a rack node
+### A storage node on the cluster network
 
-A pod off the host network sits on the node's bridge (`10.254.254.0/24`), which
+A host with `publicAddress` in `rackLinuxFleet.hosts` (`spec.clusterNetwork`)
+is an ordinary Cilium node. ber1-store-a is one, so the `ber1-runners` Kura
+region runs on the cluster network and replicates pod to pod with each
+account's other regions. Every Cilium node tunnels to every other at its
+InternalIP (VXLAN on 8472/udp), probes their health on 4240/tcp, and the API
+server reaches its kubelet on 10250/tcp. So:
+
+- **Its InternalIP is the site's WAN address**, 149.6.170.31 at BER1, which
+  the operator publishes as the node's address. There is no kubelet proxy and no
+  ExternalIP. The host holds the address on a dummy interface (`tuist-cluster`)
+  so the kubelet takes it as `--node-ip` and Cilium can bind its health
+  responder to it. An nft rule (`tuist_cluster_health`) hands health probes,
+  which the edge delivers to the host's machines address, to it.
+- **The edges forward those three ports** on the WAN address to the host's
+  machines address, from the cluster's Cilium nodes only. The forwards are the
+  edge's `tuist_cluster_forwards` table, in its node configuration. The node
+  agent on each edge keeps the table's `nodes` set equal to the Linux nodes'
+  InternalIPs without the Cilium exclusion. The set is not in the
+  configuration, so a node joining the cluster restarts nothing on the edge.
+  The WAN filter lets through what the edge translated (`ct status dnat`).
+  Cilium decapsulates VXLAN from any source, so this allowlist is what keeps
+  the overlay off the internet.
+- **Cilium attaches to the `en*` uplinks only** (the `CiliumNodeConfig` in
+  `rack-linux-fleet.yaml`): it would take the dummy for a device otherwise.
+- The site's one public IPv4 address fits one such host. A second waits for
+  the site's own range.
+
+Switching a host is a deploy. The operator rewrites the host's
+configuration: dummy, health rule, no bridge CNI, kubelet at the public
+address. It removes the Node's Cilium exclusion and repoints its addresses,
+and Cilium's DaemonSet schedules there. Pods that started on the bridge keep
+their bridge addresses until they are recreated. Delete them (`kubectl delete
+pod --field-selector spec.nodeName=ber1-store-a`, skipping host-network pods)
+once Cilium is Ready on the node. The bridge interface goes at the next reboot.
+
+### Pods on a rack node off the cluster network
+
+On a node without `publicAddress`, a pod off the host network sits on the node's bridge (`10.254.254.0/24`), which
 is its default gateway and masquerades it behind the node, so it reaches what
 the node reaches: the internet, the rack's segments and the tailnet. It reaches
 no cluster Service, no cluster DNS and no pod on another node, and nothing in

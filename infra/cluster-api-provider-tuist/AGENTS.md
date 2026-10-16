@@ -1774,6 +1774,36 @@ moves. The operator also lifts `node.cloudprovider.kubernetes.io/uninitialized`
 once the addresses are set, without waiting for the proxy. Until the proxy Pod
 is Ready, `logs` and `exec` time out as for the Mac minis.
 
+A host with `spec.clusterNetwork` is the exception: it runs Cilium, so the
+control plane reaches its kubelet at the site's public address, which the
+edges forward. Its InternalIP is that address, it has no ExternalIP, and the
+operator deletes its kubelet egress.
+
+**A host on the cluster network** (`spec.clusterNetwork`, rendered from a
+host's `publicAddress`) runs Cilium instead of the rack-local bridge. Its
+configuration (`rack_linux_converge.go`):
+
+- drops the bridge conflist and the `cilium.io/no-schedule` registration label;
+- runs the kubelet with `--node-ip=<publicAddress>`;
+- holds that address on the `tuist-cluster` dummy (networkd);
+- maps `<address>:4240` to it (`tuist_cluster_health`) for Cilium's health
+  responder, which binds the node IP;
+- sets the Cilium nodes' `lxc*` rp_filter sysctl.
+
+The operator removes the Cilium exclusion from an existing Node itself, since a
+kubelet registers labels only once. Every edge of the host's site renders
+`tuist_cluster_forwards`: DNAT of 8472/udp, 4240/tcp and 10250/tcp on each
+cluster-network host's public address to its address, from the set `nodes`.
+`RackNodeConfig.clusterNodeSets` asks the node agent to keep that set equal to
+the Cilium nodes' IPv4 InternalIPs (`racknode.ClusterNodeAddresses`). The
+agent replaces it in one nft transaction when the Nodes change and every
+reapply. The addresses stay out of the configuration and its hash, because a
+hash change restarts the edge's kubelet, containerd and networkd. The file
+declares the set and flushes only its chain, so reloading it keeps the
+elements. A change to any host of a site wakes the site's edges
+(`machinesForHost`). See "A storage node on the cluster network" in
+[`infra/rack-nodes/AGENTS.md`](../rack-nodes/AGENTS.md).
+
 ```bash
 kubectl -n tailscale-operator get pod -l tailscale.com/parent-resource=rack-linux-<host>-kubelet -o wide
 kubectl get node <host> -o jsonpath='{.status.addresses}'
