@@ -12,4 +12,4 @@ This directory contains the native macOS interface and the shared application li
 
 Prefer standard SwiftUI macOS controls, system typography, keyboard navigation, selectable lists, contextual actions, and toolbars rather than mobile navigation or custom menu-row styling in desktop screens.
 
-Tests belong in `app/Tests/TuistMenuBarTests/Desktop/` and use Swift Testing. Run the focused `TuistMenuBarTests/DesktopPreviewsModelTests` suite with the macOS `TuistApp` scheme.
+Tests belong in `app/Tests/TuistMenuBarTests/Desktop/` and use Swift Testing. Run the focused `TuistMenuBarTests/DesktopPreviewsModelTests` and `TuistMenuBarTests/DesktopProjectPickerTests` suites with the macOS `TuistApp` scheme. Picker tests render offscreen AppKit windows with mocked project discovery and storage, verifying native search, list sizing, and Return selection without launching the authenticated app or accessing credentials.

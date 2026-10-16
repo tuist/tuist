@@ -16,10 +16,7 @@ public struct ProjectSwitcher: View {
                     .buttonStyle(.plain)
                     .help("Switch Project")
                     .popover(isPresented: $isPresented, arrowEdge: .trailing) {
-                        NavigationStack {
-                            ProjectPicker(context: context) { isPresented = false }
-                        }
-                        .frame(width: 380, height: 460)
+                        MacProjectPicker(context: context) { isPresented = false }
                     }
             #else
                 Menu {
@@ -58,6 +55,7 @@ public struct ProjectSwitcher: View {
             #endif
         }
         .accessibilityLabel("Project: \(context.selectedFullHandle ?? "None selected")")
+        .accessibilityIdentifier("project-switcher")
         .accessibilityHint("Switch the project for Home and Previews")
     }
 
@@ -98,12 +96,8 @@ private struct ProjectPicker: View {
     let onSelection: () -> Void
     @State private var search = ""
 
-    private var groups: [(name: String, projects: [ServerProject])] {
-        Dictionary(grouping: context.projects(matching: search)) {
-            String($0.fullName.split(separator: "/").first ?? "")
-        }
-        .map { (name: $0.key, projects: $0.value.sorted { $0.fullName < $1.fullName }) }
-        .sorted { $0.name < $1.name }
+    private var sections: [ProjectPickerSection] {
+        ProjectPickerSection.make(projects: context.projects, recentProjects: context.recentProjects, search: search)
     }
 
     var body: some View {
@@ -116,17 +110,10 @@ private struct ProjectPicker: View {
                     }
                 }
             }
-            if search.isEmpty, !context.recentProjects.isEmpty {
-                Section("Recent Projects") {
-                    ForEach(context.recentProjects, id: \.fullName) { project in
-                        row(project, showsOrganization: true)
-                    }
-                }
-            }
-            ForEach(groups, id: \.name) { group in
-                Section(group.name) {
-                    ForEach(group.projects, id: \.fullName) { project in
-                        row(project, showsOrganization: false)
+            ForEach(sections) { section in
+                Section(section.title) {
+                    ForEach(section.projects, id: \.fullName) { project in
+                        row(project, showsOrganization: section.isRecent)
                     }
                 }
             }
@@ -136,7 +123,7 @@ private struct ProjectPicker: View {
                 ProgressView("Loading projects…")
             } else if context.projects.isEmpty, context.errorMessage == nil {
                 ContentUnavailableView("No Projects", systemImage: "folder")
-            } else if !search.isEmpty, groups.isEmpty {
+            } else if !search.isEmpty, sections.isEmpty {
                 ContentUnavailableView.search(text: search)
             }
         }

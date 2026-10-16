@@ -128,6 +128,29 @@ struct ProjectContextTests {
         #expect(context.projects(matching: " ").count == 3)
     }
 
+    @Test func picker_sections_show_each_project_once_and_omit_empty_groups() {
+        let sections = ProjectPickerSection.make(
+            projects: projects + [projects[0]],
+            recentProjects: [projects[0], projects[0], .test(fullName: "removed/project")],
+            search: ""
+        )
+
+        #expect(sections.map(\.id) == ["recent", "organization:other", "organization:tuist"])
+        #expect(sections.flatMap(\.projects).map(\.fullName) == ["tuist/app", "other/mobile", "tuist/cli"])
+        #expect(sections.allSatisfy { !$0.projects.isEmpty })
+        let allRecent = ProjectPickerSection.make(projects: projects, recentProjects: projects, search: " ")
+        #expect(allRecent.map(\.id) == ["recent"])
+        #expect(allRecent[0].projects.count == 3)
+    }
+
+    @Test func picker_search_matches_all_projects_without_a_duplicate_recent_section() {
+        let sections = ProjectPickerSection.make(projects: projects, recentProjects: projects, search: " TUIST ")
+
+        #expect(sections.map(\.id) == ["organization:tuist"])
+        #expect(sections.flatMap(\.projects).map(\.fullName) == ["tuist/app", "tuist/cli"])
+        #expect(ProjectPickerSection.make(projects: projects, recentProjects: projects, search: "missing").isEmpty)
+    }
+
     @Test func a_failure_is_visible_and_can_be_retried() async throws {
         let service = ChangingProjectsService(projects: projects)
         service.error = URLError(.notConnectedToInternet)
