@@ -602,8 +602,10 @@ jobs:
         # upgrade (see the chart's templates/_helpers.tpl). They are ordinary
         # release resources now, and Helm only takes over an existing object
         # that carries its ownership metadata, so stamp it on before
-        # upgrading. Metadata only: the operator does not restart a proxy for
-        # it, and objects that already have it are left as they are.
+        # upgrading. The hook annotations come off here too: a client-side
+        # apply upgrade, which these releases use, leaves them on the object.
+        # Metadata only: the operator does not restart a proxy for it, and
+        # objects already in this state are left as they are.
         name: Let Helm adopt the chart's tailscale.com resources
         run: |
           set -euo pipefail
@@ -617,7 +619,8 @@ jobs:
               kubectl label --overwrite "$resource" app.kubernetes.io/managed-by=Helm
               kubectl annotate --overwrite "$resource" \
                 meta.helm.sh/release-name="$TAILSCALE_RELEASE_NAME" \
-                meta.helm.sh/release-namespace="$TAILSCALE_NAMESPACE"
+                meta.helm.sh/release-namespace="$TAILSCALE_NAMESPACE" \
+                helm.sh/hook- helm.sh/hook-weight- helm.sh/hook-delete-policy-
             done
       - if: steps.check-values.outputs.exists == 'true'
         name: helm upgrade --install tailscale-operator
