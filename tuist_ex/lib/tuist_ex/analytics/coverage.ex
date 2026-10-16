@@ -1,8 +1,8 @@
 defmodule TuistEx.Analytics.Coverage do
   @moduledoc false
 
-  # The line coverage of a `mix test --cover` run, read from Erlang's `cover`
-  # and shaped as the server's `coverage` block: one entry per source file of
+  # The line coverage of a `mix tuist.test --cover` run, read from the
+  # runtime's native line counters and Erlang's `cover`, and shaped as the server's `coverage` block: one entry per source file of
   # the repository, with the OTP application it belongs to, whether it is test
   # code, and how many times each executable line ran.
   #
@@ -141,31 +141,30 @@ defmodule TuistEx.Analytics.Coverage do
         do: beam |> Path.basename(".beam") |> String.to_atom()
   end
 
-  @native_marker ".tuist-native-coverage"
-
   @doc """
-  Recompiles the modules of a build in `ebin` from their debug info with the
-  runtime's native line counters, as `cover` does at the start of every run,
-  so that a run counting natively (`enable_native/1`) needs to compile
-  nothing. The Elixir compiler leaves the counters out
-  even when asked for them, which is why this starts from the debug info.
-  The module keeps its own debug info, which protocol consolidation reads,
-  and the chunks only Elixir writes, such as the docs doctests read. A
-  module without debug info stays as it was and is listed in the marker the
-  build carries, so `native_build?/1` can tell the build is ready. Returns
-  how many modules were instrumented and the ones that could not be.
+  Recompiles the modules in the build directories `dirs`, the compile path
+  and the consolidated protocols', from their debug info with the
+  runtime's native line counters, so that a run counting natively
+  (`enable_native/1`) compiles nothing for `cover`, which recompiles every
+  module at the start of each run. A module that already carries the
+  counters is left as it is, so only what a compile wrote since is
+  recompiled. The Elixir compiler leaves the counters out even when asked
+  for them, which is why this starts from the debug info. The module keeps
+  its own debug info, which protocol consolidation reads, and the chunks
+  only Elixir writes, such as the docs doctests read. A module without debug
+  info stays as it was. Returns how many modules were instrumented and the
+  ones that could not be.
   """
-  def instrument(ebin) do
+  def instrument(dirs) do
     results =
-      ebin
-      |> Path.join("*.beam")
-      |> Path.wildcard()
+      dirs
+      |> List.wrap()
+      |> Enum.flat_map(&Path.wildcard(Path.join(&1, "*.beam")))
       |> Task.async_stream(&{&1, instrument_beam(&1)}, timeout: :infinity, ordered: false)
       |> Enum.map(fn {:ok, result} -> result end)
 
-    skipped = for {path, false} <- results, do: Path.basename(path)
-    File.write!(Path.join(ebin, @native_marker), Enum.join(skipped, "\n"))
-    {length(results) - length(skipped), skipped}
+    {Enum.count(results, &(elem(&1, 1) == :instrumented)),
+     for({path, :skipped} <- results, do: Path.basename(path))}
   end
 
   defp instrument_beam(path) do
@@ -173,6 +172,7 @@ defmodule TuistEx.Analytics.Coverage do
 
     with {:ok, {module, [abstract_code: {:raw_abstract_v1, forms}, compile_info: info]}} <-
            :beam_lib.chunks(beam, [:abstract_code, :compile_info]),
+         false <- :line_coverage in (info[:options] || []),
          {:ok, ^module, binary} <- :compile.forms(forms, native_options(info)),
          {:ok, _module, original} <- :beam_lib.all_chunks(beam),
          {:ok, _module, chunks} <- :beam_lib.all_chunks(binary),
@@ -183,9 +183,10 @@ defmodule TuistEx.Analytics.Coverage do
              chunks ++ Enum.reject(original, &MapSet.member?(ids, elem(&1, 0)))
            ) do
       File.write!(path, binary)
-      true
+      :instrumented
     else
-      _ -> false
+      true -> :already
+      _ -> :skipped
     end
   end
 
@@ -194,31 +195,6 @@ defmodule TuistEx.Analytics.Coverage do
   defp native_options(info) do
     options = Enum.reject(info[:options] || [], &(&1 in [:from_core, :no_core_prepare, :binary]))
     [:binary, :line_coverage, :debug_info, {:source, info[:source]} | options]
-  end
-
-  @doc """
-  Whether `instrument/1` prepared the build in `ebin`: every module it could
-  instrument still carries the counters, which a later compile would drop.
-  """
-  def native_build?(ebin) do
-    marker = Path.join(ebin, @native_marker)
-
-    with {:ok, contents} <- File.read(marker),
-         skipped = MapSet.new(String.split(contents, "\n", trim: true)),
-         [_ | _] = beams <- Path.wildcard(Path.join(ebin, "*.beam")) do
-      beams
-      |> Enum.reject(&MapSet.member?(skipped, Path.basename(&1)))
-      |> Enum.all?(&instrumented?/1)
-    else
-      _ -> false
-    end
-  end
-
-  defp instrumented?(path) do
-    case :beam_lib.chunks(String.to_charlist(path), [:compile_info]) do
-      {:ok, {_module, [compile_info: info]}} -> :line_coverage in (info[:options] || [])
-      _ -> false
-    end
   end
 
   @doc """
@@ -311,8 +287,8 @@ defmodule TuistEx.Analytics.Coverage do
   end
 
   @doc """
-  The arguments for `mix test` without Mix's own coverage tool, which a run of
-  an instrumented build does not need: it would compile every module again.
+  The arguments for `mix test` without Mix's own coverage tool, which a run
+  counting natively does not need: it would compile every module again.
   """
   def without_cover(["--cover" | rest]), do: without_cover(rest)
   def without_cover(["--export-coverage", _name | rest]), do: without_cover(rest)

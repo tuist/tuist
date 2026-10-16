@@ -321,13 +321,14 @@ defmodule TuistEx.Analytics.CoverageTest do
       %{directory: directory, config: config, ebin: ebin, source: source}
     end
 
-    test "instruments a build once and tells it from one a compile replaced", %{ebin: ebin} do
+    test "instruments only the modules a compile wrote since", %{ebin: ebin} do
       beam = Path.join(ebin, "Elixir.TuistExNativeFixture.Calc.beam")
       original = File.read!(beam)
-      refute Coverage.native_build?(ebin)
 
       assert {1, []} = Coverage.instrument(ebin)
-      assert Coverage.native_build?(ebin)
+      instrumented = File.read!(beam)
+      assert {0, []} = Coverage.instrument(ebin)
+      assert File.read!(beam) == instrumented
 
       {:ok, {_, [compile_info: info]}} =
         :beam_lib.chunks(String.to_charlist(beam), [:compile_info])
@@ -344,7 +345,7 @@ defmodule TuistEx.Analytics.CoverageTest do
 
       # A later compile writes the module without the counters.
       File.write!(beam, original)
-      refute Coverage.native_build?(ebin)
+      assert {1, []} = Coverage.instrument(ebin)
     end
 
     # In a runtime started without `+JPcover`, as a user's is.
