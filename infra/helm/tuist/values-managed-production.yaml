@@ -1324,17 +1324,18 @@ rackFleet:
   vmCacheGatewayCIDRs:
     - 10.10.0.11/32
   # The rack's VM image cache on ber1-store-a. Turn `enabled` on first and let
-  # the prewarm set sync, then `routeHosts`, which re-pushes every mini's
-  # launchd config and needs an operator image carrying
-  # --rackhost-image-mirrors. 400 GiB of store-a's 928 GB /data holds one
-  # release of every image the rack runs plus the previous one while the rack
-  # rolls off it (a release of all nine catalog images is 404 GB of distinct
-  # blobs, 578 GB beside its predecessor), and leaves the ber1-runners Kura
-  # region the rest. 26.6 keeps a warm runner and 27.0 carries most rack jobs,
+  # the prewarm set sync, then route hosts through it one at a time in
+  # `routeHosts`, starting with ber1-runner-b01, which runs staging's jobs; each
+  # one re-pushes that mini's launchd config and needs an operator image
+  # carrying --rackhost-image-mirror-hosts. `["*"]` routes every mini.
+  # 400 GiB of store-a's 928 GB /data holds one release of every image the
+  # rack runs plus the previous one while the rack rolls off it (a release of
+  # all nine catalog images is 404 GB of distinct blobs, 578 GB beside its
+  # predecessor), and leaves the ber1-runners Kura region the rest. 26.6 keeps a warm runner and 27.0 carries most rack jobs,
   # so both are on the rack before a mini asks.
   imageCache:
     enabled: false
-    routeHosts: false
+    routeHosts: []
     nodes:
       - name: ber1-store-a
         address: 10.10.0.11

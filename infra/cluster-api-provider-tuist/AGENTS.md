@@ -465,13 +465,14 @@ mode behind it:
   firewall to running hosts through the drift loop. The rented fleets never
   get it.
 - **It pulls golden bases through the rack's image caches.**
-  `rackFleet.imageCache` (with `routeHosts`) renders
-  `--rackhost-image-mirrors`, which the manager validates at startup and
-  `rackFleetConfig` overlays as `ImageMirrors`: one `--image-mirror` per cache
-  in tart-kubelet's launchd plist. tart-kubelet refuses to start on a
-  malformed one, which is why the operator checks first. It is in the plist,
-  so in the hash, and changing it drifts every rack host. See "The rack's VM
-  image cache" in `infra/rack-nodes/AGENTS.md`.
+  `rackFleet.imageCache` renders `--rackhost-image-mirrors`, which the manager
+  validates at startup, and `routeHosts` renders `--rackhost-image-mirror-hosts`.
+  `rackFleetConfig` overlays the mirrors as `ImageMirrors` on the hosts named
+  there (`*` for all): one `--image-mirror` per cache in tart-kubelet's launchd
+  plist. tart-kubelet refuses to start on a malformed one, which is why the
+  operator checks first. It is in the plist, so in the hash, and routing a
+  host drifts that host only. See "The rack's VM image cache" in
+  `infra/rack-nodes/AGENTS.md`.
 - **Delete stops.** No reinstall, no wipe: no API can do either to hardware in
   our own rack. That makes Stage 1 of the delete path (dropping the node
   identity) matter *more* than on rented capacity, not less: nothing wipes the

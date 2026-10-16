@@ -1284,3 +1284,26 @@ runs each cache at the same address and port.
 {{- end -}}
 {{- join "," $mirrors -}}
 {{- end -}}
+
+{{/*
+The rack hosts routed through the image caches, comma-separated, for
+`--rackhost-image-mirror-hosts`. Each is a `rackFleet.hosts[].name`, or `*`
+for every host; a name the inventory does not have fails the render rather
+than routing nothing.
+*/}}
+{{- define "tuist.rackImageMirrorHosts" -}}
+{{- $routed := .Values.rackFleet.imageCache.routeHosts | default list -}}
+{{- if not (kindIs "slice" $routed) -}}
+{{- fail "rackFleet.imageCache.routeHosts is a list of rackFleet.hosts[].name, or [\"*\"] for every host" -}}
+{{- end -}}
+{{- $known := list -}}
+{{- range (.Values.rackFleet.hosts | default list) -}}
+{{- $known = append $known .name -}}
+{{- end -}}
+{{- range $routed -}}
+{{- if and (ne . "*") (not (has . $known)) -}}
+{{- fail (printf "rackFleet.imageCache.routeHosts names %s, which is not in rackFleet.hosts" .) -}}
+{{- end -}}
+{{- end -}}
+{{- join "," $routed -}}
+{{- end -}}

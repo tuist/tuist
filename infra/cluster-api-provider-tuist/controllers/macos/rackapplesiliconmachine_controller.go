@@ -84,8 +84,14 @@ type RackAppleSiliconMachineReconciler struct {
 
 	// ImageMirrors are the rack's VM image caches, which a rack host's
 	// tart-kubelet tries before the upstream when it pulls a golden base.
-	// Overlaid by rackFleetConfig, like VMCacheGatewayCIDRs.
+	// Overlaid by rackFleetConfig, like VMCacheGatewayCIDRs, on the hosts
+	// ImageMirrorHosts names.
 	ImageMirrors []string
+
+	// ImageMirrorHosts are the RackHosts that get ImageMirrors, or `*` for
+	// every one, so one host can carry the caches before the rest. Only the
+	// hosts it names drift when it changes.
+	ImageMirrorHosts []string
 
 	// DefaultGuestCapacity is the fleet-wide fallback for a Machine that does
 	// not set spec.guestCapacity.
@@ -1014,7 +1020,9 @@ func (r *RackAppleSiliconMachineReconciler) rackFleetConfig(host *infrav1.RackHo
 	cfg.TailscalePersistentDevice = true
 	cfg.SSHIngressAllowCIDRs = append(slices.Clone(r.FleetConfig.SSHIngressAllowCIDRs), host.Spec.SSHIngressAllowCIDRs...)
 	cfg.VMCacheGatewayCIDRs = slices.Clone(r.VMCacheGatewayCIDRs)
-	cfg.ImageMirrors = slices.Clone(r.ImageMirrors)
+	if slices.Contains(r.ImageMirrorHosts, "*") || slices.Contains(r.ImageMirrorHosts, host.Name) {
+		cfg.ImageMirrors = slices.Clone(r.ImageMirrors)
+	}
 	// A lent host's custom cache volumes are the other cluster's server's.
 	if lent := host.Spec.NodeCluster; lent != nil {
 		cfg.CustomCacheURL = lent.CacheVolumesURL

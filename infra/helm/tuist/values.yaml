@@ -1640,11 +1640,13 @@ rackFleet:
   imageCache:
     # Runs the cache on each of `nodes` and keeps `prewarm` synced.
     enabled: false
-    # Has the rack hosts' tart-kubelet pull golden bases through the caches
-    # (`--image-mirror`), in the order of `nodes`, before the upstream. A
-    # cache that is down, does not hold the image or fails the pull falls back
-    # to the upstream. Changing it drifts every rack host.
-    routeHosts: false
+    # The rack hosts (`hosts[].name`) whose tart-kubelet pulls golden bases
+    # through the caches (`--image-mirror`), in the order of `nodes`, before
+    # the upstream; `"*"` routes every host. A cache that is down, does not
+    # hold the image or fails the pull falls back to the upstream. Adding or
+    # removing a host drifts that host only, so one host can carry the cache
+    # before the rest.
+    routeHosts: []
     # The registry the caches mirror. Only images from it are routed.
     upstream: ghcr.io
     # The repositories the caches serve, as zot sync prefixes.

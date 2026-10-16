@@ -556,9 +556,10 @@ takes the Kura region with it.
   frees their blobs. A release's previous images go a day after the rack has
   rolled off them.
 - **How the minis use it.** Tart has no mirror configuration, only `--insecure`
-  for plain HTTP, so tart-kubelet chooses the reference. With `routeHosts`, the
-  operator passes `--rackhost-image-mirrors`, and each rack host's tart-kubelet
-  gets `--image-mirror=ghcr.io=http://10.10.0.11:5000`. When it materializes a
+  for plain HTTP, so tart-kubelet chooses the reference. Each host named in
+  `routeHosts` (`["*"]` for all of them) gets, through the operator's
+  `--rackhost-image-mirrors` and `--rackhost-image-mirror-hosts`, a tart-kubelet
+  with `--image-mirror=ghcr.io=http://10.10.0.11:5000`. When it materializes a
   golden base it asks the cache for the image's manifest. If the cache holds
   it, tart-kubelet pulls `10.10.0.11:5000/tuist/tuist-runner@<that digest>`
   with `--insecure`. If the cache is still fetching it, the Pod is requeued
@@ -589,14 +590,17 @@ release of what the rack runs plus the previous one while the rack rolls off
 it, rather than the whole catalog twice. A second disk in store-a's spare M.2
 slots, or store-b, is what makes room for more.
 
-Turning it on is two steps, each a deploy: `enabled`, then, once
+Turning it on is a deploy per step, and `routeHosts` is the feature flag: set
+`enabled`; once
 `kubectl -n tuist logs deploy/tuist-tuist-rack-image-cache-ber1-store-a -c prewarm`
-shows the prewarm set fetched, `routeHosts`. The second needs an operator image
-with `--rackhost-image-mirrors`, and re-pushes every mini's launchd config
-through the drift loop. `tart_kubelet_image_mirror_probe_total{result}` and
+shows the prewarm set fetched, add `ber1-runner-b01` to `routeHosts` (real rack
+hardware, running staging's jobs); then the other hosts, or `"*"`. Routing
+needs an operator image with `--rackhost-image-mirror-hosts`, and re-pushes the
+launchd config of the hosts added, and only theirs, through the drift loop.
+`tart_kubelet_image_mirror_probe_total{result}` and
 `tart_kubelet_image_pull_seconds{source}` show what the hosts did; the
 `upstream` and `mirror` pull times on the same hosts are the before and after.
-Turning `routeHosts` off is the rollback. `mise run rack:fleet-test` checks
+Taking a host out of `routeHosts` is its rollback. `mise run rack:fleet-test` checks
 that every cache and cache gateway is a storage node of the site at its
 RackLinuxHost's address.
 

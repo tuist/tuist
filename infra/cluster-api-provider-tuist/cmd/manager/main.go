@@ -368,6 +368,10 @@ func main() {
 	flag.StringVar(&rackHostImageMirrorsRaw, "rackhost-image-mirrors", "",
 		"Comma-separated <upstream>=<endpoint> entries naming the rack's VM image caches, which a rack Mac host's tart-kubelet tries "+
 			"in order before the upstream when it pulls a golden base (--image-mirror). Rack hosts only. Flows from the chart's rackFleet.imageCache.")
+	var rackHostImageMirrorHostsRaw string
+	flag.StringVar(&rackHostImageMirrorHostsRaw, "rackhost-image-mirror-hosts", "",
+		"Comma-separated RackHost names that get --rackhost-image-mirrors, or * for every rack host. Empty routes none. "+
+			"Flows from the chart's rackFleet.imageCache.routeHosts.")
 	flag.DurationVar(&terminalRetryAfter, "tartkubelet-terminal-retry-after", 30*time.Minute,
 		"How long after a terminal drift-loop failure the host gets a fresh retry budget. "+
 			"Recovers a host that was merely unreachable when the operator tried to push, "+
@@ -790,6 +794,7 @@ func main() {
 		FleetConfig:                   fleetConfig,
 		VMCacheGatewayCIDRs:           parseCommaList(rackHostVMCacheGatewayCIDRsRaw),
 		ImageMirrors:                  rackHostImageMirrors,
+		ImageMirrorHosts:              parseCommaList(rackHostImageMirrorHostsRaw),
 		DefaultGuestCapacity:          tartKubeletGuestCapacity,
 		TartKubeletBinarySHA:          binarySHA,
 		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),
