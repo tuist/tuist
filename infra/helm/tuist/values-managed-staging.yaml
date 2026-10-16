@@ -1027,7 +1027,26 @@ runnersFleetLinux:
   # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
   # bare-metal Node by the CAPI MachineDeployment.
   name: runners-linux
-  pools: []
+  nestedVirtualization:
+    enabled: true
+  # Nested-virtualization pool for Android emulator workloads (Gradle
+  # Managed Devices, Macrobenchmark). An operator pool rather than a shape
+  # because profiles cannot ask for /dev/kvm yet; workflows target it by
+  # its dispatch label. Scales to zero: an emulator job pays the microVM
+  # cold start, and nothing holds 18.5 GiB of the staging host while idle.
+  pools:
+    - name: kvm-8vcpu-16gb
+      dispatchLabel: tuist-staging-linux-kvm
+      runtimeClass: kata-qemu
+      nestedVirtualization: true
+      pod:
+        cpuMilli: 8000
+        memoryMB: 16384
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 2
+        scaleDownCooldownSeconds: 300
   # Shape-keyed pools backing Runner Profiles. Customers reference them
   # via account-scoped profiles (`runs-on: tuist-<name>`); the server
   # resolves the profile's (vcpus, memory_gb) to one of these CRs. Keep

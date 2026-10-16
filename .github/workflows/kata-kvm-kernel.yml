@@ -1,0 +1,106 @@
+name: Kata KVM Guest Kernel
+
+# Builds the Kata guest kernel with KVM built in (infra/kata-kvm-kernel/),
+# proves an unprivileged container in a Kata guest booted from it can create a
+# KVM VM, and on main publishes it as the `kata-kvm-kernel@<kata>-<revision>`
+# GitHub release the CAPI provider installs on every Kata runner host.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/kata-kvm-kernel/**
+      - .github/workflows/kata-kvm-kernel.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - infra/kata-kvm-kernel/**
+      - .github/workflows/kata-kvm-kernel.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.repository == 'tuist/tuist'
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      name: ${{ steps.release.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve release
+        id: release
+        run: |
+          . infra/kata-kvm-kernel/release.env
+          echo "tag=kata-kvm-kernel@${KATA_VERSION}-${REVISION}" >> "$GITHUB_OUTPUT"
+          echo "name=vmlinux-kata-kvm-${KATA_VERSION}-${REVISION}" >> "$GITHUB_OUTPUT"
+      - name: Install kernel build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential flex bison bc libelf-dev libssl-dev cpio kmod rsync
+      - name: Build
+        run: infra/kata-kvm-kernel/build.sh out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kata-kvm-kernel
+          path: out/
+          if-no-files-found: error
+
+  # GitHub-hosted runners are VMs with nested virtualization, so they can boot
+  # a Kata guest that itself runs KVM, as a runner host does.
+  verify:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: kata-kvm-kernel
+          path: out
+      - name: Install Kata with the built kernel
+        run: |
+          set -euo pipefail
+          . infra/kata-kvm-kernel/release.env
+          curl -fsSL -o /tmp/kata.tar.zst "https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.zst"
+          sudo tar --zstd -xf /tmp/kata.tar.zst -C /
+          sudo install -m 0644 "out/${{ needs.build.outputs.name }}" /opt/kata/share/kata-containers/vmlinux-tuist-kvm.container
+          sudo ln -sf /opt/kata/bin/containerd-shim-kata-v2 /usr/local/bin/containerd-shim-kata-v2
+          sudo mkdir -p /etc/kata-containers
+          sed -E 's#^kernel = .*#kernel = "/opt/kata/share/kata-containers/vmlinux-tuist-kvm.container"#' \
+            /opt/kata/share/defaults/kata-containers/configuration-qemu.toml | sudo tee /etc/kata-containers/configuration.toml > /dev/null
+          # The mode the runner hosts give /dev/kvm; the device node inside the
+          # guest inherits it.
+          sudo chmod 0666 /dev/kvm
+      - name: Create a VM from an unprivileged Kata container
+        run: |
+          docker run --rm --runtime io.containerd.kata.v2 --device /dev/kvm \
+            -v "$PWD/infra/kata-kvm-kernel:/check:ro" \
+            docker.io/library/ubuntu:24.04 sh /check/check-kvm.sh
+
+  release:
+    needs: [build, verify]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: kata-kvm-kernel
+          path: out
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          # A published kernel is immutable: hosts verify it against the
+          # checksum shipped beside it, so a revision is never rebuilt in place.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "$TAG already published; bump REVISION in infra/kata-kvm-kernel/release.env to ship a new kernel."
+            exit 0
+          fi
+          gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$TAG" --notes "Kata guest kernel with KVM built in, for nested-virtualization runner pools. See infra/kata-kvm-kernel/." --latest=false

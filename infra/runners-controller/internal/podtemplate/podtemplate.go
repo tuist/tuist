@@ -63,6 +63,31 @@ const (
 	// reservation would eat its own result.
 	ReservationTaintKey = "tuist.dev/reserved-for"
 
+	// KVMNodeLabel marks a Kata host the CAPI provider has proven can run
+	// nested guests: the KVM-enabled guest kernel is installed, the Kata
+	// configuration accepts it per Pod, and host KVM runs with nesting on.
+	//
+	// CONTRACT: the provider (`kataKVMNodeLabel` in
+	// infra/cluster-api-provider-tuist/controllers/linux) writes this label
+	// and the kvm-device-plugin DaemonSet selects on it; the three live in
+	// separate modules, so they are coupled by this convention.
+	KVMNodeLabel = "tuist.dev/kata-kvm"
+
+	// KVMResourceName is the extended resource kvm-device-plugin
+	// advertises. Allocating it is what puts /dev/kvm into the runner
+	// container's OCI spec; the Kata agent then creates the node inside
+	// the guest, where it resolves to the guest kernel's own KVM device.
+	KVMResourceName corev1.ResourceName = "devices.tuist.dev/kvm"
+
+	// KVMGuestKernelPath is the stable path the CAPI provider points at the
+	// installed KVM-enabled guest kernel (`kataKVMKernelLink` there).
+	KVMGuestKernelPath = "/opt/kata/share/kata-containers/vmlinux-tuist-kvm.container"
+
+	// kataKernelAnnotation selects the guest kernel per Pod. Honoured only
+	// because the provider's Kata drop-in adds `kernel` to the hypervisor's
+	// enable_annotations.
+	kataKernelAnnotation = "io.katacontainers.config.hypervisor.kernel"
+
 	// jitMountPath is where the JIT-handoff emptyDir is mounted in
 	// both the poller (rw) and runner (ro) containers. Deliberately
 	// not under /var/run — the dind sidecar owns that mount in the
@@ -137,6 +162,11 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	if pool.Spec.OS == "linux" && dindImage != "" && pool.Spec.RuntimeClass != "kata-qemu" {
 		return nil, fmt.Errorf("refusing to build Linux runner Pod with privileged dind sidecar: pool %q has runtimeClass %q, want kata-qemu", pool.Name, pool.Spec.RuntimeClass)
 	}
+	// Under runc, /dev/kvm would be the host's own device rather than the
+	// guest's, so nested virtualization is only offered inside the microVM.
+	if pool.Spec.NestedVirtualization && (pool.Spec.OS != "linux" || pool.Spec.RuntimeClass != "kata-qemu") {
+		return nil, fmt.Errorf("refusing to build runner Pod with nested virtualization: pool %q needs os linux and runtimeClass kata-qemu", pool.Name)
+	}
 
 	nodeSelector, tolerations := schedulingFor(pool)
 
@@ -198,6 +228,10 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			corev1.ResourceCPU:    *cpu,
 			corev1.ResourceMemory: *mem,
 		},
+	}
+	if pool.Spec.NestedVirtualization {
+		resources.Requests[KVMResourceName] = resource.MustParse("1")
+		resources.Limits[KVMResourceName] = resource.MustParse("1")
 	}
 
 	// Defaults are the macOS shape: a single runner container running
@@ -565,6 +599,9 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		// because the containerd kata runtime whitelists
 		// `io.katacontainers.*` pod annotations.
 		annotations["io.katacontainers.config.hypervisor.kernel_params"] = "psi=1"
+		if pool.Spec.NestedVirtualization {
+			annotations[kataKernelAnnotation] = KVMGuestKernelPath
+		}
 	}
 	if linuxPod && pool.Spec.RuntimeClass != "" {
 		if revision := pool.Annotations[RuntimeClassRevisionAnnotation]; revision != "" {
@@ -768,19 +805,23 @@ func runnerAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
 func schedulingFor(pool *tuistv1.RunnerPool) (map[string]string, []corev1.Toleration) {
 	switch pool.Spec.OS {
 	case "linux":
-		return map[string]string{
-				"kubernetes.io/os":           "linux",
-				"kubernetes.io/arch":         "amd64",
-				"node.cluster.x-k8s.io/pool": pool.Spec.FleetSelector,
-			}, []corev1.Toleration{
-				{
-					Key:      "tuist.dev/runner-tier",
-					Operator: corev1.TolerationOpEqual,
-					Value:    "bare-metal",
-					Effect:   corev1.TaintEffectNoSchedule,
-				},
-				reservationToleration(pool),
-			}
+		selector := map[string]string{
+			"kubernetes.io/os":           "linux",
+			"kubernetes.io/arch":         "amd64",
+			"node.cluster.x-k8s.io/pool": pool.Spec.FleetSelector,
+		}
+		if pool.Spec.NestedVirtualization {
+			selector[KVMNodeLabel] = "true"
+		}
+		return selector, []corev1.Toleration{
+			{
+				Key:      "tuist.dev/runner-tier",
+				Operator: corev1.TolerationOpEqual,
+				Value:    "bare-metal",
+				Effect:   corev1.TaintEffectNoSchedule,
+			},
+			reservationToleration(pool),
+		}
 	default:
 		return map[string]string{
 				"kubernetes.io/os":  "darwin",
