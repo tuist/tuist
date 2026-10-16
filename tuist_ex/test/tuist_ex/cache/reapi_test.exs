@@ -200,6 +200,13 @@ defmodule TuistEx.Cache.ReapiTest do
     %{session: session, store: store}
   end
 
+  test "disables Nagle buffering for separately sent HTTP/2 request frames", %{session: session} do
+    conn = :sys.get_state(session.channel.adapter_payload.conn_pid).conn
+    socket = Mint.HTTP.get_socket(conn)
+
+    assert {:ok, [nodelay: true]} = :inet.getopts(socket, [:nodelay])
+  end
+
   test "hostname endpoints preserve the HTTP authority and close their channels cleanly", %{
     port: port,
     store: store

@@ -118,7 +118,10 @@ defmodule TuistEx.Cache.Reapi do
 
     options = [
       adapter: GRPC.Client.Adapters.Mint,
-      adapter_opts: [config_options: [hostname: uri.host], transport_opts: [timeout: 5_000]]
+      adapter_opts: [
+        config_options: [hostname: uri.host],
+        transport_opts: [timeout: 5_000, nodelay: true]
+      ]
     ]
 
     options =
