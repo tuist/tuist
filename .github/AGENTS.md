@@ -213,3 +213,18 @@ must stay disabled in the repository settings, or uploads from this workflow
 are rejected.
 
 - Runner-controller checks, image builds and release path filters include the shared `infra/runner-cache` module.
+
+## CLI Linux release
+
+`release-cli-linux` in `workflows/cli-build-publish.yml` builds both Linux
+tarballs on `tuist-linux-large` inside `swift:6.2`. The fleet is amd64-only,
+so aarch64 is cross-compiled through the static Linux SDK and the bundle
+script checks the architecture and that the binary is static before packaging.
+Keep one matrix job per architecture: per-architecture compile time is
+dominated by single-threaded release modules, so a shared job serializes them.
+`.build` is a cache volume keyed by architecture and Swift version, and the
+SwiftPM download cache is a second, shared one. A fresh checkout still
+recompiles every first-party module; the volume only spares the pinned
+third-party graph. Mounted cache directories are emptied in place, never
+removed. Keep the registry proxy, the resolve retry and the
+`cli-linux-<arch>-artifacts` names that `publish-cli` merges.
