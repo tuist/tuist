@@ -835,6 +835,7 @@ msgstr ""
 msgid "Ran at"
 msgstr ""
 
+#: lib/tuist_web/live/gradle_build_runs_live.ex:303
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:41
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:455
 #, elixir-autogen, elixir-format
@@ -1572,10 +1573,5 @@ msgstr ""
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:241
 #, elixir-autogen, elixir-format
-msgid "Reported identifier (unverified)"
-msgstr ""
-
-#: lib/tuist_web/live/gradle_build_runs_live.ex:303
-#, elixir-autogen, elixir-format
-msgid "Verified user / CI"
+msgid "Reported name"
 msgstr ""

@@ -4,6 +4,8 @@ defmodule Tuist.ReportActor do
   is an opaque, organization-scoped claim, never a credential or a user lookup.
   """
 
+  use Gettext, backend: TuistWeb.Gettext
+
   import Ecto.Query
 
   alias Tuist.Accounts.Account
@@ -67,10 +69,10 @@ defmodule Tuist.ReportActor do
   end
 
   defp fallback_actor(_record, _claimed, submission, _legacy_name) do
-    presentation("Unknown", :unknown, submission, "")
+    presentation(dgettext("dashboard", "Unknown"), :unknown, submission, "")
   end
 
-  defp claimed_presentation("", submission), do: presentation("Unknown", :unknown, submission, "")
+  defp claimed_presentation("", submission), do: presentation(dgettext("dashboard", "Unknown"), :unknown, submission, "")
   defp claimed_presentation(claimed, submission), do: presentation(claimed, :reported, submission, claimed)
 
   defp presentation(name, source, submission, claimed, verified \\ nil) do

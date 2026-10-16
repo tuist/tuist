@@ -238,7 +238,7 @@ defmodule TuistWeb.GradleBuildRunsLive do
       %Filter.Filter{
         id: "claimed_actor_id",
         field: :claimed_actor_id,
-        display_name: dgettext("dashboard_gradle", "Reported identifier (unverified)"),
+        display_name: dgettext("dashboard_gradle", "Reported name"),
         type: :text,
         operator: :==,
         value: ""
@@ -300,7 +300,7 @@ defmodule TuistWeb.GradleBuildRunsLive do
           %Filter.Filter{
             id: "ran_by",
             field: :ran_by,
-            display_name: dgettext("dashboard_gradle", "Verified user / CI"),
+            display_name: dgettext("dashboard_gradle", "Ran by"),
             type: :option,
             searchable: true,
             options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),

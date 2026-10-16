@@ -42,12 +42,16 @@ defmodule TuistWeb.Runs.RanByBadgeTest do
       record = %{is_ci: false, submission_auth: "token", claimed_actor_id: "developer-123"}
       html = render_component(component, [{key, record}])
       assert html =~ "developer-123"
-      assert html =~ "Unverified"
-      assert html =~ "Reported by the build client, not verified."
+      assert badge_label(html, "neutral") == "developer-123"
+      assert html =~ "icon-tabler-device-laptop"
+      refute html =~ "Unverified"
+      refute html =~ "title="
 
       verified = Map.put(record, :actor_account, %Account{name: "verified-person"})
       html = render_component(component, [{key, verified}])
-      assert html =~ "verified-person"
+      assert badge_label(html, "primary") == "verified-person"
+      assert html =~ "icon-tabler-user"
+      refute html =~ "icon-tabler-device-laptop"
       refute html =~ "developer-123"
       refute html =~ "Unverified"
 

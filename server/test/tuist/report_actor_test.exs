@@ -20,6 +20,15 @@ defmodule Tuist.ReportActorTest do
     assert %{name: "Unknown", source: :unknown} = ReportActor.actor(%{record | claimed_actor_id: ""})
   end
 
+  @tag :locale
+  test "unknown actors use the current Gettext locale with and without report provenance" do
+    Gettext.with_locale(TuistWeb.Gettext, "es", fn ->
+      for record <- [%{}, %{submission_auth: "token"}] do
+        assert %{name: "Desconocido", source: :unknown} = ReportActor.actor(record)
+      end
+    end)
+  end
+
   test "legacy records preserve existing attribution" do
     assert %{name: "legacy", source: :legacy} = ReportActor.actor(%{ran_by_account: %Account{name: "legacy"}})
   end

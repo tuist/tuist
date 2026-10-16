@@ -590,6 +590,7 @@ msgstr ""
 msgid "Ran at"
 msgstr ""
 
+#: lib/tuist_web/live/cache_runs_live.ex:100
 #: lib/tuist_web/live/cache_runs_live.html.heex:96
 #: lib/tuist_web/live/mix_cache_live.html.heex:299
 #: lib/tuist_web/live/module_cache_live.html.heex:760
@@ -1359,9 +1360,4 @@ msgstr ""
 #: lib/tuist_web/live/mix_build_live.ex:339
 #, elixir-autogen, elixir-format
 msgid "Remote hit"
-msgstr ""
-
-#: lib/tuist_web/live/cache_runs_live.ex:100
-#, elixir-autogen, elixir-format
-msgid "Verified user / CI"
 msgstr ""

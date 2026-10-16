@@ -549,7 +549,9 @@ defmodule TuistWeb.BuildEntityLiveTest do
 
     {:ok, view, _} = live(conn, "/#{account.name}/#{project.name}/builds/gradle/tasks/#{entity.id}?tab=history")
     render_async(view)
-    assert has_element?(view, "#build-entity-history .noora-badge[data-color=neutral]", "reported-builder (Unverified)")
+    assert has_element?(view, "#build-entity-history .noora-badge[data-color=neutral]", "reported-builder")
+    assert has_element?(view, "#build-entity-history [data-actor-source=reported] .icon-tabler-device-laptop")
+    refute has_element?(view, "#build-entity-history [data-actor-source=reported]", "Unverified")
     assert has_element?(view, "#build-entity-history .noora-badge[data-color=primary]", "verified-builder")
     refute has_element?(view, "#build-entity-history .noora-badge[data-color=primary]", "reported-builder")
     refute has_element?(view, "#build-entity-history", "publisher-not-actor")

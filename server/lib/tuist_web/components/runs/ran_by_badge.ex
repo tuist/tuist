@@ -58,23 +58,17 @@ defmodule TuistWeb.Runs.RanByBadge do
     />
     <.badge_cell
       :if={@record.is_ci == false}
-      label={
-        if @actor.source == :reported,
-          do: @actor.name <> " (" <> dgettext("dashboard", "Unverified") <> ")",
-          else: @actor.name
+      label={@actor.name}
+      icon={
+        case @actor.source do
+          :reported -> "device_laptop"
+          source when source in [:verified, :legacy] -> "user"
+          _ -> nil
+        end
       }
-      icon={if @actor.source in [:verified, :legacy] and @actor.name != "Unknown", do: "user"}
-      color={
-        if @actor.source == :verified or (@actor.source == :legacy and @actor.name != "Unknown"),
-          do: "primary",
-          else: "neutral"
-      }
+      color={if @actor.source in [:verified, :legacy], do: "primary", else: "neutral"}
       style="light-fill"
       data-actor-source={@actor.source}
-      title={
-        if @actor.source == :reported,
-          do: dgettext("dashboard", "Reported by the build client, not verified.")
-      }
     />
     <.badge_cell
       :if={@record.is_ci not in [true, false]}

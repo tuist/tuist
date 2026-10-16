@@ -402,11 +402,13 @@ msgstr ""
 msgid "Unauthorized"
 msgstr ""
 
+#: lib/tuist/report_actor.ex:72
+#: lib/tuist/report_actor.ex:75
 #: lib/tuist/utilities/date_formatter.ex:128
 #: lib/tuist/utilities/date_formatter.ex:137
 #: lib/tuist/utilities/date_formatter.ex:185
 #: lib/tuist/utilities/date_formatter.ex:219
-#: lib/tuist_web/components/runs/ran_by_badge.ex:81
+#: lib/tuist_web/components/runs/ran_by_badge.ex:75
 #: lib/tuist_web/live/ops_account_helpers.ex:15
 #: lib/tuist_web/live/ops_account_helpers.ex:24
 #: lib/tuist_web/live/ops_account_live.ex:1264
@@ -3197,14 +3199,4 @@ msgstr ""
 #: lib/tuist_web/live/mix_build_live.ex:306
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS upload bytes and local snapshot copy bytes. CAS Outputs shows only Kura-reported remote transfers."
-msgstr ""
-
-#: lib/tuist_web/components/runs/ran_by_badge.ex:76
-#, elixir-autogen, elixir-format
-msgid "Reported by the build client, not verified."
-msgstr ""
-
-#: lib/tuist_web/components/runs/ran_by_badge.ex:63
-#, elixir-autogen, elixir-format
-msgid "Unverified"
 msgstr ""

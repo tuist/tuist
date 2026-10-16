@@ -233,7 +233,7 @@ defmodule TuistWeb.XcodeBuildRunsLive do
       %Filter.Filter{
         id: "claimed_actor_id",
         field: :claimed_actor_id,
-        display_name: dgettext("dashboard_builds", "Reported identifier (unverified)"),
+        display_name: dgettext("dashboard_builds", "Reported name"),
         type: :text,
         operator: :==,
         value: ""
@@ -309,7 +309,7 @@ defmodule TuistWeb.XcodeBuildRunsLive do
           %Filter.Filter{
             id: "ran_by",
             field: :ran_by,
-            display_name: dgettext("dashboard_builds", "Verified user / CI"),
+            display_name: dgettext("dashboard_builds", "Ran by"),
             type: :option,
             searchable: true,
             options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),

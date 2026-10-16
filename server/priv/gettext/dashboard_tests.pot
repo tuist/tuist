@@ -958,9 +958,11 @@ msgstr ""
 msgid "Ran at"
 msgstr ""
 
+#: lib/tuist_web/live/test_case_live.ex:342
 #: lib/tuist_web/live/test_case_live.html.heex:1029
 #: lib/tuist_web/live/test_case_run_live.html.heex:147
 #: lib/tuist_web/live/test_run_live.html.heex:303
+#: lib/tuist_web/live/test_runs_live.ex:84
 #: lib/tuist_web/live/test_runs_live.html.heex:525
 #: lib/tuist_web/live/tests_live.html.heex:1012
 #, elixir-autogen, elixir-format
@@ -2620,18 +2622,6 @@ msgstr ""
 msgid "The run came from a checkout with uncommitted changes, so it measured code that isn't the commit's and its coverage was discarded."
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:317
-#: lib/tuist_web/live/test_runs_live.ex:59
-#, elixir-autogen, elixir-format
-msgid "Reported identifier (unverified)"
-msgstr ""
-
-#: lib/tuist_web/live/test_case_live.ex:342
-#: lib/tuist_web/live/test_runs_live.ex:84
-#, elixir-autogen, elixir-format
-msgid "Verified user / CI"
-msgstr ""
-
 #: lib/tuist_web/helpers/test_labels.ex:48
 #, elixir-autogen, elixir-format
 msgid "Application"
@@ -2667,4 +2657,10 @@ msgstr ""
 #: lib/tuist_web/live/coverage/components.ex:833
 #, elixir-autogen, elixir-format
 msgid "No complete commit on %{branch} in this period"
+msgstr ""
+
+#: lib/tuist_web/live/test_case_live.ex:317
+#: lib/tuist_web/live/test_runs_live.ex:59
+#, elixir-autogen, elixir-format
+msgid "Reported name"
 msgstr ""

@@ -30,7 +30,9 @@ defmodule TuistWeb.ModuleCacheLiveTest do
       {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache")
       html = render_async(lv, 5000)
       assert html =~ "developer-123"
-      assert html =~ "Unverified"
+      assert has_element?(lv, "[data-actor-source=reported] .noora-badge[data-color=neutral]", "developer-123")
+      assert has_element?(lv, "[data-actor-source=reported] .icon-tabler-device-laptop")
+      refute html =~ "Unverified"
     end
 
     test "displays analytics widgets", %{
