@@ -3503,9 +3503,12 @@ clickhouse:
       # Under the default object-storage bucket, then the namespace, so
       # environments sharing a bucket cannot restore over each other.
       prefix: clickhouse-backups
-      # Six hours. Long enough for a full of a dataset this size, short enough
-      # that a wedged backup does not block the next one indefinitely.
-      timeoutSeconds: 21600
+      # Twenty hours. Production's weekly full took 9 hours in 2026-W41 and 10
+      # in W42, growing with the dataset, and a Job that hits its deadline is
+      # recorded as failed while the server finishes the backup anyway. It
+      # stays under the 24 hours to the next run, so a wedged backup still ends
+      # before Tuesday's incremental looks for the week's full.
+      timeoutSeconds: 72000
       # Memory budget for the `backup` user the jobs run as, which is separate
       # from the application's `clickhouse.maxMemoryUsageForUserBytes`. Empty
       # leaves the user unbounded below the server's own ceiling.
