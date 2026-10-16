@@ -269,8 +269,9 @@ jobs:
       - name: Compile with dependency caching
         run: mix compile --warnings-as-errors
       # On main the build is instrumented for native coverage once here, so
-      # the coverage shards count without compiling every module for `cover`
-      # again. The floor plan uploads the same build; its shards don't count.
+      # the coverage shards, which count with TuistEx.Coverage (the server's
+      # `test_coverage` tool), don't each compile every module again. The
+      # floor plan uploads the same build; its shards don't count.
       - name: Build and plan current ClickHouse shards
         id: current
         run: |

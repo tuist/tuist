@@ -44,10 +44,12 @@ defmodule Mix.Tasks.Tuist.Test.Build do
 
   ## Coverage
 
-  `mix tuist.test --cover` counts lines with the runtime's native line
-  counters, recompiling the modules with them when they don't carry them yet.
-  With `--cover`, the project's modules and consolidated protocols are
-  recompiled once, here, so the shards don't each do it.
+  With `test_coverage: [tool: TuistEx.Coverage]`, `mix tuist.test --cover`
+  counts lines with the runtime's native line counters, recompiling the
+  modules with them when they don't carry them yet. With `--cover`, the
+  project's modules and consolidated protocols are recompiled once, here, so
+  the shards don't each do it. A project with another coverage tool has
+  nothing to instrument, and `--cover` only warns.
 
   ## Output
 
@@ -104,6 +106,8 @@ defmodule Mix.Tasks.Tuist.Test.Build do
 
     Mix.Task.run("compile", compile_args)
 
+    cover? = cover? and instrumentable?()
+
     if cover? do
       {count, skipped} =
         Coverage.instrument([Mix.Project.compile_path(), Mix.Project.consolidation_path()])
@@ -137,6 +141,22 @@ defmodule Mix.Tasks.Tuist.Test.Build do
 
     write_matrix(reference, shards)
     :ok
+  end
+
+  defp instrumentable? do
+    case Coverage.tool() do
+      TuistEx.Coverage ->
+        true
+
+      tool ->
+        Mix.shell().info(
+          "warning: --cover instruments the build for TuistEx.Coverage, but this project " <>
+            "counts coverage with #{inspect(tool || Mix.Tasks.Test.Coverage)}, so nothing was " <>
+            "instrumented. Set `test_coverage: [tool: TuistEx.Coverage]` in mix.exs to count natively."
+        )
+
+        false
+    end
   end
 
   defp pop_flag(args, flag), do: {flag not in args, List.delete(args, flag)}

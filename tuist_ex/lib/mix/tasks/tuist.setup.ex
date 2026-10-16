@@ -9,6 +9,13 @@ defmodule Mix.Tasks.Tuist.Setup do
   Preserves project settings and aliases, including Phoenix test preparation.
   Unsupported custom compile/test actions need manual integration. Commit the updated mix.exs so CI and fresh checkouts use
   the same setup, then continue using mix compile and mix test.
+
+  It also sets `TuistEx.Coverage` as the project's coverage tool
+  (`test_coverage: [tool: TuistEx.Coverage]`), keeping the other
+  `test_coverage` options, so `mix test --cover` counts with the runtime's
+  native line counters. A project that already sets a tool, such as
+  excoveralls, keeps it. An umbrella runs each application's tests with that
+  application's options, so set the tool in each application's `mix.exs`.
   """
 
   use Mix.Task
@@ -57,5 +64,12 @@ defmodule Mix.Tasks.Tuist.Setup do
           Mix.raise(message)
       end
     end)
+
+    if Mix.Project.umbrella?() do
+      Mix.shell().info(
+        "To count coverage natively, set `test_coverage: [tool: TuistEx.Coverage]` " <>
+          "in each application's mix.exs."
+      )
+    end
   end
 end

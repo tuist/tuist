@@ -28,6 +28,16 @@ defmodule TuistEx.Analytics.Coverage do
   def requested?(test_args), do: "--cover" in test_args
 
   @doc """
+  The coverage tool the project sets, or nil for Mix's default.
+  """
+  def tool(config \\ Mix.Project.config()) do
+    case config[:test_coverage] do
+      options when is_list(options) -> options[:tool]
+      _ -> nil
+    end
+  end
+
+  @doc """
   Whether the run's own arguments left tests out on purpose: a filter, or
   explicit test files or lines.
   """
@@ -98,6 +108,30 @@ defmodule TuistEx.Analytics.Coverage do
           functions: functions(Enum.flat_map(modules, &elem(&1, 3)), lines, calls)
         }
       end)
+    end
+  end
+
+  @doc """
+  Whether each executable line of each of the project's modules ran, by
+  module, as Mix's coverage tool summarizes them: Mimic's copies count as
+  their originals, and the modules the configuration ignores are left out.
+  """
+  def module_lines(config \\ Mix.Project.config()) do
+    ignored = get_in(config, [:test_coverage, :ignore_modules]) || []
+
+    case line_entries(config) do
+      nil ->
+        %{}
+
+      {entries, _calls} ->
+        entries
+        |> Enum.reject(fn {{_module, line}, _count} -> line == 0 end)
+        |> Enum.reduce(%{}, fn {{module, line}, count}, acc ->
+          Map.update(acc, original(module), %{line => count > 0}, fn lines ->
+            Map.update(lines, line, count > 0, &(&1 or count > 0))
+          end)
+        end)
+        |> Map.reject(fn {module, _lines} -> ignored?(module, ignored) end)
     end
   end
 
@@ -203,12 +237,18 @@ defmodule TuistEx.Analytics.Coverage do
   end
 
   @doc """
+  Whether the runtime can count lines natively, which needs the JIT.
+  """
+  def native_supported?, do: :code.coverage_support()
+
+  @doc """
   Switches the runtime to native line counters and loads the modules of the
   build in `ebin` with them, so a run needs no `+JPcover` flag. The mode set
   after boot applies only to code loaded explicitly, not to modules loaded on
   demand, so every module is loaded here, before the application starts; one
   loaded earlier is loaded again, unless a process still runs its previous
-  version. False where the runtime cannot count natively, which needs the JIT.
+  version, and one that already counts starts again from zero, as each
+  application of an umbrella starts `cover` again. False where the runtime cannot count natively, which needs the JIT.
   """
   def enable_native(ebin) do
     if :code.coverage_support() and :code.get_coverage_mode() == :none,
@@ -225,7 +265,7 @@ defmodule TuistEx.Analytics.Coverage do
   defp load_native(module) do
     cond do
       :code.is_loaded(module) == false -> :code.load_file(module)
-      :code.get_coverage_mode(module) != :none -> :ok
+      :code.get_coverage_mode(module) != :none -> :code.reset_coverage(module)
       :code.soft_purge(module) -> :code.load_file(module)
       true -> :ok
     end
@@ -273,7 +313,8 @@ defmodule TuistEx.Analytics.Coverage do
 
   @doc """
   A shard's arguments for `mix test`, exporting its coverage when it is
-  measured and nothing exports it yet. Mix's coverage tool would otherwise
+  measured and nothing exports it yet, for a project whose tool is not
+  `TuistEx.Coverage`, which handles shards itself. Mix's coverage tool would otherwise
   hold a shard, which runs only part of the suite, to the whole project's
   threshold (90% unless configured) and write its report there. Tuist reads
   the counters itself, so what Mix exports, under `cover/shard-<index>`, is
@@ -290,16 +331,6 @@ defmodule TuistEx.Analytics.Coverage do
       do: test_args ++ ["--export-coverage", "shard-#{index}"],
       else: test_args
   end
-
-  @doc """
-  The arguments for `mix test` without Mix's own coverage tool, which a run
-  counting natively does not need: it would compile every module again.
-  """
-  def without_cover(["--cover" | rest]), do: without_cover(rest)
-  def without_cover(["--export-coverage", _name | rest]), do: without_cover(rest)
-  def without_cover(["--export-coverage=" <> _name | rest]), do: without_cover(rest)
-  def without_cover([arg | rest]), do: [arg | without_cover(rest)]
-  def without_cover([]), do: []
 
   # The modules the project's coverage configuration leaves out, as Mix's
   # coverage tool reads `ignore_modules`: a module, or a pattern its name

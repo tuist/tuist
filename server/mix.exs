@@ -13,6 +13,7 @@ defmodule Tuist.MixProject do
       releases: releases(),
       aliases: aliases(),
       tuist: [project: "tuist/server", cache: true],
+      test_coverage: [tool: TuistEx.Coverage],
       deps: deps(),
       compilers: compilers(Mix.env()),
       phoenix_live_view: [colocated_assets: [node_modules_path: "node_modules"]],

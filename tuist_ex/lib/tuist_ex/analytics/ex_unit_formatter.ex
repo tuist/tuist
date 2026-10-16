@@ -35,10 +35,6 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     merged =
       run_options(Keyword.new(opts), Application.get_env(:tuist_ex, :analytics_options, []))
 
-    # ExUnit starts its formatters once the test helper has run and before
-    # any test does, which is when a run of an instrumented build gets ready.
-    if Keyword.get(merged, :coverage_native, false), do: prepare_native(merged)
-
     {:ok,
      %{
        tests: [],
@@ -114,15 +110,6 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   end
 
   def handle_cast(_message, state), do: {:noreply, state}
-
-  defp prepare_native(opts) do
-    Coverage.prepare_native()
-  rescue
-    exception ->
-      Keyword.get(opts, :shell, &Report.debug/1).(
-        "tuist analytics: could not ready native coverage: #{Exception.message(exception)}"
-      )
-  end
 
   # Every test has run by now, and `cover` still holds this suite's counters:
   # Mix turns them into its own report, and an umbrella restarts `cover` for

@@ -37,24 +37,22 @@ defmodule Mix.Tasks.Tuist.Test do
   process. Then use `--no-download` to run the shard against that prepared
   build. Both options require a shard index.
 
-  On a shard that uses Mix's coverage tool (see "Coverage"), the tool exports
-  the coverage (`--export-coverage shard-<index>`, unless one is given)
-  instead of holding the shard to the project's threshold.
+  On a shard that measures coverage with a tool other than `TuistEx.Coverage`,
+  the coverage is exported (`--export-coverage shard-<index>`, unless one is
+  given) instead of holding the shard to the project's threshold.
 
   `--scheme LABEL` names an execution variant in analytics, such as a database
   version. Variants with different labels are not compared as flaky reruns.
 
   ## Coverage
 
-  With `--cover`, the run's line coverage is reported with it. The task
-  compiles the project, recompiles the modules a compile wrote since the last
-  run with the runtime's native line counters (a build
-  `mix tuist.test.build --cover` made needs none), switches the counters on
-  and counts with them. Mix's coverage tool, which would compile every module
-  for `cover` again, is left out, and with it its report and threshold; only
-  the modules Mimic copies are cover compiled. An umbrella's root, a project
-  that sets its own `test_coverage` tool, such as excoveralls, and a runtime
-  without the JIT, which cannot count natively, use Mix's coverage tool.
+  With `--cover`, the run's line coverage is reported with it. `--cover`
+  reaches `mix test` as given, so the project's coverage tool counts: Tuist
+  reads the counters once the suite finishes, whichever tool it is.
+  `TuistEx.Coverage`, which `mix tuist.setup` configures, counts with the
+  runtime's native line counters; Mix's default tool and others, such as
+  excoveralls, count with Erlang's `cover`. A project on Mix's default tool
+  is told how to switch.
 
   ## Retrying failed tests
 
@@ -112,10 +110,10 @@ defmodule Mix.Tasks.Tuist.Test do
             coverage_partial: Coverage.partial?(test_args)
           )
 
+        if options[:coverage] and options[:prepare_only] != true, do: note_coverage_tool()
+
         case shard(options, test_args) do
           {options, test_args} ->
-            {options, test_args} = native_coverage(options, test_args)
-
             if options[:prepare_only] do
               :ok
             else
@@ -182,7 +180,11 @@ defmodule Mix.Tasks.Tuist.Test do
         # Forwarded arguments are kept as given, in order: repeated options
         # such as `--include a --include b` mean something.
         {test_args, files} = Shards.restrict(test_args, files)
-        test_args = Coverage.with_shard_export(test_args, index)
+
+        test_args =
+          if Coverage.tool() == TuistEx.Coverage,
+            do: test_args,
+            else: Coverage.with_shard_export(test_args, index)
 
         if files == [] and options[:prepare_only] != true do
           Mix.shell().info("Tuist: shard #{index} of #{reference} has no tests to run.")
@@ -219,49 +221,15 @@ defmodule Mix.Tasks.Tuist.Test do
     end
   end
 
-  # A run with coverage counts with the runtime's native line counters,
-  # without Mix's coverage tool, which would compile every module for `cover`
-  # again. The project is compiled first, as `mix test` would, and what the
-  # compile wrote is instrumented: a build `mix tuist.test.build --cover`
-  # instrumented needs nothing. An umbrella's root, whose children each run
-  # their own suite, a project that sets its own coverage tool, such as
-  # excoveralls, which reads `cover`, and a runtime that cannot count
-  # natively keep Mix's tool.
-  defp native_coverage(options, test_args) do
-    cond do
-      options[:coverage] != true or options[:prepare_only] == true or Mix.Project.umbrella?() ->
-        {options, test_args}
-
-      get_in(Mix.Project.config(), [:test_coverage, :tool]) not in [nil, Mix.Tasks.Test.Coverage] ->
-        {options, test_args}
-
-      not :code.coverage_support() ->
-        Mix.shell().info(
-          "warning: this runtime cannot count coverage natively (it needs the JIT). " <>
-            "Mix's coverage tool runs instead."
-        )
-
-        {options, test_args}
-
-      true ->
-        if "--no-compile" not in test_args do
-          Application.put_env(
-            :tuist_ex,
-            :analytics_options,
-            Keyword.take(options, [:url, :project])
-          )
-
-          Mix.Task.run("compile", test_args -- ["--warnings-as-errors"])
-        end
-
-        compile_path = Mix.Project.compile_path()
-        Coverage.instrument([compile_path, Mix.Project.consolidation_path()])
-
-        if Coverage.enable_native(compile_path) do
-          {Keyword.put(options, :coverage_native, true), Coverage.without_cover(test_args)}
-        else
-          {options, test_args}
-        end
+  # A project still on Mix's default tool compiles every module for `cover`
+  # on every run. One that chose it, or another tool, said so in `mix.exs`.
+  defp note_coverage_tool do
+    if not Mix.Project.umbrella?() and Coverage.tool() == nil do
+      Mix.shell().info(
+        "Tuist: Mix's coverage tool compiles every module for `cover` on every run. " <>
+          "Set `test_coverage: [tool: TuistEx.Coverage]` in mix.exs (mix tuist.setup does) " <>
+          "to count natively instead."
+      )
     end
   end
 

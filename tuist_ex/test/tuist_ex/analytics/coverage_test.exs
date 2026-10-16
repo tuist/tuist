@@ -424,16 +424,11 @@ defmodule TuistEx.Analytics.CoverageTest do
     end
   end
 
-  describe "without_cover/1" do
-    test "leaves Mix's coverage tool out and keeps everything else" do
-      assert Coverage.without_cover([
-               "--cover",
-               "--export-coverage",
-               "shard",
-               "--warnings-as-errors",
-               "--export-coverage=other",
-               "test/a_test.exs"
-             ]) == ["--warnings-as-errors", "test/a_test.exs"]
+  describe "tool/1" do
+    test "is the tool the project sets, or nil for Mix's default" do
+      assert Coverage.tool(test_coverage: [tool: TuistEx.Coverage]) == TuistEx.Coverage
+      assert Coverage.tool(test_coverage: [summary: false]) == nil
+      assert Coverage.tool([]) == nil
     end
   end
 
