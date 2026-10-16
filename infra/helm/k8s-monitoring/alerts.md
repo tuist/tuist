@@ -3268,21 +3268,22 @@ release is up. This alert is the readiness probe the platform can't
 give us, expressed in the metrics pipeline instead.
 
 ```promql
-(
-  sum by (cluster, env) (up{job="tuist-macos-pod-metrics"}) == 0
-)
-and
-(
-  count by (cluster, env) (up{job="tuist-macos-pod-metrics"}) > 0
-)
+count by (cluster, env) (up{job="tuist-macos-pod-metrics"} == 0)
+unless on (cluster, env)
+sum by (cluster, env) (up{job="tuist-macos-pod-metrics"} == 1)
 ```
 
 - Pending period: 10 minutes
 - Severity: critical
+- Grafana rule: `dg1ejbdu0vwu8e`
 - Summary: `No xcresult processor is serving metrics in
   {{ $labels.cluster }}. The queue consumer is down fleet-wide`
 
-The second clause keeps this distinct from `xcresult processor guest
+Both rules are written to return a positive value when firing. Grafana
+rules here use a `> 0` threshold, and an expression ending in `== 0`
+returns 0 exactly when it matches, so it never fires.
+
+The `unless` keeps this distinct from `xcresult processor guest
 telemetry missing` below: it fires only when targets exist and every one
 of them is down, never when the job vanished from discovery.
 
@@ -3297,13 +3298,16 @@ minutes despite a single VM cycle legitimately taking up to
 ### xcresult processor guest metrics unavailable on one host
 
 ```promql
-min by (cluster, env, instance) (
-  min_over_time(up{job="tuist-macos-pod-metrics"}[5m])
-) == 0
+(
+  1 - min by (cluster, env, instance) (
+    min_over_time(up{job="tuist-macos-pod-metrics"}[5m])
+  )
+) > 0
 ```
 
 - Pending period: 45 minutes
 - Severity: warning
+- Grafana rule: `dg1ejbvirpslcc`
 - Summary: `xcresult processor on {{ $labels.instance }} is not serving
   metrics. The fleet is running below capacity`
 
