@@ -6,14 +6,17 @@ only `CONFIG_KVM_GUEST` and have no module support, so a Kata guest can
 never expose `/dev/kvm` without this kernel.
 
 - `kvm.conf` is the only delta: `CONFIG_VIRTUALIZATION`, `CONFIG_KVM`,
-  `CONFIG_KVM_AMD`, `CONFIG_KVM_INTEL`, all `=y`.
+  `CONFIG_KVM_AMD`, `CONFIG_KVM_INTEL` and `CONFIG_KVM_IOAPIC`, all `=y`.
+  Kata merges fragments onto allnoconfig, so every KVM sub-option the
+  fragment does not name is off; without `KVM_IOAPIC`, `KVM_CREATE_IRQCHIP`
+  fails with ENOTTY and an emulator stalls before booting (revision 1).
 - `build.sh <out>` clones the Kata release in `release.env`, drops the
   fragment into `tools/packaging/kernel/configs/fragments/x86_64/`, and runs
   `build-kernel.sh` with the flags kata-static uses for the default x86_64
   kernel (`-x -m`). `build-kernel.sh` fails when a requested symbol is not
-  in the final `.config`, and the script checks the four symbols again.
-- `check-kvm.sh` runs inside a Kata container given `/dev/kvm` and creates
-  a VM as root and as `nobody`.
+  in the final `.config`, and the script checks the five symbols again.
+- `check-kvm.sh` runs inside a Kata container given `/dev/kvm` and, as root
+  and as `nobody`, creates a VM, its in-kernel irqchip and a vCPU.
 - `.github/workflows/kata-kvm-kernel.yml` builds on PRs, verifies on a
   GitHub-hosted runner (a nested-virtualization VM) by booting a Kata
   container on the new kernel, and on `main` publishes

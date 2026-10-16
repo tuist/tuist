@@ -24,7 +24,7 @@ args=(-a x86_64 -v "$kernel_version" -f -u https://cdn.kernel.org/pub/linux/kern
 (cd "$kernel_dir" && ./build-kernel.sh "${args[@]}" setup && ./build-kernel.sh "${args[@]}" build)
 
 build_dir="$(ls -d "$kernel_dir"/kata-linux-"${kernel_version#v}"-"$config_version")"
-for symbol in CONFIG_VIRTUALIZATION CONFIG_KVM CONFIG_KVM_AMD CONFIG_KVM_INTEL; do
+for symbol in CONFIG_VIRTUALIZATION CONFIG_KVM CONFIG_KVM_AMD CONFIG_KVM_INTEL CONFIG_KVM_IOAPIC; do
   grep -qx "$symbol=y" "$build_dir/.config" || { echo "$symbol missing from the built kernel" >&2; exit 1; }
 done
 

@@ -35,7 +35,7 @@ const (
 
 	// kataKVMKernelRelease is the `kata-kvm-kernel@` release installed. It
 	// must be built from kataVersion's packaging (TestKataKVMKernelMatchesKataVersion).
-	kataKVMKernelRelease = "3.30.0-1"
+	kataKVMKernelRelease = "3.30.0-2"
 	kataKVMKernelDir     = "/opt/kata/share/kata-containers"
 	kataKVMKernelLink    = kataKVMKernelDir + "/vmlinux-tuist-kvm.container"
 	kataKVMDropIn        = "/opt/kata/share/defaults/kata-containers/config.d/50-tuist-kvm.toml"
