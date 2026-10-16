@@ -396,11 +396,15 @@ STUB
 echo "nft $*" >> "$FAKE_LOG"
 cat >> "$FAKE_LOG"
 STUB
+    cat > "$dir/ethtool" <<'STUB'
+#!/bin/sh
+echo "ethtool $*" >> "$FAKE_LOG"
+STUB
     cat > "$dir/cat" <<'STUB'
 #!/bin/sh
 if [ "$1" = /proc/sys/net/ipv4/ip_forward ]; then echo "${FAKE_FORWARD:-1}"; else exec /bin/cat "$@"; fi
 STUB
-    chmod +x "$dir/ip" "$dir/nft" "$dir/cat"
+    chmod +x "$dir/ip" "$dir/nft" "$dir/ethtool" "$dir/cat"
     : > "$dir/log"
 }
 
@@ -751,6 +755,18 @@ STUB
     [[ "$output" == *"ber1-store-a is not one of the site's edges"* ]]
     run cat "$bin/log"
     [[ "$output" != *"vrrp0"* ]]
+}
+
+@test "the rendered edge path gives both uplinks 4096-descriptor rings before a bond takes them" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    bin="$BATS_TEST_TMPDIR/edge-rings"
+    edge_run_stub "$bin"
+    fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" NODE_NAME=ber1-edge-a sh "$bin/mgmt-path.sh"
+    [ "$status" -eq 0 ]
+    [ "$(grep -c '^ethtool ' "$bin/log")" -eq 2 ]
+    [ "$(grep -n '^ethtool -G enp2s0f1np1 rx 4096 tx 4096$' "$bin/log" | cut -d: -f1)" -lt "$(grep -n ' master ' "$bin/log" | head -1 | cut -d: -f1)" ]
+    [ "$(grep -n '^ethtool -G enp2s0f0np0 rx 4096 tx 4096$' "$bin/log" | cut -d: -f1)" -lt "$(grep -n ' master ' "$bin/log" | head -1 | cut -d: -f1)" ]
 }
 
 @test "the rendered edge path refuses a port that carries the node's default route" {
