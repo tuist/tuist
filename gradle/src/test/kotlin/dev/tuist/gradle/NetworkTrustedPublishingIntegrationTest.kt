@@ -49,9 +49,14 @@ class NetworkTrustedPublishingIntegrationTest {
                 parentFile.mkdirs()
                 writeText("public class ExampleTest { @org.junit.Test public void reports() { org.junit.Assert.assertTrue(true); } }")
             }
-            val environment = System.getenv().filterKeys { it !in setOf("TUIST_TOKEN", "TUIST_URL", "TUIST_CACHE_ENDPOINT", "TUIST_NETWORK_TRUSTED_PUBLISHING") } + mapOf(
+            val git = GitRepositoryFixture()
+            git.init(directory)
+            git.commit(directory, "unsigned CI fixture")
+            git.git(directory, "remote", "add", "origin", "https://example.invalid/unsigned.git")
+            val environment = System.getenv().filterKeys { it !in setOf("TUIST_TOKEN", "TUIST_URL", "TUIST_CACHE_ENDPOINT", "TUIST_NETWORK_TRUSTED_PUBLISHING") } + git.environment + mapOf(
                 "TUIST_XDG_CONFIG_HOME" to File(directory, "config").path,
-                "XDG_STATE_HOME" to File(directory, "state").path, "TUIST_ACTOR_ID" to "employee-123", "CI" to "true"
+                "XDG_STATE_HOME" to File(directory, "state").path, "TUIST_ACTOR_ID" to "employee-123", "CI" to "true",
+                "TUIST_GIT_UPLOAD_ENABLED" to "true"
             )
             val result = GradleRunner.create().withProjectDir(directory).withPluginClasspath().withGradleVersion("9.2.1")
                 .withEnvironment(environment).withArguments("test", "--no-watch-fs", "--stacktrace").build()
@@ -70,6 +75,11 @@ class NetworkTrustedPublishingIntegrationTest {
             assertTrue(body.contains("ExampleTest"), body)
             assertTrue(!body.contains("gradle_build_id"), body)
             assertTrue(!body.contains("shard_plan_id"), body)
+            for (field in listOf("base_branch", "merge_base_sha", "is_pull_request", "pull_request_number",
+                "git_object_format", "history_source", "history_fallback_reason")) {
+                assertTrue(!body.contains("\"$field\""), body)
+            }
+            assertNull(requests.poll(1, TimeUnit.SECONDS), "Unsigned CI must not upload Git history")
         }
     }
 

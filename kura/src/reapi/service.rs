@@ -4250,10 +4250,12 @@ struct BatchUpdateItem {
 ///
 /// A compressed item admits its declared decoded length before decoding and
 /// keeps that permit until its persist returns, so the batch never holds more
-/// decoded bytes than the transient pool admitted. Admission is try-only: the
-/// request already holds its decode reservation from the same pool, so waiting
-/// here would be hold-and-wait. An item that cannot be admitted fails alone
-/// with RESOURCE_EXHAUSTED; identity items borrow the admitted request.
+/// decoded bytes than the transient pool admitted. Like the request's own
+/// decoding, it borrows ceiling headroom above a full floor. Admission is
+/// try-only: the request already holds its decode reservation from the same
+/// pool, so waiting here would be hold-and-wait. An item that cannot be
+/// admitted fails alone with RESOURCE_EXHAUSTED; identity items borrow the
+/// admitted request.
 async fn update_batch_blob(
     state: &SharedState,
     namespace_id: &str,
@@ -4285,11 +4287,12 @@ async fn update_batch_blob(
                     return rejected(Some(digest), rpc_status_from_grpc_status(&status));
                 }
             };
-            let admission = match state.memory.try_acquire_reapi_materialization(declared) {
+            let admission = match state.memory.try_acquire_reapi_write_decode(declared) {
                 Ok(admission) => admission,
                 Err(()) => {
-                    // Decoding an upload is write decoding: a full pool here is
-                    // write backpressure, filed apart from the read sheds.
+                    // Decoding an upload is write decoding: a full floor and
+                    // headroom here is write backpressure, filed apart from the
+                    // read sheds.
                     if declared > state.memory.reapi_materialization_limit_bytes() {
                         record_materialization_rejection(state, shed_kind::REAPI_REQUEST_BUDGET);
                     } else {
@@ -4302,7 +4305,7 @@ async fn update_batch_blob(
                         Some(digest),
                         rpc_status(
                             8,
-                            "compressed blob was rejected because the concurrent REAPI materialization pool cannot hold its decoded size",
+                            "compressed blob was rejected because the server's write decoding memory cannot hold its decoded size; retry the write",
                         ),
                     );
                 }
@@ -12878,6 +12881,21 @@ mod tests {
         held
     }
 
+    /// Takes all of the ceiling headroom, so nothing can borrow above the
+    /// floor. Call with the floor held.
+    fn hold_ceiling_headroom(
+        memory: &crate::memory::MemoryController,
+    ) -> crate::memory::ForegroundMemoryReservation {
+        let headroom = memory
+            .try_reserve_elastic_foreground_memory(memory.elastic_transient_capacity_bytes())
+            .expect("the ceiling headroom is free");
+        assert_eq!(
+            memory.elastic_transient_reserved_bytes(),
+            memory.elastic_transient_capacity_bytes()
+        );
+        headroom
+    }
+
     /// A write admission whose reservation is all borrowed ceiling headroom,
     /// which is what write decoding holds when it arrives at a full floor.
     fn borrowing_write_admission(
@@ -13150,8 +13168,8 @@ mod tests {
         drop(floor);
     }
 
-    // Decoding a compressed upload item is write decoding, so a full pool
-    // refusing it is write backpressure. Counting it as a response
+    // Decoding a compressed upload item is write decoding, so a full floor and
+    // headroom refusing it is write backpressure. Counting it as a response
     // materialization shed pages the remote-execution reads alert for uploads.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn batch_update_counts_a_refused_compressed_item_as_write_decode_backpressure() {
@@ -13162,6 +13180,7 @@ mod tests {
         let mut client = ContentAddressableStorageClient::new(channel);
         // Room for the request and its reply, not for the decoded item.
         let floor = hold_floor_pool_leaving(&context.state.memory, 16 * 1024);
+        let headroom = hold_ceiling_headroom(&context.state.memory);
 
         let blob = vec![0x42_u8; 64 * 1024];
         let encoded = zstd::stream::encode_all(blob.as_slice(), 3).expect("encode");
@@ -13189,6 +13208,60 @@ mod tests {
         );
         assert_write_decode_sheds(&context, 1);
         assert_materialization_metrics(&context, 0, 0, 0);
+
+        drop(headroom);
+        drop(floor);
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    // Decoding a compressed upload item is write decoding, and write decoding
+    // borrows the ceiling headroom above a full floor. Its permit is released
+    // when the item persists, so the borrow is bounded server-side.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn batch_update_decodes_a_compressed_item_on_ceiling_headroom_above_a_full_floor() {
+        use reapi::content_addressable_storage_client::ContentAddressableStorageClient;
+
+        let context = test_context(|config| with_floor_pool(config, 64 * 1024 * 1024)).await;
+        let (channel, shutdown_tx, server) = connect_test_routes(context.state.clone()).await;
+        let mut client = ContentAddressableStorageClient::new(channel);
+        // Room for the request and its reply, not for the decoded item.
+        let floor = hold_floor_pool_leaving(&context.state.memory, 16 * 1024);
+
+        let blob = vec![0x43_u8; 64 * 1024];
+        let encoded = zstd::stream::encode_all(blob.as_slice(), 3).expect("encode");
+        let response = client
+            .batch_update_blobs(reapi::BatchUpdateBlobsRequest {
+                instance_name: "ios".into(),
+                requests: vec![reapi::batch_update_blobs_request::Request {
+                    digest: Some(digest_of(&blob)),
+                    data: encoded,
+                    compressor: reapi::compressor::Value::Zstd as i32,
+                }],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+            })
+            .await
+            .expect("the batch is answered")
+            .into_inner();
+
+        assert_eq!(
+            response
+                .responses
+                .iter()
+                .map(|response| response.status.as_ref().map(|status| status.code))
+                .collect::<Vec<_>>(),
+            vec![Some(0)]
+        );
+        assert!(stored_blob(&context, &blob));
+        assert_decode_borrowed_ceiling_headroom(&context);
+        assert_write_decode_sheds(&context, 0);
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while context.state.memory.elastic_transient_reserved_bytes() != 0 {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the borrowed headroom is returned once the item persists");
 
         drop(floor);
         let _ = shutdown_tx.send(());

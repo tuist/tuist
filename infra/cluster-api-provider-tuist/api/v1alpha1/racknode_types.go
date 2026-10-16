@@ -49,6 +49,22 @@ type RackNodeConfig struct {
 
 	// Kubelet is the exact kubelet release installed, never downgraded.
 	Kubelet RackNodeKubelet `json:"kubelet"`
+
+	// ClusterNodeSets are nftables sets the node agent keeps equal to the
+	// IPv4 InternalIPs of the cluster's Cilium nodes, every apply and
+	// whenever they change. The addresses are not in the configuration, so a
+	// node joining or leaving the cluster changes no hash and restarts nothing
+	// here. A file in Nftables declares each set without flushing it.
+	// +optional
+	ClusterNodeSets []RackNodeNftSet `json:"clusterNodeSets,omitempty"`
+}
+
+// RackNodeNftSet names an nftables set of IPv4 addresses.
+type RackNodeNftSet struct {
+	// +kubebuilder:validation:Enum=ip;inet
+	Family string `json:"family"`
+	Table  string `json:"table"`
+	Name   string `json:"name"`
 }
 
 // RackNodeFile is one file on a rack node. Group names what a change to it

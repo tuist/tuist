@@ -549,7 +549,11 @@ abstract class TuistStressNewTestsTask : DefaultTask() {
 
         val gate = StressNewTestsGate(
             mode = mode.get(),
-            plan = planService::plan,
+            plan = { testCases ->
+                // The plan reads which commits the default branch reached, which this run may be the first to have seen.
+                service.publishGitHistory()
+                planService.plan(testCases)
+            },
             runRepetition = ::runRepetition,
             logger = logger
         )
