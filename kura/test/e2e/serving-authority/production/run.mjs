@@ -6,7 +6,14 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import { verifyBodyFrame } from "./body-frame.mjs";
-import { profile, bodyHash, bodyChunks, seedBatches } from "./profile.mjs";
+import {
+  profile,
+  bodyHash,
+  bodyChunks,
+  seedBatches,
+  missingShape,
+  fragmentationReady,
+} from "./profile.mjs";
 import { field, number, frame, request } from "./protocol.mjs";
 
 const config = JSON.parse(fs.readFileSync("/fixture/config.json"));
@@ -115,7 +122,7 @@ async function index(i) {
   } while (after);
   return entries;
 }
-async function seedFiller(ns, bytes, replicas, version) {
+async function seedFiller(ns, bytes, replicas, version, stop) {
   for (let offset = 0, n = 0; offset < bytes; offset += p.fillerSize, n++) {
     const size = Math.min(p.fillerSize, bytes - offset),
       id = `${ns}-${n}`;
@@ -134,7 +141,9 @@ async function seedFiller(ns, bytes, replicas, version) {
     );
     if (n % 16 === 0)
       progress(`seed-${ns}`, { bytes: offset + size, total: bytes });
+    if (stop && (await stop(offset + size))) return offset + size;
   }
+  return bytes;
 }
 let collecting = false,
   collector,
@@ -271,7 +280,34 @@ try {
       assert.equal(r.status, 204);
       await r.arrayBuffer();
     }
-    await seedFiller("divergence", p.divergenceBytes, [1], 1);
+    result.divergenceBytes = await seedFiller(
+      "divergence",
+      p.divergenceBytes,
+      [1],
+      1,
+      async (bytes) => {
+        if (
+          p.name !== "production" ||
+          (bytes % 1024 ** 3 !== 0 && bytes !== p.divergenceBytes)
+        )
+          return false;
+        const present = new Set(
+          (await index(1)).map((record) => record.record_id),
+        );
+        const shape = missingShape(records, present);
+        const sample = { time: Date.now(), bytes, ...shape };
+        fs.appendFileSync(
+          "/fixture/calibration.jsonl",
+          JSON.stringify(sample) + "\n",
+        );
+        progress("seed-divergence", { bytes, ...shape });
+        assert(
+          shape.missingBytes <= 5e9,
+          "fragmentation overshot its bounded deficit; refuse an invalid baseline",
+        );
+        return fragmentationReady(shape);
+      },
+    );
   }
   progress("upgrade_requested");
   await wait(
@@ -308,16 +344,13 @@ try {
   const sourceIds = new Set(before[0].map((r) => r.record_id));
   const targetIds = new Set(before[1].map((r) => r.record_id));
   const retained = records.filter((r) => sourceIds.has(r.record_id));
-  const missing = retained.filter((r) => !targetIds.has(r.record_id));
   result.shape = {
     sourceRows: before[0].length,
     targetRows: before[1].length,
     retainedBlobs: retained.length,
     retainedBytes: retained.reduce((n, r) => n + r.size, 0),
     largest: retained.reduce((max, r) => Math.max(max, r.size), 0),
-    missingBlobs: missing.length,
-    missingBytes: missing.reduce((n, r) => n + r.size, 0),
-    missingLargeBlobs: missing.filter((r) => r.size >= 750e6).length,
+    ...missingShape(retained, targetIds),
   };
   save("shape", result.shape);
   assert(

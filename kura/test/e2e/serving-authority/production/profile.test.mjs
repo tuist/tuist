@@ -1,7 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { profile, bodyChunks, bodyHash, classify } from "./profile.mjs";
+import {
+  profile,
+  bodyChunks,
+  bodyHash,
+  classify,
+  missingShape,
+  fragmentationReady,
+} from "./profile.mjs";
 
 test("production recipe preserves observed count, bytes and large-body tail", () => {
   const p = profile("production");
@@ -16,6 +23,24 @@ test("production recipe preserves observed count, bytes and large-body tail", ()
   assert.equal(p.capacity, 57804891095);
   assert.deepEqual(p.sizes, profile("production").sizes);
   assert.throws(() => profile("prodution"));
+});
+
+test("fragmentation calibration measures retained holes and rejects an oversized or small-body-only deficit", () => {
+  const records = [0, 1, 2].map((n) => ({
+    record_id: String(n),
+    size: 814310767,
+  }));
+  records.push({ record_id: "small", size: 1000 });
+  const shape = missingShape(records, new Set(["small"]));
+  assert.deepEqual(shape, {
+    missingBlobs: 3,
+    missingBytes: 2442932301,
+    missingLargeBlobs: 3,
+  });
+  assert(fragmentationReady(shape));
+  assert(!fragmentationReady(missingShape(records, new Set(["0", "small"]))));
+  assert(!fragmentationReady({ ...shape, missingLargeBlobs: 0 }));
+  assert(!fragmentationReady({ ...shape, missingBytes: 5172665170 }));
 });
 
 test("streamed bodies have exact ragged lengths and stable distinct digests", () => {

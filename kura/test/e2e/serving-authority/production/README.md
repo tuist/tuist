@@ -57,7 +57,11 @@ bytes, plus 77,017 inline ActionResults referencing those blobs. Sizes follow th
 observed histogram, including three approximately 814 MB objects. Bodies and
 keys are deterministic synthetic data generated in bounded chunks, not copies
 of actual artifacts. The fragmented scenario first writes and tombstones 20 GiB
-of historical data and then writes 9 GiB of old destination-only data. This is
+of historical data and then writes up to 9 GiB of old destination-only data. It
+measures the missing retained bodies after each GiB and stops once the deficit
+reaches at least 2.4 GB, includes a largest body, and remains within the 5 GB
+ceiling. `calibration.jsonl` records every measurement and the actual filler
+amount is included in the result. This is
 a reproducible fragmentation recipe, not a copy of the production disk layout.
 The largest bodies are seeded first so they can fall into the oldest retained segments. Before measurement, the fragmented case requires 1–5 GB of missing bodies, including at least one approximately 814 MB body. A larger initial deficit could exhaust the deadline on transfer alone and is rejected as an invalid baseline. The fresh scenario omits that history and divergence.
 

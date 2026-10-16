@@ -14,6 +14,10 @@ extra destination storage to manufacture a passing production qualification.
 A smoke pass only verifies harness plumbing. Keep full-size corpus checks and
 strict expected-failure classification; a generic timeout is not the observed
 repair-churn failure. Never import actual record identifiers or artifact bodies.
+Calibrate the initial missing bytes on the warm standby and retain that evidence;
+never count a transfer-bound workload or relax the post-upgrade shape gate to
+manufacture the expected failure. The calibration changes only synthetic filler,
+not runtime resources, ring capacity or the handover deadline.
 
 Run `node --test profile.test.mjs` for recipe, streaming and failure-classification
 checks. Runtime runs must retain logs, exact images, corpus shape, authority

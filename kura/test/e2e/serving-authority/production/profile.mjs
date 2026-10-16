@@ -158,3 +158,20 @@ export function* seedBatches(sizes) {
   }
   if (batch.length) yield batch;
 }
+
+export function missingShape(records, present) {
+  const missing = records.filter((record) => !present.has(record.record_id));
+  return {
+    missingBlobs: missing.length,
+    missingBytes: missing.reduce((sum, record) => sum + record.size, 0),
+    missingLargeBlobs: missing.filter((record) => record.size >= 750e6).length,
+  };
+}
+
+export function fragmentationReady(shape) {
+  return (
+    shape.missingBytes >= 2.4e9 &&
+    shape.missingBytes <= 5e9 &&
+    shape.missingLargeBlobs >= 1
+  );
+}

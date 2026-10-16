@@ -59,6 +59,8 @@ const summary = {
   scenario: result.scenario,
   classification: result.classification ?? "unclassified",
   handoverMs: result.handoverMs,
+  receiptMs: result.receiptMs,
+  divergenceBytes: result.divergenceBytes,
   deadlineMs: 300000,
   shape: result.shape,
   error: result.error,
