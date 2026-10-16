@@ -36,6 +36,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.Coverage.Deltas
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.GapReasons
+  alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.TargetSources
   alias Tuist.Tests.Coverage.TestSources
@@ -1103,6 +1104,21 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   defp merged_query(project_id, ids, opts),
     do: Coverage.merged_files_query_for_runs(project_id, ids, Coverage.excluded(project_id, opts))
+
+  @doc """
+  The targets the commit's runs took from the binary cache without coverage
+  counters and no run of their scheme measured
+  (`Tuist.Tests.Coverage.Instrumentation.incomplete_targets/2`), by name:
+  what the Targets tab lists as not measured beside the measured ones.
+  """
+  def unmeasured_targets(project_id, sha) do
+    project_id
+    |> Instrumentation.incomplete_targets(runs(project_id, sha))
+    |> Map.values()
+    |> List.flatten()
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
 
   @doc """
   The commit's targets with their file count and line totals, least covered

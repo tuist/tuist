@@ -368,13 +368,24 @@ defmodule TuistWeb.Coverage.Components do
   (`Tuist.Tests.Coverage.Commits.incomplete?/1`).
   """
   def incomplete_title(commit) do
-    if :dirty_run_excluded in Commits.gap_reasons(commit),
-      do:
+    reasons = Commits.gap_reasons(commit)
+
+    cond do
+      :dirty_run_excluded in reasons ->
         dgettext(
           "dashboard_tests",
           "Some coverage only came from runs on a checkout with uncommitted changes, which don't count, so the actual coverage may be higher."
-        ),
-      else: skipped_title(commit)
+        )
+
+      :uninstrumented_code in reasons ->
+        dgettext(
+          "dashboard_tests",
+          "Some of the code the tests ran came from the binary cache as binaries built without coverage counters, so what they covered in it is unknown and the actual coverage may be higher. The Targets tab lists them as not measured."
+        )
+
+      true ->
+        skipped_title(commit)
+    end
   end
 
   defp skipped_title(%{reported_kind: "partial", skipped_tests_count: skipped, carried_tests_count: carried})
