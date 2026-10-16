@@ -68,8 +68,8 @@ struct CoverageBuildSourcesService {
     private func sources(targets: [CoverageBuildTarget]) async throws -> CoverageBuildSources? {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
-        guard let root = try await root(from: workingDirectory) else { return nil }
-        let files: [String: String] = if await gitController.isInGitRepository(workingDirectory: workingDirectory) {
+        guard let (root, inRepository) = try await root(from: workingDirectory) else { return nil }
+        let files: [String: String] = if inRepository {
             try await gitController.sourceFileBlobIds(
                 workingDirectory: root,
                 pathExtensions: UploadResultBundleService.coverageSourceExtensions
@@ -93,12 +93,13 @@ struct CoverageBuildSourcesService {
         )
     }
 
-    /// The checkout the coverage's files are relative to: the Git repository's top level, else the
-    /// directory the project's manifests root at. Nil outside any project.
-    func root(from directory: AbsolutePath) async throws -> AbsolutePath? {
+    /// The checkout the coverage's files are relative to, and whether it is a Git repository: the
+    /// repository's top level, else the directory the project's manifests root at. Nil outside any
+    /// project.
+    func root(from directory: AbsolutePath) async throws -> (root: AbsolutePath, inRepository: Bool)? {
         if await gitController.isInGitRepository(workingDirectory: directory) {
-            return try await gitController.topLevelGitDirectory(workingDirectory: directory)
+            return (try await gitController.topLevelGitDirectory(workingDirectory: directory), true)
         }
-        return try await rootDirectoryLocator.locate(from: directory)
+        return try await rootDirectoryLocator.locate(from: directory).map { ($0, false) }
     }
 }

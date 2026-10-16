@@ -16,6 +16,19 @@ struct InstrumentedBinaryCacheWarmTests {
         ])
     }
 
+    @Test func buildSettings_quoteARootWithWhitespaceSoItStaysOneArgument() {
+        let got = InstrumentedBinaryCacheWarm.buildSettings(sourceRoots: ["/Users/ci/My Projects/app"])
+
+        #expect(got.contains(
+            "TUIST_BINARY_CACHE_COVERAGE_SWIFT_FLAGS_YES=-Xllvm -instrprof-atomic-counter-update-all "
+                + "-coverage-prefix-map \"/Users/ci/My Projects/app=/TUIST_SOURCE_ROOT\""
+        ))
+        #expect(got.contains(
+            "TUIST_BINARY_CACHE_COVERAGE_CFLAGS_YES=-fprofile-update=atomic "
+                + "\"-fcoverage-prefix-map=/Users/ci/My Projects/app=/TUIST_SOURCE_ROOT\""
+        ))
+    }
+
     @Test func buildSettings_instrumentMarkedTargetsAndMapEverySpellingOfTheRoot() {
         let got = InstrumentedBinaryCacheWarm.buildSettings(sourceRoots: ["/tmp/checkout", "/private/tmp/checkout"])
 

@@ -7,9 +7,9 @@ import XCResultParser
 /// coverage counters so a `tuist test` run that collects coverage measures the cached code it links.
 ///
 /// The settings are passed on the xcodebuild command line, where they beat every project and target
-/// setting, and resolve through `InstrumentedBinaryCacheWarmGraphMapper`'s marker, which only
-/// repository-owned projects carry: external packages in the same build keep compiling plain, since
-/// coverage is never kept for their code and their binaries are stored under the plain key.
+/// setting, and resolve through `InstrumentedBinaryCacheWarmGraphMapper`'s marker, which only the
+/// repository's frameworks and libraries carry: external packages in the same build keep compiling
+/// plain, since coverage is never kept for their code and their binaries are stored under the plain key.
 ///
 /// `CLANG_COVERAGE_MAPPING` is what Xcode sets when a test action gathers coverage; it makes the
 /// compilers emit the coverage mapping and link the profile runtime. The counters are atomic, as
@@ -44,10 +44,10 @@ enum InstrumentedBinaryCacheWarm {
     static func buildSettings(sourceRoots: [String]) -> [String] {
         let marker = "$(\(markerSetting))"
         let swiftFlags = [AtomicCoverageCounters.swiftFlags] + sourceRoots.map {
-            "-coverage-prefix-map \($0)=\(sourceRootPlaceholder)"
+            "-coverage-prefix-map \(quoted("\($0)=\(sourceRootPlaceholder)"))"
         }
         let cFlags = [AtomicCoverageCounters.cFlags] + sourceRoots.map {
-            "-fcoverage-prefix-map=\($0)=\(sourceRootPlaceholder)"
+            quoted("-fcoverage-prefix-map=\($0)=\(sourceRootPlaceholder)")
         }
         return [
             "CLANG_COVERAGE_MAPPING=$(TUIST_BINARY_CACHE_COVERAGE_MAPPING_\(marker))",
@@ -58,5 +58,11 @@ enum InstrumentedBinaryCacheWarm {
             "OTHER_CFLAGS=$(inherited) $(TUIST_BINARY_CACHE_COVERAGE_CFLAGS_\(marker))",
             "TUIST_BINARY_CACHE_COVERAGE_CFLAGS_YES=\(cFlags.joined(separator: " "))",
         ]
+    }
+
+    /// `value` as one item of a build-setting list: Xcode splits a list on whitespace and keeps a
+    /// double-quoted item whole, so a checkout path with a space stays one argument.
+    private static func quoted(_ value: String) -> String {
+        value.contains(where: \.isWhitespace) ? "\"\(value.replacingOccurrences(of: "\"", with: "\\\""))\"" : value
     }
 }
