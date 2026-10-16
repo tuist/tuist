@@ -49,4 +49,4 @@ Do not bootstrap the npm package from a local machine. The first automated relea
   listeners once per hook lifetime rather than once per render.
 
 - Chart tooltips take `dateFormat: "day" | "week" | "month"` to title a point by the calendar period it stands for (its date is the period's start, formatted in UTC; a week reads as a range), besides `"minute"` and `"hour"`.
-- Charts humanize plain numeric tooltip values and value-axis labels from 10,000 upward using `formatNumber` (K/M/B/T, up to one decimal). Explicit unit formatters and category/time axes retain their formats; series values remain numeric.
+- Charts humanize plain numeric tooltip values and value-axis labels from 10,000 upward using `formatNumber` (K/M/B/T, up to one decimal). Percentage tooltip templates round to at most one decimal in both series rows and scatter titles without rounding the underlying data. Explicit unit formatters and category/time axes retain their formats; series values remain numeric.

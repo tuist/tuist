@@ -159,7 +159,11 @@ and enforces a 30-second client RPC deadline independently of the server.
 Remote caching uses the existing account endpoint discovery and project-scoped
 cache-token exchange. Kura reports signed action-cache and CAS analytics with
 `client_kind: "mix"`, the Mix build ID and dependency name. There is no separate
-Mix storage or analytics API. On OTP 28 and later, clients negotiate zstd with the
+Mix storage or analytics API. Clients request best-effort inlining of bundles up
+to 128 KiB in Kura's ActionCache response to avoid a second round trip. Endpoints
+that ignore these hints, larger bundles, and omitted contents use ByteStream.
+Both paths verify the bundle's declared size and SHA-256 before installation.
+On OTP 28 and later, clients negotiate zstd with the
 server for ByteStream transfers of at least 1 KiB. Incompressible uploads, older
 OTP runtimes and endpoints without compression use identity transport. CAS digests
 and reported transfer bytes always describe the uncompressed bundle. Set

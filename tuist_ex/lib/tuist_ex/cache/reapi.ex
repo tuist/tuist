@@ -23,6 +23,7 @@ defmodule TuistEx.Cache.Reapi do
 
   @timeout 30_000
   @chunk_bytes 64 * 1024
+  @inline_max_bytes 128 * 1024
 
   def with_session(options, invocation_id, analytics_options, callback) do
     reference = make_ref()
@@ -118,7 +119,10 @@ defmodule TuistEx.Cache.Reapi do
 
     options = [
       adapter: GRPC.Client.Adapters.Mint,
-      adapter_opts: [config_options: [hostname: uri.host], transport_opts: [timeout: 5_000]]
+      adapter_opts: [
+        config_options: [hostname: uri.host],
+        transport_opts: [timeout: 5_000, nodelay: true]
+      ]
     ]
 
     options =
@@ -196,17 +200,22 @@ defmodule TuistEx.Cache.Reapi do
 
     request = %GetActionResultRequest{
       instance_name: session.project,
-      action_digest: %Digest{hash: key}
+      action_digest: %Digest{hash: key},
+      inline_output_files: ["*", "tuist-inline-max-bytes:#{@inline_max_bytes}"]
     }
+
+    started = System.monotonic_time(:microsecond)
 
     with true <- connected?(session),
          {:ok,
           %ActionResult{
             exit_code: 0,
-            output_files: [%OutputFile{path: "dependency.bundle", digest: digest}]
+            output_files: [
+              %OutputFile{path: "dependency.bundle", digest: digest, contents: contents}
+            ]
           }} <- ActionCache.Stub.get_action_result(session.channel, request, opts),
          true <- valid_digest?(digest),
-         {:ok, binary, metrics} <- read_blob(session, digest, opts) do
+         {:ok, binary, metrics} <- read_output(session, digest, contents, opts, started) do
       {:ok, binary, Map.put(metrics, :output_digest, digest.hash)}
     else
       _ -> :miss
@@ -365,6 +374,25 @@ defmodule TuistEx.Cache.Reapi do
     write_chunks(stream, resource, rest, offset + @chunk_bytes)
   end
 
+  defp read_output(session, digest, "", opts, _started), do: read_blob(session, digest, opts)
+
+  defp read_output(session, digest, binary, _opts, started),
+    do: verified_blob(session, digest, binary, started)
+
+  defp verified_blob(session, digest, binary, started) do
+    if byte_size(binary) == digest.size_bytes and content_digest(binary) == digest.hash do
+      {:ok, binary,
+       %{
+         read_bytes: byte_size(binary),
+         read_duration_us: System.monotonic_time(:microsecond) - started,
+         read_source: "remote"
+       }}
+    else
+      close(session)
+      {:error, :invalid_blob}
+    end
+  end
+
   defp read_blob(session, digest, opts) do
     compressed? = session.zstd and Compression.eligible?(digest.size_bytes)
 
@@ -414,22 +442,9 @@ defmodule TuistEx.Cache.Reapi do
             do: Compression.decompress(wire, digest.size_bytes),
             else: wire
 
-        cond do
-          not is_nil(error) ->
-            {:error, error}
-
-          byte_size(binary) == digest.size_bytes and content_digest(binary) == digest.hash ->
-            {:ok, binary,
-             %{
-               read_bytes: byte_size(binary),
-               read_duration_us: System.monotonic_time(:microsecond) - started,
-               read_source: "remote"
-             }}
-
-          true ->
-            close(session)
-            {:error, :invalid_blob}
-        end
+        if is_nil(error),
+          do: verified_blob(session, digest, binary, started),
+          else: {:error, error}
       rescue
         _ ->
           close(session)

@@ -30,6 +30,7 @@ defmodule TuistEx.Cache.Reapi.GetActionResultRequest do
 
   field(:instance_name, 1, type: :string)
   field(:action_digest, 2, type: TuistEx.Cache.Reapi.Digest)
+  field(:inline_output_files, 5, repeated: true, type: :string)
 end
 
 defmodule TuistEx.Cache.Reapi.UpdateActionResultRequest do
