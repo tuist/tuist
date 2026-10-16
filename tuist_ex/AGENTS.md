@@ -101,6 +101,10 @@ threshold is uploaded first (`/tests/coverage/uploads`). Retries never carry
 `--cover`. `mix tuist.coverage.complete` signals the commit's coverage
 complete, as `tuist coverage complete` does. Tests that start or stop `cover`
 must leave a running cover server alone: under `mix test --cover` it is Mix's.
+On a pull request's merge ref (`refs/pull/N/merge`), `Env.git_commit_sha/2`
+reports HEAD^2, the pull request's head, as the command line tool does, since
+the merge commit exists only in the checkout; a shallow checkout without that
+parent reports HEAD. `GIT_COMMIT` still wins.
 `Git` and `Analytics.GitHistory` port the command line tool's Git history
 collection (`GitController+History.swift`, `GitHistoryParser.swift`,
 `GitHistoryService.swift`) and must stay in step with it, since the server

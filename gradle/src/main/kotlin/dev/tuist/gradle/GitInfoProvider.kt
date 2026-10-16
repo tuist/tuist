@@ -82,8 +82,19 @@ class ProcessGitInfoProvider(
         return ciBranch()
     }
 
-    override fun commitSha(): String? =
-        runCatching { gitCommandRunner(listOf("rev-parse", "HEAD")) }.getOrNull()?.takeIf(String::isNotBlank)
+    /**
+     * On a pull request's merge ref (`refs/pull/N/merge`), HEAD is a merge commit that exists only in
+     * the checkout, so the pull request's head, its second parent, is reported instead. A shallow
+     * checkout without that parent reports HEAD.
+     */
+    override fun commitSha(): String? {
+        if (ref()?.startsWith("refs/pull/") == true) {
+            runCatching { gitCommandRunner(listOf("rev-parse", "HEAD^2")) }.getOrNull()
+                ?.takeIf(String::isNotBlank)
+                ?.let { return it }
+        }
+        return runCatching { gitCommandRunner(listOf("rev-parse", "HEAD")) }.getOrNull()?.takeIf(String::isNotBlank)
+    }
 
     override fun ref(): String? {
         val ciRef = ciRef()

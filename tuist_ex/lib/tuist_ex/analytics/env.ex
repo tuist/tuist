@@ -109,8 +109,17 @@ defmodule TuistEx.Analytics.Env do
       do: nilify_empty(environment.("GITHUB_REF_NAME") || "")
   end
 
-  def git_commit_sha(environment \\ &System.get_env/1),
-    do: environment.("GIT_COMMIT") || git("rev-parse", ["HEAD"])
+  # On a pull request's merge ref (`refs/pull/N/merge`), HEAD is a merge commit
+  # that exists only in the checkout, so the pull request's head, its second
+  # parent, is reported instead, as the command line tool does. A shallow
+  # checkout without that parent reports HEAD.
+  def git_commit_sha(environment \\ &System.get_env/1, git \\ &git/2) do
+    environment.("GIT_COMMIT") ||
+      if(String.starts_with?(git_ref(environment) || "", "refs/pull/"),
+        do: git.("rev-parse", ["HEAD^2"])
+      ) ||
+      git.("rev-parse", ["HEAD"])
+  end
 
   def git_ref(environment \\ &System.get_env/1),
     do:

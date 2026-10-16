@@ -199,4 +199,31 @@ class GitInfoProviderTest {
         assertEquals(null, provider.remoteUrlOrigin())
     }
 
+    private fun mergeCheckout(ref: String?, secondParent: () -> String) = ProcessGitInfoProvider(
+        environmentProvider = { key -> if (key == "GITHUB_REF") ref else null },
+        gitCommandRunner = { args ->
+            when (args) {
+                listOf("rev-parse", "HEAD^2") -> secondParent()
+                listOf("rev-parse", "HEAD") -> "merge-commit"
+                else -> throw RuntimeException("unexpected git ${args.joinToString(" ")}")
+            }
+        }
+    )
+
+    @Test
+    fun `commitSha is the pull request's head on a pull request merge checkout`() {
+        assertEquals("pull-request-head", mergeCheckout("refs/pull/123/merge") { "pull-request-head" }.commitSha())
+    }
+
+    @Test
+    fun `commitSha falls back to HEAD when the merge commit's second parent is not in the checkout`() {
+        assertEquals("merge-commit", mergeCheckout("refs/pull/123/merge") { throw RuntimeException("shallow") }.commitSha())
+    }
+
+    @Test
+    fun `commitSha is HEAD outside a pull request ref`() {
+        for (ref in listOf("refs/heads/main", null)) {
+            assertEquals("merge-commit", mergeCheckout(ref) { "pull-request-head" }.commitSha())
+        }
+    }
 }

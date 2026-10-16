@@ -86,6 +86,29 @@ defmodule TuistEx.Analytics.EnvTest do
     assert Env.git_remote_url_origin(environment) == "git@github.com:tuist/tuist.git"
   end
 
+  test "reports a pull request's head rather than the merge commit its merge ref checks out" do
+    git = fn second_parent ->
+      fn
+        "rev-parse", ["HEAD^2"] -> second_parent
+        "rev-parse", ["HEAD"] -> "merge-commit"
+      end
+    end
+
+    pull_request = &%{"GITHUB_REF" => "refs/pull/7/merge"}[&1]
+
+    assert Env.git_commit_sha(pull_request, git.("pull-request-head")) == "pull-request-head"
+    # A shallow checkout lacks the merge commit's parents.
+    assert Env.git_commit_sha(pull_request, git.(nil)) == "merge-commit"
+
+    assert Env.git_commit_sha(&%{"GITHUB_REF" => "refs/heads/main"}[&1], git.("x")) ==
+             "merge-commit"
+
+    assert Env.git_commit_sha(
+             &%{"GITHUB_REF" => "refs/pull/7/merge", "GIT_COMMIT" => "deadbeef"}[&1],
+             git.("x")
+           ) == "deadbeef"
+  end
+
   test "takes the branch from the CI provider before git" do
     # A GitHub Actions pull request is a detached checkout, where git says "HEAD".
     assert Env.git_branch(&%{"GITHUB_HEAD_REF" => "feature/x"}[&1]) == "feature/x"
