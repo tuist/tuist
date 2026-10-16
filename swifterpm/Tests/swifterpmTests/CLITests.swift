@@ -4,6 +4,16 @@ import Testing
 
 struct CLITests {
     @Test
+    func timingOptionReachesTheEmbeddedInstaller() async throws {
+        let command = try await SwifterPMCommandParser.parse(["--report-timings", "resolve"])
+        guard case let .resolve(request) = command else {
+            Issue.record("expected a resolve request")
+            return
+        }
+        #expect(request.reportTimings)
+    }
+
+    @Test
     func resolveParsesGlobalAndCommandOptions() throws {
         let cli = try CLIParser.parse([
             "--package-path", "/tmp/package",

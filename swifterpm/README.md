@@ -134,20 +134,12 @@ These protections do not certify already-corrupted Git-free cache entries whose 
 
 ## Continuous integration
 
-Manifest dumps and package-info JSON use content fingerprints, so a fresh checkout with
-identical manifests can reuse retained caches. The fingerprints include all
-`Package@swift-*.swift` candidates, the manifest environment, mirror configuration,
-toolchain, package paths and sandbox mode. Dumps are retained under the root scratch
-directory, outside local checkouts and registry roots that installation may replace.
-Older cache entries refresh once on upgrade.
-Manifests that read arbitrary external files still need explicit cache invalidation;
-SwifterPM does not trace filesystem reads performed by manifest code.
+Manifest dumps and package-info JSON use content fingerprints and stay under the root
+scratch directory, so identical fresh checkouts can reuse retained caches. Older entries
+refresh once on upgrade. Manifests that read arbitrary external files still require
+explicit cache invalidation; SwifterPM does not trace those reads.
 
-Pass `--report-timings` to report installation phase durations to standard error.
-For Tuist, use `tuist install --report-timings` alongside the normal installation
-options. Keep `--force-resolved-versions` when benchmarking pinned installs: the
-native SwiftPM validation remains part of the timed work. Report fresh-runner results
-separately from repeats in the same VM.
+Use `--report-timings` (or `tuist install --report-timings`) to report installation phase durations.
 
 > [!IMPORTANT]
 > Cache `~/.cache/swifterpm` (or `$XDG_CACHE_HOME/swifterpm`). Without it, every continuous-integration run is a cold run.

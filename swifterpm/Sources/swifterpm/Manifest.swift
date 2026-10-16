@@ -61,7 +61,7 @@ enum ManifestLoader {
                 return root.appendingPathComponent(cacheFile)
             }
             return root.appendingPathComponent("packages")
-                .appendingPathComponent(Hashing.sha256Hex(Data(packageDir.path.utf8)))
+                .appendingPathComponent(Hashing.sha256Hex(Data(packageDir.standardizedFileURL.path.utf8)))
                 .appendingPathComponent(cacheFile)
         }
         return legacyCacheFilePath(packageDir: packageDir)
@@ -77,19 +77,29 @@ enum ManifestLoader {
         try await requireManifest(packageDir: packageDir)
         do {
             let data = try await loadPackageJSON(
-                packageDir: packageDir, disableSandbox: disableSandbox, cacheFile: cacheFile
+                packageDir: packageDir, disableSandbox: disableSandbox, cacheFile: cacheFile,
+                inputs: try? await ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)
             )
-            return try JSONSerialization.jsonObject(with: data)
+            return try JSONSerialization.jsonObject(with: data.data)
         } catch {
             throw await dumpFailure(packageDir: packageDir, underlying: error)
         }
     }
 
     static func dumpPackageJSON(packageDir: URL, disableSandbox: Bool, cacheFile: URL? = nil) async throws -> Data {
+        try await dumpPackageJSON(
+            packageDir: packageDir, disableSandbox: disableSandbox, cacheFile: cacheFile,
+            inputs: try? await ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)
+        ).data
+    }
+
+    static func dumpPackageJSON(
+        packageDir: URL, disableSandbox: Bool, cacheFile: URL?, inputs: String?
+    ) async throws -> (data: Data, inputs: String?) {
         try await requireManifest(packageDir: packageDir)
         do {
             return try await loadPackageJSON(
-                packageDir: packageDir, disableSandbox: disableSandbox, cacheFile: cacheFile
+                packageDir: packageDir, disableSandbox: disableSandbox, cacheFile: cacheFile, inputs: inputs
             )
         } catch {
             throw await dumpFailure(packageDir: packageDir, underlying: error)
@@ -116,17 +126,12 @@ enum ManifestLoader {
     /// cache, the `dump-package` hop, and (for `dumpPackage`) the JSON parse are all attributed
     /// once, by whichever entry point the caller used — a toolchain that prints ahead of the
     /// JSON must not fail as anonymously as the missing manifest this change is about.
-    private static func loadPackageJSON(packageDir: URL, disableSandbox: Bool, cacheFile: URL?) async throws -> Data {
+    private static func loadPackageJSON(
+        packageDir: URL, disableSandbox: Bool, cacheFile: URL?, inputs: String?
+    ) async throws -> (data: Data, inputs: String?) {
         let cache = cacheFile ?? cacheFilePath(packageDir: packageDir)
-        let inputs = try? await ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)
         if let inputs, let cached = await ManifestCache.read(at: cache, inputs: inputs) {
-            return cached
-        }
-        if let inputs, cache != legacyCacheFilePath(packageDir: packageDir),
-           let cached = await ManifestCache.read(at: legacyCacheFilePath(packageDir: packageDir), inputs: inputs)
-        {
-            try? await ManifestCache.write(cached, at: cache, inputs: inputs)
-            return cached
+            return (cached, inputs)
         }
 
         var args = ["package"]
@@ -144,8 +149,9 @@ enum ManifestLoader {
            (try? await ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)) == inputs
         {
             try? await ManifestCache.write(result.stdout, at: cache, inputs: inputs)
+            return (result.stdout, inputs)
         }
-        return result.stdout
+        return (result.stdout, nil)
     }
 
     /// `swift package dump-package` resolves the package root from its working directory and
@@ -204,7 +210,7 @@ enum ManifestLoader {
         }
         let rootCache = cacheFilePath(packageDir: rootPackageDir).deletingLastPathComponent()
         return rootCache.appendingPathComponent("local")
-            .appendingPathComponent(Hashing.sha256Hex(Data(packageDir.path.utf8)))
+            .appendingPathComponent(Hashing.sha256Hex(Data(packageDir.standardizedFileURL.path.utf8)))
             .appendingPathComponent(cacheFile)
     }
 }

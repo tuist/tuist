@@ -5,14 +5,98 @@ import Testing
 @testable import SwifterPMCore
 
 struct ManifestCacheTests {
-    @Test
-    func timingOptionReachesTheEmbeddedInstaller() async throws {
-        let command = try await SwifterPMCommandParser.parse(["--report-timings", "resolve"])
-        guard case let .resolve(request) = command else {
-            Issue.record("expected a resolve request")
-            return
+    private actor Probe {
+        private(set) var calls = 0
+
+        func identity(fails: Bool) throws -> String {
+            calls += 1
+            if fails { throw ToolError.message("unavailable compiler") }
+            return "compiler"
         }
-        #expect(request.reportTimings)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func contextDoesNotProbeUntilCacheInputsAreNeeded() async throws {
+        let package = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let probe = Probe()
+        let identity = ManifestCache.ToolchainIdentity { try await probe.identity(fails: false) }
+        try await ManifestCache.withContext(packageDirectory: package, scratchDirectory: nil, toolchain: identity) {
+            #expect(await probe.calls == 0)
+        }
+        #expect(await probe.calls == 0)
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func concurrentInputsShareOneProbeIncludingFailure(fails: Bool) async throws {
+        let package = try #require(FileSystem.temporaryTestDirectory).fileURL
+        try await writeMinimalPackageManifest(at: package, name: "Root")
+        let probe = Probe()
+        let identity = ManifestCache.ToolchainIdentity { try await probe.identity(fails: fails) }
+        try await ManifestCache.withContext(packageDirectory: package, scratchDirectory: nil, toolchain: identity) {
+            await withTaskGroup(of: String?.self) { group in
+                for _ in 0 ..< 20 {
+                    group.addTask { try? await ManifestCache.inputs(packageDir: package, disableSandbox: false) }
+                }
+                for await result in group {
+                    #expect((result == nil) == fails)
+                }
+            }
+            #expect(await probe.calls == 1)
+            _ = try? await ManifestCache.inputs(packageDir: package, disableSandbox: false)
+            #expect(await probe.calls == 1)
+        }
+        let retry = ManifestCache.ToolchainIdentity { try await probe.identity(fails: fails) }
+        _ = try? await retry.value()
+        #expect(await probe.calls == 2)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func standardizedPathsShareCacheEntries() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let package = root.appendingPathComponent("Local")
+        let alternate = root.appendingPathComponent("Root/../Local")
+        try await ManifestCache.withContext(packageDirectory: root, scratchDirectory: nil) {
+            #expect(ManifestLoader.cacheFilePath(packageDir: package) == ManifestLoader.cacheFilePath(packageDir: alternate))
+            #expect(ManifestLoader.localCacheFilePath(rootPackageDir: root, packageDir: package)
+                == ManifestLoader.localCacheFilePath(rootPackageDir: root, packageDir: alternate))
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func unavailableToolchainIdentityStillEvaluatesManifests() async throws {
+        let package = try #require(FileSystem.temporaryTestDirectory).fileURL
+        try await writeMinimalPackageManifest(at: package, name: "Root")
+        let probe = Probe()
+        let identity = ManifestCache.ToolchainIdentity { try await probe.identity(fails: true) }
+        try await ManifestCache.withContext(packageDirectory: package, scratchDirectory: nil, toolchain: identity) {
+            try await writePackageInfo(package: package, scratch: package.appendingPathComponent(".build"))
+            let output = package.appendingPathComponent(".build/swifterpm/package-info/root.json")
+            let data = try await fileSystem.readFile(at: output.absolutePath)
+            #expect(ManifestParser.packageName(try JSONSerialization.jsonObject(with: data)) == "Root")
+            #expect(try await fileSystem.exists(ManifestCache.sidecar(output).absolutePath) == false)
+            #expect(await probe.calls == 1)
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func workspaceStatePrunesOnlyObsoleteManifestEntries() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let scratch = root.appendingPathComponent("scratch")
+        let removed = root.appendingPathComponent("removed")
+        try await writeMinimalPackageManifest(at: root, name: "Root")
+        try await ManifestCache.withContext(packageDirectory: root, scratchDirectory: scratch) {
+            let stale = ManifestLoader.cacheFilePath(packageDir: removed)
+            try await ManifestCache.write(Data("{}".utf8), at: stale, inputs: "old")
+            let unrelated = scratch.appendingPathComponent("swifterpm/manifests/packages/unrelated/file")
+            try await fileSystem.atomicWrite("keep", to: unrelated)
+            try await WorkspaceRestorer.writeWorkspaceState(
+                packageDir: root, scratchDir: scratch, mirrors: MirrorConfig(),
+                resolved: ResolvedPins(originHash: nil, pins: [], version: 3), disableSandbox: false
+            )
+            #expect(try await fileSystem.exists(stale.absolutePath) == false)
+            #expect(try await fileSystem.exists(unrelated.absolutePath))
+            #expect(try await fileSystem.exists(ManifestLoader.cacheFilePath(packageDir: root).absolutePath))
+        }
     }
 
     @Test(.inTemporaryDirectory)
@@ -78,13 +162,13 @@ struct ManifestCacheTests {
     func environmentToolchainSandboxAndMirrorsInvalidate() async throws {
         let package = try #require(FileSystem.temporaryTestDirectory).fileURL
         try await writeMinimalPackageManifest(at: package, name: "Root")
-        try await ManifestCache.$toolchain.withValue("compiler-one") {
+        try await ManifestCache.$toolchain.withValue(ManifestCache.ToolchainIdentity { "compiler-one" }) {
             let base = try await ManifestCache.inputs(packageDir: package, disableSandbox: false)
             let sandbox = try await ManifestCache.inputs(packageDir: package, disableSandbox: true)
             let environment = try await Environment.withManifestEnvironment(["FEATURE": "different"]) {
                 try await ManifestCache.inputs(packageDir: package, disableSandbox: false)
             }
-            let toolchain = try await ManifestCache.$toolchain.withValue("compiler-two") {
+            let toolchain = try await ManifestCache.$toolchain.withValue(ManifestCache.ToolchainIdentity { "compiler-two" }) {
                 try await ManifestCache.inputs(packageDir: package, disableSandbox: false)
             }
             let mirrorPath = package.appendingPathComponent(".swiftpm/configuration/mirrors.json")
@@ -105,7 +189,7 @@ struct ManifestCacheTests {
         try await writeMinimalPackageManifest(at: first, name: "Same")
         try await writeMinimalPackageManifest(at: second, name: "Same")
         let manifest = root.appendingPathComponent("Package.swift")
-        try await ManifestCache.$toolchain.withValue("compiler") {
+        try await ManifestCache.$toolchain.withValue(ManifestCache.ToolchainIdentity { "compiler" }) {
             try await fileSystem.createSymbolicLink(
                 from: manifest.absolutePath,
                 to: first.appendingPathComponent("Package.swift").absolutePath
@@ -128,7 +212,7 @@ struct ManifestCacheTests {
         let output = Data("{}".utf8)
         #expect(await ManifestCache.read(at: cache, inputs: "inputs") == nil)
         try await fileSystem.atomicWrite(output, to: cache)
-        try await ManifestEnvironmentFingerprint.write(forCacheFile: cache.absolutePath, packageDir: package)
+        try await fileSystem.atomicWrite("legacy fingerprint", to: cache.appendingPathExtension("envhash"))
         #expect(await ManifestCache.read(at: cache, inputs: "inputs") == nil)
         try await ManifestCache.write(output, at: cache, inputs: "inputs")
         #expect(try await fileSystem

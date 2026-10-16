@@ -572,13 +572,13 @@ enum CLIRunner {
                 try await ManifestCache.withContext(
                     packageDirectory: package, scratchDirectory: scratch, reportTimings: cli.reportTimings
                 ) {
-                    try await runCommand(cli: cli, paths: paths)
+                    try await runCommand(cli: cli, paths: paths, package: package, scratch: scratch)
                 }
             }
         }
     }
 
-    private static func runCommand(cli: CLI, paths: CLIPathResolver) async throws {
+    private static func runCommand(cli: CLI, paths: CLIPathResolver, package: URL, scratch: URL) async throws {
         switch cli.command {
         case let .resolve(options):
             try ensureWholePackageResolution(
@@ -590,7 +590,8 @@ enum CLIRunner {
             try await runResolutionCommand(
                 cli: cli,
                 paths: paths,
-                packageDir: options.packageDir,
+                package: package,
+                scratch: scratch,
                 cacheDir: options.cacheDir,
                 preferResolvedFile: true,
                 write: options.write,
@@ -604,7 +605,8 @@ enum CLIRunner {
             try await runResolutionCommand(
                 cli: cli,
                 paths: paths,
-                packageDir: options.packageDir,
+                package: package,
+                scratch: scratch,
                 cacheDir: options.cacheDir,
                 preferResolvedFile: false,
                 write: options.write,
@@ -612,16 +614,9 @@ enum CLIRunner {
                 printOnly: options.printOnly
             )
         case let .restore(options):
-            var timing = ResolutionTiming(enabled: cli.reportTimings)
+            var timing = ResolutionTiming()
             let cache = try await Cache(
                 root: cliCacheDir(cli: cli, paths: paths, commandCacheDir: options.cacheDir))
-            let package = canonicalPackageDir(
-                commandPackageDir(
-                    cli: cli, paths: paths, commandPackageDir: options.packageDir
-                ))
-            let scratch = commandScratchDir(
-                cli: cli, paths: paths, packageDir: package, commandScratchDir: options.scratchDir
-            )
             let registryConfig = try await cliRegistryConfig(
                 cli: cli, paths: paths, package: package
             )
@@ -645,7 +640,8 @@ enum CLIRunner {
             timing.finish("package-info")
             try await WorkspaceRestorer.writeWorkspaceState(
                 packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
-                disableSandbox: cli.disableSandbox
+                disableSandbox: cli.disableSandbox,
+                sourceCacheDirectory: cache.root
             )
             timing.finish("workspace-state")
         }
@@ -654,21 +650,17 @@ enum CLIRunner {
     private static func runResolutionCommand(
         cli: CLI,
         paths: CLIPathResolver,
-        packageDir: CLIPath,
+        package: URL,
+        scratch: URL,
         cacheDir: CLIPath?,
         preferResolvedFile: Bool,
         write: Bool,
         restore: Bool,
         printOnly: Bool
     ) async throws {
-        var timing = ResolutionTiming(enabled: cli.reportTimings)
+        var timing = ResolutionTiming()
         let cacheRoot = try Cache.resolvedRoot(
             cliCacheDir(cli: cli, paths: paths, commandCacheDir: cacheDir))
-        let package = canonicalPackageDir(
-            commandPackageDir(cli: cli, paths: paths, commandPackageDir: packageDir))
-        let scratch = commandScratchDir(
-            cli: cli, paths: paths, packageDir: package, commandScratchDir: nil
-        )
         let readOnly =
             cli.forceResolvedVersions || cli.disableAutomaticResolution
                 || cli.onlyUseVersionsFromResolvedFile
@@ -782,7 +774,8 @@ enum CLIRunner {
             timing.finish("package-info")
             try await WorkspaceRestorer.writeWorkspaceState(
                 packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
-                disableSandbox: cli.disableSandbox
+                disableSandbox: cli.disableSandbox,
+                sourceCacheDirectory: cache.root
             )
 
             timing.finish("workspace-state")
@@ -800,9 +793,9 @@ enum CLIRunner {
                     disableSandbox: cli.disableSandbox,
                     scmToRegistryTransformation: try scmToRegistryTransformation(cli)
                 )
+                timing.finish("validate-lockfile")
             }
         }
-        timing.finish("validate-lockfile")
     }
 
     private static func maybeWritePackageInfoCache(

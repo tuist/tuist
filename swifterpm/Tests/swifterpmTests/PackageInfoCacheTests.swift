@@ -50,8 +50,7 @@ struct PackageInfoCacheTests {
             try await Task.sleep(nanoseconds: 10_000_000)
             try await fileSystem.atomicWrite(
                 try JSONFormatter.prettyData(emptyManifest(name: "CachedRoot")),
-                to: cacheDir.appendingPathComponent("root.json")
-            )
+                to: cacheDir.appendingPathComponent("root.json"))
             if let rootPath = try? cacheDir.appendingPathComponent("root.json").absolutePath {
                 try await ManifestCache.write(
                     fileSystem.readFile(at: rootPath),
@@ -100,12 +99,11 @@ struct PackageInfoCacheTests {
             try await Task.sleep(nanoseconds: 10_000_000)
             let packageInfoPath =
                 cacheDir
-                    .appendingPathComponent("packages")
-                    .appendingPathComponent("foo-\(entryHashForTest(pin)).json")
+                .appendingPathComponent("packages")
+                .appendingPathComponent("foo-\(entryHashForTest(pin)).json")
             try await fileSystem.atomicWrite(
                 try JSONFormatter.prettyData(emptyManifest(name: "CachedDependency")),
-                to: packageInfoPath
-            )
+                to: packageInfoPath)
             if let packageInfoAbsolute = try? packageInfoPath.absolutePath {
                 try await ManifestCache.write(
                     fileSystem.readFile(at: packageInfoAbsolute),
@@ -142,8 +140,7 @@ struct PackageInfoCacheTests {
             let cacheDir = root.appendingPathComponent("package-info")
             try await fileSystem.atomicWrite(
                 try JSONFormatter.prettyData(emptyManifest(name: "StaleRoot")),
-                to: cacheDir.appendingPathComponent("root.json")
-            )
+                to: cacheDir.appendingPathComponent("root.json"))
 
             try await Task.sleep(nanoseconds: 10_000_000)
             try await writeCachedManifest(emptyManifest(name: "FreshRoot"), packageDir: package)
@@ -187,13 +184,19 @@ struct PackageInfoCacheTests {
                             "nameForTargetDependencyResolutionOnly": "LocalTwoProduct",
                             "path": localTwo.path,
                         ],
-                    ],
-                ],
+                    ]
+                ]
             ]
 
             try await writeCachedManifest(manifest, packageDir: package)
-            try await writeCachedManifest(emptyManifest(name: "LocalOne"), packageDir: localOne)
-            try await writeCachedManifest(emptyManifest(name: "LocalTwo"), packageDir: localTwo)
+            try await writeCachedManifest(
+                emptyManifest(name: "LocalOne"), packageDir: localOne,
+                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localOne)
+            )
+            try await writeCachedManifest(
+                emptyManifest(name: "LocalTwo"), packageDir: localTwo,
+                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localTwo)
+            )
 
             try await PackageInfoCacheWriter.write(
                 packageDir: package,
@@ -241,7 +244,7 @@ struct PackageInfoCacheTests {
                             "identity": "local-one",
                             "path": "LocalOne",
                         ],
-                    ],
+                    ]
                 ],
             ]
             var localOneManifest = emptyManifest(name: "LocalOne")
@@ -252,13 +255,19 @@ struct PackageInfoCacheTests {
                             "identity": "local-two",
                             "path": "../LocalTwo",
                         ],
-                    ],
+                    ]
                 ],
             ]
 
             try await writeCachedManifest(rootManifest, packageDir: package)
-            try await writeCachedManifest(localOneManifest, packageDir: localOne)
-            try await writeCachedManifest(emptyManifest(name: "LocalTwo"), packageDir: localTwo)
+            try await writeCachedManifest(
+                localOneManifest, packageDir: localOne,
+                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localOne)
+            )
+            try await writeCachedManifest(
+                emptyManifest(name: "LocalTwo"), packageDir: localTwo,
+                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localTwo)
+            )
 
             try await PackageInfoCacheWriter.write(
                 packageDir: package,
@@ -302,7 +311,6 @@ struct PackageInfoCacheTests {
                     inputs: ManifestCache.inputs(packageDir: package, disableSandbox: false)
                 )
             }
-            let rootAbsolutePath = try rootPath.absolutePath
 
             try await PackageInfoCacheWriter.write(
                 packageDir: package,
@@ -316,7 +324,7 @@ struct PackageInfoCacheTests {
 
             let rootInfo = try #require(
                 JSONSerialization.jsonObject(
-                    with: try await fileSystem.readFile(at: rootAbsolutePath))
+                    with: try await fileSystem.readFile(at: rootPath.absolutePath))
                     as? [String: Any])
             #expect(rootInfo["name"] as? String == "FreshFromManifestLoader")
 
@@ -331,8 +339,7 @@ struct PackageInfoCacheTests {
         try await fileSystem.makeDirectory(at: packageDir.absolutePath, options: [.createTargetParentDirectories])
         try await fileSystem.atomicWrite(
             "not a valid Swift package manifest",
-            to: packageDir.appendingPathComponent("Package.swift")
-        )
+            to: packageDir.appendingPathComponent("Package.swift"))
     }
 
     private func entryHashForTest(_ pin: ResolvedPin) -> String {

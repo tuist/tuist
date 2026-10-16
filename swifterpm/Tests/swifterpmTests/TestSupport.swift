@@ -7,8 +7,7 @@ func makeTemporaryDirectory() async throws -> URL {
     let directory = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent("swifterpm-tests-\(UUID().uuidString)", isDirectory: true)
     try await fileSystem.makeDirectory(
-        at: directory.absolutePath, options: [.createTargetParentDirectories]
-    )
+        at: directory.absolutePath, options: [.createTargetParentDirectories])
     return directory
 }
 
@@ -24,12 +23,11 @@ func withTemporaryDirectory<T>(_ body: (URL) async throws -> T) async throws -> 
     }
 }
 
-func writeCachedManifest(_ manifest: [String: Any], packageDir: URL) async throws {
+func writeCachedManifest(_ manifest: [String: Any], packageDir: URL, cacheFile: URL? = nil) async throws {
     try await fileSystem.makeDirectory(
-        at: packageDir.absolutePath, options: [.createTargetParentDirectories]
-    )
+        at: packageDir.absolutePath, options: [.createTargetParentDirectories])
     try await writeMinimalPackageManifest(at: packageDir, name: "Fixture")
-    let cachePath = ManifestLoader.cacheFilePath(packageDir: packageDir)
+    let cachePath = cacheFile ?? ManifestLoader.cacheFilePath(packageDir: packageDir)
     try await ManifestCache.write(
         JSONFormatter.prettyData(manifest), at: cachePath,
         inputs: ManifestCache.inputs(packageDir: packageDir, disableSandbox: false)
@@ -38,8 +36,7 @@ func writeCachedManifest(_ manifest: [String: Any], packageDir: URL) async throw
 
 func writeMinimalPackageManifest(at packageDir: URL, name: String) async throws {
     try await fileSystem.makeDirectory(
-        at: packageDir.absolutePath, options: [.createTargetParentDirectories]
-    )
+        at: packageDir.absolutePath, options: [.createTargetParentDirectories])
     try await fileSystem.atomicWrite(
         """
         // swift-tools-version: 6.0

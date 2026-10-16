@@ -8,7 +8,27 @@ enum ManifestCache {
         let output: String
     }
 
-    @TaskLocal static var toolchain: String?
+    actor ToolchainIdentity {
+        private let probe: @Sendable () async throws -> String
+        private var result: Task<String, Error>?
+
+        init(probe: @escaping @Sendable () async throws -> String = ManifestCache.toolchainIdentity) {
+            self.probe = probe
+        }
+
+        func value() async throws -> String {
+            if let result { return try await result.value }
+            let result = Task {
+                var timing = ResolutionTiming()
+                defer { timing.finish("toolchain") }
+                return try await probe()
+            }
+            self.result = result
+            return try await result.value
+        }
+    }
+
+    @TaskLocal static var toolchain: ToolchainIdentity?
     @TaskLocal static var scratchDirectory: URL?
     @TaskLocal static var rootPackageDirectory: URL?
 
@@ -16,12 +36,10 @@ enum ManifestCache {
         packageDirectory: URL,
         scratchDirectory: URL?,
         reportTimings: Bool = false,
+        toolchain: ToolchainIdentity = ToolchainIdentity(),
         operation: () async throws -> T
     ) async throws -> T {
-        var timing = ResolutionTiming(enabled: reportTimings)
-        let identity = try? await toolchainIdentity()
-        timing.finish("toolchain")
-        return try await $toolchain.withValue(identity) {
+        return try await $toolchain.withValue(toolchain) {
             try await $rootPackageDirectory.withValue(packageDirectory.standardizedFileURL) {
                 try await $scratchDirectory.withValue(scratchDirectory ?? packageDirectory.appendingPathComponent(".build")) {
                     try await ResolutionTiming.$isEnabled.withValue(reportTimings) {
@@ -55,7 +73,7 @@ enum ManifestCache {
     static func inputs(packageDir: URL, disableSandbox: Bool) async throws -> String {
         let identity: String
         if let toolchain {
-            identity = toolchain
+            identity = try await toolchain.value()
         } else {
             identity = try await toolchainIdentity()
         }
@@ -113,5 +131,17 @@ enum ManifestCache {
 
     static func sidecar(_ cache: URL) -> URL {
         cache.appendingPathExtension("inputs.json")
+    }
+
+    static func prune(scratchDirectory: URL, keeping packageDirectories: [URL]) async throws {
+        let directory = scratchDirectory.appendingPathComponent("swifterpm/manifests/packages")
+        guard try await fileSystem.exists(directory.absolutePath) else { return }
+        let retained = Set(packageDirectories.map { Hashing.sha256Hex(Data($0.standardizedFileURL.path.utf8)) })
+        for entry in try await fileSystem.contentsOfDirectory(at: directory) {
+            let name = entry.lastPathComponent
+            if name.count == 64, name.allSatisfy(\.isHexDigit), !retained.contains(name) {
+                try await fileSystem.remove(entry.absolutePath)
+            }
+        }
     }
 }

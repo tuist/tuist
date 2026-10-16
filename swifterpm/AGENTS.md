@@ -47,9 +47,10 @@
 
 - Validate dumps and package-info JSON by manifest contents (including version-specific candidates), the actual manifest environment and mirrors, toolchain identity, declared and resolved package paths, and sandbox mode. Checkout mtimes are not cache identities. Legacy or incomplete records must miss; never certify a legacy dump with current inputs.
 - Bind cached output bytes to the input record, and capture inputs before evaluation. If inputs change during evaluation, do not publish a cache entry for that evaluation.
-- All manifest dumps belong under the root scratch directory, outside materialized package roots. Local checkouts and registry roots can be replaced even when their sources are unchanged. Keep declared paths for evaluation and use canonical paths only for cycle detection and invalidation.
-- `--report-timings` reports installation phase durations without changing the manifest environment. Preserve the native forced-lockfile check, and distinguish fresh-runner measurements from same-machine repeats.
-- The generated `SwifterPMCoreTests` target includes manifest/cache, CLI and resolution coverage. Generate `SwifterPMCore SwifterPMCoreTests` and run the relevant suites through Xcode for focused validation.
+- All manifest dumps belong under the root scratch directory, outside materialized package roots. Local checkouts and registry roots can be replaced even when their sources are unchanged. Normalize declared paths for cache keys, keep them for evaluation, and use canonical paths for cycle detection and invalidation. Workspace-state writes prune obsolete per-package entries while retaining current pins, local dependencies and source-control cache paths.
+- Probe the toolchain lazily, at most once per invocation, including failures. Unavailable identities make caching unavailable without blocking manifest evaluation.
+- `--report-timings` reports installation phase durations without changing the manifest environment. Preserve the native forced-lockfile check.
+- The generated `SwifterPMCoreTests` target adds focused manifest/cache and CLI parsing coverage; broader CLI runner tests remain in the SwifterPM pipeline. Generate `SwifterPMCore SwifterPMCoreTests` and run the relevant suites through Xcode for focused validation.
 
 ## CI
 

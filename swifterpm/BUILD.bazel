@@ -37,7 +37,6 @@ swift_test(
         "@swift_argument_parser//:ArgumentParser",
         "@swiftpkg_swift_subprocess//:Subprocess",
         "@swiftpkg_filesystem//:FileSystem",
-        "@swiftpkg_filesystem//:FileSystemTesting",
         "@swiftpkg_path//:Path",
     ],
 )

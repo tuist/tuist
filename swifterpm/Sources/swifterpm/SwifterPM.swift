@@ -204,7 +204,7 @@ public struct SwifterPM: Sendable {
     }
 
     private func runRestore(_ request: SwifterPMRestoreRequest) async throws {
-        var timing = ResolutionTiming(enabled: request.reportTimings)
+        var timing = ResolutionTiming()
         let package = request.packageDirectory.standardizedFileURL
         let scratch = request.scratchDirectory ?? package.appendingPathComponent(".build")
         let cache = try await Cache(root: request.cacheDirectory)
@@ -245,7 +245,8 @@ public struct SwifterPM: Sendable {
             scratchDir: scratch,
             mirrors: mirrors,
             resolved: resolved,
-            disableSandbox: request.disableSandbox
+            disableSandbox: request.disableSandbox,
+            sourceCacheDirectory: cache.root
         )
         timing.finish("workspace-state")
     }
@@ -254,7 +255,7 @@ public struct SwifterPM: Sendable {
         request: SwifterPMResolutionRequest,
         preferResolvedFile: Bool
     ) async throws -> SwifterPMResolutionResult {
-        var timing = ResolutionTiming(enabled: request.reportTimings)
+        var timing = ResolutionTiming()
         let package = request.packageDirectory.standardizedFileURL
         let scratch = request.scratchDirectory ?? package.appendingPathComponent(".build")
         try await WorkspaceRestorer.assertNoEditedDependencies(scratchDir: scratch)
@@ -396,11 +397,11 @@ public struct SwifterPM: Sendable {
                 scratchDir: scratch,
                 mirrors: mirrors,
                 resolved: resolved,
-                disableSandbox: request.disableSandbox
+                disableSandbox: request.disableSandbox,
+                sourceCacheDirectory: cache.root
             )
+            timing.finish("workspace-state")
         }
-
-        timing.finish("workspace-state")
 
         // With the pins restored, confirm they still satisfy the manifest the
         // same way SwiftPM would. We only do this once the checkouts exist so
@@ -416,9 +417,8 @@ public struct SwifterPM: Sendable {
                 disableSandbox: request.disableSandbox,
                 scmToRegistryTransformation: request.scmToRegistryTransformation
             )
+            timing.finish("validate-lockfile")
         }
-
-        timing.finish("validate-lockfile")
         return SwifterPMResolutionResult(resolved)
     }
 
