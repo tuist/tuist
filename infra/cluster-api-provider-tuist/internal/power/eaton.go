@@ -166,6 +166,32 @@ func (e *Eaton) Set(ctx context.Context, o Outlet, on bool) error {
 	}
 }
 
+// Measures implements Meter, reading the outlet's measures over the driver's
+// session.
+func (e *Eaton) Measures(ctx context.Context, o Outlet) (Measures, error) {
+	number, err := eatonOutletNumber(o)
+	if err != nil {
+		return Measures{}, err
+	}
+	var measures map[string]any
+	if err := e.call(ctx, o, http.MethodGet, eatonOutletPath(number)+"/measures", &measures); err != nil {
+		var status *EatonHTTPError
+		if errors.As(err, &status) && status.Status == http.StatusNotFound {
+			return Measures{}, fmt.Errorf("%w: %v", ErrMeasuresUnsupported, err)
+		}
+		return Measures{}, err
+	}
+	m := Measures{
+		ActivePower:   eatonNumber(measures["activePower"]),
+		ApparentPower: eatonNumber(measures["apparentPower"]),
+		Current:       eatonNumber(measures["current"]),
+	}
+	if m.ActivePower == nil && m.ApparentPower == nil {
+		return Measures{}, fmt.Errorf("%s: %w: its measures carry neither activePower nor apparentPower", o, ErrMeasuresUnsupported)
+	}
+	return m, nil
+}
+
 // Close logs out of every open session, so a restarted operator is not
 // refused a login by its predecessor's session.
 func (e *Eaton) Close(ctx context.Context) error {

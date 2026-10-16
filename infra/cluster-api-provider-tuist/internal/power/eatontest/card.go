@@ -56,6 +56,17 @@ type Outlet struct {
 	// Lag is how many reads still report the state before the last switch.
 	Lag      int
 	Settings map[string]any
+	// Load is what the outlet's meter reads while it is on: nil, the default,
+	// is an empty outlet, which reads zero. An outlet that is off reads zero.
+	Load *Load
+}
+
+// Load is the draw of what is plugged into an outlet, as its measures report
+// it.
+type Load struct {
+	ActivePower   float64
+	ApparentPower float64
+	Current       float64
 }
 
 type session struct {
@@ -428,6 +439,19 @@ func (c *Card) serve(w http.ResponseWriter, r *http.Request) {
 				"status": map[string]any{"operating": "in service", "health": "ok", "delayBeforeSwitchOff": -1,
 					"delayBeforeSwitchOn": -1, "supply": true, "switchedOn": on},
 				"specifications": map[string]any{"feed": "Branches.1", "outletType": "IecC13", "switchable": outlet.Switchable},
+			})
+			answer(w, http.StatusOK, string(body))
+		case r.Method == http.MethodGet && action == "measures":
+			load := Load{}
+			if outlet.On && outlet.Load != nil {
+				load = *outlet.Load
+			}
+			body, _ := json.Marshal(map[string]any{
+				"@id":           fmt.Sprintf("/rest/mbdetnrs/2.0/powerDistributions/1/outlets/%d/measures", n),
+				"activePower":   load.ActivePower,
+				"apparentPower": load.ApparentPower,
+				"current":       load.Current,
+				"powerFactor":   0,
 			})
 			answer(w, http.StatusOK, string(body))
 		case r.Method == http.MethodPut && action == "settings":

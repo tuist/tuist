@@ -1873,3 +1873,46 @@ func TestRenderVMEgressFirewallScript_GuardDropsHostBeforeCarveOuts(t *testing.T
 		t.Errorf("DNS and DHCP to the vmnet gateway must pass before the drop to the host\n%s", anchor)
 	}
 }
+
+// A rack host pulls its golden bases through the rack's image caches, in the
+// order the fleet lists them. A host with none renders the plist it rendered
+// before mirrors existed, so the rented fleets do not drift.
+func TestRenderLaunchdPlist_RendersImageMirrorsInOrder(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:     "n1",
+		SSHUser:      "m1",
+		ImageMirrors: []string{"ghcr.io=http://10.10.0.11:5000", "ghcr.io=http://10.10.0.12:5000"},
+	})
+	first := strings.Index(out, "<string>--image-mirror=ghcr.io=http://10.10.0.11:5000</string>")
+	second := strings.Index(out, "<string>--image-mirror=ghcr.io=http://10.10.0.12:5000</string>")
+	if first < 0 || second < 0 || second < first {
+		t.Fatalf("expected both mirrors in order\n%s", out)
+	}
+	if bare := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1"}); strings.Contains(bare, "--image-mirror") {
+		t.Fatalf("expected no --image-mirror without mirrors\n%s", bare)
+	}
+}
+
+// The mirrors reach a running host through the drift loop only if they move
+// the fleet fingerprint.
+func TestHostConfigHash_ChangesWithImageMirrors(t *testing.T) {
+	base := Config{NodeName: "n1", SSHUser: "m1", TartKubeletBinary: []byte("bin")}
+	changed := base
+	changed.ImageMirrors = []string{"ghcr.io=http://10.10.0.11:5000"}
+	if HostConfigHash(base) == HostConfigHash(changed) {
+		t.Fatal("HostConfigHash must change when ImageMirrors does")
+	}
+}
+
+func TestValidateImageMirror(t *testing.T) {
+	for _, ok := range []string{"ghcr.io=http://10.10.0.11:5000", "ghcr.io=https://images.example.com/"} {
+		if err := ValidateImageMirror(ok); err != nil {
+			t.Errorf("ValidateImageMirror(%q) = %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"", "ghcr.io", "=http://x", "ghcr.io=", "ghcr.io=10.10.0.11:5000", "ghcr.io=http://x/v2", "ghcr.io/x=http://x"} {
+		if err := ValidateImageMirror(bad); err == nil {
+			t.Errorf("ValidateImageMirror(%q) accepted a mirror tart-kubelet would refuse", bad)
+		}
+	}
+}

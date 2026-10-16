@@ -10,29 +10,17 @@
 Tuist's Hex package can send build analytics to Tuist. Build times, the dependency graph between your files, and how both evolve over time give you what you need to optimize your build graph and make the most of all the cores available in the environment where the compilation takes place.
 
 > [!IMPORTANT] REQUIREMENTS
-> - The <.localized_link href="/guides/install-hex-package">Hex package</.localized_link> installed and configured
+> - Complete <.localized_link href="/guides/get-started/elixir-project">Get started with Elixir</.localized_link>
 
 ## Report your builds {#report-your-builds}
 
-Run `mix tuist.compile` instead of `mix compile`. It takes the same arguments and reports the build when it finishes:
+The shared setup installs the compile integration. Keep using your usual commands:
 
 ```bash
-mix tuist.compile --force
+mix compile
 ```
 
-To report every build without anyone having to remember a different command, alias it in your `mix.exs`:
-
-```elixir
-def project do
-  [
-    app: :my_app,
-    aliases: [compile: "tuist.compile"],
-    tuist: [project: "account/project"]
-  ]
-end
-```
-
-The alias covers `mix compile` and every compile that another task triggers, such as `mix test` or `mix phx.server`. A compile that finds nothing to do is not reported, so the dashboard only lists builds that did work.
+The integration covers `mix compile` and every compile that another task triggers, such as `mix test` or `mix phx.server`. A compile that finds nothing to do is not reported, so the dashboard only lists builds that did work.
 
 ## What is tracked {#what-is-tracked}
 
@@ -61,6 +49,14 @@ The **Timeline** tab shows the same build over time: which files compiled in par
 ![Timeline of a full Mix build of a Phoenix application](/images/guides/features/elixir/build-timeline.png)
 
 The **Warnings** and **Errors** tabs list the diagnostics of the build.
+
+## Report actor claim {#report-actor-claim}
+
+Mix build and test report requests include the optional `x-tuist-actor-id` header only when you explicitly configure a label. Set `TUIST_ACTOR_ID` to an organization-scoped label, or add `actor_id: "developer-label"` to the project's `tuist` configuration. Resolution prefers the environment variable, then runtime `:actor_id` options, then project configuration. No label is sent by default, and the package does not detect operating-system usernames.
+
+Labels must be 1–128 bytes of printable ASCII without spaces. An empty or invalid override omits the claim; set `TUIST_ACTOR_ID=""` to suppress a configured value. The label may contain personal information. Do not use credentials or other sensitive values.
+
+The claim is unverified metadata, not authentication. Existing credentials, permissions, endpoints, and report bodies are unchanged. Servers without actor support ignore the header and keep their existing attribution; this client change alone does not add dashboard actor labels. If a custom proxy rejects unfamiliar headers, opt out using the empty environment override.
 
 ## Custom metadata {#custom-metadata}
 

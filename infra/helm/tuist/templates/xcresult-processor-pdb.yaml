@@ -8,6 +8,10 @@ metadata:
     app.kubernetes.io/component: xcresult-processor
 spec:
   minAvailable: {{ .Values.xcresultProcessor.podDisruptionBudget.minAvailable }}
+  # With the readinessProbe enabled, readiness reflects the processor's
+  # dependencies, so a shared outage turns every replica NotReady at once.
+  # NotReady Pods stay evictable so that cannot block node drains.
+  unhealthyPodEvictionPolicy: AlwaysAllow
   selector:
     matchLabels:
       {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 6 }}

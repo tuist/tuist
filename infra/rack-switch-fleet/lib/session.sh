@@ -68,7 +68,7 @@ SWITCH_SECRET_DIR=""
 switch_alive() { [ -n "${SWITCH[0]:-}" ]; }
 
 switch_open() {
-  local address="$1" user="$2" key="$3" jump relay=() item login auth=() askpass=()
+  local address="$1" user="$2" key="$3" jump relay=() item login auth=() askpass=() banner=0
   SWITCH_ADDRESS="$address"
   jump="${SWITCH_JUMPS[$address]:-}"
   # The relay authenticates as the operator to the jump host, never with the
@@ -110,9 +110,12 @@ switch_open() {
       "$user@$address" 2>"$SWITCH_LOG"
   }
   # The banner drain is allowed to time out; what matters is whether ssh is
-  # still there afterwards.
-  switch_drain 8 || true
-  if ! switch_alive || ! kill -0 "${SWITCH_PID:-}" 2>/dev/null; then
+  # still there afterwards. A drain that hit the end of ssh's output (1) is
+  # the answer on its own: until bash reaps the exited ssh, its coprocess
+  # array is still set and `kill -0` succeeds on the zombie, so the checks
+  # below can still read a dead session as alive.
+  switch_drain 8 || banner=$?
+  if (( banner == 1 )) || ! switch_alive || ! kill -0 "${SWITCH_PID:-}" 2>/dev/null; then
     echo "error: $address accepted no session." >&2
     if [ -s "$SWITCH_LOG" ]; then
       sed 's/^/       ssh: /' "$SWITCH_LOG" >&2

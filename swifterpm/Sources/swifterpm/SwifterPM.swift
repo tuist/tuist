@@ -139,7 +139,7 @@ public struct SwifterPM: Sendable {
     public func resolve(_ request: SwifterPMResolutionRequest) async throws
         -> SwifterPMResolutionResult
     {
-        try await Environment.withNetrc(try await loadNetrc(request.netrc)) {
+        try await Environment.withNetrc(try await loadNetrc(request.netrc), quiet: request.quiet) {
             try await Environment.withManifestEnvironment(
                 request.manifestEnvironment, resolutionEnvironment: request.resolutionEnvironment
             ) {
@@ -155,7 +155,7 @@ public struct SwifterPM: Sendable {
     public func update(_ request: SwifterPMResolutionRequest) async throws
         -> SwifterPMResolutionResult
     {
-        try await Environment.withNetrc(try await loadNetrc(request.netrc)) {
+        try await Environment.withNetrc(try await loadNetrc(request.netrc), quiet: request.quiet) {
             try await Environment.withManifestEnvironment(
                 request.manifestEnvironment, resolutionEnvironment: request.resolutionEnvironment
             ) {
@@ -169,7 +169,7 @@ public struct SwifterPM: Sendable {
     }
 
     public func restore(_ request: SwifterPMRestoreRequest) async throws {
-        try await Environment.withNetrc(try await loadNetrc(request.netrc)) {
+        try await Environment.withNetrc(try await loadNetrc(request.netrc), quiet: request.quiet) {
             try await Environment.withCachedDirectoryMaterialization(
                 request.cachedDirectoryMaterialization
             ) {
@@ -230,6 +230,7 @@ public struct SwifterPM: Sendable {
     ) async throws -> SwifterPMResolutionResult {
         let package = request.packageDirectory.standardizedFileURL
         let scratch = request.scratchDirectory ?? package.appendingPathComponent(".build")
+        try await WorkspaceRestorer.assertNoEditedDependencies(scratchDir: scratch)
         let cacheRoot = try Cache.resolvedRoot(request.cacheDirectory)
         let mirrors = try await MirrorConfig.load(
             packageDir: package, configPath: request.registryConfigurationPath
