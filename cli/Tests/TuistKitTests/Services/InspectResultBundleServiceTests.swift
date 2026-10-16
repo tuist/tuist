@@ -33,6 +33,7 @@ struct UploadResultBundleServiceTests {
     private let dateService = MockDateServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let gitController = MockGitControlling()
+    private let gitHistoryService = MockGitHistoryServicing()
     private let ciController = MockCIControlling()
     private let xcodeBuildController = MockXcodeBuildControlling()
     private let rootDirectoryLocator = MockRootDirectoryLocating()
@@ -47,6 +48,7 @@ struct UploadResultBundleServiceTests {
         subject = UploadResultBundleService(
             machineEnvironment: machineEnvironment,
             createTestService: createTestService,
+            gitHistoryService: gitHistoryService,
             coverageUploadService: coverageUploadService,
             createCrashReportService: createCrashReportService,
             createTestCaseRunAttachmentService: createTestCaseRunAttachmentService,
@@ -137,6 +139,13 @@ struct UploadResultBundleServiceTests {
         given(xcActivityLogController)
             .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
             .willReturn(nil)
+
+        given(gitHistoryService)
+            .publish(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .willReturn(nil)
+        given(gitHistoryService)
+            .upload(.any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .willReturn()
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -157,6 +166,12 @@ struct UploadResultBundleServiceTests {
             resultBundlePath: bundle, config: .test(fullHandle: "acme/widgets")
         )
         #expect(result.id == "test-id")
+        verify(gitHistoryService)
+            .publish(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .called(0)
+        verify(gitHistoryService)
+            .upload(.any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .called(0)
         verify(xcResultService).parse(path: .value(bundle), rootDirectory: .any).called(1)
         verify(analyticsArtifactUploadService).uploadResultBundle(.any, fullHandle: .any, commandEventId: .any, serverURL: .any)
             .called(0)

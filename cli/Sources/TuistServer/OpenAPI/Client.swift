@@ -3568,7 +3568,7 @@ public struct Client: APIProtocol {
     }
     /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
     ///
-    /// Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
+    /// Given the test cases a run just executed, returns the ones that have not run in CI in the trailing ninety days on the project's default branch, or on a commit the default branch has since reached, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)`.

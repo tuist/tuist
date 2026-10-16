@@ -23,8 +23,11 @@ defmodule Tuist.ReportActorTest do
   @tag :locale
   test "unknown actors use the current Gettext locale with and without report provenance" do
     Gettext.with_locale(TuistWeb.Gettext, "es", fn ->
+      translated = Gettext.dgettext(TuistWeb.Gettext, "dashboard", "Unknown")
+      refute translated == "Unknown"
+
       for record <- [%{}, %{submission_auth: "token"}] do
-        assert %{name: "Desconocido", source: :unknown} = ReportActor.actor(record)
+        assert %{name: ^translated, source: :unknown} = ReportActor.actor(record)
       end
     end)
   end

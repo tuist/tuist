@@ -333,6 +333,9 @@ SCRIPT
   # This node's own end of VRRP. Each edge VLAN rides an active-backup bond
   # over one VLAN interface per uplink, so it survives losing either ToR, and
   # the edges never both believe the other is gone while both are up.
+  # The uplinks' rings are 4096 descriptors rather than i40e's 512, which
+  # overflow on the WAN's line-rate bursts and drop packets the NIC counts as
+  # rx_missed_errors. Setting the counts a ring already has changes nothing.
   local node address uplink_names vrrp_length machines peer member
   vrrp_length="$(fleet_prefix_length "$vrrp_prefix")"
   mapfile -t members < <(fleet_edge_members "$site_file")
@@ -354,6 +357,9 @@ SCRIPT
   cat <<'SCRIPT'
   *) echo "$NODE_NAME is not one of the site's edges" >&2; exit 1 ;;
 esac
+for uplink in $uplinks; do
+  ethtool -G "$uplink" rx 4096 tx 4096
+done
 edge_vlan_bond() {
   bond=$1 vlan=$2 i=0
   ip link show "$bond" >/dev/null 2>&1 || ip link add "$bond" type bond mode active-backup miimon 100
