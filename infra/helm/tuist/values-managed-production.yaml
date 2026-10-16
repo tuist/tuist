@@ -1023,7 +1023,7 @@ xcresultProcessor:
 # bootstraps the node itself.
 kuraFleet:
   enabled: true
-  replicas: 1
+  replicas: 2
   machine:
     # EM-I220E-NVME (128GB RAM / 1.92TB NVMe / 25G PN) is the best RAM+NVMe
     # value for the cache pods: RAM (warm-set size = hit rate) and NVMe
