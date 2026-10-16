@@ -1360,7 +1360,7 @@ rackFleet:
   # predecessor), and leaves the ber1-runners Kura region the rest. 26.6 keeps a warm runner and 27.0 carries most rack jobs,
   # so both are on the rack before a mini asks.
   imageCache:
-    enabled: false
+    enabled: true
     routeHosts: []
     nodes:
       - name: ber1-store-a
