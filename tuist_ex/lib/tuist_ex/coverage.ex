@@ -77,7 +77,11 @@ defmodule TuistEx.Coverage do
         fallback(compile_path, opts)
 
       true ->
-        Counters.instrument([compile_path, Mix.Project.consolidation_path()])
+        {count, _skipped} =
+          Counters.instrument([compile_path, Mix.Project.consolidation_path()])
+
+        if count > 0,
+          do: Mix.shell().info("Instrumented #{count} module(s) for native coverage")
 
         if Counters.enable_native(compile_path) do
           native(opts)
