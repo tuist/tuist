@@ -1539,6 +1539,28 @@ from. It overstates headroom only while rows are waiting for pods.
 32 GiB is one enterprise instance at its starting claim. Change it with
 `@enterprise_storage_claim` in `Tuist.Kura.Regions`.
 
+The private runner-cache regions (`scw-fr-par-runners`, `ber1-runners`) report
+the gauge too. Before they did, the plugin polled it over the same public-only
+region list as the lifecycle gauges, so a full runner-cache box had neither
+operand and the rule could not fire for it: on 2026-10-16 `scw-fr-par-runners`
+had about 3 GiB left under its line while it refused claim growths for days and
+a new instance every minute. The occupancy gauges, and with them the second
+operand, still cover public regions only, so a private region whose server does
+not emit the headroom gauge has no row.
+
+The same `< 32` holds for them. A private region's candidate is claim x its own
+replica count, so 32 GiB is one enterprise instance at its starting claim in
+`scw-fr-par-runners` (two replicas) and two in `ber1-runners` (one replica).
+Both are a single box, so the remedy is freeing reservations or giving the
+site another storage node rather than adding a node to a pool. Runner-cache
+claims grow well past their starting claim (16 to 100 GiB on the rack in
+October 2026), so a single-box private region is effectively out of room for
+growth long before it reaches 32; the rule is the floor below which the region
+cannot take another account at all. A full private region also refuses the
+claim growth of every account it hosts in all of that account's regions, as
+any governed region does, which shows on
+`tuist_kura_lifecycle_claim_apply_refused_count`.
+
 **Why nothing fired while us-west, us-central and eu-west filled (2026-09-11 to
 2026-09-17).** Admission headroom on 2026-09-17 07:00 UTC was eu-west 4 GiB,
 us-central 2, us-west 6. Three independent gaps:
