@@ -26,6 +26,12 @@ pub static SECTIONS: &[Section] = &[
         description: c"Shared knowledge and documents",
         url: c"https://atlas.tuist.dev/library/notes",
     },
+    Section {
+        id: "ai-providers",
+        title: c"AI accounts",
+        description: c"Connect your personal Claude and ChatGPT accounts",
+        url: c"https://atlas.tuist.dev/settings/llm-providers",
+    },
 ];
 
 pub fn field(section: i32, field: i32) -> Option<&'static CStr> {
@@ -77,6 +83,15 @@ mod tests {
     }
 
     #[test]
+    fn section_titles_match_the_dashboard() {
+        let titles: Vec<_> = SECTIONS
+            .iter()
+            .map(|section| section.title.to_str().unwrap())
+            .collect();
+        assert_eq!(titles, ["Accounts", "Tasks", "Notes", "AI accounts"]);
+    }
+
+    #[test]
     fn destinations_match_the_atlas_dashboard_routes() {
         let urls: Vec<_> = SECTIONS
             .iter()
@@ -88,6 +103,7 @@ mod tests {
                 "https://atlas.tuist.dev/commercial/sales/accounts",
                 "https://atlas.tuist.dev/tasks",
                 "https://atlas.tuist.dev/library/notes",
+                "https://atlas.tuist.dev/settings/llm-providers",
             ]
         );
     }

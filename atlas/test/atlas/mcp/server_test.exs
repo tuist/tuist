@@ -33,6 +33,11 @@ defmodule Atlas.MCP.ServerTest do
 
     tools = response["result"]["tools"]
 
+    for name <-
+          ~w(list_llm_provider_connections connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login disconnect_llm_provider) do
+      assert Enum.any?(tools, &(&1["name"] == name))
+    end
+
     assert Enum.any?(tools, &(&1["name"] == "get_mcp_connection_status"))
     assert Enum.any?(tools, &(&1["name"] == "list_accounts"))
     assert Enum.any?(tools, &(&1["name"] == "list_account_nudges"))
