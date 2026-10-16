@@ -36,6 +36,27 @@ individual inline fetches and checks the full retained barrier. Its optional
 `KURA_E2E_INLINE_RECORDS` and `KURA_E2E_INLINE_INTERVAL_MS` extend the same workload
 for sequential resource comparisons; failed runs retain measurements and logs.
 `KURA_E2E_AUTHORITY_STANDBY_IMAGE` exercises adjacent-version batch negotiation.
+`segmented-handover.mjs IMAGE DIR` writes a paced 1 GiB segmented corpus,
+verifies every body after handover, and captures the same four resource axes.
+Run baseline and candidate sequentially, including its settled cooldown.
+Set `KURA_E2E_SEGMENT_RECORDS=2048` for a 4 GiB full-ring qualification.
+That mode captures the entire retained source subset while both holds are active
+and checks its count against the matching fully verified receipts, then reads
+the newest retained body after promotion. Reads on a full
+serving ring can trigger eviction, so walking it after promotion is not a frozen
+corpus check. It does not require evicted uploads to survive.
+Add `KURA_E2E_RETAINED_RECENCY=1` to that full-ring workload to inject an old
+segmented record into the source through the peer protocol. Assert that ordinary
+replication leaves it absent on the full standby before requesting handover,
+then require matching full-corpus receipts and byte-exact reads of the repaired
+record after promotion. This isolates recency selection from storage admission;
+it must not change either replica's configured capacity to make repair pass.
+Alternatively set `KURA_E2E_REPAIR_CHURN=1` on the full-ring workload to add 1 GiB
+of old destination-only data. Assert it stays absent on the source, then require
+an eviction-triggered repair revisit and matching full-corpus receipts before
+promotion. Both peers retain the same 3 GiB ring budgets. This complements the
+Rust regression that removes an already-checked blob and its action-cache entry
+through the real eviction path while a later missing body is being fetched.
 `resume.mjs` interrupts the local authority API, holds an admitted upload across
 expiry and supplies explicit fencing/resumption grants; it verifies drained
 publication, recovery when a replacement grant arrives after expiry, retained
@@ -53,7 +74,7 @@ Its source has a 3 GiB ring and the destination a 4 GiB ring in a bounded 6 GiB
 tmpfs, initially pressured with a 2.25 GiB filler. Restoring free bytes alone
 does not guarantee that equal-sized fragmented rings can converge; the extra
 destination capacity makes the successful recovery case explicit without
-bypassing the production capacity guard.
+bypassing ring capacity or quota-aware disk admission.
 Capture the expected pressure corpus only after both receipts exist, while the
 source hold prevents read-time promotion and eviction. A pre-hold walk of a full
 ring can evict records it counted earlier and is not the retained barrier.

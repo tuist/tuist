@@ -918,6 +918,21 @@ hands a queued job to any idle runner of the org that carries its labels, and
 a rack runner carries the same label as a rented one, so keeping rented
 runners from being minted is what keeps the jobs on the rack.
 
+A catalog shape can run a bigger guest on the rack than on the rented fleet
+(`rackFleet.runners.guestShapes`): in production the 6 vCPU / 14 GB shape runs
+8 vCPU / 24 GB guests and the 12 vCPU / 28 GB shape 16 vCPU / 48 GB, which the
+hosts' 16 CPU / 48 GB sizing fits two and one of. The pool keeps the shape's
+name, so a job is still recorded, billed and counted against the account's
+concurrency limit at the shape its profile names, and one that spills over to
+the rented fleet runs at that shape.
+
+The rack's pools (one per Xcode and shape, plus the `ber1` smoke pool) share
+its guest slots through the runners-controller's fleet allocator. When one of
+them has queued jobs whose Pods the scheduler refuses for lack of resources,
+the others give up idle warm runners straight away instead of after their
+scale-down cooldown (`infra/runners-controller/AGENTS.md`, "Cross-pool
+preemption").
+
 The rented fleet is the rack's backup while it is down (`Tuist.Runners.Sites`):
 
 - **No capacity:** no Node of the rack fleet is Ready, schedulable and large

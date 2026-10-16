@@ -234,6 +234,7 @@ func (tlsPeerPathProber) Probe(ctx context.Context, address string, serverName s
 }
 
 type runtimeStatus struct {
+	invalidObservation         bool
 	ServingAuthority           servingReport `json:"serving_authority"`
 	Ready                      bool          `json:"ready"`
 	State                      string        `json:"state"`
@@ -670,6 +671,10 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
+	if image, held := heldRuntimeImage(instance); held {
+		instance.Status.Phase = "Pending"
+		instance.Status.Message = fmt.Sprintf("Requested runtime image %s is held at qualified image %s; qualify the new image before updating the fenced runtime pin", instance.Spec.Image, image)
+	}
 	if fencedServing(instance) && primaryPod == "fenced-unavailable" {
 		instance.Status.Phase = "Pending"
 		instance.Status.Message = "No acknowledged serving authority; inspect the durable serving grant"
@@ -2403,9 +2408,12 @@ func (r *KuraInstanceReconciler) sampleRuntimeStatuses(
 		status, err := statusClient.Status(ctx, pods[i])
 		if err != nil {
 			log.FromContext(ctx).V(1).Info("failed to read Kura pod rollout status", "pod", pods[i].Name, "error", err)
+		}
+		observation, observed := observedRuntimeStatus(status, err)
+		if !observed {
 			continue
 		}
-		fresh[pods[i].Name] = status
+		fresh[pods[i].Name] = observation
 		uids[pods[i].Name] = pods[i].UID
 	}
 
@@ -2423,6 +2431,9 @@ func (r *KuraInstanceReconciler) sampleRuntimeStatuses(
 		r.podSamples[key] = samples
 	}
 	for name, status := range fresh {
+		if status.invalidObservation {
+			continue
+		}
 		sample := samples[name]
 		if sample == nil {
 			sample = &podRuntimeSample{}
@@ -2524,7 +2535,7 @@ func primaryPodHealthFromSamples(
 			fallbackReady[pods[i].Name] = true
 		}
 		status, ok := samples[pods[i].Name]
-		if !ok {
+		if !ok || status.invalidObservation {
 			continue
 		}
 		runtimeStatuses++
@@ -2741,19 +2752,6 @@ func (c *httpRuntimeStatusClient) Status(ctx context.Context, pod corev1.Pod) (r
 		return runtimeStatus{}, err
 	}
 	return decodeRuntimeStatus(response)
-}
-
-func decodeRuntimeStatus(response *http.Response) (runtimeStatus, error) {
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
-		return runtimeStatus{}, fmt.Errorf("unexpected status %d", response.StatusCode)
-	}
-	var status runtimeStatus
-	if err := json.NewDecoder(response.Body).Decode(&status); err != nil {
-		return runtimeStatus{}, err
-	}
-	return status, nil
 }
 
 func runtimeStatusServing(status runtimeStatus) bool {
@@ -3371,8 +3369,9 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 // applyStatefulSet creates or updates the instance's StatefulSet. With
 // createHeld, a StatefulSet it creates starts on the resize's rollout hold.
 func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance *kurav1alpha1.KuraInstance, createHeld bool) error {
-	if floor := instance.Annotations["kura.tuist.dev/fenced-runtime-image"]; fencedServing(instance) && floor != "" && floor != instance.Spec.Image {
-		return fmt.Errorf("fenced runtime image is pinned to %s; qualify a new image before changing the rollback floor", floor)
+	if image, held := heldRuntimeImage(instance); held {
+		instance = instance.DeepCopy()
+		instance.Spec.Image = image
 	}
 	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
 	sharedSecretsResourceVersion, err := r.sharedSecretsResourceVersion(ctx, instance.Namespace)

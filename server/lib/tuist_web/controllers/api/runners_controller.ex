@@ -8,6 +8,7 @@ defmodule TuistWeb.API.RunnersController do
   alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
+  alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
   alias TuistWeb.API.Authorization.AuthorizationPlug
   alias TuistWeb.API.Responses
@@ -24,7 +25,7 @@ defmodule TuistWeb.API.RunnersController do
   # Profiles live on the account settings surface, where the dashboard
   # requires account administrators even for the read-only table. The
   # operational runner views intentionally remain visible to runner readers.
-  plug AuthorizationPlug, {:account, :account, :update} when action in [:index_profiles]
+  plug AuthorizationPlug, {:account, :account, :update} when action in [:index_profiles, :update_profile]
 
   plug AuthorizationPlug,
        {:account, :runners}
@@ -116,10 +117,16 @@ defmodule TuistWeb.API.RunnersController do
       memory_gb: %Schema{type: :integer},
       xcode_version: %Schema{type: :string, nullable: true},
       protected: %Schema{type: :boolean},
+      cache_writer_branches: %Schema{
+        type: :array,
+        items: %Schema{type: :string},
+        description:
+          "Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch."
+      },
       inserted_at: %Schema{type: :string, format: "date-time"},
       updated_at: %Schema{type: :string, format: "date-time"}
     },
-    required: [:id, :name, :platform, :vcpus, :memory_gb, :protected, :inserted_at, :updated_at]
+    required: [:id, :name, :platform, :vcpus, :memory_gb, :protected, :cache_writer_branches, :inserted_at, :updated_at]
   }
 
   @job_step_schema %Schema{
@@ -463,6 +470,69 @@ defmodule TuistWeb.API.RunnersController do
     end
   end
 
+  operation(:update_profile,
+    summary: "Update which branches save a runner profile's cache volumes.",
+    description:
+      "Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. An empty list follows each repository's default branch. Narrowing the list discards pending saves it no longer allows.",
+    operation_id: "updateRunnerProfile",
+    parameters:
+      @account_parameters ++
+        [
+          profile_name: [
+            in: :path,
+            type: :string,
+            required: true,
+            description: "The profile name, without the runs-on label prefix."
+          ]
+        ],
+    request_body:
+      {"Profile changes", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           cache_writer_branches: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description: "Branch names or * patterns. An empty list follows each repository's default branch."
+           }
+         },
+         required: [:cache_writer_branches]
+       }},
+    responses: %{
+      ok: {"Updated runner profile", "application/json", @profile_schema},
+      bad_request: {"Missing or malformed fields", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error},
+      not_found: {"The profile was not found or runners are not enabled", "application/json", Error},
+      unprocessable_entity: {"Invalid branch names", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def update_profile(
+        %{assigns: %{selected_account: account}, path_params: %{"profile_name" => name}, body_params: body} = conn,
+        _params
+      ) do
+    with true <- FeatureFlags.runners_enabled?(account),
+         %Profile{} = profile <- Profiles.get_by_name(account, name),
+         {:ok, profile} <- Profiles.update_cache_writer_branches(profile, body.cache_writer_branches) do
+      json(conn, serialize_profile(profile))
+    else
+      false ->
+        runners_unavailable(conn)
+
+      nil ->
+        conn |> put_status(:not_found) |> json(%{message: "The runner profile was not found."})
+
+      {:error, %Ecto.Changeset{}} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{
+          message:
+            "Use up to #{Profile.max_cache_writer_branches()} branch names, optionally with * to match any characters."
+        })
+    end
+  end
+
   defp page_params(params) do
     page = params |> Map.get(:page, 1) |> max(1)
     page_size = params |> Map.get(:page_size, 20) |> max(1) |> min(100)
@@ -547,7 +617,9 @@ defmodule TuistWeb.API.RunnersController do
       ])
 
   defp serialize_profile(profile) do
-    Map.take(profile, [:id, :name, :platform, :vcpus, :memory_gb, :xcode_version, :protected, :inserted_at, :updated_at])
+    profile
+    |> Map.take([:id, :name, :platform, :vcpus, :memory_gb, :xcode_version, :protected, :inserted_at, :updated_at])
+    |> Map.put(:cache_writer_branches, profile.cache_writer_branches || [])
   end
 
   defp with_runner_job(conn, account, workflow_job_id, fun) do

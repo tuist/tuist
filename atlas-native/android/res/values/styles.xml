@@ -2,8 +2,9 @@
 <resources>
     <style name="AtlasTheme" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#7135FF</item>
+        <item name="android:colorAccent">#087CAA</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:statusBarColor">#FFFFFF</item>
+        <item name="android:statusBarColor">#F5FAFF</item>
+        <item name="android:navigationBarColor">#303030</item>
     </style>
 </resources>

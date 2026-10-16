@@ -132,7 +132,7 @@
             }
           >
             <:col :let={run} label={scheme_label(@selected_project)}>
-              <.text_cell label={run.scheme} />
+              <.text_and_description_cell label={test_run_label(@selected_project, run.scheme)} />
             </:col>
             <:col :let={run} label={dgettext("dashboard_tests", "Coverage")}>
               <.coverage_cell covered={run.covered_lines} executable={run.executable_lines} />

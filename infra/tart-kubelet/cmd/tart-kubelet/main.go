@@ -420,7 +420,7 @@ func main() {
 		}
 	}
 
-	if err := (&podagent.Reconciler{
+	reconciler := &podagent.Reconciler{
 		CachedClient:       mgr.GetClient(),
 		NodeName:           nodeName,
 		NodeIP:             nodeIP,
@@ -444,7 +444,8 @@ func main() {
 		Converge:      converge,
 		Recorder:      mgr.GetEventRecorderFor("tart-kubelet"),
 		Images:        images,
-	}).SetupWithManager(mgr); err != nil {
+	}
+	if err := reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup pod reconciler")
 		os.Exit(1)
 	}
@@ -476,16 +477,39 @@ func main() {
 		return labels, nil
 	}
 
+	// A host joining the cluster pulls its fleet's in-demand runner images
+	// before it takes Pods, through the same golden path a Pod's first VM
+	// takes. The gate taints only a Node this process creates; see
+	// nodeagent.PrewarmGate.
+	prewarmGate := nodeagent.NewPrewarmGate()
+	if err := mgr.Add(&podagent.Prewarmer{
+		K8s:     mgr.GetAPIReader(),
+		Goldens: reconciler,
+		Gate:    prewarmGate,
+		Fleet:   nodeLabels["tuist.dev/fleet"],
+		DiskFree: func() (float64, error) {
+			st, err := hostdisk.Root("/")
+			if err != nil {
+				return 0, err
+			}
+			return st.FreePercent(), nil
+		},
+	}); err != nil {
+		setupLog.Error(err, "add runner image prewarmer")
+		os.Exit(1)
+	}
+
 	if err := mgr.Add(&nodeagent.Maintainer{
-		Client:     mgr.GetClient(),
-		NodeName:   nodeName,
-		ProviderID: providerID,
-		NodeIP:     nodeIP,
-		NodeLabels: nodeLabels,
-		CPU:        hostCPU,
-		MemoryMB:   hostMemoryMB,
-		MaxPods:    maxPods,
-		Heartbeat:  30 * time.Second,
+		Client:      mgr.GetClient(),
+		NodeName:    nodeName,
+		ProviderID:  providerID,
+		NodeIP:      nodeIP,
+		NodeLabels:  nodeLabels,
+		CPU:         hostCPU,
+		MemoryMB:    hostMemoryMB,
+		MaxPods:     maxPods,
+		Heartbeat:   30 * time.Second,
+		PrewarmGate: prewarmGate,
 		DiskPressure: func(ctx context.Context) (bool, string, error) {
 			// Host root volume first: it holds every Tart golden + clone,
 			// and a fill there silently breaks the operator's SSH config

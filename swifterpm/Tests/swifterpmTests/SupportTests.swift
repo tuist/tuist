@@ -64,7 +64,7 @@ struct SupportTests {
     @Test
     func binaryArtifactHeadersAskForRawBytesExactly() async throws {
         let url = try #require(URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1.zip"))
-        let headers = await HTTPClient.binaryArtifactHeaders(for: url)
+        let headers = try await HTTPClient.binaryArtifactHeaders(for: url)
 
         #expect(headers["Accept"] == "application/octet-stream")
     }
@@ -179,12 +179,15 @@ struct SupportTests {
                 let destination = root.appendingPathComponent("destination")
                 try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
                 try await fileSystem.atomicWrite(
-                    "value", to: nested.appendingPathComponent("file.txt"))
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
                 try await fileSystem.atomicWrite(
-                    "manifest", to: source.appendingPathComponent("Package.swift"))
+                    "manifest", to: source.appendingPathComponent("Package.swift")
+                )
 
                 try await fileSystem.replaceWithRegistryDownloadDirectory(
-                    source: source, destination: destination)
+                    source: source, destination: destination
+                )
 
                 #expect(fileSystem.isDirectoryAndNotSymlink(destination))
                 #expect(!(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested"))))
@@ -208,10 +211,12 @@ struct SupportTests {
                 let destination = root.appendingPathComponent("destination")
                 try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
                 try await fileSystem.atomicWrite(
-                    "value", to: nested.appendingPathComponent("file.txt"))
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
 
                 try await fileSystem.replaceWithRegistryDownloadDirectory(
-                    source: source, destination: destination)
+                    source: source, destination: destination
+                )
 
                 #expect(fileSystem.isDirectoryAndNotSymlink(destination))
                 #expect(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested")))
@@ -230,10 +235,12 @@ struct SupportTests {
                 let destination = root.appendingPathComponent("destination")
                 try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
                 try await fileSystem.atomicWrite(
-                    "value", to: nested.appendingPathComponent("file.txt"))
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
 
                 try await fileSystem.replaceWithRegistryDownloadDirectory(
-                    source: source, destination: destination)
+                    source: source, destination: destination
+                )
 
                 #expect(fileSystem.isDirectoryAndNotSymlink(destination))
                 #expect(!(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested"))))
@@ -322,8 +329,8 @@ struct SupportTests {
     }
 
     @Test
-    func sourceControlTokenBeatsNetrcAndKeychain() async {
-        let header = await HTTPAuthorization.prioritizedHeader(
+    func sourceControlTokenBeatsNetrcAndKeychain() async throws {
+        let header = try await HTTPAuthorization.prioritizedHeader(
             sourceControlToken: "environment-token",
             netrcCredential: RegistryCredential(user: "user", password: "file-token"),
             keychain: { Issue.record("keychain consulted despite environment token"); return nil }
@@ -332,9 +339,9 @@ struct SupportTests {
     }
 
     @Test
-    func netrcCredentialBeatsKeychainWithAnEmptyEnvironmentToken() async {
+    func netrcCredentialBeatsKeychainWithAnEmptyEnvironmentToken() async throws {
         let credential = RegistryCredential(user: "user", password: "file-token")
-        let header = await HTTPAuthorization.prioritizedHeader(
+        let header = try await HTTPAuthorization.prioritizedHeader(
             sourceControlToken: "",
             netrcCredential: credential,
             keychain: { Issue.record("keychain consulted despite netrc credentials"); return nil }
@@ -343,8 +350,8 @@ struct SupportTests {
     }
 
     @Test
-    func keychainIsUsedWhenOtherHTTPProvidersMiss() async {
-        let header = await HTTPAuthorization.prioritizedHeader(
+    func keychainIsUsedWhenOtherHTTPProvidersMiss() async throws {
+        let header = try await HTTPAuthorization.prioritizedHeader(
             sourceControlToken: nil, netrcCredential: nil,
             keychain: { RegistryCredential(user: "keychain", password: "credential") }
         )
@@ -352,8 +359,8 @@ struct SupportTests {
     }
 
     @Test
-    func noHTTPProvidersProducesNoHeader() async {
-        #expect(await HTTPAuthorization.prioritizedHeader(
+    func noHTTPProvidersProducesNoHeader() async throws {
+        #expect(try await HTTPAuthorization.prioritizedHeader(
             sourceControlToken: nil, netrcCredential: nil, keychain: { nil }
         ) == nil)
     }
@@ -365,7 +372,7 @@ struct SupportTests {
             "GITHUB_TOKEN": "unrelated-token",
         ]) {
             try await Environment.withNetrc(.empty) {
-                await HTTPAuthorization.header(for: try #require(URL(string: location)))
+                try await HTTPAuthorization.header(for: try #require(URL(string: location)))
             }
         }
         #expect(header == "Basic " + Data("token:environment-token".utf8).base64EncodedString())
@@ -381,7 +388,7 @@ struct SupportTests {
             "GITLAB_TOKEN": "gitlab-token", "CI_JOB_TOKEN": "job-token",
         ]) {
             try await Environment.withNetrc(netrc) {
-                await HTTPAuthorization.header(for: try #require(URL(string: location)))
+                try await HTTPAuthorization.header(for: try #require(URL(string: location)))
             }
         }
         #expect(header == nil)
@@ -408,7 +415,8 @@ struct SupportTests {
         try await withTemporaryDirectory { directory in
             let target = directory.appendingPathComponent("Target")
             try await fileSystem.makeDirectory(
-                at: target.absolutePath, options: [.createTargetParentDirectories])
+                at: target.absolutePath, options: [.createTargetParentDirectories]
+            )
             let link = directory.appendingPathComponent("Link")
             try await fileSystem.createSymbolicLink(from: link.absolutePath, to: target.absolutePath)
             let absent = directory.appendingPathComponent("Absent/Deep")

@@ -1,9 +1,19 @@
 # Kura control plane
 
+- `Origins` and `Demand` sort bulk upsert rows by their full conflict keys before
+  insertion so concurrent overlapping batches acquire locks in a consistent
+  order. Keep this ordering at the write boundary, including backfills and
+  write-through calls; sorted account key-share locks alone do not order the
+  subsequent rollup/lifecycle writes.
+
 - `kura_positive_fence` is default off and changes both `servingMode` and the
   manifest revision. Controller activation is sticky: disabling the account
   flag cannot remove the serving rollback floor or restore legacy selection.
   See [serving authority](../../../../../infra/kura-controller/serving-authority.md).
+
+- Capacity counts every node-local volume on a region's nodes that no claim is bound to (a quarantined replica's retained volume, a Released volume awaiting deletion) at its provisioned size, in the region total and in the node's headroom. No pod requests that disk, so the scheduler would otherwise hand it out again. Failing to list volumes leaves the reading unknown, the same as failing to list pods.
+
+- Demand has two clocks. `last_cache_demand_at` moves on any cache demand, including legacy endpoint resolution and runner dispatch; `last_cache_traffic_at` moves only on traffic (managed usage reports with requests, activation-gateway admissions), passed as `Demand.record(id, origin, traffic: true)`. Air inactivity and Air drain cancellation read the traffic clock; every other plan reads demand. An Air service period with no traffic archives as `:idle`, which only traffic returns until `Demand.idle_hold_days/0` passes or the account leaves Air; resolution then neither reports provisioning nor kicks it, and project seeding declines. The Air clock is bounded below by the current service start, so a return by demand alone still gets its full window. Never let a resolution-only path set `traffic: true`, or zero-traffic instances cycle back into service.
 
 - Storage sizing counts `disk_pressure` events as eviction activity to block occupancy shrink, but excludes their bytes from turnover and invalidates all retention ages for the affected account-region-day. Keep snapshots reporting configured ring budgets; runtime pressure caps belong to backfill, not the resize denominator.
 

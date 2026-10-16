@@ -30,6 +30,10 @@ spec:
         - jsonPath: .status.power
           name: Power
           type: string
+        - jsonPath: .status.outletDraw.activePowerWatts
+          name: Watts
+          priority: 1
+          type: string
         - jsonPath: .status.quarantined
           name: Quarantined
           type: boolean
@@ -295,7 +299,7 @@ spec:
               description: RackHostStatus is the observed state of one physical host.
               properties:
                 conditions:
-                  description: Conditions are CAPI-style condition entries (PowerReachable).
+                  description: Conditions are CAPI-style condition entries (PowerReachable, HostDrawing).
                   items:
                     description: Condition defines an observation of a Cluster API resource operational state.
                     properties:
@@ -353,6 +357,37 @@ spec:
                     Machine is the name of the CAPI Machine and RackAppleSiliconMachine that
                     make this host a node, and of the Node they register: `<fleet>-<host>`.
                   type: string
+                outletDraw:
+                  description: |-
+                    OutletDraw is what the outlet's meter last read: the outlet's entry in its
+                    RackPDU's status, or the endpoint's own meter for an outlet of its own.
+                    Unset when there is no recent reading. The HostDrawing condition says
+                    what it means for the host.
+                  properties:
+                    activePowerWatts:
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: ActivePowerWatts is the real power drawn, in watts.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    apparentPowerVA:
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: |-
+                        ApparentPowerVA is the apparent power, in volt-amperes. A cord plugged in
+                        to a machine that is off still reads a few VA, an empty outlet none.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    currentAmps:
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: CurrentAmps is the RMS current, in amperes.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                  type: object
                 power:
                   description: |-
                     Power is the last observed outlet state: On, Off, or Unknown when the

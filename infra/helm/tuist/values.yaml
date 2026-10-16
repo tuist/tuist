@@ -731,6 +731,13 @@ server:
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
       enabled: false
+    # Origin app identity. Enable only after the registered App ID and its
+    # signing key exist together in the environment's vault.
+    originAppKey:
+      enabled: false
+      item: ORIGIN_APP
+      appIdField: app_id
+      field: private_key
     # Private half of the keypair cache tokens are signed with, so that a cache
     # node given the public half reads them without calling back here. Off until
     # a pair exists in the environment's vault: cache tokens are then signed by
@@ -1786,8 +1793,19 @@ rackFleet:
     #   maxConcurrentPercent: 5
     # Per-Xcode scaling on this fleet, keyed by `xcodeVersion`: `replicas`,
     # `autoscaling`, `rollout`, `idleTimeoutSeconds`. The image, runner labels
-    # and pod sizing are the Xcode's (`runnersFleet.xcodeOverrides`).
+    # and pod sizing are the Xcode's (`runnersFleet.xcodeOverrides`), apart
+    # from `guestShapes` below.
     xcodeOverrides: {}
+    # A bigger guest on this fleet for a catalog shape, keyed
+    # `<vcpus>vcpu-<gb>gb`. The pool keeps the shape's name, so profiles of that
+    # shape still route to it and its jobs are recorded, billed and counted
+    # against concurrency limits at the shape; only its Pods grow. Size the
+    # hosts' `machine` for the guests, and keep memory per vCPU the same across
+    # this fleet's guests so memory binds guest count where CPU does. A guest
+    # smaller than its shape fails the render.
+    guestShapes: {}
+    #   6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+    #   12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
     # Non-default catalog shapes this fleet runs, keyed `<vcpus>vcpu-<gb>gb`,
     # each with its `autoscaling` (and optional `rollout`). A shape not named
     # here gets no pool on this fleet. Its `maxReplicas` is the hosts that fit
