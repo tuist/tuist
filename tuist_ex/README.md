@@ -253,8 +253,14 @@ machine compiles; the others download its build.
 On one machine, once per pipeline:
 
 ```sh
-mix tuist.test.build --shard-max 4
+MIX_ENV=test mix compile --warnings-as-errors
+MIX_ENV=test mix tuist.test.build --shard-max 4
 ```
+
+The first command enters through the generated compile alias so dependency
+caching runs before Mix discovers the sharding task. On a cold checkout,
+direct task discovery can compile dependencies before Tuist can cache them.
+Keep both commands in the test environment.
 
 This compiles the project for testing, asks Tuist to split the test files
 into at most four shards, and uploads the `_build/test` directory. A test file
@@ -310,7 +316,8 @@ commit complete from a job that runs after all of them:
 
 ```sh
 # once, on the machine that builds
-mix tuist.test.build --shard-total 4 --cover
+MIX_ENV=test mix compile --warnings-as-errors
+MIX_ENV=test mix tuist.test.build --shard-total 4 --cover
 
 # on each shard
 TUIST_SHARD_INDEX=0 mix tuist.test --cover
@@ -331,8 +338,9 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       # checkout, Elixir, mix deps.get
+      - run: MIX_ENV=test mix compile --warnings-as-errors
       - id: plan
-        run: mix tuist.test.build --shard-total 4 --cover
+        run: MIX_ENV=test mix tuist.test.build --shard-total 4 --cover
   test:
     needs: build
     strategy:

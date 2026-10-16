@@ -201,7 +201,7 @@ func (r *RackLinuxMachineReconciler) reconcileNormal(ctx context.Context, machin
 	if err := r.egress().ensure(ctx, r.Client, host); err != nil {
 		return ctrl.Result{}, fmt.Errorf("reconcile egress Service for %s: %w", nodeName, err)
 	}
-	if err := r.reconcileNodeAddresses(ctx, host, node); err != nil {
+	if err := r.reconcileNodeAddresses(ctx, host, node, clusterAddressApplied(machine)); err != nil {
 		return ctrl.Result{}, err
 	}
 

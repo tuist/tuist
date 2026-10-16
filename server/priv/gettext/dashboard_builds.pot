@@ -2790,11 +2790,6 @@ msgstr ""
 msgid "Compiler"
 msgstr ""
 
-#: lib/tuist_web/components/cargo_cache_inspection.ex:327
-#, elixir-autogen, elixir-format
-msgid "Compiler work is not wall-clock time saved"
-msgstr ""
-
 #: lib/tuist_web/components/cargo_cache_inspection.ex:127
 #, elixir-autogen, elixir-format
 msgid "Completed remote CAS bytes divided by their summed operation durations, including connection, retry and verification time. Operations can overlap; this is not whole-build network throughput."
@@ -2813,11 +2808,6 @@ msgstr ""
 #: lib/tuist_web/components/cargo_cache_inspection.ex:303
 #, elixir-autogen, elixir-format
 msgid "Detailed cache records were not collected"
-msgstr ""
-
-#: lib/tuist_web/components/cargo_cache_inspection.ex:329
-#, elixir-autogen, elixir-format
-msgid "Estimated compiler work avoided: %{duration}. Aggregate hits do not distinguish local and remote restores. CAS operations include protocol metadata and presence checks; they do not establish task restores. No remote CAS operations are inferred for local restores. Cumulative timings can overlap."
 msgstr ""
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:325

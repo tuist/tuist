@@ -38,48 +38,16 @@ fi
 # Bundling logic (runs natively on Linux or inside container)
 BUILD_DIRECTORY=$PROJECT_ROOT/build
 BUILD_PATH="${BUILD_PATH:-.build}"
-SDK_ID="swift-6.2.3-RELEASE_static-linux-0.0.1"
-SDK_TARGET="${ARCH}-swift-linux-musl"
 
 echo "==> Building Linux release into $BUILD_DIRECTORY"
 
 rm -rf $BUILD_DIRECTORY
 mkdir -p $BUILD_DIRECTORY
 
-# Install Swift Static Linux SDK for fully static musl-based binaries.
-# This eliminates all shared library dependencies and cross-distro compatibility issues
-# (e.g. Ubuntu's CURL_OPENSSL_4 vs Fedora's libcurl-minimal).
-# The SDK carries the sysroots of both architectures, so either one can be built from
-# either host.
-if swift sdk list | grep -qxF "$SDK_ID"; then
-    echo "==> Swift Static Linux SDK already installed"
-else
-    echo "==> Installing Swift Static Linux SDK"
-    swift sdk install "https://download.swift.org/swift-6.2.3-release/static-sdk/swift-6.2.3-RELEASE/$SDK_ID.artifactbundle.tar.gz" \
-        --checksum f30ec724d824ef43b5546e02ca06a8682dafab4b26a99fbb0e858c347e507a2c
-fi
-
-# Remove system static archives that conflict with the musl SDK.
-# The musl SDK provides its own minimal static libraries, but the linker also finds
-# the system's glibc-based .a files (libcurl with libidn2/libldap/libssh deps,
-# libc/libm/zlib with internal glibc symbols, libxml2 with ICU/glibc symbols). Removing these
-# forces the linker to use only the musl SDK's versions.
-echo "==> Removing conflicting system static libraries"
-rm -f /usr/lib/*/libc.a /usr/lib/*/libm.a /usr/lib/*/libm-*.a /usr/lib/*/libcurl.a \
-    /usr/lib/*/libxml2.a /usr/lib/*/libz.a
-
-# ZIPFoundation and Kanna declare zlib and libxml2 as pkg-config system libraries. The
-# host's .pc files would put the host's library directory (/usr/lib/<host-triple>) on the
-# link line, where a cross-compiled link picks up archives of the wrong architecture. The
-# SDK's sysroot already provides both libraries; libxml2's headers only need its include
-# directory.
-echo "==> Removing host pkg-config files for zlib and libxml2"
-rm -f /usr/lib/*/pkgconfig/zlib.pc /usr/lib/*/pkgconfig/libxml-2.0.pc /usr/share/pkgconfig/zlib.pc
-SDK_ROOT=$(swift sdk configure --show-configuration "$SDK_ID" "$SDK_TARGET" | sed -n 's/^sdkRootPath: //p')
+SDK_TARGET=$("$PROJECT_ROOT/mise/utilities/install_static_linux_sdk.sh" "$ARCH")
 
 echo "==> Building tuist executable (static musl, $SDK_TARGET)"
-swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry --swift-sdk "$SDK_TARGET" \
-    -Xcc -I"$SDK_ROOT/usr/include/libxml2"
+swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry --swift-sdk "$SDK_TARGET"
 
 BIN_PATH=$(swift build --product tuist --configuration release --build-path "$BUILD_PATH" --swift-sdk "$SDK_TARGET" --show-bin-path)
 echo "==> Copying binary from $BIN_PATH"

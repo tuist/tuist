@@ -162,6 +162,8 @@ tailnetIngress:
   proxyGroup:
     name: tailnet-ingress
     replicas: 2
+    # Per-env device name prefix; see macminiEgress.proxyGroup.hostnamePrefix.
+    hostnamePrefix: ""
     # Tailscale identity the proxies register under. Per-env overlays set
     # `tag:tuist-k8s-<env>`, which the tailnet policy's grants and
     # `autoApprovers.services` entries are scoped to.
@@ -182,6 +184,12 @@ macminiEgress:
   enabled: false
   proxyGroup:
     name: macmini-egress
+    # Prefix of the proxies' tailnet device names, which get `-<n>` appended.
+    # Without one they are named after the ProxyGroup, and every env shares
+    # the tailnet, so each env's proxies took the same names and Tailscale
+    # suffixed the later ones (`macmini-egress-0-2`). Per-env overlays set
+    # `<name>-<env>`.
+    hostnamePrefix: ""
     # 2 replicas gives HA without burning a lot of pods; the proxy
     # holds no state per scrape, so a restart drops one in-flight
     # scrape interval at worst.

@@ -24,6 +24,7 @@ on:
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
       - "mise/tasks/cli/ee.sh"
+      - "mise/utilities/install_static_linux_sdk.sh"
       - "mise.toml"
       - "mise.lock"
       - "examples/xcode/**"
@@ -54,6 +55,7 @@ on:
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
       - "mise/tasks/cli/ee.sh"
+      - "mise/utilities/install_static_linux_sdk.sh"
       - "mise.toml"
       - "mise.lock"
       - "examples/xcode/**"
@@ -445,9 +447,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: linux-cli-musl-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            linux-cli-${{ hashFiles('Package.swift') }}-
+            linux-cli-musl-${{ hashFiles('Package.swift') }}-
       - name: Install caddy
         run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
       # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
@@ -474,8 +476,14 @@ jobs:
         run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
+      # Releases ship a static musl binary, and the musl SDK exposes `Musl`
+      # rather than `Glibc`, so build against the same SDK the release uses.
+      - name: Install Swift Static Linux SDK
+        run: |
+          target=$(./mise/utilities/install_static_linux_sdk.sh)
+          echo "SWIFT_SDK_TARGET=$target" >> "$GITHUB_ENV"
       - name: Build tuist CLI
-        run: swift build --target tuist --replace-scm-with-registry --force-resolved-versions
+        run: swift build --target tuist --replace-scm-with-registry --force-resolved-versions --swift-sdk "$SWIFT_SDK_TARGET"
       - name: Save cache
         if: github.ref == 'refs/heads/main'
         id: cache-save

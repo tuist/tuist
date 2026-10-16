@@ -26,8 +26,14 @@ Tests are distributed by file: every test in a file runs on the same shard. Test
 Prepare test shards using the `tuist.test.build` task:
 
 ```sh
-mix tuist.test.build --shard-max 5
+MIX_ENV=test mix compile --warnings-as-errors
+MIX_ENV=test mix tuist.test.build --shard-max 5
 ```
+
+Compile through the alias installed by the shared setup before invoking the
+sharding task. On a cold checkout, Mix can compile dependencies while discovering
+`tuist.test.build`, before Tuist's dependency cache has a chance to restore them.
+The explicit compile runs in the same test environment as the sharding task.
 
 This task:
 1. Compiles the project in the test environment
@@ -114,6 +120,7 @@ jobs:
           elixir-version: '1.18'
           otp-version: '27'
       - run: mix deps.get
+      - run: mix compile --warnings-as-errors
       - id: build
         run: mix tuist.test.build --shard-max 5
 

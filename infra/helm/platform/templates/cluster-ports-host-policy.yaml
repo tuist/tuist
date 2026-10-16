@@ -1,6 +1,6 @@
 {{- /*
-Drops the cluster-internal ports (VXLAN, cilium-health, kubelet) from sources
-outside the cluster. Node addresses resolve to `remote-node` or
+Drops the cluster-internal ports (VXLAN, cilium-health, kubelet, Cilium
+metrics) from sources outside the cluster. Node addresses resolve to `remote-node` or
 `kube-apiserver`, so only `world` is denied. A host policy default-denies the
 node's ingress, so the `all` rule keeps every other flow open.
 */ -}}
