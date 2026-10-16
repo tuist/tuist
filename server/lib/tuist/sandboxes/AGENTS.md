@@ -65,19 +65,26 @@ consumer is Claude Managed Agents `self_hosted` environments.
   table by `Manager` every 30s. Started on web pods outside tests
   (`sandboxes_children/0` in `Tuist.Application`).
 - `Tuist.Sandboxes.Router`: finds or creates the session's sandbox,
-  resumes it, records the residency and starts `sbx-worker` with the
+  resumes it and records the residency in one step
+  (`Sandboxes.prepare_residency/2`), then starts `sbx-worker` with the
   session credentials; force-stops the work item on any failure so
   Anthropic re-queues it. The residency that creates the sandbox also
   binds it to the `AgentSession` row (looked up by
   `anthropic_session_id`) and clones the requested repository into
   `/workspace/<name>` with `git clone --filter=blob:none` (branch via
   `--branch`, a commit sha via a follow-up `checkout`; 90s budget). A
-  github.com URL is cloned with the account's GitHub App installation
-  token when one exists. A failed clone is logged and the worker still
-  starts.
+  github.com repository named on the `AgentSession` row is cloned with a
+  token minted for that one repository with `contents: read`
+  (`GitHub.App.create_scoped_installation_token/4`), passed to git as
+  an `http.extraheader` through `GIT_CONFIG_*` environment variables so
+  it never lands in `.git/config`. A repository named only in the
+  session metadata (which anyone with access to the Anthropic workspace
+  can set) is cloned anonymously. A failed clone is logged and the
+  worker still starts.
 - `Tuist.Sandboxes.Workers.PauseSandboxWorker`: Oban job scheduled by
-  `end_residency/1`; pauses only when the sandbox is still running, has
-  no residency and the epoch it was enqueued with is still current.
+  `end_residency/1`; `Sandboxes.pause_idle/2` pauses only when the
+  sandbox is still running, has no residency and the epoch it was
+  enqueued with is still current, checked under the sandbox's lock.
 - `Tuist.Sandboxes.Workers.RetentionWorker`: daily cron (shared crons in
   `Tuist.Oban.RuntimeConfig`) that deletes sandboxes paused for longer
   than 14 days, falling back to the row's last update when the node
@@ -117,15 +124,31 @@ socket, the poller and the caller share a replica:
 - The sandbox row exists before the node hears its id, so a node report
   that races a create never looks like an orphan. Ids a node reports
   that the database does not know are deleted from the node.
-- `residency_epoch` increments on every residency start and end; it is
-  what makes a scheduled pause safe to leave enqueued.
+- Lifecycle transitions of one sandbox (resume, pause, the resume plus
+  residency of a new turn, delete) run under its cluster-wide `:global`
+  lock (`Sandboxes.with_sandbox_lock/3`) against a freshly read row. A
+  reclaim runs under the lock of the sandbox it makes room for, so it
+  only takes other sandboxes' locks with `wait: false` and skips busy
+  ones; nothing waits on two locks. The node's socket process never
+  takes a lock (node commands issued under one are answered through
+  it), so changes it makes (`worker_exited`, `sandbox_died`, reports)
+  are single SQL updates guarded by the state they were read in.
+- `residency_epoch` increments on every residency start and end, in
+  SQL; it is what makes a scheduled pause safe to leave enqueued.
+- A row left `creating` or `resuming` by a caller that died (a web pod
+  stopped mid-operation) is settled by the node's next report once it
+  has been stuck for 150 s: a `resuming` row takes the state the node
+  reports, a `creating` row the node does not list becomes `error`. A
+  node reporting a sandbox in `error` errors the row with its reason.
 - `environment_key` is `Tuist.Vault.Binary` encrypted and never
   serialized by the API. It travels only inside `start_worker` args.
 - `anthropic_api_key` is `Tuist.Vault.Binary` encrypted, never
   serialized by the API (`has_api_key` is), and only ever used
   server-side by `ControlPlane`. Installation tokens used for private
-  clones live only in the `exec` argv; git output is redacted before it
-  is logged.
+  clones live only in the clone command's environment; git output is
+  redacted before it is logged.
+- Exec output is capped at 1 MiB per stream as frames arrive (the node
+  stops streaming past 2 MiB) and returned with invalid UTF-8 replaced.
 - `anthropic_agent_id` is only cached for the environment's own
   `agent_model`; `AgentEnvironment.update_changeset/2` clears it when
   the model or the system prompt changes.
@@ -137,7 +160,14 @@ socket, the poller and the caller share a replica:
 
 - `TuistWeb.SandboxNodesController` (`GET /api/internal/sandboxes/nodes/connect`):
   TokenReview with the `tuist-sandboxes` audience, namespace check,
-  `X-Tuist-Node-Name`, WebSocket upgrade to `TuistWeb.SandboxNodeWebSock`.
+  `X-Tuist-Node-Name` that must equal the node the token's pod is bound
+  to, WebSocket upgrade to `TuistWeb.SandboxNodeWebSock` with a 120 s
+  idle timeout (nodes report every 30 s).
+- `TuistWeb.Plugs.RequireSandboxesPlug` gates both account APIs on
+  `FeatureFlags.sandboxes_enabled?/1` (an explicit `:sandboxes` flag on
+  canary and production), and the poller manager only runs pollers for
+  flagged accounts. Accounts get at most 50 live sandboxes, the shapes
+  in `Sandbox.shapes/0` and workspaces up to 100 GB.
 - `TuistWeb.API.SandboxesController`: account-admin API under
   `/api/accounts/:account_handle/sandboxes` (agent environments,
   including `PATCH agent-environments/:id` for the API key, model and

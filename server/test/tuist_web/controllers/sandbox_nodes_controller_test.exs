@@ -64,6 +64,26 @@ defmodule TuistWeb.SandboxNodesControllerTest do
     assert json_response(conn, 400)["error"] == "invalid node name"
   end
 
+  test "rejects a node name other than the node the token is bound to", %{conn: conn} do
+    expect(K8sClient, :create_sandbox_node_token_review, fn "token" ->
+      {:ok, %{namespace: "tuist-sandboxes", name: "sandboxd", uid: "1", node_name: "node-b"}}
+    end)
+
+    conn = connect_node(conn, [{"authorization", "Bearer token"}, {"x-tuist-node-name", "node-a"}])
+
+    assert json_response(conn, 401)["error"] == "node name does not match the token"
+  end
+
+  test "rejects a token that is not bound to a node", %{conn: conn} do
+    expect(K8sClient, :create_sandbox_node_token_review, fn "token" ->
+      {:ok, %{namespace: "tuist-sandboxes", name: "sandboxd", uid: "1", node_name: nil}}
+    end)
+
+    conn = connect_node(conn, [{"authorization", "Bearer token"}, {"x-tuist-node-name", "node-a"}])
+
+    assert json_response(conn, 401)["error"] == "node name does not match the token"
+  end
+
   test "answers 503 when the apiserver is unreachable", %{conn: conn} do
     expect(K8sClient, :create_sandbox_node_token_review, fn "token" -> {:error, :not_in_cluster} end)
 

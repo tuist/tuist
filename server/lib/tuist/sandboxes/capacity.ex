@@ -289,29 +289,42 @@ defmodule Tuist.Sandboxes.Capacity do
         if freed >= needed do
           {:halt, freed}
         else
-          case Sandboxes.pause(sandbox) do
-            {:ok, _paused} ->
-              Logger.info("sandboxes: paused an idle sandbox to make room",
-                sandbox_id: sandbox.id,
-                node: node.name,
-                freed_bytes: charge_bytes(sandbox)
-              )
-
-              {:cont, freed + charge_bytes(sandbox)}
-
-            {:error, reason} ->
-              Logger.warning("sandboxes: could not pause an idle sandbox for room",
-                sandbox_id: sandbox.id,
-                node: node.name,
-                reason: inspect(reason)
-              )
-
-              {:cont, freed}
-          end
+          {:cont, freed + reclaim_one(node, sandbox)}
         end
       end)
 
     if freed >= needed, do: :ok, else: {:error, :no_capacity}
+  end
+
+  # The reclaim may run under the lock of the sandbox it makes room for,
+  # so it never waits on another sandbox's lock: one that is busy is not
+  # idle anyway.
+  defp reclaim_one(node, sandbox) do
+    case Sandboxes.pause_idle(sandbox.id, wait: false) do
+      {:ok, %Sandbox{state: :paused}} ->
+        Logger.info("sandboxes: paused an idle sandbox to make room",
+          sandbox_id: sandbox.id,
+          node: node.name,
+          freed_bytes: charge_bytes(sandbox)
+        )
+
+        charge_bytes(sandbox)
+
+      {:ok, _skipped} ->
+        0
+
+      {:error, :locked} ->
+        0
+
+      {:error, reason} ->
+        Logger.warning("sandboxes: could not pause an idle sandbox for room",
+          sandbox_id: sandbox.id,
+          node: node.name,
+          reason: inspect(reason)
+        )
+
+        0
+    end
   end
 
   defp set_node(sandbox, node_name) do

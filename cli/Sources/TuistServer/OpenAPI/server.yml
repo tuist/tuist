@@ -6516,8 +6516,10 @@ components:
           x-struct:
           x-validate:
         memory_mb:
-          maximum: 262144
-          minimum: 256
+          enum:
+            - 4096
+            - 8192
+            - 16384
           type: integer
           x-struct:
           x-validate:
@@ -6540,13 +6542,16 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          maximum: 64
-          minimum: 1
+          description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+          enum:
+            - 2
+            - 4
+            - 8
           type: integer
           x-struct:
           x-validate:
         workspace_gb:
-          maximum: 1024
+          maximum: 100
           minimum: 1
           type: integer
           x-struct:
@@ -8708,8 +8713,10 @@ components:
     CreateSandbox:
       properties:
         memory_mb:
-          maximum: 262144
-          minimum: 256
+          enum:
+            - 4096
+            - 8192
+            - 16384
           type: integer
           x-struct:
           x-validate:
@@ -8720,13 +8727,16 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          maximum: 64
-          minimum: 1
+          description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+          enum:
+            - 2
+            - 4
+            - 8
           type: integer
           x-struct:
           x-validate:
         workspace_gb:
-          maximum: 1024
+          maximum: 100
           minimum: 1
           type: integer
           x-struct:
@@ -13364,8 +13374,10 @@ paths:
             schema:
               properties:
                 memory_mb:
-                  maximum: 262144
-                  minimum: 256
+                  enum:
+                    - 4096
+                    - 8192
+                    - 16384
                   type: integer
                   x-struct:
                   x-validate:
@@ -13376,13 +13388,16 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  maximum: 64
-                  minimum: 1
+                  description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                  enum:
+                    - 2
+                    - 4
+                    - 8
                   type: integer
                   x-struct:
                   x-validate:
                 workspace_gb:
-                  maximum: 1024
+                  maximum: 100
                   minimum: 1
                   type: integer
                   x-struct:
@@ -28760,8 +28775,10 @@ paths:
                   x-struct:
                   x-validate:
                 memory_mb:
-                  maximum: 262144
-                  minimum: 256
+                  enum:
+                    - 4096
+                    - 8192
+                    - 16384
                   type: integer
                   x-struct:
                   x-validate:
@@ -28784,13 +28801,16 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  maximum: 64
-                  minimum: 1
+                  description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                  enum:
+                    - 2
+                    - 4
+                    - 8
                   type: integer
                   x-struct:
                   x-validate:
                 workspace_gb:
-                  maximum: 1024
+                  maximum: 100
                   minimum: 1
                   type: integer
                   x-struct:

@@ -35,6 +35,12 @@ defmodule Tuist.Sandboxes do
   @exec_timeout_slack_ms 10_000
   @exec_output_limit_bytes 1_048_576
   @transient_node_errors [:not_connected, :node_disconnected, :timeout]
+  # A row still `creating` or `resuming` this long after its last update
+  # belongs to a caller that died mid-operation (a web pod stopped during a
+  # deploy): the node's report decides what it is now.
+  @stuck_after_seconds 150
+  @max_live_sandboxes_per_account 50
+  @live_states [:creating, :running, :resuming, :paused]
 
   def default_template, do: @default_template
   def default_shape, do: @default_shape
@@ -52,7 +58,7 @@ defmodule Tuist.Sandboxes do
   end
 
   def list_enabled_agent_environments do
-    Repo.all(from e in AgentEnvironment, where: e.enabled == true, order_by: [asc: e.id])
+    Repo.all(from e in AgentEnvironment, where: e.enabled == true, order_by: [asc: e.id], preload: [:account])
   end
 
   def get_agent_environment(%Account{id: account_id}, id) do
@@ -176,9 +182,17 @@ defmodule Tuist.Sandboxes do
       |> Map.merge(attrs |> Enum.reject(fn {_key, value} -> is_nil(value) end) |> Map.new())
       |> Map.put(:account_id, account_id)
 
-    with {:ok, sandbox} <- %Sandbox{} |> Sandbox.create_changeset(attrs) |> Repo.insert() do
+    with :ok <- check_sandbox_limit(account_id),
+         {:ok, sandbox} <- %Sandbox{} |> Sandbox.create_changeset(attrs) |> Repo.insert() do
       boot(sandbox)
     end
+  end
+
+  def max_live_sandboxes_per_account, do: @max_live_sandboxes_per_account
+
+  defp check_sandbox_limit(account_id) do
+    live = Repo.aggregate(from(s in Sandbox, where: s.account_id == ^account_id and s.state in ^@live_states), :count)
+    if live < @max_live_sandboxes_per_account, do: :ok, else: {:error, :sandbox_limit}
   end
 
   defp boot(%Sandbox{} = sandbox) do
@@ -218,11 +232,69 @@ defmodule Tuist.Sandboxes do
     end
   end
 
+  @doc """
+  Runs `fun` while holding the cluster-wide lock of one sandbox, so the
+  lifecycle transitions different processes and replicas issue for the
+  same sandbox (the next turn's resume, the pause after its grace period,
+  a reclaim, an API call) happen one at a time against a fresh row.
+  `wait: false` answers `{:error, :locked}` instead of waiting; callers
+  that already hold another sandbox's lock must use it, so two of them
+  never wait on each other. Never call this from a node's socket process:
+  the node commands issued under the lock are answered through it.
+  """
+  def with_sandbox_lock(sandbox_id, fun, opts \\ []) when is_binary(sandbox_id) and is_function(fun, 0) do
+    retries = if Keyword.get(opts, :wait, true), do: :infinity, else: 0
+
+    case :global.trans({{__MODULE__, sandbox_id}, self()}, fun, [node() | Node.list()], retries) do
+      :aborted -> {:error, :locked}
+      result -> result
+    end
+  end
+
   def ensure_running(%Sandbox{state: :running} = sandbox), do: {:ok, sandbox}
-  def ensure_running(%Sandbox{state: :paused} = sandbox), do: resume(sandbox)
+
+  def ensure_running(%Sandbox{state: :paused, id: id}) do
+    with_sandbox_lock(id, fn -> with_fresh(id, &running_or_resume/1) end)
+  end
+
   def ensure_running(%Sandbox{state: state}), do: {:error, {:invalid_state, state}}
 
-  def resume(%Sandbox{state: :paused, node_name: node_name} = sandbox) when is_binary(node_name) do
+  def resume(%Sandbox{id: id}) do
+    with_sandbox_lock(id, fn ->
+      with_fresh(id, fn
+        %Sandbox{state: :paused} = sandbox -> do_resume(sandbox)
+        %Sandbox{state: state} -> {:error, {:invalid_state, state}}
+      end)
+    end)
+  end
+
+  @doc """
+  Makes the session's sandbox run and records the residency of `work_id`
+  in one step under the sandbox's lock, so a scheduled pause cannot slip
+  between the resume and the residency that keeps it running.
+  """
+  def prepare_residency(%Sandbox{id: id}, work_id) when is_binary(work_id) do
+    with_sandbox_lock(id, fn ->
+      with_fresh(id, fn sandbox ->
+        with {:ok, sandbox} <- running_or_resume(sandbox) do
+          begin_residency(sandbox, work_id)
+        end
+      end)
+    end)
+  end
+
+  defp with_fresh(id, fun) do
+    case get_sandbox_by_id(id) do
+      %Sandbox{} = sandbox -> fun.(sandbox)
+      nil -> {:error, :not_found}
+    end
+  end
+
+  defp running_or_resume(%Sandbox{state: :running} = sandbox), do: {:ok, sandbox}
+  defp running_or_resume(%Sandbox{state: :paused} = sandbox), do: do_resume(sandbox)
+  defp running_or_resume(%Sandbox{state: state}), do: {:error, {:invalid_state, state}}
+
+  defp do_resume(%Sandbox{state: :paused, node_name: node_name} = sandbox) when is_binary(node_name) do
     with {:ok, sandbox} <- Capacity.admit(sandbox) do
       case Nodes.call(node_name, "resume", %{sandbox_id: sandbox.id}, timeout: @resume_timeout) do
         {:ok, data} ->
@@ -247,10 +319,45 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  def resume(%Sandbox{state: :paused}), do: {:error, :no_node}
-  def resume(%Sandbox{state: state}), do: {:error, {:invalid_state, state}}
+  defp do_resume(%Sandbox{state: :paused}), do: {:error, :no_node}
 
-  def pause(%Sandbox{state: :running, node_name: node_name} = sandbox) when is_binary(node_name) do
+  def pause(%Sandbox{id: id}) do
+    with_sandbox_lock(id, fn ->
+      with_fresh(id, fn
+        %Sandbox{state: :running} = sandbox -> do_pause(sandbox)
+        %Sandbox{state: state} -> {:error, {:invalid_state, state}}
+      end)
+    end)
+  end
+
+  @doc """
+  Pauses the sandbox only if it is still running with no residency (and,
+  with `:residency_epoch`, only if no residency started or ended since
+  that epoch), checked against the row under the sandbox's lock. Answers
+  `{:ok, :skipped}` when the sandbox is no longer idle. `wait: false`
+  skips a sandbox whose lock is held, which is how a reclaim running
+  under another sandbox's lock avoids waiting on it.
+  """
+  def pause_idle(sandbox_id, opts \\ []) when is_binary(sandbox_id) do
+    epoch = Keyword.get(opts, :residency_epoch)
+
+    with_sandbox_lock(
+      sandbox_id,
+      fn ->
+        with_fresh(sandbox_id, fn
+          %Sandbox{state: :running, residency_work_id: nil} = sandbox
+          when is_nil(epoch) or sandbox.residency_epoch == epoch ->
+            do_pause(sandbox)
+
+          %Sandbox{} ->
+            {:ok, :skipped}
+        end)
+      end,
+      wait: Keyword.get(opts, :wait, true)
+    )
+  end
+
+  defp do_pause(%Sandbox{state: :running, node_name: node_name} = sandbox) when is_binary(node_name) do
     case Nodes.call(node_name, "pause", %{sandbox_id: sandbox.id}, []) do
       {:ok, data} ->
         Logger.info("sandboxes: sandbox paused",
@@ -267,8 +374,7 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  def pause(%Sandbox{state: :running}), do: {:error, :no_node}
-  def pause(%Sandbox{state: state}), do: {:error, {:invalid_state, state}}
+  defp do_pause(%Sandbox{state: :running}), do: {:error, :no_node}
 
   @doc """
   Tears the VM down on its node and removes the row. The row flips to
@@ -277,15 +383,19 @@ defmodule Tuist.Sandboxes do
   is removed when the node's next report lists a sandbox we no longer
   know.
   """
-  def delete(%Sandbox{} = sandbox) do
-    with {:ok, sandbox} <- update_sandbox(sandbox, %{state: :deleted, residency_work_id: nil}),
-         :ok <- delete_on_node(sandbox) do
-      Repo.delete(sandbox)
-    else
-      {:error, reason} ->
-        {:ok, _} = update_sandbox(sandbox, %{state: :error, error_message: error_message(reason)})
-        {:error, reason}
-    end
+  def delete(%Sandbox{id: id} = sandbox) do
+    with_sandbox_lock(id, fn ->
+      sandbox = get_sandbox_by_id(id) || sandbox
+
+      with {:ok, sandbox} <- update_sandbox(sandbox, %{state: :deleted, residency_work_id: nil}),
+           :ok <- delete_on_node(sandbox) do
+        Repo.delete(sandbox)
+      else
+        {:error, reason} ->
+          {:ok, _} = update_sandbox(sandbox, %{state: :error, error_message: error_message(reason)})
+          {:error, reason}
+      end
+    end)
   end
 
   defp delete_on_node(%Sandbox{node_name: nil}), do: :ok
@@ -324,12 +434,14 @@ defmodule Tuist.Sandboxes do
 
         ref = make_ref()
         caller = self()
-        on_stream = fn {stream, data} -> send(caller, {ref, stream, data}) end
+        on_stream = fn {stream, data} -> capture_output(caller, ref, stream, data) end
 
         result =
           Nodes.call(node_name, "exec", args, timeout: timeout_ms + @exec_timeout_slack_ms, on_stream: on_stream)
 
         {stdout, stderr} = drain_output(ref)
+        Process.delete({ref, :stdout})
+        Process.delete({ref, :stderr})
         _ = update_sandbox(sandbox, %{last_active_at: now()})
 
         case result do
@@ -351,31 +463,34 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  # Stream frames were relayed to this process's mailbox by `on_stream`
-  # (which runs in the caller); everything for `ref` is already queued
-  # once the call returns, so a non-blocking drain collects it all.
-  defp drain_output(ref, stdout \\ [], stderr \\ [], sizes \\ {0, 0}) do
-    receive do
-      {^ref, :stdout, data} ->
-        {stdout, sizes} = append_output(stdout, data, sizes, 0)
-        drain_output(ref, stdout, stderr, sizes)
+  # `on_stream` runs in the calling process for every frame, so the cap
+  # is applied there, before anything reaches the mailbox: output past
+  # the limit is dropped as it arrives instead of piling up until the
+  # call returns.
+  defp capture_output(caller, ref, stream, data) do
+    key = {ref, stream}
+    size = Process.get(key, 0)
+    room = @exec_output_limit_bytes - size
 
-      {^ref, :stderr, data} ->
-        {stderr, sizes} = append_output(stderr, data, sizes, 1)
-        drain_output(ref, stdout, stderr, sizes)
-    after
-      0 -> {IO.iodata_to_binary(stdout), IO.iodata_to_binary(stderr)}
+    if room > 0 do
+      chunk = if byte_size(data) > room, do: binary_part(data, 0, room), else: data
+      Process.put(key, size + byte_size(chunk))
+      send(caller, {ref, stream, chunk})
     end
   end
 
-  defp append_output(acc, data, sizes, index) do
-    size = elem(sizes, index)
-    room = @exec_output_limit_bytes - size
-
-    cond do
-      room <= 0 -> {acc, sizes}
-      byte_size(data) <= room -> {[acc, data], put_elem(sizes, index, size + byte_size(data))}
-      true -> {[acc, binary_part(data, 0, room)], put_elem(sizes, index, @exec_output_limit_bytes)}
+  # Everything for `ref` is already queued once the call returns, so a
+  # non-blocking drain collects it all. Output is bytes; the API returns
+  # strings, so invalid UTF-8 (binary output, or a cut through a
+  # multi-byte character) is replaced.
+  defp drain_output(ref, stdout \\ [], stderr \\ []) do
+    receive do
+      {^ref, :stdout, data} -> drain_output(ref, [stdout, data], stderr)
+      {^ref, :stderr, data} -> drain_output(ref, stdout, [stderr, data])
+    after
+      0 ->
+        {stdout |> IO.iodata_to_binary() |> String.replace_invalid(),
+         stderr |> IO.iodata_to_binary() |> String.replace_invalid()}
     end
   end
 
@@ -396,12 +511,24 @@ defmodule Tuist.Sandboxes do
 
   # ----- Residencies -----
 
-  def begin_residency(%Sandbox{} = sandbox, work_id) when is_binary(work_id) do
-    update_sandbox(sandbox, %{
-      residency_work_id: work_id,
-      residency_epoch: sandbox.residency_epoch + 1,
-      last_active_at: now()
-    })
+  @doc """
+  Records the residency of `work_id` on a running sandbox. The epoch is
+  incremented in SQL so a residency ending concurrently (its
+  `worker_exited` arrives on the node's socket process) never loses an
+  increment.
+  """
+  def begin_residency(%Sandbox{id: id}, work_id) when is_binary(work_id) do
+    timestamp = now()
+
+    query = from(s in Sandbox, where: s.id == ^id and s.state == :running, select: s)
+
+    case Repo.update_all(query,
+           set: [residency_work_id: work_id, last_active_at: timestamp, updated_at: timestamp],
+           inc: [residency_epoch: 1]
+         ) do
+      {1, [sandbox]} -> {:ok, sandbox}
+      {0, []} -> {:error, :not_running}
+    end
   end
 
   @doc """
@@ -409,15 +536,19 @@ defmodule Tuist.Sandboxes do
   follows the grace period. The bump is what lets the scheduled job
   recognise that a newer residency started after it was enqueued.
   """
-  def end_residency(%Sandbox{} = sandbox) do
-    with {:ok, sandbox} <-
-           update_sandbox(sandbox, %{
-             residency_work_id: nil,
-             residency_epoch: sandbox.residency_epoch + 1,
-             last_active_at: now()
-           }),
-         {:ok, _job} <- schedule_pause(sandbox) do
-      {:ok, sandbox}
+  def end_residency(%Sandbox{id: id} = sandbox) do
+    timestamp = now()
+    query = from(s in Sandbox, where: s.id == ^id and s.state != :deleted, select: s)
+
+    case Repo.update_all(query,
+           set: [residency_work_id: nil, last_active_at: timestamp, updated_at: timestamp],
+           inc: [residency_epoch: 1]
+         ) do
+      {1, [updated]} ->
+        with {:ok, _job} <- schedule_pause(updated), do: {:ok, updated}
+
+      {0, []} ->
+        {:ok, sandbox}
     end
   end
 
@@ -463,15 +594,7 @@ defmodule Tuist.Sandboxes do
     case get_sandbox_by_id(sandbox_id) do
       %Sandbox{state: state} = sandbox when state != :deleted ->
         Logger.warning("sandboxes: sandbox died", sandbox_id: sandbox.id, node: node_name, reason: event["reason"])
-
-        {:ok, _sandbox} =
-          update_sandbox(sandbox, %{
-            state: :error,
-            error_message: event["reason"] || "sandbox died",
-            residency_work_id: nil,
-            residency_epoch: sandbox.residency_epoch + 1
-          })
-
+        mark_error(sandbox.id, event["reason"] || "sandbox died")
         :ok
 
       _ ->
@@ -491,9 +614,12 @@ defmodule Tuist.Sandboxes do
 
   @doc """
   Aligns the database with a node's `hello` or `report`. Sandboxes the
-  node lists take its node name and state; sandboxes we believe live on
-  the node but it does not list are marked as errored; sandboxes the node
-  lists that we no longer know are deleted from the node.
+  node lists take its node name and state (an `error` it reports marks
+  the row errored); sandboxes we believe live on the node but it does not
+  list are marked as errored; sandboxes the node lists that we no longer
+  know are deleted from the node. A row left `creating` or `resuming` by a
+  caller that died mid-operation is settled from the report once it has
+  been stuck longer than any create or resume can take.
   """
   def reconcile_node_report(node_name, %{"sandboxes" => reported}) when is_binary(node_name) and is_list(reported) do
     reported_by_id =
@@ -514,20 +640,18 @@ defmodule Tuist.Sandboxes do
     |> Kernel.--(Enum.map(known, & &1.id))
     |> Enum.each(&delete_orphan(node_name, &1))
 
+    stuck_before = DateTime.add(now(), -@stuck_after_seconds, :second)
+
     Sandbox
-    |> where([s], s.node_name == ^node_name and s.state in ^[:running, :paused])
-    |> where([s], s.id not in ^reported_ids)
+    |> where([s], s.node_name == ^node_name and s.id not in ^reported_ids)
+    |> where(
+      [s],
+      s.state in ^[:running, :paused, :resuming] or (s.state == :creating and s.updated_at < ^stuck_before)
+    )
     |> Repo.all()
     |> Enum.each(fn sandbox ->
-      Logger.warning("sandboxes: sandbox missing on node", sandbox_id: sandbox.id, node: node_name)
-
-      {:ok, _sandbox} =
-        update_sandbox(sandbox, %{
-          state: :error,
-          error_message: "missing on node",
-          residency_work_id: nil,
-          residency_epoch: sandbox.residency_epoch + 1
-        })
+      Logger.warning("sandboxes: sandbox missing on node", sandbox_id: sandbox.id, node: node_name, state: sandbox.state)
+      mark_error(sandbox.id, "missing on node", sandbox.state)
     end)
 
     :ok
@@ -537,19 +661,62 @@ defmodule Tuist.Sandboxes do
 
   defp reconcile_reported(%Sandbox{state: :deleted}, _node_name, _reported), do: :ok
 
-  # A resume in flight holds its memory reservation through the `resuming`
-  # state; the node still lists the sandbox as paused until the restore
-  # completes, and that must not release the reservation early.
+  defp reconcile_reported(%Sandbox{} = sandbox, _node_name, %{"state" => "error"} = reported) do
+    if sandbox.state != :error do
+      Logger.warning("sandboxes: node reports sandbox in error", sandbox_id: sandbox.id, reason: reported["error"])
+      mark_error(sandbox.id, reported["error"] || "error on the node", sandbox.state)
+    end
+
+    :ok
+  end
+
   defp reconcile_reported(%Sandbox{} = sandbox, node_name, reported) do
     attrs =
       %{node_name: node_name}
       |> maybe_put(:template_tag, reported["template_tag"])
       |> maybe_put_state(reported["state"])
-      |> then(fn attrs -> if sandbox.state == :resuming, do: Map.drop(attrs, [:state, :error_message]), else: attrs end)
+      |> keep_in_flight_state(sandbox, reported["state"])
 
     if Enum.any?(attrs, fn {key, value} -> Map.get(sandbox, key) != value end) do
       {:ok, _sandbox} = update_sandbox(sandbox, attrs)
     end
+
+    :ok
+  end
+
+  # A resume in flight holds its memory reservation through `resuming`, and
+  # the node lists the sandbox as paused until the restore completes, so
+  # that report must not release the reservation early, unless the resume
+  # has been stuck longer than one can take (its caller died). A node that
+  # already reports the sandbox running settles it either way.
+  defp keep_in_flight_state(attrs, %Sandbox{state: :resuming} = sandbox, "paused") do
+    if stuck?(sandbox), do: attrs, else: Map.drop(attrs, [:state, :error_message])
+  end
+
+  defp keep_in_flight_state(attrs, %Sandbox{state: :creating} = sandbox, reported_state)
+       when reported_state != "running" do
+    if stuck?(sandbox), do: attrs, else: Map.drop(attrs, [:state, :error_message])
+  end
+
+  defp keep_in_flight_state(attrs, _sandbox, _reported_state), do: attrs
+
+  defp stuck?(%Sandbox{updated_at: updated_at}) do
+    DateTime.diff(now(), updated_at, :second) > @stuck_after_seconds
+  end
+
+  # Errors a sandbox from outside its lock (the node's socket process must
+  # never wait on one), so it only applies when the row is still in the
+  # state it was read in, and the epoch is incremented in SQL.
+  defp mark_error(id, message, from_state \\ nil) do
+    query =
+      then(from(s in Sandbox, where: s.id == ^id and s.state != :deleted), fn query ->
+        if from_state, do: where(query, [s], s.state == ^from_state), else: query
+      end)
+
+    Repo.update_all(query,
+      set: [state: :error, error_message: message, residency_work_id: nil, updated_at: now()],
+      inc: [residency_epoch: 1]
+    )
 
     :ok
   end
@@ -594,6 +761,7 @@ defmodule Tuist.Sandboxes do
   defp error_message(reason) when is_binary(reason), do: reason
   defp error_message(:no_node), do: "no node with the template ready is connected"
   defp error_message(:no_capacity), do: "no node has memory or disk left for the sandbox"
+  defp error_message(:locked), do: "another operation on the sandbox is in progress"
   defp error_message(:not_connected), do: "node is not connected"
   defp error_message(:node_disconnected), do: "node disconnected during the operation"
   defp error_message(:timeout), do: "node did not answer in time"

@@ -2,6 +2,7 @@ defmodule Tuist.SandboxesTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
@@ -22,7 +23,8 @@ defmodule Tuist.SandboxesTest do
                  anthropic_environment_id: "env_123",
                  environment_key: "sk-ant-secret",
                  name: "prod",
-                 vcpus: 4
+                 vcpus: 4,
+                 memory_mb: 8192
                })
 
       assert agent_environment.environment_key == "sk-ant-secret"
@@ -416,6 +418,162 @@ defmodule Tuist.SandboxesTest do
                Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => deleting.id, "state" => "running"}]})
 
       assert %Sandbox{state: :deleted} = Repo.reload!(deleting)
+    end
+  end
+
+  defp backdate(sandbox, seconds) do
+    at = DateTime.utc_now() |> DateTime.add(-seconds, :second) |> DateTime.truncate(:second)
+    Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id), set: [updated_at: at])
+    Repo.reload!(sandbox)
+  end
+
+  describe "reconcile_node_report/2 with in-flight and failed sandboxes" do
+    test "settles a resuming sandbox the node already runs" do
+      sandbox = sandbox_fixture(state: :resuming, node_name: "node-a")
+      reject(&Nodes.call/4)
+
+      Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => sandbox.id, "state" => "running"}]})
+
+      assert %Sandbox{state: :running} = Repo.reload!(sandbox)
+    end
+
+    test "moves a resuming sandbox whose caller died back to paused once it has been stuck long enough" do
+      sandbox = [state: :resuming, node_name: "node-a"] |> sandbox_fixture() |> backdate(600)
+
+      Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => sandbox.id, "state" => "paused"}]})
+
+      assert %Sandbox{state: :paused} = Repo.reload!(sandbox)
+    end
+
+    test "errors a sandbox the node reports in error with the node's reason" do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a", residency_work_id: "work_1", residency_epoch: 2)
+
+      Sandboxes.reconcile_node_report("node-a", %{
+        "sandboxes" => [%{"id" => sandbox.id, "state" => "error", "error" => "sandbox is missing rootfs.ext4"}]
+      })
+
+      assert %Sandbox{
+               state: :error,
+               error_message: "sandbox is missing rootfs.ext4",
+               residency_work_id: nil,
+               residency_epoch: 3
+             } =
+               Repo.reload!(sandbox)
+    end
+
+    test "errors a creating sandbox the node never got once it has been stuck, and leaves a fresh one alone" do
+      stuck = [state: :creating, node_name: "node-a"] |> sandbox_fixture() |> backdate(600)
+      fresh = sandbox_fixture(state: :creating, node_name: "node-a")
+      resuming = sandbox_fixture(state: :resuming, node_name: "node-a")
+
+      Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => []})
+
+      assert %Sandbox{state: :error, error_message: "missing on node"} = Repo.reload!(stuck)
+      assert %Sandbox{state: :creating} = Repo.reload!(fresh)
+      assert %Sandbox{state: :error, error_message: "missing on node"} = Repo.reload!(resuming)
+    end
+  end
+
+  describe "pause_idle/2" do
+    test "pauses a running sandbox with no residency and matching epoch" do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a", residency_epoch: 4)
+      sandbox_id = sandbox.id
+      expect(Nodes, :call, fn "node-a", "pause", %{sandbox_id: ^sandbox_id}, _opts -> {:ok, %{}} end)
+
+      assert {:ok, %Sandbox{state: :paused}} = Sandboxes.pause_idle(sandbox.id, residency_epoch: 4)
+    end
+
+    test "skips a sandbox with a residency or a newer epoch" do
+      resident = sandbox_fixture(state: :running, node_name: "node-a", residency_work_id: "work_1")
+      newer = sandbox_fixture(state: :running, node_name: "node-a", residency_epoch: 5)
+      reject(&Nodes.call/4)
+
+      assert {:ok, :skipped} = Sandboxes.pause_idle(resident.id)
+      assert {:ok, :skipped} = Sandboxes.pause_idle(newer.id, residency_epoch: 4)
+    end
+
+    test "does not wait for a sandbox another process holds the lock of when asked not to" do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+      test_pid = self()
+
+      holder =
+        spawn(fn ->
+          Sandboxes.with_sandbox_lock(sandbox.id, fn ->
+            send(test_pid, :locked)
+
+            receive do
+              :release -> :ok
+            end
+          end)
+        end)
+
+      assert_receive :locked
+      reject(&Nodes.call/4)
+
+      assert {:error, :locked} = Sandboxes.pause_idle(sandbox.id, wait: false)
+      send(holder, :release)
+    end
+  end
+
+  describe "residencies" do
+    test "begin_residency/2 refuses a sandbox that is not running" do
+      sandbox = sandbox_fixture(state: :paused, node_name: "node-a")
+
+      assert {:error, :not_running} = Sandboxes.begin_residency(sandbox, "work_1")
+      assert %Sandbox{residency_work_id: nil, residency_epoch: 0} = Repo.reload!(sandbox)
+    end
+
+    test "begin and end increment the epoch from the row, not from a stale struct" do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a", residency_epoch: 0)
+
+      assert {:ok, %Sandbox{residency_epoch: 1}} = Sandboxes.begin_residency(sandbox, "work_1")
+      assert {:ok, %Sandbox{residency_epoch: 2, residency_work_id: nil}} = Sandboxes.end_residency(sandbox)
+    end
+  end
+
+  describe "exec/3 output" do
+    test "drops output past the cap as it arrives and replaces invalid UTF-8" do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+      chunk = :binary.copy("a", 256 * 1024)
+
+      expect(Nodes, :call, fn "node-a", "exec", _args, opts ->
+        for _ <- 1..12, do: opts[:on_stream].({:stdout, chunk})
+        opts[:on_stream].({:stderr, <<0xFF, 0xFE, "tail">>})
+        {:message_queue_len, queued} = Process.info(self(), :message_queue_len)
+        assert queued <= 5
+        {:ok, %{"exit_code" => 0}}
+      end)
+
+      assert {:ok, %{stdout: stdout, stderr: stderr}} = Sandboxes.exec(sandbox, ["yes"])
+      assert byte_size(stdout) == 1_048_576
+      assert String.valid?(stderr)
+      assert stderr =~ "tail"
+    end
+  end
+
+  describe "limits and shapes" do
+    test "refuses a create past the account's live sandbox limit" do
+      account = account_fixture()
+
+      for _ <- 1..Sandboxes.max_live_sandboxes_per_account(),
+          do: sandbox_fixture(account: account, state: :paused, node_name: "node-a")
+
+      reject(&Capacity.place/1)
+      assert {:error, :sandbox_limit} = Sandboxes.create_sandbox(account, %{})
+    end
+
+    test "refuses a shape the nodes do not offer" do
+      reject(&Capacity.place/1)
+
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Sandboxes.create_sandbox(account_fixture(), %{vcpus: 4, memory_mb: 4096})
+
+      assert Keyword.has_key?(errors, :memory_mb)
+
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Sandboxes.create_sandbox(account_fixture(), %{workspace_gb: 500})
+
+      assert Keyword.has_key?(errors, :workspace_gb)
     end
   end
 end

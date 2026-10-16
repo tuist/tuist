@@ -357,6 +357,36 @@ defmodule Tuist.Kubernetes.ClientTest do
     end
   end
 
+  describe "create_sandbox_node_token_review/2" do
+    @tag :tmp_dir
+    test "returns the node the token's pod is bound to", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      expect(Req, :request, fn request_opts ->
+        assert JSON.decode!(request_opts[:body])["spec"]["audiences"] == ["tuist-sandboxes"]
+
+        {:ok,
+         %Req.Response{
+           status: 201,
+           body: %{
+             "status" => %{
+               "authenticated" => true,
+               "audiences" => ["tuist-sandboxes"],
+               "user" => %{
+                 "username" => "system:serviceaccount:tuist-sandboxes:tuist-tuist-sandboxd",
+                 "uid" => "uid-2",
+                 "extra" => %{"authentication.kubernetes.io/node-name" => ["node-a"]}
+               }
+             }
+           }
+         }}
+      end)
+
+      assert {:ok, %{namespace: "tuist-sandboxes", name: "tuist-tuist-sandboxd", node_name: "node-a"}} =
+               Client.create_sandbox_node_token_review("node-token", opts)
+    end
+  end
+
   describe "create_token_review/2" do
     @tag :tmp_dir
     test "returns the SA principal when the token is authenticated and audience-bound", %{tmp_dir: tmp_dir} do
