@@ -318,7 +318,7 @@ import XcodeGraph
         /// cached binaries record tie to the same root the run's own builds do.
         private func instrumentationSettings(coverage: Bool, path: AbsolutePath) async throws -> [String] {
             guard coverage else { return [] }
-            guard let root = try await coverageBuildSourcesService.root(from: path) else {
+            guard let (root, _) = try await coverageBuildSourcesService.root(from: path) else {
                 throw CacheWarmCommandServiceError.coverageWithoutProject(path)
             }
             let roots = UploadResultBundleService.rootSpellings(of: root, coveredFilePaths: [])
