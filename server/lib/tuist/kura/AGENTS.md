@@ -1,5 +1,7 @@
 # Kura control plane
 
+- Leaving Air for lifecycle admission requires an entitled subscription, not merely a live billing subscription. A past due paid subscription whose payment grace expired stays on Air even while Stripe continues collection. Preloaded billing subscriptions must still resolve through `Billing.effective_plan/1` before granting plan benefits.
+
 - `Origins` and `Demand` sort bulk upsert rows by their full conflict keys before
   insertion so concurrent overlapping batches acquire locks in a consistent
   order. Keep this ordering at the write boundary, including backfills and

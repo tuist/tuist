@@ -23,35 +23,35 @@ defmodule TuistWeb.Webhooks.BillingController do
 
   @impl true
   def handle_event(%Stripe.Event{type: "customer.subscription.created"} = event) do
-    Billing.on_subscription_change(event.data.object)
+    Billing.on_subscription_change(event.data.object, event.created)
 
     :ok
   end
 
   @impl true
   def handle_event(%Stripe.Event{type: "customer.subscription.updated"} = event) do
-    Billing.on_subscription_change(event.data.object)
+    Billing.on_subscription_change(event.data.object, event.created)
 
     :ok
   end
 
   @impl true
   def handle_event(%Stripe.Event{type: "customer.subscription.deleted"} = event) do
-    Billing.on_subscription_change(event.data.object)
+    Billing.on_subscription_change(event.data.object, event.created)
 
     :ok
   end
 
   @impl true
   def handle_event(%Stripe.Event{type: "customer.subscription.resumed"} = event) do
-    Billing.on_subscription_change(event.data.object)
+    Billing.on_subscription_change(event.data.object, event.created)
 
     :ok
   end
 
   @impl true
   def handle_event(%Stripe.Event{type: "customer.subscription.paused"} = event) do
-    Billing.on_subscription_change(event.data.object)
+    Billing.on_subscription_change(event.data.object, event.created)
 
     :ok
   end

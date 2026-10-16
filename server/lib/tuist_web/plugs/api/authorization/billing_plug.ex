@@ -6,6 +6,7 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.Billing.Subscription
   alias Tuist.Environment
 
   def init(opts), do: opts
@@ -135,25 +136,17 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
 
   defp get_subscription_data(%{assigns: %{selected_project: selected_project}}) do
     {:ok, account} = Accounts.get_account_by_id(selected_project.account_id)
-    %{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count} = account
+    subscription = Billing.get_current_entitled_subscription(account)
 
-    subscription = Billing.get_current_active_subscription(account)
-
-    thresholds_surpassed =
-      current_month_remote_cache_hits_count >=
-        Billing.get_payment_thresholds()[:remote_cache_hits]
+    thresholds_surpassed = Billing.cache_access_blocked?(%{account | subscriptions: List.wrap(subscription)})
 
     subscription_plan = if(is_nil(subscription), do: :air, else: subscription.plan)
 
-    # `get_current_active_subscription/1` only returns live subscriptions, so
-    # every status it matches counts as live here. Comparing against "active"
-    # alone rejected every subscription in trial or retrying a payment.
-    #
-    # An account without one is on Air, where `:payment_failed` marks one that
-    # got there because Stripe gave up collecting its subscription payment.
+    # This lookup applies the grace deadline as well as Stripe's status. An
+    # expired past_due subscription is on Air even if Stripe is still retrying.
     subscription_active? =
       cond do
-        not is_nil(subscription) -> subscription.status in Billing.live_subscription_statuses()
+        not is_nil(subscription) -> Subscription.entitled?(subscription)
         thresholds_surpassed and Billing.payment_failed?(account) -> :payment_failed
         true -> true
       end

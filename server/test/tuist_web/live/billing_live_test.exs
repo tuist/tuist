@@ -99,15 +99,18 @@ defmodule TuistWeb.BillingLiveTest do
   end
 
   describe "when a subscription payment failed" do
-    test "keeps the plan and asks to pay the open invoice while the payment is retried", %{
+    test "keeps the plan until the grace period ends and asks to pay the open invoice", %{
       conn: conn,
       account: account
     } do
       # Given
+      past_due_since = DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -1, :day)
+
       stub(Billing, :get_current_active_subscription, fn _ ->
         %{
           plan: :pro,
           status: "past_due",
+          past_due_since: past_due_since,
           default_payment_method: "payment_method_id",
           trial_end: nil,
           subscription_id: "subscription_id"
@@ -118,8 +121,83 @@ defmodule TuistWeb.BillingLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       # Then
-      assert has_element?(lv, "#billing-payment-issue", "Your plan stays active while the payment is retried.")
+      assert has_element?(lv, "#billing-payment-issue", "Your plan stays active until #{grace_deadline(past_due_since)}")
       assert has_element?(lv, "#billing-payment-issue a[href='/#{account.name}/billing/pay']", "Pay open invoice")
+      assert has_element?(lv, "[data-part='current-plan-card-section'] [data-part='label']", "Pro")
+      refute has_element?(lv, "#billing-current-plan-payment-overdue")
+    end
+
+    # Upgrading settles nothing that is owed. A live subscription can still be
+    # changed in place, so a downgrade stays one step further away.
+    test "offers to pay the open invoice instead of upgrading, keeping plan changes available", %{
+      conn: conn,
+      account: account
+    } do
+      # Given
+      past_due_since = DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -1, :day)
+
+      stub(Billing, :get_current_active_subscription, fn _ ->
+        %{
+          plan: :pro,
+          status: "past_due",
+          past_due_since: past_due_since,
+          default_payment_method: "payment_method_id",
+          trial_end: nil,
+          subscription_id: "subscription_id"
+        }
+      end)
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      # Then
+      assert has_element?(
+               lv,
+               "#billing-current-plan-pay-open-invoice[href='/#{account.name}/billing/pay']",
+               "Pay open invoice"
+             )
+
+      assert has_element?(lv, "#billing-change-plan", "Change plan")
+      refute has_element?(lv, "[data-part='current-plan-card-section'] button", "Upgrade plan")
+
+      # The modal's plan cards render through a portal, which the test view
+      # does not reach, so the downgrade is driven through its event.
+      expect(Billing, :update_plan, fn %{plan: :air} -> :ok end)
+      render_hook(lv, "change_plan", %{"plan" => "air"})
+      render(lv)
+    end
+
+    # Stripe can keep retrying long after the grace period. The account is on
+    # Air from then on, while the subscription it is billed through stays.
+    test "shows the account on Air once the grace period ended, keeping the subscription's billing", %{
+      conn: conn,
+      account: account
+    } do
+      # Given
+      past_due_since = DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -8, :day)
+
+      stub(Billing, :get_current_active_subscription, fn _ ->
+        %{
+          plan: :pro,
+          status: "past_due",
+          past_due_since: past_due_since,
+          default_payment_method: "payment_method_id",
+          trial_end: nil,
+          subscription_id: "subscription_id"
+        }
+      end)
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      # Then
+      assert has_element?(lv, "#billing-payment-issue", "Your plan is limited to the Air plan")
+      assert has_element?(lv, "#billing-payment-issue", "grace period ended on #{grace_deadline(past_due_since)}")
+      assert has_element?(lv, "#billing-payment-issue a[href='/#{account.name}/billing/pay']", "Pay open invoice")
+      assert has_element?(lv, "[data-part='current-plan-card-section'] [data-part='label']", "Air")
+      assert has_element?(lv, "#billing-current-plan-payment-overdue", "Payment overdue")
+      assert has_element?(lv, "[data-part='billing-payment-method-card-section']")
+      refute has_element?(lv, "#billing-pricing-plans-pro")
     end
 
     test "says the plan is limited until the unpaid invoice is paid", %{conn: conn, account: account} do
@@ -134,10 +212,28 @@ defmodule TuistWeb.BillingLiveTest do
       assert has_element?(lv, "#billing-payment-issue a[href='/#{account.name}/billing/pay']", "Pay open invoice")
     end
 
+    # Without a live subscription there is nothing to change in place, and a
+    # Checkout would open a second subscription beside the one that owes.
+    test "replaces every upgrade with paying the open invoice once the plan was lost", %{conn: conn, account: account} do
+      # Given
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, status: "unpaid")
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      # Then
+      assert has_element?(lv, "#billing-current-plan-pay-open-invoice", "Pay open invoice")
+      refute has_element?(lv, "#billing-change-plan")
+      refute has_element?(lv, "#billing-pricing-plans-pro button[phx-click='change_plan']")
+      assert has_element?(lv, "#billing-pricing-plans-pro a[href='/#{account.name}/billing/pay']", "Pay open invoice")
+    end
+
     test "shows nothing for an account in good standing", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       refute has_element?(lv, "#billing-payment-issue")
+      refute has_element?(lv, "#billing-current-plan-pay-open-invoice")
+      assert has_element?(lv, "#billing-pricing-plans-pro button[phx-click='change_plan']", "Upgrade")
     end
   end
 
@@ -672,5 +768,9 @@ defmodule TuistWeb.BillingLiveTest do
 
       assert render(lv) =~ "Runner minutes:"
     end
+  end
+
+  defp grace_deadline(past_due_since) do
+    past_due_since |> DateTime.add(7, :day) |> Timex.format!("{Mfull} {D}, {YYYY}, {h24}:{m} UTC")
   end
 end

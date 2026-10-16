@@ -254,6 +254,31 @@ defmodule Tuist.CacheTest do
       assert claims["cache_payment_failed"] == [user.account.name]
     end
 
+    test "removes grants and explains the payment failure once the retry grace expires" do
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: Billing.get_payment_thresholds().remote_cache_hits,
+          preload: [:account]
+        )
+
+      BillingFixtures.subscription_fixture(
+        account_id: user.account.id,
+        status: "past_due",
+        past_due_since: DateTime.truncate(DateTime.add(DateTime.utc_now(), -8, :day), :second)
+      )
+
+      ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      handles = Cache.accessible_handles(user)
+      {:ok, _token, claims} = Cache.issue_cache_token(user)
+
+      assert handles.accounts == []
+      assert handles.projects == []
+      assert handles.payment_required == [user.account.name]
+      assert handles.payment_failed == [user.account.name]
+      assert claims["cache_payment_failed"] == [user.account.name]
+    end
+
     test "keeps granting an account whose renewal payment is being retried" do
       # Given
       threshold = Billing.get_payment_thresholds()[:remote_cache_hits]

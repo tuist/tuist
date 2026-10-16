@@ -7,6 +7,7 @@ defmodule Tuist.Accounts.UserNotifier do
   import Bamboo.Email
 
   alias Tuist.Accounts.User
+  alias Tuist.Billing.Subscription
   alias Tuist.Environment
   alias Tuist.Mailer
   alias Tuist.Utilities.ByteFormatter
@@ -525,15 +526,17 @@ defmodule Tuist.Accounts.UserNotifier do
   end
 
   @doc """
-  Tells an account admin that a subscription payment failed. It makes no
-  promise about how long the plan is kept: that is how long Stripe keeps
-  retrying, a setting that can change.
+  Tells an account admin that a subscription payment failed, and how long the
+  plan is kept: `{:until, deadline}` once the subscription is past due and
+  still in its grace period, `:expired` once that period is over, and
+  `:unknown` while the subscription is not marked past due yet, because
+  Stripe can report the failed invoice before the subscription change.
   """
-  def deliver_payment_failed_notification(user, account) do
-    user |> payment_failed_email(account) |> Mailer.deliver_now()
+  def deliver_payment_failed_notification(user, account, grace \\ :unknown) do
+    user |> payment_failed_email(account, grace) |> Mailer.deliver_now()
   end
 
-  def payment_failed_email(user, account) do
+  def payment_failed_email(user, account, grace \\ :unknown) do
     locale = Map.get(user, :preferred_locale) || "en"
 
     Gettext.with_locale(TuistWeb.Gettext, locale, fn ->
@@ -552,17 +555,181 @@ defmodule Tuist.Accounts.UserNotifier do
             "We couldn't charge the payment method on file for the subscription of %{account_name}. The payment is retried automatically.",
             account_name: account.name
           ),
-          dgettext(
-            "dashboard_account",
-            "Your plan stays active while the payment is retried. If it still hasn't gone through when the retries end, %{account_name} is limited to the free tier of the Air plan until the invoice is paid.",
-            account_name: account.name
-          ),
-          dgettext("dashboard_account", "Pay the open invoice or update your payment method to keep your plan:")
+          payment_failed_grace_paragraph(account, grace),
+          payment_failed_call_to_action(grace)
         ],
         button: {dgettext("dashboard_account", "Pay open invoice"), pay_url},
         note: dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")
       })
     end)
+  end
+
+  defp payment_failed_grace_paragraph(account, {:until, %DateTime{} = deadline}) do
+    dgettext(
+      "dashboard_account",
+      "Your plan stays active until %{deadline}. If the invoice still isn't paid by then, %{account_name} is limited to the free tier of the Air plan until it is, even if the payment is still being retried.",
+      deadline: format_payment_grace_deadline(deadline),
+      account_name: account.name
+    )
+  end
+
+  defp payment_failed_grace_paragraph(account, :expired) do
+    dgettext(
+      "dashboard_account",
+      "%{account_name} is already limited to the free tier of the Air plan, because its subscription has been overdue for more than %{days} days.",
+      account_name: account.name,
+      days: Subscription.payment_grace_period_days()
+    )
+  end
+
+  defp payment_failed_grace_paragraph(account, _unknown) do
+    dgettext(
+      "dashboard_account",
+      "Your plan stays active for %{days} days after the subscription is marked overdue, even if the payment is still being retried. After that, %{account_name} is limited to the free tier of the Air plan until the invoice is paid. Your billing page shows the exact date.",
+      days: Subscription.payment_grace_period_days(),
+      account_name: account.name
+    )
+  end
+
+  defp payment_failed_call_to_action(:expired),
+    do: dgettext("dashboard_account", "Pay the open invoice or update your payment method to restore your plan:")
+
+  defp payment_failed_call_to_action(_grace),
+    do: dgettext("dashboard_account", "Pay the open invoice or update your payment method to keep your plan:")
+
+  @doc """
+  Tells an account admin that an invoiced subscription is overdue, and until
+  when its plan is kept. An automatically charged subscription is told by
+  `payment_failed_email/3` instead.
+  """
+  def deliver_payment_grace_started_notification(user, account, %DateTime{} = deadline) do
+    user |> payment_grace_started_email(account, deadline) |> Mailer.deliver_now()
+  end
+
+  def payment_grace_started_email(user, account, %DateTime{} = deadline) do
+    locale = Map.get(user, :preferred_locale) || "en"
+
+    Gettext.with_locale(TuistWeb.Gettext, locale, fn ->
+      subject =
+        dgettext("dashboard_account", "The Tuist subscription invoice of %{account_name} is overdue",
+          account_name: account.name
+        )
+
+      build_email(user.email, subject, %{
+        title: dgettext("dashboard_account", "Your subscription invoice is overdue"),
+        paragraphs: [
+          dgettext(
+            "dashboard_account",
+            "The invoice for the subscription of %{account_name} is past its due date.",
+            account_name: account.name
+          ),
+          dgettext(
+            "dashboard_account",
+            "Your plan stays active until %{deadline}. If the invoice isn't paid by then, %{account_name} is limited to the free tier of the Air plan until it is.",
+            deadline: format_payment_grace_deadline(deadline),
+            account_name: account.name
+          ),
+          dgettext("dashboard_account", "Pay the open invoice to keep your plan:")
+        ],
+        button:
+          {dgettext("dashboard_account", "Pay open invoice"), Environment.app_url(path: "/#{account.name}/billing/pay")},
+        note: dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")
+      })
+    end)
+  end
+
+  @doc """
+  Tells an account admin whose subscription was already overdue when the
+  payment grace period was introduced that the plan no longer stays active
+  for as long as the payment is retried, and until when it is kept.
+  """
+  def deliver_payment_grace_policy_notification(user, account, %DateTime{} = deadline) do
+    user |> payment_grace_policy_email(account, deadline) |> Mailer.deliver_now()
+  end
+
+  def payment_grace_policy_email(user, account, %DateTime{} = deadline) do
+    locale = Map.get(user, :preferred_locale) || "en"
+
+    Gettext.with_locale(TuistWeb.Gettext, locale, fn ->
+      subject =
+        dgettext("dashboard_account", "The Tuist subscription payment of %{account_name} is overdue",
+          account_name: account.name
+        )
+
+      build_email(user.email, subject, %{
+        title: dgettext("dashboard_account", "Your subscription payment is overdue"),
+        paragraphs: [
+          dgettext(
+            "dashboard_account",
+            "The payment for the subscription of %{account_name} is overdue.",
+            account_name: account.name
+          ),
+          dgettext(
+            "dashboard_account",
+            "Until now, a plan stayed active for as long as an overdue payment was retried. A plan now stays active for %{days} days after its subscription becomes overdue, and for subscriptions that were already overdue, those %{days} days started when this change took effect.",
+            days: Subscription.payment_grace_period_days()
+          ),
+          dgettext(
+            "dashboard_account",
+            "Your plan stays active until %{deadline}. If the invoice isn't paid by then, %{account_name} is limited to the free tier of the Air plan until it is.",
+            deadline: format_payment_grace_deadline(deadline),
+            account_name: account.name
+          ),
+          dgettext("dashboard_account", "Pay the open invoice or update your payment method to keep your plan:")
+        ],
+        button:
+          {dgettext("dashboard_account", "Pay open invoice"), Environment.app_url(path: "/#{account.name}/billing/pay")},
+        note: dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")
+      })
+    end)
+  end
+
+  @doc """
+  Tells an account admin that the account is limited to Air because its
+  subscription stayed overdue past the payment grace period. The
+  subscription itself is unchanged, so paying the open invoice restores the
+  plan.
+  """
+  def deliver_payment_grace_expired_notification(user, account) do
+    user |> payment_grace_expired_email(account) |> Mailer.deliver_now()
+  end
+
+  def payment_grace_expired_email(user, account) do
+    locale = Map.get(user, :preferred_locale) || "en"
+
+    Gettext.with_locale(TuistWeb.Gettext, locale, fn ->
+      subject =
+        dgettext("dashboard_account", "%{account_name} is limited to the Air plan until its overdue invoice is paid",
+          account_name: account.name
+        )
+
+      build_email(user.email, subject, %{
+        title: dgettext("dashboard_account", "Your account is limited to the Air plan"),
+        paragraphs: [
+          dgettext(
+            "dashboard_account",
+            "The payment for the subscription of %{account_name} is still overdue, and its %{days}-day grace period has ended. %{account_name} is now limited to the free tier of the Air plan.",
+            account_name: account.name,
+            days: Subscription.payment_grace_period_days()
+          ),
+          dgettext(
+            "dashboard_account",
+            "Your subscription stays in place, and paying the open invoice restores your plan. You can also update your payment method before paying:"
+          )
+        ],
+        button:
+          {dgettext("dashboard_account", "Pay open invoice"), Environment.app_url(path: "/#{account.name}/billing/pay")},
+        note: dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")
+      })
+    end)
+  end
+
+  # Spelled out in UTC: the deadline is an instant, and the recipient's time
+  # zone is unknown.
+  defp format_payment_grace_deadline(%DateTime{} = deadline) do
+    deadline
+    |> DateTime.shift_zone!("Etc/UTC")
+    |> Timex.format!("{Mfull} {D}, {YYYY}, {h24}:{m} UTC")
   end
 
   @doc """

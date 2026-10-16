@@ -118,7 +118,6 @@ defmodule Tuist.Kura.Lifecycle do
 
   alias Tuist.Accounts.Account
   alias Tuist.Billing
-  alias Tuist.Billing.Subscription
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.AccountPolicies
@@ -530,9 +529,8 @@ defmodule Tuist.Kura.Lifecycle do
     idle_hold_cutoff = DateTime.add(now(), -Demand.idle_hold_days() * 86_400, :second)
 
     left_air =
-      from(sub in Subscription,
+      from(sub in Billing.entitled_subscriptions_query(),
         where: sub.account_id == parent_as(:lifecycle).account_id,
-        where: sub.status in ^Billing.live_subscription_statuses(),
         where: sub.plan != :air,
         select: 1
       )
