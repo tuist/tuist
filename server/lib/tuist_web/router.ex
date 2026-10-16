@@ -970,6 +970,7 @@ defmodule TuistWeb.Router do
           post "/generate-url", PreviewsController, :multipart_generate_url
           post "/complete", PreviewsController, :multipart_complete
           post "/:preview_id/icons", PreviewsController, :upload_icon
+          get "/tracks", PreviewsController, :tracks
           get "/latest", PreviewsController, :latest
           get "/:preview_id", PreviewsController, :show
           get "/", PreviewsController, :index

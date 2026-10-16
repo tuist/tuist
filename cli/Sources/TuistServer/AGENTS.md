@@ -6,6 +6,7 @@ This module handles CLI integration with the Tuist Server APIs.
 - Resolve server environment (base URL, OAuth client ID) with env var overrides.
 - Provide cache storage factories and API clients for server-backed features.
 - Map CLI actions to server operations (projects, previews, analytics, registry).
+- Preserve optional preview tracks and plain-text release notes in `ServerPreview`; `ListPreviewsService` applies exact track filtering through the generated query contract and offers a separate `searchPreviews` entry point for literal, case-insensitive search across display names and full release notes; existing CLI listing calls omit search and retain exact `display_name` semantics, and preview upload services forward optional release notes from `tuist share`. `ListPreviewTracksService` returns a `ServerPreviewTrackSummary` with the full project's preview total (including untracked previews) and case-insensitively grouped named-track counts, independently of pagination, search, and active track selection; only HTTP 404 indicates an older server without discovery, while authorization, throttling, and transport failures remain errors.
 - Apply the shared [Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) retry policy to retryable server operations.
 
 ## Related Context
