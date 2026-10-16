@@ -300,7 +300,7 @@ defmodule TuistWeb.OpsAccountLive do
         {:noreply,
          socket
          |> assign_kura(account)
-         |> put_flash(:info, kura_storage_claim_message(result))}
+         |> put_flash(:info, kura_claim_applied_message(result))}
 
       _stale_or_missing ->
         {:noreply,
@@ -1162,6 +1162,20 @@ defmodule TuistWeb.OpsAccountLive do
   # cache is doing, what it is supposed to do instead, and how much evidence
   # sits behind it. No policy vocabulary — the windows and thresholds are ours,
   # not something the reader should have to look up.
+  defp kura_claim_proposal_evidence(%{
+         direction: :grow,
+         recommended_claim_size: claim,
+         evidence: %{"signal" => "private_region_below_account_claim"} = evidence
+       }) do
+    dgettext(
+      "dashboard",
+      "The runner cache in %{region} is still on %{from}: the region had no room when the account's claim moved to %{claim}.",
+      region: evidence["region"],
+      from: evidence["region_claim_size"],
+      claim: claim
+    )
+  end
+
   defp kura_claim_proposal_evidence(%{direction: :grow, evidence: evidence}) do
     dgettext(
       "dashboard",
@@ -1194,6 +1208,10 @@ defmodule TuistWeb.OpsAccountLive do
   # The second line: how much observation stands behind the first. Days are
   # what the measurements are grouped into, so an operator can see whether this
   # is one bad afternoon or a standing pattern.
+  defp kura_claim_proposal_basis(%{evidence: %{"signal" => "private_region_below_account_claim"}}) do
+    dgettext("dashboard", "It moves as soon as the region has room.")
+  end
+
   defp kura_claim_proposal_basis(%{direction: :grow, evidence: %{"ring_turnover" => turnover} = evidence})
        when not is_nil(turnover) do
     dngettext(
@@ -1265,6 +1283,10 @@ defmodule TuistWeb.OpsAccountLive do
 
   # Compact enough for a table cell; the open proposal above carries the full
   # sentence.
+  def claim_history_reason(%{evidence: %{"signal" => "private_region_below_account_claim"}}) do
+    dgettext("dashboard", "runner cache had no room")
+  end
+
   def claim_history_reason(%{direction: :grow, evidence: evidence}) do
     dgettext("dashboard", "discarding work after %{shed_age}, target %{floor}",
       shed_age: humanize_seconds(evidence["median_shed_age_seconds"]),
@@ -1375,6 +1397,22 @@ defmodule TuistWeb.OpsAccountLive do
   # and only one of them costs a cache. Say which happened rather than reporting
   # a successful save: an operator raising a claim to rescue a capped account is
   # the one most likely to assume it was free.
+  defp kura_claim_applied_message(%{deferred: [_ | _] = deferred} = result) do
+    Enum.join(
+      [
+        kura_storage_claim_message(result),
+        dgettext(
+          "dashboard",
+          "%{regions} had no room and kept the claim it held; sizing raises it once the region has room.",
+          regions: Enum.map_join(deferred, ", ", &elem(&1, 0))
+        )
+      ],
+      " "
+    )
+  end
+
+  defp kura_claim_applied_message(result), do: kura_storage_claim_message(result)
+
   defp kura_storage_claim_message(%{claim_size: claim_size, raised: [], lowered: []}) do
     dgettext(
       "dashboard",

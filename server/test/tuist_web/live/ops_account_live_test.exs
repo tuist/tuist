@@ -1503,6 +1503,69 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert html =~ "16Gi → 50Gi"
     end
 
+    test "explains a runner cache left behind by a claim that moved without it", %{
+      conn: conn,
+      user: user,
+      proposal: proposal
+    } do
+      proposal
+      |> Ecto.Changeset.change(
+        region: "scw-fr-par-runners",
+        current_claim_size: "128Gi",
+        recommended_claim_size: "128Gi",
+        evidence: %{
+          "signal" => "private_region_below_account_claim",
+          "region" => "scw-fr-par-runners",
+          "region_claim_size" => "64Gi"
+        }
+      )
+      |> Repo.update!()
+
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~
+               "The runner cache in scw-fr-par-runners is still on 64Gi: the region had no room when the account&#39;s claim moved to 128Gi."
+
+      assert html =~ "It moves as soon as the region has room."
+      assert html =~ "64Gi → 128Gi"
+      assert html =~ "runner cache had no room"
+    end
+
+    test "applying a claim a full runner cache could not take says it kept its claim", %{
+      conn: conn,
+      user: user,
+      server: server
+    } do
+      runners =
+        Repo.insert!(%Server{
+          account_id: user.account.id,
+          region: "scw-fr-par-runners",
+          status: :active,
+          provisioner_node_ref: "kura-#{user.account.id}-scw-fr-par-runners",
+          storage_claim_size: "8Gi"
+        })
+
+      stub(Tuist.Environment, :kura_capacity_admission_required?, fn -> true end)
+      stub(Capacity, :reserved_gib, fn _region_id -> 0 end)
+      stub(Capacity, :reserved_gib_by_instance, fn _region_id -> %{} end)
+
+      stub(Capacity, :pressure_line_gib, fn
+        "scw-fr-par-runners" -> 0
+        _region_id -> 10_000
+      end)
+
+      stub(Capacity, :resident_gib, fn _region, %Server{} -> 16 end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html = lv |> element("button", "Apply proposal") |> render_click()
+
+      assert html =~ "Kura disk claim raised to 16Gi"
+      assert html =~ "scw-fr-par-runners had no room and kept the claim it held"
+      assert Repo.get!(Server, server.id).storage_claim_size == "16Gi"
+      assert Repo.get!(Server, runners.id).storage_claim_size == "8Gi"
+    end
+
     test "applying a claim that raises one instance and lowers another says both", %{
       conn: conn,
       user: user,

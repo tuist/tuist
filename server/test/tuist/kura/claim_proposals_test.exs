@@ -180,6 +180,17 @@ defmodule Tuist.Kura.ClaimProposalsTest do
     stub(Capacity, :resident_gib, fn _region, %Server{} -> 16 end)
   end
 
+  defp open_growth!(account, current, recommended) do
+    Repo.insert!(%ClaimProposal{
+      account_id: account.id,
+      region: "us-east",
+      direction: :grow,
+      current_claim_size: current,
+      recommended_claim_size: recommended,
+      evidence: %{"region" => "us-east"}
+    })
+  end
+
   defp pin_resized_claim!(account, server, claim_size, resized_at) do
     server |> Ecto.Changeset.change(storage_claim_size: claim_size) |> Repo.update!()
 
@@ -555,6 +566,89 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert Repo.get!(Server, eu_west.id).storage_claim_size == "16Gi"
       assert PlacerClaims.claim_for(account) == nil
       assert Repo.get!(ClaimProposal, proposal.id).status == :open
+    end
+
+    test "a full runner-cache region keeps its claim without holding back the account's other regions", %{
+      account: account,
+      server: server
+    } do
+      us_east = pin!(server, "16Gi")
+      runners = account |> insert_server!("scw-fr-par-runners") |> pin!("16Gi")
+      proposal = open_growth!(account, "16Gi", "32Gi")
+      refuse_growth_in("scw-fr-par-runners")
+
+      assert {:ok, result} = Kura.apply_claim_proposal(proposal, "automatic")
+
+      assert Enum.map(result.raised, & &1.id) == [us_east.id]
+      assert result.deferred == [{"scw-fr-par-runners", :capacity_exhausted}]
+      assert Repo.get!(Server, us_east.id).storage_claim_size == "32Gi"
+      assert Repo.get!(Server, runners.id).storage_claim_size == "16Gi"
+      assert PlacerClaims.claim_for(account) == "32Gi"
+      assert PlacerClaims.effective_claim_size(account) == "32Gi"
+      assert Repo.get!(ClaimProposal, proposal.id).status == :applied
+    end
+
+    test "a full public region still holds back a runner-cache region with room", %{
+      account: account,
+      server: server
+    } do
+      us_east = pin!(server, "16Gi")
+      runners = account |> insert_server!("scw-fr-par-runners") |> pin!("16Gi")
+      proposal = open_growth!(account, "16Gi", "32Gi")
+      refuse_growth_in("us-east")
+
+      assert {:error, {"us-east", :capacity_exhausted}} = Kura.apply_claim_proposal(proposal, "automatic")
+
+      assert Repo.get!(Server, us_east.id).storage_claim_size == "16Gi"
+      assert Repo.get!(Server, runners.id).storage_claim_size == "16Gi"
+      assert PlacerClaims.claim_for(account) == nil
+      assert Repo.get!(ClaimProposal, proposal.id).status == :open
+    end
+
+    test "a runner-cache region refusing the only change leaves the proposal open", %{
+      account: account,
+      server: server
+    } do
+      pin!(server, "32Gi")
+      runners = account |> insert_server!("scw-fr-par-runners") |> pin!("16Gi")
+      proposal = open_growth!(account, "32Gi", "32Gi")
+      refuse_growth_in("scw-fr-par-runners")
+
+      assert {:error, {"scw-fr-par-runners", :capacity_exhausted}} = Kura.apply_claim_proposal(proposal, "automatic")
+
+      assert Repo.get!(Server, runners.id).storage_claim_size == "16Gi"
+      assert PlacerClaims.claim_for(account) == nil
+      assert Repo.get!(ClaimProposal, proposal.id).status == :open
+    end
+
+    test "a runner-cache region left behind is raised by a later pass once it has room", %{
+      account: account,
+      server: server
+    } do
+      pin!(server, "32Gi")
+      runners = account |> insert_server!("scw-fr-par-runners") |> pin!("16Gi")
+      PlacerClaims.put(account, "32Gi")
+
+      assert {:ok, %{open: 1}} = ClaimProposals.sweep(@today)
+      proposal = ClaimProposals.open_proposal_for(account)
+      assert proposal.direction == :grow
+      assert proposal.region == "scw-fr-par-runners"
+      assert proposal.current_claim_size == "32Gi"
+      assert proposal.recommended_claim_size == "32Gi"
+      assert proposal.evidence["signal"] == "private_region_below_account_claim"
+
+      refuse_growth_in("scw-fr-par-runners")
+      assert {:error, {"scw-fr-par-runners", :capacity_exhausted}} = Kura.apply_claim_proposal(proposal, "automatic")
+
+      # The next pass finds the same proposal rather than stacking another.
+      assert {:ok, %{open: 1}} = ClaimProposals.sweep(@today)
+      assert ClaimProposals.open_proposal_for(account).id == proposal.id
+
+      refuse_growth_in("us-east")
+      assert {:ok, result} = Kura.apply_claim_proposal(proposal, "automatic")
+      assert Enum.map(result.raised, & &1.id) == [runners.id]
+      assert Repo.get!(Server, runners.id).storage_claim_size == "32Gi"
+      assert {:ok, %{open: 0}} = ClaimProposals.sweep(@today)
     end
 
     test "a claim that moved since the proposal supersedes instead of applying", %{account: account} do

@@ -17,7 +17,7 @@ defmodule Tuist.Kura.ClaimSizing do
   take at least a tenth less claim. A ring that rotates shrinks on retention
   once every day of a month kept its content for three retention floors: it
   lands where the floor plus the growth headroom would be kept, at most halving
-  the claim in one step and never under the plan's starting claim. Both are
+  the claim in one step. Neither goes under the plan's starting claim. Both are
   slower to confirm than any growth, because a shrink that overshoots costs a
   rebuild to undo and one that waits costs only disk.
 
@@ -30,7 +30,10 @@ defmodule Tuist.Kura.ClaimSizing do
   Each region is measured against the claim its own instances hold, since that
   is the ring its telemetry describes. The account keeps one claim, the largest
   any region needs, so a region pinned under it that runs short is raised to it
-  even when its own ring asks for less.
+  even when its own ring asks for less. A private runner-cache region is the
+  exception that does not wait to run short: it falls behind the account's
+  claim only when it had no room as the rest of the account moved, so it is
+  raised to that claim on any pass that proposes nothing else.
 
   Windows count rollup rows, one row being one UTC day per account-region.
   Today's row is live, so a one-row window can be satisfied in minutes. Rows
@@ -111,6 +114,8 @@ defmodule Tuist.Kura.ClaimSizing do
     * `:region_claim_sizes` - optional, the claim pinned in each region, by
       region; a region missing from it is measured against
       `:current_claim_size`
+    * `:private_regions` - optional, the regions among them a claim can
+      apply after the rest of the account (`Tuist.Kura.Regions.private?/1`)
     * `:rollups` - `Tuist.Kura.StorageRollup` rows (or maps with the same
       keys) covering the policy windows
     * `:last_resized_at` - when sizing last changed this account's claim, or
@@ -124,7 +129,8 @@ defmodule Tuist.Kura.ClaimSizing do
   evaluated independently and merged conservatively: any growing region grows
   the account to the largest target, and shrinking needs every region with
   data to agree. A growth whose target the account's claim already covers
-  recommends that claim, to raise the region pinned under it.
+  recommends that claim, to raise the region pinned under it, and so does a
+  private region left under it when nothing else is proposed.
   """
   def evaluate(context, policy \\ @default_policy) do
     case Regions.parse_storage_quantity(context.current_claim_size) do
@@ -136,6 +142,10 @@ defmodule Tuist.Kura.ClaimSizing do
           evaluate_region(region, rollups, region_claim(context, region, current_bytes), context, policy)
         end)
         |> merge_verdicts(current_bytes, context, policy)
+        |> case do
+          :none -> private_catch_up(current_bytes, context, policy)
+          verdict -> verdict
+        end
 
       :error ->
         :none
@@ -673,13 +683,36 @@ defmodule Tuist.Kura.ClaimSizing do
     end
   end
 
+  # A private region under the account's claim is one that had no room when
+  # the claim last moved, which applied everywhere else. Raising it needs no
+  # reading of its own ring: the account already decided the claim. The
+  # smallest pin goes first, and never past the plan's ceiling.
+  defp private_catch_up(current_bytes, context, policy) do
+    private_regions = Map.get(context, :private_regions, [])
+
+    lagging =
+      for {region, claim} <- Map.get(context, :region_claim_sizes, %{}),
+          region in private_regions,
+          {:ok, claim_bytes} <- [Regions.parse_storage_quantity(claim)],
+          claim_bytes < current_bytes,
+          do: {region, claim, claim_bytes}
+
+    if lagging != [] and current_bytes <= quantity_bytes(ceiling(context.plan, policy)) do
+      {region, claim, _claim_bytes} = Enum.min_by(lagging, &{elem(&1, 2), elem(&1, 0)})
+
+      {:grow, context.current_claim_size,
+       %{"signal" => "private_region_below_account_claim", "region" => region, "region_claim_size" => claim}}
+    else
+      :none
+    end
+  end
+
   # One step at most halves the claim, unless a region already runs the
   # account's rotating content on a smaller claim and keeps three floors
   # there: that claim is measured rather than projected, so the step may go to
   # it. A ring that never filled measures nothing about rotating content and
-  # does not count. Retention never goes under the claim the plan starts an
-  # account at; a ring that never filled may go to the smallest any instance
-  # is built with.
+  # does not count. No shrink goes under the claim the plan starts an account
+  # at.
   defp finalize_shrink(shrinks, current_bytes, context, policy) do
     {_signal, region, target_bytes, _claim_bytes, evidence} = Enum.max_by(shrinks, &elem(&1, 2))
 
@@ -700,7 +733,7 @@ defmodule Tuist.Kura.ClaimSizing do
     bytes =
       target_bytes
       |> max(step_bytes)
-      |> max(quantity_bytes(shrink_minimum(measured, context.plan)))
+      |> max(quantity_bytes(Regions.storage_profile(context.plan).claim_size))
       |> min(current_bytes)
 
     recommended = to_gibibyte_quantity(bytes)
@@ -723,9 +756,6 @@ defmodule Tuist.Kura.ClaimSizing do
       :none
     end
   end
-
-  defp shrink_minimum([], _plan), do: Regions.minimum_storage_claim()
-  defp shrink_minimum(_measured, plan), do: Regions.storage_profile(plan).claim_size
 
   defp grow_evidence(window, floor_seconds, threshold_seconds) do
     %{
@@ -774,8 +804,8 @@ defmodule Tuist.Kura.ClaimSizing do
     |> Enum.min(fn -> nil end)
   end
 
-  # How far a claim may grow. The plan's starting claim, which bounds a
-  # retention shrink, is the other place a plan changes the outcome.
+  # How far a claim may grow. The plan's starting claim, which bounds every
+  # shrink, is the other place a plan changes the outcome.
   defp ceiling(plan, policy), do: Map.get(policy.ceiling, plan, policy.ceiling.air)
 
   defp quantity_bytes(quantity) do
