@@ -311,6 +311,47 @@
 			"dst": ["svc:tuist-pg-pooler-production"],
 			"ip":  ["tcp:5432"],
 		},
+		{
+			// The Alloy receiver as a Tailscale Service, served by the
+			// `tailnet-ingress` ProxyGroup (alloyReceiverTailnet in
+			// infra/helm/k8s-monitoring). The same clients and ports the tag
+			// grants give the receiver's standalone proxy: the macOS fleet's
+			// traces and logs, the runner hosts' logs, and, in production
+			// only, the BER1 rack's logs, metrics and Kura traces.
+			"src": ["tag:tuist-macmini-staging"],
+			"dst": ["svc:tuist-alloy-receiver-staging"],
+			"ip":  ["tcp:4317", "tcp:3100"],
+		},
+		{
+			"src": ["tag:tuist-macmini-canary"],
+			"dst": ["svc:tuist-alloy-receiver-canary"],
+			"ip":  ["tcp:4317", "tcp:3100"],
+		},
+		{
+			"src": ["tag:tuist-macmini-production"],
+			"dst": ["svc:tuist-alloy-receiver-production"],
+			"ip":  ["tcp:4317", "tcp:3100"],
+		},
+		{
+			"src": ["tag:tuist-runner-host-staging"],
+			"dst": ["svc:tuist-alloy-receiver-staging"],
+			"ip":  ["tcp:3100"],
+		},
+		{
+			"src": ["tag:tuist-runner-host-canary"],
+			"dst": ["svc:tuist-alloy-receiver-canary"],
+			"ip":  ["tcp:3100"],
+		},
+		{
+			"src": ["tag:tuist-runner-host-production"],
+			"dst": ["svc:tuist-alloy-receiver-production"],
+			"ip":  ["tcp:3100"],
+		},
+		{
+			"src": ["tag:tuist-rack-edge", "tag:tuist-rack-node"],
+			"dst": ["svc:tuist-alloy-receiver-production"],
+			"ip":  ["tcp:3100", "tcp:9009", "tcp:4318"],
+		},
 
 		// Runner hosts -> the same-env Alloy receiver, for host logs only.
 		// That is the one thing a runner host dials over the tailnet
@@ -704,6 +745,9 @@
 			"svc:tuist-clickhouse-staging":    ["tag:tuist-k8s-staging"],
 			"svc:tuist-clickhouse-canary":     ["tag:tuist-k8s-canary"],
 			"svc:tuist-pg-pooler-production": ["tag:tuist-k8s-production"],
+			"svc:tuist-alloy-receiver-production": ["tag:tuist-k8s-production"],
+			"svc:tuist-alloy-receiver-staging":    ["tag:tuist-k8s-staging"],
+			"svc:tuist-alloy-receiver-canary":     ["tag:tuist-k8s-canary"],
 		},
 	},
 
