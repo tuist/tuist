@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistProcess
 
 extension GitController {
     public func commitFiles(workingDirectory: AbsolutePath, sha: String, limit: Int) async throws -> GitCommitFiles {
@@ -31,18 +32,32 @@ extension GitController {
         var reasons: [String] = []
 
         var mergeBase: String?
+        var baseHead: String?
+        var localBaseHead: String?
         if let baseBranch {
             let resolved = await resolveMergeBase(git: git, head: head, baseBranch: baseBranch, limits: limits)
             mergeBase = resolved.sha
             reasons = resolved.reasons
+            // Read after any deepening, which fetches the base branch again and can move it.
+            if let ref = resolved.ref {
+                localBaseHead = await commitSHA(git: git, ref: ref)
+                baseHead = localBaseHead
+            } else if limits.remoteAccess == .baseHead {
+                baseHead = await remoteBranchHead(git: git, branch: baseBranch, budgetSeconds: limits.deepenBudgetSeconds)
+            }
         } else {
             reasons.append("no base branch is known")
         }
 
-        let commits = try await windowCommits(git: git, workingDirectory: workingDirectory, head: head, limits: limits)
+        let commits = try await windowCommits(
+            git: git,
+            workingDirectory: workingDirectory,
+            heads: [head] + [localBaseHead].compactMap { $0 }.filter { $0 != head },
+            limits: limits
+        )
 
         var changedFiles: [GitChangedFile] = []
-        if let mergeBase {
+        if let mergeBase, limits.maxChangedFiles > 0 {
             // `--no-abbrev`: the raw format abbreviates blob ids by default, and patch coverage
             // matches them against the full ids the coverage rows carry.
             let raw = try await capture(arguments: git + ["diff", "--raw", "--no-abbrev", "-z", "-M", mergeBase, head])
@@ -66,13 +81,20 @@ extension GitController {
             headSHA: head,
             baseBranch: baseBranch,
             mergeBaseSHA: mergeBase,
+            baseHeadSHA: baseHead,
             commits: commits,
             changedFiles: changedFiles,
             fallbackReason: reasons.isEmpty ? nil : reasons.joined(separator: "; ")
         )
     }
 
-    /// The commits reachable from the head within the window. `git log` lists a shallow clone's
+    private func commitSHA(git: [String], ref: String) async -> String? {
+        let sha = (try? await capture(arguments: git + ["rev-parse", "--verify", "--quiet", "\(ref)^{commit}"]))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (sha?.isEmpty ?? true) ? nil : sha
+    }
+
+    /// The commits reachable from the heads within the window. `git log` lists a shallow clone's
     /// boundary commits (its `shallow` file) without parents, so theirs are read from the commit
     /// objects, which the raw format prints regardless of the shallow grafts. In a depth-1 clone
     /// the head is such a commit. When they cannot be read, the boundary commits are left out
@@ -80,14 +102,14 @@ extension GitController {
     private func windowCommits(
         git: [String],
         workingDirectory: AbsolutePath,
-        head: String,
+        heads: [String],
         limits: GitHistoryLimits
     ) async throws -> [GitHistoryCommit] {
         let output = try await capture(
             arguments: git + [
                 "log", "--format=%H %P %ct", "--max-count=\(limits.windowCommits)",
-                "--since=\(limits.windowDays).days.ago", head,
-            ]
+                "--since=\(limits.windowDays).days.ago",
+            ] + heads
         )
         guard let shallowFile = try? await capture(arguments: git + ["rev-parse", "--git-path", "shallow"]),
               let path = try? AbsolutePath(
@@ -117,7 +139,7 @@ extension GitController {
         head: String,
         baseBranch: String,
         limits: GitHistoryLimits
-    ) async -> (sha: String?, reasons: [String]) {
+    ) async -> MergeBaseResolution {
         let deadline = Date().addingTimeInterval(TimeInterval(limits.deepenBudgetSeconds))
         let shallow = (try? await capture(arguments: git + ["rev-parse", "--is-shallow-repository"]))?
             .trimmingCharacters(in: .whitespacesAndNewlines) == "true"
@@ -143,24 +165,42 @@ extension GitController {
         // filters ignores the option with a warning and sends everything.
         let baseRefspec = "+\(baseBranch):refs/remotes/origin/\(baseBranch)"
         var ref = await baseRef()
+        if ref == nil, limits.remoteAccess != .history {
+            return MergeBaseResolution(sha: nil, ref: nil, reasons: ["the base branch \(baseBranch) is not in the checkout"])
+        }
         if ref == nil {
             var fetch = git + ["fetch", "--no-tags", "--filter=blob:none"]
             if shallow { fetch.append("--depth=1") }
             fetch += ["origin", baseRefspec]
             if await self.fetch(arguments: fetch, deadline: deadline) == .timedOut {
-                return (nil, [
+                return MergeBaseResolution(sha: nil, ref: nil, reasons: [
                     "the base branch \(baseBranch) is not in the checkout and could not be fetched within \(limits.deepenBudgetSeconds)s",
                 ])
             }
             ref = await baseRef()
         }
         guard let ref else {
-            return (nil, ["the base branch \(baseBranch) is not in the checkout and could not be fetched"])
+            return MergeBaseResolution(
+                sha: nil,
+                ref: nil,
+                reasons: ["the base branch \(baseBranch) is not in the checkout and could not be fetched"]
+            )
         }
 
-        if let sha = await resolve(ref) { return (sha, []) }
+        if let sha = await resolve(ref) { return MergeBaseResolution(sha: sha, ref: ref, reasons: []) }
         guard shallow else {
-            return (nil, ["\(head.prefix(12)) and \(baseBranch) share no history in the checkout"])
+            return MergeBaseResolution(
+                sha: nil,
+                ref: ref,
+                reasons: ["\(head.prefix(12)) and \(baseBranch) share no history in the checkout"]
+            )
+        }
+        guard limits.remoteAccess == .history else {
+            return MergeBaseResolution(
+                sha: nil,
+                ref: ref,
+                reasons: ["shallow clone: the merge base with \(baseBranch) is not in the checkout"]
+            )
         }
 
         // The base branch is named on every deepen: without a refspec git fetches what the
@@ -177,15 +217,53 @@ extension GitController {
             step = min(step, maxDepth - depth)
             let deepen = git + ["fetch", "--no-tags", "--filter=blob:none", "--deepen=\(step)", "origin", baseRefspec]
             guard await fetch(arguments: deepen, deadline: deadline) == .succeeded else { break }
-            if let sha = await resolve(ref) { return (sha, []) }
+            if let sha = await resolve(ref) { return MergeBaseResolution(sha: sha, ref: ref, reasons: []) }
             depth += step
             step *= 2
         }
-        return (nil, ["shallow clone: the merge base with \(baseBranch) was not found within \(limits.deepenBudgetSeconds)s"])
+        return MergeBaseResolution(
+            sha: nil,
+            ref: ref,
+            reasons: ["shallow clone: the merge base with \(baseBranch) was not found within \(limits.deepenBudgetSeconds)s"]
+        )
+    }
+
+    /// The merge base, the base branch's ref it was resolved against, and why either is missing.
+    private struct MergeBaseResolution {
+        let sha: String?
+        let ref: String?
+        let reasons: [String]
     }
 
     private enum FetchOutcome {
         case succeeded, failed, timedOut
+    }
+
+    /// The branch's latest commit as the remote has it: one `git ls-remote`, which transfers no
+    /// objects, torn down like a fetch when it outlasts the budget.
+    private func remoteBranchHead(git: [String], branch: String, budgetSeconds: Int) async -> String? {
+        let arguments = git + ["ls-remote", "origin", "refs/heads/\(branch)"]
+        let output = await withTaskGroup(of: String?.self) { group in
+            group.addTask {
+                var bytes: [UInt8] = []
+                do {
+                    for try await event in runInOwnProcessGroup(arguments: arguments) {
+                        if case let .standardOutput(chunk) = event { bytes += chunk }
+                    }
+                } catch {
+                    return nil
+                }
+                return Task.isCancelled ? nil : String(bytes: bytes, encoding: .utf8)
+            }
+            group.addTask {
+                try? await Task.sleep(for: .seconds(budgetSeconds))
+                return nil
+            }
+            let output = await group.next() ?? nil
+            group.cancelAll()
+            return output
+        }
+        return output?.split(whereSeparator: \.isWhitespace).first.map(String.init)
     }
 
     /// Runs the fetch until it exits or the deadline passes, whichever comes first. A fetch still
