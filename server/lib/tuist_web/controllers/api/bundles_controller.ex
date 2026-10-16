@@ -400,7 +400,9 @@ defmodule TuistWeb.API.BundlesController do
         bundle_name: bundle.name,
         git_ref: bundle.git_ref,
         install_size: bundle.install_size,
-        download_size: bundle.download_size
+        download_size: bundle.download_size,
+        type: bundle.type,
+        supported_platforms: bundle.supported_platforms
       }
       |> Tuist.Bundles.Workers.BundleThresholdWorker.new()
       |> Oban.insert()
