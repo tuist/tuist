@@ -104,7 +104,9 @@ must leave a running cover server alone: under `mix test --cover` it is Mix's.
 On a pull request's merge ref (`refs/pull/N/merge`), `Env.git_commit_sha/2`
 reports HEAD^2, the pull request's head, as the command line tool does, since
 the merge commit exists only in the checkout; a shallow checkout without that
-parent reports HEAD. `GIT_COMMIT` still wins.
+parent reports HEAD. When `GITHUB_SHA` (GitHub's merge commit) is set and is
+not HEAD, the workflow checked out another commit, and HEAD is reported.
+`GIT_COMMIT` still wins.
 `Git` and `Analytics.GitHistory` port the command line tool's Git history
 collection (`GitController+History.swift`, `GitHistoryParser.swift`,
 `GitHistoryService.swift`) and must stay in step with it, since the server

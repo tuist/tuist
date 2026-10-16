@@ -85,15 +85,19 @@ class ProcessGitInfoProvider(
     /**
      * On a pull request's merge ref (`refs/pull/N/merge`), HEAD is a merge commit that exists only in
      * the checkout, so the pull request's head, its second parent, is reported instead. A shallow
-     * checkout without that parent reports HEAD.
+     * checkout without that parent reports HEAD. On GitHub Actions, `GITHUB_SHA` is that merge
+     * commit: a workflow that checked out another commit, such as the pull request's head, reports
+     * HEAD, since that commit's second parent, if it has one, is not the pull request.
      */
     override fun commitSha(): String? {
-        if (ref()?.startsWith("refs/pull/") == true) {
+        val head = runCatching { gitCommandRunner(listOf("rev-parse", "HEAD")) }.getOrNull()?.takeIf(String::isNotBlank)
+        val mergeCommit = environmentProvider("GITHUB_SHA")?.takeIf(String::isNotEmpty)
+        if (ref()?.startsWith("refs/pull/") == true && (mergeCommit == null || mergeCommit == head)) {
             runCatching { gitCommandRunner(listOf("rev-parse", "HEAD^2")) }.getOrNull()
                 ?.takeIf(String::isNotBlank)
                 ?.let { return it }
         }
-        return runCatching { gitCommandRunner(listOf("rev-parse", "HEAD")) }.getOrNull()?.takeIf(String::isNotBlank)
+        return head
     }
 
     override fun ref(): String? {

@@ -107,6 +107,16 @@ defmodule TuistEx.Analytics.EnvTest do
              &%{"GITHUB_REF" => "refs/pull/7/merge", "GIT_COMMIT" => "deadbeef"}[&1],
              git.("x")
            ) == "deadbeef"
+
+    github = fn sha -> &%{"GITHUB_REF" => "refs/pull/7/merge", "GITHUB_SHA" => sha}[&1] end
+
+    assert Env.git_commit_sha(github.("merge-commit"), git.("pull-request-head")) ==
+             "pull-request-head"
+
+    # A checkout of the pull request's head keeps GITHUB_REF at the merge ref;
+    # when that head is itself a merge commit, its second parent is not the
+    # pull request.
+    assert Env.git_commit_sha(github.("another-commit"), git.("main")) == "merge-commit"
   end
 
   test "takes the branch from the CI provider before git" do
