@@ -13,6 +13,15 @@ connector:
   tags:
     - "tag:tuist-k8s-canary"
 
+# A ProxyGroup with static UDP endpoints on md-0's public IPs, so the macOS
+# xcresult VMs reach the Services it serves over a direct path instead of a
+# DERP relay, as in production. See `tailnetIngress` in values.yaml.
+tailnetIngress:
+  enabled: true
+  proxyGroup:
+    tags:
+      - "tag:tuist-k8s-canary"
+
 macminiEgress:
   enabled: true
   proxyGroup:
