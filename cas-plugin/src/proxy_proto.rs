@@ -37,9 +37,11 @@
 //! it. Asked by a runner's teardown before the image is measured, so the
 //! promoted master carries a bounded store; see `Proxy::prune_ondisk`.
 //! PREPARE_ACTION (op 7): payload = root digest from RESOLVE. Runs only for a
-//! global query, after the proxy has registered the closure guard. Returns the
-//! same statuses as FETCH_OBJECT. An older proxy rejects this new operation;
-//! clients must not retry it as an ordinary object fetch.
+//! global query, after the proxy has registered the graph instructions and its
+//! closure guard. Completed guards may be gone; retained instructions still
+//! permit validated repair after pruning. Returns the same statuses as
+//! FETCH_OBJECT. An older proxy rejects this new operation; clients must not
+//! retry it as an ordinary object fetch.
 //! PUBLISH_WAIT (op 8): payload = u32 big-endian milliseconds the caller will
 //! wait | utf8 path of a write-ahead publication record. PUBLISH, answered once
 //! the publication is done. status 1 = nothing is owed for this record any more,

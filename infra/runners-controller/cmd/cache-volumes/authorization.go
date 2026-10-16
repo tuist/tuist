@@ -15,21 +15,14 @@ import (
 )
 
 func (a *agent) authorize(ctx context.Context, body []byte) (cachevolumes.Identity, error) {
-	return a.authorizeAt(ctx, a.authorizeURL, body)
-}
-
-func (a *agent) authorizeAt(ctx context.Context, endpoint string, body []byte) (cachevolumes.Identity, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	for {
-		identity, status, err := a.authorizeOnce(ctx, endpoint, body)
+		identity, status, err := a.authorizeOnce(ctx, body)
 		if err != nil || status == http.StatusOK {
 			return identity, err
 		}
 		if status != http.StatusTooEarly {
-			if status == http.StatusNotFound && strings.HasSuffix(endpoint, "-commit") {
-				return identity, cachevolumes.ErrCommitUnsupported
-			}
 			return identity, fmt.Errorf("authorization rejected: %d", status)
 		}
 		// GitHub may deliver its verified execution binding after the action starts.
@@ -42,8 +35,8 @@ func (a *agent) authorizeAt(ctx context.Context, endpoint string, body []byte) (
 	}
 }
 
-func (a *agent) authorizeOnce(ctx context.Context, endpoint string, body []byte) (identity cachevolumes.Identity, status int, err error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+func (a *agent) authorizeOnce(ctx context.Context, body []byte) (identity cachevolumes.Identity, status int, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.authorizeURL, bytes.NewReader(body))
 	if err != nil {
 		return identity, 0, err
 	}

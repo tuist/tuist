@@ -195,8 +195,8 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         )
 
         for project in mapped.projects {
-            #expect(project.settings.base["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
-            #expect(project.settings.base["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
+            #expect(project.settings.base["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
+            #expect(project.settings.base["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
             #expect(project.settings.base["TUIST_PREFIX_MAPPING_ROOT_DIR"] == .string(repository.pathString))
         }
         #expect(mapped.projects.contains { $0.path == siblingPath })

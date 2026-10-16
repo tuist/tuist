@@ -3,13 +3,18 @@
 This is an independent Once workspace for Atlas's native clients. The shared
 Rust core owns the section catalog and destinations; the CLI is Rust, Android
 uses Kotlin with platform widgets, and iOS uses SwiftUI. Native views must not duplicate catalog
-strings or routes. The initial app opens authenticated Atlas pages in the system
-browser. It does not implement a native API client or store Atlas credentials.
+strings or routes. Authentication networking and OAuth state live in the independent
+Rust `auth/` crate (see `auth/AGENTS.md`); native adapters own browser presentation
+and secure persistence. Workspace sections still open in the system browser and
+may require a separate browser sign-in. Personal settings are native and use the authenticated API on the selected server. OAuth tokens are not browser cookies.
 
 ## Layout
 
 - `once.toml`: typed build graph and shared cache identity (`tuist/atlas-mobile`).
-- `core/src/`: shared navigation, C ABI, and primitive-only JNI bridge.
+- `core/src/`: dependency-free shared navigation, C ABI, and primitive-only JNI bridge.
+- `auth/`: Rust OAuth networking, owned JSON C ABI, and string JNI bridge. Keep it
+  independent of navigation/CLI builds. Platform-specific Cargo dependency targets
+  expose individual crates to Once for parallel compilation and reusable cache keys.
 - `Cargo.toml` / `Cargo.lock`: Rust workspace for editor and Clippy support. Once
   excludes Cargo discovery here to avoid duplicate targets alongside the authored
   graph.
@@ -17,6 +22,13 @@ browser. It does not implement a native API client or store Atlas credentials.
 - `core/include/`: authored C header and Clang module map imported by Swift.
 - `android/`: Kotlin UI, JNI adapter, Android manifest and resources.
 - `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge tests.
+  The signed-out screen matches Tuist's login layout with Atlas's azure palette,
+  the shared Tuist mark used by Atlas's web login, and supported hosted/self-hosted actions. Keep native browser auth separate
+  from presentation; restore sessions automatically rather than exposing a debug
+  restore button.
+- `previews/`: isolated native Settings screenshot harnesses and UI tests; see `previews/AGENTS.md`.
+- `resources/`: shared login-asset generation; see `resources/AGENTS.md`. Checked-in
+  light/dark backgrounds and marks feed the iOS asset catalog and Android resources.
 - `mise.toml` / `mise.lock`: pinned Once, Rust, Kotlin and ktlint toolchains.
   ktlint uses an explicit GitHub backend and locked archive, compatible with the
   repository's pinned CI Mise version. Do not rely on a backend name that only
@@ -51,12 +63,46 @@ Once's required APK signing. Local setups need `ANDROID_DEBUG_KEYSTORE` or
 Silicon macOS, Xcode, and an installed iOS simulator runtime. Do not switch this workspace to Gradle,
 SwiftPM, or generated Xcode projects to work around Once build failures.
 
+## AI account settings
+
+- iOS opens native Settings from the workspace toolbar, using SwiftUI Form, NavigationLink, SecureField, and confirmation dialogs. Android opens native Settings from the workspace toolbar, using the platform Toolbar, wrapping two-line list rows, a dedicated secure-token screen, and AlertDialog for destructive confirmation. Settings includes the selected server, an AI accounts section for Claude and ChatGPT, and sign-out. Mobile apps exclude settings destinations from the browser-only workspace list; the shared catalog/CLI keep the existing `/settings/llm-providers` web destination.
+- `ios/Sources/AtlasAIAccounts.swift` owns the iOS account state; `AtlasAIAccountViews.swift` owns its presentation. The auth coordinator caches one model per signed-in session, using a weak, session-identity-checked request closure; leaving Settings must not discard failed cancellation handles. Keep native settings rows icon-led with secondary status, setup screens focused on one task with a prominent bottom action, and detailed Claude instructions in a disclosure rather than paragraph-heavy form rows. Preserve Dynamic Type, dark appearance, secure entry, and explicit device-code expiry/cancellation. `android/src/dev/tuist/atlas/AtlasAIAccountsScreen.kt` owns Android presentation; `AtlasAIAccountsModel.kt` owns metadata, requests, and polling without retaining an Activity, View, or token. Retain that model alongside authentication for the signed-in session, including across Settings closure and configuration changes, detach the old view listener without cancelling sign-in, and save only the known Atlas login ID for process-death cancellation. Never save token fields or device codes in view state. All authenticated requests go through the existing auth coordinator and the fixed-route Rust `auth/src/accounts.rs` bridge, never directly from views or via browser cookies. Persist rotated Atlas OAuth credentials before API calls; serialize refresh and sign-out. Provider credentials stay encrypted on Atlas, not in native preferences or model tool arguments. Clear Claude input on submit/dismiss and disable Android form-state saving/autofill.
+- Native setup supports Claude create/update, ChatGPT start/poll/cancel, and confirmed disconnect. Poll no faster than the returned interval, stop on completion/expiry, ignore stale results, and cancel on leaving the ChatGPT page, including an in-flight start. Cancellation preserves existing credentials. Reload metadata after cancellation, including an already-completed/expired response, because authorization may have won the race. Retain failed cancellation handles for retry, treat `login_failed` and rejected Atlas refresh credentials as terminal, scope stale errors to their originating page, and never let a late save close a newer form. Android requires cancelling pending sign-in before disconnecting its saved ChatGPT connection. Real-account ChatGPT sign-in still needs an authorized Atlas client. User-triggered agent execution remains separate follow-up work.
+- Preserve platform behavior: 44pt iOS / 48dp Android touch targets, accessible labels/headings, system appearance and text scaling, scrollable keyboard-safe forms, and Android system/cutout/IME insets. Use API 33+ Back callbacks with the older Back fallback. Keep API-26 navigation bars dark; dark navigation icons on a light background belong in `values-v27`. Do not add navigation/state frameworks just for these two setup screens.
+- Reproducible fixture-backed screenshots and the iOS UI test use separate [preview targets](previews/AGENTS.md). These render production views without authenticating or making account-management requests. Never ship preview fixture sources or authentication bypasses in production apps. Clearly label screenshot evidence as preview-backed.
+
 ## Boundaries
 
-- C strings are immutable, process-lifetime pointers. Never free them in Swift.
-- JNI exports accept only integer values and opaque environment/object pointers;
-  they never dereference JNI pointers. Invalid indices return a sentinel, not a
-  panic. Keep UTF-8 decoding and boundary checks covered by tests.
+- Navigation C strings are immutable, process-lifetime pointers. Never free them
+  in Swift. Authentication responses are separately owned allocations: release each
+  exactly once with `atlas_auth_free` and never log requests/results.
+- Navigation JNI exports accept only integer values and opaque pointers; they never
+  dereference JNI pointers. Authentication uses the `jni` crate for VM string ownership.
+  Keep UTF-8 decoding and boundary checks covered by tests.
+- Rust auth calls are synchronous and bounded; invoke them from a background executor,
+  never the UI thread. Serialize session changes/refresh rotation in native coordinators,
+  and persist rotations before requests. Account-management calls currently share
+  that coordinator's serial queue with sign-out. Android's auth `busy` flag is for
+  session commands, not background account requests, which have their own model
+  loading state; never drop sign-out because cancellation was queued. Clear rejected
+  sessions/registrations and return to sign-in. Cache the account model only for the
+  current signed-in session. Do not extend that queue into a global lock for
+  unrelated future networking.
+- iOS uses ThisDeviceOnly Keychain entries and a simulator-specific Keychain entitlement;
+  device builds must derive their entitlement from the actual signing team/profile.
+  The Swift Testing XCTest agent is unhosted and cannot access app Keychain; test
+  storage request/failure semantics with a per-test adapter, not mutable global stubs.
+  Android uses AES-GCM with Android Keystore
+  keys and backup-disabled encrypted preferences. Native code must successfully persist
+  credentials before publishing signed-in state. Retain credentials on transient refresh
+  failures, and discard rejected registrations so the next login can register again.
+- `mise run prepare:rust` materializes locked third-party sources in ignored `.once/vendor`.
+  Build/test tasks depend on it; run it before invoking Once directly on a clean checkout.
+  Run vendor preparation serially, not concurrently with builds that read that directory.
+  Once 0.68.2 does not yet include the source-materialization fix in tuist/once#390;
+  keep this required workaround until a published Once version includes that fix.
+  The Android task exposes API-26 NDK clang and LLVM tools to Cargo build scripts through
+  declared `build_script_tools`, so their contents participate in cache identity.
 - The Android package, Kotlin class/method names and JNI exported symbols must
   agree. Renaming any of these requires rebuilding and launching the Android app.
 - Swift's generated module caches embed absolute paths. After a directory rename,

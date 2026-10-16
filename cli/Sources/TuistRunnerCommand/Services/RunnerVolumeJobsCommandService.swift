@@ -9,14 +9,6 @@ protocol RunnerVolumeJobsCommandServicing {
     func run(volumeID: String, account: String?, path: String?, page: Int, pageSize: Int, json: Bool) async throws
 }
 
-enum RunnerVolumeJobsCommandServiceError: LocalizedError, Equatable {
-    case missingAccount
-
-    var errorDescription: String? {
-        "Pass --account or configure a project full handle."
-    }
-}
-
 struct RunnerVolumeJobsCommandService: RunnerVolumeJobsCommandServicing {
     private let configLoader: ConfigLoading
     private let serverEnvironmentService: ServerEnvironmentServicing
@@ -36,14 +28,13 @@ struct RunnerVolumeJobsCommandService: RunnerVolumeJobsCommandServicing {
     }
 
     func run(volumeID: String, account: String?, path: String?, page: Int, pageSize: Int, json: Bool) async throws {
-        let directory = try await Environment.current.pathRelativeToWorkingDirectory(path)
-        let config = try await configLoader.loadConfig(path: directory)
-        guard let accountHandle = try account ?? config.fullHandle.map({ try fullHandleService.parse($0).accountHandle }),
-              !accountHandle.isEmpty
-        else {
-            throw RunnerVolumeJobsCommandServiceError.missingAccount
-        }
-        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        let (accountHandle, serverURL) = try await RunnerAccount.resolve(
+            account: account,
+            path: path,
+            configLoader: configLoader,
+            serverEnvironmentService: serverEnvironmentService,
+            fullHandleService: fullHandleService
+        )
         let response = try await listRunnerVolumeJobsService.listRunnerVolumeJobs(
             accountHandle: accountHandle,
             serverURL: serverURL,

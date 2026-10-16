@@ -27,8 +27,6 @@ func (p *paths) Set(value string) error { *p = append(*p, value); return nil }
 
 var keyPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_./-]{0,199}$`)
 var directoryPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
-var errCommitUnsupported = errors.New("runner does not support the requested commit mode; update the runner client, host agent and server")
-
 var errInvalidPath = errors.New("invalid cache path")
 
 func digest(value string) string { h := sha256.Sum256([]byte(value)); return hex.EncodeToString(h[:]) }
@@ -50,7 +48,6 @@ func main() {
 		return
 	}
 	detach := flag.Bool("detach-all", false, "Detach macOS volumes after the job")
-	commit := flag.String("commit", "auto", "Save intent: auto, true or false; subject to server writer policy")
 	key := flag.String("key", "", "Stable cache name; change it to invalidate")
 	var targets paths
 	flag.Var(&targets, "path", "Directory to cache (repeatable; relative to the working directory)")
@@ -65,11 +62,11 @@ func main() {
 		}
 		return
 	}
-	if !keyPattern.MatchString(*key) || len(targets) == 0 || (*commit != "auto" && *commit != "true" && *commit != "false") {
+	if !keyPattern.MatchString(*key) || len(targets) == 0 {
 		fmt.Fprintln(os.Stderr, "usage: tuist-cache-volume --key NAME --path DIR [--path DIR]")
 		os.Exit(2)
 	}
-	if err := attach(*key, targets, *commit); err != nil {
+	if err := attach(*key, targets); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		if errors.Is(err, errInvalidPath) {
 			os.Exit(2)
@@ -77,7 +74,7 @@ func main() {
 		os.Exit(1)
 	}
 }
-func attach(key string, targets []string, commit string) error {
+func attach(key string, targets []string) error {
 	client := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	root := "/home/runner/work/_tuist_cache"
 	if runtime.GOOS == "darwin" {
@@ -87,15 +84,15 @@ func attach(key string, targets []string, commit string) error {
 		root = "/__w/_tuist_cache"
 	}
 	if runtime.GOOS == "darwin" {
-		return attachMac(key, targets, root, commit)
+		return attachMac(key, targets, root)
 	}
-	return attachWithClient(key, targets, root, client, commit)
+	return attachWithClient(key, targets, root, client)
 }
-func attachWithClient(key string, targets []string, root string, client *http.Client, commit string) error {
-	return attachWithMounter(key, targets, root, client, bindDirectory, commit)
+func attachWithClient(key string, targets []string, root string, client *http.Client) error {
+	return attachWithMounter(key, targets, root, client, bindDirectory)
 }
-func attachWithMounter(key string, targets []string, root string, client *http.Client, mount func(string, string, string) error, commit string) error {
-	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquire(client, key, commit) }, mount)
+func attachWithMounter(key string, targets []string, root string, client *http.Client, mount func(string, string, string) error) error {
+	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquire(client, key) }, mount)
 }
 func attachUsing(key string, targets []string, root string, getVolume func() (string, string, bool, error), mount func(string, string, string) error) error {
 	// Validate all paths before acquiring storage. Never replace existing content.
@@ -139,9 +136,6 @@ func attachUsing(key string, targets []string, root string, getVolume func() (st
 		}
 	}
 	directory, lease, warm, err := getVolume()
-	if errors.Is(err, errCommitUnsupported) {
-		return err
-	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "::warning::Cache volume unavailable: %v\n", err)
 		return coldDirectories(absolute)
@@ -215,32 +209,23 @@ func emptyTarget(path string) error {
 	}
 	return nil
 }
-func acquire(client *http.Client, key string, commit string) (string, string, bool, error) {
+func acquire(client *http.Client, key string) (string, string, bool, error) {
 	endpoint := os.Getenv("TUIST_CACHE_VOLUME_URL")
 	if endpoint == "" {
 		return "", "", false, errors.New("cache volumes disabled")
 	}
-	body, _ := json.Marshal(map[string]any{"pod_name": os.Getenv("TUIST_CACHE_VOLUME_POD"), "pod_uid": os.Getenv("TUIST_CACHE_VOLUME_UID"), "key": key, "architecture": runtime.GOARCH, "uid": os.Getuid(), "commit": commit})
-	operation := "/acquire"
-	if commit != "auto" {
-		operation = "/acquire-commit"
-	}
-	req, err := http.NewRequest("POST", endpoint+operation, bytes.NewReader(body))
+	body, _ := json.Marshal(map[string]any{"pod_name": os.Getenv("TUIST_CACHE_VOLUME_POD"), "pod_uid": os.Getenv("TUIST_CACHE_VOLUME_UID"), "key": key, "architecture": runtime.GOARCH, "uid": os.Getuid()})
+	req, err := http.NewRequest("POST", endpoint+"/acquire", bytes.NewReader(body))
 	if err != nil {
 		return "", "", false, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	var result struct {
-		CanPublish bool   `json:"can_publish"`
-		Commit     string `json:"commit"`
-		Directory  string `json:"directory"`
-		ID         string `json:"id"`
-		Warm       bool   `json:"warm"`
+		Directory string `json:"directory"`
+		ID        string `json:"id"`
+		Warm      bool   `json:"warm"`
 	}
 	err = requestJSON(client, req, &result)
-	if err == nil {
-		err = checkCommit(commit, result.Commit, result.CanPublish, os.Stderr)
-	}
 	return result.Directory, result.ID, result.Warm, err
 }
 func requestJSON(client *http.Client, req *http.Request, result any) error {
@@ -249,23 +234,10 @@ func requestJSON(client *http.Client, req *http.Request, result any) error {
 		return err
 	}
 	defer response.Body.Close()
-	if response.StatusCode == http.StatusNotImplemented || (response.StatusCode == http.StatusNotFound && strings.HasSuffix(req.URL.Path, "/acquire-commit")) {
-		return errCommitUnsupported
-	}
 	if response.StatusCode != 200 {
 		return fmt.Errorf("cache service returned %d", response.StatusCode)
 	}
 	return json.NewDecoder(io.LimitReader(response.Body, 32768)).Decode(result)
-}
-
-func checkCommit(mode, acknowledged string, canPublish bool, warnings io.Writer) error {
-	if mode != "auto" && (acknowledged != mode || (mode == "false" && canPublish)) {
-		return errCommitUnsupported
-	}
-	if mode == "true" && !canPublish {
-		fmt.Fprintln(warnings, "::warning::Cache volume commit was requested, but this job is not authorized to save changes. Check the volume's Writer branches policy and attach it in a new job after granting access.")
-	}
-	return nil
 }
 
 func containsPath(parent, child string) bool {

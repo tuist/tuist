@@ -2,6 +2,7 @@
     import Foundation
     import Noora
     import Path
+    import TuistAlert
     import TuistConfigLoader
     import TuistCore
     import TuistEnvironment
@@ -82,9 +83,10 @@
                     throw InspectImportsServiceError.issuesFound(implicit: implicitIssues, redundant: redundantIssues)
                 }
 
-                Logger.current.log(
-                    level: .info,
-                    "We did not find any dependency issues in your project (checked: \(checksRun.joined(separator: ", ")))."
+                AlertController.current.success(
+                    .alert(
+                        "We did not find any dependency issues in your project (checked: \(checksRun.joined(separator: ", ")))."
+                    )
                 )
             }
         }

@@ -29,17 +29,26 @@ defmodule Tuist.Kura.Workers.ProvisionOnDemandWorker do
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Workers.AwaitActivationWorker
 
-  def enqueue(%Account{id: account_id}) do
-    %{account_id: account_id, requested_at: DateTime.to_iso8601(DateTime.utc_now())}
+  @doc """
+  `traffic: true` for a request that will move bytes (the activation gateway),
+  so the provision also stamps the traffic clock that returns an `:idle`
+  archival. Endpoint resolution enqueues without it.
+  """
+  def enqueue(%Account{id: account_id}, opts \\ []) do
+    %{
+      account_id: account_id,
+      requested_at: DateTime.to_iso8601(DateTime.utc_now()),
+      traffic: Keyword.get(opts, :traffic, false)
+    }
     |> new()
     |> Oban.insert()
   end
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"account_id" => account_id, "requested_at" => requested_at}}) do
+  def perform(%Oban.Job{args: %{"account_id" => account_id, "requested_at" => requested_at} = args}) do
     if Environment.kura_control_plane?() do
       {:ok, requested_at, _offset} = DateTime.from_iso8601(requested_at)
-      {:ok, servers} = Lifecycle.provision_account(account_id, requested_at)
+      {:ok, servers} = Lifecycle.provision_account(account_id, requested_at, traffic: Map.get(args, "traffic", false))
 
       Enum.each(servers, fn server ->
         :ok = Reconciler.reconcile_server(server)

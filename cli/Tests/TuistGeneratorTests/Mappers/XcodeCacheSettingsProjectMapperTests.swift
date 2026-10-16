@@ -86,12 +86,12 @@ struct XcodeCacheSettingsProjectMapperTests {
             baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] ==
                 .string("$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))")
         )
-        #expect(baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
+        #expect(baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
         #expect(
             baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] ==
                 .string("$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))")
         )
-        #expect(baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
+        #expect(baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
     }
 
     @Test(.inTemporaryDirectory, .withMockedXcodeController)
@@ -112,8 +112,8 @@ struct XcodeCacheSettingsProjectMapperTests {
             "COMPILATION_CACHE_ENABLE_CACHING": "YES",
             "SWIFT_ENABLE_PREFIX_MAPPING": "$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))",
             "CLANG_ENABLE_PREFIX_MAPPING": "$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))",
-            "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
-            "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
+            "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING": "NO",
+            "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "NO",
             "TUIST_PREFIX_MAPPING_FOR_COVERAGE_": "YES",
             "TUIST_PREFIX_MAPPING_FOR_COVERAGE_NO": "YES",
             "TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES": "NO",

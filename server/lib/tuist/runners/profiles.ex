@@ -25,6 +25,7 @@ defmodule Tuist.Runners.Profiles do
   import Ecto.Query
 
   alias Tuist.Repo
+  alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Profile
 
@@ -165,8 +166,10 @@ defmodule Tuist.Runners.Profiles do
   end
 
   @doc """
-  Update a profile's resources. `name` and `platform` cannot change
-  post-create (see module docs). Passing either is silently ignored.
+  Update a profile's resources and cache writer policy. `name` and
+  `platform` cannot change post-create (see module docs). Passing either
+  is silently ignored. Narrowing the cache writer policy revokes pending
+  saves it no longer allows.
   """
   def update(%Profile{platform: platform} = profile, attrs) do
     attrs =
@@ -176,7 +179,34 @@ defmodule Tuist.Runners.Profiles do
 
     profile
     |> Profile.changeset(attrs, catalog_opts_for(platform))
-    |> Repo.update()
+    |> update_revoking_writers()
+  end
+
+  @doc """
+  Updates which branches save the profile's cache volumes. `attrs` takes
+  `:cache_writer_default_branch`, whether the repository's default branch saves,
+  and `:cache_writer_branches`, the additional branch names or `*` patterns that
+  save. Narrowing the policy revokes pending saves it no longer allows.
+  """
+  def update_cache_writer_policy(%Profile{} = profile, attrs) do
+    profile
+    |> Profile.cache_writer_changeset(attrs)
+    |> update_revoking_writers()
+  end
+
+  defp update_revoking_writers(changeset) do
+    if Enum.any?([:cache_writer_default_branch, :cache_writer_branches], &Map.has_key?(changeset.changes, &1)) do
+      Repo.transaction(fn ->
+        with {:ok, profile} <- Repo.update(changeset),
+             :ok <- CacheVolumes.revoke_profile_writers(profile) do
+          profile
+        else
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+      end)
+    else
+      Repo.update(changeset)
+    end
   end
 
   @doc """
@@ -190,7 +220,36 @@ defmodule Tuist.Runners.Profiles do
   `<prefix>linux` label always resolves.
   """
   def delete(%Profile{protected: true}), do: {:error, :protected}
-  def delete(%Profile{} = profile), do: Repo.delete(profile)
+
+  def delete(%Profile{} = profile) do
+    Repo.transaction(fn ->
+      with {:ok, deleted} <- Repo.delete(profile),
+           :ok <- CacheVolumes.revoke_profile_writers({:deleted, deleted}) do
+        deleted
+      else
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  @doc """
+  Locks the profile a job was dispatched to, for reading its cache writer
+  policy inside a transaction. Returns `nil` for labels that resolved to a
+  legacy pool or a profile that no longer exists.
+  """
+  def lock_for_dispatch_label(account_id, label) when is_binary(label) do
+    prefix = Profile.prefix()
+
+    case label do
+      ^prefix <> name ->
+        Repo.one(from(p in Profile, where: p.account_id == ^account_id and p.name == ^name, lock: "FOR SHARE"))
+
+      _ ->
+        nil
+    end
+  end
+
+  def lock_for_dispatch_label(_account_id, _label), do: nil
 
   @doc """
   Resolve `(account, requested_labels)` → profile, mirroring the

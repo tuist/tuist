@@ -33,6 +33,16 @@ defmodule Tuist.Kura.ReconcilerTest do
     :ok
   end
 
+  test "boot reconciliation reuses the existing incomplete job" do
+    first = Kura.enqueue_reconcile_orphaned_deployments()
+    second = Kura.enqueue_reconcile_orphaned_deployments()
+
+    assert first.id == second.id
+    assert second.conflict?
+    assert first.worker == "Tuist.Kura.Reconciler"
+    assert first.queue == "default"
+  end
+
   test "routes version scheduling through the rollout orchestration by default" do
     expect(Tuist.Kura.Rollouts, :sync, fn -> :ok end)
     stub(Tuist.FeatureFlags, :kura_rollout_orchestration_enabled?, fn -> true end)

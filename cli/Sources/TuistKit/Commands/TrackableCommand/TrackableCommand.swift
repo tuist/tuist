@@ -88,7 +88,7 @@ public class TrackableCommand {
     ) async throws {
         let timer = clock.startTimer()
         let ranAt = clock.now
-        let path = try await CommandArguments.path(in: commandArguments)
+        let path = try await CommandArguments.path(in: commandArguments, command: command)
         let runMetadataStorage = RunMetadataStorage()
 
         // Up front, so that the path holds this run's report or nothing at all. Writing it only
@@ -258,6 +258,8 @@ public class TrackableCommand {
                         fullHandle,
                         serverURL.absoluteString,
                         sessionDirectory.pathString,
+                        "--project-path",
+                        path.pathString,
                     ],
                     environment: ProcessInfo.processInfo.environment
                 )

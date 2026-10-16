@@ -28,6 +28,7 @@ defmodule Mix.Tasks.Tuist.Compile do
   alias TuistEx.Analytics.CompileProfile
   alias TuistEx.Analytics.CompileReporter
   alias TuistEx.Analytics.Isolated
+  alias TuistEx.DependencyCache
 
   def run(args) do
     {options, compile_args} = split_args(args)
@@ -47,10 +48,18 @@ defmodule Mix.Tasks.Tuist.Compile do
     user_profile? = "--profile" in compile_args
     compile_args = if user_profile?, do: compile_args, else: compile_args ++ ["--profile", "time"]
     profile = CompileProfile.new()
-    installation = CompileProfile.install(profile, user_profile?)
+    installation_key = make_ref()
     code_path = :code.get_path()
 
     try do
+      DependencyCache.prepare(compile_args, reporter, options)
+      Mix.Task.reenable("deps.loadpaths")
+      Mix.Task.reenable("loadpaths")
+      # The bootstrap flags must not suppress Mix's checks. Finish dependency
+      # compilation before installing the tracer, including Tuist's own path dep.
+      Mix.Task.run("deps.loadpaths", compile_args)
+      Process.put(installation_key, CompileProfile.install(profile, user_profile?))
+
       for compiler <- Enum.uniq(Mix.Task.Compiler.compilers() ++ [:elixir, :app]) do
         Mix.Task.Compiler.after_compiler(compiler, fn result ->
           CompileProfile.compiler_finished(profile, compiler)
@@ -81,7 +90,11 @@ defmodule Mix.Tasks.Tuist.Compile do
         CompileReporter.record(reporter, :compile, {:error, []})
         :erlang.raise(kind, reason, __STACKTRACE__)
     after
-      CompileProfile.uninstall(installation)
+      Code.prepend_paths(code_path -- :code.get_path())
+
+      if installation = Process.delete(installation_key),
+        do: CompileProfile.uninstall(installation)
+
       {files, steps} = profile_results(profile)
       CompileProfile.delete(profile)
       CompileReporter.finish(reporter, files, steps)

@@ -229,7 +229,7 @@ defmodule TuistWeb.API.BuildsController do
             cacheable_tasks_count: build.cacheable_tasks_count,
             cacheable_task_local_hits_count: build.cacheable_task_local_hits_count,
             cacheable_task_remote_hits_count: build.cacheable_task_remote_hits_count,
-            inserted_at: build.inserted_at,
+            inserted_at: format_inserted_at(build.inserted_at),
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}",
             custom_metadata: %{
               tags: build.custom_tags || [],
@@ -383,7 +383,7 @@ defmodule TuistWeb.API.BuildsController do
             cas_output_upload_count: cas_output_metrics.upload_count,
             cas_output_download_bytes: cas_output_metrics.download_bytes,
             cas_output_upload_bytes: cas_output_metrics.upload_bytes,
-            inserted_at: build.inserted_at,
+            inserted_at: format_inserted_at(build.inserted_at),
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}",
             custom_metadata: %{
               tags: build.custom_tags || [],
@@ -462,6 +462,15 @@ defmodule TuistWeb.API.BuildsController do
     end)
     |> Enum.reject(&is_nil/1)
     |> Map.new()
+  end
+
+  # `inserted_at` is a ClickHouse DateTime64(6) loaded as a NaiveDateTime, which Jason
+  # encodes without an offset and with microseconds. The CLI's ISO8601 decoder accepts
+  # neither, so serialize it as a second-precision UTC timestamp.
+  defp format_inserted_at(nil), do: nil
+
+  defp format_inserted_at(%NaiveDateTime{} = inserted_at) do
+    inserted_at |> NaiveDateTime.truncate(:second) |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
   end
 
   operation(:create,

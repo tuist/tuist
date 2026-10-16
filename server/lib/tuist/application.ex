@@ -76,7 +76,8 @@ defmodule Tuist.Application do
   end
 
   defp start_telemetry do
-    Oban.Telemetry.attach_default_logger()
+    Oban.Telemetry.attach_default_logger(events: [:notifier, :peer, :plugin, :queue, :stager])
+    TuistCommon.ObanLogger.attach()
     TuistCommon.ObanTelemetry.attach()
     TransportLogger.attach(:tuist)
     QueryErrorContext.attach()
@@ -329,6 +330,7 @@ defmodule Tuist.Application do
           Supervisor.child_spec(BuildMachineMetric.Buffer, id: BuildMachineMetric.Buffer),
           Supervisor.child_spec(BuildTarget.Buffer, id: BuildTarget.Buffer),
           Supervisor.child_spec(CacheableTask.Buffer, id: CacheableTask.Buffer),
+          Supervisor.child_spec(Tuist.BuildEntities.Observation.Buffer, id: Tuist.BuildEntities.Observation.Buffer),
           Supervisor.child_spec(CASOutput.Buffer, id: CASOutput.Buffer),
           Supervisor.child_spec(CommandEvents.ModuleCacheOutput.Buffer, id: CommandEvents.ModuleCacheOutput.Buffer),
           Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
@@ -340,6 +342,7 @@ defmodule Tuist.Application do
           Supervisor.child_spec(Tuist.Mix.Diagnostic.Buffer, id: Tuist.Mix.Diagnostic.Buffer),
           Supervisor.child_spec(Tuist.Mix.CompiledFile.Buffer, id: Tuist.Mix.CompiledFile.Buffer),
           Supervisor.child_spec(Tuist.Mix.Step.Buffer, id: Tuist.Mix.Step.Buffer),
+          Supervisor.child_spec(Tuist.Mix.CacheEvent.Buffer, id: Tuist.Mix.CacheEvent.Buffer),
           Supervisor.child_spec(ConfigurationOperation.Buffer, id: ConfigurationOperation.Buffer),
           Supervisor.child_spec(ArtifactTransform.Buffer, id: ArtifactTransform.Buffer),
           Supervisor.child_spec(Test.Buffer, id: Test.Buffer),
@@ -379,6 +382,7 @@ defmodule Tuist.Application do
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
+        redis_children() ++
         [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}] ++
         once_events_grpc_children()
 
@@ -417,15 +421,6 @@ defmodule Tuist.Application do
         []
       end
     )
-    |> Kernel.++(
-      if Environment.redis_url(),
-        do: [
-          {Redix, redis_opts()},
-          {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
-          {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
-        ],
-        else: []
-    )
     |> Kernel.++(kura_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
     # may not exist) and dev (noisy debug logs every 5 s), and outside web
@@ -435,6 +430,18 @@ defmodule Tuist.Application do
         do: [],
         else: RuntimeChildren.marketing_stats(Environment.mode())
     )
+  end
+
+  defp redis_children do
+    if Environment.redis_url() do
+      [
+        {Redix, redis_opts()},
+        {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
+        {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
+      ]
+    else
+      []
+    end
   end
 
   # Only in the tree while a destination is configured, which is only during
@@ -535,7 +542,7 @@ defmodule Tuist.Application do
     if Environment.web?() and Environment.env() in [:prod, :stag, :can] and Environment.tuist_hosted?() do
       [
         Supervisor.child_spec(
-          {Task, &Kura.reconcile_orphaned_deployments/0},
+          {Task, &Kura.enqueue_reconcile_orphaned_deployments/0},
           id: Kura.Reconciler
         )
       ]

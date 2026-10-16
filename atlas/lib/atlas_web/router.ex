@@ -160,6 +160,13 @@ defmodule AtlasWeb.Router do
   scope "/api", AtlasWeb do
     pipe_through [:api, :mcp]
 
+    get "/me/llm-providers", LLMConnectionsController, :index
+    put "/me/llm-providers/claude", LLMConnectionsController, :connect_claude
+    post "/me/llm-providers/chatgpt/login", LLMConnectionsController, :start_chatgpt
+    post "/me/llm-providers/chatgpt/login/poll", LLMConnectionsController, :poll_chatgpt
+    delete "/me/llm-providers/chatgpt/login", LLMConnectionsController, :cancel_chatgpt
+    delete "/me/llm-providers/:provider", LLMConnectionsController, :delete
+
     get "/notes", NotesController, :index
     post "/notes", NotesController, :create
     get "/notes/search", NotesController, :search
@@ -238,6 +245,15 @@ defmodule AtlasWeb.Router do
 
   scope "/", AtlasWeb do
     pipe_through [:browser, :require_auth]
+
+    post "/settings/llm-providers/claude", LLMConnectionsController, :save_claude_browser
+
+    live_session :authenticated_account,
+      on_mount: [{AtlasWeb.LayoutLive, :default}],
+      layout: {AtlasWeb.Layouts, :account} do
+      live "/settings", AccountSettingsLive, :index
+      live "/settings/llm-providers", LLMProviderSettingsLive, :index
+    end
 
     live_session :authenticated_dashboard,
       on_mount: [{AtlasWeb.LayoutLive, :default}],

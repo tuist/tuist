@@ -2,6 +2,7 @@ import Config
 
 alias Atlas.Config.DevInstance
 alias Atlas.Demo.Config, as: DemoConfig
+alias Atlas.LLMs.ChatGPT
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Mailgun
 alias Ueberauth.Strategy.Google
@@ -634,6 +635,10 @@ end
 #     LLM_MODE=local
 llm_mode = present_env.(["LLM_MODE"])
 llm_config = Application.get_env(:atlas, :llm, [])
+
+# Personal ChatGPT connections require an Atlas-authorized device OAuth client.
+# Do not substitute another application's public client ID.
+config :atlas, ChatGPT, client_id: present_env.(["ATLAS_CHATGPT_CLIENT_ID"])
 
 cond do
   llm_mode == "local" ->
