@@ -166,6 +166,7 @@
                                         return .init(
                                             hash: binaryCacheMetadata.hash,
                                             hit: hit,
+                                            instrumented: binaryCacheMetadata.instrumented,
                                             subhashes: binaryCacheMetadata.subhashes.map { subhashes in
                                                 .init(
                                                     additional_hashing_inputs: subhashes.additionalHashingInputs,

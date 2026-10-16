@@ -36369,6 +36369,10 @@ public enum Operations {
                                     ///
                                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/hit`.
                                     public var hit: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.binary_cache_metadataPayload.hitPayload
+                                    /// Whether the binary taken from the cache carries coverage counters, so a run collecting coverage measures its code. Omitted for a miss.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/instrumented`.
+                                    public var instrumented: Swift.Bool?
                                     /// Individual component hashes that make up the final hash
                                     ///
                                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes`.
@@ -36568,22 +36572,26 @@ public enum Operations {
                                     ///   - build_duration: The compilation time of a binary in milliseconds.
                                     ///   - hash: Hash of the target
                                     ///   - hit: The binary cache hit status
+                                    ///   - instrumented: Whether the binary taken from the cache carries coverage counters, so a run collecting coverage measures its code. Omitted for a miss.
                                     ///   - subhashes: Individual component hashes that make up the final hash
                                     public init(
                                         build_duration: Swift.Int? = nil,
                                         hash: Swift.String,
                                         hit: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.binary_cache_metadataPayload.hitPayload,
+                                        instrumented: Swift.Bool? = nil,
                                         subhashes: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.binary_cache_metadataPayload.subhashesPayload? = nil
                                     ) {
                                         self.build_duration = build_duration
                                         self.hash = hash
                                         self.hit = hit
+                                        self.instrumented = instrumented
                                         self.subhashes = subhashes
                                     }
                                     public enum CodingKeys: String, CodingKey {
                                         case build_duration
                                         case hash
                                         case hit
+                                        case instrumented
                                         case subhashes
                                     }
                                 }

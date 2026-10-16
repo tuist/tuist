@@ -397,6 +397,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
             options: config.project.generatedProject?.generationOptions
         )
 
+        // Which cached binaries carry coverage counters, for the server to judge the run's coverage
+        // per target; read off the binaries once they are in place.
+        if UploadResultBundleService.uploadsCoverage(config: config) {
+            let binaryCacheItems = await RunMetadataStorage.current.binaryCacheItems
+            if !binaryCacheItems.isEmpty {
+                await RunMetadataStorage.current.update(binaryCacheItems: CoverageInstrumentation.annotate(
+                    binaryCacheItems,
+                    graph: mapperEnvironment.initialGraphWithSources ?? mapperEnvironment.initialGraph ?? graph,
+                    generatedGraph: graph
+                ))
+            }
+        }
+
         if generateOnly {
             return
         }

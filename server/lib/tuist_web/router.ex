@@ -1025,7 +1025,6 @@ defmodule TuistWeb.Router do
 
     post "/runners/dispatch", RunnersController, :dispatch
     post "/runners/cache-volumes/authorize", RunnerCacheVolumesController, :authorize
-    post "/runners/cache-volumes/authorize-commit", RunnerCacheVolumesController, :authorize
     post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
     post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
     post "/runners/volume-head", RunnersController, :report_volume_head

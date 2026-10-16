@@ -16408,6 +16408,11 @@ paths:
                                       type: string
                                       x-struct:
                                       x-validate:
+                                    instrumented:
+                                      description: Whether the binary taken from the cache carries coverage counters, so a run collecting coverage measures its code. Omitted for a miss.
+                                      type: boolean
+                                      x-struct:
+                                      x-validate:
                                     subhashes:
                                       description: Individual component hashes that make up the final hash
                                       properties:
