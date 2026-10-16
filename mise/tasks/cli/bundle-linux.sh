@@ -51,9 +51,13 @@ mkdir -p $BUILD_DIRECTORY
 # (e.g. Ubuntu's CURL_OPENSSL_4 vs Fedora's libcurl-minimal).
 # The SDK carries the sysroots of both architectures, so either one can be built from
 # either host.
-echo "==> Installing Swift Static Linux SDK"
-swift sdk install "https://download.swift.org/swift-6.2.3-release/static-sdk/swift-6.2.3-RELEASE/$SDK_ID.artifactbundle.tar.gz" \
-    --checksum f30ec724d824ef43b5546e02ca06a8682dafab4b26a99fbb0e858c347e507a2c
+if swift sdk list | grep -qxF "$SDK_ID"; then
+    echo "==> Swift Static Linux SDK already installed"
+else
+    echo "==> Installing Swift Static Linux SDK"
+    swift sdk install "https://download.swift.org/swift-6.2.3-release/static-sdk/swift-6.2.3-RELEASE/$SDK_ID.artifactbundle.tar.gz" \
+        --checksum f30ec724d824ef43b5546e02ca06a8682dafab4b26a99fbb0e858c347e507a2c
+fi
 
 # Remove system static archives that conflict with the musl SDK.
 # The musl SDK provides its own minimal static libraries, but the linker also finds
