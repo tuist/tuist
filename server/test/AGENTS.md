@@ -15,7 +15,6 @@ This directory contains ExUnit tests for the Tuist Server.
 - Controller tests that exercise resource loaders must return actual `Account`/`Project` structs, including visibility, rather than incomplete maps. Mocked controller-unit requests should disable shared loader caching or use an isolated cache; retain production privacy reloads.
 - Tests run with a clean database.
 - `tuist/migration_versions_test.exs` checks timestamp uniqueness separately for PostgreSQL and ClickHouse migration directories, including already-applied migrations, to catch semantic merge collisions before database setup.
-- Runner toolchain-promotion migration tests use transaction-local shadow tables. Cover protected/custom profiles across accounts, unchanged default/beta/Linux settings, idempotence, site/shape-preserving queued-job moves, and exclusion of claimed/running/historical jobs.
 - Repository monitoring tests cover all six physical pool/query labels, optional
   pool absence, dynamic-repository telemetry, and absent timing phases. Missing
   `idle_time` is not zero; it is not part of total query duration. Read-outcome

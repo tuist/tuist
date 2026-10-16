@@ -16,13 +16,6 @@ runs the mixed-version latency expression through promtool.
 
 ## Conventions
 
-- Xcode 27.1 stable replaces RC in the build list and managed catalog. The
-  migration moves saved `27.1-rc` profiles and unclaimed queued jobs to stable
-  before Helm removes the RC pools; no RC catalog entry or image pin remains.
-  The production cascade waits for a reachable runner-image release containing
-  every active profile, and direct deploys fail before migrations if none exists.
-  Xcode 26.6 remains the default and warm floor; 27.1 scales from zero.
-
 - `server.config.originAppKey.enabled` adds the registered Origin App ID and Ed25519 private PEM to the managed server-config ExternalSecret. Trim only the App ID, never the private PEM or log key material. It defaults off and is enabled in production, canary, and staging after each environment's own `ORIGIN_APP/app_id` and `ORIGIN_APP/private_key` fields exist in its `tuist-k8s-<env>` vault. The App ID field is configurable with `appIdField`. Each environment uses an independent app and signing key.
 
 - Production enables the Kura authority controller independently of instance

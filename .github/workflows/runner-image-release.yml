@@ -18,12 +18,10 @@ on:
       - infra/linux-runner-image/cmd/tuist-cache-volume/**
       - .github/actions/build-runner-image-binaries/**
       - .github/scripts/runner-image-release-plan.sh
-      - .github/scripts/resolve-runner-image-version*
       - .github/workflows/runner-image-release.yml
   pull_request:
     paths:
       - infra/runner-image/**
-      - .github/scripts/resolve-runner-image-version*
       - .github/workflows/runner-image-release.yml
   workflow_dispatch:
 
@@ -53,7 +51,6 @@ jobs:
         with:
           persist-credentials: false
       - run: bash infra/runner-image/tcc-report_test.sh
-      - run: python3 .github/scripts/resolve-runner-image-version.test.py
 
   plan:
     name: Plan runner image release
