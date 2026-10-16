@@ -39,16 +39,14 @@ defmodule Tuist.Tests.Coverage.TargetSources do
     by_id = Map.new(runs, &{&1.test_run_id, &1})
     run_ids = Map.keys(by_id)
 
-    # A target that linked code the run couldn't measure executed its tests
-    # over counters that weren't there, so the run says nothing about them.
-    uninstrumented = Instrumentation.uninstrumented_test_targets(project_id, runs)
+    # A run that took code from the cache without counters executed its tests
+    # over counters that weren't there, so it says nothing about any target.
+    uninstrumented = Instrumentation.uninstrumented_runs(project_id, runs)
 
     hashes =
       project_id
-      |> Xcode.selective_testing_hashes(run_ids)
-      |> Enum.reject(
-        &(&1.name in narrowed_targets(by_id[&1.test_run_id]) or MapSet.member?(uninstrumented, {&1.test_run_id, &1.name}))
-      )
+      |> Xcode.selective_testing_hashes(Enum.reject(run_ids, &MapSet.member?(uninstrumented, &1)))
+      |> Enum.reject(&(&1.name in narrowed_targets(by_id[&1.test_run_id])))
 
     evidenced = evidenced_targets(project_id, run_ids, hashes)
     failed = failed_targets(project_id, run_ids, hashes)

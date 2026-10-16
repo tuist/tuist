@@ -76,7 +76,7 @@ defmodule Tuist.Tests.Coverage.TargetSourcesTest do
     run
   end
 
-  test "records no run where the target linked code taken from the cache without counters", %{
+  test "records no run that took code from the cache without counters", %{
     project: project,
     account: account,
     repository_id: repository_id
