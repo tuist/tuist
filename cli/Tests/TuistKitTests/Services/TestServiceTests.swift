@@ -8578,6 +8578,21 @@ extension StressNewTestsResult {
 }
 
 struct TestServiceCoverageEnabledTests {
+    @Test
+    func passthroughCoverageCannotReuseOrdinaryArtifactsRegardlessOfUploadPolicy() {
+        #expect(TestService.requiresSourceBuildForCoverage(xcodebuildArguments: ["-enableCodeCoverage", "YES"]))
+        #expect(TestService.requiresSourceBuildForCoverage(xcodebuildArguments: ["-enableCodeCoverage", "true"]))
+        #expect(TestService.requiresSourceBuildForCoverage(xcodebuildArguments: ["-enableCodeCoverage"]))
+        #expect(!TestService.requiresSourceBuildForCoverage(xcodebuildArguments: []))
+        #expect(!TestService.requiresSourceBuildForCoverage(xcodebuildArguments: ["-enableCodeCoverage", "NO"]))
+        #expect(!TestService.requiresSourceBuildForCoverage(xcodebuildArguments: [
+            "-enableCodeCoverage",
+            "YES",
+            "-enableCodeCoverage",
+            "NO",
+        ]))
+    }
+
     @Test(.withMockedEnvironment())
     func isFalseWhenTuistDoesNotUploadCoverage() {
         #expect(

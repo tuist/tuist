@@ -45,10 +45,14 @@ enum CacheVersion: String, Equatable, Hashable {
     /// since the fix changes the stored bundle rather than its content hash, they must be invalidated so
     /// they get re-warmed and normalized.
     case version7 = "7"
+
+    /// Debug artifacts now carry linked debug information and source identities in every XCFramework slice.
+    /// Older products can depend on the warming machine's objects/CAS and cannot support restored source debugging.
+    case version8 = "8"
 }
 
 struct CacheVersionFetcher: CacheVersionFetching {
     func version() -> CacheVersion {
-        .version7
+        .version8
     }
 }

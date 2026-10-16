@@ -6,6 +6,7 @@ This module handles CLI integration with the cache service and cache features.
 - Compute cache content hashes for graph targets.
 - Define cache versioning and invalidation boundaries.
 - Support selective testing by identifying cached tests.
+- `CachedModuleCoverageSourcePolicy` excludes ordinary cache replacements for coverage-enabled test dependencies, including external source targets. Read referenced test-plan defaults/configuration overrides; unsupported or unreadable plans retain sources. Automation can scope this to its selected scheme, while native generation must support every generated scheme. This is a source fallback, not an instrumented warmer or a replacement for coverage variant keying.
 
 ## Generated client
 - `OpenAPI/cache.yml`, `Types.swift` and `Client.swift` are generated from Kura's HTTP API definition (`kura/openapi/cache.yml`) with `mise run generate-cli-client` from `kura/`. Change the definition there, not these files.
@@ -19,7 +20,8 @@ This module handles CLI integration with the cache service and cache features.
 - Test bundles are excluded from binary cache hashing, but test-support frameworks and libraries that link XCTest or Swift Testing can be hashed.
 - Explicit cache warm target selection scopes transitive cache candidates from non-test roots only.
 - Caller-owned cache-warm scratch directories reject foreign build misses because their scripts control output locations.
-- Cache version bumps invalidate incompatible artifacts.
+- Cache version bumps invalidate incompatible artifacts. Format 8 includes Debug dSYMs and per-slice `tuist-debugging.json` source identities. Include the version in exact and SDK fingerprints so older products that depend on producer objects/CAS are cold misses.
+- Debugging metadata records declared source/header checksums and actual DWARF file paths, not source bytes. Match only original/canonical paths and the build system's evaluated prefix mappings; never infer ownership from a matching filename suffix. Verify observed source identities against the original target before replacement and retain sources on missing, unsupported, malformed, or mismatching metadata. Uncompiled files from unrelated SDKs must not invalidate an otherwise compatible slice.
 - XCFramework compatibility fingerprints are per SDK variant and independent of unrelated consumers. Initial coverage is iOS device/simulator, Catalyst, and macOS using standard architectures; other platforms and custom architecture settings use exact-target REAPI actions.
 - Per-SDK REAPI action results reference immutable output trees. All required SDK results must exist before materializing an XCFramework. Verify CAS digests, directory safety, and actual slice coverage before reuse; do not publish subset indexes.
 - XCFramework coverage is read through `XCFrameworkCoverageServicing`, implemented by the filesystem-backed `Services/XCFrameworkCoverageService.swift`. It reads declared architectures and checks binary existence; binary integrity validation is separate.

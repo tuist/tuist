@@ -20,6 +20,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
     private var cacheGraphMutator: MockCacheGraphMutating!
     private var subject: TargetsToCacheBinariesGraphMapper!
     private var config: Tuist!
+    private var debuggingMetadataReader: MockCachedModuleDebuggingMetadataReading!
 
     override func setUp() {
         super.setUp()
@@ -27,18 +28,22 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         cacheStorage = MockCacheStoring()
         cacheGraphContentHasher = MockCacheGraphContentHashing()
         cacheGraphMutator = .init()
+        debuggingMetadataReader = MockCachedModuleDebuggingMetadataReading()
+        given(debuggingMetadataReader).sourceMappings(artifact: .any, target: .any).willReturn([])
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
             decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
-            cacheStorage: cacheStorage
+            cacheStorage: cacheStorage,
+            debuggingMetadataReader: debuggingMetadataReader
         )
     }
 
     override func tearDown() {
         config = nil
+        debuggingMetadataReader = nil
         cacheStorage = nil
         cacheGraphContentHasher = nil
         cacheGraphMutator = nil
@@ -781,14 +786,17 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         exceptions: Set<TargetQuery>,
         precomputedTargetHashes: [TargetReference: TargetContentHash]
     ) -> TargetsToCacheBinariesGraphMapper {
-        TargetsToCacheBinariesGraphMapper(
+        let debuggingMetadataReader = MockCachedModuleDebuggingMetadataReading()
+        given(debuggingMetadataReader).sourceMappings(artifact: .any, target: .any).willReturn([])
+        return TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
             decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: exceptions),
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
             cacheStorage: cacheStorage,
-            precomputedTargetHashes: precomputedTargetHashes
+            precomputedTargetHashes: precomputedTargetHashes,
+            debuggingMetadataReader: debuggingMetadataReader
         )
     }
 

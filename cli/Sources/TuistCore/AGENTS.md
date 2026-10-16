@@ -14,6 +14,7 @@ This module contains core domain abstractions and shared models used across the 
 - Analytics types are Codable and designed for transport to the server.
 - Hosted tests subtract host-provided native package products only on platforms without an explicit dynamic-linkage hint. Hints on either consumer are authoritative only for the platforms where that dependency is reachable; legacy declarations keep their existing static assumption.
 - Models encode run metadata (command args, environment, git info, cache endpoints).
+- `MapperEnvironment.cachedModuleSourceMappings` carries producer-to-consumer source mappings verified against the original target before binary replacement. Generation consumes only mappings for artifacts reachable in the final graph. Keep source inspection and artifact IO in TuistCache, not in the domain mapping value.
 - Restoring a test-products snapshot retains the graph, selective-testing state, and build link, but must not replay the original build's binary cache lookups as activity in each test shard.
 
 ## Related Context

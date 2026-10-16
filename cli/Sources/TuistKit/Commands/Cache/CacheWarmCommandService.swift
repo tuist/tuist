@@ -13,6 +13,7 @@ import TuistHasher
 import TuistLoader
 import TuistLogging
 import TuistPlugin
+import TuistProcess
 import TuistServer
 import TuistSupport
 import TuistXcodeBuildProducts
@@ -26,9 +27,12 @@ import XcodeGraph
     enum CacheWarmCommandServiceError: LocalizedError {
         case diskExhausted(scratchDirectory: AbsolutePath, space: VolumeSpace, underlyingError: Error)
         case uploadsFailed(failures: [CacheUploadFailure], storedCount: Int)
+        case sourcesChangedDuringBuild(target: String)
 
         var errorDescription: String? {
             switch self {
+            case let .sourcesChangedDuringBuild(target):
+                return "Sources for \(target) changed while warming the cache. Run the warm again with stable inputs."
             case let .uploadsFailed(failures, storedCount):
                 let failedTargets = failures
                     .sorted { $0.item.name < $1.item.name }
@@ -69,12 +73,9 @@ import XcodeGraph
         /// oversubscribing disk on very-high-core hosts.
         private static let maxConcurrentXCFrameworkCreations = max(1, min(ProcessInfo.processInfo.activeProcessorCount, 8))
 
-        /// Release warms produce dSYMs, which are bundled into the XCFrameworks so that archives consuming them can
-        /// symbolicate crashes in cached modules. Debug warms don't, because LLDB would load the dSYMs and resolve
-        /// sources to the warming machine's paths.
-        private static func debugInformationFormat(isReleaseConfiguration: Bool) -> XcodeBuildArgument {
-            .xcarg("DEBUG_INFORMATION_FORMAT", isReleaseConfiguration ? "dwarf-with-dsym" : "dwarf")
-        }
+        /// Link debug information while the producer's objects and CAS are still available. XCFramework slices
+        /// carry the resulting dSYMs alongside source identities used to relocate breakpoints in the consumer.
+        private static let debugInformationFormat = XcodeBuildArgument.xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym")
 
         private let configLoader: ConfigLoading
         private let manifestLoader: ManifestLoading
@@ -92,6 +93,7 @@ import XcodeGraph
         private let scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparing
         private let foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating
         private let buildOutputReclaimer: CacheWarmBuildOutputReclaimer
+        private let commandRunner: CommandRunning
 
         public init() {
             let contentHasher = ContentHasher()
@@ -125,7 +127,8 @@ import XcodeGraph
             cacheStorageFactory: CacheStorageFactorying = Extension.cacheStorageFactory,
             configLoader: ConfigLoading = ConfigLoader(),
             scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparing = CacheWarmScratchDirectoryPreparer(),
-            foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating = CacheWarmForeignBuildOutputValidator()
+            foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating = CacheWarmForeignBuildOutputValidator(),
+            commandRunner: CommandRunning = CommandRunner()
         ) {
             self.configLoader = configLoader
             manifestLoader = ManifestLoader.current
@@ -142,6 +145,7 @@ import XcodeGraph
             self.cacheStorageFactory = cacheStorageFactory
             self.scratchDirectoryPreparer = scratchDirectoryPreparer
             self.foreignBuildOutputValidator = foreignBuildOutputValidator
+            self.commandRunner = commandRunner
             buildOutputReclaimer = CacheWarmBuildOutputReclaimer(fileSystem: fileSystem)
         }
 
@@ -439,6 +443,16 @@ import XcodeGraph
                 reservedProductsDirectoryNames.insert(productsDirectory(platform: platform, configuration: configuration))
             }
 
+            var debuggingMetadata: [GraphTarget: CachedModuleDebuggingMetadata] = [:]
+            for (target, _) in hashesByTargetToBeCached
+                where target.target.isXCFrameworkCacheableProduct && target.target.foreignBuild == nil
+            {
+                debuggingMetadata[target] = try await CachedModuleDebuggingMetadata.capture(
+                    target: target,
+                    fileSystem: fileSystem
+                )
+            }
+
             var binaryArtifactDirectories: [Platform: Set<AbsolutePath>] = [:]
             for (scheme, _) in binariesSchemes {
                 try await buildBinarySchemes(
@@ -496,7 +510,8 @@ import XcodeGraph
             artifactsToStore.append(contentsOf: try await buildXCFrameworks(
                 cacheableTargets: hashesByTargetToBeCached,
                 binaryArtifactDirectories: binaryArtifactDirectories,
-                scratchDirectory: scratchDirectory
+                scratchDirectory: scratchDirectory,
+                debuggingMetadata: debuggingMetadata
             ))
 
             artifactsToStore.append(contentsOf: try await collectForeignBuildArtifacts(
@@ -713,7 +728,8 @@ import XcodeGraph
         private func buildXCFrameworks(
             cacheableTargets: [(GraphTarget, String)],
             binaryArtifactDirectories: [Platform: Set<AbsolutePath>],
-            scratchDirectory: AbsolutePath
+            scratchDirectory: AbsolutePath,
+            debuggingMetadata: [GraphTarget: CachedModuleDebuggingMetadata]
         ) async throws -> [CacheGraphTargetBuiltArtifact] {
             let cacheableTargets = cacheableTargets.filter {
                 $0.0.target.isXCFrameworkCacheableProduct && !$0.0.target.isAggregate
@@ -761,6 +777,55 @@ import XcodeGraph
                     arguments: xcodebuildArguments,
                     output: xcframeworkPath
                 )
+
+                if let metadata = debuggingMetadata[cacheableTarget.0] {
+                    let current = try await CachedModuleDebuggingMetadata.capture(
+                        target: cacheableTarget.0,
+                        fileSystem: fileSystem
+                    )
+                    guard metadata == current else {
+                        throw CacheWarmCommandServiceError.sourcesChangedDuringBuild(target: cacheableTarget.0.target.name)
+                    }
+                    let info = try PropertyListDecoder().decode(
+                        XCFrameworkInfoPlist.self,
+                        from: await fileSystem.readFile(at: xcframeworkPath.appending(component: "Info.plist"))
+                    )
+                    var prefixMappings: [[String: String]] = []
+                    for directory in Set(platformBinaryArtifacts).sorted() {
+                        let prefixMap = directory.appending(
+                            components: "tuist-prefix-maps",
+                            "\(cacheableTarget.0.project.name).build",
+                            "\(cacheableTarget.0.target.name).build.json"
+                        )
+                        if try await fileSystem.exists(prefixMap) {
+                            prefixMappings.append(try JSONDecoder().decode(
+                                [String: String].self,
+                                from: await fileSystem.readFile(at: prefixMap)
+                            ))
+                        }
+                    }
+                    for library in info.libraries {
+                        let slice = xcframeworkPath.appending(component: library.identifier)
+                        var debugInputs = try await fileSystem.glob(
+                            directory: slice, include: ["dSYMs/*.dSYM/Contents/Resources/DWARF/*"]
+                        ).collect()
+                        if debugInputs.isEmpty {
+                            let product = slice.appending(library.path)
+                            debugInputs =
+                                [product.extension == "framework" ? product
+                                    .appending(component: product.basenameWithoutExt) : product]
+                        }
+                        let output = metadata.sources.isEmpty ? "" : try await commandRunner.capture(
+                            arguments: ["/usr/bin/xcrun", "dwarfdump", "--show-sources"] + debugInputs.map(\.pathString)
+                        )
+                        let debugSources = Set(output.split(whereSeparator: \.isNewline).map(String.init)
+                            .filter { $0.hasPrefix("/") })
+                        try await fileSystem.writeAsJSON(
+                            metadata.recording(debugSources: debugSources, prefixMappings: prefixMappings),
+                            at: slice.appending(component: CachedModuleDebuggingMetadata.fileName)
+                        )
+                    }
+                }
 
                 // Embed App Intents metadata if available.
                 // For static frameworks, appintentsmetadataprocessor writes a .appintents bundle
@@ -887,7 +952,7 @@ import XcodeGraph
                     arguments: [
                         .destination("generic/platform=\(platform.caseValue) Simulator"),
                         .xcarg("SKIP_INSTALL", "NO"),
-                        Self.debugInformationFormat(isReleaseConfiguration: isReleaseConfiguration),
+                        Self.debugInformationFormat,
                         .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                         .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                         .xcarg("ONLY_ACTIVE_ARCH", "NO"),
@@ -938,7 +1003,7 @@ import XcodeGraph
 
             var deviceArguments: [XcodeBuildArgument] = [
                 .xcarg("SKIP_INSTALL", "NO"),
-                Self.debugInformationFormat(isReleaseConfiguration: isReleaseConfiguration),
+                Self.debugInformationFormat,
                 .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                 .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                 .xcarg("ONLY_ACTIVE_ARCH", "NO"),
@@ -1021,7 +1086,7 @@ import XcodeGraph
                 arguments: [
                     .destination("generic/platform=macOS,variant=Mac Catalyst"),
                     .xcarg("SKIP_INSTALL", "NO"),
-                    Self.debugInformationFormat(isReleaseConfiguration: isReleaseConfiguration),
+                    Self.debugInformationFormat,
                     .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                     .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                     .xcarg("ONLY_ACTIVE_ARCH", "NO"),
@@ -1104,6 +1169,23 @@ import XcodeGraph
                     artifact,
                     to: into.appending(component: artifact.basename)
                 )
+            }
+
+            // Keep the build system's evaluated per-target maps before reclaiming its intermediates.
+            // These staging files are not published; each slice records only observed DWARF source paths.
+            let intermediates = productsDirectory.parentDirectory.parentDirectory.appending(component: "Intermediates.noindex")
+            if try await fileSystem.exists(intermediates) {
+                let prefixMaps = try await fileSystem.glob(
+                    directory: intermediates,
+                    include: ["*.build/\(productsDirectory.basename)/*.build/compilation-prefix-map.json"]
+                ).collect()
+                for prefixMap in prefixMaps {
+                    let project = prefixMap.parentDirectory.parentDirectory.parentDirectory.basename
+                    let target = prefixMap.parentDirectory.basename
+                    let destination = into.appending(components: "tuist-prefix-maps", project, "\(target).json")
+                    try await fileSystem.makeDirectory(at: destination.parentDirectory)
+                    try await fileSystem.copy(prefixMap, to: destination)
+                }
             }
 
             var platformDirectories = binaryArtifactDirectories[platform, default: Set()]
