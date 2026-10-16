@@ -1349,6 +1349,12 @@ xcresultProcessor:
   # xcresult ingestion silently no-ops for them (acceptable — Linux-only
   # deployments don't have xcresult uploads to ingest in the first place).
   enabled: false
+  # Leave the Deployment and PDB out of this release so that
+  # infra/helm/xcresult-processor can install them in a release of its own,
+  # under the same names and labels. Managed envs do this so the server
+  # deploy's `helm upgrade --atomic --wait` never waits on a processor; see
+  # infra/helm/xcresult-processor/Chart.yaml.
+  ownRelease: false
   replicaCount: 2
   # Per-pod Oban concurrency. Total parallelism = replicaCount * concurrency.
   queueConcurrency: 4
@@ -1396,6 +1402,25 @@ xcresultProcessor:
     authKeySecretName: ""
     authKeySecretKey: "auth-key"
   extraEnv: []
+  # Evaluated by tart-kubelet against the guest's `GET /ready` on port
+  # 9092 (Tuist.Readiness.Plug). The delay counts from VM launch, which
+  # precedes the tailnet join and the BEAM boot; probes before the BEAM
+  # is up only fail into an already NotReady Pod. Off, the Pod is Ready as
+  # soon as the VM has an IP.
+  #
+  # A release that waits on its resources waits on this Deployment too, so
+  # one NotReady processor (a shared Postgres or ClickHouse outage, or a host
+  # that cannot reach its guest) holds that release's upgrade. Managed envs
+  # set `ownRelease` so the server release never waits on it; a self-hosted
+  # install that keeps the processor in its release and upgrades with
+  # `--wait` should weigh that before leaving this on.
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 3
   # Pair with the topology spread in the Deployment template (one
   # replica per Mac mini hostname, ScheduleAnyway). minAvailable: 1
   # keeps at least one queue consumer up across voluntary disruptions
