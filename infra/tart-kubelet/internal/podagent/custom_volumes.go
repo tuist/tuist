@@ -134,6 +134,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		Observe: observeCustomCache, Root: c.Root, SizeGB: 20, MinFreeBytes: 40_000_000_000,
 		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, MaxBytes: 21_000_000_000, Token: c.token},
 		FreeBytesContext: c.freeBytesContext,
+		Reclaim:          c.reclaim,
 	}, Reserve: c.reserve, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection}
 	c.Builtins.mu.Lock()
 	c.Builtins.CustomReserved = c.reservedBytes
@@ -251,7 +252,7 @@ func (c *CustomVolumes) freeBytesLocked() (uint64, error) {
 	if err != nil || !mounted {
 		return 0, errors.New("cache filesystem unavailable")
 	}
-	free, err := c.Builtins.backend.freeBytes(c.Root)
+	free, err := c.Builtins.availableBytes()
 	if err != nil {
 		return 0, err
 	}
@@ -404,21 +405,36 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		}
 		cancel()
 		data, _ := json.Marshal(response)
-		// O_EXCL prevents following a guest-created output symlink.
-		out, err := root.OpenFile(name+".response", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
-		if err != nil {
-			continue
-		}
-		_, err = out.Write(data)
-		out.Close()
-		if err != nil {
+		if published, err := publishResponse(root, name+".response", data); err != nil {
 			return err
+		} else if !published {
+			continue
 		}
 		if _, err := root.Stat(name); os.IsNotExist(err) {
 			_ = root.Remove(name + ".response")
 		}
 	}
 	return nil
+}
+
+// Guests only ever see complete responses. O_EXCL and link never follow or
+// replace a guest-created path, so an existing response is kept.
+func publishResponse(root *os.Root, name string, data []byte) (bool, error) {
+	temp := name + ".tmp"
+	_ = root.Remove(temp)
+	out, err := root.OpenFile(temp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		return false, nil
+	}
+	defer root.Remove(temp)
+	_, err = out.Write(data)
+	if closeErr := out.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return false, err
+	}
+	return root.Link(temp, name) == nil, nil
 }
 
 func (c *CustomVolumes) guard(ctx context.Context) (func(), error) {

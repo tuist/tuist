@@ -72,6 +72,7 @@ defmodule Tuist.Tests.Test do
     field :shard_plan_id, Ch, type: "Nullable(UUID)"
     field :only_test_identifiers, Ch, type: "Array(String)", default: []
     field :skip_test_identifiers, Ch, type: "Array(String)", default: []
+    field :coverage_enabled, Ch, type: "Nullable(Bool)"
     field :stress_mode, Ch, type: "LowCardinality(String)", default: ""
     field :stress_outcome, Ch, type: "LowCardinality(String)", default: ""
     field :stress_skip_reason, Ch, type: "LowCardinality(String)", default: ""
@@ -132,6 +133,7 @@ defmodule Tuist.Tests.Test do
       :shard_plan_id,
       :only_test_identifiers,
       :skip_test_identifiers,
+      :coverage_enabled,
       :stress_mode,
       :stress_outcome,
       :stress_skip_reason,
@@ -151,7 +153,7 @@ defmodule Tuist.Tests.Test do
       :build_system
     ])
     |> validate_inclusion(:status, ["success", "failure", "skipped", "in_progress", "processing", "failed_processing"])
-    |> validate_inclusion(:build_system, ["xcode", "gradle", "bazel", "once", "mix"])
+    |> validate_inclusion(:build_system, ["xcode", "gradle", "bazel", "once", "mix", "cargo"])
     |> validate_inclusion(:ci_provider, Tuist.Tests.valid_ci_providers())
     |> validate_inclusion(:stress_mode, ["" | StressNewTests.modes()])
     |> validate_inclusion(:stress_outcome, ["" | StressNewTests.run_outcomes()])

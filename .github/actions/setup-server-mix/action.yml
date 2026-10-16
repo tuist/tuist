@@ -7,7 +7,11 @@ inputs:
     required: false
     default: erlang elixir
   restore-mix-cache:
-    description: Restore the cached server deps + _build state before fetching dependencies
+    description: Attach the server deps and _build cache volumes ("true"), only deps ("deps"), or neither ("false") before fetching dependencies
+    required: false
+    default: "true"
+  mise-cache:
+    description: Restore and save mise-action's archive cache. Installing Erlang and Elixir from scratch is faster than restoring it.
     required: false
     default: "true"
   mix-os-deps-compile-partition-count:
@@ -28,11 +32,11 @@ runs:
     - uses: ./.github/actions/mise-install
       with:
         install: ${{ inputs.mise-install-args }}
-        cache: "true"
+        cache: ${{ inputs['mise-cache'] }}
         working-directory: server
         github-token: ${{ inputs.github-token || env.MISE_GITHUB_TOKEN }}
     - uses: tuist/cache-volume@v1
-      if: ${{ inputs['restore-mix-cache'] == 'true' }}
+      if: ${{ inputs['restore-mix-cache'] == 'true' || inputs['restore-mix-cache'] == 'deps' }}
       with:
         path: server/deps
         key: ci-server-${{ github.job }}-deps-v2

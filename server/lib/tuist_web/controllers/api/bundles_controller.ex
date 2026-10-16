@@ -128,7 +128,7 @@ defmodule TuistWeb.API.BundlesController do
   operation(:show,
     summary: "Get a single bundle by ID",
     operation_id: "getBundle",
-    parameters: %{
+    parameters: [
       account_handle: [
         in: :path,
         type: :string,
@@ -147,7 +147,7 @@ defmodule TuistWeb.API.BundlesController do
         required: true,
         description: "The ID of the bundle."
       ]
-    },
+    ],
     responses: %{
       ok: {"Bundle details", "application/json", Bundle},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error},
@@ -251,7 +251,7 @@ defmodule TuistWeb.API.BundlesController do
          },
          required: [:bundle]
        }},
-    parameters: %{
+    parameters: [
       account_handle: [
         in: :path,
         type: :string,
@@ -264,7 +264,7 @@ defmodule TuistWeb.API.BundlesController do
         required: true,
         description: "The handle of the project."
       ]
-    },
+    ],
     responses: %{
       ok: {"The bundle was created successfully", "application/json", Bundle},
       bad_request: {"Validation errors occurred", "application/json", ValidationError},
@@ -400,7 +400,9 @@ defmodule TuistWeb.API.BundlesController do
         bundle_name: bundle.name,
         git_ref: bundle.git_ref,
         install_size: bundle.install_size,
-        download_size: bundle.download_size
+        download_size: bundle.download_size,
+        type: bundle.type,
+        supported_platforms: bundle.supported_platforms
       }
       |> Tuist.Bundles.Workers.BundleThresholdWorker.new()
       |> Oban.insert()

@@ -14,6 +14,8 @@ Tuist hosts a server-side Model Context Protocol endpoint at `https://tuist.dev/
 Most tools are read-only and scoped to authenticated Tuist project data. Account setup tools can list accounts, create organizations, create projects, and add existing users to organizations when the authenticated user has the required permissions. Every tool advertises annotations that state whether it is read-only, whether it can cause a difficult-to-reverse change, and whether it can change public Internet state.
 The account setup tools require user authentication. They are not available to project tokens or ordinary account tokens. After a user claims an `auth.md` registration, Tuist associates that credential with the confirming user only on the Model Context Protocol endpoint so the setup tools can complete the requested workflow.
 
+Tuist implements the [2026-07-28 protocol](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http). Requests are stateless: clients send their protocol metadata with each request and can call tools directly without initialization. `server/discover` returns the server's identity, capabilities, supported versions, and instructions. There are no session identifiers or independent event streams. Clients using the 2025-06-18 or 2025-03-26 initialization flow remain supported; they also operate without server sessions.
+
 ## Model Context Protocol versus skills
 
 Model Context Protocol tools and <.localized_link href="/guides/features/agentic-coding/skills">skills</.localized_link> can overlap in what they do. Given the current overlap between the two, choose one approach per workflow and use it consistently instead of mixing both in the same flow.
@@ -233,6 +235,8 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `create_organization` | Create a Tuist organization for the authenticated user. | `handle` |
 | `create_project` | Create a Tuist project under an account the authenticated user can access. | `account_handle`, `project_handle` |
 | `add_organization_member` | Add an existing Tuist user to an organization or update an existing member's role. Accepts `user` (the default), `admin`, or `viewer`, where a viewer can read dashboards and runs but cannot change anything. | `organization_handle`, `email` |
+| `invite_organization_member` | Invite an email address to an organization, whether or not it belongs to an existing Tuist user. Tuist emails an acceptance link that expires after 14 days; when the server cannot send email, `email_sent` is `false` and the link must be copied from the dashboard. Accepts `user` (the default), `admin`, or `viewer`. Requires organization administrator permission. | `organization_handle`, `email` |
+| `cancel_organization_invitation` | Cancel a pending organization invitation so its link can no longer be accepted. Requires organization administrator permission. | `organization_handle`, `email` |
 | `list_projects` | List all projects accessible to the authenticated user. | None |
 | `get_project` | Get a project's configuration and connected repository URL. | `account_handle`, `project_handle` |
 
@@ -255,6 +259,7 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `list_runner_job_logs` | List up to 500 captured log lines for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
 | `list_runner_workflows` | List continuous-integration workflow rollups for an account. | `account_handle` |
 | `list_runner_profiles` | List continuous-integration runner profiles for an account. Requires the same administrator permission as the dashboard settings page. | `account_handle` |
+| `update_runner_profile_cache_branches` | Set whether GitHub Actions jobs on each repository's default branch save a runner profile's custom cache volume changes, and which additional branch names or `*` patterns save. Requires the same administrator permission. | `account_handle`, `profile_name`, `cache_writer_default_branch`, `cache_writer_branches` |
 
 Runner volume tools expose the same data as the Volumes dashboard. Read tools
 require runner access; clearing requires account administration and user confirmation.
@@ -334,6 +339,34 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | `get_bazel_invocation_log` | Get one sanitized test log captured for a Bazel invocation. | `account_handle`, `project_handle`, `invocation_id`, `invocation_log_id` |
 | `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |
 | `get_bazel_cache_event` | Get one raw Bazel remote-cache observation. | `account_handle`, `project_handle`, `cache_event_id` |
+
+#### Tasks, actions, modules and files
+
+These project-scoped tools inspect persistent build identities across runs. Start with `list_build_entities`, then pass a returned stable `id` with the same `kind` to `get_build_entity` or `list_build_entity_history`, together with `account_handle` and `project_handle`. No build or invocation identifier is required.
+
+| Tool | Description | Required parameters |
+| --- | --- | --- |
+| `list_build_entities` | List the tasks, modules, actions or files of one kind seen across a project's builds. | `account_handle`, `project_handle`, `kind` |
+| `get_build_entity` | Get one build entity with its native identity and analytics for the chosen period. | `account_handle`, `project_handle`, `kind`, `id` |
+| `list_build_entity_history` | List the recorded executions, compilations or cache events of one build entity, newest first. | `account_handle`, `project_handle`, `kind`, `id` |
+
+| `kind` | Toolchain | History lists |
+| --- | --- | --- |
+| `gradle_tasks` | Gradle tasks | Task executions |
+| `xcode_modules` | Generated Xcode project modules | Module cache events |
+| `once_actions` | Once actions | Executions |
+| `mix_files` | Mix compiled files | Compilations |
+| `mix_modules` | Mix compiled modules | Compilations |
+
+These tools are rolling out gradually and only return data for projects where they are enabled; for other projects they return an error instead of an empty result. A kind is only available for projects that use its build toolchain. The tools accept bounded `start_at`/`end_at` filters, `environment` (`any`, `ci`, or `local`) and an exact `branch`. `list_build_entities` accepts `q`; `list_build_entity_history` supports opaque `after`/`before` cursors. Unknown timing or cache observations remain unavailable rather than becoming zero or misses. History references the recorded parent and native execution for drill-down using the existing run tools.
+
+`get_build_entity` metrics include `duration_samples`, the number of observations with recorded timing: genuine zero durations count, missing timing does not. This count may be lower than the observation count; unavailable duration statistics remain null.
+
+Mix module durations measure the containing file's compilation, not independently measured module work. Once actions use declared target/capability/index slots when the client reported the target mappings; diagnostic labels alone are not stable identities. Existing clients and run-level tools remain supported unchanged.
+
+Analytics reads have bounded memory and execution time. If a query exceeds those limits, the tool returns an error instead of inventing an empty result.
+
+New observations are indexed after deployment; this feature does not backfill existing run telemetry. Identity metadata outlives individual observations under the <.localized_link href="/guides/server/data-retention">data-retention policy</.localized_link>.
 
 #### Tests
 

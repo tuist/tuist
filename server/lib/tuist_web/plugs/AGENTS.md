@@ -4,7 +4,9 @@ This area owns Plug middleware for request processing.
 
 ## Responsibilities
 - `PublicPageHeaderPlug` keeps public-response classification separate from indexing. Project indexing overrides noindex only for opted-in public project HTML on hosted production; redirects and failures reset it. Public-account indexing retains its separate existing policy. Settings and download routes must remain non-indexable even under a public project.
+- `PublicPageChallengePlug` exempts only GET/HEAD public project roots with default/ignored tracking parameters. Use the private visibility marker set by `PublicPageHeaderPlug`, not a client header or user agent. The paired LiveView hook rechecks the actual URI on every patch; a root visit never grants verification for deeper dashboards.
 - Implement request/response middleware (auth, analytics, rate limiting).
+- `OriginWebhookPlug` handles `/webhooks/origin` ahead of body parsers, bounds raw bodies to 512 KB, verifies Cursor Ed25519 signatures over the hex SHA-256 digest, and routes the signed body rather than unsigned event headers. Lifecycle events are durably inserted into Oban before acknowledgment; signing-key outages return 503 so Origin retries.
 - Handle cross-cutting response negotiation, such as alternate agent-friendly representations.
 - `MarkdownNegotiationPlug` uses explicit Markdown Accept preferences, respects quality zero and HTML preference, and overrides only successful pages with authored marketing or original docs content. Never turn redirects/errors into guides. Only responses actually converted to Markdown disable Cloudflare CDN caching, for both marketing and docs negotiation. Preserve existing cache policies for HTML, redirects, errors, and other unconverted responses. An edge-cached HTML response can reach a Markdown-preferring client; explicit Markdown URLs are the reliable representation-specific path and remain cacheable.
 - Enforce cross-cutting concerns before controllers/LiveViews.
@@ -20,3 +22,11 @@ This area owns Plug middleware for request processing.
 ## Related Context
 - Web layer overview: `server/lib/tuist_web/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
+
+## Authentication freshness
+
+- Never cache authorization booleans across credentials: same-account credentials may have different scopes/project grants. Re-evaluate with the actual subject.
+- Ordinary allowlisted API reads/uploads use dedicated `SubjectCache` snapshots with at most 60 seconds of non-sliding staleness and verified expiry checks. Resolve route policy before controller dispatch; other writes and runner-shell upgrades authenticate fresh by default. Credential creation/privilege changes also bypass resource-loader caches. Private loaders remain bounded; public project/account snapshots are reloaded before access, so privacy flips cannot inherit a cached public grant.
+- Subject caching protects warm database reads, while immutable proof caching protects bcrypt. Observe real CI database/pool load; neither local tests nor mailbox independence establish production capacity.
+
+- Proof-cache `UnavailableError` must render HTTP 503 in strict and cached authentication. Cachex-backed legacy subject fills return unavailable without retaining errors, and never bypass proof-cache failure guards with bcrypt.

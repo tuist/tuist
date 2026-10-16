@@ -12,9 +12,11 @@ defmodule Tuist.OnceEvents.Run do
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "once_runs" do
+    field :failure_category, :string, virtual: true, default: ""
     field :run_id, :string
     field :acked_seq, :integer, default: 0
     field :project_id, :integer
+    field :account_id, :integer
 
     field :kind, :string, default: "build"
 
@@ -75,6 +77,7 @@ defmodule Tuist.OnceEvents.Run do
     field :started_at, :utc_datetime_usec
     field :finalized_at, :utc_datetime_usec
     field :test_report_published_at, :utc_datetime_usec
+    field :build_entities_published_at, :utc_datetime_usec
     field :heartbeat_at, :utc_datetime_usec
 
     has_many :actions, Action, foreign_key: :once_run_id

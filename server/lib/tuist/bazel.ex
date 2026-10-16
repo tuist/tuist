@@ -19,6 +19,8 @@ defmodule Tuist.Bazel do
   alias Tuist.Repo
   alias Tuist.Tests.Sanitizer
 
+  require Tuist.BuildMetrics
+
   @max_test_artifact_bytes_per_invocation 64 * 1_024 * 1_024
   @ingest_pruning_slack_seconds 24 * 60 * 60
 
@@ -456,9 +458,16 @@ defmodule Tuist.Bazel do
     {invocations, meta} =
       project_id
       |> invocation_query(Keyword.put(opts, :commands, commands))
+      |> maybe_with_failure_category(project_id, opts)
       |> ClickHouseFlop.validate_and_run!(flop_params, for: Invocation)
 
     with_cache_summaries(project_id, invocations, meta)
+  end
+
+  defp maybe_with_failure_category(query, project_id, opts) do
+    if Keyword.get(opts, :failure_category, false),
+      do: Tuist.BuildMetrics.with_failure_category(query, "bazel", project_id),
+      else: query
   end
 
   def get_invocation(project_id, invocation_id, opts \\ []) do

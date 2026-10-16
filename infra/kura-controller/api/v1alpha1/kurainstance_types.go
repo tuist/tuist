@@ -6,6 +6,13 @@ import (
 )
 
 type KuraInstanceSpec struct {
+	PlannedHandover *PlannedHandoverRequest `json:"plannedHandover,omitempty"`
+
+	ServingMode      string                   `json:"servingMode,omitempty"`
+	PrimaryPromotion *PrimaryPromotionRequest `json:"primaryPromotion,omitempty"`
+	// ReplicaRecovery authorizes exactly one permanently lost, positively fenced replica.
+	ReplicaRecovery *ReplicaRecoveryRequest `json:"replicaRecovery,omitempty"`
+
 	// StableHost is rendered independently from its regional DNS advertisement.
 	StableHost      string `json:"stableHost,omitempty"`
 	StableAdvertise bool   `json:"stableAdvertise,omitempty"`
@@ -284,6 +291,8 @@ type KuraInstancePeerRole struct {
 }
 
 type KuraInstanceStatus struct {
+	ReplicaRecovery *ReplicaRecoveryStatus `json:"replicaRecovery,omitempty"`
+
 	StableEndpoint *StableEndpointStatus `json:"stableEndpoint,omitempty"`
 	// PrivateURL is published only after the private gateway, DNS, certificate,
 	// and primary have been observed ready for EndpointObservedGeneration.
@@ -391,4 +400,52 @@ type KuraInstanceList struct {
 
 func init() {
 	SchemeBuilder.Register(&KuraInstance{}, &KuraInstanceList{})
+}
+
+// ReplicaRecoveryRequest is an operator declaration, never inferred from NodeReady
+// or a missing Node. FenceEvidence must identify a verified power/storage fence.
+// The old host must remain fenced until its obsolete pod is removed locally.
+type ReplicaRecoveryRequest struct {
+	ID            string `json:"id"`
+	PodName       string `json:"podName"`
+	PodUID        string `json:"podUID"`
+	PVCUID        string `json:"pvcUID"`
+	PVUID         string `json:"pvUID"`
+	HostName      string `json:"hostName"`
+	FenceEvidence string `json:"fenceEvidence"`
+}
+
+type ReplicaRecoveryStatus struct {
+	// TargetPodUID records the exact original or unscheduled replacement pod to delete.
+	TargetPodUID      string                 `json:"targetPodUID,omitempty"`
+	SourceIncarnation string                 `json:"sourceIncarnation"`
+	Request           ReplicaRecoveryRequest `json:"request"`
+	Phase             string                 `json:"phase"`
+	SourcePod         string                 `json:"sourcePod"`
+	SourceUID         string                 `json:"sourceUID"`
+	PVCName           string                 `json:"pvcName"`
+	PVName            string                 `json:"pvName"`
+	StartedAt         string                 `json:"startedAt"`
+	VerifiedAt        string                 `json:"verifiedAt,omitempty"`
+	Message           string                 `json:"message,omitempty"`
+}
+
+// PrimaryPromotionRequest records positive external fencing of an exact old
+// holder. A timeout, Node deletion or a Service change is not fencing evidence.
+type PrimaryPromotionRequest struct {
+	PreviousEpoch       uint64 `json:"previousEpoch"`
+	PreviousPodUID      string `json:"previousPodUID"`
+	PreviousIncarnation string `json:"previousIncarnation"`
+	PreviousHost        string `json:"previousHost"`
+	FenceEvidence       string `json:"fenceEvidence"`
+	PodName             string `json:"podName"`
+	PodUID              string `json:"podUID"`
+	Incarnation         string `json:"incarnation"`
+}
+
+type PlannedHandoverRequest struct {
+	ID          string `json:"id"`
+	PodName     string `json:"podName"`
+	PodUID      string `json:"podUID"`
+	Incarnation string `json:"incarnation"`
 }

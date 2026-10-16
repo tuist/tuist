@@ -26,21 +26,36 @@ const cloudProviderUninitializedTaint = "node.cloudprovider.kubernetes.io/uninit
 // kubelet proxy's Pod address instead, which the control plane routes to. The
 // node is initialized once its tailnet address is set, whether or not the proxy
 // is up yet.
+//
+// A cluster-network host is reached at its site's public address instead, for
+// the kubelet as for Cilium's tunnel, so that is its InternalIP, it has no
+// ExternalIP and no kubelet proxy, and its Node loses the Cilium exclusion it
+// registered with, which a kubelet never removes on its own.
 func (r *RackLinuxMachineReconciler) reconcileNodeAddresses(ctx context.Context, host *infrav1.RackLinuxHost, node *corev1.Node) error {
-	if err := r.egress().ensureKubelet(ctx, r.Client, host); err != nil {
-		return fmt.Errorf("reconcile kubelet egress Service for %s: %w", host.Spec.Hostname, err)
+	clusterNetwork := host.Spec.ClusterNetwork
+	if clusterNetwork == nil {
+		if err := r.egress().ensureKubelet(ctx, r.Client, host); err != nil {
+			return fmt.Errorf("reconcile kubelet egress Service for %s: %w", host.Spec.Hostname, err)
+		}
+	} else if err := r.egress().removeKubelet(ctx, r.Client, host.Name); err != nil {
+		return err
 	}
 	if node == nil {
 		return nil
 	}
-	proxy, err := r.egress().kubeletProxyAddress(ctx, r.Client, host.Name)
-	if err != nil {
-		return err
-	}
 
-	addresses := []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: host.Status.Tailnet.Address}}
-	if proxy != "" {
-		addresses = append(addresses, corev1.NodeAddress{Type: corev1.NodeExternalIP, Address: proxy})
+	var addresses []corev1.NodeAddress
+	if clusterNetwork != nil {
+		addresses = []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: clusterNetwork.PublicAddress}}
+	} else {
+		proxy, err := r.egress().kubeletProxyAddress(ctx, r.Client, host.Name)
+		if err != nil {
+			return err
+		}
+		addresses = []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: host.Status.Tailnet.Address}}
+		if proxy != "" {
+			addresses = append(addresses, corev1.NodeAddress{Type: corev1.NodeExternalIP, Address: proxy})
+		}
 	}
 	addresses = append(addresses, corev1.NodeAddress{Type: corev1.NodeHostName, Address: host.Spec.Hostname})
 	if !equality.Semantic.DeepEqual(node.Status.Addresses, addresses) {
@@ -57,9 +72,13 @@ func (r *RackLinuxMachineReconciler) reconcileNodeAddresses(ctx context.Context,
 			taints = append(taints, taint)
 		}
 	}
-	if len(taints) != len(node.Spec.Taints) {
+	_, excluded := node.Labels[ciliumNoScheduleLabel]
+	if len(taints) != len(node.Spec.Taints) || (clusterNetwork != nil && excluded) {
 		before := node.DeepCopy()
 		node.Spec.Taints = taints
+		if clusterNetwork != nil {
+			delete(node.Labels, ciliumNoScheduleLabel)
+		}
 		if err := r.Patch(ctx, node, client.MergeFrom(before)); err != nil {
 			return fmt.Errorf("initialize Node %s: %w", node.Name, err)
 		}

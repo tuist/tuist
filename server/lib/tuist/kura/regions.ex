@@ -539,7 +539,8 @@ defmodule Tuist.Kura.Regions do
     },
     # The BER1 rack's cache, on its storage node beside the rack's minis.
     # Only the site's runner pools take it (`Tuist.Runners.Catalog.fleet_site/1`)
-    # and only accounts enabled on the `runner_site_cache` flag get a node.
+    # and only accounts on the `runner_site` or `runner_site_cache` flag get a
+    # node.
     #
     # A rack node runs a pod network of its own, which the cluster does not
     # route to and which routes to no Service, so the pods resolve names
@@ -559,7 +560,10 @@ defmodule Tuist.Kura.Regions do
       # The node's XFS /data, through the same local-path class as the other
       # bare-metal pools.
       storage_class: "scw-local-nvme",
+      # Sized by the account's claim like scw-fr-par-runners. With one replica
+      # and no mesh, a raised claim rebuilds the cache cold.
       storage_size: "50Gi",
+      storage_governed: true,
       runner_platforms: [:macos],
       data_plane: :private_gateway,
       # The rack's machines segment, where the minis sit.

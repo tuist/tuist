@@ -71,8 +71,11 @@ rules:
     resources: [statefulsets, deployments, daemonsets]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
-    resources: [services, configmaps, secrets]
+    resources: [services, configmaps, secrets, serviceaccounts]
     verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: [roles, rolebindings]
+    verbs: [get, list, watch, create, update, patch]
   - apiGroups: ["externaldns.k8s.io"]
     resources: [dnsendpoints]
     verbs: [get, list, watch, create, update, patch, delete]
@@ -255,6 +258,12 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [list]
+  # Capacity admission charges a node-local volume no claim is bound to any
+  # more, such as a quarantined replica's retained volume, against the node and
+  # region whose disk it still holds.
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [list]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -336,6 +345,10 @@ spec:
       {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 6 }}
   template:
     metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port-name: metrics
+        prometheus.io/path: /metrics
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 8 }}
     spec:
@@ -344,6 +357,10 @@ spec:
       # as environment variables can exceed the process argument limit and
       # prevent the controller from starting when it is most needed.
       enableServiceLinks: false
+      {{- with .Values.kuraController.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.kuraController.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
@@ -354,6 +371,7 @@ spec:
           imagePullPolicy: {{ .Values.kuraController.image.pullPolicy }}
           args:
             - --leader-elect=true
+            - --serving-authority={{ .Values.kuraController.servingAuthority.enabled }}
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --watch-namespace={{ $namespace }}

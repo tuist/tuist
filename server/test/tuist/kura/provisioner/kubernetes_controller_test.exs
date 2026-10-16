@@ -16,6 +16,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   setup :set_mimic_from_context
 
   setup do
+    stub(Tuist.FeatureFlags, :kura_positive_fence_enabled?, fn _account -> false end)
     stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> false end)
 
     stub(Identity, :endpoint_migration_enabled?, fn _account -> false end)
@@ -68,7 +69,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       expect(Client, :patch, fn "/apis/kura.tuist.dev/v1alpha1/namespaces/kura/kurainstances/instance",
                                 [guard | changes],
-                                [] ->
+                                [timeout: 3_000] ->
         assert guard == %{"op" => "test", "path" => "/metadata/resourceVersion", "value" => "42"}
 
         assert Map.new(changes, &{&1["path"], &1["value"]}) == %{
@@ -107,7 +108,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       expect(Client, :get_kura_instance, fn "kura", "instance", [timeout: 3_000] -> {:ok, instance} end)
 
-      expect(Client, :patch, fn _, [_guard, operation], [] ->
+      expect(Client, :patch, fn _, [_guard, operation], [timeout: 3_000] ->
         assert operation == %{"op" => "add", "path" => "/spec/stableAdvertise", "value" => false}
         {:ok, instance}
       end)
@@ -117,6 +118,19 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   end
 
   describe "manifest/6" do
+    test "positive fencing is opt-in and changes the manifest revision" do
+      account = %{name: "tuist"}
+      before = KubernetesController.manifest("test", "candidate", account, eu_region(), %Server{})
+      refute Map.has_key?(before["spec"], "servingMode")
+      stub(Tuist.FeatureFlags, :kura_positive_fence_enabled?, fn ^account -> true end)
+      after_manifest = KubernetesController.manifest("test", "candidate", account, eu_region(), %Server{})
+      assert after_manifest["spec"]["servingMode"] == "PositiveFenceV1"
+      revision = "tuist.dev/kura-manifest-revision"
+
+      assert after_manifest["metadata"]["annotations"][revision] ==
+               before["metadata"]["annotations"][revision] <> "+positive-fence-v1"
+    end
+
     test "renders a KuraInstance without a per-account compute spec" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
@@ -1109,6 +1123,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
 
     test "every registered region derives a budget Kura can honour" do
+      # This unpersisted account has no placement. Keep the catalog-wide
+      # capacity check independent of the placement database.
+      stub(StableEndpoint, :intent, fn server, region -> StableEndpoint.intent(server, region, []) end)
+
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
 

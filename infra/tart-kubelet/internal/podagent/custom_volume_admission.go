@@ -2,6 +2,7 @@ package podagent
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -12,14 +13,38 @@ import (
 
 const customCapacity = 20_000_000_000
 
+// Custom masters are reclaimed by the shared backend first. If that is not
+// enough, unused built-in masters and convergence staging share the same disk
+// budget. Keep the full reservation of every writer; CoW blocks may stay pinned
+// after a master is removed, so admission must remeasure the filesystem.
+func (c *CustomVolumes) reclaim(ctx context.Context, minimum uint64) error {
+	release, err := c.guard(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	if _, err := c.freeBytesLocked(); err != nil {
+		return err
+	}
+	want := minimum + uint64(len(c.Builtins.reserved))*c.Builtins.capBytes() + c.reservedBytes()
+	_, err = c.Builtins.admitBesideConvergenceLocked(want, masterKey{})
+	if errors.Is(err, errNoRoom) && c.Builtins.dropConvergeStagingLocked() {
+		_, err = c.Builtins.ensureFreeLocked(want, masterKey{})
+	}
+	if errors.Is(err, errNoRoom) {
+		return cachevolumes.ErrCapacity
+	}
+	return err
+}
+
 // Called under the built-in admission lock. Filesystem free space already
 // includes allocated blocks; only running writers need additional headroom.
 func (c *CustomVolumes) reservedBytes() uint64 {
 	var total uint64
 	for id, slot := range c.reservations {
-		// Restore can temporarily retain both the archive and expanded master.
+		// Only a restore retains both an archive and an expanded master.
 		if slot.State != "active" {
-			total += 2 * customCapacity
+			total += customAdmissionBytes(slot)
 			continue
 		}
 		allocated, err := c.Builtins.backend.allocatedBytes(filepath.Join(c.Root, "images", id+".img"))
@@ -33,6 +58,13 @@ func (c *CustomVolumes) reservedBytes() uint64 {
 	return total
 }
 
+func customAdmissionBytes(slot cachevolumes.Slot) uint64 {
+	if slot.BaseGeneration > 0 {
+		return 2 * customCapacity
+	}
+	return customCapacity
+}
+
 func (c *CustomVolumes) reserve(ctx context.Context, slot cachevolumes.Slot) (func(bool), error) {
 	release, err := c.guard(ctx)
 	if err != nil {
@@ -43,7 +75,7 @@ func (c *CustomVolumes) reserve(ctx context.Context, slot cachevolumes.Slot) (fu
 	if err != nil {
 		return nil, err
 	}
-	if free < 40_000_000_000 {
+	if free < customAdmissionBytes(slot) {
 		return nil, cachevolumes.ErrCapacity
 	}
 	if c.reservations == nil {

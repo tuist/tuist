@@ -174,6 +174,11 @@ pub struct StorageSnapshotData {
 }
 
 pub struct Store {
+    pub(crate) handover_hold: Arc<StdMutex<Option<String>>>,
+    // Published by the blocking eviction commit while holding handover_hold.
+    // A repair walk must revisit rows checked before a later eviction.
+    pub(crate) handover_eviction_generation: Arc<AtomicU64>,
+    handover_enabled: bool,
     startup_recovery: Option<Arc<crate::startup::Recovery>>,
     db: Arc<DB>,
     io: IoController,
@@ -911,6 +916,7 @@ pub struct ApplyProvenance<'a> {
     pub sync_feed_row: bool,
 }
 
+#[cfg(test)]
 impl ApplyProvenance<'static> {
     /// A push from a peer of unknown region on the legacy replication
     /// routes: it may have crossed a region boundary, so it earns a row.
@@ -1512,6 +1518,9 @@ impl Store {
             newest_listed_version_ms: AtomicU64::new(0),
             newest_listed_version_seeded: AtomicBool::new(false),
             sync_feed: Arc::new(sync_feed),
+            handover_hold: Arc::new(StdMutex::new(None)),
+            handover_eviction_generation: Arc::new(AtomicU64::new(0)),
+            handover_enabled: config.serving_authority.is_some(),
             sync_feed_stale_consumer: Duration::from_secs(config.sync_feed_stale_peer_secs),
             wal_writers_ahead_of_durability: Arc::new(DurabilityWriters::default()),
             wal_pending_seq: Arc::new(AtomicU64::new(0)),
@@ -4896,6 +4905,9 @@ impl Store {
         // and nothing would record them again once the commit removed them.
         let removals = std::mem::take(&mut cascade.removals);
         let removal_log = Arc::clone(&self.action_cache_removals);
+        let handover_hold = self.handover_hold.clone();
+        let eviction_generation = self.handover_eviction_generation.clone();
+        let handover_enabled = self.handover_enabled;
         let pressure_write_guards: Vec<_> =
             cascade.pressure_write_guards.values().cloned().collect();
         #[cfg(test)]
@@ -4922,8 +4934,18 @@ impl Store {
                     hook();
                 }
             }
-            let result = db.write(batch);
+            let hold = handover_enabled
+                .then(|| handover_hold.lock())
+                .transpose()
+                .map_err(|_| "handover hold poisoned".to_string())?;
+            if hold.as_deref().is_some_and(|hold| hold.is_some()) {
+                return Err("retained corpus frozen for planned handover".into());
+            }
+            let result = db.write(batch).map_err(|error| error.to_string());
             if result.is_ok() {
+                // Keep this in the worker: a disconnected repair request can
+                // cancel its waiter while the removal still commits.
+                eviction_generation.fetch_add(1, Ordering::Release);
                 let mut log = removal_log
                     .lock()
                     .expect("action-cache removal log lock poisoned");
@@ -5712,6 +5734,7 @@ impl Store {
     /// origin resolved and `trunk` the publishing build's trunk; a peer that
     /// sends neither (an older node, or any non-REAPI write) applies untagged,
     /// exactly as before.
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub async fn apply_replicated_inline_artifact_from_bytes(
         &self,
@@ -5738,8 +5761,8 @@ impl Store {
         .await
     }
 
-    /// [`Self::apply_replicated_inline_artifact_from_bytes`] with the
-    /// provenance the caller learned from the wire.
+    /// Apply an inline artifact with the provenance and branch metadata the
+    /// caller learned from the wire.
     #[allow(clippy::too_many_arguments)]
     pub async fn apply_replicated_inline_artifact_from_bytes_with(
         &self,
@@ -8510,6 +8533,12 @@ impl Store {
         self.namespace_tombstone_blocks(&manifest.namespace_id, version_ms)
     }
 
+    #[cfg(test)]
+    pub(crate) async fn evict_segment_for_testing(&self, segment_id: &str) {
+        assert!(!self.is_active_segment(segment_id));
+        self.evict_segment(segment_id).await.unwrap();
+    }
+
     /// Test hook: replaces the segment ring state wholesale so tests can
     /// fabricate ring-full shapes without writing gigabytes of segments.
     #[cfg(test)]
@@ -8766,6 +8795,21 @@ impl Store {
     }
 
     /// This node's forward cursor against a sibling, if it holds one.
+    pub(crate) async fn persist_handover_receipt(&self, receipt: &[u8]) -> Result<(), String> {
+        let mut batch = WriteBatch::default();
+        batch.put_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            b"handover/last-receipt",
+            receipt,
+        );
+        self.write_batch_with_durability_off_runtime(
+            batch,
+            "handover receipt",
+            ApplyDurability::Sync,
+        )
+        .await
+    }
+
     pub fn sync_cursor(&self, peer: &str) -> Result<Option<SyncPosition>, String> {
         self.db
             .get_cf(
@@ -9553,9 +9597,23 @@ impl Store {
         {
             observer(std::thread::current().id());
         }
-        self.db
-            .write_opt(batch, &write_options)
-            .map_err(|error| format!("failed to write {label}: {error}"))?;
+        crate::serving_authority::publish(
+            crate::serving_authority::current_permit().as_ref(),
+            || {
+                let hold = self
+                    .handover_enabled
+                    .then(|| self.handover_hold.lock())
+                    .transpose()
+                    .map_err(|_| "handover hold poisoned")?;
+                if hold.as_deref().is_some_and(|hold| hold.is_some()) && label != "handover receipt"
+                {
+                    return Err("retained corpus frozen for planned handover".into());
+                }
+                self.db
+                    .write_opt(batch, &write_options)
+                    .map_err(|error| format!("failed to write {label}: {error}"))
+            },
+        )?;
         self.sync_feed.notify_commit();
         Ok(())
     }
@@ -9635,6 +9693,9 @@ impl Store {
             .lock()
             .expect("write observer lock should not be poisoned")
             .clone();
+        let permit = crate::serving_authority::current_permit();
+        let handover_hold = self.handover_hold.clone();
+        let handover_enabled = self.handover_enabled;
         #[cfg(test)]
         let commit_observer = self.write_commit_observer.lock().unwrap().clone();
         let durability_seq = tokio::task::spawn_blocking(move || {
@@ -9642,12 +9703,24 @@ impl Store {
             if let Some(observer) = observer {
                 observer(std::thread::current().id());
             }
-            let result = db
-                .write_opt(batch, &write_options)
-                .map(|()| match durability {
-                    ApplyDurability::Sync => Some(pending_seq.fetch_add(1, Ordering::AcqRel) + 1),
-                    ApplyDurability::DeferredBatch => None,
-                });
+            let result = crate::serving_authority::publish(permit.as_ref(), || {
+                let hold = handover_enabled
+                    .then(|| handover_hold.lock())
+                    .transpose()
+                    .map_err(|_| "handover hold poisoned")?;
+                if hold.as_deref().is_some_and(|hold| hold.is_some()) && label != "handover receipt"
+                {
+                    return Err("retained corpus frozen for planned handover".into());
+                }
+                db.write_opt(batch, &write_options)
+                    .map(|()| match durability {
+                        ApplyDurability::Sync => {
+                            Some(pending_seq.fetch_add(1, Ordering::AcqRel) + 1)
+                        }
+                        ApplyDurability::DeferredBatch => None,
+                    })
+                    .map_err(|error| error.to_string())
+            });
             // The worker owns both publication and enrollment, even if its
             // caller is cancelled after the row becomes visible.
             drop(pending_writer);
@@ -9740,7 +9813,10 @@ impl Store {
         )
     }
 
-    fn namespace_tombstone_version(&self, namespace_id: &str) -> Result<Option<u64>, String> {
+    pub(crate) fn namespace_tombstone_version(
+        &self,
+        namespace_id: &str,
+    ) -> Result<Option<u64>, String> {
         let Some(bytes) = self
             .db
             .get_cf(
@@ -9812,7 +9888,10 @@ impl Store {
         self.existence_cache.trim_to(target_entries)
     }
 
-    fn manifest_from_db(&self, artifact_id: &str) -> Result<Option<ArtifactManifest>, String> {
+    pub(crate) fn manifest_from_db(
+        &self,
+        artifact_id: &str,
+    ) -> Result<Option<ArtifactManifest>, String> {
         self.db
             .get_cf(self.cf(ROCKSDB_CF_MANIFESTS), artifact_id.as_bytes())
             .map_err(|error| format!("failed to read manifest from RocksDB: {error}"))?
@@ -9846,6 +9925,11 @@ impl Store {
 
     fn maybe_cache_manifest(&self, manifest: ArtifactManifest) {
         self.maybe_cache_manifest_retained(Arc::new(manifest));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn seed_stale_manifest_cache(&self, manifest: ArtifactManifest) {
+        self.maybe_cache_manifest(manifest);
     }
 
     fn maybe_cache_manifest_retained(&self, manifest: Arc<ArtifactManifest>) {
@@ -12491,6 +12575,7 @@ mod tests {
     {
         let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
         let mut config = Config {
+            serving_authority: None,
             port: 0,
             internal_port: 7443,
             tenant_id: "test-tenant".into(),
@@ -12516,7 +12601,6 @@ mod tests {
                 chunk_bytes: 1024 * 1024,
             },
             action_cache_eviction_cascade_enabled: true,
-            reapi_blob_chunking_enabled: true,
             file_descriptor_pool_size: 32,
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,
@@ -18237,6 +18321,7 @@ mod tests {
 
         let commit_started = Arc::new(tokio::sync::Notify::new());
         let commit_finished = Arc::new(tokio::sync::Notify::new());
+        let eviction_generation = store.handover_eviction_generation.load(Ordering::Acquire);
         let (release_commit, wait_for_release) = std::sync::mpsc::channel();
         {
             let mut commits = store.eviction_commits.lock().unwrap();
@@ -18264,6 +18349,10 @@ mod tests {
         .await
         .expect("eviction must reach its first blocking commit");
         drop(eviction);
+        assert_eq!(
+            store.handover_eviction_generation.load(Ordering::Acquire),
+            eviction_generation
+        );
         assert!(
             artifact_ids
                 .iter()
@@ -18274,6 +18363,7 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(60), commit_finished.notified())
             .await
             .expect("the detached commit must finish after its waiter is dropped");
+        assert!(store.handover_eviction_generation.load(Ordering::Acquire) > eviction_generation);
 
         let evicted: Vec<_> = artifact_ids
             .iter()

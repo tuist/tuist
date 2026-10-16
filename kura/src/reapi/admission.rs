@@ -25,7 +25,7 @@ use crate::{
     file_cache::{
         FOREGROUND_STAGING_WINDOW_BYTES, FileCachePolicy, ForegroundFileCacheReservation,
     },
-    memory::{MemoryController, MemoryPressure},
+    memory::{MemoryController, MemoryPermit, MemoryPressure},
     metrics::GrpcWriteAdmissionMetrics,
     state::SharedState,
 };
@@ -226,6 +226,28 @@ impl GrpcWriteAdmission {
                 self.metrics.record_decode_rejected();
                 write_admission_rejected(
                     "server is limiting concurrent remote-execution write decoding; retry the write",
+                )
+            })
+    }
+
+    /// Reserves this write's reply before the write persists, so a stored
+    /// write is never refused for its acknowledgement. The reply holds floor
+    /// memory only, this reservation's floor bytes first: it lives until the
+    /// client has read it, so it must not pin the ceiling headroom write
+    /// decoding borrows. A floor that cannot cover it refuses the write before
+    /// anything is stored.
+    pub(super) fn try_reserve_reply(&self, bytes: u64) -> Result<Option<MemoryPermit>, Status> {
+        let mut reservation = self
+            .reservation
+            .lock()
+            .map_err(|_| Status::internal("gRPC write memory admission lock was poisoned"))?;
+        reservation
+            .file_cache
+            .try_reserve_reply(bytes)
+            .map_err(|_| {
+                self.metrics.record_decode_rejected();
+                write_admission_rejected(
+                    "server is limiting concurrent remote-execution writes; retry the write",
                 )
             })
     }
@@ -535,9 +557,34 @@ where
         let guard = (request.uri().path() != BUILD_EVENT_STREAM_PATH)
             .then(|| self.state.start_grpc_request());
         let state = self.state.clone();
+        let mutation = grpc_write_shape_policy(request.uri().path()).is_some()
+            || request.uri().path().contains(".Fetch/");
+        let permit = match state.runtime.authority.admit_request(mutation) {
+            Ok(permit) => permit,
+            Err(_) => {
+                return Box::pin(async {
+                    Ok(Status::unavailable("serving grant unavailable")
+                        .into_http::<tonic::body::Body>()
+                        .map(|body| {
+                            body.map_err(|error| -> BoxError { error.into() })
+                                .boxed_unsync()
+                        }))
+                });
+            }
+        };
         let future = self.inner.call(request);
+
         Box::pin(async move {
-            let response = future.await?;
+            let response = crate::serving_authority::scope(permit.clone(), future).await?;
+            if permit.as_ref().is_some_and(|p| p.check().is_err()) {
+                return Ok(Status::unavailable("serving grant expired")
+                    .into_http::<tonic::body::Body>()
+                    .map(|body| {
+                        body.map_err(|error| -> BoxError { error.into() })
+                            .boxed_unsync()
+                    }));
+            }
+
             // Sample latency once the response is ready, before the body
             // streams, so long ByteStream reads do not inflate the signal.
             state.runtime.record_public_request_latency(

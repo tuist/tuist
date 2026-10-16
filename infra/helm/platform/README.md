@@ -16,6 +16,7 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 | `ClusterIssuer` | Shared Let's Encrypt issuer wired to Cloudflare DNS-01 |
 | `CiliumEgressGatewayPolicy` | Optional stable outbound source IP for hosted Tuist server traffic |
 | `kuraGatewayNetworkPolicy` | Lets a region's host-network Kura gateways reach Kura pods on its other boxes |
+| `clusterPortsHostPolicy` | Cilium host policy that drops VXLAN (8472/udp), cilium-health (4240/tcp) and the kubelet (10250/tcp) from sources outside the cluster |
 | `preview-janitor` | Optional in-cluster cleanup loop for expired preview namespaces |
 
 ## Bootstrap
@@ -46,9 +47,41 @@ running more than one box also needs `kuraGatewayNetworkPolicy.enabled`, or a
 gateway can only serve the Kura pods that happen to share its box and answers
 504 for the rest. See `templates/kura-gateway-network-policy.yaml`.
 
+A rack's gateway (`kura-ber1-runners`) is configured in this chart's values but
+deployed by `infra/helm/rack-cache-gateways`, which `k8s:install-platform`
+installs after this release, from the same values, without waiting on it. This
+release is waited on, and a DaemonSet with a pod on a dark rack node never
+reads as ready.
+
 `k8s:install-platform` also loads `values-<cluster-name>.yaml` when present.
 Use that cluster overlay for static environment configuration such as stable
 egress IPs and managed-cluster LoadBalancer locations.
+
+## REAPI request metadata
+
+Kura's regional and runner ingress controllers, and the dedicated gRPC controller
+used by cold activation, set `ignore-invalid-headers: "false"`. Nginx's default
+otherwise strips the standard dotted header
+`build.bazel.remote.execution.v2.requestmetadata-bin`: cache RPCs still succeed,
+but Kura cannot attribute them to Mix/Bazel builds and skips their signed cache
+analytics. The shared Kura configuration keeps this consistent across regions
+and runner gateways. The unrelated main web ingress retains its existing header
+handling; cache authorization and webhook signature checks are unchanged.
+
+The fix takes effect through the normal platform Helm deployment and nginx
+configuration reload, not a Kura runtime restart. After deployment, use fresh
+cache traffic with a known project and invocation ID to verify signed
+`reapi_cache_events` reach ClickHouse with the expected client kind. The
+`kura_analytics_events_total_total` counter's `skipped_no_bazel_metadata` result
+is shared by missing/unsupported REAPI metadata, including Mix; it must not be
+interpreted as a Mix-only counter. Forwarding success alone does not prove that
+the producer retained request attribution. Previously skipped events are not
+backfilled, and missing observations must not be replaced by fabricated zeros.
+
+`infra/kura-controller/controllers/reapi_metadata_ingress_test.go` checks every
+platform values overlay and reproduces the failure through a real HTTP/2 nginx
+`grpc_pass` proxy. Set `TUIST_TEST_NGINX` to a local nginx binary to include the
+transport regression; the values checks do not require nginx.
 
 ## Preview Janitor
 

@@ -214,6 +214,11 @@ defmodule Tuist.Docs.Sidebar do
                 icon: "brand_elixir"
               },
               %Item{
+                label: "Rust project",
+                slug: "/en/guides/get-started/rust-project",
+                icon: "brand_rust"
+              },
+              %Item{
                 label: "Bazel project",
                 slug: "/en/guides/get-started/bazel-project",
                 icon: "brand_bazel"
@@ -233,7 +238,8 @@ defmodule Tuist.Docs.Sidebar do
               %Item{label: "Xcode cache", slug: "/en/guides/features/cache/xcode-cache", icon: "brand_apple"},
               %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache", icon: "brand_apple"},
               %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache", icon: "brand_gradle"},
-              %Item{label: "Bazel cache", slug: "/en/guides/features/cache/bazel-cache", icon: "brand_bazel"}
+              %Item{label: "Bazel cache", slug: "/en/guides/features/cache/bazel-cache", icon: "brand_bazel"},
+              %Item{label: "Elixir cache", slug: "/en/guides/features/cache/elixir", icon: "brand_elixir"}
             ]
           },
           %Item{
@@ -249,7 +255,8 @@ defmodule Tuist.Docs.Sidebar do
               },
               %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle", icon: "brand_gradle"},
               %Item{label: "Bazel", slug: "/en/guides/features/build-insights/bazel", icon: "brand_bazel"},
-              %Item{label: "Elixir", slug: "/en/guides/features/build-insights/elixir", icon: "brand_elixir"}
+              %Item{label: "Elixir", slug: "/en/guides/features/build-insights/elixir", icon: "brand_elixir"},
+              %Item{label: "Rust", slug: "/en/guides/features/build-insights/rust", icon: "brand_rust"}
             ]
           }
         ]
@@ -277,7 +284,8 @@ defmodule Tuist.Docs.Sidebar do
               %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode", icon: "brand_apple"},
               %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle", icon: "brand_gradle"},
               %Item{label: "Bazel", slug: "/en/guides/features/test-insights/bazel", icon: "brand_bazel"},
-              %Item{label: "Elixir", slug: "/en/guides/features/test-insights/elixir", icon: "brand_elixir"}
+              %Item{label: "Elixir", slug: "/en/guides/features/test-insights/elixir", icon: "brand_elixir"},
+              %Item{label: "Rust", slug: "/en/guides/features/test-insights/rust", icon: "brand_rust"}
             ]
           },
           %Item{
@@ -308,6 +316,11 @@ defmodule Tuist.Docs.Sidebar do
                 label: "Elixir",
                 slug: "/en/guides/features/test-insights/flaky-tests/elixir",
                 icon: "brand_elixir"
+              },
+              %Item{
+                label: "Rust",
+                slug: "/en/guides/features/test-insights/flaky-tests/rust",
+                icon: "brand_rust"
               }
             ]
           },
@@ -322,7 +335,8 @@ defmodule Tuist.Docs.Sidebar do
                 icon: "brand_apple"
               },
               %Item{label: "Gradle", slug: "/en/guides/features/test-sharding/gradle", icon: "brand_gradle"},
-              %Item{label: "Elixir", slug: "/en/guides/features/test-sharding/elixir", icon: "brand_elixir"}
+              %Item{label: "Elixir", slug: "/en/guides/features/test-sharding/elixir", icon: "brand_elixir"},
+              %Item{label: "Rust", slug: "/en/guides/features/test-sharding/rust", icon: "brand_rust"}
             ]
           }
         ]
@@ -538,12 +552,14 @@ defmodule Tuist.Docs.Sidebar do
               }
             ]
           },
+          %Item{label: "Grafana", slug: "/en/guides/integrations/grafana"},
           %Item{label: "Slack", slug: "/en/guides/integrations/slack"},
           %Item{label: "Webhooks", slug: "/en/guides/integrations/webhooks"},
           %Item{
             label: "Git forges",
             items: [
-              %Item{label: "GitHub", slug: "/en/guides/integrations/gitforge/github"}
+              %Item{label: "GitHub", slug: "/en/guides/integrations/gitforge/github"},
+              %Item{label: "Origin", slug: "/en/guides/integrations/gitforge/origin"}
             ]
           }
         ]

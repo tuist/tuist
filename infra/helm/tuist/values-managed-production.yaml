@@ -15,6 +15,9 @@ tailscaleDeviceReaper:
     - tag:tuist-k8s-production
 
 registry:
+  # Off the processor pool, which has no memory to spare beside the processor.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
   # Clients stay on tuist.dev/api/registry while the Worker forwards requests
   # to this dedicated ingress host. The ingress hostname is not advertised as
   # a separate registry endpoint.
@@ -88,6 +91,8 @@ server:
   appUrl: https://tuist.dev
 
   config:
+    originAppKey:
+      enabled: true
     atlasEmail:
       enabled: true
     # Point server error reporting at the Atlas error-tracking ingest
@@ -216,9 +221,16 @@ server:
     # scw-fr-par-runners is the macOS-serving private (runner-cache)
     # region: this cluster's Elastic Metal node (kuraFleet) hosts the
     # per-account cache pods and dispatch routes the Mac fleet's build
-    # cache to it over the Private Network.
+    # cache to it over the Private Network. ber1-runners is the BER1 rack's
+    # cache on ber1-store-a, beside the rack's minis; only the accounts the
+    # runner_site_cache flag enables get a node there.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,scw-fr-par-runners
+      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,scw-fr-par-runners,ber1-runners
+    # Kura on a rack node exports traces to the Alloy receiver at its tailnet
+    # name (infra/helm/k8s-monitoring values-production.yaml): it reaches no
+    # cluster Service.
+    - name: TUIST_KURA_NODE_LOCAL_OTLP_TRACES_ENDPOINT
+      value: http://tuist-alloy-receiver-production.taild6d7bb.ts.net:4318/v1/traces
     # Wave 0 (canary) of a progressive Kura runtime rollout: Tuist-owned
     # accounts, and only those (spec #79).
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
@@ -426,6 +438,12 @@ capi:
     cidr: 172.30.243.0/24
 
 kuraController:
+  # Off the processor pool, which has no memory to spare beside the processor.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
+  # Instance activation remains explicit; keep renewal enabled after activation.
+  servingAuthority:
+    enabled: true
   privateReplication:
     enabled: true
   stableDNS:
@@ -643,7 +661,7 @@ clickhouse:
       # first brought this server up, the surge pod stayed Pending for ten
       # minutes, and the release rolled back on "Progress deadline exceeded"
       # with ClickHouse itself healthy. The general pool has the memory, and
-      # it has exactly three nodes, which is what the required anti-affinity
+      # it has at least three nodes, which is what the required anti-affinity
       # between members wants.
       nodeSelector:
         node.cluster.x-k8s.io/pool: general
@@ -661,6 +679,12 @@ clickhouse:
       enabled: true
       hostname: tuist-clickhouse-production
       tags: tag:tuist-k8s-production
+      # The standalone proxy reaches the xcresult VMs only through a DERP
+      # relay, because their Mac's vmnet NAT and this cluster's NAT never agree
+      # on a direct path. The ProxyGroup's static UDP endpoints give them one.
+      # Switching needs the standalone proxy's device deleted by hand; see the
+      # runbook in #14224.
+      proxyGroup: tailnet-ingress
     backup:
       enabled: true
       # 24 GiB of the replica's 96. The nightly incremental needed 10 GiB on
@@ -849,6 +873,9 @@ processor:
   affinity: {}
 
 swiftRegistrySync:
+  # Off the processor pool, which has no memory to spare beside the processor.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
   # The legacy cache writer is disabled, so this deployment is the sole
   # registry synchronization writer.
   enabled: true
@@ -996,7 +1023,7 @@ xcresultProcessor:
 # bootstraps the node itself.
 kuraFleet:
   enabled: true
-  replicas: 1
+  replicas: 2
   machine:
     # EM-I220E-NVME (128GB RAM / 1.92TB NVMe / 25G PN) is the best RAM+NVMe
     # value for the cache pods: RAM (warm-set size = hit rate) and NVMe
@@ -1016,12 +1043,11 @@ vultrFleets:
   # kind, the disk conversion and the fleet wiring are the ones already proven
   # there.
   #
-  # Every box counted by replicas must already carry the adoptTag and have been
-  # through `mise run baremetal:prep-vultr`. Vultr's installer cannot lay down
-  # the mirrored root plus separate XFS /data the self-join gates on, so an
-  # unconverted box is never adopted, and a fleet whose replicas exceed the
-  # adoptable boxes sits at MD 0/1 and wedges `helm --wait` for every production
-  # deploy rather than just this region.
+  # Every box counted by replicas must already carry the adoptTag and the fleet
+  # SSH key. The controller adopts a matching preordered box, converts its RAID1
+  # installation to separate root and quota-enabled XFS /data, then joins it.
+  # If replicas exceed adoptable capacity, the MachineDeployment cannot become
+  # ready and can block `helm --wait` for the production deployment.
   #
   # Running a box here is not the same as serving the region: that is decided by
   # us-central's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
@@ -1035,6 +1061,24 @@ vultrFleets:
       adoptTag: tuist-kura-vultr-production
       region: ord
       plan: vbm-6c-32gb-amd
+      osID: 2284
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: VULTR_FLEET_SSH
+  # The larger US Central shape: 2x1945 GB NVMe and 64 GB on an EPYC 4345P, about
+  # twice the disk of vbm-6c-32gb-amd for $70 more a month. It joins the same
+  # kura-us-central pool, so the region schedules across both fleets; adoption
+  # matches the plan, so neither fleet claims the other's boxes. The
+  # vbm-6c-32gb-amd fleet above is drained onto these and scaled to zero.
+  us-central-8c:
+    enabled: true
+    replicas: 2
+    nodePool: kura-us-central
+    machine:
+      adoptTag: tuist-kura-vultr-production
+      region: ord
+      plan: vbm-8c-64gb-amd
       osID: 2284
       egressBudgetMbps: 1000
     sshExternalSecret:
@@ -1056,7 +1100,7 @@ vultrFleets:
   # region out of service without touching the box.
   sa-west:
     enabled: true
-    replicas: 1
+    replicas: 2
     nodePool: kura-sa-west
     machine:
       # The env boundary. One Vultr account holds every env's boxes, and
@@ -1102,12 +1146,12 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
-  # Public EU West runs on these four OVH nodes in Gravelines. Keep the
+  # Public EU West runs on these five OVH nodes in Gravelines. Keep the
   # historical pool name: live KuraInstances, local PVs and gateways still
   # select it. All Dedibox hosts have been retired.
   eu-west:
     enabled: true
-    replicas: 4
+    replicas: 5
     endpoint: ovh-us
     nodePool: kura-dedibox
     machine:
@@ -1283,10 +1327,272 @@ ovhFleets:
       enabled: true
       item: OVH_FLEET_SSH
 
+# BER1 rack fleet: leased M5 Pro Mac minis (Z1UD001N2: 18-core CPU, 64 GB,
+# 10GbE, 2 TB), three three-up trays on chain B (ber1-tor-b and ber1-pdu-b),
+# behind the rack's two edges. Declared here because the rack
+# is in production (kubernetes.namespace in
+# infra/rack-switch-fleet/sites/ber1.json); no other env may declare it too.
+#
+# Each host is its own Machine, so the fleet is the hosts listed here; set a
+# host's `parked` to take it out.
+rackFleet:
+  enabled: true
+  site: ber1
+  # The edges' own addresses on the machines segment
+  # (infra/rack-switch-fleet/sites/ber1.json, management.edge.machines). An
+  # edge routes the tailnet's connections to a host with SNAT, from its own
+  # address there, so these are the sources every dial arrives from, one per
+  # edge because either can carry it.
+  sshIngressAllowCIDRs:
+    - 10.10.0.2/32
+    - 10.10.0.3/32
+  # ber1-store-a's Kura gateway on the machines segment.
+  vmCacheGatewayCIDRs:
+    - 10.10.0.11/32
+  # The rack's VM image cache on ber1-store-a. Turn `enabled` on first and let
+  # the prewarm set sync, then route hosts through it one at a time in
+  # `routeHosts`, starting with ber1-runner-b01, which runs staging's jobs; each
+  # one re-pushes that mini's launchd config and needs an operator image
+  # carrying --rackhost-image-mirror-hosts. `["*"]` routes every mini.
+  # 400 GiB of store-a's 928 GB /data holds one release of every image the
+  # rack runs plus the previous one while the rack rolls off it (a release of
+  # all nine catalog images is 404 GB of distinct blobs, 578 GB beside its
+  # predecessor), and leaves the ber1-runners Kura region the rest. 26.6 keeps a warm runner and 27.0 carries most rack jobs,
+  # so both are on the rack before a mini asks.
+  imageCache:
+    enabled: true
+    routeHosts: [ber1-runner-b01]
+    nodes:
+      - name: ber1-store-a
+        address: 10.10.0.11
+    sizeGi: 400
+    prewarm: ["26.6", "27.0"]
+  # Each address is the host's reservation on the machines segment, which the
+  # edges' DHCP hands it against the MAC recorded in the site definition, and
+  # which both edges advertise to the tailnet as a /32. Each outlet is on the
+  # RackPDU ber1-pdu-b, which infra/rack-switch-fleet renders from the site
+  # definition and its controller adopts. A host's outlet and its ToR port are
+  # on the same chain, which the site's render checks.
+  hosts:
+    - name: ber1-runner-b01
+      serial: K9YLWQHQM2
+      address: 10.10.0.101
+      rack: prep
+      shelf: tray-b1
+      power:
+        pdu: ber1-pdu-b
+        outlet: "1"
+      # Lent to staging: its Node registers in the staging cluster, where
+      # staging's rack pools run its guests (rackFleet.joiningNodes in
+      # values-managed-staging.yaml). Staging has no custom cache volumes.
+      nodeFleet: tuist-staging-rack-fleet
+      nodeCluster:
+        kubeconfigItem: BER1_RUNNER_B01_STAGING_KUBECONFIG
+    - name: ber1-runner-b02
+      serial: CRXK0M2VFY
+      address: 10.10.0.102
+      rack: prep
+      shelf: tray-b1
+      power:
+        pdu: ber1-pdu-b
+        outlet: "2"
+    - name: ber1-runner-b03
+      serial: JC332QMX73
+      address: 10.10.0.103
+      rack: prep
+      shelf: tray-b1
+      power:
+        pdu: ber1-pdu-b
+        outlet: "3"
+    - name: ber1-runner-b04
+      serial: H1060N7XQP
+      address: 10.10.0.104
+      rack: prep
+      shelf: tray-b2
+      power:
+        pdu: ber1-pdu-b
+        outlet: "6"
+    - name: ber1-runner-b05
+      serial: G54DV7JHJ7
+      address: 10.10.0.105
+      rack: prep
+      shelf: tray-b2
+      power:
+        pdu: ber1-pdu-b
+        outlet: "7"
+    - name: ber1-runner-b06
+      serial: FWVPQGL2C3
+      address: 10.10.0.106
+      rack: prep
+      shelf: tray-b2
+      power:
+        pdu: ber1-pdu-b
+        outlet: "8"
+    - name: ber1-runner-b07
+      serial: H7YDR4L71F
+      address: 10.10.0.107
+      rack: prep
+      shelf: tray-b3
+      power:
+        pdu: ber1-pdu-b
+        outlet: "9"
+    - name: ber1-runner-b08
+      serial: J64HHMX93T
+      address: 10.10.0.108
+      rack: prep
+      shelf: tray-b3
+      power:
+        pdu: ber1-pdu-b
+        outlet: "10"
+    - name: ber1-runner-b09
+      serial: C0YKJG7JLH
+      address: 10.10.0.109
+      rack: prep
+      shelf: tray-b3
+      power:
+        pdu: ber1-pdu-b
+        outlet: "11"
+  machine:
+    # Two 8 vCPU / 24 GB guests or one 16 vCPU / 48 GB guest (the rack's
+    # `guestShapes` below), both dimensions binding at the same count, and 2 of
+    # the 18 cores and 16 of the 64 GB left to the host. Apple's licence caps a
+    # host at two macOS guests. Benchmarked on ber1-runner-b01 in October 2026:
+    # two 8 vCPU guests built about 10% faster than two 6 vCPU guests and a host
+    # finished about 12% more builds an hour; a ninth vCPU per guest and more
+    # memory per vCPU changed nothing.
+    hostCPU: 16
+    hostMemoryMB: 49152
+    guestCapacity: 2
+    # guests x 2 + 1: a Pod stays bound to its Node after it finishes, so each
+    # guest slot can transiently hold its running Pod plus a predecessor GC has
+    # not collected yet.
+    maxPods: 5
+    runnerCacheVolumeGiB: 240
+  # The catalog on the rack: one pool per Xcode on the 6 vCPU shape, and the
+  # 12 vCPU shape, for accounts on the `runner_site` flag. Every catalog image
+  # is a macOS 26 guest, which fits the hosts' macOS 27.
+  #
+  # On the rack those shapes run bigger guests (`guestShapes`): 8 vCPU / 24 GB
+  # for the 6 vCPU shape and 16 vCPU / 48 GB for the 12 vCPU shape. Jobs are
+  # still recorded, billed and counted against concurrency limits at the shape
+  # the profile names, and one that spills over to the rented fleet runs at
+  # that shape.
+  #
+  # The budget is the rack's 18 guest slots (9 hosts x 2), which these pools
+  # and the `ber1` smoke pool share through the fleet allocator, apart from
+  # the rented fleet's 14. A 12 vCPU profile's guest takes a whole host, so
+  # that shape's ceiling is the host count. 26.6 keeps one runner warm because
+  # `tuist-macos` resolves there; the rest start cold.
+  runners:
+    enabled: true
+    guestShapes:
+      6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+      12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
+    autoscaling:
+      enabled: true
+      minWarmPoolFloor: 0
+      maxReplicas: 18
+    xcodeOverrides:
+      "26.6":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxReplicas: 18
+    shapes:
+      12vcpu-28gb:
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 0
+          maxReplicas: 9
+  sshExternalSecret:
+    enabled: true
+    item: BER1_FLEET_SSH
+  # The root key the rack's PDU and transfer switch cards' passwords are
+  # derived from.
+  cardRootKey:
+    enabled: true
+    item: BER1_RACK_CARD_ROOT
+
+rackLinuxFleet:
+  enabled: true
+  site: ber1
+  sshExternalSecret:
+    enabled: true
+    item: BER1_FLEET_SSH
+  tailscale:
+    externalSecret:
+      enabled: true
+      item: TAILSCALE_RACK_NODES
+  amt:
+    provisioningExternalSecret:
+      enabled: true
+      item: AMT_PROVISIONING_CERT
+    # The MS-01.
+    products: ["Micro Computer (HK) Tech Limited Venus Series"]
+    # On the provisioning segment, outside its DHCP range (.100-.150).
+    addressRange: 192.168.50.16/28
+    gateway: 192.168.50.1/24
+  roles:
+    edge:
+      tailnetTags: [tag:tuist-rack-edge]
+      nodeLabels:
+        tuist.dev/rack-edge: ber1
+      nodeTaints:
+        - {key: tuist.dev/rack-edge, value: ber1, effect: NoSchedule}
+    storage:
+      tailnetTags: [tag:tuist-rack-node]
+      nodeLabels:
+        tuist.dev/rack-storage: ber1
+        # The pool the ber1-runners Kura region places its instances in.
+        node.cluster.x-k8s.io/pool: rack-storage-ber1
+      nodeTaints:
+        - {key: tuist.dev/rack-storage, value: ber1, effect: NoSchedule}
+  hosts:
+    # The two edges, each netbooting from the other. ber1-edge-a is preferred.
+    # It was netbooted rather than announced by its stick, so its boot MAC (its
+    # i226-LM, on ber1-mgmt port 1) is declared. Every host declares its AMT:
+    # the fleet's products only match a model a stick announced, and none of
+    # these hosts announced one.
+    - uuid: 44312e80-1dc6-11f1-853e-8f903547d200
+      hostname: ber1-edge-a
+      role: edge
+      bootMAC: "38:05:25:38:b5:b5"
+      amt: {activate: true}
+    - uuid: 04450c00-63f4-11f1-81f4-3582298d5c00
+      hostname: ber1-edge-b
+      role: edge
+      bootMAC: "38:05:25:3a:de:d3"
+      reinstallGeneration: 5
+      amt: {activate: true}
+    # Single-homed to ber1-tor-a port 27, i226-LM on ber1-mgmt port 3. Its
+    # address is on the machines segment, beside the minis it serves; the
+    # edges' DHCP reserves it against its sfp28-1 MAC.
+    - uuid: 3a898800-6402-11f1-ab1d-b1bd5a0f6400
+      hostname: ber1-store-a
+      role: storage
+      bootMAC: "38:05:25:3a:de:67"
+      address: 10.10.0.11
+      # On the cluster's Cilium network at the site's address, so the
+      # ber1-runners Kura region replicates pod to pod with the accounts' other
+      # regions. The rack's one public IPv4 fits one such host; store-b waits
+      # for the site's own range.
+      publicAddress: 149.6.170.31
+      # Reinstalled so it registers with its pool and machines-address labels.
+      reinstallGeneration: 1
+      amt: {activate: true}
+  authorizedKeys:
+    - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
+  boot:
+    enabled: true
+    address: 192.168.50.1
+
 # Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
 # xcresult capacity offline.
 macosFleet:
+  # Off the processor pool, which has no memory to spare beside the processor.
+  operatorNodeSelector:
+    node.cluster.x-k8s.io/pool: general
   # The cluster's own tag, for a proxy the Tailscale operator runs for one
   # Service (values.yaml).
   tailscaleEgress:
@@ -1415,7 +1721,7 @@ macosFleet:
     cidr: 172.16.0.0/22
 
 # Customer-runner Mac mini fleet. 10 M2-L hosts at one guest each plus
-# 2 M4-XL hosts at two = 14 concurrent customer runs.
+# 3 M4-XL hosts at two = 16 concurrent customer runs.
 #
 # Sized against measured demand, not host count. macOS job concurrency
 # over the 7 days to 2026-08-25 ran p50 3 / p95 5 / p99 6 with a peak of
@@ -1493,7 +1799,7 @@ runnersFleet:
   #
   # Growing the group: order N more M4-XL minis named `tuist-pool-*`,
   # bump hostCount, and raise every `xcodeOverrides[*].maxReplicas` below
-  # by 2N. At 2 today; maxReplicas moved 11 -> 13 in the same change.
+  # by 2N. At 3 today; maxReplicas moved 14 -> 16 in the same change.
   #
   # Two guests per host, at the same 6 vCPU / 14 GB shape the M2-L
   # runs — customers see an identical runner, the host just fits two.
@@ -1507,7 +1813,7 @@ runnersFleet:
   # these. Growing raw concurrency alone is still cheaper on M2-L.
   machineGroups:
     - name: m4
-      hostCount: 2
+      hostCount: 3
       machine:
         type: M4-XL
         zone: fr-par-1
@@ -1556,7 +1862,7 @@ runnersFleet:
         # hostMemoryMB is a scheduling PROMISE, not an allocation, so
         # the unadvertised ~36 GB is not idle — macOS spends it on the
         # unified buffer cache, which on this SKU backs two guests' CoW
-        # disk images and a 240 GiB cache volume on a 2 TB disk. That is
+        # disk images and a 512 GiB cache volume on a 2 TB disk. That is
         # the best available use of it.
         #
         # That is also why the M4's headroom is monetized as CORES and
@@ -1591,22 +1897,17 @@ runnersFleet:
         # across all 15 macOS Nodes.
         maxPods: 5
         guestCapacity: 2
-        # 240 GiB against the M2-L's 80. Not a nicety: admission reserves
-        # masterCapGib for every branch running a job, and two guests run
-        # two, so at 80 GiB and a 30 GiB cap only 20 GiB would be left for
-        # masters. At 240 GiB it is 180 GiB, with masters counted at what
-        # they hold.
-        #
-        # The M2-L cannot simply be raised to match; that is the point
-        # of the SKU. Its 460 GiB container has ~330 GiB free idle and
-        # a single job VM transiently takes 42-61 GiB on top of ~85 GB
-        # goldens (two mid digest-roll), which is why the quota has sat
-        # at 80. Worst case here is ~240 (volume) + ~340 (two pools'
-        # goldens, doubled through a roll) + ~280 (two clones at the
-        # 140 GB virtual ceiling) = well under half of ~1.8 TiB, and
-        # the 15% free floor that drives golden reclaim is a
-        # percentage, so it scales with the disk rather than binding.
-        runnerCacheVolumeGiB: 240
+        # Shared built-in/custom cache ceiling on the 2 TB M4. Two running
+        # built-in branches reserve 60 GiB; custom writers and restore staging
+        # use the same budget. Individual custom volumes remain 20 GB.
+        # Cache admission also preserves 15% physical host free space, so this
+        # quota is a ceiling, not guaranteed space or a preallocation.
+        # Planning allowance: 512 GiB cache + 340 GiB overlapping goldens +
+        # 280 GiB guest disks + 100 GiB host data + ~300 GiB free reserve.
+        # Keep M2 at 80 GiB: its ~460 GiB container also holds VM images and
+        # transient clones. Existing M4 Machines are OnDelete: changing this
+        # template alone does not resize them; follow the cache-volume runbook.
+        runnerCacheVolumeGiB: 512
   networkPolicy:
     enabled: true
     exceptCIDRs:
@@ -1663,15 +1964,15 @@ runnersFleet:
       # five pools each allowed 2 compose to 10. The fleet-wide bound
       # comes from the runners-controller, which counts each node's own
       # min(cpu, memory) quotient for a shape and caps every pool sharing
-      # it at that sum (2 today, both on M4-XL). It has to be derived
+      # it at that sum (3 today, all on M4-XL). It has to be derived
       # there rather than written here because the byte budget cannot see
-      # it: 200704 / 28672 reads as 7, pooling memory from M2-L hosts
+      # it: 229376 / 28672 reads as 8, pooling memory from M2-L hosts
       # that cannot seat one of these Pods at all.
       #
       # Set it to the M4-XL host count regardless, as the per-pool bound
       # it is: no single Xcode version should be able to take the whole
       # shape. It moves with `machineGroups[m4].hostCount`, not with the
-      # 14-slot totals the `xcodeOverrides` below use.
+      # 16-slot totals the `xcodeOverrides` below use.
       #
       # Cold: no warm floor. A 12 vCPU Pod parks a whole M4-XL, and idle
       # it would halve the fleet's dual-guest capacity to keep one
@@ -1680,7 +1981,7 @@ runnersFleet:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 2
+        maxReplicas: 3
   # Per-env tuning for the default shape's pools lives in
   # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
   # template merges each catalog entry with its override at render
@@ -1688,19 +1989,19 @@ runnersFleet:
   # fleet allocator, which apportions the fleet's GUEST-slot budget
   # across all macOS pools using the three-tier (floor / load /
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
-  # guarantee; `maxReplicas: 14` lets either pool absorb the whole
+  # guarantee; `maxReplicas: 16` lets either pool absorb the whole
   # fleet under skewed demand and the allocator caps the joint sum
   # so the pools don't double-book.
   #
   # The budget is slots, not minis: the allocator divides the fleet's
   # advertised memory by this shape's 14336 MB, so the 10 M2-L hosts are
-  # 10 slots and the 2 M4-XL hosts are 2 each, for 14. These ceilings must
+  # 10 slots and the 3 M4-XL hosts are 2 each, for 16. These ceilings must
   # move with that number — the allocator never exceeds a pool's
   # maxReplicas, so leaving them behind would let an M4 boot but keep
   # every pool clamped below the capacity it adds, and its second guest
   # would sit idle.
   #
-  # Floors sum to 1 of the 14-slot budget; the remaining 13 slots are
+  # Floors sum to 1 of the 16-slot budget; the remaining 15 slots are
   # dynamically apportioned by queue depth across the pools. Older
   # Xcodes sit cold (floor 0) so an unused runner doesn't tie up a host.
   #
@@ -1717,50 +2018,92 @@ runnersFleet:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
+    "27.1":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 16
     "27.1-rc":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
     "27.0":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
     "26.6":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
-        maxReplicas: 14
+        maxReplicas: 16
     "26.5":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
     "26.4.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
     "26.3":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
     "26.1.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
     "26.0.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 14
+        maxReplicas: 16
   # Resolved at deploy time from the latest `runner-image@` git tag.
   runnerImageSemver: ""
-  pools: []
+  # One explicit pool on the BER1 rack fleet for the BER1 Smoke workflow:
+  # `runs-on: tuist-ber1-smoke` reaches this server's webhook handler, which
+  # matches the label to this pool and dispatches a runner onto a rack Node.
+  # Customer jobs reach the rack through the catalog's rack pools instead
+  # (`rackFleet.runners`).
+  #
+  # This key is the one that counts: an earlier `pools:` in this same mapping
+  # would be silently discarded, because YAML resolves duplicate keys last-wins
+  # and Helm never warns.
+  #
+  # It autoscales from zero so it shares the rack's guest slots with the
+  # catalog's rack pools through the fleet allocator, which only counts
+  # autoscaling pools: a fixed count would hold slots the allocator believes
+  # free. Eighteen is every guest slot in the rack, so a load run still reaches
+  # all of them when nothing else is running.
+  #
+  # The image is the catalog's 26.6 runner, so it follows runner releases.
+  pools:
+    - name: ber1
+      # Racked in BER1, so its jobs take the ber1-runners cache on
+      # ber1-store-a, beside the minis.
+      site: ber1
+      platform: macos
+      xcodeVersion: "26.6"
+      dispatchLabel: tuist-ber1-smoke
+      fleetSelector: tuist-tuist-rack-fleet
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 18
+        # Smoke runs are dispatched by hand, so the last hour's peak does not
+        # predict the next one.
+        holdRecentPeak: false
+      # The rack's guest size for the 6 vCPU shape (`rackFleet.runners
+      # .guestShapes`), so every guest on the fleet has the same memory per vCPU.
+      pod:
+        cpuMilli: 8000
+        memoryMB: 24576
 
 # Bare-metal vm-image-builder fleet — bakes the Tart VM images the
 # macosFleet and runnersFleet hosts run. Production is the only env
@@ -1792,6 +2135,9 @@ kataContainers:
   enabled: true
 
 runnersController:
+  # Off the processor pool, which has no memory to spare beside the processor.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
   features:
     dindImage: true
     registryMirror: true

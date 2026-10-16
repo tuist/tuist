@@ -40,6 +40,34 @@ defmodule AtlasWeb.PostalEventsControllerTest do
     assert activity.interface == "api"
   end
 
+  test "accepts Pingen's deliverable relationship for a dispatched event", %{conn: conn} do
+    letter = insert_sent_letter!()
+    Repo.update!(Ecto.Changeset.change(letter, status: "sending", sent_at: nil))
+
+    payload = %{
+      "data" => %{
+        "id" => "event-#{System.unique_integer([:positive])}",
+        "type" => "webhook_sent",
+        "attributes" => %{"created_at" => "2026-08-28T09:30:00Z"},
+        "relationships" => %{
+          "deliverable" => %{"data" => %{"id" => letter.pingen_letter_id, "type" => "letters"}}
+        }
+      }
+    }
+
+    raw_body = JSON.encode!(payload)
+
+    conn =
+      conn
+      |> put_req_header("signature", signature(raw_body))
+      |> put_private(:raw_body, raw_body)
+      |> put_private(:postal_webhook_signing_key, "postal-signing-key")
+      |> PostalEventsController.handle(payload)
+
+    assert conn.status == 200
+    assert Repo.get!(Letter, letter.id).status == "sent"
+  end
+
   test "rejects an unsigned delivery event", %{conn: conn} do
     raw_body = "{\"data\":{}}"
 

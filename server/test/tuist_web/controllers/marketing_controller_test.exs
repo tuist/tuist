@@ -8,11 +8,14 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias Tuist.FeatureFlags
   alias Tuist.GitHub.Releases
   alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.CacheGlobe
   alias Tuist.Marketing.Changelog
   alias Tuist.Marketing.Newsletter
+  alias Tuist.Marketing.Stats
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Utilities.MarketingMarkdown
 
   @iphone_user_agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
 
@@ -44,6 +47,68 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert link_header =~ ~s(profile="https://www.rfc-editor.org/info/rfc9727")
       assert link_header =~ ~s(</api/spec>; rel="service-desc"; type="application/json")
       assert link_header =~ ~s(</api/docs>; rel="service-doc"; type="text/html")
+    end
+
+    test "shows today's cache download count linking to the globe page", %{conn: conn} do
+      stub(Stats, :get_globe, fn ->
+        Map.merge(CacheGlobe.empty(), %{
+          downloads: 658_422,
+          recent_downloads: 1_200,
+          updated_at: "2026-10-13T12:00:00Z",
+          observed_at: "2026-10-13T11:58:00Z",
+          status: :available
+        })
+      end)
+
+      html = conn |> get("/") |> html_response(200)
+
+      assert [eyebrow] = html |> LazyHTML.from_document() |> LazyHTML.query("#home-hero-cache-count") |> Enum.to_list()
+      assert LazyHTML.attribute(eyebrow, "href") == ["/globe"]
+      assert LazyHTML.attribute(eyebrow, "data-recent-downloads") == ["1200"]
+      assert LazyHTML.text(eyebrow) =~ "Cache download requests today:"
+      assert LazyHTML.text(eyebrow) =~ "658,422"
+    end
+
+    test "renders the customer stories carousel with OpenAI's quote first", %{conn: conn} do
+      html = conn |> get("/") |> html_response(200) |> LazyHTML.from_document()
+
+      slides = html |> LazyHTML.query("#customers-carousel [data-part=slide]") |> Enum.to_list()
+
+      assert Enum.flat_map(slides, &LazyHTML.attribute(&1, "data-company")) ==
+               ["openai", "monzo", "toss", "trendyol", "monday", "delivery-hero"]
+
+      assert [first | rest] = slides
+      assert LazyHTML.attribute(first, "data-active") == ["true"]
+      assert LazyHTML.attribute(first, "inert") == []
+      assert Enum.all?(rest, &(LazyHTML.attribute(&1, "inert") != []))
+      assert LazyHTML.text(first) =~ "Tuist has made a meaningful difference to developer productivity"
+      assert LazyHTML.text(first) =~ "Eric Burke"
+      assert first |> LazyHTML.query("a") |> Enum.count() == 0
+
+      assert html |> LazyHTML.query("#customers-carousel a[href='/customers/monzo']") |> Enum.count() == 1
+
+      assert html
+             |> LazyHTML.query("#customers-carousel a[href^='https://deliveryhero.jobs/']")
+             |> Enum.count() == 1
+
+      tabs = html |> LazyHTML.query("#customers-carousel [role=tab]") |> Enum.to_list()
+
+      assert Enum.flat_map(tabs, &LazyHTML.attribute(&1, "aria-label")) ==
+               ["OpenAI", "Monzo", "Toss", "Trendyol", "monday.com", "Delivery Hero"]
+
+      assert Enum.flat_map(tabs, &LazyHTML.attribute(&1, "aria-selected")) ==
+               ["true", "false", "false", "false", "false", "false"]
+
+      assert LazyHTML.attribute(first, "aria-labelledby") == ["customers-tab-openai"]
+      assert first |> LazyHTML.query("[data-part=logo]") |> Enum.count() == 0
+    end
+
+    test "omits the cache download count while the globe has no data", %{conn: conn} do
+      stub(Stats, :get_globe, fn -> CacheGlobe.empty() end)
+
+      html = conn |> get("/") |> html_response(200)
+
+      refute html =~ "home-hero-cache-count"
     end
 
     test "describes the site and the product with structured data", %{conn: conn} do
@@ -80,6 +145,33 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
         |> put_req_header("accept", "application/json")
         |> get("/")
       end
+    end
+  end
+
+  describe "Markdown-only problem and comparison guides" do
+    test "does not register standalone marketing browser routes" do
+      for page <- MarketingMarkdown.decision_guides() do
+        case Phoenix.Router.route_info(TuistWeb.Router, "GET", page.path, "") do
+          :error -> :ok
+          route -> refute Map.get(route, :type) == :marketing, page.path
+        end
+      end
+    end
+
+    test "does not link the Markdown-only guides from browser navigation", %{conn: conn} do
+      document = conn |> get("/") |> html_response(200) |> Floki.parse_document!()
+      links = Floki.attribute(document, "a", "href")
+
+      for page <- MarketingMarkdown.decision_guides() do
+        refute page.path in links
+        refute MarketingMarkdown.alternate_path(page.path) in links
+      end
+
+      assert Floki.find(document, "#footer-locale-dropdown") != []
+    end
+
+    test "legacy feature redirects remain intact", %{conn: conn} do
+      assert conn |> get("/flaky-tests") |> redirected_to(301) == "/tests"
     end
   end
 
@@ -130,6 +222,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Folded into the tests page; their URLs redirect and are not advertised.
       for path <- ["/flaky-tests", "/test-insights"] do
         refute xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+      end
+    end
+
+    test "does not advertise Markdown-only problem and comparison guides", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+
+      for page <- MarketingMarkdown.decision_guides() do
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: page.path)}</loc>"
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: "/ko" <> page.path)}</loc>"
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: MarketingMarkdown.alternate_path(page.path))}</loc>"
       end
     end
 

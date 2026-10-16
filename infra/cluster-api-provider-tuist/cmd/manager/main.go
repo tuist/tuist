@@ -84,6 +84,7 @@ func main() {
 		tartTarballPath              string
 		tailscaleBinariesPath        string
 		nodeExporterBinaryPath       string
+		hostSensorsBinaryPath        string
 		logShipperBinaryPath         string
 		logShipURL                   string
 		logShipEnv                   string
@@ -170,6 +171,13 @@ func main() {
 			"Empty disables the host-metrics step. Paired with "+
 			"--tailscale-binaries-path: node_exporter without Tailscale would bind "+
 			"to a public interface, which the bootstrap step actively refuses.")
+	flag.StringVar(&hostSensorsBinaryPath, "host-sensors-binary-path",
+		envOrDefault("CAPI_HOST_SENSORS_BINARY_PATH", ""),
+		"Local path of the darwin/arm64 tuist-host-sensors binary baked into this "+
+			"image (/opt/host-sensors/tuist-host-sensors-darwin-arm64 by default). "+
+			"Writes the host's temperatures, fan speeds, power and thermal pressure "+
+			"for node_exporter's textfile collector every 30 seconds. Empty, or no "+
+			"--node-exporter-binary-path to serve the readings, removes the job.")
 	flag.StringVar(&logShipperBinaryPath, "log-shipper-binary-path",
 		envOrDefault("CAPI_LOG_SHIPPER_BINARY_PATH", ""),
 		"Local path of the darwin/arm64 tuist-log-shipper binary baked into this "+
@@ -356,6 +364,14 @@ func main() {
 	flag.StringVar(&rackHostVMCacheGatewayCIDRsRaw, "rackhost-vm-cache-gateway-cidrs", "",
 		"Comma-separated IPv4 CIDRs of the rack's runner-cache gateways, which the VM egress firewall on a rack Mac host lets Tart VMs reach on TCP 443. "+
 			"Rack hosts only; the rented fleets never pass them. Flows from the chart's rackFleet.vmCacheGatewayCIDRs.")
+	var rackHostImageMirrorsRaw string
+	flag.StringVar(&rackHostImageMirrorsRaw, "rackhost-image-mirrors", "",
+		"Comma-separated <upstream>=<endpoint> entries naming the rack's VM image caches, which a rack Mac host's tart-kubelet tries "+
+			"in order before the upstream when it pulls a golden base (--image-mirror). Rack hosts only. Flows from the chart's rackFleet.imageCache.")
+	var rackHostImageMirrorHostsRaw string
+	flag.StringVar(&rackHostImageMirrorHostsRaw, "rackhost-image-mirror-hosts", "",
+		"Comma-separated RackHost names that get --rackhost-image-mirrors, or * for every rack host. Empty routes none. "+
+			"Flows from the chart's rackFleet.imageCache.routeHosts.")
 	flag.DurationVar(&terminalRetryAfter, "tartkubelet-terminal-retry-after", 30*time.Minute,
 		"How long after a terminal drift-loop failure the host gets a fresh retry budget. "+
 			"Recovers a host that was merely unreachable when the operator tried to push, "+
@@ -459,6 +475,14 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	rackHostImageMirrors := parseCommaList(rackHostImageMirrorsRaw)
+	for _, mirror := range rackHostImageMirrors {
+		if err := bootstrap.ValidateImageMirror(mirror); err != nil {
+			setupLog.Error(err, "parse --rackhost-image-mirrors")
+			os.Exit(1)
+		}
+	}
+
 	scwClient, err := scaleway.NewClient()
 	if err != nil {
 		setupLog.Error(err, "scaleway client init")
@@ -504,6 +528,15 @@ func main() {
 		}
 		setupLog.Info("loaded node_exporter binary", "path", nodeExporterBinaryPath, "bytes", len(nodeExporterBinary), "sha", sha256Hex(nodeExporterBinary))
 	}
+	var hostSensorsBinary []byte
+	if hostSensorsBinaryPath != "" {
+		hostSensorsBinary, err = os.ReadFile(hostSensorsBinaryPath)
+		if err != nil {
+			setupLog.Error(err, "read host sensors binary", "path", hostSensorsBinaryPath)
+			os.Exit(1)
+		}
+		setupLog.Info("loaded host sensors binary", "path", hostSensorsBinaryPath, "bytes", len(hostSensorsBinary), "sha", sha256Hex(hostSensorsBinary))
+	}
 	var logShipperBinary []byte
 	if logShipperBinaryPath != "" {
 		logShipperBinary, err = os.ReadFile(logShipperBinaryPath)
@@ -537,6 +570,7 @@ func main() {
 		TartTarball:        tartTarball,
 		TailscaleBinaries:  tailscaleBinaries,
 		NodeExporterBinary: nodeExporterBinary,
+		HostSensorsBinary:  hostSensorsBinary,
 		LogShipperBinary:   logShipperBinary,
 		LogShipURL:         logShipURL,
 		LogShipEnv:         logShipEnv,
@@ -733,6 +767,13 @@ func main() {
 		setupLog.Error(err, "setup RackATSReconciler")
 		os.Exit(1)
 	}
+	if err := (&macos.RackSiteReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackSiteReconciler")
+		os.Exit(1)
+	}
 	if err := (&macos.RackHostReconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
@@ -759,6 +800,8 @@ func main() {
 		// target both and one operator image roll both.
 		FleetConfig:                   fleetConfig,
 		VMCacheGatewayCIDRs:           parseCommaList(rackHostVMCacheGatewayCIDRsRaw),
+		ImageMirrors:                  rackHostImageMirrors,
+		ImageMirrorHosts:              parseCommaList(rackHostImageMirrorHostsRaw),
 		DefaultGuestCapacity:          tartKubeletGuestCapacity,
 		TartKubeletBinarySHA:          binarySHA,
 		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),

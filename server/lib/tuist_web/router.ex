@@ -26,7 +26,7 @@ defmodule TuistWeb.Router do
   @public_robots_txt [train_ai: true, search: true, ai_input: true]
   @marketing_route_metadata %{type: :marketing, robots_txt: @public_robots_txt}
   @docs_route_metadata %{type: :docs, robots_txt: @public_robots_txt}
-  @public_project_route_metadata %{public_project: true, robots_txt: false}
+  @public_project_route_metadata %{robots_txt: false}
 
   pipeline :open_api do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
@@ -34,6 +34,7 @@ defmodule TuistWeb.Router do
 
   pipeline :open_graph_image do
     plug :put_request_kind, "open_graph_image"
+    plug :rate_limit, limit: 60
     # Open Graph images belong to the marketing and docs sites, which are not served
     # on-premise. Forward these requests away there instead of spinning up a
     # headless browser render the deployment does not need.
@@ -642,6 +643,8 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :browser_app]
 
     get "/github/setup", GitHubAppSetupController, :setup
+    get "/origin/start", OriginAppSetupController, :start
+    get "/origin/setup", OriginAppSetupController, :setup
     get "/github/manifest/start", GitHubAppManifestController, :start
     get "/github/manifest/callback", GitHubAppManifestController, :callback
     get "/slack/callback", SlackOAuthController, :callback
@@ -702,7 +705,7 @@ defmodule TuistWeb.Router do
 
   scope path: "/api",
         alias: TuistWeb.API,
-        assigns: %{caching: not Tuist.Environment.test?(), cache_ttl: to_timeout(minute: 1)} do
+        assigns: %{auth_cache_default: true, cache_ttl: to_timeout(minute: 1)} do
     pipe_through [:open_api, :authenticated_api, :on_premise_api]
 
     scope "/accounts/:account_handle" do
@@ -724,6 +727,7 @@ defmodule TuistWeb.Router do
         get "/jobs/:workflow_job_id/logs", RunnersController, :index_job_logs
         get "/workflows", RunnersController, :index_workflows
         get "/profiles", RunnersController, :index_profiles
+        patch "/profiles/:profile_name", RunnersController, :update_profile
         get "/volumes", RunnerVolumesController, :list
         get "/volumes/analytics", RunnerVolumesController, :analytics
         get "/volumes/:volume_id", RunnerVolumesController, :show
@@ -871,6 +875,8 @@ defmodule TuistWeb.Router do
           get "/", BuildsController, :index
 
           scope "/metrics" do
+            get "/health", MetricsController, :build_health
+            get "/health/dimensions/:dimension/values", MetricsController, :build_health_dimension_values
             get "/duration", MetricsController, :build_duration
             get "/dimensions/:dimension/values", MetricsController, :build_dimension_values
           end
@@ -887,6 +893,10 @@ defmodule TuistWeb.Router do
         end
 
         scope "/xcode" do
+          get "/modules", XcodeModulesController, :index
+          get "/modules/:module_id", XcodeModulesController, :show
+          get "/modules/:module_id/events", XcodeModulesController, :history
+
           scope "/builds" do
             get "/", BuildsController, :index
             get "/:build_id/steps", BuildStepsController, :index
@@ -902,6 +912,11 @@ defmodule TuistWeb.Router do
         end
 
         scope "/gradle" do
+          get "/tasks", GradleTaskDetailsController, :index
+          get "/tasks/:task_id", GradleTaskDetailsController, :show
+          get "/tasks/:task_id/executions", GradleTaskDetailsController, :history
+          get "/builds/metrics", MetricsController, :gradle_metrics
+          get "/builds/metrics/dimensions/:dimension/values", MetricsController, :gradle_dimension_values
           post "/builds", GradleController, :create_build
           get "/builds", GradleController, :list_builds
           get "/builds/:build_id", GradleController, :get_build
@@ -909,8 +924,24 @@ defmodule TuistWeb.Router do
           get "/builds/:build_id/steps/:step_id", GradleBuildStepsController, :show
         end
 
+        scope "/cargo" do
+          post "/builds", CargoController, :create_build
+        end
+
         scope "/mix" do
           post "/builds", MixController, :create_build
+          get "/files", MixFilesController, :index
+          get "/files/:file_id", MixFilesController, :show
+          get "/files/:file_id/compilations", MixFilesController, :history
+          get "/modules", MixModulesController, :index
+          get "/modules/:module_id", MixModulesController, :show
+          get "/modules/:module_id/compilations", MixModulesController, :history
+        end
+
+        scope "/once" do
+          get "/actions", OnceActionsController, :index
+          get "/actions/:action_id", OnceActionsController, :show
+          get "/actions/:action_id/executions", OnceActionsController, :history
         end
 
         scope "/bazel" do
@@ -929,6 +960,7 @@ defmodule TuistWeb.Router do
           post "/generate-url", PreviewsController, :multipart_generate_url
           post "/complete", PreviewsController, :multipart_complete
           post "/:preview_id/icons", PreviewsController, :upload_icon
+          get "/tracks", PreviewsController, :tracks
           get "/latest", PreviewsController, :latest
           get "/:preview_id", PreviewsController, :show
           get "/", PreviewsController, :index
@@ -954,6 +986,7 @@ defmodule TuistWeb.Router do
 
     scope "/cache" do
       get "/access", CacheController, :access
+      get "/endpoint", CacheController, :endpoint
       get "/endpoints", CacheController, :endpoints
       post "/token", CacheController, :token
       get "/", CacheController, :download
@@ -1053,6 +1086,7 @@ defmodule TuistWeb.Router do
   scope "/_internal", TuistWeb.Internal do
     pipe_through [:non_authenticated_api]
 
+    post "/kura/activate", KuraActivationController, :create
     post "/kura/usage", KuraUsageController, :create
     post "/kura/mesh/enroll", KuraMeshController, :enroll
     post "/kura/mesh/heartbeat", KuraMeshController, :heartbeat
@@ -1376,6 +1410,8 @@ defmodule TuistWeb.Router do
         RunnerJobLogsController,
         :download
 
+    get "/runners/by-runner/:runner_name", RunnerJobRedirectController, :show
+
     live_session :public_account,
       layout: {TuistWeb.Layouts, :account},
       session: {TuistWeb.RemoteIp, :live_session, []},
@@ -1489,6 +1525,7 @@ defmodule TuistWeb.Router do
       live "/module-cache/modules/:module", ModuleCacheModuleLive, metadata: @public_project_route_metadata
       live "/xcode-cache", XcodeCacheLive, metadata: @public_project_route_metadata
       live "/gradle-cache", GradleCacheLive, metadata: @public_project_route_metadata
+      live "/mix-cache", MixCacheLive, metadata: @public_project_route_metadata
       live "/builds/tasks", GradleTasksLive, :tasks, metadata: @public_project_route_metadata
       live "/builds/tasks/:name", GradleTasksLive, :task, metadata: @public_project_route_metadata
       live "/bazel-cache", BazelCacheLive, metadata: @public_project_route_metadata
@@ -1509,10 +1546,21 @@ defmodule TuistWeb.Router do
       live "/connect", ConnectLive
       get "/invocations", RedirectPlug, to: "/builds"
       live "/invocations/:invocation_id", BazelBuildInvocationLive, metadata: @public_project_route_metadata
-      live "/", OverviewLive, metadata: @public_project_route_metadata
-      live "/analytics", OverviewLive, metadata: @public_project_route_metadata
+      live "/", OverviewLive, metadata: %{public_project: true, robots_txt: false}
+      live "/analytics", OverviewLive, :analytics, metadata: @public_project_route_metadata
       live "/bundles", BundlesLive, metadata: @public_project_route_metadata
       live "/bundles/:bundle_id", BundleLive, metadata: @public_project_route_metadata
+      live "/builds/gradle/tasks", BuildEntityLive, :gradle_tasks, metadata: @public_project_route_metadata
+      live "/builds/gradle/tasks/:task_id", BuildEntityLive, :gradle_tasks, metadata: @public_project_route_metadata
+      live "/builds/xcode/modules", BuildEntityLive, :xcode_modules, metadata: @public_project_route_metadata
+      live "/builds/xcode/modules/:module_id", BuildEntityLive, :xcode_modules, metadata: @public_project_route_metadata
+      live "/builds/once/actions", BuildEntityLive, :once_actions, metadata: @public_project_route_metadata
+      live "/builds/once/actions/:action_id", BuildEntityLive, :once_actions, metadata: @public_project_route_metadata
+      live "/builds/mix/files", BuildEntityLive, :mix_files, metadata: @public_project_route_metadata
+      live "/builds/mix/files/:file_id", BuildEntityLive, :mix_files, metadata: @public_project_route_metadata
+      live "/builds/mix/modules", BuildEntityLive, :mix_modules, metadata: @public_project_route_metadata
+      live "/builds/mix/modules/:module_id", BuildEntityLive, :mix_modules, metadata: @public_project_route_metadata
+
       live "/builds", BuildsLive, metadata: @public_project_route_metadata
       live "/builds/build-runs", BuildRunsLive, metadata: @public_project_route_metadata
 
@@ -1521,6 +1569,7 @@ defmodule TuistWeb.Router do
 
       live "/builds/build-runs/:build_run_id", BuildRunLive, metadata: @public_project_route_metadata
       live "/builds/invocations/:invocation_id", BazelBuildInvocationLive, metadata: @public_project_route_metadata
+      live "/builds/cargo-builds/:build_id", CargoBuildLive, metadata: @public_project_route_metadata
       live "/builds/mix-builds/:build_id", MixBuildLive, metadata: @public_project_route_metadata
       live "/previews", PreviewsLive, metadata: @public_project_route_metadata
       live "/runs/:run_id", RunDetailLive, metadata: @public_project_route_metadata

@@ -40,6 +40,10 @@ defmodule TuistWeb.BazelInvocationLive do
          socket
          |> assign(:selected_project, project)
          |> assign(:invocation, invocation)
+         |> assign(
+           :failure_category,
+           Tuist.BuildMetrics.failure_category(invocation.project_id, "bazel", invocation.invocation_id)
+         )
          |> assign(:selected_tab, "overview")
          |> assign(:available_filters, cache_filters("actions"))
          |> assign(:cache_events, [])
@@ -299,6 +303,7 @@ defmodule TuistWeb.BazelInvocationLive do
                 </div>
               </div>
             </div>
+            <TuistWeb.Components.BuildHealth.category_detail category={@failure_category} />
             <div
               :if={map_size(@invocation.custom_values || %{}) > 0}
               data-part="custom-metadata-section"

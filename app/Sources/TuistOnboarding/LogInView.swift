@@ -26,28 +26,42 @@ public struct LogInView: View {
                 .foregroundColor(Noora.Colors.surfaceLabelPrimary)
                 .padding(.bottom, Noora.Spacing.spacing5)
 
-            Text("Sign in to access your projects and\ncollaborate with your team")
-                .font(.subheadline.weight(.regular))
-                .multilineTextAlignment(.center)
-                .foregroundColor(Noora.Colors.surfaceLabelPrimary)
-                .padding(.bottom, 80)
+            signIn
+        }
+        .disabled(authenticationService.isSigningIn)
+        .background(
+            Image("LaunchScreenBackground")
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .ignoresSafeArea()
+        )
+    }
 
-            Spacer()
+    @ViewBuilder
+    private var signIn: some View {
+        Text("Sign in to access your projects and\ncollaborate with your team")
+            .font(.subheadline.weight(.regular))
+            .multilineTextAlignment(.center)
+            .foregroundColor(Noora.Colors.surfaceLabelPrimary)
+            .padding(.bottom, Noora.Spacing.spacing15)
 
-            VStack(spacing: Noora.Spacing.spacing5) {
-                SocialButton(
-                    title: "Sign in with Tuist",
-                    style: .primary,
-                    icon: "TuistLogo"
-                ) {
-                    errorHandler.fireAndHandleError { try await authenticationService.signIn() }
-                }
+        Spacer()
 
-                SocialButton(
-                    title: "Sign in with Apple",
-                    style: .secondary,
-                    icon: "AppleLogo"
-                ) {
+        VStack(spacing: Noora.Spacing.spacing5) {
+            SocialButton(
+                title: "Sign in with Tuist",
+                style: .primary,
+                icon: "TuistLogo"
+            ) {
+                signInToTuistHosted { try await authenticationService.signIn() }
+            }
+
+            SocialButton(
+                title: "Sign in with Apple",
+                style: .secondary,
+                icon: "AppleLogo"
+            ) {
+                signInToTuistHosted {
                     let request = ASAuthorizationAppleIDProvider().createRequest()
                     request.requestedScopes = [.fullName, .email]
 
@@ -60,53 +74,91 @@ public struct LogInView: View {
                     controller.presentationContextProvider = appleSignInDelegate
                     controller.performRequests()
                 }
-
-                SocialButton(
-                    title: "Sign in with Google",
-                    style: .secondary,
-                    icon: "GoogleLogo"
-                ) {
-                    errorHandler.fireAndHandleError { try await authenticationService.signInWithGoogle() }
-                }
-
-                SocialButton(
-                    title: "Sign in with GitHub",
-                    style: .secondary,
-                    icon: "GitHubLogo"
-                ) {
-                    errorHandler.fireAndHandleError { try await authenticationService.signInWithGitHub() }
-                }
             }
-            .padding(.horizontal, Noora.Spacing.spacing8)
-            .padding(.top, Noora.Spacing.spacing9)
-            .padding(.bottom, Noora.Spacing.spacing4)
-            .frame(maxWidth: .infinity)
-            .background(
+
+            SocialButton(
+                title: "Sign in with Google",
+                style: .secondary,
+                icon: "GoogleLogo"
+            ) {
+                signInToTuistHosted { try await authenticationService.signInWithGoogle() }
+            }
+
+            SocialButton(
+                title: "Sign in with GitHub",
+                style: .secondary,
+                icon: "GitHubLogo"
+            ) {
+                signInToTuistHosted { try await authenticationService.signInWithGitHub() }
+            }
+
+            divider
+
+            SocialButton(
+                title: "Self-hosted server",
+                style: .secondary,
+                icon: "ServerIcon"
+            ) {
+                presentSelfHostedServerAlert()
+            }
+        }
+        .padding(.horizontal, Noora.Spacing.spacing8)
+        .padding(.top, Noora.Spacing.spacing9)
+        .padding(.bottom, Noora.Spacing.spacing4)
+        .frame(maxWidth: .infinity)
+        .background(
+            UnevenRoundedRectangle(
+                topLeadingRadius: 32,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: 32
+            )
+            .fill(Color(light: .white.opacity(0.6), dark: Color(hex: 0x0E0E0E, alpha: 0.8)))
+            .overlay(
                 UnevenRoundedRectangle(
                     topLeadingRadius: 32,
                     bottomLeadingRadius: 0,
                     bottomTrailingRadius: 0,
                     topTrailingRadius: 32
                 )
-                .fill(Color(light: .white.opacity(0.6), dark: Color(hex: 0x0E0E0E, alpha: 0.8)))
-                .overlay(
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 32,
-                        bottomLeadingRadius: 0,
-                        bottomTrailingRadius: 0,
-                        topTrailingRadius: 32
-                    )
-                    .stroke(Color(light: Color.white, dark: Color(hex: 0x1F1F1F)), lineWidth: 2)
-                )
-                .ignoresSafeArea(.container, edges: .bottom)
+                .stroke(Color(light: Color.white, dark: Color(hex: 0x1F1F1F)), lineWidth: 2)
             )
-        }
-        .background(
-            Image("LaunchScreenBackground")
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .ignoresSafeArea()
+            .ignoresSafeArea(.container, edges: .bottom)
         )
+    }
+
+    private var divider: some View {
+        HStack(spacing: Noora.Spacing.spacing4) {
+            line
+            Text("or")
+                .font(.footnote)
+                .foregroundColor(Noora.Colors.surfaceLabelTertiary)
+            line
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var line: some View {
+        Rectangle()
+            .fill(Noora.Colors.surfaceLabelTertiary.opacity(0.3))
+            .frame(height: 1)
+    }
+
+    /// The saved self-hosted server only prefills the prompt, so the other buttons always sign in to Tuist-hosted.
+    private func signInToTuistHosted(_ signIn: @escaping () async throws -> Void) {
+        errorHandler.fireAndHandleError {
+            try await authenticationService.selectServer(nil)
+            try await signIn()
+        }
+    }
+
+    private func presentSelfHostedServerAlert() {
+        SelfHostedServerAlert.present(serverURL: authenticationService.selfHostedServerURL ?? "") { serverURL in
+            errorHandler.fireAndHandleError {
+                try await authenticationService.selectServer(serverURL)
+                try await authenticationService.signIn()
+            }
+        }
     }
 }
 

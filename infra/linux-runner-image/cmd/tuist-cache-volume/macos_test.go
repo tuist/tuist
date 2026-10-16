@@ -11,6 +11,26 @@ import (
 	"time"
 )
 
+func TestMacCommandKeepsImageHelperOutsideJobCleanup(t *testing.T) {
+	bin := t.TempDir()
+	script := "#!/bin/sh\n" +
+		"test -z \"${RUNNER_TRACKING_ID+x}\" || exit 42\n" +
+		"test \"$TUIST_TEST_HDIUTIL\" = preserved || exit 43\n" +
+		"test \"$1\" = attach || exit 44\n"
+	if err := os.WriteFile(filepath.Join(bin, "hdiutil"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("RUNNER_TRACKING_ID", "job-owned-processes")
+	t.Setenv("TUIST_TEST_HDIUTIL", "preserved")
+	if err := macCommandContext(context.Background(), "attach", "cache.sparseimage"); err != nil {
+		t.Fatal(err)
+	}
+	if os.Getenv("RUNNER_TRACKING_ID") != "job-owned-processes" {
+		t.Fatal("changed job process tracking outside hdiutil")
+	}
+}
+
 func TestMacAttachAndDetach(t *testing.T) {
 	share, mount := t.TempDir(), t.TempDir()
 	response := macResponse{Directory: digest("volume"), ID: "lease", Warm: true}

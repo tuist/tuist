@@ -69,6 +69,10 @@ struct Netrc: Sendable {
 
     var hasEnvironmentSource: Bool { sources.contains { $0.origin == .environment } }
 
+    func machines(from origin: NetrcOrigin) -> [NetrcMachine] {
+        sources.filter { $0.origin == origin }.flatMap(\.machines)
+    }
+
     /// Skips the OS credential store entirely, SwiftPM's `--disable-keychain`.
     var keychainDisabled: Bool { configuration.disableKeychain }
 
@@ -147,8 +151,7 @@ struct Netrc: Sendable {
             let match = source.origin == .environment
                 ? source.machines.first(where: { $0.name == host })
                 : source.machines.last(where: { $0.name == host })
-            if let machine = match ?? source.machines.first(where: \.isDefault)
-            {
+            if let machine = match ?? source.machines.first(where: \.isDefault) {
                 return RegistryCredential(user: machine.login, password: machine.password)
             }
         }
@@ -276,8 +279,8 @@ enum NetrcParser {
     }
 }
 
-private extension Array where Element == String {
-    mutating func popFirst() -> String? {
+extension [String] {
+    fileprivate mutating func popFirst() -> String? {
         isEmpty ? nil : removeFirst()
     }
 
@@ -285,7 +288,7 @@ private extension Array where Element == String {
     /// whose value never materialises, from an empty quoted string or a value that
     /// starts a comment, would otherwise consume the following `machine` keyword and
     /// take the rest of the file down with it.
-    mutating func popFirstValue() -> String? {
+    fileprivate mutating func popFirstValue() -> String? {
         guard let first, first != "machine", first != "default" else { return nil }
         return removeFirst()
     }

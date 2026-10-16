@@ -86,6 +86,39 @@ defmodule TuistEx.Analytics.EnvTest do
     assert Env.git_remote_url_origin(environment) == "git@github.com:tuist/tuist.git"
   end
 
+  test "reports a pull request's head rather than the merge commit its merge ref checks out" do
+    git = fn second_parent ->
+      fn
+        "rev-parse", ["HEAD^2"] -> second_parent
+        "rev-parse", ["HEAD"] -> "merge-commit"
+      end
+    end
+
+    pull_request = &%{"GITHUB_REF" => "refs/pull/7/merge"}[&1]
+
+    assert Env.git_commit_sha(pull_request, git.("pull-request-head")) == "pull-request-head"
+    # A shallow checkout lacks the merge commit's parents.
+    assert Env.git_commit_sha(pull_request, git.(nil)) == "merge-commit"
+
+    assert Env.git_commit_sha(&%{"GITHUB_REF" => "refs/heads/main"}[&1], git.("x")) ==
+             "merge-commit"
+
+    assert Env.git_commit_sha(
+             &%{"GITHUB_REF" => "refs/pull/7/merge", "GIT_COMMIT" => "deadbeef"}[&1],
+             git.("x")
+           ) == "deadbeef"
+
+    github = fn sha -> &%{"GITHUB_REF" => "refs/pull/7/merge", "GITHUB_SHA" => sha}[&1] end
+
+    assert Env.git_commit_sha(github.("merge-commit"), git.("pull-request-head")) ==
+             "pull-request-head"
+
+    # A checkout of the pull request's head keeps GITHUB_REF at the merge ref;
+    # when that head is itself a merge commit, its second parent is not the
+    # pull request.
+    assert Env.git_commit_sha(github.("another-commit"), git.("main")) == "merge-commit"
+  end
+
   test "takes the branch from the CI provider before git" do
     # A GitHub Actions pull request is a detached checkout, where git says "HEAD".
     assert Env.git_branch(&%{"GITHUB_HEAD_REF" => "feature/x"}[&1]) == "feature/x"
@@ -116,5 +149,41 @@ defmodule TuistEx.Analytics.EnvTest do
              "git@github.com:acme/private.git"
 
     assert Env.without_credentials(nil) == nil
+  end
+
+  test "reads the base branch from the CI provider, without a full ref's prefix" do
+    assert Env.base_branch(fn
+             "GITHUB_BASE_REF" -> "main"
+             _ -> nil
+           end) == "main"
+
+    assert Env.base_branch(fn
+             "SYSTEM_PULLREQUEST_TARGETBRANCH" -> "refs/heads/develop"
+             _ -> nil
+           end) == "develop"
+
+    assert Env.base_branch(fn _ -> nil end) == nil
+  end
+
+  test "reads the pull request number from the ref, then the provider's variables" do
+    assert Env.pull_request_number(fn
+             "GITHUB_REF" -> "refs/pull/42/merge"
+             _ -> nil
+           end) == 42
+
+    assert Env.pull_request_number(fn
+             "CI_MERGE_REQUEST_IID" -> "7"
+             _ -> nil
+           end) == 7
+
+    assert Env.pull_request_number(fn
+             "GITHUB_REF" -> "refs/heads/main"
+             _ -> nil
+           end) == nil
+
+    assert Env.pull_request_number(fn
+             "BITRISE_PULL_REQUEST" -> "false"
+             _ -> nil
+           end) == nil
   end
 end

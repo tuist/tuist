@@ -95,7 +95,8 @@ data:
     # twice: once to pick candidates, once to re-validate each PV immediately
     # before acting.
     predicate='
-      select(.status.phase == "Released")
+      select(.metadata.annotations["kura.tuist.dev/recovery-quarantine"] == null)
+      | select(.status.phase == "Released")
       | select(.spec.persistentVolumeReclaimPolicy == "Retain")
       | select(.spec.storageClassName == $sc)
       | select(.status.lastPhaseTransitionTime != null)

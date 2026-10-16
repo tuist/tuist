@@ -9,13 +9,32 @@ This node covers Helm assets under `infra/helm/`.
 - Atlas standalone and managed deployment: see `atlas/AGENTS.md`.
 - Standalone app charts with their own release boundary, such as Noora Storybook and Slack
 
+Monitoring cost controls must preserve metric identity and operator audit records.
+See `k8s-monitoring/README.md` for the staged Kura and API-server migrations.
+Helm CI starts the production Alloy log pipeline to compile LogQL selectors and
+runs the mixed-version latency expression through promtool.
+
 ## Conventions
+
+- Xcode 27.1 is added alongside RC with a prepublished bootstrap image pin.
+  Retire RC and migrate its profiles only after this additive chart is deployed
+  and a versioned runner-image release includes stable; remove the bootstrap pin
+  in that retirement change. Keep 26.6 as the default and warm floor.
+
+- `server.config.originAppKey.enabled` adds the registered Origin App ID and Ed25519 private PEM to the managed server-config ExternalSecret. Trim only the App ID, never the private PEM or log key material. It defaults off and is enabled in production, canary, and staging after each environment's own `ORIGIN_APP/app_id` and `ORIGIN_APP/private_key` fields exist in its `tuist-k8s-<env>` vault. The App ID field is configurable with `appIdField`. Each environment uses an independent app and signing key.
+
+- Production enables the Kura authority controller independently of instance
+  activation. Keep it enabled once any instance has a serving rollback floor;
+  disabling it expires live grants. See
+  [serving authority](../kura-controller/serving-authority.md).
 
 - `capi.vultrPrivateNetwork` declares regional networks; the CAPI controller owns
   provider IDs and creation intent in a retained `-state` ConfigMap. Keep that
   state out of Helm-owned data. Production enables Chicago and Santiago; Santiago
-  has one host, so physical host-pair validation is still required when a second
-  host arrives. Reciprocal `canonicalPeers` region names
+  has two enrolled hosts with bidirectional physical private-path and isolated
+  replication validation. See the qualification limits in
+  `../kura-controller/vultr-private-networking.md`. Reciprocal `canonicalPeers`
+  region names
   approve canonical mTLS between exact VPC IDs resolved by the controller. Stage
   this policy on existing runtimes before qualifying another region; same-VPC
   traffic remains private-only. Self-hosted defaults stay off.
@@ -48,6 +67,15 @@ This node covers Helm assets under `infra/helm/`.
   Machine's `egressBudgetMbps` from its reviewed OnDelete fleet template).
   Staging has standing write access; canary/production require human elevation.
 - Kura archival defaults to hourly sweeps with a 24-hour never-used Air window. Canary inherits the hourly default; staging keeps its five-minute sweep override for lifecycle drills.
+- Production's `node.cluster.x-k8s.io/pool: processor` nodes are untainted and have no memory beyond what the processor's rollout surge needs. Pin other production workloads, in any chart, to `node.cluster.x-k8s.io/pool: general` with a `nodeSelector`. A workload left unpinned can land there and deadlock the processor rollout, and helm then rolls back the whole release. The general pool's limit is CPU requests, not memory: keep one node with room for the server's 1-CPU surge pod, and resize `md-0` in `k8s/clusters/workloads/production/cluster.yaml` rather than squeezing that out.
+- Deploys wait on the tuist, k8s-monitoring and platform releases (Helm 4's
+  kstatus wait: a DaemonSet is ready only when every pod it wants is). Nothing
+  in them may run a pod on a rack node, which can be dark for days: rack-node
+  workloads go in `rack-nodes` or `rack-cache-gateways`, installed with
+  `--wait=hookOnly` from the tuist and platform charts' values. Run
+  `mise -C infra run helm:rack-independence` after adding a DaemonSet or
+  tolerations; the Helm workflow runs it too. See "Deploys and the rack's
+  health" in `../rack-nodes/AGENTS.md`.
 - Prefer one umbrella chart that models deployable capabilities, not implementation brands.
 - When a workload needs an independent workflow and release cadence, give it its own chart
   rather than adding it to `helm/tuist/`.
@@ -62,6 +90,9 @@ This node covers Helm assets under `infra/helm/`.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
   browser LCP p99 also requires distinct affected sessions, not just total samples.
+  ClickHouse read-failure and latency rules aggregate Cloud and shadow physical
+  repos; expanding telemetry coverage can surface previously invisible failures
+  without any threshold change.
 - `k8s-monitoring/kura-availability-alert-rules.json` reflects the enabled rule,
   provisioned separately from Helm. Its zero-ready-replica expression and routing
   are exercised by `test-kura-availability-alert.sh` using Bash, jq, promtool and amtool.
@@ -77,6 +108,7 @@ This node covers Helm assets under `infra/helm/`.
 - Kura metrics use `instance=<namespace>/<pod>` at the metrics destination so
   pod IP changes do not multiply series. Preserve the cluster label and the
   unready scrape's `ready="false"` label when changing either scrape path.
+- Preserve the dotted REAPI binary metadata header through Kura ingress: the shared regional/runner config and dedicated gRPC activation controller require `ignore-invalid-headers: "false"`. Leave the main web ingress unchanged. `infra/kura-controller/controllers/reapi_metadata_ingress_test.go` checks environment overlays and, with `TUIST_TEST_NGINX`, real HTTP/2 `grpc_pass` forwarding. Successful artifact transfers without attribution do not establish analytics delivery; verify fresh signed events by project/invocation after the normal platform rollout. Previously skipped events cannot be reconstructed from client observations.
 - Managed Kura analytics are enabled by `kuraController.analytics.enabled`.
   `tuist/templates/kura-analytics-external-secret.yaml` sends the server's
   internal address and existing webhook signing key to the shared runtime
@@ -84,6 +116,10 @@ This node covers Helm assets under `infra/helm/`.
   Receiving Bazel build events alone does not enable analytics delivery.
 
 ## Related Context
+- Experimental Kura serving-authority flag defaults off. The additive CRD,
+  per-instance ConfigMap-read role, sticky runtime/controller rollback floor and
+  quarantined-volume reaper exclusion belong together; see
+  [`../kura-controller/serving-authority.md`](../kura-controller/serving-authority.md).
 - Parent infra context: `infra/AGENTS.md`
 - Noora Storybook chart: `infra/helm/noora-storybook/AGENTS.md`
 - Slack chart: `infra/helm/slack/AGENTS.md`
@@ -126,6 +162,11 @@ This node covers Helm assets under `infra/helm/`.
   Canary and production enable them fleet-wide after the platform-index
   enablement migration. Self-hosting and staging stay off by default; staging's
   40 GiB cache quota cannot fit the built-in reservation and custom admission floor.
+  Production M4 replacement hosts have a 512 GiB shared cache quota; M2 stays
+  at 80 GiB. Existing APFS quotas are immutable under bootstrap and the fleet
+  uses OnDelete: deploy the host free-space guard before replacing drained M4s.
 - Cache-volume agents expose phase/source/result telemetry on a separate port
   9091. Allow scraping only from `observability`, retain the series in staging,
   and keep runner acquisition on 8090 under its existing pod selector.
+
+- `tuist.kuraActivation` is a disabled-by-default, stateless wildcard fallback. Enable exactly one global owner; the matching platform `cacheDNS.activationIngressClass` opt-in reads `nginx-grpc` ingress status for Route53 wildcard DNS. Both activation protocols must use the same dedicated ingress/load balancer; main nginx sends an HTTP/2-forbidden Connection header. Both remain off in every checked-in environment. Regional latency records and their withdrawal barriers stay controller-owned. See `../kura-controller/activation.md` before rollout.

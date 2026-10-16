@@ -338,16 +338,19 @@
       }
     }
 
-    /* The two supporting figures: equal cells, a hairline between. */
+    /* The two supporting figures, a hairline between. The byte total is
+       a long figure (fifteen digits with separators and the unit) and keeps
+       the figure size, so its cell takes the width the figure needs and
+       the region count has the rest. */
     & > [data-part="panel"] > [data-part="stats"] {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: max-content minmax(0, 1fr);
       gap: var(--seam);
       border: 0;
       background: transparent;
 
       @media (max-width: 600px) {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
 
       & > [data-part="stat"] {
@@ -356,7 +359,6 @@
         justify-content: center;
         gap: calc(16 * var(--u));
         box-sizing: border-box;
-        container-type: inline-size;
         background: var(--noora-surface-background-primary);
         padding: calc(24 * var(--u)) calc(16 * var(--u));
         min-width: 0;
@@ -367,11 +369,6 @@
           font-variation-settings: var(--font-figure-shape);
           text-shadow: var(--figure-glow);
           white-space: nowrap;
-
-          &#globe-bytes {
-            --count-length: 1;
-            font-size: min(calc(48 * var(--u)), calc(100cqw / var(--count-length)));
-          }
         }
 
         & > [data-part="label"] {
@@ -549,15 +546,16 @@
       min-width: 0;
     }
 
+    /* The legend stacks the same two lines as a region cell (the label
+       line, the gap, the figure line) so REGION sits level with the names
+       and REQUESTS level with the counts. */
     & > [data-part="legend"] {
-      justify-content: space-between;
       color: var(--noora-surface-label-secondary);
       font: var(--font-eyebrow);
       text-transform: uppercase;
 
       @media (max-width: 1023px) {
         grid-column: 1 / -1;
-        justify-content: center;
         gap: calc(8 * var(--u));
       }
 
@@ -566,6 +564,11 @@
         flex-wrap: wrap;
         align-items: center;
         gap: calc(8 * var(--u));
+        min-height: calc(62 * var(--u));
+
+        @media (max-width: 1023px) {
+          min-height: 0;
+        }
 
         & > [data-part="separator"] {
           font: var(--noora-font-weight-medium) calc(20 * var(--u)) / calc(24 * var(--u)) var(--noora-font-body);

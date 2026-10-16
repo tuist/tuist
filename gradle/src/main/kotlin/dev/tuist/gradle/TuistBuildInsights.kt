@@ -154,6 +154,7 @@ abstract class TuistBuildInsightsService :
         val gitRemoteUrlOrigin: Property<String>
         val requestedTasks: ListProperty<String>
         val backgroundUpload: Property<Boolean>
+        val actorId: Property<String>
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
@@ -182,6 +183,14 @@ abstract class TuistBuildInsightsService :
     override fun finished(buildOperation: BuildOperationDescriptor, finishEvent: OperationFinishEvent) {
         try {
             executionTelemetry.finished(buildOperation, finishEvent)
+        } catch (error: LinkageError) {
+            executionTelemetry.cacheSavings.markIncomplete()
+            logger.debug("Tuist: Task telemetry is unavailable on this Gradle version", error)
+        } catch (error: Exception) {
+            executionTelemetry.cacheSavings.markIncomplete()
+            logger.debug("Tuist: Could not capture task telemetry", error)
+        }
+        try {
             recordConfigurationOperation(buildOperation.details, finishEvent)
             recordConfigurationCacheMetadata(finishEvent.result, finishEvent)
             recordArtifactTransform(buildOperation.details, finishEvent)
@@ -336,7 +345,7 @@ abstract class TuistBuildInsightsService :
         val report = buildReport(
             id = buildId,
             taskOutcomes = tasks,
-            buildFailed = false,
+            buildFailed = executionTelemetry.failures.buildFailed,
             totalDurationMs = totalDurationMs,
             startedAt = formatTimestamp(reportStartedAt),
             gradleVersion = parameters.gradleVersion.orNull,
@@ -344,10 +353,10 @@ abstract class TuistBuildInsightsService :
             requestedTasks = executionTelemetry.requestedTasks.ifEmpty { parameters.requestedTasks.getOrElse(emptyList()) }.toList(),
             ciDetector = ciDetector,
             gitInfoProvider = reportGitInfoProvider(),
-            customMetadata = buildCustomMetadata(
+            customMetadata = executionTelemetry.cacheSavings.metadata(executionTelemetry.failures.metadata(buildCustomMetadata(
                 configuredTags = parameters.customTags.get(),
                 configuredValues = parameters.customValues.get()
-            ),
+            ))),
             machineMetrics = machineMetrics,
             configurationCache = configurationCacheReport(),
             configurationOperations = configuration,
@@ -365,6 +374,9 @@ abstract class TuistBuildInsightsService :
                 connection.requestMethod = "POST"
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/json")
+                ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
+                    connection.setRequestProperty(ActorIdentifier.HEADER, it)
+                }
 
                 OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
                     Gson().toJson(report, writer)
@@ -512,6 +524,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.gitRemoteUrlOrigin.set(gitInfo.remoteUrlOrigin())
             parameters.requestedTasks.set(project.gradle.startParameter.taskRequests.flatMap { it.args })
             parameters.backgroundUpload.set(config.uploadInBackground ?: !EnvironmentCIDetector().isCi())
+            config.actorId?.let { parameters.actorId.set(it) }
         }
 
         // A provider can have only one subscription. An operation-only service also

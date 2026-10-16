@@ -175,6 +175,11 @@ defmodule Tuist.Builds.BuildTest do
       )
     end
 
+    test "virtual failure categories never enter the ingestion map" do
+      buffer_map = Build.to_buffer_map(build_with(failure_category: "verification"))
+      refute Map.has_key?(buffer_map, :failure_category)
+    end
+
     test "versions a first write with its own inserted_at" do
       inserted_at = ~N[2023-10-01 12:00:00.000000]
 

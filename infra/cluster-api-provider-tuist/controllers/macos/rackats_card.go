@@ -60,6 +60,10 @@ type atsObservation struct {
 	Preferred       int32
 	PreferredDetail string
 	Inputs          []infrav1.RackATSInput
+	// Outputs are the switch's outputs, and OutputsUnread why they could not
+	// be read.
+	Outputs       []infrav1.RackATSOutput
+	OutputsUnread string
 }
 
 // atsCardError is a card failure with the condition reason it is reported
@@ -219,8 +223,16 @@ func (c *eatonATSCard) Observe(ctx context.Context) (atsObservation, error) {
 		if in.Frequency != nil {
 			input.Frequency = strconv.FormatFloat(*in.Frequency, 'f', -1, 64)
 		}
+		input.Current = eatonMeasure(in.Current)
 		obs.Inputs = append(obs.Inputs, input)
 	}
+	for _, out := range state.Outputs {
+		obs.Outputs = append(obs.Outputs, infrav1.RackATSOutput{
+			Output: int32(out.Number), Current: eatonMeasure(out.Current), Voltage: eatonMeasure(out.Voltage),
+			ActivePower: eatonMeasure(out.ActivePower), ApparentPower: eatonMeasure(out.ApparentPower), Detail: out.Detail(),
+		})
+	}
+	obs.OutputsUnread = state.OutputsUnread
 	return obs, nil
 }
 
@@ -240,4 +252,13 @@ func eatonPreferredUnrecognised(state power.EatonATS) string {
 	}
 	return fmt.Sprintf("the card's settings carry no preferred source the controller recognises; they have %s",
 		strings.Join(state.SettingsKeys(), ", "))
+}
+
+// eatonMeasure is a measure as status carries it, "" when the card did not
+// report it as a number.
+func eatonMeasure(v *float64) string {
+	if v == nil {
+		return ""
+	}
+	return strconv.FormatFloat(*v, 'f', -1, 64)
 }

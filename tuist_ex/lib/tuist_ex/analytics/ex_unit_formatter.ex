@@ -22,6 +22,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   use GenServer
 
   alias TuistEx.Analytics.Contract
+  alias TuistEx.Analytics.Coverage
   alias TuistEx.Analytics.Env
   alias TuistEx.Analytics.HTTP
   alias TuistEx.Analytics.Isolated
@@ -33,6 +34,10 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   def init(opts) do
     merged =
       run_options(Keyword.new(opts), Application.get_env(:tuist_ex, :analytics_options, []))
+
+    # ExUnit starts its formatters once the test helper has run and before
+    # any test does, which is when a run of an instrumented build gets ready.
+    if Keyword.get(merged, :coverage_native, false), do: prepare_native(merged)
 
     {:ok,
      %{
@@ -88,7 +93,11 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
           File.write!(path, :erlang.term_to_binary(read_collected(path) ++ tests))
 
         {:defer, owner} ->
-          payload = build_payload(tests, duration_ms, state.ran_at, state.opts)
+          payload =
+            tests
+            |> build_payload(duration_ms, state.ran_at, state.opts)
+            |> put_coverage_snapshot(state.opts)
+
           send(owner, {@deferred, {payload, state.opts, state.aborted?}})
 
         :submit ->
@@ -105,6 +114,28 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   end
 
   def handle_cast(_message, state), do: {:noreply, state}
+
+  defp prepare_native(opts) do
+    Coverage.prepare_native()
+  rescue
+    exception ->
+      Keyword.get(opts, :shell, &Report.debug/1).(
+        "tuist analytics: could not ready native coverage: #{Exception.message(exception)}"
+      )
+  end
+
+  # Every test has run by now, and `cover` still holds this suite's counters:
+  # Mix turns them into its own report, and an umbrella restarts `cover` for
+  # its next application, only after the formatters are done. The owner turns
+  # the snapshot into the run's coverage before sending it.
+  defp put_coverage_snapshot(payload, opts) do
+    with true <- Keyword.get(opts, :coverage, false),
+         snapshot when is_list(snapshot) <- Coverage.snapshot() do
+      Map.put(payload, :coverage_snapshot, snapshot)
+    else
+      _ -> payload
+    end
+  end
 
   @doc """
   Sends a test run. A failure is reported through the shell and never raised.
@@ -264,7 +295,8 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       status: status(test.state),
       duration_ms: microseconds_to_milliseconds(test.time),
       failures: failures(test.state, test.tags[:file]),
-      is_quarantined: test.tags[:quarantined] == true
+      is_quarantined: test.tags[:quarantined] == true,
+      async: test.tags[:async]
     }
   end
 
@@ -415,10 +447,18 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       name: module_name,
       status: status_of(tests),
       duration: Enum.reduce(tests, 0, &(&1.duration_ms + &2)),
+      execution_mode: execution_mode(tests),
       test_suites: suites,
       test_cases: cases
     }
+    |> Map.reject(fn {_, v} -> is_nil(v) end)
   end
+
+  # ExUnit runs `async: true` modules alongside each other and the others one
+  # at a time, which is what shard planning needs to know to price a module.
+  defp execution_mode([%{async: true} | _]), do: "parallel"
+  defp execution_mode([%{async: false} | _]), do: "serial"
+  defp execution_mode(_tests), do: nil
 
   defp build_suites(tests) do
     tests

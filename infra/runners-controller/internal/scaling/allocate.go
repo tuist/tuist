@@ -70,7 +70,8 @@ type PoolDemand struct {
 // shapes' warm pools shrink toward their real load, so a returning spike
 // on a squeezed shape pays cold-start. A job queued now beats a warm Pod
 // for a job that might arrive. The per-pool scale-down cooldown damps the
-// reap so it doesn't thrash.
+// reap so it doesn't thrash, except while a sibling's queued Pods are
+// refused for capacity (see controllers/preemption.go).
 //
 // Each tier is granted in full when it fits; otherwise it is split
 // proportionally to requested cost and all lower tiers get nothing.

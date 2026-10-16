@@ -6,6 +6,8 @@ package rackinstall
 
 import (
 	"fmt"
+	"net"
+	"path"
 	"regexp"
 	"strings"
 	"time"
@@ -33,6 +35,25 @@ type Seed struct {
 	// seed baked into a per-host stick has none, and the host generates its
 	// own.
 	HostKey HostKey
+	// Edge, for an edge, is its way out on the first boot. Unset, an edge
+	// takes DHCP on its uplinks like every other role.
+	Edge *EdgeNetwork
+}
+
+// EdgeNetwork is an edge's end of the site's VRRP VLAN, built the way the
+// rack-edge pod builds it (edge_vlan_bond in
+// infra/rack-switch-fleet/lib/edge.sh): an active-backup bond, vrrp0, over
+// one VLAN interface per uplink, vrrp0-<n> on the n-th, with the edge's VRRP
+// address and a default route through the other edge at the metric the pod
+// uses. The pod finds them in place and leaves them be.
+type EdgeNetwork struct {
+	// Uplinks are the OS names of the edge's data links, in the site's order.
+	Uplinks []string
+	VLAN    int
+	// Address is the edge's VRRP address with the prefix length, and Peer
+	// the other edge's, which the master translates onto the WAN.
+	Address string
+	Peer    string
 }
 
 // ModprobePath holds ModprobeConf, which keeps the MS-01's Bluetooth driver
@@ -44,6 +65,29 @@ const (
 	ModprobeConf = "blacklist btusb\n"
 )
 
+// EdgeResolvedPath holds EdgeResolvedConf, an edge's global resolvers: its
+// uplinks carry no address, so systemd-resolved learns no resolver from them.
+// The install writes it for an edge with an EdgeNetwork, and the operator's
+// converge keeps it on every edge.
+const (
+	EdgeResolvedPath = "/etc/systemd/resolved.conf.d/10-tuist-edge.conf"
+	EdgeResolvedConf = "[Resolve]\nDNS=1.1.1.1 8.8.8.8\n"
+)
+
+const (
+	// EdgeVRRPBond is the bond the edges' VRRP VLAN rides.
+	EdgeVRRPBond = "vrrp0"
+	// EdgeVRRPMetric is the metric of an edge's default route through the
+	// other edge, which keepalived's default route on the master beats.
+	EdgeVRRPMetric = 200
+)
+
+// EdgeUplinkMember is the VLAN interface of an edge bond on its n-th uplink
+// (from 1), as the rack-edge pod names it.
+func EdgeUplinkMember(bond string, n int) string {
+	return fmt.Sprintf("%s-%d", bond, n)
+}
+
 var (
 	hostPattern         = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 	keyIDPattern        = regexp.MustCompile(`^[A-Za-z0-9]+$`)
@@ -51,7 +95,33 @@ var (
 	tailnetKeyPattern   = regexp.MustCompile(`^tskey-auth-[A-Za-z0-9-]+$`)
 	tagPattern          = regexp.MustCompile(`^tag:[a-z0-9-]+$`)
 	authorizedKeyPrefix = regexp.MustCompile(`^(ssh-|ecdsa-|sk-ssh-|sk-ecdsa-)`)
+	interfacePattern    = regexp.MustCompile(`^[a-z][a-z0-9]{0,14}$`)
 )
+
+func (e EdgeNetwork) validate() error {
+	if len(e.Uplinks) == 0 || len(e.Uplinks) > 2 {
+		return fmt.Errorf("an edge has one or two uplinks, not %d", len(e.Uplinks))
+	}
+	seen := map[string]bool{}
+	for _, uplink := range e.Uplinks {
+		if !interfacePattern.MatchString(uplink) || seen[uplink] {
+			return fmt.Errorf("uplink %q is not an interface name, or is named twice", uplink)
+		}
+		seen[uplink] = true
+	}
+	if e.VLAN < 1 || e.VLAN > 4094 {
+		return fmt.Errorf("VLAN %d is not a VLAN ID", e.VLAN)
+	}
+	address, prefix, err := net.ParseCIDR(e.Address)
+	if err != nil || address.To4() == nil {
+		return fmt.Errorf("the VRRP address %q is not an IPv4 address with its prefix length", e.Address)
+	}
+	peer := net.ParseIP(e.Peer)
+	if peer.To4() == nil || !prefix.Contains(peer) || peer.Equal(address) {
+		return fmt.Errorf("the peer %q is not another address in %s", e.Peer, prefix)
+	}
+	return nil
+}
 
 func (s Seed) validate() error {
 	switch s.Role {
@@ -84,6 +154,14 @@ func (s Seed) validate() error {
 			return err
 		}
 	}
+	if s.Edge != nil {
+		if s.Role != "edge" {
+			return fmt.Errorf("%s is a %s host, not an edge, and has no edge network", s.Host, s.Role)
+		}
+		if err := s.Edge.validate(); err != nil {
+			return fmt.Errorf("%s: %w", s.Host, err)
+		}
+	}
 	if len(s.AuthorizedKeys) == 0 {
 		return fmt.Errorf("no authorized keys for %s", s.Host)
 	}
@@ -97,11 +175,10 @@ func (s Seed) validate() error {
 
 // UserData renders the autoinstall seed's user-data.
 //
-// It installs Ubuntu with the role's disk layout (storageLayout) and DHCP on the SFP+ uplinks only
-// (the MS-01's X710, driver i40e), so the 2.5G ports stay unmanaged for the
-// node's pods. The installer creates the console account with a locked
-// password, and cloud-init sets the password on the first boot, so the
-// installed system hashes it. A first-boot unit joins the tailnet with the
+// It installs Ubuntu with the role's disk layout (storageLayout) and network
+// configuration for the SFP+ uplinks only (networkConfig). The installer
+// creates the console account with a locked password, and cloud-init sets the
+// password on the first boot, so the installed system hashes it. A first-boot unit joins the tailnet with the
 // single-use key and deletes it. Early-commands look for an install carrying this key's ID and,
 // finding one, boot it through BootNext rather than installing again: the
 // MS-01s boot USB first, and a PXE boot can precede the disk too.
@@ -142,14 +219,7 @@ autoinstall:
     install-server: true
     allow-pw: false
     authorized-keys:
-%[4]s%[14]s  network:
-    version: 2
-    ethernets:
-      uplinks:
-        match:
-          driver: i40e
-        dhcp4: true
-  packages:
+%[4]s%[14]s%[16]s  packages:
     - curl
     - ca-certificates
     - jq
@@ -216,10 +286,66 @@ autoinstall:
       mkdir -p /target/etc/modprobe.d
       cat > /target%[11]s <<'TUIST_EOF'
 %[12]s      TUIST_EOF
-%[13]s%[15]s`, s.Host, s.User, s.ConsolePassword, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
+%[13]s%[15]s%[17]s`, s.Host, s.User, s.ConsolePassword, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
 		indent(handover(fmt.Sprintf("grep -qx 'tailnet_key=%s' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null", s.TailnetKeyID),
 			"this installer already installed "+s.Host), "      "),
-		ModprobePath, indent(ModprobeConf, "      "), hostKey, storageLayout(s.Role), dataMounts(s.Role)), nil
+		ModprobePath, indent(ModprobeConf, "      "), hostKey, storageLayout(s.Role), dataMounts(s.Role),
+		networkConfig(s.Edge), edgeResolvers(s.Edge)), nil
+}
+
+// networkConfig is the install's netplan, which configures the SFP+ uplinks
+// (the MS-01's X710, driver i40e) and nothing else, so the 2.5G ports stay
+// unmanaged for the node's pods.
+//
+// With no edge network that is DHCP on the uplinks. An edge's uplinks carry
+// no address: it goes out over the site's VRRP VLAN through the other edge,
+// which needs neither DHCP on the management VLAN nor its own rack-edge pod.
+// Only vrrp0 is required for network-online.target.
+func networkConfig(e *EdgeNetwork) string {
+	if e == nil {
+		return `  network:
+    version: 2
+    ethernets:
+      uplinks:
+        match:
+          driver: i40e
+        dhcp4: true
+`
+	}
+	const quiet = "        link-local: []\n        accept-ra: false\n"
+	var ethernets, vlans, members strings.Builder
+	for i, uplink := range e.Uplinks {
+		id, member := fmt.Sprintf("uplink-%d", i+1), EdgeUplinkMember(EdgeVRRPBond, i+1)
+		fmt.Fprintf(&ethernets, "      %s:\n        match:\n          name: %s\n        dhcp4: false\n%s        optional: true\n", id, uplink, quiet)
+		fmt.Fprintf(&vlans, "      %s:\n        id: %d\n        link: %s\n%s        optional: true\n", member, e.VLAN, id, quiet)
+		fmt.Fprintf(&members, "          - %s\n", member)
+	}
+	return fmt.Sprintf(`  network:
+    version: 2
+    ethernets:
+%s    vlans:
+%s    bonds:
+      %s:
+        interfaces:
+%s        parameters:
+          mode: active-backup
+          mii-monitor-interval: 100
+%s        addresses:
+          - %s
+        routes:
+          - to: default
+            via: %s
+            metric: %d
+`, ethernets.String(), vlans.String(), EdgeVRRPBond, members.String(), quiet, e.Address, e.Peer, EdgeVRRPMetric)
+}
+
+// edgeResolvers writes an edge's global resolvers, the converge's file.
+func edgeResolvers(e *EdgeNetwork) string {
+	if e == nil {
+		return ""
+	}
+	return fmt.Sprintf("    - |\n      mkdir -p /target%s\n      cat > /target%s <<'TUIST_EOF'\n%s      TUIST_EOF\n",
+		path.Dir(EdgeResolvedPath), EdgeResolvedPath, indent(EdgeResolvedConf, "      "))
 }
 
 // handover boots the rack install on this machine's disks that match selects

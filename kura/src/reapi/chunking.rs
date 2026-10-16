@@ -269,15 +269,22 @@ pub async fn fetch_chunk_manifests(
     state: &SharedState,
     namespace_id: &str,
     recipe: &ChunkedBlobRecipe,
+    refresh: bool,
 ) -> Result<Option<Vec<ArtifactManifest>>, String> {
     let mut manifests = Vec::with_capacity(recipe.chunks().len());
     for digest in recipe.chunks() {
         let key = blob_key(&format!("{}/{}", digest.hash, digest.size_bytes));
-        let Some(manifest) = state
-            .store
-            .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, &key)
-            .await?
-        else {
+        let lookup = if refresh {
+            state
+                .store
+                .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, &key)
+                .await?
+        } else {
+            state
+                .store
+                .manifest_for_key(ArtifactProducer::Reapi, namespace_id, &key)?
+        };
+        let Some(manifest) = lookup else {
             return Ok(None);
         };
         manifests.push(manifest);

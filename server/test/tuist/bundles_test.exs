@@ -908,6 +908,20 @@ defmodule Tuist.BundlesTest do
   end
 
   describe "bundle_download_size_analytics/2" do
+    test "uses the latest bundle even when its download size is missing" do
+      project = ProjectsFixtures.project_fixture()
+      BundlesFixtures.bundle_fixture(project: project, download_size: 900, inserted_at: ~U[2024-08-09 00:00:00Z])
+      BundlesFixtures.bundle_fixture(project: project, download_size: nil, inserted_at: ~U[2024-08-09 01:00:00Z])
+
+      points =
+        Bundles.bundle_download_size_analytics(project,
+          start_datetime: ~U[2024-08-08 00:00:00Z],
+          end_datetime: ~U[2024-08-10 00:00:00Z]
+        )
+
+      assert Enum.find(points, &(&1.date == ~D[2024-08-09])).bundle_download_size == 0
+    end
+
     test "returns bundle download size analytics for the last three days" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
@@ -1306,6 +1320,50 @@ defmodule Tuist.BundlesTest do
     end
   end
 
+  describe "project_app_bundle_options/1" do
+    test "returns narrow options with the latest supported platforms" do
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        supported_platforms: [:macos],
+        inserted_at: ~U[2024-08-01 00:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        supported_platforms: [:ios],
+        inserted_at: ~U[2024-08-02 00:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "Other",
+        supported_platforms: [:tvos],
+        inserted_at: ~U[2024-08-03 00:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(project: project, name: "Expired", inserted_at: ~U[2020-01-01 00:00:00Z])
+
+      assert Bundles.project_app_bundle_options(project) == [
+               %{name: "Other", supported_platforms: [:tvos]},
+               %{name: "App", supported_platforms: [:ios]}
+             ]
+    end
+
+    test "bounds the options to fifty names" do
+      project = ProjectsFixtures.project_fixture()
+
+      for index <- 1..51 do
+        BundlesFixtures.bundle_fixture(project: project, name: "App#{index}")
+      end
+
+      assert length(Bundles.project_app_bundle_options(project)) == 50
+    end
+  end
+
   describe "has_bundles_in_project_default_branch?/1" do
     test "returns true when there are bundles in the project's default branch" do
       # Given
@@ -1605,6 +1663,45 @@ defmodule Tuist.BundlesTest do
       assert Bundles.evaluate_project_thresholds(project, %{bundle | name: "Other"}) == :ok
     end
 
+    test "compares against the latest baseline of the same bundle type and platforms" do
+      project = ProjectsFixtures.project_fixture()
+      threshold = BundlesFixtures.bundle_threshold_fixture(project: project, deviation_bytes: 1)
+
+      for {type, platforms, install_size, inserted_at} <- [
+            {:app, [:ios_simulator], 1000, ~U[2024-01-01 00:00:00Z]},
+            {:ipa, [:ios], 10, ~U[2024-01-02 00:00:00Z]},
+            {:app, [:ios], 10, ~U[2024-01-03 00:00:00Z]}
+          ] do
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          type: type,
+          supported_platforms: platforms,
+          install_size: install_size,
+          git_branch: "main",
+          inserted_at: inserted_at
+        )
+      end
+
+      simulator_app =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          type: :app,
+          supported_platforms: [:ios_simulator],
+          install_size: 1000,
+          git_branch: "feature"
+        )
+
+      assert Bundles.evaluate_project_thresholds(project, simulator_app) == :ok
+
+      assert {:violated, ^threshold, %{baseline_size: 10}} =
+               Bundles.evaluate_project_thresholds(project, %{simulator_app | type: :ipa, supported_platforms: [:ios]})
+
+      assert {:violated, ^threshold, %{baseline_size: 10}} =
+               Bundles.evaluate_project_thresholds(project, %{simulator_app | supported_platforms: [:ios]})
+
+      assert Bundles.evaluate_project_thresholds(project, %{simulator_app | type: :xcarchive}) == :ok
+    end
+
     test "absolute download limits skip missing sizes" do
       project = ProjectsFixtures.project_fixture()
       BundlesFixtures.bundle_threshold_fixture(project: project, metric: :download_size, deviation_bytes: 1)
@@ -1830,6 +1927,45 @@ defmodule Tuist.BundlesTest do
       assert approver.github_handle == "ramonarguello"
       assert approver.github_id == "583231"
       assert Bundles.list_bundle_size_approvers(project) == [approver]
+    end
+
+    test "accepts an Enterprise Managed User username, which ends in an underscore and the enterprise shortcode" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      expect(VCS, :get_user_by_username, fn %{username: username} ->
+        assert username == "jane-doe-ext_acme"
+        {:ok, %VCS.User{id: "9123456", username: "jane-doe-ext_acme"}}
+      end)
+
+      # When
+      {:ok, approver} = Bundles.add_bundle_size_approver(project, "Jane-Doe-ext_acme")
+
+      # Then
+      assert approver.github_handle == "jane-doe-ext_acme"
+      assert approver.github_id == "9123456"
+    end
+
+    test "rejects underscores outside an Enterprise Managed User suffix without asking GitHub" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      reject(&VCS.get_user_by_username/1)
+
+      # When / Then
+      assert {:error, :invalid_github_handle} == Bundles.add_bundle_size_approver(project, "jane_doe_acme")
+      assert {:error, :invalid_github_handle} == Bundles.add_bundle_size_approver(project, "jane-_acme")
+      assert {:error, :invalid_github_handle} == Bundles.add_bundle_size_approver(project, "_acme")
+      assert {:error, :invalid_github_handle} == Bundles.add_bundle_size_approver(project, "jane_")
+    end
+
+    test "counts the Enterprise Managed User suffix toward GitHub's 39 character limit" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      reject(&VCS.get_user_by_username/1)
+      handle = String.duplicate("a", 35) <> "_acme"
+
+      # When / Then
+      assert {:error, :invalid_github_handle} == Bundles.add_bundle_size_approver(project, handle)
     end
 
     test "rejects a username GitHub does not know" do

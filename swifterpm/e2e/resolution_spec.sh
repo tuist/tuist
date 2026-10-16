@@ -29,6 +29,7 @@ prepare_isolated_state() {
     "${tmp}/xdg-cache" \
     "${tmp}/xdg-config" \
     "${tmp}/xdg-data"
+  write_isolated_swift_wrapper "${tmp}"
 }
 
 scoped_env() {
@@ -37,6 +38,7 @@ scoped_env() {
 
   env \
     HOME="${tmp}/home" \
+    PATH="${tmp}/bin:${PATH}" \
     USERPROFILE="${tmp}/home" \
     TMPDIR="${tmp}/tmp" \
     XDG_CACHE_HOME="${tmp}/xdg-cache" \
@@ -150,15 +152,24 @@ write_registry_package_archive() {
   local package_root
   package_root="$(copy_swifterpm_fixture "RegistryFoo" "${tmp}")" || return 1
 
+  # SwiftPM records the archive checksum as a trust-on-first-use fingerprint
+  # under the real home directory, ignoring $HOME, so the archive must be
+  # byte-identical across runs.
   mkdir -p "${registry_dir}"
   (
     cd "${package_root}"
-    zip -qry "${registry_dir}/registryfoo.zip" .
+    TZ=UTC find . -exec touch -h -t 200001010000 {} +
+    find . -type f | LC_ALL=C sort | TZ=UTC zip -qX -@ "${registry_dir}/registryfoo.zip"
   )
+  file_sha256 "${registry_dir}/registryfoo.zip" >"${registry_dir}/checksum.txt"
+}
+
+file_sha256() {
+  local path="$1"
   if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "${registry_dir}/registryfoo.zip" | awk '{print $1}' >"${registry_dir}/checksum.txt"
+    sha256sum "${path}" | awk '{print $1}'
   else
-    shasum -a 256 "${registry_dir}/registryfoo.zip" | awk '{print $1}' >"${registry_dir}/checksum.txt"
+    shasum -a 256 "${path}" | awk '{print $1}'
   fi
 }
 
@@ -408,27 +419,31 @@ swiftpm_accepts_lockfile() {
     resolve >/dev/null 2>&1
 }
 
+# SwiftPM writes the version 1 Package.resolved format (`object.pins`,
+# `repositoryURL`) for packages below tools version 5.6, so the pin helpers
+# read through `normalize_package_resolved_file` instead of the raw file.
 pin_count() {
   local package_dir="$1"
   if [[ ! -f "${package_dir}/Package.resolved" ]]; then
     echo "0"
     return
   fi
-  jq '.pins | length' "${package_dir}/Package.resolved"
+  normalize_package_resolved_file "${package_dir}/Package.resolved" | jq '.pins | length'
 }
 
 pin_state_value() {
   local package_dir="$1"
   local identity="$2"
   local field="$3"
-  jq -r --arg identity "${identity}" --arg field "${field}" \
-    '.pins[] | select(.identity == $identity) | .state[$field] // ""' \
-    "${package_dir}/Package.resolved"
+  normalize_package_resolved_file "${package_dir}/Package.resolved" |
+    jq -r --arg identity "${identity}" --arg field "${field}" \
+      '.pins[] | select(.identity == $identity) | .state[$field] // ""'
 }
 
 resolved_identities() {
   local package_dir="$1"
-  jq -r '.pins[].identity' "${package_dir}/Package.resolved" | sort | tr '\n' ' ' | sed 's/ $//'
+  normalize_package_resolved_file "${package_dir}/Package.resolved" |
+    jq -r '.pins[].identity' | sort | tr '\n' ' ' | sed 's/ $//'
 }
 
 not_darwin() {
@@ -788,6 +803,7 @@ scenario_resolves_pocket_casts_ios() {
 scenario_resolves_locked_swifterpm_fixture() {
   local fixture="$1"
   local expected_pins="$2"
+  shift 2
   local tmp
   tmp="$(mktemp -d)"
   trap 'rm -rf "${tmp}"' RETURN
@@ -795,6 +811,12 @@ scenario_resolves_locked_swifterpm_fixture() {
 
   local package_dir
   package_dir="$(copy_swifterpm_fixture "${fixture}" "${tmp}")" || return 1
+
+  # Remaining arguments name local packages the fixture references as siblings.
+  local sibling
+  for sibling in "$@"; do
+    copy_swifterpm_fixture "${sibling}" "${tmp}" >/dev/null || return 1
+  done
 
   local expected_resolved="${tmp}/Package.expected.resolved"
   cp "${package_dir}/Package.resolved" "${expected_resolved}"
@@ -1137,11 +1159,50 @@ scenario_replace_scm_with_registry_uses_registry() {
   test -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
   test ! -e "${package_dir}/.build/checkouts/RegistryFoo" || return 1
 
+  # The first resolve has no lockfile, so native SwiftPM downloads the release
+  # and SwifterPM seeds its extracted source into the shared cache, tagged with
+  # the checksum the registry declares. No archive is kept on that path.
+  local checksum
+  checksum="$(cat "${registry_dir}/checksum.txt")"
+  local marker
+  marker="$(find "${tmp}/cache/sources/example.registryfoo" -type f -name '.swifterpm-registry-checksum' -print | head -n 1)"
+  test -n "${marker}" || return 1
+  test "$(cat "${marker}")" = "${checksum}" || return 1
+
+  # A seeded entry whose checksum no longer matches the registry is stale, so
+  # the restore downloads the release itself and keeps the archive.
+  printf 'stale checksum' >"${marker}"
+  rm -rf "${package_dir}/.build/registry"
+  restore_registry_package "${tmp}" "${package_dir}" "${registry_url}" || return 1
+  test -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
+  test "$(cat "${marker}")" = "${checksum}" || return 1
+
   local archive
   archive="$(find "${tmp}/cache/registry/archives" -type f -name '*.zip' -print | head -n 1)"
   test -n "${archive}" || return 1
+
+  # A kept archive that fails checksum validation is downloaded again.
   printf 'corrupt archive' >"${archive}"
-  rm -rf "${tmp}/cache/sources/example.registryfoo" "${package_dir}/.build/registry"
+  printf 'stale checksum' >"${marker}"
+  rm -rf "${package_dir}/.build/registry"
+  restore_registry_package "${tmp}" "${package_dir}" "${registry_url}" || return 1
+  test -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
+  test "$(file_sha256 "${archive}")" = "${checksum}" || return 1
+
+  stop_registry_server
+  echo "identity=${identity}"
+  echo "kind=${kind}"
+  echo "registry-download=present"
+  echo "checkout=absent"
+  echo "registry-cache=seeded"
+  echo "stale-cache-redownload=ok"
+  echo "corrupt-archive-redownload=ok"
+}
+
+restore_registry_package() {
+  local tmp="$1"
+  local package_dir="$2"
+  local registry_url="$3"
 
   scoped_env "${tmp}" "${SWIFTERPM_BIN}" \
     --package-path "${package_dir}" \
@@ -1151,15 +1212,6 @@ scenario_replace_scm_with_registry_uses_registry() {
     --disable-package-info-cache \
     --quiet \
     restore >/dev/null
-
-  test -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
-
-  stop_registry_server
-  echo "identity=${identity}"
-  echo "kind=${kind}"
-  echo "registry-download=present"
-  echo "checkout=absent"
-  echo "corrupt-archive-redownload=ok"
 }
 
 scenario_replace_scm_with_registry_falls_back_to_scm_when_registry_has_no_versions() {
@@ -1369,9 +1421,17 @@ scenario_manifest_cache_stays_under_build_directory() {
   trap 'rm -rf "${tmp}"' RETURN
   prepare_isolated_state "${tmp}"
 
-  local package_dir
-  package_dir="$(copy_swifterpm_fixture "Bare" "${tmp}")" || return 1
+  local fixture_dir
+  fixture_dir="$(copy_swiftpm_fixture "Simple" "${tmp}")" || return 1
 
+  init_git_package "${tmp}" "${fixture_dir}/Foo" || return 1
+  tag_git_package "${tmp}" "${fixture_dir}/Foo" "1.0.0" "1.2.3" || return 1
+
+  # Without a lockfile or cached pins the resolve is delegated to native
+  # SwiftPM, which dumps no manifests. The second resolve finds both and
+  # evaluates the manifests itself.
+  local package_dir="${fixture_dir}/Bar"
+  resolve_package "${tmp}" "${package_dir}" "${tmp}/cache" || return 1
   resolve_package "${tmp}" "${package_dir}" "${tmp}/cache" || return 1
 
   test ! -e "${package_dir}/.swifterpm-manifest.json" || return 1
@@ -1381,10 +1441,285 @@ scenario_manifest_cache_stays_under_build_directory() {
   echo "manifest-cache=.build/swifterpm"
 }
 
+# Resolves `package_dir` with native SwiftPM, then twice with swifterpm on top
+# of the lockfile SwiftPM wrote: first with a cold cache, which delegates to
+# SwiftPM, then with a warm one, which loads and writes Package.resolved
+# itself. Both runs must leave the lockfile byte-identical.
+assert_swifterpm_keeps_swiftpm_lockfile() {
+  local tmp="$1"
+  local package_dir="$2"
+  shift 2
+
+  scoped_env "${tmp}" swift package \
+    --package-path "${package_dir}" \
+    --scratch-path "${tmp}/swiftpm-scratch" \
+    --cache-path "${tmp}/swiftpm-cache" \
+    "$@" \
+    resolve >/dev/null 2>"${tmp}/swiftpm-resolve.stderr" || {
+      cat "${tmp}/swiftpm-resolve.stderr" >&2
+      return 1
+    }
+  local swiftpm_resolved="${tmp}/Package.swiftpm.resolved"
+  cp "${package_dir}/Package.resolved" "${swiftpm_resolved}"
+
+  local cache
+  for cache in cold warm; do
+    scoped_env "${tmp}" "${SWIFTERPM_BIN}" \
+      --package-path "${package_dir}" \
+      --scratch-path "${package_dir}/.build" \
+      --cache-path "${tmp}/cache" \
+      --disable-package-info-cache \
+      --quiet \
+      "$@" \
+      resolve >/dev/null || return 1
+    diff -u "${swiftpm_resolved}" "${package_dir}/Package.resolved" || return 1
+    echo "${cache}-cache-lockfile=unchanged"
+  done
+}
+
+scenario_keeps_swiftpm_source_control_location_spelling() {
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "${tmp}"' RETURN
+  prepare_isolated_state "${tmp}"
+
+  local package_dir
+  package_dir="$(copy_swifterpm_fixture "ProviderLocationSpelling" "${tmp}")" || return 1
+
+  assert_swifterpm_keeps_swiftpm_lockfile "${tmp}" "${package_dir}" \
+    --disable-scm-to-registry-transformation || return 1
+
+  echo "location=$(jq -r '.pins[0].location' "${package_dir}/Package.resolved")"
+}
+
+scenario_keeps_swiftpm_registry_original_location_spelling() {
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'stop_registry_server; rm -rf "${tmp}"' RETURN
+  prepare_isolated_state "${tmp}"
+
+  local registry_dir="${tmp}/registry"
+  write_registry_package_archive "${tmp}" "${registry_dir}" || return 1
+  start_registry_server "${tmp}" "${registry_dir}" || return 1
+  local registry_url="http://127.0.0.1:${REGISTRY_SERVER_PORT}"
+
+  local package_dir
+  package_dir="$(copy_swifterpm_fixture "RegistryTransformApp" "${tmp}")" || return 1
+
+  assert_swifterpm_keeps_swiftpm_lockfile "${tmp}" "${package_dir}" \
+    --default-registry-url "${registry_url}" \
+    --replace-scm-with-registry || return 1
+
+  stop_registry_server
+  echo "original-location=$(jq -r '.pins[0].originalLocation' "${package_dir}/Package.resolved")"
+}
+
+write_isolated_swift_wrapper() {
+  local tmp="$1" legacy="${2:-false}" native_swift
+  native_swift="$(command -v swift)"
+  mkdir -p "${tmp}/bin"
+  # macOS SwiftPM's security store ignores HOME. Explicit isolation prevents
+  # fixture archives sharing an identity/version from poisoning each other's fingerprints.
+  cat > "${tmp}/bin/swift" <<SH
+#!/bin/sh
+if [ '${legacy}' = true ]; then
+  if [ "\$1" = --version ]; then echo 'Swift version 6.2.3'; exit 0; fi
+  if [ "\$1" = -suppress-warnings ]; then touch '${tmp}/interpreter-invoked'; exit 1; fi
+  unset SWIFTPM_REGISTRY_TOKEN SWIFTPM_REGISTRY_LOGIN SWIFTPM_REGISTRY_PASSWORD
+  unset SWIFTPM_NETRC_DATA SWIFTPM_SOURCE_CONTROL_TOKEN
+fi
+if [ "\$1" = package ]; then
+  shift
+  exec '${native_swift}' package --security-path '${tmp}/security' "\$@"
+fi
+exec '${native_swift}' "\$@"
+SH
+  chmod +x "${tmp}/bin/swift"
+}
+
+write_legacy_swift_wrapper() {
+  write_isolated_swift_wrapper "$1" true
+}
+
+scenario_unused_registry_credentials_on_legacy_toolchain() {
+  local tmp location credentials phase
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "${tmp}"' RETURN
+  prepare_isolated_state "${tmp}"
+  write_legacy_swift_wrapper "${tmp}" || return 1
+  local package_dir="${tmp}/package"
+  mkdir -p "${package_dir}/Sources/Empty"
+  cat > "${package_dir}/Package.swift" <<'SWIFT'
+// swift-tools-version: 6.0
+import PackageDescription
+let package = Package(name: "Empty", targets: [.target(name: "Empty")])
+SWIFT
+  printf 'public let empty = 0\n' > "${package_dir}/Sources/Empty/Empty.swift"
+  local flags=() registry_dir
+  for location in local global file; do
+    flags=()
+    rm -rf "${package_dir}/.swiftpm" "${tmp}/home/.swiftpm"
+    if [[ "${location}" = global ]]; then
+      registry_dir="${tmp}/home/.swiftpm/configuration"
+    else
+      registry_dir="${package_dir}/.swiftpm/configuration"
+    fi
+    mkdir -p "${registry_dir}"
+    printf '%s\n' '{"version":1,"registries":{"[default]":{"url":"https://registry.example.invalid"}}}' > "${registry_dir}/registries.json"
+    if [[ "${location}" = file ]]; then flags=(--config-path "${registry_dir}/registries.json"); fi
+    for credentials in token inline; do
+      local credential_env=()
+      if [[ "${credentials}" = token ]]; then
+        credential_env=(SWIFTPM_REGISTRY_TOKEN=dummy-registry-secret)
+      else
+        credential_env=(SWIFTPM_NETRC_DATA='machine registry.example.invalid login token password dummy-registry-secret')
+      fi
+      printf 'machine unrelated.example.invalid login token password unrelated-secret\n' > "${tmp}/home/.netrc"
+      for phase in cold validation; do
+        local force=()
+        if [[ "${phase}" = cold ]]; then
+          rm -rf "${package_dir}/.build" "${package_dir}/Package.resolved"
+        else
+          force=(--force-resolved-versions)
+        fi
+        scoped_env "${tmp}" env -u SWIFTPM_REGISTRY_TOKEN -u SWIFTPM_NETRC_DATA \
+          -u SWIFTPM_REGISTRY_LOGIN -u SWIFTPM_REGISTRY_PASSWORD -u SWIFTPM_SOURCE_CONTROL_TOKEN \
+          PATH="${tmp}/bin:${PATH}" "${credential_env[@]}" \
+          "${SWIFTERPM_BIN}" --package-path "${package_dir}" --cache-path "${tmp}/cache" \
+          --disable-sandbox --disable-keychain --disable-package-info-cache --quiet \
+          "${flags[@]}" "${force[@]}" resolve > "${tmp}/out" 2> "${tmp}/err" || {
+            cat "${tmp}/err" >&2; return 1
+          }
+      done
+    done
+  done
+  echo 'unused-registry-credentials=cold,validation,local,global,file'
+}
+
+scenario_public_registry_reads_keychain_in_process() {
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'stop_registry_server; rm -rf "${tmp}"' RETURN
+  prepare_isolated_state "${tmp}"
+  write_legacy_swift_wrapper "${tmp}" || return 1
+  write_registry_package_archive "${tmp}" "${tmp}/registry" || return 1
+  start_registry_server "${tmp}" "${tmp}/registry" || return 1
+  local package_dir="${tmp}/package"
+  mkdir -p "${package_dir}/.swiftpm/configuration"
+  cat > "${package_dir}/Package.swift" <<'SWIFT'
+// swift-tools-version: 6.0
+import PackageDescription
+let package = Package(name: "PublicRegistry", dependencies: [.package(id: "example.registryfoo", exact: "1.0.0")])
+SWIFT
+  printf '{"version":1,"registries":{"[default]":{"url":"http://127.0.0.1:%s"}}}\n' "${REGISTRY_SERVER_PORT}" \
+    > "${package_dir}/.swiftpm/configuration/registries.json"
+  local phase
+  for phase in cold warm; do
+    scoped_env "${tmp}" env -u SWIFTPM_REGISTRY_TOKEN -u SWIFTPM_NETRC_DATA \
+      -u SWIFTPM_REGISTRY_LOGIN -u SWIFTPM_REGISTRY_PASSWORD -u SWIFTPM_SOURCE_CONTROL_TOKEN \
+      CI=1 PATH="${tmp}/bin:${PATH}" "${SWIFTERPM_BIN}" \
+      --package-path "${package_dir}" --cache-path "${tmp}/cache" \
+      --disable-sandbox --disable-package-info-cache resolve > "${tmp}/out" 2> "${tmp}/err" || {
+        cat "${tmp}/err" >&2; return 1
+      }
+    ! grep -q 'keychain lookup unavailable' "${tmp}/err" || return 1
+    test ! -f "${tmp}/interpreter-invoked" || return 1
+  done
+  stop_registry_server
+  echo 'public-registry-reader=in-process,no-interpreter'
+}
+
+scenario_authenticated_registry_on_legacy_toolchain() {
+  local authentication_type="$1"
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'stop_registry_server; rm -rf "${tmp}"' RETURN
+  prepare_isolated_state "${tmp}"
+  local registry_dir="${tmp}/registry"
+  write_registry_package_archive "${tmp}" "${registry_dir}" || return 1
+  if [[ "${authentication_type}" = token ]]; then
+    printf 'Bearer e2e-registry-secret\n' > "${registry_dir}/authorization.txt"
+  else
+    printf 'Basic dG9rZW46ZTJlLXJlZ2lzdHJ5LXNlY3JldA==\n' > "${registry_dir}/authorization.txt"
+  fi
+  start_registry_server "${tmp}" "${registry_dir}" || return 1
+  local registry_url="http://127.0.0.1:${REGISTRY_SERVER_PORT}"
+  local package_dir="${tmp}/package"
+  mkdir -p "${package_dir}/.swiftpm/configuration" "${tmp}/bin"
+  cat > "${package_dir}/Package.swift" <<'SWIFT'
+// swift-tools-version: 6.0
+import PackageDescription
+let package = Package(name: "AuthenticatedRegistry", dependencies: [
+  .package(id: "example.registryfoo", exact: "1.0.0"),
+])
+SWIFT
+  cat > "${package_dir}/.swiftpm/configuration/registries.json" <<JSON
+{"version": 1, "registries": {"[default]": {"url": "${registry_url}"}},
+ "authentication": {"127.0.0.1:${REGISTRY_SERVER_PORT}": {"type": "${authentication_type}"}}}
+JSON
+  write_legacy_swift_wrapper "${tmp}" || return 1
+  local command phase
+  local force_arguments=()
+  for phase in cold warm validation missing-pin update; do
+    command=resolve
+    force_arguments=()
+    if [[ "${phase}" = validation ]]; then
+      force_arguments=(--force-resolved-versions)
+    elif [[ "${phase}" = missing-pin ]]; then
+      rm -rf "${tmp}/cache/sources/example.registryfoo" "${package_dir}/.build"
+    elif [[ "${phase}" = update ]]; then
+      command=update
+    fi
+    scoped_env "${tmp}" env \
+      -u SWIFTPM_REGISTRY_TOKEN -u SWIFTPM_REGISTRY_LOGIN -u SWIFTPM_REGISTRY_PASSWORD \
+      -u SWIFTPM_SOURCE_CONTROL_TOKEN \
+      PATH="${tmp}/bin:${PATH}" \
+      SWIFTPM_NETRC_DATA='machine 127.0.0.1 login token password e2e-registry-secret' \
+      "${SWIFTERPM_BIN}" --package-path "${package_dir}" --cache-path "${tmp}/cache" \
+      --disable-sandbox --disable-package-info-cache --disable-netrc --disable-keychain --quiet \
+      "${force_arguments[@]}" "${command}" > "${tmp}/${phase}.stdout" 2> "${tmp}/${phase}.stderr" || {
+        cat "${tmp}/${phase}.stderr" >&2
+        return 1
+      }
+    test -f "${package_dir}/Package.resolved" || return 1
+    if [[ "${phase}" = cold ]]; then
+      cp "${package_dir}/Package.resolved" "${tmp}/expected.resolved"
+    else
+      cmp "${tmp}/expected.resolved" "${package_dir}/Package.resolved" || return 1
+    fi
+    test -z "$(find "${tmp}/tmp" -name 'swifterpm-netrc.*' -print)" || return 1
+    ! grep -q 'e2e-registry-secret' "${tmp}/${phase}.stdout" "${tmp}/${phase}.stderr" || return 1
+  done
+  python3 - "${registry_dir}/requests.jsonl" <<'PY'
+import json
+import sys
+requests = [json.loads(line) for line in open(sys.argv[1])]
+assert requests and all(request["authorized"] for request in requests), requests
+assert any(request["path"].endswith(".zip") for request in requests), requests
+PY
+  test "$?" = 0 || return 1
+  echo "authenticated-${authentication_type}=cold,warm,validation,missing-pin,update"
+}
+
+Describe "registry authentication regression coverage"
+  It "does not refuse unused registry credentials on a legacy toolchain"
+    When call scenario_unused_registry_credentials_on_legacy_toolchain
+    The status should be success
+    The output should include "unused-registry-credentials=cold,validation,local,global,file"
+  End
+
+  It "reads the keychain in-process for public registries without interpreting Swift"
+    When call scenario_public_registry_reads_keychain_in_process
+    The status should be success
+    The output should include "public-registry-reader=in-process,no-interpreter"
+  End
+End
+
 Describe "swifterpm resolve against real-world manifests"
   It "resolves Firefox iOS root Package.swift and emits a SwiftPM-acceptable lockfile"
     When call scenario_resolves_firefox_ios
     The status should be success
+    The stderr should be blank
     The output should match pattern "pins=*"
     The output should include "force-resolve=ok"
   End
@@ -1392,6 +1727,7 @@ Describe "swifterpm resolve against real-world manifests"
   It "resolves Pocket Casts iOS Modules/Package.swift and emits a SwiftPM-acceptable lockfile"
     When call scenario_resolves_pocket_casts_ios
     The status should be success
+    The stderr should be blank
     The output should match pattern "pins=*"
     The output should include "force-resolve=ok"
   End
@@ -1399,14 +1735,16 @@ Describe "swifterpm resolve against real-world manifests"
   It "resolves the large external dependencies fixture and preserves its lockfile"
     When call scenario_resolves_locked_swifterpm_fixture "ExternalDependenciesLarge" "69"
     The status should be success
+    The stderr should be blank
     The output should include "pins=69"
     The output should include "package-resolved=match"
     The output should include "skip-update-resolve=ok"
   End
 
   It "resolves the larger external dependencies fixture and preserves its lockfile"
-    When call scenario_resolves_locked_swifterpm_fixture "ExternalDependenciesLarger" "102"
+    When call scenario_resolves_locked_swifterpm_fixture "ExternalDependenciesLarger" "102" "AdaSDK"
     The status should be success
+    The stderr should be blank
     The output should include "pins=102"
     The output should include "package-resolved=match"
     The output should include "skip-update-resolve=ok"
@@ -1524,6 +1862,20 @@ Describe "swifterpm resolve against SwiftPM dependency graph fixtures"
 End
 
 Describe "swifterpm registry integration"
+  It "authenticates token registry requests on a legacy toolchain across cache states and updates"
+    When call scenario_authenticated_registry_on_legacy_toolchain token
+    The status should be success
+    The output should include "authenticated-token=cold,warm,validation,missing-pin,update"
+    The stderr should equal ""
+  End
+
+  It "authenticates basic registry requests on a legacy toolchain across cache states and updates"
+    When call scenario_authenticated_registry_on_legacy_toolchain basic
+    The status should be success
+    The output should include "authenticated-basic=cold,warm,validation,missing-pin,update"
+    The stderr should equal ""
+  End
+
   It "replaces source-control dependencies with registry downloads when requested"
     When call scenario_replace_scm_with_registry_uses_registry
     The status should be success
@@ -1531,6 +1883,8 @@ Describe "swifterpm registry integration"
     The output should include "kind=registry"
     The output should include "registry-download=present"
     The output should include "checkout=absent"
+    The output should include "registry-cache=seeded"
+    The output should include "stale-cache-redownload=ok"
     The output should include "corrupt-archive-redownload=ok"
   End
 
@@ -1557,5 +1911,23 @@ Describe "swifterpm registry integration"
     The status should be success
     The output should include "legacy-cache=absent"
     The output should include "manifest-cache=.build/swifterpm"
+  End
+End
+
+Describe "swifterpm Package.resolved location spelling"
+  It "keeps the source-control location spelling SwiftPM records"
+    When call scenario_keeps_swiftpm_source_control_location_spelling
+    The status should be success
+    The output should include "cold-cache-lockfile=unchanged"
+    The output should include "warm-cache-lockfile=unchanged"
+    The output should include "location=https://github.com/apple/swift-atomics.git"
+  End
+
+  It "keeps the registry originalLocation spelling SwiftPM records"
+    When call scenario_keeps_swiftpm_registry_original_location_spelling
+    The status should be success
+    The output should include "cold-cache-lockfile=unchanged"
+    The output should include "warm-cache-lockfile=unchanged"
+    The output should include "original-location=https://github.com/example/RegistryFoo.git"
   End
 End

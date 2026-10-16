@@ -3,6 +3,27 @@
 This module contains the Kubernetes controller that reconciles Kura account endpoint custom resources.
 
 ## Scope
+- Opt-in phase-one serving/recovery: [serving-authority.md](serving-authority.md).
+  Durable CAS epochs and positive fencing own activated instances. Missing-node
+  detection never resets an activated StatefulSet. Legacy instances keep their
+  existing automatic stale-storage recreation, including colocated host loss.
+  Missing authority probes never renew or revoke a still-valid grant; expiry
+  or explicit refusal requires fencing. During a transport-only observation gap,
+  retain the primary Service's existing pod-name selection only when it matches
+  the valid grant's live, Ready holder within its existing deadline. Other
+  configured endpoints may converge to that same holder, never a different writer.
+  HTTP errors, malformed status, identity changes and restarts must not use the
+  fallback. Runtime admission and publication remain the authority, not the selector.
+  An unqualified requested image holds the template at the explicit runtime pin
+  and reports Pending without stopping unrelated workload reconciliation. Same-process resumption needs the exact
+  holder's fresh Fencing
+  observation, publication-fencing epoch and zero mutations; issue a new epoch
+  only to that holder. Never infer acknowledgment from expiry, readiness or a
+  restarted pod. Current operator promotion and interrupted handover retain the
+  external recovery path. Validate recovery before reserving the
+  rebuild slot, and journal a PodGC replacement UID before deleting it. Persist immutable recovery
+  identities, retain the healthy sibling, quarantine the failed PV, and preserve
+  `OnDelete`/rollback-floor holds across every maintenance path.
 
 - Pod CPU usage for autosizing includes only the `kura` container. Missing runtime
   metrics are omitted rather than recorded as zero; auxiliary-container usage
@@ -47,9 +68,10 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
   Managed environments enable this for their qualified OVH domain. Canary has
   one OVH host; its colocated fixture does not prove a physical host pair.
   Vultr Chicago also passed physical qualification and activates through current-
-  boot route attestations on merge. Santiago also enables managed topology after
-  no-reboot attachment and regional runtime validation; its single host cannot
-  establish physical host-to-host qualification.
+  boot route attestations on merge. Santiago has two enrolled hosts with matching
+  membership attestations, bidirectional full-MTU private reachability, and
+  checksum-verified isolated replication captured on the private interfaces.
+  This does not establish workload redistribution or host-failure capacity.
   [Vultr private networking](vultr-private-networking.md) covers Kubernetes
   ownership, retained creation intent, isolated tests and rollback. Never enable
   two Vultr domains until all active peers support reciprocal `canonical_networks`.
@@ -85,6 +107,7 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 - **Follow-up: region-scoped wildcard DNS would retire most of this.** The customer hostname puts the region inside a label (`<handle>-<region>.kura.tuist.dev`), so a wildcard can never cover it and every instance needs its own record — which is what the early-record path, the Cloudflare propagation wait and `Tuist.DNS`'s authoritative polling all exist to pay for. Most regions run a single box today and every account's record in a region already resolves to the same address, so moving the region into its own DNS label (`<handle>.<region>.kura.tuist.dev`) with one standing wildcard per region would make a new instance's record exist before the instance does, and let all three go. It is a separate change with its own certificate story — an ACME wildcard matches exactly one label, so a per-region wildcard is a per-region certificate — and the record-publication work is worth having either way; this note exists so the option does not live only in a merged pull request's description.
 - **Replicas may straddle boxes, and that is not a fault**: the pod affinity only *prefers* co-location and the StatefulSet uses `Parallel` pod management, so a region with more than one box can place an account's two replicas apart. A cache PV is a local-path directory with hard node affinity, so once that happens it holds for the life of those volumes rather than settling. Do not reconverge them. Serving is unaffected, because the customer record follows the primary (below); the replicas replicate over the peer mesh on pod identities the per-instance NetworkPolicy already admits; and un-splitting means deleting a warm volume to refill it from a peer, which spends a real cache for placement aesthetics and gives up the box-loss resilience a straddling instance has and a co-located one does not. `releaseNodeLocalVolume` stays for node evacuation, where abandoning the volume is the point. `status.peerRoles[].node` publishes the box each pod is on, so "is the record pointing at a box that can serve" is one read rather than a join across pods, Endpoints and DNS.
 - **Per-tenant isolation**: a `NetworkPolicy` per `KuraInstance` restricts ingress to (a) pods of the same instance, (b) same-account Kura peers on the mTLS peer port, and (c) cluster-namespaced peers reaching the co-hosted `http` port and the gRPC-only `grpc` port only. Egress is unrestricted because the runtime needs to reach the Tuist API and the OTLP collector. Rule (c) does not admit the regional Kura gateway: that runs host-network, so Cilium labels its traffic `host` on its own box and `remote-node` from any other, and a `namespaceSelector` selects pod identities only. Cilium always admits `host`, which is why a one-box region worked and a two-box region answered 504 for every pod the gateway did not share a node with. `infra/helm/platform/templates/kura-gateway-network-policy.yaml` grants that path, on both cache ports, as a `CiliumNetworkPolicy`, the only construct that can name those identities; an `ipBlock` cannot, because CIDR selectors skip in-cluster node addresses unless `policy-cidr-match-mode` is set.
+- **REAPI ingress attribution**: platform's shared regional/runner nginx configuration and dedicated gRPC activation ingress must preserve `build.bazel.remote.execution.v2.requestmetadata-bin` with `ignore-invalid-headers: "false"`. Nginx otherwise serves cache RPCs successfully while discarding the Mix/Bazel build metadata required for signed analytics. `controllers/reapi_metadata_ingress_test.go` checks all values overlays; set `TUIST_TEST_NGINX` to run real HTTP/2 `grpc_pass` coverage, including the broken-default negative control. Keep authorization, source allowlists and the unrelated main web ingress unchanged.
 - **Telemetry defaults**: controller-managed Kura pods always get the Prometheus scrape annotations expected by `infra/helm/k8s-monitoring`, the controller injects the cluster deployment environment through `KURA_OTEL_DEPLOYMENT_ENVIRONMENT`, and when the controller's `--otlp-traces-endpoint` flag is set they also get a default `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`. Kura uses the same deployment environment for Sentry when `KURA_SENTRY_DSN` is present in `kura-shared-secrets`. `spec.extraEnv` stays authoritative for per-instance overrides.
 - **Authorization material**: the pod's `envFrom` on `kura-shared-secrets` carries the credentials that must not live in a `KuraInstance` spec, since anyone with list/watch on the CR can read one. That is the control-plane client secret and `KURA_AUTH_JWT_PUBLIC_KEY`. It must still **never** carry `KURA_AUTH_JWT_SECRET`: a shared secret signs as well as it verifies, and the server's Guardian key also signs API credentials, so a node holding it could mint those — and these nodes are internet-facing. What it carries instead is the public half of a dedicated cache-token keypair (`Tuist.CacheGuardian`, private half `TUIST_SECRET_KEY_CACHE_TOKENS`, ES256), which reads a cache token and cannot mint one. A node that cannot read a token — holding no key, or one from either side of a rotation — falls back to introspection (`Tuist.OAuth.Introspection`) rather than refusing it, so wrong or stale material costs the round-trip saving and not the answers. The value may hold two concatenated PEM blocks while a key is being rotated, because server pods do not roll on this Secret and Kura pods do.
 - **Cache-token key rollout order**: the key is installed before it is used, in two separate rollouts, and the Kura side sits between them. First `server.config.cacheTokenKey.enabled`, which only teaches server replicas to verify tokens signed with the pair and changes nothing a client sees. Then `kuraController.cacheTokenPublicKey.externalSecret.enabled`, which puts the public half in `kura-shared-secrets`; the pod template carries that Secret's `resourceVersion` (`kura.tuist.dev/shared-secrets-resource-version`) and the controller watches the Secret, so editing it rolls the StatefulSet and pods pick the value up. `envFrom` is resolved at pod start, so without that annotation an edit would never reach a running node. Only then `server.config.cacheTokenKey.signing`, which starts issuing them. Flipping issuance together with installation means a token minted by a replica holding the key can be introspected by one that does not, reported inactive, and 401 a request that was valid. Unwinding runs backwards, and removing the key waits for the longest cache-token lifetime after issuance stops, or tokens still in flight stop verifying.
@@ -177,3 +200,7 @@ references after deletion and rejects reusing them for days. Adopt both legacy
 and suffixed checks by box identity, keep the same reference across ambiguous
 create retries and stale lists after success. Release the reference after
 confirmed collection, or rotate it after a definite AlreadyExists response.
+
+## Shared cold activation
+
+The controller image also packages the stateless `cmd/cache-activation` gateway, deployed separately with no Kubernetes credentials or volumes. See [`internal/activation/AGENTS.md`](internal/activation/AGENTS.md) for its security and streaming boundaries and [`activation.md`](activation.md) for the disabled-by-default rollout.

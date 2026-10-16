@@ -52,7 +52,7 @@
 
     // swiftlint:disable:next type_body_length
     public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand, TrackableParsableCommand,
-        RunReportingCommand
+        RunReportingCommand, ProjectPathProviding
     {
         public init() {}
 
@@ -100,7 +100,7 @@
             completion: .directory,
             envKey: .testPath
         )
-        var path: String?
+        public var path: String?
 
         @Option(
             name: .shortAndLong,

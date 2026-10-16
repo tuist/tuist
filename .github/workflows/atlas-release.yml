@@ -121,10 +121,16 @@ jobs:
           platforms: linux/amd64
           build-args: |
             ATLAS_VERSION=${{ needs.check.outputs.next-version-number }}
+            APT_CACHE_BUST=${{ needs.check.outputs.next-version-number }}
             MIX_ENV=prod
           tags: |
             ghcr.io/tuist/atlas:${{ needs.check.outputs.next-version-number }}
             ghcr.io/tuist/atlas:latest
+          # Reuse layers from the previous release. The Dockerfile declares
+          # ATLAS_VERSION after compilation, so only the release step and the
+          # layers whose inputs changed rebuild.
+          cache-from: type=registry,ref=ghcr.io/tuist/tuist-buildcache:release-atlas
+          cache-to: type=registry,ref=ghcr.io/tuist/tuist-buildcache:release-atlas,mode=max
 
       - name: Publish matching Helm chart
         env:
@@ -290,3 +296,12 @@ jobs:
           kubectl -n "$NAMESPACE" rollout status deploy/atlas --timeout=10m
           kubectl -n "$NAMESPACE" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
             --command -- curl -fsS "http://atlas/ready"
+
+      - name: Verify public login redirect
+        run: |
+          response=$(curl --silent --show-error --max-time 30 --output /dev/null \
+            --write-out '%{http_code} %{redirect_url}' https://atlas.tuist.dev/)
+          if [ "$response" != '302 https://atlas.tuist.dev/login' ]; then
+            echo '::error::Atlas root must redirect signed-out visitors to /login.'
+            exit 1
+          fi

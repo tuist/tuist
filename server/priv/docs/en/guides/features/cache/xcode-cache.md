@@ -129,6 +129,44 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 > )
 > ```
 
+### Coverage with prefix mapping {#coverage-with-prefix-mapping}
+
+By default, generated projects disable prefix mapping for coverage builds to keep Xcode's coverage reports and `xccov` working. If your team reads coverage with `llvm-cov` and remaps source paths itself, you can keep coverage compilations shareable across checkouts:
+
+```swift
+let tuist = Tuist(
+    project: .tuist(
+        generationOptions: .options(
+            enableCaching: true,
+            enableCoveragePrefixMapping: true
+        )
+    )
+)
+```
+
+This option applies on Xcode 27 and later and requires `enableCaching`. It does not add an `llvm-cov` reader or fix `xccov`: Xcode's coverage report can still omit sources with mapped paths. Tuist's coverage upload also reads the Xcode result bundle, so this opt-in is not compatible with that coverage pipeline. Use it only when processing coverage independently. Mapped `#filePath` values can also affect tests that locate fixtures relative to source files; resolve fixtures through explicit runtime checkout paths instead. Pair each instrumented binary with its target's `$(TARGET_TEMP_DIR)/compilation-prefix-map.json`, which maps virtual prefixes back to local directories. Do not reuse one target's map for every binary when per-project mapping is enabled.
+
+The coverage-prefix settings participate in binary-cache and selective-testing hashes because they control paths written into coverage artifacts. Changing this option invalidates those hashes even for ordinary builds. Keep the value consistent between developers and CI jobs if they should share binary caches and selective-testing results.
+
+### Debugging generated projects {#debugging-generated-projects}
+
+With `enableCaching: true`, Tuist configures LLDB source maps for Run and Test actions. When an action has a custom LLDB initializer, Tuist writes its resolved source map first, then sources the custom initializer so it can extend or override the map. Otherwise it loads `~/.lldbinit-Xcode` if the file exists, falling back to `~/.lldbinit`, before replacing the source map. It loads only one home file, restoring per-user debugger setup without double sourcing. The replacement removes stale mappings from previous runs and takes precedence over home-file source maps; put source-map entries that should survive in the action's custom initializer. Other home settings are preserved. Tuist's cache-specific module search paths, loader settings, and Clang flags are applied afterwards and take precedence over user values for those settings. Home-file errors remain visible without stopping later commands from loading, and commands are not echoed. This initializer preservation also applies when Tuist configures debugging for binaries restored from the module cache, even without `enableCaching` and on earlier Xcode versions.
+
+On Xcode 27 and later, generated projects leave Xcode's per-project prefix mappings (`SWIFT_ENABLE_PROJECT_PREFIX_MAPPING` and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`) off unless a project sets them. Their prefixes, such as `/^src`, name a different directory in every project, and LLDB resolves them against the debugged target's project only. Sources are recorded under workspace-wide prefixes instead: `/^root` for the Tuist root directory, `/^spm` for the Swift package scratch directory, and `/^intermediates` and `/^products` for build outputs. Each one names the same directory in every project, so breakpoints resolve in sources from any project in the workspace.
+
+Paths outside the Tuist root aren't mapped. The cache keys of a project outside the root depend on where it's checked out, so other checkouts and machines miss the cache for it. To keep its keys independent of the checkout location, turn the per-project mappings on in that project's manifest:
+
+```swift
+let checkoutIndependentSettings = Settings.settings(base: [
+    "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
+    "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
+])
+```
+
+Pass these settings to that `Project`. When you debug a target from another project, LLDB then can't find that project's sources. Manifest project-base settings take precedence over project-level xcconfig values, so set them in the manifest itself.
+
+Changing these settings changes compilation-cache keys, binary-cache hashes, and selective-testing hashes, so those caches need warming again. Keep the choice consistent across your team.
+
 ### Cache upload policy {#cache-upload-policy}
 
 By default, the cache service both downloads and uploads artifacts to the remote cache. You can control this with the `xcodeCache` option in your `Tuist.swift` file to enable read-only mode, where artifacts are downloaded but never uploaded:

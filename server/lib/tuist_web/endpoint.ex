@@ -144,6 +144,8 @@ defmodule TuistWeb.Endpoint do
     signature_header: "x-cache-signature",
     body_length: 512_000
 
+  plug TuistWeb.Plugs.OriginWebhookPlug
+
   plug TuistWeb.Plugs.BrowserTelemetryPlug, session_options: @session_options
 
   # The /api/runs endpoint can receive large payloads (files, cacheable_tasks, cas_outputs)
@@ -165,6 +167,6 @@ defmodule TuistWeb.Endpoint do
   def scrub_sentry_headers(conn) do
     conn
     |> Sentry.PlugContext.default_header_scrubber()
-    |> Map.drop(TuistWeb.OperatorGrant.credential_headers())
+    |> Map.drop(["x-tuist-actor-id" | TuistWeb.OperatorGrant.credential_headers()])
   end
 end

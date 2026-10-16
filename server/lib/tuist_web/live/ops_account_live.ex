@@ -440,6 +440,27 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   @impl true
+  def handle_event("start_open_source_plan", _params, socket) do
+    account = socket.assigns.account
+
+    case Billing.start_open_source_plan(account) do
+      {:ok, _sub} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, dgettext("dashboard", "%{account} is now on the Open Source plan.", account: account.name))
+         |> push_navigate(to: ~p"/ops/accounts/#{account.id}")}
+
+      {:error, :subscription_exists} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard", "%{account} already has an active subscription.", account: account.name)
+         )}
+    end
+  end
+
+  @impl true
   def handle_event("submit_enterprise_upgrade", params, socket) do
     {:ok, _sub} = Billing.upgrade_to_enterprise(socket.assigns.account, parse_upgrade_params(params))
 

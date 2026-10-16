@@ -43,6 +43,38 @@ func apfsPath(t *testing.T, b *APFSImages, slot Slot) string {
 	}
 	return path
 }
+
+func TestAPFSAdmissionBudgetsColdCreationAndRestore(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		free         uint64
+		warm         bool
+		wantCapacity bool
+	}{
+		{name: "cold image fits", free: 20_000_000_000},
+		{name: "cold image does not fit", free: 19_999_999_999, wantCapacity: true},
+		{name: "restore still needs archive headroom", free: 20_000_000_000, warm: true, wantCapacity: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, _ := newAPFS(t)
+			b.FreeBytes = func(string) (uint64, error) { return tc.free, nil }
+			slot := Slot{Identity: identity(first), PodUID: "pod"}
+			if tc.warm {
+				slot.BaseGeneration = 1
+				slot.ImageDigest = strings.Repeat("b", 40)
+				slot.ContentDigest = strings.Repeat("c", 64)
+			}
+			err := b.Attach(context.Background(), slot, apfsPath(t, b, slot))
+			if tc.wantCapacity {
+				if !errors.Is(err, ErrCapacity) {
+					t.Fatalf("expected capacity rejection, got %v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
 func detached(t *testing.T, path, id string) {
 	t.Helper()
 	usage, _ := json.Marshal(map[string]any{"id": id, "used_bytes": 3, "capacity_bytes": 20_000_000_000})

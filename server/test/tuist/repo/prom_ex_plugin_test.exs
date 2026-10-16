@@ -4,6 +4,7 @@ defmodule Tuist.Repo.PromExPluginTest do
 
   alias Tuist.PromEx.StripedPeep
   alias Tuist.Repo.PromExPlugin
+  alias TuistCommon.Repo.PoolMetrics
 
   setup :set_mimic_from_context
   setup :verify_on_exit!
@@ -31,11 +32,14 @@ defmodule Tuist.Repo.PromExPluginTest do
     for {prefix, repo} <- [
           {:repo, "postgres"},
           {:click_house_repo, "clickhouse_read"},
-          {:ingest_repo, "clickhouse_write"}
+          {:ingest_repo, "clickhouse_write"},
+          {:shadow_click_house_repo, "clickhouse_shadow_read"},
+          {:shadow_ingest_repo, "clickhouse_shadow_write"},
+          {:ops_click_house_repo, "ops_clickhouse_read"}
         ] do
       PromExPlugin.handle_query(
         [:tuist, prefix, :query],
-        native_times(total_time: 135, queue_time: 100, query_time: 30, decode_time: 5),
+        native_times(total_time: 135, queue_time: 100, query_time: 30, decode_time: 5, idle_time: 2_000),
         %{result: {:ok, %{}}, query: "private query text", params: ["private parameter"]},
         [:tuist, :database, :query, context.test]
       )
@@ -44,7 +48,7 @@ defmodule Tuist.Repo.PromExPluginTest do
       tags = ~s(repo="#{repo}",result="ok",workload="xcresult_processor")
       assert output =~ ~s(tuist_repo_query_count{#{tags}} 1)
 
-      for {phase, value} <- [total_time: 135, queue_time: 100, query_time: 30, decode_time: 5] do
+      for {phase, value} <- [total_time: 135, queue_time: 100, query_time: 30, decode_time: 5, idle_time: 2_000] do
         assert output =~ ~s(tuist_repo_query_#{phase}_milliseconds_sum{#{tags}} #{value})
         assert output =~ ~s(tuist_repo_query_#{phase}_milliseconds_count{#{tags}} 1)
       end
@@ -67,10 +71,19 @@ defmodule Tuist.Repo.PromExPluginTest do
 
     start_supervised!(StripedPeep.child_spec(context.test, metrics))
 
-    :telemetry.execute([:tuist, :repo, :query], native_times(total_time: 25, query_time: 25), %{result: {:ok, %{}}})
+    for {prefix, repo} <- [
+          {:repo, "postgres"},
+          {:shadow_click_house_repo, "clickhouse_shadow_read"},
+          {:shadow_ingest_repo, "clickhouse_shadow_write"},
+          {:ops_click_house_repo, "ops_clickhouse_read"}
+        ] do
+      :telemetry.execute([:tuist, prefix, :query], native_times(total_time: 25, query_time: 25), %{result: {:ok, %{}}})
 
-    assert StripedPeep.scrape(context.test) =~
-             ~s(tuist_repo_query_count{repo="postgres",result="ok",workload="web"} 1)
+      assert StripedPeep.scrape(context.test) =~
+               ~s(tuist_repo_query_count{repo="#{repo}",result="ok",workload="web"} 1)
+    end
+
+    refute StripedPeep.scrape(context.test) =~ "idle_time_milliseconds"
   end
 
   test "counts rejected checkouts without inventing execution or decoding times", context do
@@ -90,6 +103,45 @@ defmodule Tuist.Repo.PromExPluginTest do
     assert output =~ ~s(tuist_repo_query_queue_time_milliseconds_sum{#{tags}} 705)
     refute output =~ "tuist_repo_query_query_time_milliseconds_count"
     refute output =~ "tuist_repo_query_decode_time_milliseconds_count"
+    refute output =~ "tuist_repo_query_idle_time_milliseconds_count"
+  end
+
+  test "polls each running physical pool without inventing optional pools", context do
+    owner = self()
+    event = Tuist.Telemetry.event_name_repo_pool_metrics()
+
+    :telemetry.attach(
+      context.test,
+      event,
+      fn _, measurements, metadata, pid ->
+        if self() == pid, do: send(pid, {:pool_metrics, measurements, metadata})
+      end,
+      owner
+    )
+
+    on_exit(fn -> :telemetry.detach(context.test) end)
+
+    running = [
+      {Tuist.Repo, "postgres"},
+      {Tuist.ShadowClickHouseRepo, "clickhouse_shadow_read"},
+      {Tuist.ShadowIngestRepo, "clickhouse_shadow_write"},
+      {Tuist.OpsClickHouseRepo, "ops_clickhouse_read"}
+    ]
+
+    stub(PoolMetrics, :running?, fn repo -> Enum.any?(running, &(elem(&1, 0) == repo)) end)
+
+    expect(PoolMetrics, :connection_pool_metrics, length(running), fn repo ->
+      assert Enum.any?(running, &(elem(&1, 0) == repo))
+      %{checkout_queue_length: 2, ready_conn_count: 0, pool_size: 5}
+    end)
+
+    PromExPlugin.execute_repo_pool_metrics_event()
+
+    for {_, label} <- running do
+      assert_receive {:pool_metrics, %{pool_size: 5, checkout_queue_starved_count: 1}, %{repo: ^label}}
+    end
+
+    refute_receive {:pool_metrics, _, _}
   end
 
   test "uses bounded outcomes for connection and database errors", context do

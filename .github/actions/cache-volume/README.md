@@ -27,7 +27,7 @@ same data even if the mount path changes. Do not attach the same key twice in
 one job under different paths.
 
 PRs consume warm snapshots and write
-to their own clones; only successful default-branch push, manual, and scheduled
+to their own clones; by default only successful default-branch push, manual, and scheduled
 jobs publish. Failed jobs and disallowed writers are discarded. Publications
 use last-publication-wins. Cache data is disposable and must not contain secrets.
 
@@ -54,7 +54,29 @@ additional workflow permissions are required.
 A missing client fails with a Tuist Linux or macOS runner requirement. Unavailable
 storage warns and falls back to a job-local directory. Invalid or nonempty paths
 fail without replacing their contents. The default volume capacity is 20 GB.
+When saved contents reach 80% of capacity and a job runs out of space on them,
+the next job starts empty.
 Linux and macOS fleets must have cache volumes enabled.
+
+### Choosing which branches save
+
+Account administrators configure **Save cache from** on each runner profile under
+**Runners → Profiles**. The settings apply to every custom volume attached by
+GitHub Actions jobs that run on the profile, including volumes created later.
+
+**Default branch** is on by default, so jobs on each repository's default branch
+save their changes. Turn it off to save only from the additional branches.
+
+**Additional branches** holds up to 20 branch names that also save. `*` matches
+any characters, so `release/*` covers `release/1.0` and `*` covers every branch.
+Successful push, schedule and manual-dispatch jobs, and pull requests from the
+same repository, save their changes when their branch matches. On push and
+manual-dispatch runs, a tag with a matching name also matches.
+
+Fork pull requests and `pull_request_target` never save. Buildkite, GitLab and
+built-in macOS volume policies are unchanged. Narrowing these settings or deleting
+the profile revokes pending saves they no longer allow; a deleted profile falls
+back to the default branch. Additions apply to new volume attachments.
 
 ## Releases
 

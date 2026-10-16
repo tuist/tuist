@@ -14,42 +14,30 @@ defmodule Tuist.OnceEvents.Projector do
   alias Once.Events.V1.RunEvent
   alias Once.Events.V1.RunStarted
   alias Once.Events.V1.SystemSampled
+  alias Once.Events.V1.TargetInstance
+  alias Once.Events.V1.TargetQueued
   alias Once.Events.V1.TargetResult
   alias Once.Events.V1.TestCaseCompleted
   alias Once.Events.V1.TestCaseResult
   alias Once.Events.V1.TestSuiteCompleted
   alias Once.Events.V1.TestSuiteStarted
+  alias Tuist.BuildEntities
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.TestReportIngestor
+
+  # Column limits of `once_target_instances` and `once_target_executions`.
+  @mapping_id_max_length 512
+  @target_id_max_length 1024
+  @configuration_digest_max_length 256
+  @max_int32 2_147_483_647
 
   @doc """
   Project one `RunEvent` under the resolved project. Returns `:ok` on any
   outcome (including a benign skip); the transport signals REJECTED_INVALID
   when it cannot even parse the frame.
   """
-  def project(%RunEvent{payload: {:run_started, %RunStarted{} = started}} = ev, project_id, run_id) do
-    OnceEvents.upsert_run(%{
-      run_id: run_id,
-      project_id: project_id,
-      once_version: started.once_version,
-      protocol_version: started.protocol_version,
-      host_class: started.host_class,
-      is_ci: started.is_ci,
-      git_rev: started.git_rev,
-      git_branch: started.git_branch,
-      git_dirty: started.git_dirty,
-      argv_normalized: argv_to_map(started.argv_normalized),
-      argv_hash_key_id: started.argv_hash_key_id,
-      safe_literal_allowlist_version: started.safe_literal_allowlist_version,
-      cwd_relative: started.cwd_relative,
-      env_fingerprint: started.env_fingerprint,
-      command_display: render_argv(started.argv_normalized),
-      kind: infer_kind(started),
-      started_at: from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
-    })
-
-    :ok
-  end
+  def project(%RunEvent{payload: {:run_started, %RunStarted{}}} = event, project_id, run_id),
+    do: project(event, project_id, run_id, nil)
 
   def project(%RunEvent{payload: {:action_completed, %ActionCompleted{} = action}} = ev, project_id, run_id) do
     with %{} = run <- OnceEvents.get_run(project_id, run_id) do
@@ -74,6 +62,53 @@ defmodule Tuist.OnceEvents.Projector do
       # must not reject the event, or the client would retry a run that did
       # finalize, so it is logged and left for the run to be republished.
       TestReportIngestor.publish(finalized)
+      {:ok, _published?} = OnceEvents.publish_build_entities(finalized)
+    end
+
+    :ok
+  end
+
+  # Persisted so a finished run can attribute actions, which only name a
+  # run-local `target_execution_id`, to the stable `target_id`.
+  #
+  # These events were ignored before, so a mapping the tables cannot hold must
+  # never fail the event. Values are stored exactly or not at all: an empty,
+  # oversized or non-storable identity field, or an attempt outside the column
+  # range, skips the mapping (its actions stay unattributed) instead of being
+  # truncated, hashed or defaulted. An unstorable configuration digest is
+  # optional metadata and is left out.
+  def project(%RunEvent{payload: {:target_instance, %TargetInstance{} = instance}}, project_id, run_id) do
+    with true <- BuildEntities.enabled?(project_id),
+         %{} = run <- OnceEvents.get_run(project_id, run_id),
+         {:ok, target_instance_id} <- mapping_value(instance.target_instance_id, @mapping_id_max_length),
+         {:ok, target_id} <- mapping_value(instance.target_id, @target_id_max_length) do
+      configuration_digest =
+        case mapping_value(content_ref_hash(instance.configuration_digest), @configuration_digest_max_length) do
+          {:ok, digest} -> digest
+          :skip -> nil
+        end
+
+      OnceEvents.ingest_target_instance(run, %{
+        target_instance_id: target_instance_id,
+        target_id: target_id,
+        configuration_digest: configuration_digest
+      })
+    end
+
+    :ok
+  end
+
+  def project(%RunEvent{payload: {:target_queued, %TargetQueued{} = queued}}, project_id, run_id) do
+    with true <- BuildEntities.enabled?(project_id),
+         %{} = run <- OnceEvents.get_run(project_id, run_id),
+         {:ok, target_execution_id} <- mapping_value(queued.target_execution_id, @mapping_id_max_length),
+         {:ok, target_instance_id} <- mapping_value(queued.target_instance_id, @mapping_id_max_length),
+         attempt when is_integer(attempt) and attempt >= 0 and attempt <= @max_int32 <- queued.attempt do
+      OnceEvents.ingest_target_execution(run, %{
+        target_execution_id: target_execution_id,
+        target_instance_id: target_instance_id,
+        attempt: attempt
+      })
     end
 
     :ok
@@ -212,6 +247,33 @@ defmodule Tuist.OnceEvents.Projector do
   end
 
   def project(_other, _project_id, _run_id), do: :ok
+
+  def project(%RunEvent{payload: {:run_started, %RunStarted{} = started}} = ev, project_id, run_id, account_id) do
+    OnceEvents.upsert_run(%{
+      run_id: run_id,
+      project_id: project_id,
+      account_id: account_id,
+      once_version: started.once_version,
+      protocol_version: started.protocol_version,
+      host_class: started.host_class,
+      is_ci: started.is_ci,
+      git_rev: started.git_rev,
+      git_branch: started.git_branch,
+      git_dirty: started.git_dirty,
+      argv_normalized: argv_to_map(started.argv_normalized),
+      argv_hash_key_id: started.argv_hash_key_id,
+      safe_literal_allowlist_version: started.safe_literal_allowlist_version,
+      cwd_relative: started.cwd_relative,
+      env_fingerprint: started.env_fingerprint,
+      command_display: render_argv(started.argv_normalized),
+      kind: infer_kind(started),
+      started_at: from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
+    })
+
+    :ok
+  end
+
+  def project(event, project_id, run_id, _account_id), do: project(event, project_id, run_id)
 
   defp action_attrs(%ActionCompleted{} = action, %RunEvent{} = ev) do
     %{
@@ -385,6 +447,20 @@ defmodule Tuist.OnceEvents.Projector do
   end
 
   defp from_epoch_ms(_), do: nil
+
+  # A value Postgres can store verbatim in a `varchar(max_length)` column:
+  # non-empty valid UTF-8 without NUL, and at most `max_length` characters
+  # (code points, which is what `varchar` counts, not graphemes).
+  defp mapping_value(value, max_length) when is_binary(value) and value != "" do
+    if String.valid?(value) and not String.contains?(value, <<0>>) and
+         (byte_size(value) <= max_length or length(String.codepoints(value)) <= max_length) do
+      {:ok, value}
+    else
+      :skip
+    end
+  end
+
+  defp mapping_value(_value, _max_length), do: :skip
 
   defp safe_string(nil), do: ""
   defp safe_string(""), do: ""

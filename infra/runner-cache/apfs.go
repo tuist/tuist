@@ -53,7 +53,12 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 	}
 	image := b.image(slot)
 	if _, statErr := os.Lstat(image); os.IsNotExist(statErr) {
-		if err = b.operation("admission", "none", func() error { return b.reserve(ctx) }); err != nil {
+		minimum := b.MinFreeBytes
+		if slot.BaseGeneration == 0 {
+			// Cold creation has no downloaded archive beside the private image.
+			minimum = uint64(b.SizeGB) * 1_000_000_000
+		}
+		if err = b.operation("admission", "none", func() error { return b.reserveBytes(ctx, minimum) }); err != nil {
 			return err
 		}
 		if b.Reserve != nil {

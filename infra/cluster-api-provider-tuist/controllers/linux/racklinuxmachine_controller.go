@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -381,9 +382,23 @@ func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, host *
 	if r.APIServerURL != "" {
 		server = r.APIServerURL
 	}
+	nodeIP := host.Status.Tailnet.Address
+	if host.Spec.ClusterNetwork != nil {
+		nodeIP = host.Spec.ClusterNetwork.PublicAddress
+	}
+	var forwards []infrav1.RackLinuxHostClusterNetwork
+	if host.Spec.Role == "edge" {
+		if forwards, err = r.siteClusterNetwork(ctx, host); err != nil {
+			return rackConvergeOptions{}, "", err
+		}
+	}
 	return rackConvergeOptions{
 		NodeName:       host.Spec.Hostname,
-		NodeIP:         host.Status.Tailnet.Address,
+		Role:           host.Spec.Role,
+		Edge:           host.Spec.Edge,
+		NodeIP:         nodeIP,
+		ClusterNetwork: host.Spec.ClusterNetwork,
+		Forwards:       forwards,
 		ProviderID:     rackLinuxProviderID(host),
 		KubeletVersion: kubeletVersion,
 		K8sMinor:       minor,
@@ -748,11 +763,42 @@ func rackLinuxMachineForCAPIMachine(_ context.Context, o client.Object) []reconc
 }
 
 // machinesForHost wakes a host's machine, which has the host's name, when the
-// host changes.
-func (r *RackLinuxMachineReconciler) machinesForHost(_ context.Context, o client.Object) []reconcile.Request {
+// host changes, and its site's edges, which forward to the site's
+// cluster-network hosts.
+func (r *RackLinuxMachineReconciler) machinesForHost(ctx context.Context, o client.Object) []reconcile.Request {
 	host, ok := o.(*infrav1.RackLinuxHost)
 	if !ok {
 		return nil
 	}
-	return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: host.Namespace, Name: host.Name}}}
+	requests := []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: host.Namespace, Name: host.Name}}}
+	list := &infrav1.RackLinuxHostList{}
+	if err := r.List(ctx, list, client.InNamespace(host.Namespace)); err != nil {
+		return requests
+	}
+	for i := range list.Items {
+		h := &list.Items[i]
+		if h.Name != host.Name && h.Spec.Role == "edge" && h.Spec.Location.Site == host.Spec.Location.Site {
+			requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: h.Namespace, Name: h.Name}})
+		}
+	}
+	return requests
+}
+
+// siteClusterNetwork is how the cluster reaches the cluster-network hosts of
+// host's site, which the site's edges forward to, in a stable order.
+func (r *RackLinuxMachineReconciler) siteClusterNetwork(ctx context.Context, host *infrav1.RackLinuxHost) ([]infrav1.RackLinuxHostClusterNetwork, error) {
+	list := &infrav1.RackLinuxHostList{}
+	if err := r.List(ctx, list, client.InNamespace(host.Namespace)); err != nil {
+		return nil, fmt.Errorf("list the site's hosts: %w", err)
+	}
+	var forwards []infrav1.RackLinuxHostClusterNetwork
+	for i := range list.Items {
+		h := &list.Items[i]
+		if h.Spec.Location.Site != host.Spec.Location.Site || h.Spec.ClusterNetwork == nil || !h.DeletionTimestamp.IsZero() {
+			continue
+		}
+		forwards = append(forwards, *h.Spec.ClusterNetwork)
+	}
+	sort.Slice(forwards, func(i, j int) bool { return forwards[i].PublicAddress < forwards[j].PublicAddress })
+	return forwards, nil
 }

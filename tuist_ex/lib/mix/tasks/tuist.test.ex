@@ -37,6 +37,14 @@ defmodule Mix.Tasks.Tuist.Test do
   process. Then use `--no-download` to run the shard against that prepared
   build. Both options require a shard index.
 
+  With `--cover`, a shard of a build `mix tuist.test.build --cover`
+  instrumented counts lines with the runtime's native counters, which the
+  task switches on: Mix's coverage tool, and with it its report, is left out,
+  and only the modules Mimic copies are cover compiled. A runtime without the
+  JIT cannot count natively and uses Mix's coverage tool; on a shard, that
+  tool exports the coverage (`--export-coverage shard-<index>`, unless one is
+  given) instead of holding the shard to the project's threshold.
+
   `--scheme LABEL` names an execution variant in analytics, such as a database
   version. Variants with different labels are not compared as flaky reruns.
 
@@ -59,8 +67,13 @@ defmodule Mix.Tasks.Tuist.Test do
 
   alias TuistEx.Analytics.Args
   alias TuistEx.Analytics.Config
+  alias TuistEx.Analytics.Coverage
   alias TuistEx.Analytics.ExUnitFormatter
+  alias TuistEx.Analytics.GitHistory
+  alias TuistEx.Analytics.Isolated
+  alias TuistEx.Analytics.Report
   alias TuistEx.Analytics.Shards
+  alias TuistEx.Analytics.Subprocess
   alias TuistEx.Analytics.TempDir
 
   @formatter ExUnitFormatter
@@ -83,15 +96,29 @@ defmodule Mix.Tasks.Tuist.Test do
 
     case System.get_env(@retry_results, "") do
       "" ->
+        # Decided on the run's own arguments: those a shard adds below are
+        # its share of the suite, not a filter.
+        options =
+          Keyword.merge(options,
+            coverage: Coverage.requested?(test_args),
+            coverage_partial: Coverage.partial?(test_args)
+          )
+
         case shard(options, test_args) do
           {options, test_args} ->
+            {options, test_args} = native_coverage(options, test_args)
+
             if options[:prepare_only] do
               :ok
             else
               case retries_for(options, test_args) do
                 0 ->
-                  configure(options)
-                  run_test(test_args)
+                  if options[:coverage] or GitHistory.enabled?(false) do
+                    run_deferred(options, test_args)
+                  else
+                    configure(options)
+                    run_test(test_args)
+                  end
 
                 retries ->
                   run_with_retries(options, test_args, retries)
@@ -147,6 +174,7 @@ defmodule Mix.Tasks.Tuist.Test do
         # Forwarded arguments are kept as given, in order: repeated options
         # such as `--include a --include b` mean something.
         {test_args, files} = Shards.restrict(test_args, files)
+        test_args = Coverage.with_shard_export(test_args, index)
 
         if files == [] and options[:prepare_only] != true do
           Mix.shell().info("Tuist: shard #{index} of #{reference} has no tests to run.")
@@ -183,6 +211,33 @@ defmodule Mix.Tasks.Tuist.Test do
     end
   end
 
+  # A shard of a build `mix tuist.test.build --cover` instrumented counts with
+  # the runtime's native line counters, without Mix's coverage tool, which
+  # would compile every module for `cover` again. A run that is no shard keeps
+  # Mix's tool, its report and threshold, even on a build instrumented in place.
+  defp native_coverage(options, test_args) do
+    cond do
+      options[:coverage] != true or options[:prepare_only] == true or
+          is_nil(options[:shard_index]) ->
+        {options, test_args}
+
+      not Coverage.native_build?(Mix.Project.compile_path()) ->
+        {options, test_args}
+
+      not Coverage.enable_native(Mix.Project.compile_path()) ->
+        Mix.shell().info(
+          "warning: the build was instrumented for native coverage, but this runtime cannot count " <>
+            "natively (it needs the JIT). Mix's coverage tool runs instead."
+        )
+
+        {options, test_args}
+
+      true ->
+        Mix.shell().info("Tuist: counting coverage natively in the instrumented build")
+        {Keyword.put(options, :coverage_native, true), Coverage.without_cover(test_args)}
+    end
+  end
+
   # A plan without a build is fine: the shard compiles as usual.
   defp download_build_args(shard, index) do
     case Shards.download_build(shard["download_url"], Mix.Project.build_path()) do
@@ -203,8 +258,23 @@ defmodule Mix.Tasks.Tuist.Test do
 
   defp run_test(args), do: Args.run_wrapped("test", Mix.Tasks.Test, args)
 
+  # Coverage is read when each suite finishes and sent with its run, and the
+  # Git history goes with the run too, so the runs wait for the suite to end;
+  # the Git history is read before the tests can change the checkout.
+  defp run_deferred(options, test_args) do
+    configure(Keyword.put(options, :mode, {:defer, self()}))
+    history = collect_history(options)
+
+    try do
+      run_test(test_args)
+    after
+      submit_runs(ExUnitFormatter.take_deferred(), [], options, history)
+    end
+  end
+
   defp run_with_retries(options, test_args, retries) do
     configure(Keyword.put(options, :mode, {:defer, self()}))
+    history = collect_history(options)
     suite = run_suite(test_args)
     # One per suite that ran: an umbrella runs one for each application.
     deferred = ExUnitFormatter.take_deferred()
@@ -218,12 +288,85 @@ defmodule Mix.Tasks.Tuist.Test do
     {suite, attempts} =
       if suite == :failed and complete?, do: retry(test_args, retries), else: {suite, []}
 
-    for {payload, opts, _aborted?} <- deferred do
-      ExUnitFormatter.submit(ExUnitFormatter.merge_retries(payload, attempts), opts)
-    end
+    submit_runs(deferred, attempts, options, history)
 
     if suite == :failed, do: fail(test_args)
     :ok
+  end
+
+  # The commits and branch heads go up before the runs, whose ingestion reads
+  # which commits the default branch reached; the commit's listing once the
+  # runs exist.
+  defp submit_runs(deferred, attempts, options, history) do
+    upload_history(history, &GitHistory.publish/2)
+
+    for {payload, opts, _aborted?} <- deferred do
+      payload
+      |> ExUnitFormatter.merge_retries(attempts)
+      |> with_coverage(options, opts, history)
+      |> ExUnitFormatter.submit(opts)
+    end
+
+    upload_history(history, &GitHistory.upload_listing/2)
+    :ok
+  end
+
+  defp upload_history(nil, _upload), do: :ok
+
+  defp upload_history(history, upload) do
+    analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
+
+    case Isolated.run(fn -> upload.(history, analytics_options) end, 300_000) do
+      problems when is_list(problems) ->
+        Enum.each(problems, &Report.debug("tuist analytics: " <> &1))
+
+      {:error, reason} ->
+        Report.debug("tuist analytics: the Git history upload failed: #{inspect(reason)}")
+    end
+  end
+
+  # On CI, or with coverage, unless `TUIST_GIT_UPLOAD_ENABLED=false`.
+  defp collect_history(options) do
+    coverage? = options[:coverage] == true
+    analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
+
+    with true <- GitHistory.enabled?(coverage?),
+         %{} = history <-
+           Isolated.run(
+             fn ->
+               GitHistory.collect(File.cwd!(), analytics_options, &System.get_env/1, coverage?)
+             end,
+             300_000
+           ) do
+      history
+    else
+      false ->
+        nil
+
+      {:error, reason} ->
+        Report.debug("tuist analytics: the Git history could not be read: #{inspect(reason)}")
+        nil
+    end
+  end
+
+  defp with_coverage(payload, options, opts, history) do
+    {snapshot, payload} = Map.pop(payload, :coverage_snapshot)
+    payload = if history, do: Map.merge(payload, GitHistory.payload(history)), else: payload
+
+    with snapshot when is_list(snapshot) <- snapshot,
+         {:ok, coverage} <-
+           Coverage.build(snapshot, File.cwd!(), options[:coverage_partial] == true),
+         {:ok, payload} <-
+           Isolated.run(fn -> Coverage.attach(payload, coverage, opts) end, 600_000) do
+      payload
+    else
+      nil ->
+        payload
+
+      problem ->
+        Report.debug("tuist analytics: the run's coverage could not be sent: #{inspect(problem)}")
+        payload
+    end
   end
 
   # With `--raise`, a failing suite raises instead of registering an exit
@@ -286,17 +429,8 @@ defmodule Mix.Tasks.Tuist.Test do
   defp retry_once(test_args, path) do
     case System.find_executable("mix") do
       mix when is_binary(mix) ->
-        color = if IO.ANSI.enabled?(), do: ["--color"], else: []
-
-        args =
-          ["tuist.test", "--failed"] ++ color ++ retry_args(test_args)
-
-        {_output, status} =
-          System.cmd(mix, args,
-            env: [{@retry_results, path}, {"MIX_ENV", "test"}],
-            into: IO.stream(:stdio, :line),
-            stderr_to_stdout: true
-          )
+        args = ["tuist.test", "--failed" | retry_args(test_args)]
+        status = Subprocess.run(mix, args, [{@retry_results, path}, {"MIX_ENV", "test"}])
 
         {:ok, status, ExUnitFormatter.read_collected(path)}
 

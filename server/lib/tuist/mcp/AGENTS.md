@@ -2,10 +2,11 @@
 
 This directory contains the Tuist [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) implementation:
 
-- JSON-RPC request handling
-- The transport routes `2026-07-28` requests to `Transport.Stateless` and preserves the EMCP session transport for older clients. The modern route has no session identifier and adds result discriminators, cache hints, and server identity to existing tool and prompt responses. Keep both paths tested when changing protocol handling.
+- JSON-RPC request handling. Reuse EMCP's dispatcher and schema validation; its pinned HTTP transport and current upstream still require sessions, so automatic recreation is not a session-free mode. Both paths default origin checks to `app_url(route_type: :app)`, including self-hosted installs. Legacy absent/null arguments retain EMCP's empty-map behavior; other non-object arguments are rejected.
+- The transport routes `2026-07-28` requests to `Transport.Stateless` and handles older clients without allocating sessions. The modern route has no session identifier and adds result discriminators, cache hints, and server identity to existing tool and prompt responses. Keep both paths tested when changing protocol handling.
 - Event subscriptions, callback verification, and delivery live under `events/`; see `events/AGENTS.md`.
 - MCP tools and prompts
+- `Tools.BuildEntityTool` backs three parameterized tools, `list_build_entities`, `get_build_entity` and `list_build_entity_history`, selected by a `kind` enum (`gradle_tasks`, `xcode_modules`, `once_actions`, `mix_files`, `mix_modules`) over the REST resource descriptors and `Tuist.BuildEntities.Params`. Add a kind to the enum rather than a new tool per toolchain; cache-action kinds are intentionally REST and dashboard only. A kind whose toolchain differs from the project's returns a tool error. After project authorization and before any query, `Tuist.FeatureFlags.build_entities_enabled?/1` must allow the project (per-project `:build_entities`, overridden by the global `:build_entities_kill_switch`); otherwise return the not-available error. Tests opt each project in with `FunWithFlags.enable(:build_entities, for_actor: project)`; never toggle the global kill switch in tests, because flag state is shared across async test modules. Authorize project build-read before querying; IDs are project/toolchain/kind scoped and independent of runs. Detail includes period analytics, history uses bounded opaque cursors, and unknown observations stay unavailable. Keep existing run-level tools and input contracts unchanged. Detail metrics include optional `duration_samples`, counting measured durations rather than executions; exclude null timing, include genuine zeros, and keep the schema compatible with earlier responses.
 - MCP authorization/serialization helpers
 - Operator reads: for calls proxied by Atlas (`x-tuist-atlas-identity`, verified by `TuistWeb.OperatorGrant.accept_atlas_identity_header/2`), `Tuist.MCP.Authorization.authorize_request/4` falls back to a grant-free read for the resource's account. It goes through the `:ops_access` policies and never applies to writes. There is no MCP operator-grant header; grants from ops.tuist.dev only apply to the browser session.
 - Xcode build-step list/detail tools share `Tuist.Builds.Steps` with the HTTP API. Lists omit logs, IDs are decimal strings scoped to a build, and details expose bounded logs separately after build-read authorization. The `compare_builds` prompt includes these tools; the flaky-test and integration skills intentionally do not use build-step data.
@@ -46,3 +47,10 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
   derive schemas from `Runners.CacheVolumes.Schemas`. Reads require runners-read;
   clearing requires account-update and carries destructive annotations. Keep
   account scoping, unknown values and the runners feature gate intact.
+
+- Organization invitation tools reuse `Accounts.invite_user_to_organization/3`
+  and the `:invitation` policies, matching the dashboard and REST API. They
+  never return invitation tokens or links; `email_sent` tells the agent when
+  the link has to be copied from the dashboard instead.
+
+- The endpoint implements the stateless 2026-07-28 transport and `server/discover`. Every modern request validates protocol metadata and mirrored headers. Legacy 2025-06-18 and 2025-03-26 clients remain supported without allocating sessions. Catalogs do not advertise change subscriptions.

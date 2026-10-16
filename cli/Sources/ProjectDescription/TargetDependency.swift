@@ -47,6 +47,9 @@ public enum SDKType: String, Codable, Hashable, Sendable {
 
 /// A target dependency.
 public enum TargetDependency: Codable, Hashable, Sendable {
+    /// How to consume a native Swift package product declared with `TargetDependency.package`.
+    /// Xcode resolves native package linkage. Packages integrated through `TargetDependency.external`
+    /// instead become Tuist-generated targets whose product types describe their linkage.
     public enum PackageType: Codable, Hashable, Sendable {
         /// A runtime package type represents a standard package whose sources are linked at runtime.
         /// For example importing the framework and consuming from dependent targets.
@@ -54,6 +57,17 @@ public enum TargetDependency: Codable, Hashable, Sendable {
 
         /// A runtime embedded package type represents a package that's embedded in the product at runtime.
         case runtimeEmbedded
+
+        /// A runtime product known to link dynamically. Hosted tests retain a link to this product
+        /// even when their host also links it. This is a linkage hint, not a request to change how
+        /// Swift Package Manager builds the product. Use `runtimeDynamicEmbedded` on the app when
+        /// the product needs explicit embedding; this hint alone only retains the link.
+        case runtimeDynamic
+
+        /// A dynamically linked runtime product that is also explicitly embedded in the consumer.
+        /// Tuist omits the test's explicit embed when its host embeds the product under the same
+        /// platform condition. Xcode may separately synthesize embedding for automatic products.
+        case runtimeDynamicEmbedded
 
         /// A plugin package represents a package that's loaded by the build system at compile-time to
         /// extend the compilation process.

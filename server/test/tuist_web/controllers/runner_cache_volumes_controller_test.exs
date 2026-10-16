@@ -13,6 +13,24 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
     :post |> Plug.Test.conn("/report") |> put_req_header("authorization", "Bearer agent-token")
   end
 
+  test "older agents get 404 for explicit commit modes, which they treat as unsupported" do
+    assert %{plug: Controller, plug_opts: :authorize} =
+             Phoenix.Router.route_info(
+               TuistWeb.Router,
+               "POST",
+               "/api/internal/runners/cache-volumes/authorize",
+               "localhost"
+             )
+
+    assert :error =
+             Phoenix.Router.route_info(
+               TuistWeb.Router,
+               "POST",
+               "/api/internal/runners/cache-volumes/authorize-commit",
+               "localhost"
+             )
+  end
+
   test "rejects workflow or unrelated service account credentials before touching storage" do
     expect(K8sClient, :create_controller_token_review, fn "agent-token" ->
       {:ok, %{namespace: Environment.runners_namespace(), name: "runner-job"}}

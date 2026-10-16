@@ -114,6 +114,11 @@ func (w *ConvergeWorker) reportUsage(ctx context.Context) {
 	if !ok {
 		return
 	}
+	// Not a failure: no runner Pod has said where the server is yet. The queue
+	// is durable, so the reports wait for the first one.
+	if source.currentEndpoint() == "" {
+		return
+	}
 	dir := filepath.Join(w.Volumes.Root, "usage-reports")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -149,9 +154,7 @@ func (w *ConvergeWorker) reportUsage(ctx context.Context) {
 }
 
 func (s *ServerPrefetch) reportUsage(ctx context.Context, data []byte) error {
-	s.mu.Lock()
-	endpoint := s.endpoint
-	s.mu.Unlock()
+	endpoint := s.currentEndpoint()
 	if endpoint == "" {
 		return errPrefetchUnavailable
 	}

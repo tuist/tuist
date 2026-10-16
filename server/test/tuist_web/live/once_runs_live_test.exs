@@ -346,7 +346,7 @@ defmodule TuistWeb.OnceRunsLiveTest do
     html = render(view)
 
     # Sort by, the control Xcode's Build Runs leads with, offering the same
-    # two columns it does.
+    # duration, run date and failure category.
     assert html =~ "Sort by:"
     assert has_element?(view, "#once-invocations-sort-by")
     assert html =~ "invocations-sort-by=duration"

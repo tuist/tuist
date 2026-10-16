@@ -61,6 +61,18 @@ func (in *KuraInstanceList) DeepCopyObject() runtime.Object {
 
 func (in *KuraInstanceSpec) DeepCopyInto(out *KuraInstanceSpec) {
 	*out = *in
+	if in.PlannedHandover != nil {
+		out.PlannedHandover = new(PlannedHandoverRequest)
+		*out.PlannedHandover = *in.PlannedHandover
+	}
+	if in.PrimaryPromotion != nil {
+		out.PrimaryPromotion = new(PrimaryPromotionRequest)
+		*out.PrimaryPromotion = *in.PrimaryPromotion
+	}
+	if in.ReplicaRecovery != nil {
+		out.ReplicaRecovery = new(ReplicaRecoveryRequest)
+		*out.ReplicaRecovery = *in.ReplicaRecovery
+	}
 	if in.ClientHostAliases != nil {
 		out.ClientHostAliases = append([]string{}, in.ClientHostAliases...)
 	}
@@ -122,6 +134,10 @@ func (in *KuraInstanceSpec) DeepCopy() *KuraInstanceSpec {
 
 func (in *KuraInstanceStatus) DeepCopyInto(out *KuraInstanceStatus) {
 	*out = *in
+	if in.ReplicaRecovery != nil {
+		out.ReplicaRecovery = new(ReplicaRecoveryStatus)
+		*out.ReplicaRecovery = *in.ReplicaRecovery
+	}
 	if in.StableEndpoint != nil {
 		out.StableEndpoint = new(StableEndpointStatus)
 		*out.StableEndpoint = *in.StableEndpoint

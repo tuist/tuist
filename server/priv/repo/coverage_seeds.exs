@@ -3,8 +3,8 @@
 # Coverage is a property of a commit: a run measures one scheme of it and the
 # commit's figure is the union of its runs, so the pages need the whole chain:
 # the repository's commit graph, each commit's file listing, runs carrying
-# coverage and per-test evidence, the tests each run could have run, and the
-# per-commit totals every coverage surface reads.
+# coverage and per-test evidence, the tests each selective run skipped, and
+# the per-commit totals every coverage surface reads.
 #
 # Everything is derived from one model of the repository, so the numbers
 # agree wherever they are read:
@@ -522,32 +522,6 @@ defmodule CoverageSeed do
     }
   end
 
-  # The files a pull request changed against its merge base, as its runs
-  # report them: each file whose version moved, with the added functions as
-  # hunks, and the test files that gained tests.
-  def changed_files(base, head) do
-    product =
-      for {path, version} <- head.versions, version != Map.get(base.versions, path, 0) do
-        before = MapSet.new(layout(path, Map.get(base.versions, path, 0)).functions, & &1.name)
-
-        hunks =
-          for function <- layout(path, version).functions,
-              not MapSet.member?(before, function.name),
-              do: %{start: function.line, end: function.close}
-
-        %{path: path, status: "modified", git_blob_id: blob(path, version), hunks: hunks}
-      end
-
-    tests =
-      head.added
-      |> MapSet.difference(base.added)
-      |> Enum.map(fn {path, _name} -> "Tests/#{module_of(path)}/#{module_of(path)}.swift" end)
-      |> Enum.uniq()
-      |> Enum.map(&%{path: &1, status: "modified", git_blob_id: blob(&1, 0), hunks: [%{start: 1, end: 3}]})
-
-    product ++ tests
-  end
-
   def listing(state) do
     product =
       Enum.map([generated() | product_files()], fn {path, _target} ->
@@ -585,7 +559,7 @@ if previous_repository_id do
   Repo.delete_all(from(r in GitHistory.Repository, where: r.id == ^previous_repository_id))
 end
 
-for table <- ["coverage_files", "coverage_runs", "test_run_enumerated_tests", "test_run_changed_files"] do
+for table <- ["coverage_files", "coverage_runs"] do
   IngestRepo.query!("DELETE FROM #{table} WHERE project_id = {project_id:Int64}", %{project_id: project.id})
 end
 
@@ -774,9 +748,15 @@ side_commits = fn plan ->
     {entries, _} =
       Enum.map_reduce(commits, {fork.state, fork.commit.label}, fn commit, {state, parent} ->
         # The selective heads change one screen, which their runs retest;
-        # #4330's leaves the search view model, whose test failed, alone.
+        # #4330's leaves the search view model, whose test failed, alone. Its
+        # first commit changes that view model, so the version of the test
+        # that failed exists only on its branch: a skipped test carries from
+        # the latest run of its version, wherever that ran.
         ops =
           case {commit.pull_request, commit.index} do
+            {4330, 0} ->
+              CoverageSeed.ops(state, commit.label, commit.kind, ["Sources/Features/Search/SearchViewModel.swift"])
+
             {4321, 1} ->
               CoverageSeed.ops(state, commit.label, :bump, ["Sources/Features/ProjectDetail/ProjectDetailView.swift"])
 
@@ -974,12 +954,12 @@ create_run = fn entry, scheme, mode, opts ->
       git_object_format: "sha1",
       history_source: "client",
       test_modules: modules,
-      enumerated_tests:
+      skip_test_identifiers:
         if(recent?,
-          do: Enum.map(run.candidates, &%{module: &1.module, suite: &1.suite, name: &1.name, enabled: true})
+          do: Enum.map(run.candidates -- run.ran, &"#{&1.module}/#{&1.suite}/#{&1.name}"),
+          else: []
         ),
       coverage_evidence: if(recent?, do: run.evidence),
-      changed_files: if(pull_request, do: CoverageSeed.changed_files(entry.base, entry.state), else: []),
       xcode_coverage: %{partial: mode == :selective, files: run.files}
     })
 
@@ -998,7 +978,6 @@ runs =
 {_dirty, _} = create_run.(Map.fetch!(main_entry_by_label, "main-#{dirty_day}"), "App", :full, dirty: true)
 
 Tuist.Tests.Test.Buffer.flush()
-Tuist.Tests.TestRunChangedFile.Buffer.flush()
 
 # Publish oldest first, as the commit worker would as the runs land.
 published =
@@ -1058,8 +1037,7 @@ checks = [
   {"#4321's head reuses its skipped tests' coverage", kinds.("pr-4321-1") == "reported"},
   {"#4330's head cannot reuse a test that failed last time", kinds.("pr-4330-1") == "partial"},
   {"main's selective commits reuse theirs", Enum.all?(selective_days, &(kinds.("main-#{&1}") == "reported"))},
-  {"recent full runs list their tests", kinds.("main-2") == "measured"},
-  {"older runs do not", kinds.("main-90") == "observed"}
+  {"full runs skip nothing", Enum.all?(~w(main-2 main-90), &(kinds.(&1) == "measured"))}
 ]
 
 failed = for {name, false} <- checks, do: name

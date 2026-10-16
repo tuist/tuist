@@ -571,8 +571,8 @@ defmodule Atlas.Accounts.POCs do
 
   defp access_request_topic(request_id), do: "poc_access:" <> request_id
 
-  defp broadcast(request_id, message) do
-    Phoenix.PubSub.broadcast(@pubsub, access_request_topic(request_id), message)
+  defp broadcast(request_id, {:poc_access_request_updated, %AccessRequest{id: request_id}}) do
+    Phoenix.PubSub.broadcast(@pubsub, access_request_topic(request_id), {:poc_access_request_updated, request_id})
   end
 
   defp now, do: DateTime.utc_now() |> DateTime.truncate(:second)

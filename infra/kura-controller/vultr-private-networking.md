@@ -13,7 +13,7 @@ pricing and provider coordination.
 `capi.vultrPrivateNetwork` declares each region's VPC description, CIDR and
 qualification gate in Helm. Production declares `tuist-kura-production-ord`
 (`172.30.244.0/24`, qualified) and `tuist-kura-production-scl`
-(`172.30.245.0/24`, enabled with a single-host qualification limit). Self-hosting
+(`172.30.245.0/24`, qualified across two enrolled hosts). Self-hosting
 defaults to disabled.
 
 `VultrMachineReconciler` manages networks for enrolled cache fleets in its
@@ -60,10 +60,9 @@ MTU and DF-probe options are explicit renderer parameters.
 The merge deployment therefore enables Chicago private replication after this
 convergence gate. Normal managed rollout and existing OnDelete holds still
 apply; merge does not instantly restart every runtime. Santiago also enables
-managed host configuration and runtime topology. Its single host passed manual
-attachment without reboot and isolated regional runtime checks. Same-host
-replication cannot prove a physical VPC path between hosts: repeat the physical
-path/MTU checks when the second Santiago host arrives. Chicago–Santiago traffic
+managed host configuration and runtime topology. Its two enrolled hosts passed
+bidirectional physical path/MTU and isolated replication checks after controller
+route convergence. See the qualification scope below. Chicago–Santiago traffic
 uses the reciprocal canonical mTLS policy below.
 
 ## Regional replication policy
@@ -106,8 +105,9 @@ and would reject the second advertised domain. Production has completed
 this policy-capable runtime prerequisite and enables `qualified: true` for both
 regions. For another region, qualify its host through the procedure below before
 enabling it. A single host can validate attachment and runtime behavior, but
-physical host-to-host private replication must be tested when a second host arrives. Future Santiago hosts
-join the same region's membership/route convergence gate automatically.
+physical host-to-host private replication must be tested when a second host
+arrives. Additional hosts join the same region's membership/route convergence
+gate automatically.
 
 For rollback, withdraw Santiago topology before rolling back to a runtime that
 does not support regional policy. Preserve the host routes and network; do not
@@ -124,11 +124,27 @@ and host configuration were removed afterward; provider attachments remain for
 controller adoption. The [PR validation record](https://github.com/tuist/tuist/pull/13676)
 contains the tested revisions, capture counts and measured results.
 
-This qualified the Chicago path. It did not establish saturation throughput,
-N-1 capacity, a physical Santiago host pair or persistence across a production
-reboot.
-The new Vultr controller was tested locally, not deployed in that qualification
-window. New hosts and controller changes still need appropriate validation.
+That initial window qualified Chicago; the new Vultr controller was tested
+locally rather than deployed during that window.
+
+Santiago subsequently passed physical validation on two controller-enrolled
+hosts. Both reported `PrivateNetworkReady=True` with matching membership and
+current-boot attestations. Each direction passed 1472-byte DF ICMP payloads
+(1500-byte IP packets) without loss. Two isolated Kura peers, pinned one per
+host and running the deployed runtime with their own mTLS CA, each originated
+a 33 MiB + 1 byte object. Reads from the opposite peer matched SHA-256 and
+length, and both sibling feeds settled at zero lag. Header captures filtered
+to the fixture's inner Pod IP pair showed bidirectional Cilium VXLAN traffic
+on both private NICs and no matching packets on either public NIC. Temporary
+pods, services, test certificates and host capture files were removed.
+
+The Santiago checks establish the healthy physical replication path; they do
+not repeat Chicago's failure/recovery, cold-backfill or mixed-version tests.
+Neither qualification establishes saturation throughput, N-1 capacity or
+persistence across a production reboot. Existing serving volumes were not
+moved; two enrolled hosts do not imply that an existing instance's replicas
+are distributed between them. New hosts and controller changes still need
+appropriate validation.
 
 ## Repeating qualification
 

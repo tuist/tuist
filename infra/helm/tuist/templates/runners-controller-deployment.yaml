@@ -195,6 +195,10 @@ spec:
     spec:
       serviceAccountName: {{ $controllerSA }}
       {{- include "tuist.podScheduling" . | nindent 6 }}
+      {{- with .Values.runnersController.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: manager
           image: "{{ .Values.runnersController.image.repository }}:{{ .Values.runnersController.image.tag }}"

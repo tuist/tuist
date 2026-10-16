@@ -41,8 +41,11 @@ type LocalImages struct {
 	MeasureFS        func(string) (int64, int64, error)
 	FreeBytes        func(string) (uint64, error)
 	FreeBytesContext func(context.Context, string) (uint64, error)
-	locks            sync.Map
-	admission        contextMutex
+	// Reclaim makes room in another cache sharing this filesystem, after local
+	// masters have been evicted. It must preserve all active reservations.
+	Reclaim   func(context.Context, uint64) error
+	locks     sync.Map
+	admission contextMutex
 }
 
 func (b *LocalImages) command(name string, args ...string) ([]byte, error) {
@@ -168,6 +171,10 @@ func (b *LocalImages) freeBytes(ctx context.Context) (uint64, error) {
 // Reflinks share physical extents, so admission uses filesystem free space,
 // exactly like the APFS manager, rather than summing logical image sizes.
 func (b *LocalImages) reserve(ctx context.Context) error {
+	return b.reserveBytes(ctx, b.MinFreeBytes)
+}
+
+func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 	if err := b.admission.LockContext(ctx); err != nil {
 		return err
 	}
@@ -196,7 +203,7 @@ func (b *LocalImages) reserve(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if free >= b.MinFreeBytes && time.Since(info.ModTime()) < 7*24*time.Hour {
+		if free >= minimum && time.Since(info.ModTime()) < 7*24*time.Hour {
 			continue
 		}
 		unlock, err := b.lockContext(ctx, filepath.Base(filepath.Dir(path)))
@@ -214,7 +221,16 @@ func (b *LocalImages) reserve(ctx context.Context) error {
 			return err
 		}
 	}
-	if free < b.MinFreeBytes {
+	if free < minimum && b.Reclaim != nil {
+		if err := b.Reclaim(ctx, minimum); err != nil {
+			return err
+		}
+		free, err = b.freeBytes(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	if free < minimum {
 		return ErrCapacity
 	}
 	return nil

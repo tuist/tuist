@@ -5,6 +5,10 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Origin.Client, as: OriginClient
+  alias Tuist.Origin.Installation, as: OriginInstallation
+  alias Tuist.Projects
+  alias Tuist.Repo
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.GitLab
   alias Tuist.VCS
@@ -49,6 +53,360 @@ defmodule TuistWeb.IntegrationsLiveTest do
     assert html =~ "Integrations"
     assert html =~ "GitHub"
     assert html =~ "Connect any of your GitHub repositories to a project"
+  end
+
+  describe "Origin visibility" do
+    test "shows unconfigured Origin in development without enabling installation", %{
+      conn: conn,
+      organization: organization
+    } do
+      stub(Tuist.Environment, :dev?, fn -> true end)
+      stub(OriginClient, :configured?, fn -> false end)
+
+      {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+
+      assert has_element?(lv, "[data-part=origin-card-section]")
+      assert html =~ "Origin app not configured"
+      assert html =~ "TUIST_ORIGIN_APP_ID"
+      assert html =~ "TUIST_ORIGIN_APP_PRIVATE_KEY"
+      assert has_element?(lv, "[data-part=origin-card-section] button[data-variant=primary][disabled]", "Connect")
+      refute has_element?(lv, "[data-part=origin-card-section] a", "Connect")
+      refute has_element?(lv, "#add-origin-connection-modal")
+    end
+
+    test "hides unconfigured Origin outside development", %{conn: conn, organization: organization} do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(OriginClient, :configured?, fn -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+
+      refute has_element?(lv, "[data-part=origin-card-section]")
+    end
+
+    test "enables installation when Origin is configured", %{
+      conn: conn,
+      organization: organization,
+      account: account
+    } do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(OriginClient, :configured?, fn -> true end)
+
+      {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+
+      assert has_element?(
+               lv,
+               "[data-part=origin-card-section] a.noora-button[data-variant=primary][href='/integrations/origin/start?account_id=#{account.id}']",
+               "Connect"
+             )
+
+      refute html =~ "Origin app not configured"
+    end
+  end
+
+  describe "Origin account connections" do
+    setup %{account: account} do
+      stub(Tuist.Environment, :origin_app_id, fn -> "app_tuist" end)
+      stub(OriginClient, :configured?, fn -> true end)
+      installation = origin_installation_fixture(account)
+
+      stub(OriginClient, :get_installation, fn "i_origin" ->
+        {:ok,
+         %{
+           "id" => "i_origin",
+           "appId" => "app_tuist",
+           "target" => %{"id" => "ns_origin", "slug" => "acme"},
+           "scopes" => OriginClient.scopes()
+         }}
+      end)
+
+      repositories = [
+        %{"fullName" => "acme/native", "defaultBranch" => "develop"},
+        %{"fullName" => "acme/mirror", "mirror" => %{"source" => "github"}}
+      ]
+
+      stub(OriginClient, :list_repositories, fn ^installation -> {:ok, repositories} end)
+
+      stub(OriginClient, :get_repository, fn ^installation, "acme/native" ->
+        {:ok, %{"defaultBranch" => "develop"}}
+      end)
+
+      %{origin_installation: installation, origin_repositories: repositories}
+    end
+
+    test "shows an account connection and Noora repository modal instead of raw inputs", %{
+      conn: conn,
+      organization: organization,
+      account: account
+    } do
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+      render_async(lv)
+      assert has_element?(lv, "[data-part=installation-card-section] [data-part=label]", "acme")
+      assert has_element?(lv, "[data-part=installation-card-section] button", "Disconnect")
+
+      assert has_element?(
+               lv,
+               "a[href='/integrations/origin/start?account_id=#{account.id}'][target='_blank'][rel='noopener noreferrer']",
+               "Manage integration"
+             )
+
+      assert has_element?(
+               lv,
+               "#add-origin-connection-modal .noora-button[data-variant=primary]",
+               "Add new project connection"
+             )
+
+      assert origin_element?(lv, "#origin-project-dropdown.noora-dropdown")
+      assert origin_element?(lv, "#origin-repository-dropdown-content-portal .noora-dropdown-item", "acme/native")
+      refute origin_element?(lv, "#origin-repository-dropdown-content-portal .noora-dropdown-item", "acme/mirror")
+      refute origin_element?(lv, "#origin-installation-dropdown")
+      refute has_element?(lv, "[data-part=origin-card-section] select")
+      refute has_element?(lv, "[data-part=origin-card-section] input[name=repository]")
+      refute has_element?(lv, "#connect-origin-project")
+      refute has_element?(lv, "[data-part=installation-card-section] [data-part=label]", "ns_origin")
+      assert origin_element?(lv, "button[phx-click=connect-origin-project][disabled]")
+    end
+
+    test "connects through the account installation and renders the shared connection layout", %{
+      conn: conn,
+      organization: organization,
+      project: project,
+      origin_installation: installation
+    } do
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+      render_async(lv)
+      render_hook(lv, "select-origin-repository", %{"repository" => "acme/native"})
+      refute origin_element?(lv, "button[phx-click=connect-origin-project][disabled]")
+      render_click(lv, "connect-origin-project")
+      connection = Repo.get_by!(Projects.VCSConnection, project_id: project.id)
+      assert connection.provider == :origin
+      assert connection.origin_app_installation_id == installation.id
+      assert connection.repository_full_handle == "acme/native"
+      assert Projects.get_project_by_id(project.id).default_branch == "develop"
+
+      assert has_element?(
+               lv,
+               "[data-part=origin-card-section] [data-part=connection-card-section] [data-part=label]",
+               project.name
+             )
+
+      assert has_element?(lv, "#origin-connection-actions-#{connection.id}", "Manage")
+      refute has_element?(lv, "[data-part=github-card-section] [data-value='#{connection.id}']")
+      assert_push_event(lv, "close-modal", %{id: "add-origin-connection-modal"})
+    end
+
+    test "requires a project when several are available and clears modal selections on cancel", %{
+      conn: conn,
+      organization: organization,
+      account: account,
+      project: project
+    } do
+      ProjectsFixtures.project_fixture(account_id: account.id)
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+      render_async(lv)
+      render_hook(lv, "select-origin-repository", %{"repository" => "acme/native"})
+      assert origin_element?(lv, "button[phx-click=connect-origin-project][disabled]")
+      render_hook(lv, "select-origin-project", %{"project_id" => to_string(project.id)})
+      refute origin_element?(lv, "button[phx-click=connect-origin-project][disabled]")
+      render_click(lv, "close-add-origin-connection-modal")
+      assert origin_element?(lv, "#origin-project-dropdown-label-portal", "Choose Tuist project")
+      assert origin_element?(lv, "#origin-repository-dropdown-label-portal", "Choose a repository")
+      assert origin_element?(lv, "button[phx-click=connect-origin-project][disabled]")
+    end
+
+    test "rejects forged repository and malformed project selections without a repository probe", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      reject(&OriginClient.get_repository/2)
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+      render_async(lv)
+      render_hook(lv, "select-origin-project", %{"project_id" => "not-an-id"})
+      render_hook(lv, "select-origin-repository", %{"repository" => "other/private"})
+      render_hook(lv, "connect-origin-project", %{"repository" => "other/private", "project_id" => project.id})
+      assert origin_element?(lv, "#add-origin-connection-error", "Could not connect")
+      refute Repo.get_by(Projects.VCSConnection, project_id: project.id)
+    end
+
+    test "rechecks native access at creation and preserves the modal on failure", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      stub(OriginClient, :get_repository, fn _, "acme/native" -> {:error, {:origin_http_error, 404}} end)
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+      render_async(lv)
+      render_hook(lv, "select-origin-repository", %{"repository" => "acme/native"})
+      render_click(lv, "connect-origin-project")
+      assert origin_element?(lv, "#add-origin-connection-error", "Could not connect")
+      assert origin_element?(lv, "#origin-repository-dropdown-label-portal", "acme/native")
+      refute Repo.get_by(Projects.VCSConnection, project_id: project.id)
+    end
+
+    test "excludes projects already connected to GitHub", %{
+      conn: conn,
+      organization: organization,
+      account: account,
+      project: project
+    } do
+      github = VCSFixtures.github_app_installation_fixture(account_id: account.id)
+      stub(VCS, :get_github_app_installation_repositories, fn _ -> {:ok, []} end)
+
+      {:ok, connection} =
+        Projects.create_vcs_connection(%{
+          project_id: project.id,
+          provider: :github,
+          repository_full_handle: "acme/github",
+          github_app_installation_id: github.id
+        })
+
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+      render_async(lv)
+      refute origin_element?(lv, "#origin-project-dropdown-content-portal .noora-dropdown-item", project.name)
+      render_hook(lv, "select-origin-project", %{"project_id" => to_string(project.id)})
+      render_hook(lv, "select-origin-repository", %{"repository" => "acme/native"})
+      render_click(lv, "connect-origin-project")
+      assert origin_element?(lv, "#add-origin-connection-error")
+      assert Repo.get!(Projects.VCSConnection, connection.id).provider == :github
+    end
+
+    test "disconnects the account and its project mappings and restores Connect", %{
+      conn: conn,
+      organization: organization,
+      project: project,
+      origin_installation: installation
+    } do
+      {:ok, connection} =
+        Projects.create_vcs_connection(%{
+          project_id: project.id,
+          provider: :origin,
+          repository_full_handle: "acme/native",
+          origin_app_installation_id: installation.id
+        })
+
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+      render_async(lv)
+      render_click(lv, "disconnect-origin", %{"id" => installation.id})
+      render_async(lv)
+      refute Repo.get(OriginInstallation, installation.id)
+      refute Repo.get(Projects.VCSConnection, connection.id)
+      assert has_element?(lv, "[data-part=origin-card-section] a[data-variant=primary]", "Connect")
+      refute has_element?(lv, "#add-origin-connection-modal")
+    end
+
+    test "does not expose or disconnect another account's installation", %{conn: conn, organization: organization} do
+      other = AccountsFixtures.user_fixture()
+      installation = origin_installation_fixture(other.account, installation_id: "i_other", namespace_id: "ns_other")
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+      render_async(lv)
+      refute has_element?(lv, "[data-value='#{installation.id}']")
+      render_hook(lv, "select-origin-installation", %{"installation_id" => installation.id})
+      render_click(lv, "disconnect-origin", %{"id" => installation.id})
+      assert Repo.get!(OriginInstallation, installation.id).account_id == other.account.id
+      assert has_element?(lv, "[data-part=installation-card-section] [data-part=label]", "acme")
+    end
+
+    test "shows discovery errors with retry rather than an empty repository state", %{
+      conn: conn,
+      organization: organization,
+      origin_repositories: repositories
+    } do
+      stub(OriginClient, :list_repositories, fn _ -> {:error, :origin_unavailable} end)
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+      render_async(lv)
+      assert has_element?(lv, ".noora-alert", "Could not load Origin repositories")
+      refute has_element?(lv, ".noora-alert", "No native Origin repositories available")
+      refute has_element?(lv, "#add-origin-connection-modal button[disabled]", "Add new project connection")
+      stub(OriginClient, :list_repositories, fn _ -> {:ok, repositories} end)
+      render_click(lv, "retry-origin-details")
+      render_async(lv)
+      refute origin_element?(lv, ".noora-alert", "Could not load Origin repositories")
+      assert origin_element?(lv, "#origin-repository-dropdown-content-portal .noora-dropdown-item", "acme/native")
+    end
+
+    test "shows loading feedback and prevents creation until repository discovery completes", %{
+      conn: conn,
+      organization: organization,
+      origin_repositories: repositories
+    } do
+      parent = self()
+
+      stub(OriginClient, :list_repositories, fn _ ->
+        send(parent, {:origin_loading, self()})
+
+        receive do
+          :release_origin -> {:ok, repositories}
+        after
+          5_000 -> {:error, :origin_unavailable}
+        end
+      end)
+
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+      assert_receive {:origin_loading, loader}, 2_000
+
+      try do
+        assert has_element?(lv, ".noora-alert", "Loading repositories...")
+        assert origin_element?(lv, "button[phx-click=connect-origin-project][disabled]")
+        refute has_element?(lv, ".noora-alert", "No native Origin repositories available")
+      after
+        send(loader, :release_origin)
+      end
+
+      render_async(lv)
+      refute origin_element?(lv, ".noora-alert", "Loading repositories...")
+      assert origin_element?(lv, "#origin-repository-dropdown-content-portal .noora-dropdown-item", "acme/native")
+    end
+
+    test "switching connected Origin accounts clears the repository and uses the selected installation", %{
+      conn: conn,
+      organization: organization,
+      account: account,
+      project: project,
+      origin_installation: first,
+      origin_repositories: repositories
+    } do
+      second = origin_installation_fixture(account, installation_id: "i_second", namespace_id: "ns_second")
+
+      stub(OriginClient, :get_installation, fn id ->
+        {namespace, slug} = if id == "i_origin", do: {"ns_origin", "acme"}, else: {"ns_second", "second"}
+
+        {:ok,
+         %{
+           "id" => id,
+           "appId" => "app_tuist",
+           "target" => %{"id" => namespace, "slug" => slug},
+           "scopes" => OriginClient.scopes()
+         }}
+      end)
+
+      stub(OriginClient, :list_repositories, fn
+        ^first -> {:ok, repositories}
+        ^second -> {:ok, [%{"fullName" => "second/native"}]}
+      end)
+
+      expect(OriginClient, :get_repository, fn ^second, "second/native" -> {:ok, %{}} end)
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+      render_async(lv)
+      render_hook(lv, "select-origin-installation", %{"installation_id" => first.id})
+      render_hook(lv, "select-origin-repository", %{"repository" => "acme/native"})
+      refute origin_element?(lv, "button[phx-click=connect-origin-project][disabled]")
+      render_hook(lv, "select-origin-installation", %{"installation_id" => second.id})
+      assert origin_element?(lv, "#origin-installation-dropdown-label-portal", "second")
+      assert origin_element?(lv, "button[phx-click=connect-origin-project][disabled]")
+      refute origin_element?(lv, "#origin-repository-dropdown-content-portal .noora-dropdown-item", "acme/native")
+      render_hook(lv, "select-origin-repository", %{"repository" => "second/native"})
+      render_click(lv, "connect-origin-project")
+      assert Repo.get_by!(Projects.VCSConnection, project_id: project.id).origin_app_installation_id == second.id
+    end
+
+    test "explains a successfully loaded empty native repository list", %{conn: conn, organization: organization} do
+      stub(OriginClient, :list_repositories, fn _ -> {:ok, []} end)
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+      render_async(lv)
+      assert origin_element?(lv, ".noora-alert", "No native Origin repositories available")
+      refute origin_element?(lv, ".noora-alert", "Could not load Origin repositories")
+      assert origin_element?(lv, "button[phx-click=connect-origin-project][disabled]")
+    end
   end
 
   test "shows install GitHub app button when no installation exists", %{
@@ -375,7 +733,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
         VCSFixtures.github_app_installation_fixture(account_id: other_org.account.id)
 
       {:ok, other_connection} =
-        Tuist.Projects.create_vcs_connection(%{
+        Projects.create_vcs_connection(%{
           project_id: other_project.id,
           provider: :github,
           repository_full_handle: "other-org/other-repo",
@@ -388,7 +746,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       render_hook(lv, "delete-connection", %{"connection_id" => other_connection.id})
 
       # Then: the connection should still exist
-      assert {:ok, _} = Tuist.Projects.get_vcs_connection(other_connection.id)
+      assert {:ok, _} = Projects.get_vcs_connection(other_connection.id)
     end
   end
 
@@ -409,7 +767,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       )
 
     {:ok, connection} =
-      Tuist.Projects.create_vcs_connection(%{
+      Projects.create_vcs_connection(%{
         project_id: project.id,
         provider: :github,
         repository_full_handle: "org/repo",
@@ -445,7 +803,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     assert updated.installation_id == installation.installation_id
     assert updated.private_key == installation.private_key
     assert updated.webhook_secret == installation.webhook_secret
-    assert {:ok, ^connection} = Tuist.Projects.get_vcs_connection(connection.id)
+    assert {:ok, ^connection} = Projects.get_vcs_connection(connection.id)
 
     lv |> form("form[phx-submit=save-github-api-url]", %{"github_api_url" => ""}) |> render_submit()
     assert {:ok, cleared} = VCS.get_github_app_installation_for_account(account.id)
@@ -571,8 +929,8 @@ defmodule TuistWeb.IntegrationsLiveTest do
     render_hook(lv, "select-repository", %{"repository" => "test-org/test-repo"})
     render_hook(lv, "create-connection", %{})
 
-    assert Tuist.Projects.get_project_by_id(project.id).default_branch == "develop"
-    assert [%{id: project_id}] = Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
+    assert Projects.get_project_by_id(project.id).default_branch == "develop"
+    assert [%{id: project_id}] = Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
     assert project_id == project.id
   end
 
@@ -596,7 +954,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     html = render_hook(lv, "create-connection", %{})
 
     assert html =~ "The selected repository is not accessible to this account&#39;s GitHub App installation."
-    assert Tuist.Projects.projects_by_vcs_repository_full_handle("victim-org/victim-repo") == []
+    assert Projects.projects_by_vcs_repository_full_handle("victim-org/victim-repo") == []
   end
 
   test "rejects a repository when the installation repositories cannot be fetched", %{
@@ -617,7 +975,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     html = render_hook(lv, "create-connection", %{})
 
     assert html =~ "The selected repository is not accessible to this account&#39;s GitHub App installation."
-    assert Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo") == []
+    assert Projects.projects_by_vcs_repository_full_handle("test-org/test-repo") == []
   end
 
   test "reuses the repositories loaded at mount when creating a connection", %{
@@ -641,7 +999,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     render_hook(lv, "select-repository", %{"repository" => "test-org/test-repo"})
     render_hook(lv, "create-connection", %{})
 
-    assert [%{id: project_id}] = Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
+    assert [%{id: project_id}] = Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
     assert project_id == project.id
     assert :counters.get(calls, 1) == 1
   end
@@ -670,7 +1028,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     render_hook(lv, "select-repository", %{"repository" => "test-org/test-repo"})
     render_hook(lv, "create-connection", %{})
 
-    assert [%{id: project_id}] = Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
+    assert [%{id: project_id}] = Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
     assert project_id == project.id
   end
 
@@ -967,5 +1325,30 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
       refute html =~ "buildkite-card-section"
     end
+  end
+
+  # LiveViewTest does not relocate Noora's inert portal templates into their browser targets.
+  defp origin_element?(view, selector, text \\ nil) do
+    view
+    |> render()
+    |> Floki.parse_document!()
+    |> Floki.find(selector)
+    |> Enum.any?(fn node -> is_nil(text) or Floki.text(node) =~ text end)
+  end
+
+  defp origin_installation_fixture(account, attrs \\ []) do
+    %OriginInstallation{}
+    |> OriginInstallation.changeset(
+      Map.merge(
+        %{
+          account_id: account.id,
+          app_id: "app_tuist",
+          installation_id: "i_origin",
+          namespace_id: "ns_origin"
+        },
+        Map.new(attrs)
+      )
+    )
+    |> Repo.insert!()
   end
 end

@@ -10,6 +10,7 @@ import TuistBazelCommand
 import TuistBuildCommand
 import TuistBundleCommand
 import TuistCacheCommand
+import TuistCargoCommand
 import TuistConfigLoader
 import TuistEnvironment
 import TuistGenerateCommand
@@ -40,11 +41,7 @@ public struct TuistCommand: AsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
-        CommandConfiguration(
-            commandName: "tuist",
-            abstract: "Build better apps faster.",
-            groupedSubcommands: groupedSubcommands
-        )
+        CommandConfiguration(commandName: "tuist", abstract: "Build better apps faster.", groupedSubcommands: groupedSubcommands)
     }
 
     private static var groupedSubcommands: [CommandGroup] {
@@ -61,6 +58,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     subcommands: [
                         HashCommand.self,
                         BazelCommand.self,
+                        CargoCommand.self,
                         BuildCommand.self,
                         CacheCommand.self,
                         CacheProxyCommand.self,
@@ -107,6 +105,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 name: "Develop",
                 subcommands: [
                     BazelCommand.self,
+                    CargoCommand.self,
                     BuildCommand.self,
                     CacheCommand.self,
                     GenerateCommand.self,
@@ -156,11 +155,17 @@ public struct TuistCommand: AsyncParsableCommand {
         _ arguments: [String]? = nil,
         parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
     ) async throws {
+        if let cargoArguments = CargoCommand.delegatedArguments(in: arguments ?? Array(Environment.current.arguments)) {
+            // Cargo owns its flags and exit status. Compiler hooks must never enter CLI analytics/authentication.
+            do {
+                let command = try CargoCommand.parse(cargoArguments)
+                try await command.run()
+            } catch { CargoCommand.exit(withError: error) }
+            return
+        }
         let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
 
         #if os(macOS)
-            let path = try await CommandArguments.path(in: processedArguments)
-
             try await CacheDirectoriesProvider.bootstrap()
 
             let executeCommand: () async throws -> Void
@@ -171,9 +176,10 @@ public struct TuistCommand: AsyncParsableCommand {
                 if processedArguments.first == ScaffoldCommand.configuration.commandName {
                     try await ScaffoldCommand.preprocess(processedArguments)
                 }
+                let command = try parseAsRoot(processedArguments)
+                let path = try await CommandArguments.path(in: processedArguments, command: command)
                 let config = try await ConfigLoader().loadConfig(path: path)
                 let serverURL = try ServerEnvironmentService().url(configServerURL: config.url)
-                let command = try parseAsRoot(processedArguments)
                 let shouldRecordHAR = (command as? HARRecordingCommand)?.shouldRecordHAR ?? true
 
                 executeCommand = {
@@ -282,12 +288,12 @@ public struct TuistCommand: AsyncParsableCommand {
         let exitCode = exitCode(for: error).rawValue
 
         if error.localizedDescription.contains("ArgumentParser") {
-            await finishHARRecordingBeforeExit()
+            await prepareForExit(exitCode: exitCode, error: error)
             exit(withError: error)
         }
 
         if let remoteExit = error as? RunnerShellRemoteExitError {
-            await finishHARRecordingBeforeExit()
+            await prepareForExit(exitCode: remoteExit.status, error: error)
             _exit(remoteExit.status)
         }
 
@@ -318,7 +324,7 @@ public struct TuistCommand: AsyncParsableCommand {
         }
 
         if !errorHandled, isParsingError, self.exitCode(for: error).rawValue == 0 {
-            await finishHARRecordingBeforeExit()
+            await prepareForExit(exitCode: exitCode, error: error)
             exit(withError: error)
         } else if !errorHandled, let localizedError = error as? LocalizedError {
             errorAlertMessage =
@@ -333,14 +339,16 @@ public struct TuistCommand: AsyncParsableCommand {
             errorAlertMessage: errorAlertMessage,
             errorAlertNextSteps: errorAlertNextSteps
         )
-        await finishHARRecordingBeforeExit()
+        await prepareForExit(exitCode: exitCode, error: error)
         _exit(exitCode)
     }
 
-    private static func finishHARRecordingBeforeExit() async {
+    private static func prepareForExit(exitCode: Int32, error: Error) async {
         #if os(macOS)
             await HARRecorder.finishCurrent()
         #endif
+        ProgramStatusReporter.current.finish(exitCode: exitCode, cancelled: error is CancellationError)
+        fflush(stdout)
     }
 
     private static func outputCompletion(
@@ -349,7 +357,8 @@ public struct TuistCommand: AsyncParsableCommand {
         errorAlertMessage: TerminalText? = nil,
         errorAlertNextSteps: [TerminalText]? = nil
     ) {
-        if Environment.current.isJSONOutput { return }
+        let isJSONOutput = Environment.current.isJSONOutput
+        if isJSONOutput, errorAlertMessage == nil { return }
 
         let errorAlert: ErrorAlert? =
             if let errorAlertMessage {
@@ -361,7 +370,7 @@ public struct TuistCommand: AsyncParsableCommand {
         let warningAlerts = AlertController.current.warnings()
         let takeaways = AlertController.current.takeaways()
 
-        if !warningAlerts.isEmpty {
+        if !warningAlerts.isEmpty, !isJSONOutput {
             Noora.current.warning(warningAlerts)
         }
         let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"

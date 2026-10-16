@@ -223,8 +223,11 @@ defmodule Tuist.Kura.Origins do
   defp insert_rollups(rows) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
+    # Overlapping batches must acquire conflict-key locks in the same order.
     rows =
-      Enum.map(rows, fn row ->
+      rows
+      |> Enum.sort_by(&{&1.account_id, &1.origin, Date.to_gregorian_days(&1.date)})
+      |> Enum.map(fn row ->
         row
         |> Map.put(:inserted_at, now)
         |> Map.put(:updated_at, now)

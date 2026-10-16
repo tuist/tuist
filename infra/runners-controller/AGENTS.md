@@ -26,8 +26,16 @@ independent workqueues:
   server's `/api/internal/runners/desired_replicas` endpoint and
   patches `RunnerPool.spec.replicas`. The per-pool policy math lives in
   `internal/scaling/desired.go`; tuning knobs (`minWarmPoolFloor`,
-  `maxReplicas`, `scaleDownCooldownSeconds`) live in the
-  `RunnerPool` spec, so a tuning change is helm-only.
+  `maxReplicas`, `scaleDownCooldownSeconds`, `holdRecentPeak`) live in
+  the `RunnerPool` spec, so a tuning change is helm-only.
+
+  `holdRecentPeak` (default true) keeps a pool sized to the server's
+  hourly p95 of concurrent runners after load falls. A pool whose jobs
+  arrive in one-off bursts (the `ber1` smoke pool, dispatched by hand)
+  sets it false, so after a burst it sizes to load plus
+  `minWarmPoolFloor` instead of holding the burst's runners for an
+  hour. Explicit `runnersFleet.pools` / `runnersFleetLinux.pools`
+  entries render it when their `autoscaling` block sets it.
 
   **Fleet-capacity awareness.** Both Linux shape pools and macOS Xcode
   pools share a capacity budget across siblings, so their warm capacity
@@ -51,6 +59,61 @@ independent workqueues:
   fleets shrink toward their real load, so a returning spike pays
   cold-start — a job queued now beats a warm Pod for a job that might
   arrive, and the scale-down cooldown damps the reap.
+
+  **Cross-pool preemption** (`controllers/preemption.go`). The cooldown
+  damps a pool's own oscillation, but it must not hold idle runners
+  while a sibling's queued jobs cannot be placed. When a pool is inside
+  its cooldown and the allocator has already lowered it, the autoscaler
+  checks its fleet for starved siblings and retires this pool's share of
+  idle runners at once instead of deferring:
+
+  - *Starved* means the sibling has Pods the scheduler refused with
+    `Insufficient …` for at least `preemptionWait` (30s), backed by
+    dispatchable `queued` jobs its own idle bound Pods cannot absorb:
+    `min(rejected, queued - idleBound)`. `withheld` work (accounts at
+    their concurrency limit) never preempts. Entitlement is not checked
+    here: a job is only queued on a site pool when dispatch routed it
+    there (`runner_site` accounts, or the pool's own dispatch label), and
+    the site spillover worker moves queued jobs off a site that is down.
+  - Demand is counted in the allocator's per-Pod cost, minus seats
+    already on their way back, so consecutive ticks do not over-preempt
+    while a Tart VM tears down. A pool returns the seats it holds above
+    its `spec.replicas`, counting Pods deleted within `preemptionSettle`
+    that are still on their node. A Pod that finished its job is not
+    counted: its pool is already replacing it, and the replacement takes
+    the seat.
+  - Victims are pools above their allocation that are not starved
+    themselves. They give up Pods one per pool per round in name order,
+    so every pool's reconcile computes the same split. The cut is taken
+    from the smaller of `spec.replicas` and the Pods that exist, so a
+    pool still recreating Pods retires every runner it marked. A victim
+    never drops below its allocation, so `minWarmPoolFloor` yields exactly as
+    the allocator already decides: floors are funded only after every
+    pool's real load, so a queued job outranks a sibling's warm floor.
+  - Only warm idle runners (`isIdle` + `isWarmCapacity`, the same
+    signals the node-drain reap uses) that have been warm for at least
+    `preemptionGrace` (2m) are eligible, oldest first, except that runners
+    on hosts already holding a starved pool's golden image
+    (`tuist.dev/golden-<hash>`) go before all others: the starved Pod takes
+    whichever seat frees, and on those hosts its job clones the image
+    instead of pulling it. A runner still
+    booting, just warm and about to claim, running a job, or on a stale
+    template is never chosen. Unbound idle Pods within the victim's
+    surplus go too, since they would race the starved Pods for the
+    freed seats.
+  - The autoscaler annotates the chosen Pods (`tuist.dev/preempted-for`,
+    `tuist.dev/preempted-at`), lowers `spec.replicas`, and stamps
+    `lastScaleDownAt`. The RunnerPool reconciler's scale-down retires
+    marked Pods first, emits `RunnerPodPreemptedForSiblingDemand` on
+    each, and counts them in
+    `tuist_runners_pool_preempted_pods_total{fleet_selector,pool}`
+    (runners dashboard, "Idle runners preempted for a starved sibling
+    pool"). A mark older than `preemptionSettle` is ignored.
+
+  Bytes are fleet-wide, like the allocator's budget, so preemption can
+  free two small seats on different hosts for a starved 12 vCPU guest
+  that needs one whole host. Accumulating a whole host is the node
+  reservation's job (below).
 
   The capacity unit is allocatable memory bytes on both platforms; only
   what the per-Pod cost includes differs:
@@ -176,7 +239,9 @@ independent workqueues:
 
     When a qualifying Pod has sat unscheduled past `reservationGrace`
     (2m), the RunnerPool reconciler taints one eligible host
-    `tuist.dev/reserved-for=<pool>:NoSchedule`. Every runner Pod
+    `tuist.dev/reserved-for=<pool>:NoSchedule`, preferring the host with
+    the fewest running jobs and, among those, one already holding the
+    pool's golden image. Every runner Pod
     tolerates that key at its OWN pool's value, so the host stops
     admitting everyone else while its seats accumulate. Running jobs are
     waited out, never evicted; only idle Pods of other pools are
@@ -242,12 +307,14 @@ independent workqueues:
     status the scheduler never sees, which is why this lives in the
     controller.
 
-  Only nodes that report `Ready=True`, remain schedulable, and have no
-  memory, disk, or process identifier pressure contribute to either
-  budget. A fleet filtered to zero capacity still takes the existing
-  per-pool fallback, so a transient node roll never triggers a mass
-  scale-down of warm Pods. Pod creation has a separate fail-closed
-  healthy-node gate described below.
+  Only nodes that report `Ready=True`, remain schedulable, carry no
+  `tuist.dev/prewarming` taint (a joining macOS host still pulling its
+  runner images; see tart-kubelet's AGENTS.md), and have no memory, disk,
+  or process identifier pressure contribute to either budget. A fleet
+  filtered to zero capacity still takes the existing per-pool fallback,
+  so a transient node roll never triggers a mass scale-down of warm
+  Pods. Pod creation has a separate fail-closed healthy-node gate
+  described below.
 
   The reconciler reads nodes via the cluster-scoped `nodes` verb in
   the ClusterRole. Fleet-capacity, pool-list, and sibling-signal

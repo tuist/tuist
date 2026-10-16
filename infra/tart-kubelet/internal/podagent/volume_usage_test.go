@@ -9,9 +9,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
@@ -110,5 +113,71 @@ func TestVolumeUsageRejectsInvalidAndSymlinkedGuestReports(t *testing.T) {
 	}
 	if got := readVolumeUsage(root); got != nil {
 		t.Fatal("followed symlink")
+	}
+}
+
+func TestVolumeUsageWaitsSilentlyForTheServerEndpoint(t *testing.T) {
+	root := t.TempDir()
+	warm := true
+	usage := &volumeUsage{AttachedAt: "2026-09-30T08:00:00Z", CapacityBytes: 20000000000, Warm: &warm}
+	entry := &Entry{PodName: "runner", PodUID: "runner-uid", Volume: VolumeAttachment{VolumeName: "tuist-cache"}}
+	source := &ServerPrefetch{Client: fake.NewSimpleClientset(), token: "host-token", tokenExpiry: time.Now().Add(5 * time.Minute)}
+	worker := NewConvergeWorker(&VolumeManager{Root: root, CapGiB: 28}, false, source)
+	if err := worker.queueUsage(entry, usage, VolumeOutcomePromoted); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "usage-reports", "runner-uid.json")
+	queuedAt := time.Now().Add(-time.Hour).Truncate(time.Second)
+	if err := os.Chtimes(path, queuedAt, queuedAt); err != nil {
+		t.Fatal(err)
+	}
+
+	logs := captureLogs(t)
+	worker.reportUsage(context.Background())
+	for _, line := range logs() {
+		if strings.Contains(line, "report volume usage") {
+			t.Fatalf("logged the not-yet-known endpoint as a failure: %q", line)
+		}
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal("report dropped while the endpoint was unknown", err)
+	}
+	if !info.ModTime().Equal(queuedAt) {
+		t.Fatalf("report requeued behind newer ones: mtime %v, want %v", info.ModTime(), queuedAt)
+	}
+
+	delivered := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		delivered++
+	}))
+	defer server.Close()
+	source.ObservePod(&corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{{
+		Env: []corev1.EnvVar{{Name: runnerDispatchURLEnv, Value: server.URL + runnerDispatchPath}},
+	}}}})
+	worker.reportUsage(context.Background())
+	if _, err := os.Stat(path); !os.IsNotExist(err) || delivered != 1 {
+		t.Fatalf("report not delivered once the endpoint was known: delivered=%d err=%v", delivered, err)
+	}
+}
+
+func TestRecoveredRunnerPodTeachesTheServerEndpoint(t *testing.T) {
+	source := &ServerPrefetch{}
+	store := NewStore()
+	// recoverState adopted this Pod's live VM, so createPod returns before
+	// provisioning anything.
+	store.Put("tuist-runners", "runner-0", &Entry{PodName: "runner-0", VMName: "runner-0"})
+	r := &Reconciler{Store: store, Converge: NewConvergeWorker(&VolumeManager{}, false, source)}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "runner-0"},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{
+			Env: []corev1.EnvVar{{Name: runnerDispatchURLEnv, Value: "https://tuist.example" + runnerDispatchPath}},
+		}}},
+	}
+	if err := r.createPod(context.Background(), pod); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := source.currentEndpoint(), "https://tuist.example"+cacheMastersPath; got != want {
+		t.Fatalf("endpoint = %q, want %q", got, want)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -588,12 +589,35 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// safe. Owned Pods (currently running a job) are never deleted
 	// by the reconciler; the autoscaler's targets must be reached
 	// over time, as owned Pods finish their jobs and exit.
+	//
+	// Runners the autoscaler marked for a starved sibling go first, so the
+	// replicas it gave up are the ones it chose.
+	now := r.now()
+	sort.SliceStable(idleAlive, func(a, b int) bool {
+		_, markedA := preemptionMark(idleAlive[a], now)
+		_, markedB := preemptionMark(idleAlive[b], now)
+		return markedA && !markedB
+	})
 	scaledDown := 0
 	for i := 0; i < overflow && i < len(idleAlive); i++ {
 		p := idleAlive[i]
+		preemptedFor, preempted := preemptionMark(p, now)
+		if preempted {
+			logger.Info("retire idle runner pod for starved sibling pools",
+				"pod", p.Name, "node", p.Spec.NodeName, "for", preemptedFor)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeNormal, "RunnerPodPreemptedForSiblingDemand",
+					"Fleet %s is full and %s has queued jobs it cannot place; retiring this idle runner ahead of the scale-down cooldown. "+
+						"Runners executing a job are left to complete.",
+					pool.Spec.FleetSelector, preemptedFor)
+			}
+		}
 		if err := r.reapAlivePod(ctx, p); err != nil {
 			logger.Error(err, "scale-down delete; will retry", "pod", p.Name)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+		if preempted {
+			metrics.RecordPreemption(pool.Spec.FleetSelector, pool.Name)
 		}
 		phaseReplicas.remove(p)
 		if isWarmCapacity(p, pool) {

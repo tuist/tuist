@@ -2,12 +2,22 @@ defmodule Tuist.Tests.Coverage do
   @moduledoc """
   Code coverage for test runs, in a model shared by every build system.
 
-  Xcode coverage is read from the run's result bundle by the shared Swift
-  parser (`xccov view --report` for targets and functions, `xccov view
-  --archive` for per-line execution counts), wherever the bundle is processed:
-  on the server's macOS processors for uploaded bundles, or on the client when
-  it processes the bundle itself. The client ties the files to the repository
-  with the Git blob each had, which only the checkout knows. JaCoCo (Gradle)
+  Xcode coverage is measured on the client: `llvm-cov export` over the test
+  products with the run's merged profile, which reports code `xccov` leaves
+  out (the binary cache's, and sources compiled with a coverage prefix map),
+  with `xccov view --report` only for which target compiled each file. It
+  arrives as the `coverage` block with `tool` `llvm-cov`, whichever processing
+  mode the run used. Older clients, and runs the client could not export, keep
+  the previous path: the shared Swift parser reads the bundle (`xccov view
+  --report` for targets and functions, `xccov view --archive` for per-line
+  execution counts) wherever the bundle is processed, on the server's macOS
+  processors for uploaded bundles (unless the bundle's manifest says the
+  client reported the coverage), or on the client in local mode. The client
+  ties the files to the repository with the Git blob each had, which only the
+  checkout knows. Mix coverage is
+  read by `tuist_ex` from Erlang's `cover` once the suite finished, and arrives
+  in the same per-file shape: an OTP application is a target, and the files
+  under the project's test paths are test code. JaCoCo (Gradle)
   and LCOV (Bazel) reports map onto the same rows: a module or label is a
   target, a method is a function, and their branch counters fill the columns
   `xccov` leaves empty.
@@ -70,16 +80,17 @@ defmodule Tuist.Tests.Coverage do
   @max_query_parameters 900
 
   @doc """
-  Refolds the commit of the run a command event belongs to once the
-  selective-testing results the event reported are stored, when any target
-  was skipped. Reported coverage reads them to know which targets a run left
-  out, and they are written through a buffer after the run itself, so a fold
-  triggered by the run or by the completion signal can run without them. The
-  refold waits out the buffer.
+  Refolds the commit of the run a command event belongs to once the targets
+  the event reported are stored, when any target was skipped or a repository
+  target came from the binary cache. Reported coverage reads them to know
+  which targets a run left out and whether it ran code without coverage
+  counters, and they are written through a buffer after the run itself, so a
+  fold triggered by the run or by the completion signal can run without them.
+  The refold waits out the buffer.
   """
   def refold_after_selective_testing(%{test_run_id: test_run_id, project_id: project_id}, xcode_graph)
       when is_binary(test_run_id) and test_run_id != "" do
-    with true <- selective_testing_hit?(xcode_graph),
+    with true <- selective_testing_hit?(xcode_graph) or binary_cache_hit?(xcode_graph),
          true <- enabled_for_project?(project_id),
          {:ok, %Test{git_commit_sha: sha, git_dirty: dirty}} when is_binary(sha) and sha != "" and dirty != true <-
            Tests.get_test(test_run_id) do
@@ -104,6 +115,20 @@ defmodule Tuist.Tests.Coverage do
     end)
   end
 
+  # A remote package's targets carry its revision as their external hash, and
+  # `Coverage.Xcode.uninstrumented_targets/2` leaves them out.
+  defp binary_cache_hit?(xcode_graph) do
+    xcode_graph
+    |> field(:projects, [])
+    |> Enum.flat_map(&field(&1, :targets, []))
+    |> Enum.any?(fn target ->
+      metadata = field(target, :binary_cache_metadata, %{})
+
+      to_string(field(metadata, :hit, "miss")) in ["local", "remote"] and
+        field(field(metadata, :subhashes, %{}), :external, "") == ""
+    end)
+  end
+
   defp field(nil, _key, default), do: default
   defp field(map, key, default), do: Map.get(map, key) || Map.get(map, Atom.to_string(key)) || default
 
@@ -115,20 +140,52 @@ defmodule Tuist.Tests.Coverage do
   @shard_count_weight 2 ** 51
 
   @doc """
-  The rows to store for the `xcode_coverage` block reported with a run, or nil
-  when the project's account does not have coverage enabled. Only files the
-  client found in Git, under a repository-relative path, are evidence.
+  A run's attributes with the coverage it reported under `coverage`, whichever
+  form the client sent it in: the build-system-neutral `coverage` block, or the
+  `xcode_coverage` block (and `xcode_coverage_storage_key` with
+  `xcode_coverage_partial` for an uploaded one), measured by `xccov` with the
+  run's Xcode.
+  """
+  def normalize_attrs(attrs) do
+    {xcode_coverage, attrs} = Map.pop(attrs, :xcode_coverage)
+    {storage_key, attrs} = Map.pop(attrs, :xcode_coverage_storage_key)
+    {partial, attrs} = Map.pop(attrs, :xcode_coverage_partial)
+    xccov = %{tool: "xccov", tool_version: Map.get(attrs, :xcode_version) || ""}
+
+    cond do
+      not is_nil(Map.get(attrs, :coverage)) ->
+        Map.update!(attrs, :coverage, &plain/1)
+
+      not is_nil(xcode_coverage) ->
+        Map.put(attrs, :coverage, Map.merge(plain(xcode_coverage), xccov))
+
+      not is_nil(storage_key) ->
+        Map.put(attrs, :coverage, Map.merge(xccov, %{storage_key: storage_key, partial: partial}))
+
+      true ->
+        attrs
+    end
+  end
+
+  defp plain(%_{} = struct), do: Map.from_struct(struct)
+  defp plain(map), do: map
+
+  @doc """
+  The rows to store for the `coverage` block reported with a run, or nil when
+  the project's account does not have coverage enabled. Only files the client
+  found in Git, under a repository-relative path, are evidence.
 
   The block either carries its `files` inline, or a `path` to the file the
   parser streamed them to (one JSON object per line), which comes back as a
-  lazy stream so a large report is never held whole. String and atom keys are
-  both accepted: the inline form arrives cast by the API, the streamed form
-  decoded from JSON.
+  lazy stream so a large report is never held whole. A block whose files were
+  uploaded instead (`storage_key`) has no rows yet: `enqueue_publish/4` reads
+  them back. String and atom keys are both accepted: the inline form arrives
+  cast by the API, the streamed form decoded from JSON.
   """
   def rows(_project_id, nil), do: nil
 
   def rows(project_id, coverage) do
-    if enabled_for_project?(project_id), do: rows(coverage)
+    if is_nil(value(coverage, :storage_key, nil)) and enabled_for_project?(project_id), do: rows(coverage)
   end
 
   @doc false
@@ -153,7 +210,12 @@ defmodule Tuist.Tests.Coverage do
           |> Stream.map(&(&1 |> JSON.decode!() |> file_row()))
       end
 
-    %{partial: value(coverage, :partial, false), files: files}
+    %{
+      partial: value(coverage, :partial, false),
+      tool: value(coverage, :tool, ""),
+      tool_version: value(coverage, :tool_version, ""),
+      files: files
+    }
   end
 
   @doc """
@@ -203,17 +265,20 @@ defmodule Tuist.Tests.Coverage do
 
   @doc """
   Schedules the publication of coverage a client uploaded for the run, once
-  the run exists. `partial` is what the client said about the run; the shard
-  arguments are those of `publish/4`.
+  the run exists. `coverage` is the run's block, naming the upload's
+  `storage_key`, the tool that measured it, and whether the run was `partial`;
+  the shard arguments are those of `publish/4`.
   """
-  def enqueue_publish(%Test{} = test, storage_key, partial, shard_index, expected_shards) do
+  def enqueue_publish(%Test{} = test, coverage, shard_index, expected_shards) do
     if enabled_for_project?(test.project_id) do
       %{
         test_run_id: test.id,
         project_id: test.project_id,
         account_id: test.account_id,
-        storage_key: storage_key,
-        partial: partial || false,
+        storage_key: value(coverage, :storage_key, nil),
+        partial: value(coverage, :partial, false) || false,
+        tool: value(coverage, :tool, ""),
+        tool_version: value(coverage, :tool_version, ""),
         shard_index: shard_index,
         expected_shards: expected_shards
       }
@@ -249,7 +314,7 @@ defmodule Tuist.Tests.Coverage do
           id: UUIDv7.generate(),
           test_run_id: test_run_id,
           project_id: project_id,
-          build_system: "xcode",
+          build_system: test.build_system,
           shard_index: shard_index,
           partial: coverage.partial,
           git_commit_sha: test.git_commit_sha || "",
@@ -309,14 +374,15 @@ defmodule Tuist.Tests.Coverage do
       %{
         project_id: project_id,
         test_run_id: test_run_id,
-        build_system: "xcode",
-        coverage_tool: "xccov",
-        coverage_tool_version: test.xcode_version || "",
+        build_system: test.build_system,
+        coverage_tool: coverage.tool,
+        coverage_tool_version: coverage.tool_version,
         git_object_format: folded.object_format,
         scheme: test.scheme || "",
         git_commit_sha: test.git_commit_sha || "",
         covered_lines: covered,
         executable_lines: executable,
+        files: folded.files + others.files_count,
         partial: coverage.partial or others.partial or others.shards_count + 1 < expected_shards,
         version:
           (others.shards_count + 1) * @shard_count_weight +
@@ -361,6 +427,7 @@ defmodule Tuist.Tests.Coverage do
         from(f in reports,
           select: %{
             shards_count: fragment("uniqExact(?)", f.shard_index),
+            files_count: count(),
             partial_rows: fragment("countIf(?)", f.partial),
             newest_report_at: max(f.inserted_at)
           }
@@ -370,6 +437,7 @@ defmodule Tuist.Tests.Coverage do
 
     %{
       files: files,
+      files_count: summary.files_count,
       shards_count: summary.shards_count,
       partial: summary.partial_rows > 0,
       newest_report_at: summary.newest_report_at || ~N[1970-01-01 00:00:00]
@@ -407,7 +475,12 @@ defmodule Tuist.Tests.Coverage do
   @doc """
   The published totals of every run of the project that gathered coverage,
   one row per run with the scheme they were measured for and whether the run
-  was partial. `shas:` narrows it to the runs of those commits, read through
+  was partial. A run gathered coverage when it measured a product line or its
+  reports listed a file: a run whose product code all came from the binary
+  cache without counters lists only its test files, and what it took from the
+  cache is still the commit's to judge (`Tuist.Tests.Coverage.Instrumentation`).
+  Rows published before the count existed carry 0 and count by their lines.
+  `shas:` narrows it to the runs of those commits, read through
   the table's index on the SHA rather than across the project's history.
   """
   def run_totals_query(project_id, opts \\ []) do
@@ -424,11 +497,20 @@ defmodule Tuist.Tests.Coverage do
     })
   end
 
+  @doc """
+  The project's `coverage_runs` grouped by run and kept to the runs that
+  gathered coverage, as `run_totals_query/2` keeps them, for a reader that
+  selects its own columns.
+  """
+  def gathered_runs_query(project_id), do: run_totals_base(project_id, nil)
+
   defp run_totals_base(project_id, nil) do
     from(c in CoverageRun,
       where: c.project_id == ^project_id,
       group_by: c.test_run_id,
-      having: fragment("argMax(?, ?)", c.executable_lines, c.version) > 0
+      having:
+        fragment("argMax(?, ?)", c.executable_lines, c.version) > 0 or
+          fragment("argMax(?, ?)", c.files, c.version) > 0
     )
   end
 
@@ -446,7 +528,12 @@ defmodule Tuist.Tests.Coverage do
   end
 
   @retention_tables %{
-    files: ["coverage_files", "git_commit_files", "test_run_changed_files", "test_run_enumerated_tests"],
+    files: [
+      "coverage_files",
+      "git_commit_files",
+      "coverage_target_sources",
+      "coverage_test_sources"
+    ],
     runs: ["coverage_runs"]
   }
 

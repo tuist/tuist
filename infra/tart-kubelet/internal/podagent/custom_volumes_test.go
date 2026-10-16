@@ -125,6 +125,45 @@ func TestCustomVolumeMailboxUsesHostIdentity(t *testing.T) {
 	}
 }
 
+func TestCustomMailboxResponsePublication(t *testing.T) {
+	dir := t.TempDir()
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	if err := os.WriteFile(filepath.Join(dir, "a.request.response.tmp"), []byte("stale"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if published, err := publishResponse(root, "a.request.response", []byte(`{"id":"a"}`)); err != nil || !published {
+		t.Fatal(published, err)
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, "a.request.response")); err != nil || string(data) != `{"id":"a"}` {
+		t.Fatal(string(data), err)
+	}
+	if published, err := publishResponse(root, "a.request.response", []byte(`{"id":"b"}`)); err != nil || published {
+		t.Fatal("replaced an existing response", published, err)
+	}
+	target := filepath.Join(t.TempDir(), "target")
+	if err := os.Symlink(target, filepath.Join(dir, "b.request.response")); err != nil {
+		t.Fatal(err)
+	}
+	if published, err := publishResponse(root, "b.request.response", []byte(`{"id":"b"}`)); err != nil || published {
+		t.Fatal("replaced a guest symlink", published, err)
+	}
+	if _, err := os.Lstat(target); !os.IsNotExist(err) {
+		t.Fatal("followed a guest symlink")
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, "a.request.response")); err != nil || string(data) != `{"id":"a"}` {
+		t.Fatal(string(data), err)
+	}
+	for _, name := range []string{"a.request.response.tmp", "b.request.response.tmp"} {
+		if _, err := os.Lstat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Fatal("left temporary response", name)
+		}
+	}
+}
+
 func TestCustomVolumeReusesAndRefreshesHostToken(t *testing.T) {
 	kube := fake.NewSimpleClientset()
 	requests := 0
@@ -162,6 +201,32 @@ func TestCustomAdmissionGuardHonorsCancellation(t *testing.T) {
 	c := &CustomVolumes{Builtins: m}
 	if _, err := c.guard(ctx); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatal(err)
+	}
+}
+
+func TestCustomColdAdmissionBesideBuiltinOnM2(t *testing.T) {
+	m, be := m2L(t)
+	be.perMaster = 29 * gib
+	seedMaster(t, m, "3")
+	m.reserved = map[string]bool{"running-builtin": true}
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
+	slot := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111"}}
+	finish, err := c.reserve(context.Background(), slot)
+	if err != nil {
+		t.Fatalf("20 GB cold volume fits beside a 30 GiB builtin reservation and 29 GiB master: %v", err)
+	}
+	if got := c.reservedBytes(); got != customCapacity {
+		t.Fatalf("cold creation reserved %d bytes", got)
+	}
+	other := slot
+	other.ID = "22222222-2222-4222-8222-222222222222"
+	if _, err := c.reserve(context.Background(), other); !errors.Is(err, cachevolumes.ErrCapacity) {
+		t.Fatalf("concurrent allocation ignored reservation: %v", err)
+	}
+	finish(false)
+	slot.BaseGeneration = 1
+	if _, err := c.reserve(context.Background(), slot); !errors.Is(err, cachevolumes.ErrCapacity) {
+		t.Fatalf("restore ignored archive headroom: %v", err)
 	}
 }
 
@@ -462,7 +527,7 @@ func TestCustomReservationRefreshPreservesConcurrentAdmission(t *testing.T) {
 	if err := <-finished; err != nil {
 		t.Fatal(err)
 	}
-	if got := c.reservedBytes(); got != 2*customCapacity {
+	if got := c.reservedBytes(); got != customCapacity {
 		t.Fatal("lost in-flight reservation", got)
 	}
 	releaseReservation(false)

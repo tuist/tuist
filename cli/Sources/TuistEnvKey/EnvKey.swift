@@ -345,6 +345,7 @@ public enum EnvKey: String, CaseIterable {
 
     case organizationInviteOrganizationName = "TUIST_ORGANIZATION_INVITE_ORGANIZATION_NAME"
     case organizationInviteEmail = "TUIST_ORGANIZATION_INVITE_EMAIL"
+    case organizationInviteRole = "TUIST_ORGANIZATION_INVITE_ROLE"
     case organizationInvitePath = "TUIST_ORGANIZATION_INVITE_PATH"
 
     // ORGANIZATION SHOW
@@ -473,6 +474,7 @@ public enum EnvKey: String, CaseIterable {
     case shareJSON = "TUIST_SHARE_JSON"
     case shareDerivedDataPath = "TUIST_SHARE_DERIVED_DATA_PATH"
     case shareTrack = "TUIST_SHARE_TRACK"
+    case shareReleaseNotes = "TUIST_SHARE_RELEASE_NOTES"
 
     // CACHE
 

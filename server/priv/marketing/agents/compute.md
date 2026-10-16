@@ -26,9 +26,13 @@ You keep your CI provider and workflows and change where jobs run. Each job targ
 - **Linux**: Docker, Buildx, and Compose available in each job ([Docker guide](/en/docs-markdown/guides/features/runners/docker)).
 - Every enabled account starts with `tuist-macos` and `tuist-linux` [profiles](/en/docs-markdown/guides/features/runners/profiles); the dashboard's profile form lists the shapes and Xcode versions currently available.
 
+## Project first, environment second
+
+Tuist's model is to optimize the project before its execution environment. Inspect build graphs, task inputs, compilation, test setup, and retries; improve the project and reuse compatible outputs on existing machines. Use [Build Insights](/en/docs-markdown/guides/features/build-insights), [Cache](/marketing-markdown/cache), and [Tests](/marketing-markdown/tests) before treating a runner migration as the optimization itself.
+
 ## When it fits
 
-Use runners when CI time is dominated by cold builds, cache download latency, or maintaining your own machines, and you want CI to share the cache with local development. They are not required for Tuist Cache, which works from any CI provider's machines.
+Use runners when the remaining constraint is queueing, cache-transfer locality, machine capacity, or maintaining your own execution fleet. Measure the environment for the work that remains after project-level improvements. Runners are not required for Tuist Cache and insights, and they do not fix dependency fan-out, incorrectly invalidated tasks, or flaky tests. This applies to supported Linux workflows as well as macOS builds.
 
 ## How to get started
 

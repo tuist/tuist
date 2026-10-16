@@ -532,4 +532,21 @@ defmodule TuistWeb.GradleBuildLiveTest do
     refute html =~ ":app:compileJava"
     refute html =~ ":lib:test"
   end
+
+  test "build details distinguish absent, zero and recorded cache savings", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    for {metadata, label} <- [
+          {%{}, "Not reported"},
+          {%{"tuist.cache_work_avoided_ms" => "0"}, "0ms"},
+          {%{"tuist.cache_work_avoided_ms" => "151"}, "151ms"}
+        ] do
+      id = GradleFixtures.build_fixture(project_id: project.id, custom_values: metadata)
+      {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
+      assert has_element?(view, "#build-cache-work-avoided", label)
+      assert render(view) =~ "not elapsed build time saved"
+    end
+  end
 end

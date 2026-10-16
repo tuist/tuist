@@ -161,6 +161,10 @@ pub fn internal_router(state: SharedState) -> Router {
     internal_routes()
         .layer(middleware::from_fn_with_state(
             state.clone(),
+            reject_uncertain_primary_peer_requests,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
             reject_overloaded_internal_writes,
         ))
         .layer(middleware::from_fn_with_state(
@@ -169,6 +173,20 @@ pub fn internal_router(state: SharedState) -> Router {
         ))
         .layer(middleware::map_response(guard_response_stream_transport))
         .with_state(state)
+}
+
+async fn reject_uncertain_primary_peer_requests(
+    State(state): State<SharedState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    if !state.runtime.authority.peer_safe() {
+        return error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "expired primary volume requires positive fencing and quarantine",
+        );
+    }
+    next.run(req).await
 }
 
 #[cfg(test)]
@@ -291,6 +309,7 @@ fn public_routes() -> Router<SharedState> {
 fn internal_routes() -> Router<SharedState> {
     Router::new()
         .route(ROUTE_INTERNAL_STATUS, get(internal_status))
+        .route("/_internal/handover/verify", post(crate::handover::verify))
         .route(
             ROUTE_INTERNAL_BACKFILL_ENTRIES,
             get(internal_backfill_entries),
@@ -1269,7 +1288,23 @@ async fn reject_draining_public_requests(
         return draining_response(version);
     }
 
-    let mut response = next.run(req).await;
+    let permit = if is_probe_route(&route) {
+        None
+    } else {
+        match state
+            .runtime
+            .authority
+            .admit_request(is_write_method(req.method()))
+        {
+            Ok(permit) => permit,
+            Err(_) => return draining_response(version),
+        }
+    };
+    let mut response = crate::serving_authority::scope(permit.clone(), next.run(req)).await;
+    if permit.as_ref().is_some_and(|p| p.check().is_err()) {
+        return draining_response(version);
+    }
+
     if state.runtime.is_draining() && is_http1(version) {
         response.headers_mut().insert(
             axum::http::header::CONNECTION,
@@ -1835,6 +1870,7 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
     // `backfill_initial_cycle` is the catch-up gate contract consumers
     // (gate.sh, the kura-controller) read: pending | complete | degraded.
     Json(serde_json::json!({
+        "serving_authority": state.runtime.authority.report(),
         "generation": status.generation,
         "ready": status.ready,
         "state": status.state.as_str(),

@@ -145,7 +145,7 @@ defmodule Noora.TextInput do
           :if={@show_suffix and not is_nil(@suffix_hint) and !has_slot_content?(@suffix, assigns)}
           data-part="suffix-hint"
         >
-          <.tooltip id={"#{@id}-hint"} title={@suffix_hint}>
+          <.tooltip id={"#{@id}-hint"} title={@suffix_hint} placement="bottom-end">
             <:trigger :let={attrs}>
               <span {attrs} tabindex="0"><.alert_circle /></span>
             </:trigger>

@@ -59,6 +59,7 @@ impl TrafficState {
 }
 
 pub struct RuntimeState {
+    pub authority: Arc<crate::serving_authority::ServingAuthority>,
     draining: AtomicBool,
     drain_requested: Notify,
     serving: AtomicBool,
@@ -79,7 +80,12 @@ pub struct RuntimeState {
 
 impl RuntimeState {
     pub fn new() -> Arc<Self> {
+        Self::with_authority(crate::serving_authority::ServingAuthority::legacy())
+    }
+
+    pub fn with_authority(authority: Arc<crate::serving_authority::ServingAuthority>) -> Arc<Self> {
         Arc::new(Self {
+            authority,
             draining: AtomicBool::new(false),
             drain_requested: Notify::new(),
             serving: AtomicBool::new(false),
