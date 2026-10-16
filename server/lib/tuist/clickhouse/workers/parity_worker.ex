@@ -55,7 +55,9 @@ defmodule Tuist.ClickHouse.Workers.ParityWorker do
 
     case Parity.compare(since: since) do
       {:ok, report} ->
-        drift = length(report.schema.missing_on_destination) + length(report.schema.differing_columns)
+        drift =
+          length(report.schema.missing_on_destination) + length(report.schema.missing_on_source) +
+            length(report.schema.differing_columns)
 
         # `skipped` is emitted alongside the rest because it is the check's
         # coverage, and the tables it drops are the largest ones: without it
