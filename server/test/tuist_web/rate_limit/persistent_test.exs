@@ -88,25 +88,35 @@ defmodule TuistWeb.RateLimit.PersistentTest do
     assert script =~ ~s|redis.call("TIME")|
   end
 
-  test "token buckets preserve denial and get behavior", %{owner: owner, key: key} do
+  test "token buckets preserve denial and get behavior", %{owner: owner, key: key, window: window} do
     stub(Redix, :command, fn conn, command, opts ->
       send(owner, {:command, conn, command, opts})
       if hd(command) == "EVAL", do: {:ok, [0, 0]}, else: {:ok, "4"}
     end)
 
     assert {:deny, 1000} = PersistentTokenBucket.hit(key, 1, 10)
-    assert PersistentTokenBucket.get(key) == 4
+    assert PersistentTokenBucket.get(key, window) == 4
+    assert function_exported?(PersistentTokenBucket, :get, 2)
+    refute function_exported?(PersistentTokenBucket, :get, 1)
     full_key = "TuistWeb.RateLimit.PersistentTokenBucket:#{key}"
     assert_received {:command, ^owner, ["HGET", ^full_key, "level"], [timeout: 500]}
   end
 
-  for algorithm <- [:fixed_window, :token_bucket], policy <- [:deny, :local] do
+  for algorithm <- [:fixed_window, :token_bucket], policy <- [:deny, :local], failure <- [:missing, :stale] do
     @algorithm algorithm
     @policy policy
-    test "an unavailable #{@algorithm} pool follows the #{@policy} failure policy", %{key: key, window: window} do
+    @failure failure
+    test "a #{@failure} #{@algorithm} connection follows the #{@policy} failure policy", %{key: key, window: window} do
       stub(Environment, :redis_url, fn -> "redis://unavailable" end)
       stub(Environment, :rate_limit_fallback_replicas, fn -> 5 end)
-      stub(RedisPool, :connection, fn _ -> exit(:noproc) end)
+
+      if @failure == :missing do
+        stub(RedisPool, :connection, fn _ -> exit(:noproc) end)
+      else
+        {pid, monitor} = spawn_monitor(fn -> :ok end)
+        assert_receive {:DOWN, ^monitor, :process, ^pid, :normal}
+        stub(RedisPool, :connection, fn _ -> pid end)
+      end
 
       opts =
         if @algorithm == :fixed_window,

@@ -10,7 +10,7 @@ defmodule TuistWeb.RateLimit.RedisPoolTest do
 
     start_supervised!(%{
       id: name,
-      start: {RedisPool, :start_link, [name, [url: "redis://127.0.0.1:0"]]},
+      start: {RedisPool, :start_link, [name, [url: "redis://127.0.0.1:0", name: name]]},
       type: :supervisor
     })
 

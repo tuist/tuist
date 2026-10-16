@@ -16,7 +16,7 @@ defmodule TuistWeb.RateLimit.PersistentTokenBucket do
     TokenBucket.hit(RedisPool.connection(__MODULE__), @prefix, key, refill_rate, capacity, cost, @timeout)
   end
 
-  def get(key) do
+  def get(key, _scale) do
     TokenBucket.get(RedisPool.connection(__MODULE__), @prefix, key, @timeout)
   end
 end
