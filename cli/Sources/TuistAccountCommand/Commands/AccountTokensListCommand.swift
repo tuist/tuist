@@ -1,8 +1,9 @@
 import ArgumentParser
 import Foundation
 import TuistEnvKey
+import TuistNooraExtension
 
-public struct AccountTokensListCommand: AsyncParsableCommand {
+public struct AccountTokensListCommand: AsyncParsableCommand, NooraReadyCommand {
     public init() {}
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -31,6 +32,8 @@ public struct AccountTokensListCommand: AsyncParsableCommand {
         help: "Output the result as JSON."
     )
     var json: Bool = false
+
+    public var jsonThroughNoora: Bool = true
 
     public func run() async throws {
         try await AccountTokensListCommandService().run(

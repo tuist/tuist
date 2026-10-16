@@ -1137,6 +1137,27 @@ func TestHandleBootstrapFailure_IncrementsAttempts(t *testing.T) {
 	}
 }
 
+// A reboot would leave a FileVault host at the unlock screen with no sshd,
+// which is why bootstrap refused to restart it; recovery must not either.
+func TestHandleBootstrapFailure_DoesNotRebootAFileVaultHost(t *testing.T) {
+	machine := newBootstrapFailureMachine("srv-1", "tuist-pool-")
+	machine.Status.BootstrapAttempts = 2
+	stub := &recoveryStub{}
+	fileVault := fmt.Errorf("gui session: %w", &bootstrap.GUISessionError{User: "m1", RestartUnsafe: true, Reason: "FileVault is not off"})
+
+	handleBootstrapFailure(context.Background(), machine, fileVault, stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
+
+	if len(stub.rebootCalls) != 0 {
+		t.Fatalf("rebooted a FileVault host: %+v", stub.rebootCalls)
+	}
+	if machine.Status.BootstrapRebootIssued {
+		t.Fatal("BootstrapRebootIssued set although no reboot was issued")
+	}
+	if got := conditions.GetReason(machine, BootstrappedCondition); got != "GUISessionMissing" {
+		t.Fatalf("reason = %q, want GUISessionMissing", got)
+	}
+}
+
 func TestHandleBootstrapFailure_RebootsAtThresholdOnce(t *testing.T) {
 	// At rebootAfter the controller fires RebootServer once and
 	// marks the attempt. Subsequent failures (gated on the issued

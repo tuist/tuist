@@ -83,6 +83,7 @@ defmodule AtlasWeb.Oauth.RegistrationController do
     |> Map.delete(:token_endpoint_auth_method)
     |> Map.put(:metadata, metadata)
     |> Map.put(:confidential, false)
+    |> Map.put(:pkce, true)
     |> Map.put(:public_refresh_token, true)
     |> Map.put(:public_revoke, true)
   end

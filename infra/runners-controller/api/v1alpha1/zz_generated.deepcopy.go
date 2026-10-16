@@ -126,6 +126,11 @@ func (in *RunnerPoolAutoscaling) DeepCopyInto(out *RunnerPoolAutoscaling) {
 		*out = new(int32)
 		**out = **in
 	}
+	if in.HoldRecentPeak != nil {
+		in, out := &in.HoldRecentPeak, &out.HoldRecentPeak
+		*out = new(bool)
+		**out = **in
+	}
 }
 
 func (in *RunnerPoolRollout) DeepCopyInto(out *RunnerPoolRollout) {

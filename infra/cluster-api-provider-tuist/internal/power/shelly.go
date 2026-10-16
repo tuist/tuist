@@ -34,9 +34,12 @@ type Shelly struct {
 	HTTP *http.Client
 }
 
-// gen2Status is the subset of Switch.GetStatus we read.
+// gen2Status is the subset of Switch.GetStatus we read. apower and current
+// are present only on metered switches (the Plus Plug S, the PM models).
 type gen2Status struct {
-	Output *bool `json:"output"`
+	Output  *bool    `json:"output"`
+	APower  *float64 `json:"apower"`
+	Current *float64 `json:"current"`
 }
 
 // gen1Relay is the subset of /relay/<id> we read.
@@ -71,6 +74,24 @@ func (s *Shelly) State(ctx context.Context, o Outlet) (State, error) {
 		return StateUnknown, fmt.Errorf("shelly /relay/%s returned no ison field", channel)
 	}
 	return stateOf(*g1.IsOn), nil
+}
+
+// Measures implements Meter for a metered Gen2 switch. Shelly reports no
+// apparent power, so its outlets never classify as an off or empty load; Gen1
+// firmware and unmetered switches report ErrMeasuresUnsupported.
+func (s *Shelly) Measures(ctx context.Context, o Outlet) (Measures, error) {
+	channel := o.channel()
+	var g2 gen2Status
+	found, err := s.call(ctx, o, "/rpc/Switch.GetStatus", url.Values{"id": {channel}}, &g2)
+	switch {
+	case err != nil:
+		return Measures{}, err
+	case !found:
+		return Measures{}, fmt.Errorf("shelly at %s: %w: Gen1 firmware is not read", o.Host, ErrMeasuresUnsupported)
+	case g2.APower == nil:
+		return Measures{}, fmt.Errorf("shelly channel %s at %s: %w: the switch is not metered", channel, o.Host, ErrMeasuresUnsupported)
+	}
+	return Measures{ActivePower: g2.APower, Current: g2.Current}, nil
 }
 
 // Set implements Driver.

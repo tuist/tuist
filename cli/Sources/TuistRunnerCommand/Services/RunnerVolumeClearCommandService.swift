@@ -9,14 +9,6 @@ protocol RunnerVolumeClearCommandServicing {
     func run(volumeID: String, account: String?, path: String?, json: Bool) async throws
 }
 
-enum RunnerVolumeClearCommandServiceError: LocalizedError, Equatable {
-    case missingAccount
-
-    var errorDescription: String? {
-        "Pass --account or configure a project full handle."
-    }
-}
-
 struct RunnerVolumeClearCommandService: RunnerVolumeClearCommandServicing {
     private let configLoader: ConfigLoading
     private let serverEnvironmentService: ServerEnvironmentServicing
@@ -36,14 +28,13 @@ struct RunnerVolumeClearCommandService: RunnerVolumeClearCommandServicing {
     }
 
     func run(volumeID: String, account: String?, path: String?, json: Bool) async throws {
-        let directory = try await Environment.current.pathRelativeToWorkingDirectory(path)
-        let config = try await configLoader.loadConfig(path: directory)
-        guard let accountHandle = try account ?? config.fullHandle.map({ try fullHandleService.parse($0).accountHandle }),
-              !accountHandle.isEmpty
-        else {
-            throw RunnerVolumeClearCommandServiceError.missingAccount
-        }
-        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        let (accountHandle, serverURL) = try await RunnerAccount.resolve(
+            account: account,
+            path: path,
+            configLoader: configLoader,
+            serverEnvironmentService: serverEnvironmentService,
+            fullHandleService: fullHandleService
+        )
         let response = try await clearRunnerVolumeService.clearRunnerVolume(
             accountHandle: accountHandle,
             serverURL: serverURL,

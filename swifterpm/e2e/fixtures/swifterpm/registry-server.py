@@ -1,3 +1,4 @@
+import hmac
 import http.server
 import json
 import pathlib
@@ -37,6 +38,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
+        authorization_file = registry_dir / "authorization.txt"
+        if authorization_file.exists():
+            authorized = hmac.compare_digest(
+                self.headers.get("Authorization", ""), authorization_file.read_text().strip()
+            )
+            with (registry_dir / "requests.jsonl").open("a") as requests:
+                requests.write(json.dumps({"path": parsed.path, "authorized": authorized}) + "\n")
+            if not authorized:
+                self.send_response(401)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
         if parsed.path == "/identifiers":
             source_url = urllib.parse.parse_qs(parsed.query).get("url", [""])[0].lower()
             if "proto" in source_url:

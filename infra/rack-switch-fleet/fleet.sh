@@ -62,6 +62,10 @@ cmd_render() {
   rendered="$(mktemp)"
   local object
   object="$(mktemp)"
+  # The site-wide checks run once here rather than in every device's render.
+  # A site that fails them is left to the renders, which report why.
+  local FLEET_SITE_CHECKED=""
+  fleet_check_site "$(site_file)" 2>/dev/null && FLEET_SITE_CHECKED="$(site_file)"
   for device in $(devices "$name"); do
     target="$(config_path "$device")"
     mkdir -p "$(dirname "$target")"
@@ -72,7 +76,7 @@ cmd_render() {
     local object_target
     object_target="$(k8s_path "$device")"
     mkdir -p "$(dirname "$object_target")"
-    fleet_render_k8s "$(site_file)" "$device" > "$object"
+    fleet_render_k8s "$(site_file)" "$device" "$rendered" > "$object"
     if (( check )); then
       if ! diff -q "$rendered" "$target" >/dev/null 2>&1; then
         echo "stale: ${target#"$FLEET_ROOT"/}" >&2
@@ -169,6 +173,10 @@ render_edge() {
   [ -n "$dir" ] || return 0
   rendered="$(mktemp)"
   mkdir -p "$dir"
+  # The edge checks run once here rather than in every file's render. A site
+  # that fails them is left to the renders, which report why.
+  local FLEET_EDGE_CHECKED=""
+  fleet_edge_check "$(site_file)" 2>/dev/null && FLEET_EDGE_CHECKED="$(site_file)"
   local -a files=(mgmt-path.sh dnsmasq.conf dhcp.sh dnsmasq-machines.conf tailnet-routes.sh)
   local node
   while IFS=$'\t' read -r node _; do files+=("keepalived-$node.conf"); done < <(fleet_edge_members "$(site_file)")

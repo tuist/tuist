@@ -1290,6 +1290,14 @@ defmodule Tuist.Environment do
     end
   end
 
+  def origin_app_id(secrets \\ secrets()) do
+    get([:origin, :app, :id], secrets)
+  end
+
+  def origin_app_private_key(secrets \\ secrets()) do
+    get([:origin, :app, :private_key], secrets)
+  end
+
   def github_app_webhook_secret(secrets \\ secrets()) do
     System.get_env("TUIST_GITHUB_APP_WEBHOOK_SECRET") ||
       get([:github, :app_webhook_secret], secrets)
@@ -1741,6 +1749,10 @@ defmodule Tuist.Environment do
       bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
       _ -> if can?(), do: 100, else: 10
     end
+  end
+
+  def rate_limit_fallback_replicas do
+    Application.get_env(:tuist, :rate_limit_fallback_replicas, 5)
   end
 
   @doc """

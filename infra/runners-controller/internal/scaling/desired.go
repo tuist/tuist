@@ -70,6 +70,9 @@ func (s Signals) Load() int32 {
 type PolicyKnobs struct {
 	MinWarmPoolFloor int32
 	MaxReplicas      int32
+	// IgnoreRecentPeak is `!autoscaling.holdRecentPeak`, inverted so the
+	// zero value keeps the default.
+	IgnoreRecentPeak bool
 }
 
 // DesiredReplicas computes the autoscaler's target replica count
@@ -86,7 +89,7 @@ type PolicyKnobs struct {
 //   - `P95ConcurrentLastHour` lifts the size to the typical peak
 //     observed in the last hour even when current load is below it —
 //     that's the "lead the demand" behavior that keeps the next peak
-//     from paying cold-start.
+//     from paying cold-start. `IgnoreRecentPeak` drops it.
 //   - `+ MinWarmPoolFloor` adds operator-configured slack on top
 //     of whichever (current load OR predicted peak) won, so a
 //     fresh arrival lands on a warm Pod instead of waiting for a
@@ -104,6 +107,9 @@ func DesiredReplicas(s Signals, k PolicyKnobs) int32 {
 	}
 
 	floor := s.P95ConcurrentLastHour
+	if k.IgnoreRecentPeak {
+		floor = 0
+	}
 
 	load := s.Load()
 

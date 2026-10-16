@@ -94,6 +94,26 @@ This is useful for:
 >
 > Only people with access to the organization the project belongs to can access the previews. We plan to add support for expiring links.
 
+## Release notes {#release-notes}
+
+Use tracks for environment groups and release notes for the purpose of an individual build:
+
+```bash
+tuist share App --track QA --release-notes "Fix sign-in and improve the checkout flow"
+```
+
+Release notes are optional plain text, up to 10,000 characters. The first nonblank line appears as a single-line snippet in web and iOS preview lists, so build numbers and other identifying information are visible at a glance. Long lines are truncated; full notes appear on the detail pages. Search in both lists matches display names and full release notes, including lines not shown in the snippet. Multiline notes are supported, for example `--release-notes "$(< release-notes.txt)"`. They do not change the app's display name or its track.
+
+### Compatibility {#preview-metadata-compatibility}
+
+Release notes are additive metadata, not part of a preview's identity. Uploads from old and new clients still group into the same preview across platforms. The first nonblank notes are retained: a later upload can fill notes that were previously absent, but cannot overwrite existing notes. Omitting `release_notes`, sending `null`, or sending an empty or whitespace-only string never clears notes. Existing previews are not backfilled and remain valid without notes.
+
+The list API's optional `track` query parameter matches a whole track name, case-insensitively, consistent with existing track storage. Omit it or send an empty value (`?track=`) to list all tracks. Track names remain open strings, not a fixed list of values. The iOS app's **All Tracks** selection omits the filter. The iOS app's track pills load the complete project summary from `GET /api/projects/:account_handle/:project_handle/previews/tracks`, under the same preview-read authorization as listing builds. That endpoint returns `{total_count, tracks: [{name, count}]}` with sorted, case-insensitively grouped named tracks. Counts cover the whole project independently of pagination, search, and the selected track; the total includes untracked previews. Only listable previews with a bundle identifier are counted. The list API also accepts optional `search` for a literal, case-insensitive substring of the display name or full release notes, combined with the track before pagination. Existing `display_name` filtering remains exact.
+
+Old clients can continue uploading and listing previews without sending either field. New clients accept older responses that omit track or notes, and ignore unknown response properties added by future servers. API integrations should likewise ignore unknown response properties so additive metadata remains compatible.
+
+Self-hosted deployments need a server version that supports release notes and track filtering, together with an updated CLI and app, to use these features. Older servers may ignore notes or unknown query parameters. If track discovery is unavailable, the iOS app keeps unfiltered browsing available and explains that selecting a track requires an updated server. If a server returns previews from another track despite an active filter, the iOS app reports that filtering is unsupported rather than presenting misleading results. The macOS app first requests the latest compatible preview per app; on older servers that select distinct apps before applying platform filters, it falls back to paginated history without imposing a cutoff that could hide an available build.
+
 ## Tuist macOS app {#tuist-macos-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
@@ -118,7 +138,7 @@ When you now click on "Run" in the Preview page, the macOS app will automaticall
     </a>
 </div>
 
-Similarly to the macOS app, the Tuist iOS apps streamlines accessing and running your previews.
+Similarly to the macOS app, the Tuist iOS app streamlines accessing and running your previews. Each preview shows its track. Use the native search field to find previews by app name, then select a pill under **Tracks** to filter by environment. The selected pill is purple; choose **All** to remove the track filter. Each pill shows its project-wide preview count, and All includes builds without a track. Search and track filtering apply across pages, not just to previews already loaded. Each build's track tag sits beside its commit hash.
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 

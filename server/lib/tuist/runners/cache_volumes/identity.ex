@@ -84,6 +84,7 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
          repository_id: id,
          trusted: trusted,
          same_repository: same_repository,
+         default_branch: default,
          writer_branch: github_writer_branch(run, id, same_repository)
        }}
     else
@@ -91,8 +92,11 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
     end
   end
 
-  # Use provider-fetched repository IDs and PR head metadata. A workflow cannot
-  # grant itself publication by supplying a branch name or commit input.
+  # The branch a runner profile's writer patterns are matched against. Use
+  # provider-fetched repository IDs and PR head metadata: a workflow cannot grant
+  # itself publication by supplying a branch name or commit input. Forks,
+  # pull_request_target and other events never qualify. On push and dispatch
+  # runs head_branch can also be a tag name, as for the default-branch check.
   defp github_writer_branch(run, repository_id, true) do
     branch = run["head_branch"]
 
@@ -103,9 +107,10 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
           _ -> nil
         end
 
+      event when event in ["push", "schedule", "workflow_dispatch"] ->
+        branch
+
       _ ->
-        # head_branch also contains tag names on push/dispatch runs. Only PR
-        # head metadata proves a branch for these additional writer grants.
         nil
     end
   end

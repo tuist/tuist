@@ -37,7 +37,17 @@ defmodule TuistWeb.Internal.KuraActivationControllerTest do
     conn = activate(conn, "#{account.name}.cache.tuist.dev", token)
     assert json_response(conn, 202) == %{"status" => "provisioning"}
     assert get_resp_header(conn, "cache-control") == ["no-store"]
-    assert_enqueued(worker: ProvisionOnDemandWorker, args: %{account_id: account.id})
+    assert_enqueued(worker: ProvisionOnDemandWorker, args: %{account_id: account.id, traffic: true})
+  end
+
+  test "an admitted cache request counts as traffic", %{conn: conn, account: account, token: token} do
+    expect(Demand, :record, fn id, _origin, opts ->
+      assert id == account.id
+      assert opts[:traffic]
+      :ok
+    end)
+
+    assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(202)
   end
 
   test "an archived account wakes without retaining a cache pod", %{conn: conn, account: account, token: token} do

@@ -271,6 +271,158 @@ defmodule TuistEx.Analytics.CoverageTest do
     end
   end
 
+  describe "native coverage" do
+    # A build of one module, as `mix tuist.test.build` leaves it, with the
+    # debug info the instrumentation recompiles from.
+    setup do
+      directory =
+        Path.join(System.tmp_dir!(), "tuist-ex-native-#{System.unique_integer([:positive])}")
+
+      config = [
+        app: :native_fixture,
+        build_path: Path.join(directory, "_build"),
+        build_per_environment: false
+      ]
+
+      ebin = Mix.Project.compile_path(config)
+      File.mkdir_p!(ebin)
+      File.mkdir_p!(Path.join(directory, "lib"))
+      on_exit(fn -> File.rm_rf!(directory) end)
+
+      source = Path.join(directory, "lib/calc.ex")
+
+      File.write!(source, """
+      defmodule TuistExNativeFixture.Calc do
+        @moduledoc "Adds."
+
+        def add(a, b) do
+          a + b
+        end
+
+        def unused(x) do
+          x * 2
+        end
+
+        def __schema__(:source), do: "calcs"
+      end
+      """)
+
+      # As a project's build has them: the test environment may leave them out.
+      previous = Map.take(Code.compiler_options(), [:debug_info, :docs])
+      Code.compiler_options(debug_info: true, docs: true)
+
+      {:ok, _modules, _} =
+        Kernel.ParallelCompiler.compile_to_path([source], ebin, return_diagnostics: true)
+
+      Code.compiler_options(previous)
+      :code.purge(TuistExNativeFixture.Calc)
+      :code.delete(TuistExNativeFixture.Calc)
+
+      %{directory: directory, config: config, ebin: ebin, source: source}
+    end
+
+    test "instruments a build once and tells it from one a compile replaced", %{ebin: ebin} do
+      beam = Path.join(ebin, "Elixir.TuistExNativeFixture.Calc.beam")
+      original = File.read!(beam)
+      refute Coverage.native_build?(ebin)
+
+      assert {1, []} = Coverage.instrument(ebin)
+      assert Coverage.native_build?(ebin)
+
+      {:ok, {_, [compile_info: info]}} =
+        :beam_lib.chunks(String.to_charlist(beam), [:compile_info])
+
+      assert :line_coverage in info[:options]
+
+      # Protocol consolidation reads Elixir's own debug info.
+      assert {:ok, {_, [debug_info: {:debug_info_v1, :elixir_erl, _}]}} =
+               :beam_lib.chunks(String.to_charlist(beam), [:debug_info])
+
+      # Doctests read the docs off the build.
+      assert {:docs_v1, _, :elixir, _, %{"en" => "Adds."}, _, _} =
+               Code.fetch_docs(beam)
+
+      # A later compile writes the module without the counters.
+      File.write!(beam, original)
+      refute Coverage.native_build?(ebin)
+    end
+
+    # In a runtime started without `+JPcover`, as a user's is.
+    test "switches the runtime to native counters and counts lines, without cover", %{
+      directory: directory,
+      config: config,
+      ebin: ebin,
+      source: source
+    } do
+      if :erlang.system_info(:emu_flavor) != :jit, do: flunk("native coverage needs the JIT")
+
+      Coverage.instrument(ebin)
+      tuist_ex = :code.lib_dir(:tuist_ex) |> to_string() |> Path.join("ebin")
+
+      script = """
+      Mix.start()
+      Code.prepend_path(#{inspect(ebin)})
+      Code.prepend_path(#{inspect(tuist_ex)})
+      true = TuistEx.Analytics.Coverage.enable_native(#{inspect(ebin)})
+      3 = TuistExNativeFixture.Calc.add(1, 2)
+      snapshot = TuistEx.Analytics.Coverage.snapshot(#{inspect(directory)}, #{inspect(config)})
+      IO.write(snapshot |> :erlang.term_to_binary() |> Base.encode64())
+      """
+
+      {output, 0} =
+        System.cmd(
+          System.find_executable("elixir"),
+          ["-e", script],
+          env: [{"MIX_ENV", "test"}]
+        )
+
+      assert [%{path: ^source, lines: lines, functions: functions}] =
+               output
+               |> String.split("\n")
+               |> List.last()
+               |> Base.decode64!()
+               |> :erlang.binary_to_term()
+
+      # `__schema__/1` is not listed, but its line counts for the file, as cover counts it.
+      assert lines == %{5 => 1, 9 => 0, 12 => 0}
+
+      assert [
+               %{name: "add/2", line: 4, covered: 1, executable: 1},
+               %{name: "unused/1", line: 8, covered: 0, executable: 1}
+             ] = functions
+    end
+  end
+
+  describe "with_shard_export/2" do
+    test "exports a measured shard's coverage instead of holding it to Mix's threshold" do
+      assert Coverage.with_shard_export(["--cover", "--trace"], 2) ==
+               ["--cover", "--trace", "--export-coverage", "shard-2"]
+    end
+
+    test "keeps an export the run names, and adds none without coverage" do
+      for args <- [
+            ["--cover", "--export-coverage", "mine"],
+            ["--cover", "--export-coverage=mine"],
+            ["--trace"]
+          ] do
+        assert Coverage.with_shard_export(args, 0) == args
+      end
+    end
+  end
+
+  describe "without_cover/1" do
+    test "leaves Mix's coverage tool out and keeps everything else" do
+      assert Coverage.without_cover([
+               "--cover",
+               "--export-coverage",
+               "shard",
+               "--warnings-as-errors",
+               "--export-coverage=other",
+               "test/a_test.exs"
+             ]) == ["--warnings-as-errors", "test/a_test.exs"]
+    end
+  end
+
   describe "attach/3" do
     @coverage %{
       tool: "cover",

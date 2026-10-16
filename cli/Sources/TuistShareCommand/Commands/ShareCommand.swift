@@ -65,6 +65,12 @@ public struct ShareCommand: AsyncParsableCommand {
     )
     var track: String?
 
+    @Option(
+        help: "Plain-text release notes describing this preview build.",
+        envKey: .shareReleaseNotes
+    )
+    var releaseNotes: String?
+
     public func run() async throws {
         #if os(macOS)
             try await ShareCommandService().run(
@@ -74,14 +80,16 @@ public struct ShareCommand: AsyncParsableCommand {
                 platforms: platforms,
                 derivedDataPath: derivedDataPath,
                 json: json,
-                track: track
+                track: track,
+                releaseNotes: releaseNotes
             )
         #else
             try await ShareCommandService().run(
                 path: path,
                 apps: apps,
                 json: json,
-                track: track
+                track: track,
+                releaseNotes: releaseNotes
             )
         #endif
     }

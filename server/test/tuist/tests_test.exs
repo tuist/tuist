@@ -8,6 +8,7 @@ defmodule Tuist.TestsTest do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.ClickHouseRepo
+  alias Tuist.GitHistory
   alias Tuist.IngestRepo
   alias Tuist.MCP.Events.Subscription
   alias Tuist.MCP.Events.Workers.FanoutWorker
@@ -6640,7 +6641,7 @@ defmodule Tuist.TestsTest do
   end
 
   describe "create_test/1 with Git history" do
-    test "stores the run's place in history and the files it changed" do
+    test "stores the run's place in history" do
       project = ProjectsFixtures.project_fixture()
 
       {:ok, test_run} =
@@ -6653,24 +6654,7 @@ defmodule Tuist.TestsTest do
           is_pull_request: true,
           pull_request_number: 42,
           git_object_format: "sha1",
-          history_source: "client",
-          changed_files: [
-            %{
-              path: "Sources/A.swift",
-              status: "modified",
-              git_blob_id: "blobA",
-              hunks: [%{start: 3, end: 5}, %{start: 10, end: 10}]
-            },
-            %{
-              path: "Sources/New.swift",
-              previous_path: "Sources/Old.swift",
-              status: "renamed",
-              git_blob_id: "blobN",
-              hunks: [],
-              truncated: true
-            },
-            %{path: "Sources/Gone.swift", status: "deleted"}
-          ]
+          history_source: "client"
         )
 
       {:ok, stored} = Tests.get_test(test_run.id)
@@ -6679,21 +6663,6 @@ defmodule Tuist.TestsTest do
                {"main", "base", true, 42}
 
       assert {stored.git_object_format, stored.history_source, stored.history_fallback_reason} == {"sha1", "client", ""}
-
-      files =
-        ClickHouseRepo.all(
-          from(f in Tuist.Tests.TestRunChangedFile,
-            where: f.test_run_id == ^test_run.id,
-            order_by: f.path,
-            select: {f.path, f.previous_path, f.status, f.git_blob_id, f.hunk_starts, f.hunk_ends, f.truncated}
-          )
-        )
-
-      assert files == [
-               {"Sources/A.swift", "", "modified", "blobA", [3, 10], [5, 10], false},
-               {"Sources/Gone.swift", "", "deleted", "", [], [], false},
-               {"Sources/New.swift", "Sources/Old.swift", "renamed", "blobN", [], [], true}
-             ]
     end
 
     test "defaults to no history when the client sent none" do
@@ -9501,6 +9470,57 @@ defmodule Tuist.TestsTest do
       assert test_case_run.is_new == false
     end
 
+    test "marks test_case_run as not new once the default branch reaches the commit a merge queue ran it on" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      repository = GitHistory.repository_id(project.account_id, "git@github.com:acme/app.git")
+
+      GitHistory.record_commits(repository, "sha1", [
+        %{sha: "main1", parents: [], committed_at: ~U[2026-09-01 00:00:00Z]},
+        %{sha: "queued", parents: ["main1"], committed_at: ~U[2026-09-01 00:01:00Z]},
+        %{sha: "dropped", parents: ["main1"], committed_at: ~U[2026-09-01 00:02:00Z]}
+      ])
+
+      GitHistory.record_branch_head(repository, "main", "queued", "main")
+
+      run = fn git_branch, git_commit_sha, name ->
+        {:ok, test} =
+          Tests.create_test(%{
+            id: UUIDv7.generate(),
+            project_id: project.id,
+            account_id: account.id,
+            duration: 1000,
+            status: "success",
+            model_identifier: "Mac15,6",
+            macos_version: "14.0",
+            xcode_version: "15.0",
+            git_branch: git_branch,
+            git_commit_sha: git_commit_sha,
+            ran_at: NaiveDateTime.utc_now(),
+            is_ci: true,
+            test_modules: [
+              %{
+                name: "QueueModule",
+                status: "success",
+                duration: 1000,
+                test_cases: [%{name: name, status: "success", duration: 500}]
+              }
+            ]
+          })
+
+        {[test_case_run], _meta} =
+          Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test.id}]})
+
+        test_case_run
+      end
+
+      run.("gh-readonly-queue/main/pr-1-queued", "queued", "testMerged")
+      run.("gh-readonly-queue/main/pr-2-dropped", "dropped", "testDropped")
+
+      assert run.("feature", "feature1", "testMerged").is_new == false
+      assert run.("feature", "feature1", "testDropped").is_new == true
+    end
+
     test "non-CI runs on default branch do not affect is_new detection" do
       # Given - a project with a non-CI test run on main
       project = ProjectsFixtures.project_fixture()
@@ -11895,7 +11915,7 @@ defmodule Tuist.TestsTest do
 
       {:ok, stored} = Tests.get_test(run.id)
       assert {stored.execution_mode, stored.git_dirty} == {"parallel", true}
-      assert stored.git_repository_id == Tuist.GitHistory.repository_id(project.account_id, "https://github.com/acme/app")
+      assert stored.git_repository_id == GitHistory.repository_id(project.account_id, "https://github.com/acme/app")
 
       modes =
         ClickHouseRepo.all(

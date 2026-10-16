@@ -175,6 +175,9 @@ pub struct StorageSnapshotData {
 
 pub struct Store {
     pub(crate) handover_hold: Arc<StdMutex<Option<String>>>,
+    // Published by the blocking eviction commit while holding handover_hold.
+    // A repair walk must revisit rows checked before a later eviction.
+    pub(crate) handover_eviction_generation: Arc<AtomicU64>,
     handover_enabled: bool,
     startup_recovery: Option<Arc<crate::startup::Recovery>>,
     db: Arc<DB>,
@@ -1532,6 +1535,7 @@ impl Store {
             newest_listed_version_seeded: AtomicBool::new(false),
             sync_feed: Arc::new(sync_feed),
             handover_hold: Arc::new(StdMutex::new(None)),
+            handover_eviction_generation: Arc::new(AtomicU64::new(0)),
             handover_enabled: config.serving_authority.is_some(),
             sync_feed_stale_consumer: Duration::from_secs(config.sync_feed_stale_peer_secs),
             wal_writers_ahead_of_durability: Arc::new(DurabilityWriters::default()),
@@ -5010,6 +5014,7 @@ impl Store {
         let removals = std::mem::take(&mut cascade.removals);
         let removal_log = Arc::clone(&self.action_cache_removals);
         let handover_hold = self.handover_hold.clone();
+        let eviction_generation = self.handover_eviction_generation.clone();
         let handover_enabled = self.handover_enabled;
         let pressure_write_guards: Vec<_> =
             cascade.pressure_write_guards.values().cloned().collect();
@@ -5046,6 +5051,9 @@ impl Store {
             }
             let result = db.write(batch).map_err(|error| error.to_string());
             if result.is_ok() {
+                // Keep this in the worker: a disconnected repair request can
+                // cancel its waiter while the removal still commits.
+                eviction_generation.fetch_add(1, Ordering::Release);
                 let mut log = removal_log
                     .lock()
                     .expect("action-cache removal log lock poisoned");
@@ -8714,6 +8722,12 @@ impl Store {
             return Ok(true);
         }
         self.namespace_tombstone_blocks(&manifest.namespace_id, version_ms)
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn evict_segment_for_testing(&self, segment_id: &str) {
+        assert!(!self.is_active_segment(segment_id));
+        self.evict_segment(segment_id).await.unwrap();
     }
 
     /// Test hook: replaces the segment ring state wholesale so tests can
@@ -18663,6 +18677,7 @@ mod tests {
 
         let commit_started = Arc::new(tokio::sync::Notify::new());
         let commit_finished = Arc::new(tokio::sync::Notify::new());
+        let eviction_generation = store.handover_eviction_generation.load(Ordering::Acquire);
         let (release_commit, wait_for_release) = std::sync::mpsc::channel();
         {
             let mut commits = store.eviction_commits.lock().unwrap();
@@ -18690,6 +18705,10 @@ mod tests {
         .await
         .expect("eviction must reach its first blocking commit");
         drop(eviction);
+        assert_eq!(
+            store.handover_eviction_generation.load(Ordering::Acquire),
+            eviction_generation
+        );
         assert!(
             artifact_ids
                 .iter()
@@ -18700,6 +18719,7 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(60), commit_finished.notified())
             .await
             .expect("the detached commit must finish after its waiter is dropped");
+        assert!(store.handover_eviction_generation.load(Ordering::Acquire) > eviction_generation);
 
         let evicted: Vec<_> = artifact_ids
             .iter()

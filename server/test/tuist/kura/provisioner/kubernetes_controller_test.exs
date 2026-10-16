@@ -69,7 +69,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       expect(Client, :patch, fn "/apis/kura.tuist.dev/v1alpha1/namespaces/kura/kurainstances/instance",
                                 [guard | changes],
-                                [] ->
+                                [timeout: 3_000] ->
         assert guard == %{"op" => "test", "path" => "/metadata/resourceVersion", "value" => "42"}
 
         assert Map.new(changes, &{&1["path"], &1["value"]}) == %{
@@ -108,7 +108,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       expect(Client, :get_kura_instance, fn "kura", "instance", [timeout: 3_000] -> {:ok, instance} end)
 
-      expect(Client, :patch, fn _, [_guard, operation], [] ->
+      expect(Client, :patch, fn _, [_guard, operation], [timeout: 3_000] ->
         assert operation == %{"op" => "add", "path" => "/spec/stableAdvertise", "value" => false}
         {:ok, instance}
       end)

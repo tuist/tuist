@@ -443,7 +443,8 @@ struct XcodeBuildTestCommandServiceTests {
                 onlyTestIdentifiers: .any,
                 skipTestIdentifiers: .any,
                 stressNewTests: .any,
-                stressResultBundlePaths: .any
+                stressResultBundlePaths: .any,
+                scheme: .any
             )
             .called(0)
         verify(uploadResultBundleService)

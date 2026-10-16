@@ -10,6 +10,11 @@ import Foundation
 public struct XcodeCoverageManifest: Codable, Equatable, Sendable {
     public static let fileName = "tuist_coverage_manifest.json"
 
+    /// The root a binary built for the cache records its sources under (`-coverage-prefix-map
+    /// <checkout>=/TUIST_SOURCE_ROOT`), the same on every machine; listed among every manifest's
+    /// root directories so such paths tie to the repository like the checkout's own.
+    public static let sourceRootPlaceholder = "/TUIST_SOURCE_ROOT"
+
     /// Every absolute spelling of the checkout's root. The compiler records the one the build
     /// used, which is not always the canonical one (`/tmp` and `/private/tmp` on macOS).
     public let rootDirectories: [String]
@@ -22,15 +27,30 @@ public struct XcodeCoverageManifest: Codable, Equatable, Sendable {
     /// were built.
     public let files: [XcodeCoverageSourceFile]
 
+    /// Whether the client measured the run's coverage itself (with `llvm-cov` over the test
+    /// products) and sent it with the run. Whoever processes the bundle then leaves its own
+    /// coverage alone and uses the manifest only to tie the coverage evidence to the repository.
+    public let clientReported: Bool
+
     enum CodingKeys: String, CodingKey {
         case partial, files
         case rootDirectories = "root_directories"
+        case clientReported = "client_reported"
     }
 
-    public init(rootDirectories: [String], partial: Bool, files: [XcodeCoverageSourceFile]) {
+    public init(rootDirectories: [String], partial: Bool, files: [XcodeCoverageSourceFile], clientReported: Bool = false) {
         self.rootDirectories = rootDirectories
         self.partial = partial
         self.files = files
+        self.clientReported = clientReported
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        rootDirectories = try container.decode([String].self, forKey: .rootDirectories)
+        partial = try container.decode(Bool.self, forKey: .partial)
+        files = try container.decode([XcodeCoverageSourceFile].self, forKey: .files)
+        clientReported = try container.decodeIfPresent(Bool.self, forKey: .clientReported) ?? false
     }
 }
 

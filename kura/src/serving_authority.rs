@@ -44,6 +44,7 @@ pub struct ServingAuthority {
     observed: Mutex<Option<Grant>>,
     mutations: AtomicUsize,
     pub barrier: Mutex<Option<crate::handover::Receipt>>,
+    pub(crate) handover_preparation: tokio::sync::Mutex<()>,
     marker: Option<std::path::PathBuf>,
     revoked_epoch: std::sync::atomic::AtomicU64,
     // These attestations exist only in the process that owned the writer. They
@@ -87,6 +88,7 @@ impl ServingAuthority {
             observed: Mutex::new(None),
             mutations: AtomicUsize::new(0),
             barrier: Mutex::new(None),
+            handover_preparation: tokio::sync::Mutex::new(()),
             marker: None,
             revoked_epoch: std::sync::atomic::AtomicU64::new(0),
             owned_epoch: std::sync::atomic::AtomicU64::new(0),
