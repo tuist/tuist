@@ -244,8 +244,11 @@ defmodule Tuist.Tests.Coverage.History do
   ran. Each complete commit's `change` is how far it moved coverage from the
   complete commit before it, settled over the page and the #{@lookback}
   measured commits below it, as the trend compares them
-  (`trend_points/3`); other commits have none. The period bounds the commits
-  (`since`/`until`); `page_size` is 20 by default.
+  (`trend_points/3`); other commits have none. A `partial` commit with no
+  measured line (its runs' product code all came from the binary cache
+  without counters) is listed as incomplete (`Commits.listed/1`), out of the
+  trend and the changes. The period bounds the commits (`since`/`until`);
+  `page_size` is 20 by default.
 
   `search` keeps the commits whose SHA starts with it and `status` those of
   one status (`Tuist.Tests.Coverage.Commits.status/1`): `complete` (its
@@ -265,7 +268,7 @@ defmodule Tuist.Tests.Coverage.History do
   end
 
   # The branch's graph commits narrowed by `search` and `status`: a commit
-  # is measured when it has a published, comparable figure (`Commits.all/2`).
+  # is measured when it has a published figure a list shows (`Commits.listed/1`).
   defp graph_filter(project_id, opts) do
     {search, status} = commit_filter(opts)
 
@@ -274,7 +277,7 @@ defmodule Tuist.Tests.Coverage.History do
     else
       measured =
         from(m in CoverageCommit, where: m.project_id == ^project_id)
-        |> Commits.comparable()
+        |> Commits.listed()
         |> select([m], %{sha: m.git_commit_sha, complete: m.complete, reported_kind: m.reported_kind})
 
       fn query ->
@@ -372,7 +375,8 @@ defmodule Tuist.Tests.Coverage.History do
     lookback = graph_lookback(project, ref, oldest)
 
     %{
-      commits: settle(commits, Commits.by_shas(project.id, Enum.map(commits, & &1.git_commit_sha)), lookback),
+      commits:
+        settle(commits, Commits.by_shas(project.id, Enum.map(commits, & &1.git_commit_sha), listed: true), lookback),
       ordered_by: :graph,
       has_next_page?:
         older_page?(cursor, more?, fn ->
@@ -429,7 +433,7 @@ defmodule Tuist.Tests.Coverage.History do
   defp labelled_cursor_page(project, branch, opts, size, cursor) do
     labelled = fn query -> query |> where([c], c.git_branch == ^branch) |> ran_in(opts) |> labelled_filter(opts) end
     cursor = cursor_time(cursor)
-    read = fn refine -> Commits.all(project.id, &(&1 |> labelled.() |> refine.())) end
+    read = fn refine -> Commits.all(project.id, &(&1 |> labelled.() |> refine.()), listed: true) end
 
     {rows, more?} =
       read_page(cursor, size, fn

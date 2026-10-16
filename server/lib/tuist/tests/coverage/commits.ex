@@ -528,14 +528,16 @@ defmodule Tuist.Tests.Coverage.Commits do
   @doc """
   The published commits of a project among `shas`, keyed by SHA: those with a
   comparable figure (`comparable/1`), what the history and the baselines
-  read.
+  read, or with `listed: true` the ones a commit list shows (`listed/1`).
   """
-  def by_shas(_project_id, []), do: %{}
+  def by_shas(project_id, shas, opts \\ [])
 
-  def by_shas(project_id, shas) do
+  def by_shas(_project_id, [], _opts), do: %{}
+
+  def by_shas(project_id, shas, opts) do
     CoverageCommit
     |> where([c], c.project_id == ^project_id and c.git_commit_sha in ^shas)
-    |> comparable()
+    |> figures(opts)
     |> Repo.all()
     |> Map.new(&{&1.git_commit_sha, row(&1)})
   end
@@ -543,16 +545,19 @@ defmodule Tuist.Tests.Coverage.Commits do
   @doc """
   The project's published commits with a comparable figure (`comparable/1`)
   matching a query refinement (`fun` receives the base query), each as
-  `summary/2` returns it.
+  `summary/2` returns it. `listed: true` reads the listed ones instead
+  (`listed/1`).
   """
-  def all(project_id, fun \\ & &1) do
+  def all(project_id, fun \\ & &1, opts \\ []) do
     CoverageCommit
     |> where([c], c.project_id == ^project_id)
-    |> comparable()
+    |> figures(opts)
     |> fun.()
     |> Repo.all()
     |> Enum.map(&row/1)
   end
+
+  defp figures(query, opts), do: if(Keyword.get(opts, :listed, false), do: listed(query), else: comparable(query))
 
   @doc """
   Narrows a query over `CoverageCommit` to the commits a history compares:
@@ -565,6 +570,24 @@ defmodule Tuist.Tests.Coverage.Commits do
       query,
       [c],
       c.executable_lines > 0 or (c.reported_kind == "reported" and c.reported_executable_lines > 0)
+    )
+  end
+
+  @doc """
+  Narrows a query over `CoverageCommit` to the commits a list shows: those
+  with a comparable figure, and the `partial` ones with no measured line,
+  whose figure is a lower bound of nothing: their runs' product code all came
+  from the binary cache without counters (`uninstrumented_code`), and the
+  gap, not a missing run, is what the list has to say. Trends, baselines,
+  changes and a branch's head figure need a percentage to compare and keep to
+  `comparable/1`.
+  """
+  def listed(query) do
+    where(
+      query,
+      [c],
+      c.executable_lines > 0 or (c.reported_kind == "reported" and c.reported_executable_lines > 0) or
+        c.reported_kind == "partial"
     )
   end
 

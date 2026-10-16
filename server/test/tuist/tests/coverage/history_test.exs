@@ -6,8 +6,10 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
   alias Tuist.Tests.Coverage.History
   alias Tuist.Tests.CoverageCommit
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
 
   setup do
     account = AccountsFixtures.user_fixture(preload: [:account]).account
@@ -315,6 +317,51 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
                "c2",
                "c0"
              ]
+    end
+
+    test "list a commit whose runs measured no product line of their own as incomplete", %{
+      project: project,
+      account: account
+    } do
+      CoverageFixtures.seed_history(
+        account,
+        [CoverageFixtures.commit("c0", [], 0), CoverageFixtures.commit("c1", ["c0"], 1)],
+        branch_heads: [{"main", "c1"}]
+      )
+
+      run(project, account, %{git_commit_sha: "c0"}, [1, 0, 0, 0])
+
+      # Every product target came from the binary cache without counters: the
+      # run lists only its test file, and the gap is what the list has to say.
+      plain =
+        CoverageFixtures.run_with_coverage(
+          project,
+          account,
+          [CoverageFixtures.file("Tests/ATests.swift", [1], is_test: true)],
+          %{git_commit_sha: "c1"}
+        )
+
+      event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: plain.id)
+      XcodeFixtures.xcode_target_fixture(command_event_id: event.id, name: "A", binary_cache_hit: :local)
+      for sha <- ~w(c0 c1), do: Commits.signal_complete(project, sha)
+
+      assert %{reported_kind: "partial", executable_lines: 0} = Commits.summary(project.id, "c1")
+
+      page = History.commit_cursor_page(project, "main")
+
+      assert Enum.map(page.commits, &{&1.git_commit_sha, Commits.status(&1), &1.change}) == [
+               {"c1", :incomplete, nil},
+               {"c0", :complete, nil}
+             ]
+
+      assert shas(History.trend_points(project, "main")) == ["c0"]
+
+      assert Enum.map(History.commit_cursor_page(project, "main", status: "incomplete").commits, & &1.git_commit_sha) == [
+               "c1"
+             ]
+
+      assert History.commit_cursor_page(project, "main", status: "not-measured").commits == []
+      assert History.head_commit(project, "main").git_commit_sha == "c0"
     end
   end
 
