@@ -9,6 +9,10 @@ Describe 'Local serving-authority qualification'
     KURA_E2E_SEGMENT_RECORDS=2048 KURA_E2E_RETAINED_RECENCY=1 \
       node test/e2e/serving-authority/segmented-handover.mjs "$KURA_E2E_AUTHORITY_IMAGE" "$KURA_E2E_AUTHORITY_OUTPUT/retained-recency"
   }
+  run_retained_churn_case() {
+    KURA_E2E_SEGMENT_RECORDS=2048 KURA_E2E_REPAIR_CHURN=1 \
+      node test/e2e/serving-authority/segmented-handover.mjs "$KURA_E2E_AUTHORITY_IMAGE" "$KURA_E2E_AUTHORITY_OUTPUT/retained-churn"
+  }
 
   It 'preserves inline metadata through individual fetches and retained-corpus handover'
     Skip if 'requires KURA_E2E_AUTHORITY_RESOURCES=1 and a local candidate image' qualification_disabled
@@ -36,6 +40,13 @@ Describe 'Local serving-authority qualification'
     When call run_resource_case pause
     The status should be success
     The output should include '"lateWriteAbsent":true'
+  End
+
+  It 'revisits records evicted while repairing a divergent full standby'
+    Skip if 'requires KURA_E2E_AUTHORITY_RESOURCES=1 and a local candidate image' qualification_disabled
+    When call run_retained_churn_case
+    The status should be success
+    The output should include '"segmentedHandover":true'
   End
 
   It 'resumes only the same live writer after explicit fencing and drained uploads'

@@ -8,9 +8,12 @@ defmodule TuistEx.Cache.Reapi do
   alias TuistEx.Cache.Reapi.ActionCache
   alias TuistEx.Cache.Reapi.ActionResult
   alias TuistEx.Cache.Reapi.ByteStream
+  alias TuistEx.Cache.Reapi.Capabilities
   alias TuistEx.Cache.Reapi.Channel
+  alias TuistEx.Cache.Reapi.Compression
   alias TuistEx.Cache.Reapi.Digest
   alias TuistEx.Cache.Reapi.GetActionResultRequest
+  alias TuistEx.Cache.Reapi.GetCapabilitiesRequest
   alias TuistEx.Cache.Reapi.OutputFile
   alias TuistEx.Cache.Reapi.RequestMetadata
   alias TuistEx.Cache.Reapi.ToolDetails
@@ -20,6 +23,7 @@ defmodule TuistEx.Cache.Reapi do
 
   @timeout 30_000
   @chunk_bytes 64 * 1024
+  @inline_max_bytes 128 * 1024
 
   def with_session(options, invocation_id, analytics_options, callback) do
     reference = make_ref()
@@ -92,7 +96,7 @@ defmodule TuistEx.Cache.Reapi do
 
         case HTTP.request(:get, url, nil, [
                {"authorization", "Bearer " <> token},
-               {"x-tuist-client-feature-flags", "kura"}
+               {"x-tuist-feature-flags", "kura"}
              ]) do
           {:ok, 200, %{"endpoints" => [endpoint | _]}} when is_binary(endpoint) -> {:ok, endpoint}
           _ -> {:error, :unavailable}
@@ -115,7 +119,10 @@ defmodule TuistEx.Cache.Reapi do
 
     options = [
       adapter: GRPC.Client.Adapters.Mint,
-      adapter_opts: [transport_opts: [timeout: 5_000]]
+      adapter_opts: [
+        config_options: [hostname: uri.host],
+        transport_opts: [timeout: 5_000, nodelay: true]
+      ]
     ]
 
     options =
@@ -134,22 +141,31 @@ defmodule TuistEx.Cache.Reapi do
         options
       end
 
-    with {:ok, owner} <-
+    with {:ok, address} <- Isolated.run(fn -> resolve_address(uri) end, 5_000),
+         {:ok, owner} <-
            DynamicSupervisor.start_child(
              TuistEx.Cache.Reapi.Supervisor,
-             {Channel, {address(uri), options, self()}}
+             {Channel, {address, options, self()}}
            ) do
       channel = GenServer.call(owner, :channel)
 
-      {:ok,
-       %{
-         owner: owner,
-         channel: channel,
-         token: token,
-         account: account,
-         project: project,
-         invocation_id: invocation_id
-       }}
+      session = %{
+        owner: owner,
+        channel: channel,
+        token: token,
+        account: account,
+        project: project,
+        invocation_id: invocation_id
+      }
+
+      session = Map.put(session, :zstd, supports_zstd?(session))
+
+      if connected?(session) do
+        {:ok, session}
+      else
+        close(session)
+        {:error, :unavailable}
+      end
     end
   end
 
@@ -184,17 +200,22 @@ defmodule TuistEx.Cache.Reapi do
 
     request = %GetActionResultRequest{
       instance_name: session.project,
-      action_digest: %Digest{hash: key}
+      action_digest: %Digest{hash: key},
+      inline_output_files: ["*", "tuist-inline-max-bytes:#{@inline_max_bytes}"]
     }
+
+    started = System.monotonic_time(:microsecond)
 
     with true <- connected?(session),
          {:ok,
           %ActionResult{
             exit_code: 0,
-            output_files: [%OutputFile{path: "dependency.bundle", digest: digest}]
+            output_files: [
+              %OutputFile{path: "dependency.bundle", digest: digest, contents: contents}
+            ]
           }} <- ActionCache.Stub.get_action_result(session.channel, request, opts),
          true <- valid_digest?(digest),
-         {:ok, binary, metrics} <- read_blob(session, digest, opts) do
+         {:ok, binary, metrics} <- read_output(session, digest, contents, opts, started) do
       {:ok, binary, Map.put(metrics, :output_digest, digest.hash)}
     else
       _ -> :miss
@@ -226,44 +247,90 @@ defmodule TuistEx.Cache.Reapi do
     digest = %Digest{hash: content_digest(binary), size_bytes: byte_size(binary)}
     opts = request_options(session, key, dependency)
     started = System.monotonic_time(:microsecond)
+
+    {wire, compressed?} =
+      if session.zstd and Compression.eligible?(byte_size(binary)),
+        do: Compression.compress(binary),
+        else: {binary, false}
+
     stream = ByteStream.Stub.write(session.channel, opts)
+    encoding = if compressed?, do: "compressed-blobs/zstd/", else: "blobs/"
 
     resource =
       session.project <>
         "/uploads/" <>
         Report.id() <>
-        "/blobs/" <> digest.hash <> "/" <> to_string(digest.size_bytes)
+        "/" <> encoding <> digest.hash <> "/" <> to_string(digest.size_bytes)
 
-    stream = write_chunks(stream, resource, binary, 0)
+    stream = write_chunks(stream, resource, wire, 0)
 
-    with {:ok, %Google.Bytestream.WriteResponse{committed_size: size}}
-         when size == byte_size(binary) <- GRPC.Stub.recv(stream, timeout: @timeout) do
-      duration = System.monotonic_time(:microsecond) - started
+    case GRPC.Stub.recv(stream, timeout: @timeout) do
+      {:ok, %Google.Bytestream.WriteResponse{committed_size: size}}
+      when size == byte_size(wire) or (compressed? and size == -1) ->
+        duration = System.monotonic_time(:microsecond) - started
 
-      result = %ActionResult{
-        output_files: [%OutputFile{path: "dependency.bundle", digest: digest}]
-      }
+        result = %ActionResult{
+          output_files: [%OutputFile{path: "dependency.bundle", digest: digest}]
+        }
 
-      request = %UpdateActionResultRequest{
-        instance_name: session.project,
-        action_digest: %Digest{hash: key},
-        action_result: result
-      }
+        request = %UpdateActionResultRequest{
+          instance_name: session.project,
+          action_digest: %Digest{hash: key},
+          action_result: result
+        }
 
-      with {:ok, _} <- ActionCache.Stub.update_action_result(session.channel, request, opts) do
-        {:ok,
-         %{
-           output_digest: digest.hash,
-           write_bytes: byte_size(binary),
-           write_duration_us: duration,
-           write_source: "remote"
-         }}
-      end
+        case ActionCache.Stub.update_action_result(session.channel, request, opts) do
+          {:ok, _} ->
+            {:ok,
+             %{
+               output_digest: digest.hash,
+               write_bytes: byte_size(binary),
+               write_duration_us: duration,
+               write_source: "remote"
+             }}
+
+          _ ->
+            {:error, :unavailable}
+        end
+
+      _ ->
+        {:error, :unavailable}
     end
   rescue
     _ -> {:error, :unavailable}
   catch
     _, _ -> {:error, :unavailable}
+  end
+
+  defp supports_zstd?(session) do
+    if Compression.available?() do
+      result =
+        run_rpc(
+          session,
+          fn ->
+            Capabilities.Stub.get_capabilities(
+              session.channel,
+              %GetCapabilitiesRequest{instance_name: session.project},
+              request_options(session, "", "")
+            )
+          end,
+          5_000
+        )
+
+      case result do
+        {:ok, %{cache_capabilities: %{supported_compressors: compressors}}} ->
+          1 in compressors
+
+        {:error, :timeout} ->
+          close(session)
+          false
+
+        _ ->
+          false
+      end
+    else
+      false
+    end
   end
 
   defp run_rpc(session, callback, timeout) do
@@ -307,22 +374,55 @@ defmodule TuistEx.Cache.Reapi do
     write_chunks(stream, resource, rest, offset + @chunk_bytes)
   end
 
+  defp read_output(session, digest, "", opts, _started), do: read_blob(session, digest, opts)
+
+  defp read_output(session, digest, binary, _opts, started),
+    do: verified_blob(session, digest, binary, started)
+
+  defp verified_blob(session, digest, binary, started) do
+    if byte_size(binary) == digest.size_bytes and content_digest(binary) == digest.hash do
+      {:ok, binary,
+       %{
+         read_bytes: byte_size(binary),
+         read_duration_us: System.monotonic_time(:microsecond) - started,
+         read_source: "remote"
+       }}
+    else
+      close(session)
+      {:error, :invalid_blob}
+    end
+  end
+
   defp read_blob(session, digest, opts) do
+    compressed? = session.zstd and Compression.eligible?(digest.size_bytes)
+
+    case read_blob(session, digest, opts, compressed?) do
+      {:error, %GRPC.RPCError{status: 12}} when compressed? ->
+        read_blob(session, digest, opts, false)
+
+      result ->
+        result
+    end
+  end
+
+  defp read_blob(session, digest, opts, compressed?) do
     started = System.monotonic_time(:microsecond)
+    encoding = if compressed?, do: "compressed-blobs/zstd/", else: "blobs/"
+    limit = if compressed?, do: Compression.wire_limit(digest.size_bytes), else: digest.size_bytes
 
     request = %Google.Bytestream.ReadRequest{
       resource_name:
-        session.project <> "/blobs/" <> digest.hash <> "/" <> to_string(digest.size_bytes)
+        session.project <> "/" <> encoding <> digest.hash <> "/" <> to_string(digest.size_bytes)
     }
 
     with {:ok, stream} <- ByteStream.Stub.read(session.channel, request, opts) do
       try do
-        {chunks, size, error} =
+        {chunks, _wire_size, error} =
           Enum.reduce(stream, {[], 0, nil}, fn
             {:ok, %Google.Bytestream.ReadResponse{data: data}}, {chunks, size, error} ->
               size = size + byte_size(data)
 
-              if size > digest.size_bytes or
+              if size > limit or
                    System.monotonic_time(:microsecond) - started > @timeout * 1_000,
                  do: throw(:invalid_blob)
 
@@ -335,24 +435,16 @@ defmodule TuistEx.Cache.Reapi do
               throw(:invalid_blob)
           end)
 
-        binary = chunks |> Enum.reverse() |> IO.iodata_to_binary()
+        wire = chunks |> Enum.reverse() |> IO.iodata_to_binary()
 
-        cond do
-          not is_nil(error) ->
-            {:error, error}
+        binary =
+          if compressed? and is_nil(error),
+            do: Compression.decompress(wire, digest.size_bytes),
+            else: wire
 
-          size == digest.size_bytes and content_digest(binary) == digest.hash ->
-            {:ok, binary,
-             %{
-               read_bytes: size,
-               read_duration_us: System.monotonic_time(:microsecond) - started,
-               read_source: "remote"
-             }}
-
-          true ->
-            close(session)
-            {:error, :invalid_blob}
-        end
+        if is_nil(error),
+          do: verified_blob(session, digest, binary, started),
+          else: {:error, error}
       rescue
         _ ->
           close(session)
@@ -365,9 +457,18 @@ defmodule TuistEx.Cache.Reapi do
     end
   end
 
-  defp address(uri) do
-    host = if String.contains?(uri.host, ":"), do: "[#{uri.host}]", else: uri.host
-    "#{host}:#{uri.port}"
+  def resolve_address(uri, resolver \\ &:inet.getaddr/2) do
+    host = String.to_charlist(uri.host)
+
+    with {:error, _} <- resolver.(host, :inet),
+         {:error, _} <- resolver.(host, :inet6) do
+      {:error, :unavailable}
+    else
+      {:ok, address} ->
+        ip = address |> :inet.ntoa() |> to_string()
+        target = if tuple_size(address) == 8, do: "ipv6:[#{ip}]", else: "ipv4:#{ip}"
+        {:ok, "#{target}:#{uri.port}"}
+    end
   end
 
   # REAPI hashes raw CAS bytes, not the deterministic term encoding used for input keys.

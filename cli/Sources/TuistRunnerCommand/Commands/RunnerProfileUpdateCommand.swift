@@ -15,9 +15,15 @@ public struct RunnerProfileUpdateCommand: AsyncParsableCommand, NooraReadyComman
 
     @Option(
         name: .customLong("save-cache-from"),
-        help: "Branch name or * pattern whose jobs save the profile's cache volumes. Repeat for several branches. Replaces the current list; omit it to follow each repository's default branch."
+        help: "Additional branch name or * pattern whose jobs save the profile's cache volumes. Repeat for several branches. Replaces the current list; omit it to save only from each repository's default branch."
     )
     var saveCacheFrom: [String] = []
+
+    @Flag(
+        inversion: .prefixedNo,
+        help: "Whether jobs on each repository's default branch save the profile's cache volumes."
+    )
+    var saveCacheFromDefaultBranch = true
 
     @OptionGroup var options: RunnerProfileOptions
 
@@ -26,6 +32,7 @@ public struct RunnerProfileUpdateCommand: AsyncParsableCommand, NooraReadyComman
     public func run() async throws {
         try await RunnerProfileUpdateCommandService().run(
             name: name,
+            defaultBranch: saveCacheFromDefaultBranch,
             branches: saveCacheFrom,
             account: options.account,
             path: options.path,

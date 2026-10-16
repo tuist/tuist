@@ -200,7 +200,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
 
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
-        let gitHistory = await gitHistoryService.collect(
+        // Before the run is created: ingestion reads which commits the default branch reached.
+        let gitHistory = await gitHistoryService.publish(
             gitInfo: gitInfo,
             workingDirectory: gitInfoDirectory,
             fullHandle: fullHandle,
@@ -422,7 +423,8 @@ extension UploadResultBundleService {
         }
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
-        let gitHistory = await gitHistoryService.collect(
+        // Before the run is created: ingestion reads which commits the default branch reached.
+        let gitHistory = await gitHistoryService.publish(
             gitInfo: gitInfo,
             workingDirectory: gitInfoDirectory,
             fullHandle: fullHandle,

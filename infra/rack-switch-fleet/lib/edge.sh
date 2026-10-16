@@ -61,6 +61,7 @@ fleet_edge_check() {
   fi
   fleet_edge_check_vrrp "$site_file" || return 1
   fleet_edge_check_machines "$site_file" || return 1
+  fleet_edge_check_rack_caches "$site_file" || return 1
   fleet_edge_check_wan "$site_file" || return 1
   fleet_edge_check_power "$site_file"
 }
@@ -225,6 +226,39 @@ fleet_edge_check_machines() {
   fi
 }
 
+# What the minis reach on their own segment, beside the edges: the rack's
+# cache gateways (rackFleet.vmCacheGatewayCIDRs, which their VMs may reach)
+# and its VM image caches (rackFleet.imageCache.nodes, which their hosts pull
+# from). Each has to be a storage node of this site that is in the rack, at
+# the address its RackLinuxHost reserves, or the minis would be pointed at an
+# address nothing answers on.
+fleet_edge_check_rack_caches() {
+  local site_file="$1" values="${2:-}" storage linux bad="" node address cidr
+  [ -n "$values" ] || values="$(fleet_rack_values "$site_file")" || return 1
+  [ -f "$values" ] || return 0
+  storage="$(jq -c '[.nodes[]? | select(.role == "storage" and .status != "planned") | .name]' "$site_file")"
+  linux="$(yq -o=json '[.rackLinuxFleet.hosts[]? | {"key": .hostname, "value": (.address // "")}] | from_entries' "$values" 2>/dev/null)" || linux=''
+  [ -n "$linux" ] || linux='{}'
+  while IFS=$'\t' read -r node address; do
+    [ -n "$node" ] || continue
+    if [ "$(jq -r --arg n "$node" 'index($n) != null' <<<"$storage")" != true ]; then
+      bad="${bad:+$bad$'\n'}the image cache on $node is not on a storage node of this site that is in the rack"
+    elif [ "$(jq -r --arg n "$node" '.[$n] // ""' <<<"$linux")" != "$address" ]; then
+      bad="${bad:+$bad$'\n'}the image cache on $node is at $address, but its RackLinuxHost is at $(jq -r --arg n "$node" '.[$n] // "no address"' <<<"$linux")"
+    fi
+  done < <(yq -r '.rackFleet.imageCache.nodes[]? | [.name, (.address // "")] | @tsv' "$values" 2>/dev/null)
+  for cidr in $(yq -r '.rackFleet.vmCacheGatewayCIDRs[]?' "$values" 2>/dev/null); do
+    if [ "${cidr#*/}" != 32 ] || [ -z "$(jq -r --argjson storage "$storage" --arg a "${cidr%/*}" 'to_entries[] | select(.value == $a and (.key as $k | $storage | index($k) != null)) | .key' <<<"$linux")" ]; then
+      bad="${bad:+$bad$'\n'}cache gateway $cidr is not the address of a storage node of this site that is in the rack"
+    fi
+  done
+  if [ -n "$bad" ]; then
+    echo "error: the rack's caches are wrong:" >&2
+    printf '  %s\n' "$bad" >&2
+    return 1
+  fi
+}
+
 # The edges share the site's floating addresses through keepalived, which
 # talks to its peers on a VLAN of its own. Every edge node is a member, each
 # with an address in the VRRP prefix and at least one data link to carry it; a
@@ -333,6 +367,9 @@ SCRIPT
   # This node's own end of VRRP. Each edge VLAN rides an active-backup bond
   # over one VLAN interface per uplink, so it survives losing either ToR, and
   # the edges never both believe the other is gone while both are up.
+  # The uplinks' rings are 4096 descriptors rather than i40e's 512, which
+  # overflow on the WAN's line-rate bursts and drop packets the NIC counts as
+  # rx_missed_errors. Setting the counts a ring already has changes nothing.
   local node address uplink_names vrrp_length machines peer member
   vrrp_length="$(fleet_prefix_length "$vrrp_prefix")"
   mapfile -t members < <(fleet_edge_members "$site_file")
@@ -354,6 +391,9 @@ SCRIPT
   cat <<'SCRIPT'
   *) echo "$NODE_NAME is not one of the site's edges" >&2; exit 1 ;;
 esac
+for uplink in $uplinks; do
+  ethtool -G "$uplink" rx 4096 tx 4096
+done
 edge_vlan_bond() {
   bond=$1 vlan=$2 i=0
   ip link show "$bond" >/dev/null 2>&1 || ip link add "$bond" type bond mode active-backup miimon 100

@@ -28,7 +28,7 @@ public enum PackageManifestEnvironment {
         }
     }
 
-    static func filtered(_ variables: [String: String]) -> [String: String]? {
+    static func filtered(_ variables: [String: String], forDependencyResolution: Bool = false) -> [String: String]? {
         let configuration = configuration
         let automaticPatterns = configuration
             .usesAutomaticProviderDefaults ? automaticExcludedVariablePatterns(in: variables) : []
@@ -36,13 +36,33 @@ public enum PackageManifestEnvironment {
         guard !excludedVariablePatterns.isEmpty else { return nil }
 
         return variables.filter { key, _ in
-            !matches(key: key, patterns: excludedVariablePatterns) ||
+            (!matches(key: key, patterns: automaticPatterns) ||
+                automaticallyRetained(key, forDependencyResolution: forDependencyResolution)) &&
+                !matches(key: key, patterns: configuration.excludedVariablePatterns) ||
                 matches(key: key, patterns: configuration.includedVariablePatterns)
         }
     }
 
+    private static func automaticallyRetained(_ key: String, forDependencyResolution: Bool) -> Bool {
+        if ["GITHUB_ACTIONS", "RUNNER_OS", "RUNNER_ARCH"].contains(key) { return true }
+        guard forDependencyResolution else { return false }
+        return [
+            "SSH_AUTH_SOCK",
+            "GITHUB_TOKEN",
+            "ACTIONS_ID_TOKEN_REQUEST_TOKEN",
+            "ACTIONS_ID_TOKEN_REQUEST_URL",
+            "ACTIONS_RUNTIME_TOKEN",
+            "ACTIONS_RUNTIME_URL",
+            "ACTIONS_RESULTS_URL",
+        ].contains(key)
+    }
+
     private static func automaticExcludedVariablePatterns(in variables: [String: String]) -> [String] {
-        var patterns: [String] = []
+        var patterns = [
+            "TUIST_CACHE_SIGNING_GRANT",
+            "TUIST_RUNNER_POD_NAME",
+            "TUIST_RUNNER_POD_UID",
+        ].filter { variables[$0] != nil }
 
         if variables["GITLAB_CI"] == "true" {
             patterns += [
@@ -66,18 +86,7 @@ public enum PackageManifestEnvironment {
         }
 
         if variables["GITHUB_ACTIONS"] == "true" {
-            patterns += [
-                "GITHUB_ACTION",
-                "GITHUB_ARTIFACTS",
-                "GITHUB_ARTIFACTS_LIST",
-                "GITHUB_ENV",
-                "GITHUB_OUTPUT",
-                "GITHUB_PATH",
-                "GITHUB_RUN_ATTEMPT",
-                "GITHUB_RUN_ID",
-                "GITHUB_RUN_NUMBER",
-                "GITHUB_STEP_SUMMARY",
-            ]
+            patterns += ["ACTIONS_*", "GITHUB_*", "RUNNER_*", "SSH_AUTH_SOCK"]
         }
 
         if variables["BITRISE_IO"] == "true" {

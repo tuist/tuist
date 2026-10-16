@@ -1,0 +1,35 @@
+<main class="layout" data-part="account-layout" id="account-layout">
+  <AtlasWeb.AccountMenu.headerbar current_user={@current_user} account_settings? />
+  <.line_divider />
+  <section class="layout__main" data-part="account-main">
+    <.sidebar id="account-settings-sidebar">
+      <.sidebar_group
+        id="account-settings-navigation"
+        label={gettext("Account settings")}
+        icon="settings"
+        collapsible={false}
+      >
+        <.sidebar_item
+          id="account-general-link"
+          label={gettext("General")}
+          icon="user"
+          navigate={~p"/settings"}
+          selected={@current_path == ~p"/settings"}
+        />
+        <.sidebar_item
+          id="account-ai-providers-link"
+          label={gettext("AI accounts")}
+          icon="lock"
+          navigate={~p"/settings/llm-providers"}
+          selected={@current_path == ~p"/settings/llm-providers"}
+        />
+      </.sidebar_group>
+    </.sidebar>
+    <div class="layout__content" data-part="account-content">
+      <div data-part="account-settings-content">
+        <.flash_group flash={@flash} />
+        {@inner_content}
+      </div>
+    </div>
+  </section>
+</main>

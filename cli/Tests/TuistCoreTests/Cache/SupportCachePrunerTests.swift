@@ -11,6 +11,20 @@ import TuistEnvironmentTesting
 struct SupportCachePrunerTests {
     private let fileSystem = FileSystem()
 
+    @Test(.inTemporaryDirectory, arguments: [nil, 0] as [Int?])
+    func prune_boundsCargoByRetentionAndTheSharedByteBudget(maxBytes: Int?) async throws {
+        let cache = try #require(FileSystem.temporaryTestDirectory)
+        let now = Date()
+        let stale = try await seed(.cargo, name: "stale", bytes: 1000, lastUsed: now.addingTimeInterval(-31 * day), in: cache)
+        let fresh = try await seed(.cargo, name: "fresh", bytes: 1000, lastUsed: now.addingTimeInterval(-7 * day), in: cache)
+        try FileManager.default.setAttributes(
+            [.modificationDate: now], ofItemAtPath: fresh.parentDirectory.parentDirectory.pathString
+        )
+        try await subject(cache).prune(maxBytes: maxBytes, now: now)
+        #expect(try await !fileSystem.exists(stale))
+        #expect(try await fileSystem.exists(fresh) == (maxBytes == nil))
+    }
+
     @Test(.inTemporaryDirectory)
     func prune_dropsEntriesPastTheirCategoryRetention() async throws {
         let cache = try #require(FileSystem.temporaryTestDirectory)
@@ -307,7 +321,7 @@ struct SupportCachePrunerTests {
     private let hour: TimeInterval = 60 * 60
 
     /// Seeds one `bytes`-sized entry in `category`, last used at `lastUsed`. Manifests are cached as
-    /// flat files and everything else as directories, so the layout follows the category.
+    /// flat files, Cargo as nested action/blob files, and everything else as directories.
     private func seed(
         _ category: CacheCategory,
         name: String,
@@ -315,13 +329,14 @@ struct SupportCachePrunerTests {
         lastUsed: Date,
         in cache: AbsolutePath
     ) async throws -> AbsolutePath {
-        let directory = cache.appending(component: category.directoryName)
+        let categoryDirectory = cache.appending(component: category.directoryName)
+        let directory = category == .cargo ? categoryDirectory.appending(components: "project", "blobs") : categoryDirectory
         if try await !fileSystem.exists(directory) {
             try await fileSystem.makeDirectory(at: directory)
         }
         let entry = directory.appending(component: name)
         switch category {
-        case .manifests:
+        case .manifests, .cargo:
             FileManager.default.createFile(atPath: entry.pathString, contents: Data(repeating: 0x41, count: bytes))
         default:
             try await fileSystem.makeDirectory(at: entry)

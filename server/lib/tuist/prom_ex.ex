@@ -75,6 +75,7 @@ defmodule Tuist.PromEx do
         Tuist.Repo.PromExPlugin,
         Tuist.ClickHouseRepo.PromExPlugin,
         Tuist.KeyValueStore.PromExPlugin,
+        Tuist.PromEx.RateLimit,
         Tuist.Authentication.PromExPlugin,
         Tuist.HTTP.PromExPlugin,
         Tuist.License.PromExPlugin,

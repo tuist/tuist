@@ -103,7 +103,7 @@ This is the safe default outside `tuist xcodebuild test`: failure masking for mu
 
 The stress gate reruns the test cases your branch adds, several times each in a fresh process, and reports the ones that turn out flaky. You see a new flaky test on the pull request that introduced it, not weeks later.
 
-A test case counts as new when it hasn't run in CI on the project's default branch in the last 90 days.
+A test case counts as new when it hasn't run in CI in the last 90 days on the project's default branch, or on a commit that has since landed on it. With a merge queue, a test case the queue ran is known once the queue's commit lands, and stays new if the queue drops it. Commits are matched through the <.localized_link href="/guides/features/test-insights/xcode#git-history">Git history</.localized_link> Tuist collects on CI.
 
 ### Enabling it
 

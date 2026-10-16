@@ -4,15 +4,25 @@
     import TuistHTTP
     import TuistSimulator
 
-    public enum ListPreviewsDistinctField {
+    public enum ListPreviewsDistinctField: Equatable {
         case bundleIdentifier
     }
 
     @Mockable
     public protocol ListPreviewsServicing: Sendable {
+        func searchPreviews(
+            search: String,
+            track: String?,
+            page: Int,
+            pageSize: Int,
+            fullHandle: String,
+            serverURL: URL
+        ) async throws -> ServerPreviewsPage
+
         func listPreviews(
             displayName: String?,
             specifier: String?,
+            track: String?,
             supportedPlatforms: [DestinationType],
             page: Int?,
             pageSize: Int?,
@@ -39,6 +49,7 @@
 
     public struct ListPreviewsService: ListPreviewsServicing {
         private let fullHandleService: FullHandleServicing
+        private let makeClient: @Sendable (URL) -> Client
 
         public init() {
             self.init(
@@ -47,14 +58,17 @@
         }
 
         init(
-            fullHandleService: FullHandleServicing
+            fullHandleService: FullHandleServicing,
+            makeClient: @escaping @Sendable (URL) -> Client = { Client.authenticated(serverURL: $0) }
         ) {
             self.fullHandleService = fullHandleService
+            self.makeClient = makeClient
         }
 
         public func listPreviews(
             displayName: String?,
             specifier: String?,
+            track: String? = nil,
             supportedPlatforms: [DestinationType],
             page: Int?,
             pageSize: Int?,
@@ -62,7 +76,41 @@
             fullHandle: String,
             serverURL: URL
         ) async throws -> ServerPreviewsPage {
-            let client = Client.authenticated(serverURL: serverURL)
+            try await fetchPreviews(
+                displayName: displayName, specifier: specifier, track: track, search: nil,
+                supportedPlatforms: supportedPlatforms, page: page, pageSize: pageSize,
+                distinctField: distinctField, fullHandle: fullHandle, serverURL: serverURL
+            )
+        }
+
+        public func searchPreviews(
+            search: String,
+            track: String?,
+            page: Int,
+            pageSize: Int,
+            fullHandle: String,
+            serverURL: URL
+        ) async throws -> ServerPreviewsPage {
+            try await fetchPreviews(
+                displayName: nil, specifier: nil, track: track, search: search,
+                supportedPlatforms: [], page: page, pageSize: pageSize,
+                distinctField: nil, fullHandle: fullHandle, serverURL: serverURL
+            )
+        }
+
+        private func fetchPreviews(
+            displayName: String?,
+            specifier: String?,
+            track: String?,
+            search: String?,
+            supportedPlatforms: [DestinationType],
+            page: Int?,
+            pageSize: Int?,
+            distinctField: ListPreviewsDistinctField?,
+            fullHandle: String,
+            serverURL: URL
+        ) async throws -> ServerPreviewsPage {
+            let client = makeClient(serverURL)
             let handles = try fullHandleService.parse(fullHandle)
             let response = try await client.listPreviews(
                 .init(
@@ -72,6 +120,8 @@
                     ),
                     query: .init(
                         display_name: displayName,
+                        search: search,
+                        track: track,
                         specifier: specifier,
                         supported_platforms: supportedPlatforms.map(Components.Schemas.PreviewSupportedPlatform.init),
                         page_size: pageSize,

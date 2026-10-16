@@ -599,6 +599,20 @@ in [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)
 That observation replaces an SNMP exporter: nothing polls these switches over
 SNMP.
 
+### RackSite object
+
+Each site is rendered as a `RackSite` into `k8s/<site>/<site>.yaml` by
+`fleet_render_site`, named after the site and applied with the rest of the
+directory. Its `spec.contractedPower` comes from the site definition's
+`contracted_power`: the power the colocation contract allows, as
+`{"from": "YYYY-MM-DD", "watts": N}` steps, each in effect from that day (UTC)
+until the next one's. When the contract changes, add a step here. Don't edit the
+alert. `fleet_check_contracted_power` refuses a `from` that is not a real day, a
+`watts` that is not a whole number above 0, and two steps on one day. A site
+without `contracted_power` still gets its object, with no steps. What the
+controller does with it is "RackSite" in
+[`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
+
 ### The seam between two inventories, and how it is joined
 
 This file's site definition and `rackFleet.hosts` describe overlapping things.
@@ -911,7 +925,9 @@ files no longer match it:
   every upgrade. Only the edges are on the VRRP VLAN, so a device that can send
   to an edge cannot read it. Delete the Secret and upgrade to rotate it: until
   both edges restart, each ignores the other and both hold the addresses.
-- `mgmt-path.sh`, what each edge needs whether it is master or not: the VRRP
+- `mgmt-path.sh`, what each edge needs whether it is master or not: the
+  uplinks' rings at 4096 RX and TX descriptors (i40e's 512 overflowed on the
+  WAN's bursts, counted as `rx_missed_errors` in `ethtool -S`), the VRRP
   VLAN as an active-backup bond (`vrrp0`) over one VLAN interface per uplink,
   so VRRP survives losing either ToR, with this edge's own VRRP address, the
   machines VLAN as a second bond (`machines0`) with this edge's own address on
@@ -1253,6 +1269,13 @@ service range (`10.128.0.0/12`) and the VRRP link.
   rather than the prefix, for the reason the ACL file gives: under its
   catch-all grant, whatever is advertised is reachable from every device on
   the tailnet.
+- **The rack's caches** are on the segment too, on its storage nodes: the
+  Kura gateway the VMs reach (`rackFleet.vmCacheGatewayCIDRs`) and the VM
+  image cache the hosts pull golden bases from (`rackFleet.imageCache.nodes`,
+  see "The rack's VM image cache" in `infra/rack-nodes/AGENTS.md`). The render
+  refuses either unless it names a storage node of the site that is in the
+  rack, at its RackLinuxHost's address, so moving a storage node moves its
+  caches in the same change.
 
 Moving a host that is already on another network onto the segment: its SSH
 guard admits only the sources its RackHost lists, and the RackHost changes

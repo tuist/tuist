@@ -108,4 +108,3 @@ run_resolve() {
     [[ "$output" == *"held for ber1-tor-b, not ber1-tor-a"* ]]
     [ -f "$BATS_TEST_TMPDIR/$HOLD_RECORD_NAME" ]
 }
-

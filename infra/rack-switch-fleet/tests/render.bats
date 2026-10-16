@@ -1014,6 +1014,58 @@ mini_referencing() {
     [[ "$output" == *"removed k8s/ber1/ber1-pdu-renamed.yaml"* ]]
     # a switch's object in the same directory is not the power render's to remove
     [ -e "$FLEET_ROOT/k8s/ber1/ber1-mgmt.yaml" ]
+    [ -e "$FLEET_ROOT/k8s/ber1/ber1.yaml" ]
+}
+
+# --- RackSite object ---------------------------------------------------------
+
+@test "the site is a RackSite carrying its contracted power steps" {
+    run fleet_render_site "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [ "$(yq '.kind' <<<"$output")" = "RackSite" ]
+    [ "$(yq '.metadata.name' <<<"$output")" = "ber1" ]
+    [ "$(yq '[.spec.contractedPower[] | "\(.from)=\(.watts)"] | join(" ")' <<<"$output")" = "2026-10-05=3000 2027-02-05=5000 2027-06-05=8000" ]
+    # quoted, or YAML reads it as a timestamp rather than the date string the
+    # CRD expects
+    [[ "$output" == *'from: "2026-10-05"'* ]]
+
+    # a site without a contract still has its object, with no steps
+    jq 'del(.contracted_power)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nocontract.json"
+    run fleet_render_site "$BATS_TEST_TMPDIR/nocontract.json"
+    [ "$status" -eq 0 ]
+    [ "$(yq '.spec | has("contractedPower")' <<<"$output")" = "false" ]
+}
+
+@test "a contracted power step that is not a day and a whole number of watts is rejected" {
+    local site="$BATS_TEST_TMPDIR/contract.json"
+    jq '.contracted_power[0].from = "05.10.2026"' "$SITE_FILE" > "$site"
+    run fleet_render_site "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'from "05.10.2026" is not a day in the form YYYY-MM-DD'* ]]
+    jq '.contracted_power[0].from = "2027-02-30"' "$SITE_FILE" > "$site"
+    run fleet_check_contracted_power "$site"
+    [ "$status" -ne 0 ]
+    jq '.contracted_power[0].watts = "3000"' "$SITE_FILE" > "$site"
+    run fleet_check_contracted_power "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'2026-10-05: watts "3000" is not a whole number of watts above 0'* ]]
+    jq '.contracted_power[0].watts = 0' "$SITE_FILE" > "$site"
+    run fleet_check_contracted_power "$site"
+    [ "$status" -ne 0 ]
+    jq '.contracted_power[1].from = "2026-10-05"' "$SITE_FILE" > "$site"
+    run fleet_check_contracted_power "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"2026-10-05 has more than one step"* ]]
+}
+
+@test "render --check notices a RackSite object that no longer matches the site" {
+    cp "$FLEET_ROOT/k8s/ber1/ber1.yaml" "$BATS_TEST_TMPDIR/site.yaml"
+    sed -i.bak 's/watts: 3000/watts: 4000/' "$FLEET_ROOT/k8s/ber1/ber1.yaml"
+    RACK_SITE=ber1 run "$FLEET_ROOT/fleet.sh" render --check
+    cp "$BATS_TEST_TMPDIR/site.yaml" "$FLEET_ROOT/k8s/ber1/ber1.yaml"
+    rm -f "$FLEET_ROOT/k8s/ber1/ber1.yaml.bak"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"stale: k8s/ber1/ber1.yaml"* ]]
 }
 
 @test "the machines segment's addresses, members and machines are checked at render" {

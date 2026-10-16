@@ -426,18 +426,6 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
-  The subset of `workflow_job_ids` that have a lifecycle row, whatever
-  its status, as a `MapSet`.
-  """
-  def existing_ids([]), do: MapSet.new()
-
-  def existing_ids(workflow_job_ids) when is_list(workflow_job_ids) do
-    from(j in WorkflowJob, where: j.workflow_job_id in ^workflow_job_ids, select: j.workflow_job_id)
-    |> Repo.all()
-    |> MapSet.new()
-  end
-
-  @doc """
   Terminal upsert for the completion choke point. Existing rows CAS
   from any non-terminal status; a missing row (completed delivered
   before queued, or the job predates this table) is inserted terminal
@@ -843,47 +831,6 @@ defmodule Tuist.Runners.WorkflowJobs do
       end)
 
     outcome
-  end
-
-  @doc """
-  Re-emits the transition event of every terminal row in
-  `replica_rows`, so the flusher writes the row's terminal state to
-  ClickHouse again under a newer version. Returns the number of rows
-  re-emitted.
-
-  `replica_rows` are the diverged ClickHouse rows, as maps carrying
-  `workflow_job_id` and `log_archived_at`. A ClickHouse archive marker
-  is kept when the lifecycle row has none: archives made before the
-  Postgres column existed are recorded only there, and re-emitting the
-  row without it would hide the download.
-
-  Rows that are not terminal, or that no longer exist, are skipped. A
-  terminal row never leaves that state, so the re-emitted event cannot
-  be overtaken by an earlier lifecycle state.
-  """
-  def republish_terminal([]), do: 0
-
-  def republish_terminal(replica_rows) when is_list(replica_rows) do
-    replica_archived_at = Map.new(replica_rows, &{&1.workflow_job_id, &1.log_archived_at})
-
-    {:ok, count} =
-      Repo.transaction(fn ->
-        rows =
-          from(j in WorkflowJob,
-            where: j.workflow_job_id in ^Map.keys(replica_archived_at) and j.status in ^@terminal_statuses,
-            order_by: [asc: j.workflow_job_id],
-            lock: "FOR UPDATE"
-          )
-          |> Repo.all()
-          |> Enum.map(fn row ->
-            %{row | log_archived_at: row.log_archived_at || Map.get(replica_archived_at, row.workflow_job_id)}
-          end)
-
-        :ok = emit_transition_events(rows)
-        length(rows)
-      end)
-
-    count
   end
 
   @doc """

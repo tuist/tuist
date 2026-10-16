@@ -742,6 +742,45 @@ func TestRackHostCarriesTheCacheGatewaysIntoItsFirewall(t *testing.T) {
 	}
 }
 
+// The rack's image caches ride the same overlay, on the hosts routed through
+// them: a routed host pulls its golden bases through them, every other host
+// and the rented fleets never see them, and routing a host drifts only that
+// host.
+func TestRackHostPullsThroughTheRackImageCachesWhenRouted(t *testing.T) {
+	mirrors := []string{"ghcr.io=http://10.10.0.11:5000"}
+	r := &RackAppleSiliconMachineReconciler{
+		ImageMirrors:         mirrors,
+		ImageMirrorHosts:     []string{"mini-01"},
+		DefaultGuestCapacity: 1,
+	}
+	machine := rackMachine("m")
+	routed := rackHost("mini-01")
+	other := rackHost("mini-02")
+
+	if pushed := r.hostConfig(machine, routed, bootstrap.PerHost{}); !slices.Equal(pushed.ImageMirrors, mirrors) {
+		t.Fatalf("routed host's image mirrors = %v, want %v", pushed.ImageMirrors, mirrors)
+	}
+	if pushed := r.hostConfig(machine, other, bootstrap.PerHost{}); len(pushed.ImageMirrors) != 0 {
+		t.Fatalf("a host that is not routed was pushed image mirrors %v", pushed.ImageMirrors)
+	}
+	if len(r.FleetConfig.ImageMirrors) != 0 {
+		t.Fatalf("the rack overlay changed the shared fleet config to %v; rented minis would pull from the rack", r.FleetConfig.ImageMirrors)
+	}
+
+	without := &RackAppleSiliconMachineReconciler{DefaultGuestCapacity: 1}
+	if r.desiredHostConfigHash(machine, routed) == without.desiredHostConfigHash(machine, routed) {
+		t.Fatal("routing a host does not drift it; an already bootstrapped mini would keep pulling from the upstream")
+	}
+	if r.desiredHostConfigHash(machine, other) != without.desiredHostConfigHash(machine, other) {
+		t.Fatal("routing one host drifted another")
+	}
+
+	everyHost := &RackAppleSiliconMachineReconciler{ImageMirrors: mirrors, ImageMirrorHosts: []string{"*"}, DefaultGuestCapacity: 1}
+	if pushed := everyHost.hostConfig(machine, other, bootstrap.PerHost{}); !slices.Equal(pushed.ImageMirrors, mirrors) {
+		t.Fatalf(`"*" left a host unrouted: %v`, pushed.ImageMirrors)
+	}
+}
+
 // --- egress + node binding --------------------------------------------------
 
 // Both macOS kinds must produce an identically-shaped egress Service: alloy

@@ -4,8 +4,8 @@ import Testing
 struct AtlasCoreTests {
     @Test func loadsSharedCatalog() {
         let sections = AtlasCore.sections()
-        #expect(sections.map(\.title) == ["Accounts", "Tasks", "Notes"])
-        #expect(sections.map(\.url.path) == ["/commercial/sales/accounts", "/tasks", "/library/notes"])
+        #expect(sections.map(\.title) == ["Accounts", "Tasks", "Notes", "AI accounts"])
+        #expect(sections.map(\.url.path) == ["/commercial/sales/accounts", "/tasks", "/library/notes", "/settings/llm-providers"])
         #expect(sections.allSatisfy { !$0.description.isEmpty })
         #expect(sections.count == Int(atlas_section_count()))
     }

@@ -209,7 +209,7 @@ enum PackageResolver {
             bridged ? ["-c", NativeRegistryAuthentication.credentialOwnerScript, "swifterpm-netrc", "swift"] + arguments :
                 arguments,
             workingDirectory: packageDir,
-            customEnvironment: Environment.manifestValues,
+            customEnvironment: Environment.resolution,
             input: input,
             gracefulShutdown: bridged,
             forwardOutput: forwardOutput
