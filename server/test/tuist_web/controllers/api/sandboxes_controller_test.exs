@@ -23,6 +23,25 @@ defmodule TuistWeb.API.SandboxesControllerTest do
     %{conn: conn, user: user, account: user.account}
   end
 
+  describe "account flag" do
+    test "answers 404 in production for an account without the sandboxes flag", %{conn: conn, account: account} do
+      stub(Tuist.Environment, :env, fn -> :prod end)
+      stub(FunWithFlags, :enabled?, fn :sandboxes, [for: _account] -> false end)
+      reject(&Capacity.place/1)
+
+      response =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes", %{})
+        |> json_response(:not_found)
+
+      assert response["message"] =~ "not enabled"
+
+      conn
+      |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-sessions")
+      |> json_response(:not_found)
+    end
+  end
+
   describe "agent environments" do
     test "creates, lists and deletes an agent environment without ever returning the key", %{
       conn: conn,
@@ -69,7 +88,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
         })
         |> json_response(:bad_request)
 
-      assert response["message"] =~ "minimum"
+      assert response["message"] =~ "enum"
 
       agent_environment_fixture(anthropic_environment_id: "env_taken")
 
@@ -192,11 +211,13 @@ defmodule TuistWeb.API.SandboxesControllerTest do
     test "creates, inspects, runs commands in, pauses, resumes and deletes a sandbox", %{conn: conn, account: account} do
       stub(Capacity, :place, fn %{template: "default"} -> {:ok, "node-a"} end)
 
-      expect(Nodes, :call, fn "node-a", "create", %{vcpus: 4}, _opts -> {:ok, %{"template_tag" => "sha-1"}} end)
+      expect(Nodes, :call, fn "node-a", "create", %{vcpus: 4, memory_mb: 8192}, _opts ->
+        {:ok, %{"template_tag" => "sha-1"}}
+      end)
 
       created =
         conn
-        |> post(~p"/api/accounts/#{account.name}/sandboxes", %{vcpus: 4})
+        |> post(~p"/api/accounts/#{account.name}/sandboxes", %{vcpus: 4, memory_mb: 8192})
         |> json_response(:created)
 
       assert %{"id" => id, "state" => "running", "node_name" => "node-a", "vcpus" => 4, "template_tag" => "sha-1"} =

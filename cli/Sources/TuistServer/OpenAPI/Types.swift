@@ -13751,7 +13751,13 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/max_idle_seconds`.
             public var max_idle_seconds: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/memory_mb`.
-            public var memory_mb: Swift.Int?
+            @frozen public enum memory_mbPayload: Int, Codable, Hashable, Sendable, CaseIterable {
+                case _4096 = 4096
+                case _8192 = 8192
+                case _16384 = 16384
+            }
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/memory_mb`.
+            public var memory_mb: Components.Schemas.CreateSandboxAgentEnvironment.memory_mbPayload?
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/name`.
             public var name: Swift.String?
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/pause_grace_seconds`.
@@ -13760,8 +13766,18 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/template`.
             public var template: Swift.String?
+            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/vcpus`.
-            public var vcpus: Swift.Int?
+            @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
+                case _2 = 2
+                case _4 = 4
+                case _8 = 8
+            }
+            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/vcpus`.
+            public var vcpus: Components.Schemas.CreateSandboxAgentEnvironment.vcpusPayload?
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/workspace_gb`.
             public var workspace_gb: Swift.Int?
             /// Creates a new `CreateSandboxAgentEnvironment`.
@@ -13777,7 +13793,7 @@ public enum Components {
             ///   - name:
             ///   - pause_grace_seconds:
             ///   - template: Sandbox template name.
-            ///   - vcpus:
+            ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
             ///   - workspace_gb:
             public init(
                 agent_model: Swift.String? = nil,
@@ -13786,11 +13802,11 @@ public enum Components {
                 anthropic_environment_id: Swift.String,
                 environment_key: Swift.String,
                 max_idle_seconds: Swift.Int? = nil,
-                memory_mb: Swift.Int? = nil,
+                memory_mb: Components.Schemas.CreateSandboxAgentEnvironment.memory_mbPayload? = nil,
                 name: Swift.String? = nil,
                 pause_grace_seconds: Swift.Int? = nil,
                 template: Swift.String? = nil,
-                vcpus: Swift.Int? = nil,
+                vcpus: Components.Schemas.CreateSandboxAgentEnvironment.vcpusPayload? = nil,
                 workspace_gb: Swift.Int? = nil
             ) {
                 self.agent_model = agent_model
@@ -16896,13 +16912,29 @@ public enum Components {
         /// - Remark: Generated from `#/components/schemas/CreateSandbox`.
         public struct CreateSandbox: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/memory_mb`.
-            public var memory_mb: Swift.Int?
+            @frozen public enum memory_mbPayload: Int, Codable, Hashable, Sendable, CaseIterable {
+                case _4096 = 4096
+                case _8192 = 8192
+                case _16384 = 16384
+            }
+            /// - Remark: Generated from `#/components/schemas/CreateSandbox/memory_mb`.
+            public var memory_mb: Components.Schemas.CreateSandbox.memory_mbPayload?
             /// Sandbox template name.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/template`.
             public var template: Swift.String?
+            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/vcpus`.
-            public var vcpus: Swift.Int?
+            @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
+                case _2 = 2
+                case _4 = 4
+                case _8 = 8
+            }
+            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandbox/vcpus`.
+            public var vcpus: Components.Schemas.CreateSandbox.vcpusPayload?
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/workspace_gb`.
             public var workspace_gb: Swift.Int?
             /// Creates a new `CreateSandbox`.
@@ -16910,12 +16942,12 @@ public enum Components {
             /// - Parameters:
             ///   - memory_mb:
             ///   - template: Sandbox template name.
-            ///   - vcpus:
+            ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
             ///   - workspace_gb:
             public init(
-                memory_mb: Swift.Int? = nil,
+                memory_mb: Components.Schemas.CreateSandbox.memory_mbPayload? = nil,
                 template: Swift.String? = nil,
-                vcpus: Swift.Int? = nil,
+                vcpus: Components.Schemas.CreateSandbox.vcpusPayload? = nil,
                 workspace_gb: Swift.Int? = nil
             ) {
                 self.memory_mb = memory_mb
@@ -24729,13 +24761,29 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/memory_mb`.
-                    public var memory_mb: Swift.Int?
+                    @frozen public enum memory_mbPayload: Int, Codable, Hashable, Sendable, CaseIterable {
+                        case _4096 = 4096
+                        case _8192 = 8192
+                        case _16384 = 16384
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/memory_mb`.
+                    public var memory_mb: Operations.createSandbox.Input.Body.jsonPayload.memory_mbPayload?
                     /// Sandbox template name.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/template`.
                     public var template: Swift.String?
+                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/vcpus`.
-                    public var vcpus: Swift.Int?
+                    @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
+                        case _2 = 2
+                        case _4 = 4
+                        case _8 = 8
+                    }
+                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/vcpus`.
+                    public var vcpus: Operations.createSandbox.Input.Body.jsonPayload.vcpusPayload?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/workspace_gb`.
                     public var workspace_gb: Swift.Int?
                     /// Creates a new `jsonPayload`.
@@ -24743,12 +24791,12 @@ public enum Operations {
                     /// - Parameters:
                     ///   - memory_mb:
                     ///   - template: Sandbox template name.
-                    ///   - vcpus:
+                    ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
                     ///   - workspace_gb:
                     public init(
-                        memory_mb: Swift.Int? = nil,
+                        memory_mb: Operations.createSandbox.Input.Body.jsonPayload.memory_mbPayload? = nil,
                         template: Swift.String? = nil,
-                        vcpus: Swift.Int? = nil,
+                        vcpus: Operations.createSandbox.Input.Body.jsonPayload.vcpusPayload? = nil,
                         workspace_gb: Swift.Int? = nil
                     ) {
                         self.memory_mb = memory_mb
@@ -69343,7 +69391,13 @@ public enum Operations {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/max_idle_seconds`.
                     public var max_idle_seconds: Swift.Int?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/memory_mb`.
-                    public var memory_mb: Swift.Int?
+                    @frozen public enum memory_mbPayload: Int, Codable, Hashable, Sendable, CaseIterable {
+                        case _4096 = 4096
+                        case _8192 = 8192
+                        case _16384 = 16384
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/memory_mb`.
+                    public var memory_mb: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.memory_mbPayload?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/name`.
                     public var name: Swift.String?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/pause_grace_seconds`.
@@ -69352,8 +69406,18 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/template`.
                     public var template: Swift.String?
+                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/vcpus`.
-                    public var vcpus: Swift.Int?
+                    @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
+                        case _2 = 2
+                        case _4 = 4
+                        case _8 = 8
+                    }
+                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/vcpus`.
+                    public var vcpus: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.vcpusPayload?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/workspace_gb`.
                     public var workspace_gb: Swift.Int?
                     /// Creates a new `jsonPayload`.
@@ -69369,7 +69433,7 @@ public enum Operations {
                     ///   - name:
                     ///   - pause_grace_seconds:
                     ///   - template: Sandbox template name.
-                    ///   - vcpus:
+                    ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
                     ///   - workspace_gb:
                     public init(
                         agent_model: Swift.String? = nil,
@@ -69378,11 +69442,11 @@ public enum Operations {
                         anthropic_environment_id: Swift.String,
                         environment_key: Swift.String,
                         max_idle_seconds: Swift.Int? = nil,
-                        memory_mb: Swift.Int? = nil,
+                        memory_mb: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.memory_mbPayload? = nil,
                         name: Swift.String? = nil,
                         pause_grace_seconds: Swift.Int? = nil,
                         template: Swift.String? = nil,
-                        vcpus: Swift.Int? = nil,
+                        vcpus: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.vcpusPayload? = nil,
                         workspace_gb: Swift.Int? = nil
                     ) {
                         self.agent_model = agent_model

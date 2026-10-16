@@ -17,6 +17,12 @@ defmodule Tuist.Sandboxes.Sandbox do
   alias Tuist.Sandboxes.AgentEnvironment
 
   @states [:creating, :running, :resuming, :paused, :error, :deleted]
+  # The shapes (vcpus, memory_mb) accounts can request. Each one costs a
+  # template build and a memory image on every node that serves it, so the
+  # list is short and matches the nodes' ALLOWED_SHAPES (chart
+  # `sandboxes.allowedShapes`).
+  @shapes [{2, 4096}, {4, 8192}, {8, 16_384}]
+  @max_workspace_gb 100
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "sandboxes" do
@@ -42,6 +48,28 @@ defmodule Tuist.Sandboxes.Sandbox do
   end
 
   def states, do: @states
+  def shapes, do: @shapes
+  def max_workspace_gb, do: @max_workspace_gb
+
+  @doc """
+  Validates `:vcpus` and `:memory_mb` against the offered shapes and caps
+  `:workspace_gb`. Shared with agent environments, whose shape every
+  sandbox of the environment takes.
+  """
+  def validate_shape(changeset) do
+    vcpus = get_field(changeset, :vcpus)
+    memory_mb = get_field(changeset, :memory_mb)
+
+    changeset =
+      if is_nil(vcpus) or is_nil(memory_mb) or {vcpus, memory_mb} in @shapes do
+        changeset
+      else
+        offered = Enum.map_join(@shapes, ", ", fn {v, m} -> "#{v}x#{m}" end)
+        add_error(changeset, :memory_mb, "vcpus x memory_mb must be one of #{offered}")
+      end
+
+    validate_number(changeset, :workspace_gb, greater_than: 0, less_than_or_equal_to: @max_workspace_gb)
+  end
 
   def create_changeset(sandbox, attrs) do
     sandbox
@@ -56,9 +84,7 @@ defmodule Tuist.Sandboxes.Sandbox do
     ])
     |> validate_required([:account_id, :template, :vcpus, :memory_mb, :workspace_gb])
     |> validate_format(:template, ~r/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
-    |> validate_number(:vcpus, greater_than: 0, less_than_or_equal_to: 64)
-    |> validate_number(:memory_mb, greater_than_or_equal_to: 256, less_than_or_equal_to: 262_144)
-    |> validate_number(:workspace_gb, greater_than: 0, less_than_or_equal_to: 1024)
+    |> validate_shape()
     |> unique_constraint([:agent_environment_id, :anthropic_session_id])
   end
 

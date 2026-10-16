@@ -21,6 +21,7 @@ defmodule TuistWeb.API.SandboxesController do
   # so every action, including the read-only ones, requires an account
   # administrator.
   plug AuthorizationPlug, {:account, :account, :update}
+  plug(TuistWeb.Plugs.RequireSandboxesPlug)
 
   tags ["Sandboxes"]
 
@@ -134,9 +135,9 @@ defmodule TuistWeb.API.SandboxesController do
 
   @shape_properties %{
     template: %Schema{type: :string, pattern: @template_pattern, description: "Sandbox template name."},
-    vcpus: %Schema{type: :integer, minimum: 1, maximum: 64},
-    memory_mb: %Schema{type: :integer, minimum: 256, maximum: 262_144},
-    workspace_gb: %Schema{type: :integer, minimum: 1, maximum: 1024}
+    vcpus: %Schema{type: :integer, enum: [2, 4, 8], description: "With memory_mb, one of 2x4096, 4x8192 or 8x16384."},
+    memory_mb: %Schema{type: :integer, enum: [4096, 8192, 16_384]},
+    workspace_gb: %Schema{type: :integer, minimum: 1, maximum: 100}
   }
 
   @error_responses %{
@@ -486,6 +487,19 @@ defmodule TuistWeb.API.SandboxesController do
     conn
     |> put_status(:service_unavailable)
     |> json(%{message: "No sandbox node with the template ready is connected."})
+  end
+
+  defp sandbox_error(conn, :sandbox_limit) do
+    conn
+    |> put_status(:forbidden)
+    |> json(%{
+      message:
+        "The account has reached its limit of #{Sandboxes.max_live_sandboxes_per_account()} sandboxes. Delete some first."
+    })
+  end
+
+  defp sandbox_error(conn, :locked) do
+    conn |> put_status(:conflict) |> json(%{message: "Another operation on the sandbox is in progress."})
   end
 
   defp sandbox_error(conn, :no_capacity) do

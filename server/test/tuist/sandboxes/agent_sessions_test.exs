@@ -411,18 +411,39 @@ Fix the build."
       assert {:ok, %{events: [], next_after: nil}} = Sandboxes.list_agent_session_events(agent_session)
     end
 
-    test "stops following pages at the cap and points the cursor at the last event returned" do
+    test "stops following pages at the cap and continues the same listing from the next page" do
       agent_session = agent_session_fixture()
+      bound = "2026-09-05T09:00:00Z"
+      test_pid = self()
 
-      expect(ControlPlane, :list_events, 20, fn _key, _id, opts ->
+      stub(ControlPlane, :list_events, fn _key, _id, opts ->
+        send(test_pid, {:listed, opts})
         page = if opts[:page], do: String.to_integer(String.trim_leading(opts[:page], "page_")), else: 0
         at = "2026-09-05T10:#{String.pad_leading(Integer.to_string(page), 2, "0")}:00Z"
-        {:ok, %{data: [event("sevt_#{page}", "agent.thinking", at)], next_page: "page_#{page + 1}"}}
+        next_page = if page < 24, do: "page_#{page + 1}"
+        {:ok, %{data: [event("sevt_#{page}", "agent.thinking", at)], next_page: next_page}}
       end)
 
-      assert {:ok, %{events: events, next_after: next_after}} = Sandboxes.list_agent_session_events(agent_session)
+      assert {:ok, %{events: events, next_after: next_after}} =
+               Sandboxes.list_agent_session_events(agent_session, after: cursor(bound, "sevt_seen"))
+
       assert length(events) == 20
-      assert next_after == cursor("2026-09-05T10:19:00Z", "sevt_19")
+      assert next_after == Base.url_encode64("#{bound}|sevt_19|page_20", padding: false)
+
+      assert {:ok, %{events: rest, next_after: last}} =
+               Sandboxes.list_agent_session_events(agent_session, after: next_after)
+
+      assert Enum.map(rest, & &1.id) == ["sevt_20", "sevt_21", "sevt_22", "sevt_23", "sevt_24"]
+      assert last == cursor("2026-09-05T10:24:00Z", "sevt_24")
+
+      listed =
+        for _ <- 1..25 do
+          assert_received {:listed, opts}
+          opts
+        end
+
+      assert Enum.all?(listed, &(&1[:created_at_gte] == bound))
+      assert Enum.at(listed, 20)[:page] == "page_20"
     end
 
     test "rejects a cursor it did not mint" do

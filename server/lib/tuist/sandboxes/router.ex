@@ -32,8 +32,7 @@ defmodule Tuist.Sandboxes.Router do
   def dispatch(%AgentEnvironment{} = agent_environment, %{"id" => work_id, "data" => %{"id" => session_id}} = item)
       when is_binary(work_id) and is_binary(session_id) do
     with {:ok, sandbox} <- find_or_create_sandbox(agent_environment, session_id, item),
-         {:ok, sandbox} <- Sandboxes.ensure_running(sandbox),
-         {:ok, sandbox} <- Sandboxes.begin_residency(sandbox, work_id),
+         {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id),
          {:ok, _data} <- start_worker(sandbox, worker_env(agent_environment, item, session_id)) do
       Logger.info("sandboxes: worker started",
         sandbox_id: sandbox.id,
@@ -108,40 +107,51 @@ defmodule Tuist.Sandboxes.Router do
     end
 
     case repository(agent_session, item) do
-      {url, ref} when is_binary(url) -> clone_repository(account, sandbox, url, ref)
+      {url, ref, trust} when is_binary(url) -> clone_repository(account, sandbox, url, ref, trust)
       _none -> :ok
     end
   end
 
+  # Only a repository an account member named when starting the session
+  # through Tuist is cloned with the account's credentials. Session
+  # metadata can be set by anyone with access to the Anthropic workspace,
+  # so a repository named there is cloned anonymously.
   defp repository(%AgentSession{repository_url: url, repository_ref: ref}, _item) when is_binary(url) and url != "" do
-    {url, blank_to_nil(ref)}
+    {url, blank_to_nil(ref), :account}
   end
 
   defp repository(_agent_session, item) do
     metadata = get_in(item, ["data", "metadata"]) || item["metadata"] || %{}
-    {blank_to_nil(metadata["repository_url"]), blank_to_nil(metadata["repository_ref"])}
+    {blank_to_nil(metadata["repository_url"]), blank_to_nil(metadata["repository_ref"]), :anonymous}
   end
 
-  defp clone_repository(account, sandbox, url, ref) do
+  defp clone_repository(account, sandbox, url, ref, trust) do
     destination = "/workspace/" <> repository_name(url)
-    clone_url = authenticated_url(account, url)
+    {git_env, secret} = credentials(account, url, trust)
     sha = if is_binary(ref) and Regex.match?(@commit_sha, ref), do: ref
     branch = if is_binary(ref) and is_nil(sha), do: ["--branch", ref], else: []
-    clone = [@git, "clone", "--filter=blob:none"] ++ branch ++ [clone_url, destination]
+    clone = [@git, "clone", "--filter=blob:none"] ++ branch ++ [url, destination]
     checkout = if sha, do: [@git, "-C", destination, "checkout", sha]
 
-    with :ok <- run_git(sandbox, clone, @clone_timeout_ms, "clone", url, clone_url),
-         :ok <- if(checkout, do: run_git(sandbox, checkout, @checkout_timeout_ms, "checkout", url, clone_url), else: :ok) do
+    with :ok <- run_git(sandbox, clone, @clone_timeout_ms, "clone", url, git_env, secret),
+         :ok <-
+           if(checkout,
+             do: run_git(sandbox, checkout, @checkout_timeout_ms, "checkout", url, git_env, secret),
+             else: :ok
+           ) do
       Logger.info("sandboxes: repository staged", sandbox_id: sandbox.id, repository_url: url, ref: ref)
     end
 
     :ok
   end
 
-  # `secret_url` never reaches the logs: git can echo the URL it was given
-  # in its error output, so the output is redacted before logging.
-  defp run_git(sandbox, cmd, timeout_ms, step, url, secret_url) do
-    case Sandboxes.exec(sandbox, cmd, timeout_ms: timeout_ms, env: %{"GIT_TERMINAL_PROMPT" => "0"}) do
+  # The token only ever travels in the command's environment, never in a
+  # URL git would store in `.git/config`, and git output is still redacted
+  # before it is logged.
+  defp run_git(sandbox, cmd, timeout_ms, step, url, git_env, secret) do
+    env = Map.put(git_env, "GIT_TERMINAL_PROMPT", "0")
+
+    case Sandboxes.exec(sandbox, cmd, timeout_ms: timeout_ms, env: env) do
       {:ok, %{exit_code: 0}} ->
         :ok
 
@@ -150,7 +160,7 @@ defmodule Tuist.Sandboxes.Router do
           sandbox_id: sandbox.id,
           repository_url: url,
           exit_code: exit_code,
-          stderr: stderr |> String.replace(secret_url, url) |> String.slice(-2000, 2000)
+          stderr: stderr |> redact(secret) |> String.slice(-2000, 2000)
         )
 
         :error
@@ -166,17 +176,32 @@ defmodule Tuist.Sandboxes.Router do
     end
   end
 
-  # Private github.com repositories are cloned with the account's GitHub
-  # App installation token; without an installation the clone is anonymous.
-  defp authenticated_url(account, url) do
-    with %URI{scheme: "https", host: "github.com", path: path} when is_binary(path) <- URI.parse(url),
+  # Private github.com repositories the account named are cloned with a
+  # token minted for that one repository with read access to its
+  # contents, passed to git as an HTTP header through its environment.
+  # Without an installation, or for anonymous repositories, git gets no
+  # credentials.
+  defp credentials(account, url, :account) do
+    with %URI{scheme: "https", host: "github.com", path: "/" <> _ = path} <- URI.parse(url),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id),
-         {:ok, %{token: token}} when is_binary(token) <- GitHub.App.get_installation_token(installation, []) do
-      "https://x-access-token:" <> token <> "@github.com" <> path
+         {:ok, %{token: token}} when is_binary(token) <-
+           GitHub.App.create_scoped_installation_token(installation, [repository_name(path)], %{contents: "read"}) do
+      header = "AUTHORIZATION: basic " <> Base.encode64("x-access-token:" <> token)
+
+      {%{
+         "GIT_CONFIG_COUNT" => "1",
+         "GIT_CONFIG_KEY_0" => "http.https://github.com/.extraheader",
+         "GIT_CONFIG_VALUE_0" => header
+       }, token}
     else
-      _ -> url
+      _ -> {%{}, nil}
     end
   end
+
+  defp credentials(_account, _url, :anonymous), do: {%{}, nil}
+
+  defp redact(output, nil), do: output
+  defp redact(output, secret), do: String.replace(output, secret, "[REDACTED]")
 
   defp repository_name(url) do
     name =

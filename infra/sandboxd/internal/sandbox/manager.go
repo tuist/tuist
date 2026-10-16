@@ -4,6 +4,7 @@
 package sandbox
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -46,6 +47,10 @@ type Config struct {
 	BootTimeout        time.Duration
 	WorkerPath         string
 	StopWorkerGrace    time.Duration
+	// AllowedShapes, when set, is the only set of shapes Create accepts.
+	// Every new shape costs a template build and a memory image on disk,
+	// so nodes only offer the shapes they are sized for.
+	AllowedShapes []template.Shape
 }
 
 type Deps struct {
@@ -94,6 +99,10 @@ type Sandbox struct {
 	agent    vsock.Agent
 	worker   *workerRun
 	inflight int
+	// pausing is set, together with the busy check, for the whole of a
+	// pause, so no exec or worker can start against a VM that is being
+	// snapshotted.
+	pausing bool
 	// epoch changes on every spawn and deliberate kill so a death watcher
 	// can tell whether the process it saw exit is still the current one.
 	epoch uint64
@@ -105,6 +114,8 @@ var (
 	ErrNotRunning    = errors.New("sandbox is not running")
 	ErrNotPaused     = errors.New("sandbox is not paused")
 	ErrBusy          = errors.New("sandbox has a worker or exec running")
+	ErrPausing       = errors.New("sandbox is being paused")
+	ErrShape         = errors.New("shape is not offered by this node")
 	ErrNoWorker      = errors.New("no worker running")
 	ErrWorkerRunning = errors.New("worker already running")
 )
@@ -162,6 +173,9 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	shape := template.Shape{VCPUs: args.VCPUs, MemoryMB: args.MemoryMB}
 	if err := shape.Validate(); err != nil {
 		return res, err
+	}
+	if !m.shapeAllowed(shape) {
+		return res, fmt.Errorf("%w: %s", ErrShape, shape)
 	}
 	if args.WorkspaceGB <= 0 {
 		args.WorkspaceGB = DefaultWorkspaceGB
@@ -304,7 +318,10 @@ func (m *Manager) spawn(ctx context.Context, sb *Sandbox, meta Metadata) (vm.Ins
 		defer cancel()
 		_ = inst.Kill(killCtx)
 		_ = m.net.Teardown(context.Background(), ns, meta.Slot)
-		return nil, nil, fmt.Errorf("%w: %s", err, vm.LogTail(filepath.Join(sb.root, vm.LogFileName), 2048))
+		// The console log carries guest output, so it stays in the daemon's
+		// log rather than travelling to the server inside the error.
+		m.log.Warn("sandbox spawn failed", "sandbox", meta.ID, "error", err, "log", vm.LogTail(filepath.Join(sb.root, vm.LogFileName), 2048))
+		return nil, nil, err
 	}
 	return inst, fail, nil
 }
@@ -364,8 +381,9 @@ func (m *Manager) restore(ctx context.Context, sb *Sandbox, log *slog.Logger, be
 
 // boot starts the sandbox from its kernel and its own disks without any
 // memory image: the cold path for a sandbox whose last snapshot no longer
-// matches its disks. Processes are gone; files survive, with the guest
-// replaying its journals on mount as after a power loss.
+// matches its disks. For the guest it is a power cut: processes are gone,
+// flushed data survives with its journals replayed on mount, and writes
+// still in its page cache are lost.
 func (m *Manager) boot(ctx context.Context, sb *Sandbox, log *slog.Logger) (vm.Instance, vsock.Agent, error) {
 	sb.mu.Lock()
 	meta := sb.meta
@@ -460,6 +478,9 @@ func (m *Manager) discard(sb *Sandbox) {
 	_ = os.RemoveAll(vm.JailDir(m.cfg.JailBase, meta.ID))
 	if meta.Slot >= 0 {
 		m.slots.Release(meta.Slot)
+		sb.mu.Lock()
+		sb.meta.Slot = -1
+		sb.mu.Unlock()
 	}
 	m.mu.Lock()
 	if m.sandboxes[meta.ID] == sb {
@@ -467,6 +488,27 @@ func (m *Manager) discard(sb *Sandbox) {
 	}
 	m.mu.Unlock()
 	m.refreshGauges()
+}
+
+// current reports whether sb is still the registry entry for id. A caller
+// that waited on opMu re-checks it: the entry may have been discarded or
+// deleted, and its slot handed to another sandbox, in the meantime.
+func (m *Manager) current(id string, sb *Sandbox) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.sandboxes[id] == sb
+}
+
+func (m *Manager) shapeAllowed(shape template.Shape) bool {
+	if len(m.cfg.AllowedShapes) == 0 {
+		return true
+	}
+	for _, allowed := range m.cfg.AllowedShapes {
+		if allowed == shape {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Manager) Resume(ctx context.Context, id string) (res protocol.ResumeResult, err error) {
@@ -483,9 +525,18 @@ func (m *Manager) Resume(ctx context.Context, id string) (res protocol.ResumeRes
 	}
 	sb.opMu.Lock()
 	defer sb.opMu.Unlock()
+	if !m.current(id, sb) {
+		return res, fmt.Errorf("%w: %s", ErrNotFound, id)
+	}
 	sb.mu.Lock()
 	state := sb.meta.State
+	running := state == protocol.StateRunning && sb.inst != nil
 	sb.mu.Unlock()
+	// A resume whose answer the server never saw is retried; the sandbox
+	// it asks for is already up, which is what the caller wants.
+	if running {
+		return protocol.ResumeResult{}, nil
+	}
 	if state != protocol.StatePaused {
 		return res, fmt.Errorf("%w: %s is %s", ErrNotPaused, id, state)
 	}
@@ -546,10 +597,16 @@ func (m *Manager) Pause(ctx context.Context, id string) (res protocol.PauseResul
 	}
 	sb.opMu.Lock()
 	defer sb.opMu.Unlock()
+	if !m.current(id, sb) {
+		return res, fmt.Errorf("%w: %s", ErrNotFound, id)
+	}
 	sb.mu.Lock()
 	inst := sb.inst
 	state := sb.meta.State
 	busy := sb.worker != nil || sb.inflight > 0
+	if state == protocol.StateRunning && inst != nil && !busy {
+		sb.pausing = true
+	}
 	sb.mu.Unlock()
 	if state != protocol.StateRunning || inst == nil {
 		return res, fmt.Errorf("%w: %s is %s", ErrNotRunning, id, state)
@@ -557,6 +614,11 @@ func (m *Manager) Pause(ctx context.Context, id string) (res protocol.PauseResul
 	if busy {
 		return res, fmt.Errorf("%w: %s", ErrBusy, id)
 	}
+	defer func() {
+		sb.mu.Lock()
+		sb.pausing = false
+		sb.mu.Unlock()
+	}()
 	api := inst.API()
 	if err := api.PatchVMState(ctx, firecracker.VMPaused); err != nil {
 		return res, err
@@ -581,14 +643,9 @@ func (m *Manager) Pause(ctx context.Context, id string) (res protocol.PauseResul
 	killCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := inst.Kill(killCtx); err != nil {
-		return res, err
-	}
-	// The memory file the VM was mapped from must not change while it
-	// runs; only now that the process is dead is it safe to replace.
-	if err := vm.Rename(memNew, filepath.Join(sb.root, firecracker.MemPath)); err != nil {
-		return res, err
-	}
-	if err := vm.Rename(snapNew, filepath.Join(sb.root, firecracker.SnapshotPath)); err != nil {
+		// The process may still be writing to the disks, so neither image
+		// can be trusted any more.
+		m.markDied(sb, fmt.Sprintf("pause: firecracker did not die: %v", err))
 		return res, err
 	}
 	sb.mu.Lock()
@@ -596,6 +653,25 @@ func (m *Manager) Pause(ctx context.Context, id string) (res protocol.PauseResul
 	sb.mu.Unlock()
 	if err := m.net.Teardown(context.Background(), m.namespace(id), meta.Slot); err != nil {
 		m.log.Warn("network teardown", "sandbox", id, "error", err)
+	}
+	// The memory file the VM was mapped from must not change while it
+	// runs; only now that the process is dead is it safe to replace. The
+	// two renames are not atomic together: if either fails the pair may be
+	// mismatched, but the VM is dead and its disks are consistent, so the
+	// sandbox stays usable through a cold boot.
+	if err := m.installSnapshot(sb, memNew, snapNew); err != nil {
+		m.log.Warn("installing snapshot failed; the sandbox will cold boot", "sandbox", id, "error", err)
+		sb.mu.Lock()
+		sb.meta.State = protocol.StatePaused
+		sb.meta.ColdBoot = true
+		sb.meta.Error = ""
+		saveErr := sb.meta.Save(sb.root)
+		sb.mu.Unlock()
+		m.refreshGauges()
+		if saveErr != nil {
+			return res, saveErr
+		}
+		return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds()}, nil
 	}
 	memBytes := vm.FileSize(filepath.Join(sb.root, firecracker.MemPath))
 	sb.mu.Lock()
@@ -614,12 +690,31 @@ func (m *Manager) Pause(ctx context.Context, id string) (res protocol.PauseResul
 
 func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	defer func() { m.metrics.observe(protocol.OpDelete, err) }()
+	if err := vm.ValidateID(id); err != nil {
+		return err
+	}
 	sb, err := m.get(id)
+	if errors.Is(err, ErrNotFound) {
+		// Deleting what the node does not hold succeeds: the server may be
+		// cleaning up after a lost create or a sandbox the node already
+		// dropped. Remove anything left on disk under that id.
+		_ = m.net.Teardown(context.Background(), m.namespace(id), -1)
+		if err := os.RemoveAll(vm.JailDir(m.cfg.JailBase, id)); err != nil {
+			return err
+		}
+		m.log.Info("delete of an unknown sandbox", "sandbox", id)
+		return nil
+	}
 	if err != nil {
 		return err
 	}
 	sb.opMu.Lock()
 	defer sb.opMu.Unlock()
+	if !m.current(id, sb) {
+		// A concurrent delete or a failed create removed it while this
+		// call waited, and released its slot.
+		return nil
+	}
 	if inst := sb.detach(); inst != nil {
 		killCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
@@ -638,13 +733,50 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	}
 	if meta.Slot >= 0 {
 		m.slots.Release(meta.Slot)
+		sb.mu.Lock()
+		sb.meta.Slot = -1
+		sb.mu.Unlock()
 	}
 	m.mu.Lock()
-	delete(m.sandboxes, id)
+	if m.sandboxes[id] == sb {
+		delete(m.sandboxes, id)
+	}
 	m.mu.Unlock()
 	m.refreshGauges()
 	m.log.Info("sandbox deleted", "sandbox", id)
 	return nil
+}
+
+// installSnapshot moves a freshly written memory image and snapshot into
+// place.
+func (m *Manager) installSnapshot(sb *Sandbox, memNew, snapNew string) error {
+	if err := vm.Rename(memNew, filepath.Join(sb.root, firecracker.MemPath)); err != nil {
+		_ = os.Remove(memNew)
+		_ = os.Remove(snapNew)
+		return err
+	}
+	if err := vm.Rename(snapNew, filepath.Join(sb.root, firecracker.SnapshotPath)); err != nil {
+		_ = os.Remove(snapNew)
+		return err
+	}
+	return nil
+}
+
+// markDied moves a sandbox whose VM can no longer be trusted to the error
+// state, as watch does for an unexpected exit, and tells the server.
+func (m *Manager) markDied(sb *Sandbox, reason string) {
+	sb.mu.Lock()
+	sb.inst = nil
+	sb.agent = nil
+	sb.meta.State = protocol.StateError
+	sb.meta.Error = reason
+	meta := sb.meta
+	_ = sb.meta.Save(sb.root)
+	sb.mu.Unlock()
+	m.log.Error("sandbox died", "sandbox", meta.ID, "reason", reason)
+	_ = m.net.Teardown(context.Background(), m.namespace(meta.ID), meta.Slot)
+	m.refreshGauges()
+	m.events(protocol.Event{Type: protocol.FrameEvent, Event: protocol.EventSandboxDied, SandboxID: meta.ID, Reason: reason})
 }
 
 // acquireAgent marks an exec in flight and returns the agent.
@@ -657,6 +789,9 @@ func (m *Manager) acquireAgent(id string) (*Sandbox, vsock.Agent, error) {
 	defer sb.mu.Unlock()
 	if sb.meta.State != protocol.StateRunning || sb.agent == nil {
 		return nil, nil, fmt.Errorf("%w: %s is %s", ErrNotRunning, id, sb.meta.State)
+	}
+	if sb.pausing {
+		return nil, nil, fmt.Errorf("%w: %s", ErrPausing, id)
 	}
 	sb.inflight++
 	return sb, sb.agent, nil
@@ -706,6 +841,10 @@ func (m *Manager) StartWorker(ctx context.Context, args protocol.StartWorkerArgs
 		state := sb.meta.State
 		sb.mu.Unlock()
 		return res, fmt.Errorf("%w: %s is %s", ErrNotRunning, args.SandboxID, state)
+	}
+	if sb.pausing {
+		sb.mu.Unlock()
+		return res, fmt.Errorf("%w: %s", ErrPausing, args.SandboxID)
 	}
 	if sb.worker != nil {
 		sb.mu.Unlock()
@@ -848,6 +987,9 @@ func (m *Manager) Templates() []protocol.TemplateInfo {
 
 // BuildTemplate builds a shape snapshot on demand (admin API, prebuild).
 func (m *Manager) BuildTemplate(ctx context.Context, name, tag string, shape template.Shape) error {
+	if !m.shapeAllowed(shape) {
+		return fmt.Errorf("%w: %s", ErrShape, shape)
+	}
 	tmpl, err := m.resolveTemplate(name, tag)
 	if err != nil {
 		return err
@@ -996,15 +1138,39 @@ func (m *Manager) Shutdown(ctx context.Context) {
 }
 
 // lineLogger writes guest stdout/stderr to the daemon log one line at a
-// time.
+// time. The guest is untrusted, so lines are cut at maxLineBytes and a run
+// logs at most maxLoggedLines before it is silenced.
 type lineLogger struct {
-	mu   sync.Mutex
-	log  *slog.Logger
-	bufs map[string][]byte
+	mu         sync.Mutex
+	log        *slog.Logger
+	bufs       map[string][]byte
+	lines      int
+	suppressed bool
 }
+
+const (
+	maxLineBytes   = 4 * 1024
+	maxLoggedLines = 5000
+)
 
 func newLineLogger(log *slog.Logger) *lineLogger {
 	return &lineLogger{log: log, bufs: map[string][]byte{}}
+}
+
+func (l *lineLogger) emit(stream string, line []byte) {
+	if l.suppressed {
+		return
+	}
+	if l.lines >= maxLoggedLines {
+		l.suppressed = true
+		l.log.Warn("guest output exceeded the logging limit; further lines are dropped", "lines", l.lines)
+		return
+	}
+	l.lines++
+	if len(line) > maxLineBytes {
+		line = line[:maxLineBytes]
+	}
+	l.log.Info("guest output", "stream", stream, "line", string(line))
 }
 
 func (l *lineLogger) write(stream string, data []byte) {
@@ -1012,21 +1178,15 @@ func (l *lineLogger) write(stream string, data []byte) {
 	defer l.mu.Unlock()
 	buf := append(l.bufs[stream], data...)
 	for {
-		idx := -1
-		for i, b := range buf {
-			if b == '\n' {
-				idx = i
-				break
-			}
-		}
+		idx := bytes.IndexByte(buf, '\n')
 		if idx < 0 {
 			break
 		}
-		l.log.Info("guest output", "stream", stream, "line", string(buf[:idx]))
+		l.emit(stream, buf[:idx])
 		buf = buf[idx+1:]
 	}
-	if len(buf) > 64*1024 {
-		l.log.Info("guest output", "stream", stream, "line", string(buf))
+	if len(buf) > maxLineBytes {
+		l.emit(stream, buf)
 		buf = nil
 	}
 	l.bufs[stream] = buf
@@ -1037,7 +1197,7 @@ func (l *lineLogger) flush() {
 	defer l.mu.Unlock()
 	for stream, buf := range l.bufs {
 		if len(buf) > 0 {
-			l.log.Info("guest output", "stream", stream, "line", string(buf))
+			l.emit(stream, buf)
 		}
 		delete(l.bufs, stream)
 	}

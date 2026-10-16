@@ -702,10 +702,10 @@ defmodule Tuist.Kubernetes.Client do
   defp format_body(body) when is_binary(body), do: String.slice(body, 0, 500)
   defp format_body(body), do: inspect(body, limit: 20)
 
-  defp parse_sa_principal(%{"username" => "system:serviceaccount:" <> rest, "uid" => uid}) do
+  defp parse_sa_principal(%{"username" => "system:serviceaccount:" <> rest, "uid" => uid} = user) do
     case String.split(rest, ":", parts: 2) do
       [namespace, name] when namespace != "" and name != "" ->
-        {:ok, %{namespace: namespace, name: name, uid: uid}}
+        {:ok, %{namespace: namespace, name: name, uid: uid, node_name: bound_node_name(user)}}
 
       _ ->
         {:error, :not_service_account}
@@ -713,4 +713,11 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   defp parse_sa_principal(_), do: {:error, :not_service_account}
+
+  # A token projected into a pod carries the node the pod runs on; the
+  # TokenReview reports it under this extra key.
+  defp bound_node_name(%{"extra" => %{"authentication.kubernetes.io/node-name" => [node_name | _]}})
+       when is_binary(node_name), do: node_name
+
+  defp bound_node_name(_user), do: nil
 end

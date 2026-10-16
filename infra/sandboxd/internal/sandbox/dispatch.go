@@ -32,6 +32,8 @@ const (
 	resumeTimeout = 5 * time.Minute
 	pauseTimeout  = 10 * time.Minute
 	deleteTimeout = 2 * time.Minute
+
+	maxExecStreamBytes = 2 << 20
 )
 
 // Dispatch runs one command and returns its single result. stream receives
@@ -102,10 +104,19 @@ func Dispatch(ctx context.Context, ops Operations, cmd protocol.Command, stream 
 		if err := decode(&args); err != nil {
 			return protocol.ErrorResult(cmd.ID, err)
 		}
+		// The server keeps at most a megabyte of output per exec; anything
+		// past maxExecStreamBytes is dropped here instead of crossing the
+		// WebSocket. The command itself runs to completion.
+		var streamed int
 		out := func(name string, data []byte) {
-			if stream != nil {
-				stream(protocol.Stream{Type: protocol.FrameStream, ID: cmd.ID, Stream: name, DataB64: base64.StdEncoding.EncodeToString(data)})
+			if stream == nil || streamed >= maxExecStreamBytes {
+				return
 			}
+			if streamed+len(data) > maxExecStreamBytes {
+				data = data[:maxExecStreamBytes-streamed]
+			}
+			streamed += len(data)
+			stream(protocol.Stream{Type: protocol.FrameStream, ID: cmd.ID, Stream: name, DataB64: base64.StdEncoding.EncodeToString(data)})
 		}
 		res, err := ops.Exec(ctx, args, out)
 		if err != nil {

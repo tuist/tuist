@@ -147,22 +147,27 @@ defmodule Tuist.Sandboxes.AgentSessions do
   The cursor is the base64url of `"<processed_at>|<event_id>"`. Listing
   with one asks Anthropic for events processed at or after that
   timestamp and drops everything up to and including the event id, so
-  events sharing a timestamp are neither lost nor repeated.
+  events sharing a timestamp are neither lost nor repeated. A listing that
+  stops at the page cap with pages left instead hands out
+  `"<bound>|<event_id>|<page>"`: the timestamp bound it listed with and
+  Anthropic's token for the next page, so the next call continues the same
+  listing exactly where this one stopped.
   """
   def list_agent_session_events(%AgentSession{} = agent_session, opts \\ []) do
     after_cursor = Keyword.get(opts, :after)
 
     with {:ok, cursor} <- decode_cursor(after_cursor),
          {:ok, api_key} <- api_key_for(agent_session),
-         {:ok, events} <- fetch_events(api_key, agent_session.anthropic_session_id, cursor) do
+         {:ok, events, next_page} <- fetch_events(api_key, agent_session.anthropic_session_id, cursor) do
       simplified = events |> Enum.map(&simplify_event/1) |> drop_through(cursor)
       remember_stop_reason(agent_session, simplified)
 
       next_after =
-        case {simplified, cursor} do
-          {[], nil} -> nil
-          {[], _cursor} -> after_cursor
-          {newer, _cursor} -> encode_cursor(newer, cursor)
+        case {simplified, cursor, next_page} do
+          {[], nil, _next_page} -> nil
+          {[], _cursor, _next_page} -> after_cursor
+          {newer, cursor, nil} -> encode_cursor(newer, cursor)
+          {newer, cursor, next_page} -> encode_continuation(newer, cursor, next_page)
         end
 
       {:ok, %{events: simplified, next_after: next_after}}
@@ -296,6 +301,8 @@ defmodule Tuist.Sandboxes.AgentSessions do
     end
   end
 
+  # Returns the events and, when the page cap stopped the listing with
+  # pages left, Anthropic's token for the next one.
   defp fetch_events(api_key, session_id, cursor) do
     params =
       case cursor do
@@ -303,7 +310,7 @@ defmodule Tuist.Sandboxes.AgentSessions do
         _none -> [limit: @events_page_limit]
       end
 
-    fetch_pages(api_key, session_id, params, nil, [], @events_page_cap)
+    fetch_pages(api_key, session_id, params, cursor && cursor.page, [], @events_page_cap)
   end
 
   defp fetch_pages(api_key, session_id, params, page, acc, pages_left) do
@@ -313,8 +320,11 @@ defmodule Tuist.Sandboxes.AgentSessions do
       {:ok, %{data: events, next_page: next_page}} when is_binary(next_page) and pages_left > 1 ->
         fetch_pages(api_key, session_id, params, next_page, [events | acc], pages_left - 1)
 
+      {:ok, %{data: events, next_page: next_page}} ->
+        {:ok, [events | acc] |> Enum.reverse() |> Enum.concat(), next_page}
+
       {:ok, %{data: events}} ->
-        {:ok, [events | acc] |> Enum.reverse() |> Enum.concat()}
+        {:ok, [events | acc] |> Enum.reverse() |> Enum.concat(), nil}
 
       {:error, reason} ->
         {:error, reason}
@@ -338,11 +348,16 @@ defmodule Tuist.Sandboxes.AgentSessions do
   defp decode_cursor(""), do: {:ok, nil}
 
   defp decode_cursor(cursor) when is_binary(cursor) do
-    with {:ok, decoded} <- Base.url_decode64(cursor, padding: false),
-         [at, id] <- String.split(decoded, "|", parts: 2) do
-      {:ok, %{at: blank_to_nil(at), id: id}}
-    else
-      _invalid -> {:error, :invalid_cursor}
+    case Base.url_decode64(cursor, padding: false) do
+      {:ok, decoded} ->
+        case String.split(decoded, "|", parts: 3) do
+          [at, id] -> {:ok, %{at: blank_to_nil(at), id: id, page: nil}}
+          [at, id, page] when page != "" -> {:ok, %{at: blank_to_nil(at), id: id, page: page}}
+          _invalid -> {:error, :invalid_cursor}
+        end
+
+      :error ->
+        {:error, :invalid_cursor}
     end
   end
 
@@ -355,6 +370,14 @@ defmodule Tuist.Sandboxes.AgentSessions do
     last = List.last(simplified)
     at = simplified |> Enum.reverse() |> Enum.find_value(& &1.at) || (cursor && cursor.at) || ""
     Base.url_encode64(at <> "|" <> to_string(last.id), padding: false)
+  end
+
+  # The page token belongs to the listing that produced it, so the cursor
+  # keeps that listing's bound rather than the last event's timestamp.
+  defp encode_continuation(simplified, cursor, next_page) do
+    last = List.last(simplified)
+    bound = (cursor && cursor.at) || ""
+    Base.url_encode64(bound <> "|" <> to_string(last.id) <> "|" <> next_page, padding: false)
   end
 
   defp blank_to_nil(value) when is_binary(value) and value != "", do: value

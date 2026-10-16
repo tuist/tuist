@@ -1,9 +1,12 @@
 package sandbox
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -316,8 +319,12 @@ func TestLifecycle(t *testing.T) {
 	if meta.State != protocol.StateRunning || meta.Generation != 1 || meta.Slot != 0 {
 		t.Fatalf("metadata after resume %+v", meta)
 	}
-	if _, err := h.m.Resume(ctx, testID); !errors.Is(err, ErrNotPaused) {
-		t.Fatalf("resume of running should fail, got %v", err)
+	launches := len(h.launcher.Instances())
+	if _, err := h.m.Resume(ctx, testID); err != nil {
+		t.Fatalf("resume of a running sandbox must succeed without respawning, got %v", err)
+	}
+	if len(h.launcher.Instances()) != launches {
+		t.Fatal("resume of a running sandbox spawned another vm")
 	}
 
 	if err := h.m.Delete(ctx, testID); err != nil {
@@ -668,6 +675,9 @@ func TestMetadataRoundTrip(t *testing.T) {
 
 type fakeOps struct {
 	calls []string
+	// execChunks, when set, is the output Exec streams instead of the
+	// default two lines.
+	execChunks [][]byte
 }
 
 func (f *fakeOps) Create(ctx context.Context, args protocol.CreateArgs) (protocol.CreateResult, error) {
@@ -693,6 +703,12 @@ func (f *fakeOps) Exec(ctx context.Context, args protocol.ExecArgs, out vsock.Ou
 	f.calls = append(f.calls, "exec "+args.SandboxID)
 	if ctx.Err() != nil {
 		return protocol.ExecResult{}, ctx.Err()
+	}
+	if f.execChunks != nil {
+		for _, chunk := range f.execChunks {
+			out("stdout", chunk)
+		}
+		return protocol.ExecResult{ExitCode: 0}, nil
 	}
 	out("stdout", []byte("hello\n"))
 	out("stderr", []byte("warn\n"))
@@ -789,5 +805,147 @@ func TestLifecycleOpsRunDetachedFromCommandContext(t *testing.T) {
 	res = Dispatch(ctx, ops, protocol.Command{ID: "c", Op: "exec", Args: json.RawMessage(`{"sandbox_id":"s1","cmd":["ls"]}`)}, nil)
 	if res.OK {
 		t.Fatalf("exec should see the cancelled context: %+v", res)
+	}
+}
+
+func TestDeleteIsIdempotent(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	leftover := vm.JailDir(h.jailBase, "lost123")
+	if err := os.MkdirAll(leftover, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.m.Delete(ctx, "lost123"); err != nil {
+		t.Fatalf("delete of an unknown sandbox must succeed, got %v", err)
+	}
+	if vm.Exists(leftover) {
+		t.Fatal("delete of an unknown sandbox left its jail dir")
+	}
+	if err := h.m.Delete(ctx, "../escape"); err == nil {
+		t.Fatal("delete accepted an id that is not a path segment")
+	}
+
+	h.create(t, "first", 0)
+	if err := h.m.Delete(ctx, "first"); err != nil {
+		t.Fatal(err)
+	}
+	h.create(t, "second", 0)
+	// A delete of the first id arriving late must not release the slot the
+	// second sandbox reuses.
+	if err := h.m.Delete(ctx, "first"); err != nil {
+		t.Fatalf("second delete: %v", err)
+	}
+	if h.slots.InUse() != 1 {
+		t.Fatalf("slots in use = %d, want 1", h.slots.InUse())
+	}
+}
+
+func TestDeleteAfterDiscardDoesNotReleaseTheSlotTwice(t *testing.T) {
+	h := newHarness(t)
+	h.create(t, "stale", 0)
+	sb, err := h.m.get("stale")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sb.opMu.Lock()
+	h.m.discard(sb)
+	sb.opMu.Unlock()
+	h.create(t, "reuses", 0)
+	if err := h.m.Delete(context.Background(), "stale"); err != nil {
+		t.Fatal(err)
+	}
+	if h.slots.InUse() != 1 {
+		t.Fatalf("slots in use = %d, want 1", h.slots.InUse())
+	}
+	if _, err := h.m.get("reuses"); err != nil {
+		t.Fatal("the sandbox reusing the slot lost its registry entry")
+	}
+}
+
+func TestPausingRefusesExecAndWorker(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.create(t, testID, 0)
+	sb, err := h.m.get(testID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sb.mu.Lock()
+	sb.pausing = true
+	sb.mu.Unlock()
+	if _, err := h.m.Exec(ctx, protocol.ExecArgs{SandboxID: testID, Cmd: []string{"true"}}, nil); !errors.Is(err, ErrPausing) {
+		t.Fatalf("exec during a pause: %v", err)
+	}
+	if _, err := h.m.StartWorker(ctx, protocol.StartWorkerArgs{SandboxID: testID}); !errors.Is(err, ErrPausing) {
+		t.Fatalf("start_worker during a pause: %v", err)
+	}
+	sb.mu.Lock()
+	sb.pausing = false
+	sb.mu.Unlock()
+	if _, err := h.m.Pause(ctx, testID); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	sb.mu.Lock()
+	stillPausing := sb.pausing
+	sb.mu.Unlock()
+	if stillPausing {
+		t.Fatal("pause left the pausing flag set")
+	}
+}
+
+func TestCreateRefusesShapesTheNodeDoesNotOffer(t *testing.T) {
+	h := newHarness(t)
+	h.m.cfg.AllowedShapes = []template.Shape{{VCPUs: 2, MemoryMB: 4096}}
+	ctx := context.Background()
+	if _, err := h.m.Create(ctx, protocol.CreateArgs{SandboxID: "odd", VCPUs: 2, MemoryMB: 4097}); !errors.Is(err, ErrShape) {
+		t.Fatalf("create with an unoffered shape: %v", err)
+	}
+	if err := h.m.BuildTemplate(ctx, "default", "", template.Shape{VCPUs: 4, MemoryMB: 8192}); !errors.Is(err, ErrShape) {
+		t.Fatalf("template build of an unoffered shape: %v", err)
+	}
+	h.create(t, "offered", 0)
+}
+
+func TestLineLoggerCapsGuestOutput(t *testing.T) {
+	var out bytes.Buffer
+	logger := newLineLogger(slog.New(slog.NewTextHandler(&out, nil)))
+	logger.write("stdout", bytes.Repeat([]byte("x"), 3*maxLineBytes))
+	if logged := strings.Count(out.String(), "guest output"); logged != 1 {
+		t.Fatalf("an unterminated chunk past the line limit logged %d lines", logged)
+	}
+	if strings.Count(out.String(), "x") > maxLineBytes+10 {
+		t.Fatal("a logged line was not cut at the limit")
+	}
+	for i := 0; i < maxLoggedLines+50; i++ {
+		logger.write("stdout", []byte("line\n"))
+	}
+	if logged := strings.Count(out.String(), "line=line"); logged != maxLoggedLines-1 {
+		t.Fatalf("logged %d short lines, want %d", logged, maxLoggedLines-1)
+	}
+	if !strings.Contains(out.String(), "exceeded the logging limit") {
+		t.Fatal("the logger did not say it stopped")
+	}
+}
+
+func TestDispatchStopsStreamingExecOutputPastTheLimit(t *testing.T) {
+	chunk := bytes.Repeat([]byte("y"), 300*1024)
+	ops := &fakeOps{}
+	for i := 0; i < 10; i++ {
+		ops.execChunks = append(ops.execChunks, chunk)
+	}
+	var streamed int
+	cmd := protocol.Command{Type: protocol.FrameCommand, ID: "c-exec", Op: "exec", Args: json.RawMessage(`{"sandbox_id":"s1","cmd":["yes"]}`)}
+	res := Dispatch(context.Background(), ops, cmd, func(s protocol.Stream) {
+		data, err := base64.StdEncoding.DecodeString(s.DataB64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		streamed += len(data)
+	})
+	if !res.OK {
+		t.Fatalf("exec result %+v", res)
+	}
+	if streamed != maxExecStreamBytes {
+		t.Fatalf("streamed %d bytes, want exactly %d", streamed, maxExecStreamBytes)
 	}
 }

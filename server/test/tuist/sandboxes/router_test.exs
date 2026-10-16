@@ -222,10 +222,11 @@ defmodule Tuist.Sandboxes.RouterTest do
       assert %AgentSession{sandbox_id: ^sandbox_id} = Repo.reload!(agent_session)
     end
 
-    test "clones private github.com repositories with the installation token and keeps it out of the logs", %{
-      account: account,
-      agent_environment: agent_environment
-    } do
+    test "clones private github.com repositories with a repository-scoped token passed only through git's environment",
+         %{
+           account: account,
+           agent_environment: agent_environment
+         } do
       agent_session_fixture(
         account: account,
         agent_environment: agent_environment,
@@ -237,7 +238,7 @@ defmodule Tuist.Sandboxes.RouterTest do
       installation = %{installation_id: "123", account_id: account_id}
       expect(VCS, :get_github_app_installation_for_account, fn ^account_id -> {:ok, installation} end)
 
-      expect(GitHub.App, :get_installation_token, fn ^installation, [] ->
+      expect(GitHub.App, :create_scoped_installation_token, fn ^installation, ["private"], %{contents: "read"} ->
         {:ok, %{token: "ghs_secret_token", expires_at: DateTime.utc_now()}}
       end)
 
@@ -249,13 +250,18 @@ defmodule Tuist.Sandboxes.RouterTest do
                  @git,
                  "clone",
                  "--filter=blob:none",
-                 "https://x-access-token:ghs_secret_token@github.com/tuist/private.git",
+                 "https://github.com/tuist/private.git",
                  "/workspace/private"
                ]
 
-        opts[:on_stream].(
-          {:stderr, "fatal: could not read from 'https://x-access-token:ghs_secret_token@github.com/tuist/private.git'\n"}
-        )
+        assert args.env == %{
+                 "GIT_TERMINAL_PROMPT" => "0",
+                 "GIT_CONFIG_COUNT" => "1",
+                 "GIT_CONFIG_KEY_0" => "http.https://github.com/.extraheader",
+                 "GIT_CONFIG_VALUE_0" => "AUTHORIZATION: basic " <> Base.encode64("x-access-token:ghs_secret_token")
+               }
+
+        opts[:on_stream].({:stderr, "fatal: authentication failed with token ghs_secret_token\n"})
 
         {:ok, %{"exit_code" => 128}}
       end)
@@ -319,6 +325,37 @@ defmodule Tuist.Sandboxes.RouterTest do
 
       log = capture_log(fn -> assert :ok = Router.dispatch(agent_environment, work_item("session_timeout")) end)
       assert log =~ "repository clone failed"
+    end
+
+    test "clones a github.com repository named only in session metadata without the account's credentials", %{
+      agent_environment: agent_environment
+    } do
+      item =
+        put_in(work_item("session_meta_private"), ["data", "metadata"], %{
+          "repository_url" => "https://github.com/tuist/private.git"
+        })
+
+      reject(&VCS.get_github_app_installation_for_account/1)
+      reject(&GitHub.App.create_scoped_installation_token/4)
+      expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
+
+      expect(Nodes, :call, fn "node-a", "exec", args, _opts ->
+        assert args.cmd == [
+                 @git,
+                 "clone",
+                 "--filter=blob:none",
+                 "https://github.com/tuist/private.git",
+                 "/workspace/private"
+               ]
+
+        assert args.env == %{"GIT_TERMINAL_PROMPT" => "0"}
+        {:ok, %{"exit_code" => 0}}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "start_worker", _args, _opts -> {:ok, %{}} end)
+
+      assert :ok = Router.dispatch(agent_environment, item)
     end
 
     test "falls back to the work item's metadata when no agent session row exists", %{

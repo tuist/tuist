@@ -12,6 +12,7 @@ defmodule Tuist.Sandboxes.Anthropic.Manager do
   """
   use GenServer
 
+  alias Tuist.FeatureFlags
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Anthropic.Poller
 
@@ -49,7 +50,11 @@ defmodule Tuist.Sandboxes.Anthropic.Manager do
   end
 
   defp do_reconcile do
-    enabled = Enum.map(Sandboxes.list_enabled_agent_environments(), & &1.id)
+    enabled =
+      Sandboxes.list_enabled_agent_environments()
+      |> Enum.filter(&FeatureFlags.sandboxes_enabled?(&1.account))
+      |> Enum.map(& &1.id)
+
     Enum.each(enabled, &start_poller/1)
 
     Poller.running_agent_environment_ids()

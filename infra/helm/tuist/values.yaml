@@ -2437,6 +2437,10 @@ sandboxes:
   # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
   # startup instead of on the first create.
   prebuildShapes: "2x4096"
+  # The only shapes a node accepts. Each shape costs a template build and a
+  # memory image on disk, so the list is short and matches the shapes the
+  # server lets accounts request (Tuist.Sandboxes.Sandbox.shapes/0).
+  allowedShapes: "2x4096,4x8192,8x16384"
   metricsPort: 9470
   # Unauthenticated HTTP API on the daemon for bring-up validation from Jobs
   # labelled `tuist.dev/sandboxd-admin-client=true` in the sandboxes

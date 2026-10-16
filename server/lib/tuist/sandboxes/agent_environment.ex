@@ -16,6 +16,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
   import Ecto.Changeset
 
   alias Tuist.Accounts.Account
+  alias Tuist.Sandboxes.Sandbox
   alias Tuist.Vault.Binary
 
   @derive {Inspect, except: [:environment_key, :anthropic_api_key]}
@@ -64,9 +65,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
     |> validate_agent_fields()
     |> validate_length(:name, max: 100)
     |> validate_format(:template, ~r/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
-    |> validate_number(:vcpus, greater_than: 0, less_than_or_equal_to: 64)
-    |> validate_number(:memory_mb, greater_than_or_equal_to: 256, less_than_or_equal_to: 262_144)
-    |> validate_number(:workspace_gb, greater_than: 0, less_than_or_equal_to: 1024)
+    |> Sandbox.validate_shape()
     |> validate_number(:max_idle_seconds, greater_than: 0, less_than_or_equal_to: 3600)
     |> validate_number(:pause_grace_seconds, greater_than_or_equal_to: 0, less_than_or_equal_to: 3600)
     |> unique_constraint(:anthropic_environment_id)

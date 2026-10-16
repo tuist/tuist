@@ -150,3 +150,45 @@ func TestFileHelpers(t *testing.T) {
 		t.Fatalf("missing log tail %q", got)
 	}
 }
+
+func TestCappedLogStartsOverPastTheLimitAndRefusesSymlinks(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, LogFileName)
+	log, err := openCappedLog(path, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 100; i++ {
+		if _, err := log.Write([]byte(strings.Repeat("z", 99) + "\n")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := log.Close(); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Size() > 1024 {
+		t.Fatalf("log grew to %d bytes past its 1024 byte cap", info.Size())
+	}
+	if !strings.Contains(LogTail(path, 4096), "truncated") {
+		t.Fatal("a restarted log does not say it was truncated")
+	}
+
+	target := filepath.Join(dir, "elsewhere")
+	if err := os.WriteFile(target, []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "linked.log")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := openCappedLog(link, 1024); err == nil {
+		t.Fatal("opened a log through a symlink")
+	}
+	if tail := LogTail(link, 4096); tail != "" {
+		t.Fatalf("LogTail followed a symlink and returned %q", tail)
+	}
+}

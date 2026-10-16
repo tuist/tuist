@@ -20,6 +20,7 @@ defmodule TuistWeb.API.AgentSessionsController do
   # Agent sessions spend the account's Anthropic budget and drive
   # sandboxes, so every action requires an account administrator.
   plug AuthorizationPlug, {:account, :account, :update}
+  plug(TuistWeb.Plugs.RequireSandboxesPlug)
 
   tags ["Sandboxes"]
 
