@@ -2140,9 +2140,9 @@ macosFleet:
   hostLogs:
     enabled: false
     # Loki push endpoint, including the /loki/api/v1/push path. The tailnet
-    # hostname of the Tailscale-operator proxy fronting the k8s-monitoring
-    # chart's alloy-receiver — set the matching `tailscale.com/expose` +
-    # `tailscale.com/hostname` annotations there, or this resolves nowhere.
+    # name of the k8s-monitoring chart's alloy-receiver: its
+    # `tailscale.com/hostname` annotation, served from the ProxyGroup named by
+    # `alloyReceiverTailnet.proxyGroup` there, or this resolves nowhere.
     #
     # Must be the FULLY QUALIFIED name (<host>.<tailnet>.ts.net). MagicDNS
     # answers only fully-qualified queries, and a mini has no `search` domain
