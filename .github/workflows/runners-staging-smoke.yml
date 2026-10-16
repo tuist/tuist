@@ -186,8 +186,8 @@ jobs:
           cat > "$fixture/Project.swift" <<'SWIFT'
           import ProjectDescription
           let project = Project(name: "Smoke", targets: [
-              .target(name: "Smoke", destinations: [.mac], product: .framework, bundleId: "dev.tuist.xcode271.smoke", infoPlist: .default, sources: ["Sources/**"]),
-              .target(name: "SmokeTests", destinations: [.mac], product: .unitTests, bundleId: "dev.tuist.xcode271.smoke.tests", infoPlist: .default, sources: ["Tests/**"], dependencies: [.target(name: "Smoke")])
+              .target(name: "Smoke", destinations: [.mac], product: .framework, bundleId: "dev.tuist.xcode271.smoke", deploymentTargets: .macOS("14.0"), infoPlist: .default, sources: ["Sources/**"]),
+              .target(name: "SmokeTests", destinations: [.mac], product: .unitTests, bundleId: "dev.tuist.xcode271.smoke.tests", deploymentTargets: .macOS("14.0"), infoPlist: .default, sources: ["Tests/**"], dependencies: [.target(name: "Smoke")])
           ], schemes: [.scheme(name: "Smoke", shared: true, buildAction: .buildAction(targets: ["Smoke"]), testAction: .targets(["SmokeTests"]))])
           SWIFT
           cat > "$fixture/Sources/Smoke.swift" <<'SWIFT'
