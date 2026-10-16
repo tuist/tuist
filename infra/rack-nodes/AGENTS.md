@@ -625,10 +625,20 @@ Sizing, as of the 0.32.0 runner images: each is 55 to 62 GB compressed (263
 layers of up to 512 MiB). All nine catalog images are 537 GB, 404 GB of
 distinct blobs; a release shares about 57% of its blobs with the one before,
 so a release beside its predecessor is 578 GB. ber1-store-a's `/data` is
-928 GB, also home to the Kura region, so production's 400 GiB holds one
-release of what the rack runs plus the previous one while the rack rolls off
-it, rather than the whole catalog twice. A second disk in store-a's spare M.2
-slots, or store-b, is what makes room for more.
+928 GB, also home to the Kura region, which takes precedence on it. So
+production's cache is 64 GiB, one image: 27.0, the version most rack jobs ran
+on in the week to 2026-10-16. The other versions come from ghcr.io, and so
+does 27.0 for about a day after a release, until the old tag ages out
+(`keepPulledWithin`) and frees the room. Prewarming 26.6 as well needs about
+160 GiB through a release change, and every image the rack runs about
+578 GB. Raise it once a drive in store-a's spare M.2 slots, or store-b,
+gives the site more disk.
+
+The claim is named after its size, because a claim cannot shrink: a new
+`sizeGi` makes a new volume, which the cache fills again from the upstream,
+and Helm deletes the old claim once the Deployment's Recreate has released
+it. The pod's `ephemeral-storage` request follows `sizeGi`, and that request
+is what the Kura region's placement counts.
 
 Turning it on is a deploy per step, and `routeHosts` is the feature flag: set
 `enabled`; once
