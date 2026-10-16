@@ -23,7 +23,21 @@ on:
       - infra/hetzner-robot-controller/**
       - infra/mdm/**
       - infra/helm/mdm/**
-      - infra/runner-image/**
+      # Image-only runner-image files. The runner payload's sources there
+      # release from this workflow.
+      - infra/runner-image/*.md
+      - infra/runner-image/.gitignore
+      - infra/runner-image/cliff.toml
+      - infra/runner-image/inject-env.sh
+      - infra/runner-image/install-payload.sh
+      - infra/runner-image/install-payload_test.sh
+      - infra/runner-image/launchd.plist
+      - infra/runner-image/profiles.json
+      - infra/runner-image/runner-shell-agent-supervisor.sh
+      - infra/runner-image/runner-shell-agent.plist
+      - infra/runner-image/runner.pkr.hcl
+      - infra/runner-image/tcc-approvals.sh
+      - infra/runner-image/tcc-report_test.sh
       - .github/workflows/cache-release.yml
       - .github/workflows/gradle-release.yml
       - .github/workflows/noora-release.yml
