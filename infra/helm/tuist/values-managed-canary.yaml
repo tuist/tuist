@@ -332,7 +332,7 @@ clickhouse:
       # Served by the `tailnet-ingress` ProxyGroup as a Tailscale Service, so
       # the xcresult VMs reach it directly instead of through a DERP relay.
       # Switching needs the standalone proxy's device deleted by hand; see
-      # the runbook in the PR that set this.
+      # the runbook in #14235.
       proxyGroup: tailnet-ingress
     keeper:
       replicas: 1
