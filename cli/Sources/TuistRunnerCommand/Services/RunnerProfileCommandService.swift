@@ -6,8 +6,9 @@ import TuistHTTP
 import TuistServer
 
 enum RunnerProfileOutput {
-    static func saveCacheFrom(_ branches: [String]) -> String {
-        branches.isEmpty ? "Default branch" : branches.joined(separator: ", ")
+    static func saveCacheFrom(defaultBranch: Bool, branches: [String]) -> String {
+        let labels = (defaultBranch ? ["Default branch"] : []) + branches
+        return labels.isEmpty ? "No branches" : labels.joined(separator: ", ")
     }
 }
 
@@ -59,7 +60,10 @@ struct RunnerProfileListCommandService: RunnerProfileListCommandServicing {
                 profile.platform == .macos ? "macOS" : "Linux",
                 String(profile.vcpus),
                 "\(profile.memory_gb) GB",
-                RunnerProfileOutput.saveCacheFrom(profile.cache_writer_branches),
+                RunnerProfileOutput.saveCacheFrom(
+                    defaultBranch: profile.cache_writer_default_branch,
+                    branches: profile.cache_writer_branches
+                ),
             ]
         }
         try await Noora.current.paginatedTable(
@@ -73,7 +77,14 @@ struct RunnerProfileListCommandService: RunnerProfileListCommandServicing {
 }
 
 protocol RunnerProfileUpdateCommandServicing {
-    func run(name: String, branches: [String], account: String?, path: String?, json: Bool) async throws
+    func run(
+        name: String,
+        defaultBranch: Bool,
+        branches: [String],
+        account: String?,
+        path: String?,
+        json: Bool
+    ) async throws
 }
 
 struct RunnerProfileUpdateCommandService: RunnerProfileUpdateCommandServicing {
@@ -94,7 +105,14 @@ struct RunnerProfileUpdateCommandService: RunnerProfileUpdateCommandServicing {
         self.updateRunnerProfileService = updateRunnerProfileService
     }
 
-    func run(name: String, branches: [String], account: String?, path: String?, json: Bool) async throws {
+    func run(
+        name: String,
+        defaultBranch: Bool,
+        branches: [String],
+        account: String?,
+        path: String?,
+        json: Bool
+    ) async throws {
         let (accountHandle, serverURL) = try await RunnerAccount.resolve(
             account: account,
             path: path,
@@ -102,22 +120,21 @@ struct RunnerProfileUpdateCommandService: RunnerProfileUpdateCommandServicing {
             serverEnvironmentService: serverEnvironmentService,
             fullHandleService: fullHandleService
         )
-        let profile = try await updateRunnerProfileService.updateCacheWriterBranches(
+        let profile = try await updateRunnerProfileService.updateCacheWriterPolicy(
             accountHandle: accountHandle,
             serverURL: serverURL,
             profileName: name,
+            defaultBranch: defaultBranch,
             branches: branches
         )
         if json {
             try Noora.current.json(profile)
             return
         }
-        if profile.cache_writer_branches.isEmpty {
-            Noora.current.success("Profile \(profile.name) saves cache from each repository's default branch.")
-        } else {
-            Noora.current.success(
-                "Profile \(profile.name) saves cache from \(profile.cache_writer_branches.joined(separator: ", "))."
-            )
-        }
+        let saveCacheFrom = RunnerProfileOutput.saveCacheFrom(
+            defaultBranch: profile.cache_writer_default_branch,
+            branches: profile.cache_writer_branches
+        )
+        Noora.current.success("Profile \(profile.name) saves cache from: \(saveCacheFrom).")
     }
 }

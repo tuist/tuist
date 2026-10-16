@@ -118,11 +118,16 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "memory_gb" => %{"type" => "integer"},
         "xcode_version" => %{"type" => ["string", "null"]},
         "protected" => %{"type" => "boolean"},
+        "cache_writer_default_branch" => %{
+          "type" => "boolean",
+          "description" =>
+            "Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes."
+        },
         "cache_writer_branches" => %{
           "type" => "array",
           "items" => %{"type" => "string"},
           "description" =>
-            "Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch."
+            "Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes."
         },
         "inserted_at" => %{"type" => "string"},
         "updated_at" => %{"type" => "string"}
@@ -135,6 +140,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "memory_gb",
         "xcode_version",
         "protected",
+        "cache_writer_default_branch",
         "cache_writer_branches",
         "inserted_at",
         "updated_at"
@@ -250,6 +256,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
       memory_gb: profile.memory_gb,
       xcode_version: profile.xcode_version,
       protected: profile.protected,
+      cache_writer_default_branch: profile.cache_writer_default_branch,
       cache_writer_branches: profile.cache_writer_branches || [],
       inserted_at: Formatter.iso8601(profile.inserted_at),
       updated_at: Formatter.iso8601(profile.updated_at)
@@ -566,13 +573,18 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfileCacheBranches do
           "type" => "string",
           "description" => "The profile name, without the runs-on label prefix."
         },
+        "cache_writer_default_branch" => %{
+          "type" => "boolean",
+          "description" => "Whether jobs on each repository's default branch save. Omit to keep the current value."
+        },
         "cache_writer_branches" => %{
           "type" => "array",
           "items" => %{"type" => "string"},
-          "description" => "Branch names or * patterns. An empty list follows each repository's default branch."
+          "description" =>
+            "Additional branch names or * patterns that save. An empty list removes them. Omit to keep the current list."
         }
       },
-      "required" => ["account_handle", "profile_name", "cache_writer_branches"],
+      "required" => ["account_handle", "profile_name"],
       "additionalProperties" => false
     },
     output_schema: Tuist.MCP.Components.Tools.RunnerTools.profile_schema()
@@ -585,14 +597,14 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfileCacheBranches do
   @impl EMCP.Tool
   def description,
     do:
-      ~s(Replace the branch names or * patterns whose GitHub Actions jobs on a runner profile save custom cache volume changes, for example ["main", "release/*"] or ["*"] for every branch. Pass an empty list to follow each repository's default branch. Narrowing the list discards pending saves it no longer allows. Requires account administration.)
+      ~s(Update which GitHub Actions jobs on a runner profile save custom cache volume changes. Jobs on each repository's default branch save unless cache_writer_default_branch is false. cache_writer_branches replaces the additional branch names or * patterns that save, for example ["release/*"] or ["*"] for every branch. Narrowing the policy discards pending saves it no longer allows. Requires account administration.)
 
   @impl EMCP.Tool
   def call(conn, arguments) do
     with :ok <- MCPTool.validate_input(__MODULE__, arguments),
          {:ok, account} <- RunnerTools.authorize_profiles_account(arguments, conn.assigns),
          {:ok, profile} <- fetch_profile(account, arguments["profile_name"]),
-         {:ok, profile} <- update(profile, arguments["cache_writer_branches"]) do
+         {:ok, profile} <- update(profile, arguments) do
       MCPTool.json_response(RunnerTools.serialize_profile(profile), __MODULE__)
     else
       {:error, message} -> EMCP.Tool.error(message)
@@ -606,8 +618,10 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfileCacheBranches do
     end
   end
 
-  defp update(profile, branches) do
-    case Profiles.update_cache_writer_branches(profile, branches) do
+  defp update(profile, arguments) do
+    attrs = Map.take(arguments, ["cache_writer_default_branch", "cache_writer_branches"])
+
+    case Profiles.update_cache_writer_policy(profile, attrs) do
       {:ok, profile} ->
         {:ok, profile}
 

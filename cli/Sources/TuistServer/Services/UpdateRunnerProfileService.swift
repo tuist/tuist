@@ -7,12 +7,13 @@ public typealias RunnerProfileUpdateResult = Operations.updateRunnerProfile.Outp
 
 @Mockable
 public protocol UpdateRunnerProfileServicing {
-    /// Replaces the branches whose jobs save the profile's cache volumes. An empty list follows each repository's
-    /// default branch.
-    func updateCacheWriterBranches(
+    /// Sets whether jobs on each repository's default branch save the profile's cache volumes and replaces the
+    /// additional branches that save them.
+    func updateCacheWriterPolicy(
         accountHandle: String,
         serverURL: URL,
         profileName: String,
+        defaultBranch: Bool,
         branches: [String]
     ) async throws -> RunnerProfileUpdateResult
 }
@@ -37,17 +38,18 @@ enum UpdateRunnerProfileServiceError: LocalizedError, Equatable {
 public struct UpdateRunnerProfileService: UpdateRunnerProfileServicing {
     public init() {}
 
-    public func updateCacheWriterBranches(
+    public func updateCacheWriterPolicy(
         accountHandle: String,
         serverURL: URL,
         profileName: String,
+        defaultBranch: Bool,
         branches: [String]
     ) async throws -> RunnerProfileUpdateResult {
         let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.updateRunnerProfile(
             .init(
                 path: .init(account_handle: accountHandle, profile_name: profileName),
-                body: .json(.init(cache_writer_branches: branches))
+                body: .json(.init(cache_writer_branches: branches, cache_writer_default_branch: defaultBranch))
             )
         )
         switch response {

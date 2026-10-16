@@ -207,15 +207,16 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
-  # The job's runner profile decides which GitHub branches save. Without a custom
-  # branch list, or without a profile, the repository's default branch saves, as
-  # it does for the other providers.
-  defp writer_grant(%{provider: "github"} = identity, %Profile{cache_writer_branches: patterns} = profile)
-       when is_list(patterns) do
-    if Profile.cache_writer_branch?(patterns, Map.get(identity, :writer_branch)), do: {:ok, profile.id}, else: :denied
+  # The job's runner profile decides which GitHub branches save. Without a
+  # profile, the repository's default branch saves, as it does for the other
+  # providers.
+  defp writer_grant(%{provider: "github"} = identity, %Profile{} = profile) do
+    if writer_allowed?(profile, identity.trusted, Map.get(identity, :writer_branch)),
+      do: {:ok, profile.id},
+      else: :denied
   end
 
-  defp writer_grant(%{trusted: true}, profile), do: {:ok, profile && profile.id}
+  defp writer_grant(%{trusted: true}, _profile), do: {:ok, nil}
   defp writer_grant(_identity, _profile), do: :denied
 
   defp writer_fields(identity, grant) do
@@ -243,15 +244,15 @@ defmodule Tuist.Runners.CacheVolumes do
   profile row, after the row was written. Additions only affect new attachments.
   """
   def revoke_profile_writers({:deleted, %Profile{} = profile}),
-    do: revoke_profile_writers(%{profile | cache_writer_branches: nil})
+    do: revoke_profile_writers(%{profile | cache_writer_default_branch: true, cache_writer_branches: nil})
 
-  def revoke_profile_writers(%Profile{id: id, cache_writer_branches: patterns} = profile) do
+  def revoke_profile_writers(%Profile{id: id} = profile) do
     revoked =
       from(u in Usage,
         where: u.writer_profile_id == ^id and u.can_publish and u.status not in ["published", "discarded"]
       )
       |> Repo.all()
-      |> Enum.reject(&writer_allowed?(patterns, &1))
+      |> Enum.reject(&writer_allowed?(profile, &1.writer_default_branch, &1.writer_branch))
       |> Enum.map(& &1.id)
       |> Enum.concat(unrecorded_profile_writers(profile))
 
@@ -276,9 +277,8 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   # Uses allocated before uses recorded their profile, including by older pods
-  # during a rollout, were default-branch grants without a recorded branch. A
-  # custom list cannot match them, so it revokes them.
-  defp unrecorded_profile_writers(%Profile{cache_writer_branches: nil}), do: []
+  # during a rollout, were default-branch grants without a recorded branch.
+  defp unrecorded_profile_writers(%Profile{cache_writer_default_branch: true}), do: []
 
   defp unrecorded_profile_writers(%Profile{account_id: account_id} = profile) do
     label = Profile.dispatch_label(profile)
@@ -298,24 +298,9 @@ defmodule Tuist.Runners.CacheVolumes do
     )
   end
 
-  defp writer_allowed?(nil, use), do: use.writer_default_branch
-  defp writer_allowed?(patterns, use), do: Profile.cache_writer_branch?(patterns, use.writer_branch)
-
-  @doc """
-  Default branches of the account's GitHub repositories with custom volumes,
-  most recently used first.
-  """
-  def default_branches(account_id) do
-    Repo.all(
-      from(v in Volume,
-        where:
-          v.account_id == ^account_id and v.provider == "github" and is_nil(v.builtin_name) and
-            not is_nil(v.default_branch),
-        group_by: v.default_branch,
-        order_by: [desc_nulls_last: max(v.last_used_at)],
-        select: v.default_branch
-      )
-    )
+  defp writer_allowed?(%Profile{} = profile, default_branch?, branch) do
+    (default_branch? and profile.cache_writer_default_branch) or
+      Profile.cache_writer_branch?(profile.cache_writer_branches || [], branch)
   end
 
   defp ensure_job_capacity!(job, identity, attrs) do
