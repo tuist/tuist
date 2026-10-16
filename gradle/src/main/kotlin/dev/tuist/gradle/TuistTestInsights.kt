@@ -498,38 +498,48 @@ abstract class TuistTestInsightsService :
         }
     }
 
-    private fun sendReport() {
-        val projectValue = parameters.project.orNull
+    private val httpClient: TuistHttpClient by lazy {
         val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
-        val projectDir = parameters.projectDir.asFile.get()
-
-        val configProvider = DefaultConfigurationProvider(
-            project = projectValue,
-            serverUrl = parameters.url.get(),
-            projectDir = projectDir,
-            httpClients = httpClients
-        )
-
-        val httpClient = TuistHttpClient(
-            configurationProvider = configProvider,
+        TuistHttpClient(
+            configurationProvider = DefaultConfigurationProvider(
+                project = parameters.project.orNull,
+                serverUrl = parameters.url.get(),
+                projectDir = parameters.projectDir.asFile.get(),
+                httpClients = httpClients
+            ),
             httpClients = httpClients,
             connectTimeoutMs = 10_000,
             readTimeoutMs = 10_000
         )
+    }
 
+    // Collected during execution, never configuration, so the history is not a configuration input.
+    private val gitHistoryPublisher: GitHistoryPublisher by lazy {
+        val gitHistoryService = GitHistoryService(httpClient = httpClient, baseUrl = parameters.url.get())
+        GitHistoryPublisher(
+            collect = { gitHistoryService.collect(reportGitInfoProvider(), parameters.projectDir.asFile.get(), ciDetector.isCi()) },
+            upload = gitHistoryService::upload
+        )
+    }
+
+    /**
+     * Collects the build's Git history and uploads its commits and branch heads, once per build:
+     * the stress gate's plan and the run's report read the commit graph, so it goes up before either.
+     */
+    internal fun publishGitHistory(): CollectedGitHistory? =
+        try {
+            gitHistoryPublisher.publish()
+        } catch (e: Exception) {
+            logger.info("Tuist: The run's Git history could not be published: ${e.message}")
+            null
+        }
+
+    private fun sendReport() {
         val totalDurationMs = latestEndTime - earliestStartTime
         val gradleBuildId = buildInsightsService?.buildId
         val reportGitInfoProvider = reportGitInfoProvider()
         val isCi = ciDetector.isCi()
-
-        // Read at report time, which is execution time: the history is never a configuration input.
-        val gitHistoryService = GitHistoryService(httpClient = httpClient, baseUrl = parameters.url.get())
-        val gitHistory = try {
-            gitHistoryService.collect(reportGitInfoProvider, projectDir, isCi)
-        } catch (e: Exception) {
-            logger.info("Tuist: The run's Git history could not be collected: ${e.message}")
-            null
-        }
+        val gitHistory = publishGitHistory()
 
         val report = collector.buildReport(
             totalDurationMs = totalDurationMs,
@@ -584,7 +594,6 @@ abstract class TuistTestInsightsService :
 
         if (response != null) {
             logger.lifecycle("Tuist: Test insights reported successfully (test run ${response.id})")
-            gitHistoryService.upload(gitHistory)
         } else {
             logger.warn("Tuist: Failed to report test insights.")
         }

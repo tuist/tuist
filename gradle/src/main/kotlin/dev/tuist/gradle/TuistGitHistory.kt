@@ -48,7 +48,9 @@ data class CollectedGitHistory(
 class GitHistoryEnvironment(private val environment: Map<String, String>) {
     fun enabled(isCi: Boolean): Boolean = isCi && !isFalsy("TUIST_GIT_UPLOAD_ENABLED")
 
-    fun unshallowEnabled(): Boolean = !isFalsy("TUIST_GIT_UNSHALLOW_ENABLED")
+    /** `TUIST_GIT_UNSHALLOW_ENABLED=false` keeps collection to what the checkout has. */
+    fun remoteAccess(): GitHistoryRemoteAccess =
+        if (isFalsy("TUIST_GIT_UNSHALLOW_ENABLED")) GitHistoryRemoteAccess.NONE else GitHistoryRemoteAccess.BASE_HEAD
 
     /** The branch a pull request merges into, from the CI provider only: a checkout does not know it. */
     fun baseBranch(): String? = firstValue(baseBranchVariables)?.removePrefix("refs/heads/")
@@ -108,10 +110,10 @@ class GitHistoryEnvironment(private val environment: Map<String, String>) {
 }
 
 /**
- * Collects a CI run's Git history from the checkout within the limits the server sets, and,
- * once the run exists, uploads the commits the server's graph lacks with the branch heads the
- * checkout saw. Both are best effort: a history problem never fails or loses a run, and what
- * could not be collected is reported with the run.
+ * Collects a CI run's Git history from the checkout within the limits the server sets, and
+ * uploads the commits the server's graph lacks with the branch heads the checkout saw. Both are
+ * best effort: a history problem never fails or loses a run, and what could not be collected is
+ * reported with the run.
  */
 class GitHistoryService(
     private val httpClient: TuistHttpClient,
@@ -165,7 +167,7 @@ class GitHistoryService(
                     windowDays = settings.windowDays,
                     windowCommits = settings.windowCommits,
                     deepenBudgetSeconds = settings.deepenBudgetSeconds,
-                    unshallow = gitEnvironment.unshallowEnabled()
+                    remoteAccess = gitEnvironment.remoteAccess()
                 )
             )
         } catch (e: Exception) {
@@ -196,15 +198,17 @@ class GitHistoryService(
      * Sends the commits the server lacks, oldest first so their generation numbers are exact, in
      * batches of the server's size, with the run's branch head and the base branch's as the
      * checkout saw it on the last batch. The repository is named by its remote, so a checkout
-     * without one has no graph to upload to.
+     * without one has no graph to upload to. Returns false when the upload failed.
      */
-    fun upload(collected: CollectedGitHistory?) {
-        val history = collected?.history ?: return
-        val repositoryUrl = collected.repositoryUrl?.takeIf { it.isNotBlank() } ?: return
-        try {
+    fun upload(collected: CollectedGitHistory?): Boolean {
+        val history = collected?.history ?: return true
+        val repositoryUrl = collected.repositoryUrl?.takeIf { it.isNotBlank() } ?: return true
+        return try {
             uploadCommits(collected, history, repositoryUrl)
+            true
         } catch (e: Exception) {
             logger.info("Tuist: The run's Git history could not be uploaded: ${e.message}")
+            false
         }
     }
 
@@ -229,10 +233,11 @@ class GitHistoryService(
         val branchHeads = mutableListOf<BranchHeadPayload>()
         collected.branch?.let { branchHeads += BranchHeadPayload(it, history.headSha, observedAt) }
         // A pull request's run is how the base branch's head is seen between the base branch's own
-        // runs. It is reported only when it was listed, so the server knows the commit.
+        // runs. The checkout may not have that commit: the run that tested it, a merge queue's
+        // typically, sent it already.
         val baseBranch = history.baseBranch
         val baseHeadSha = history.baseHeadSha
-        if (baseBranch != null && baseBranch != collected.branch && baseHeadSha != null && commits.any { it.sha == baseHeadSha }) {
+        if (baseBranch != null && baseBranch != collected.branch && baseHeadSha != null) {
             branchHeads += BranchHeadPayload(baseBranch, baseHeadSha, observedAt)
         }
 
@@ -333,5 +338,29 @@ class GitHistoryService(
 
         /** Commits per upload request the server accepts. */
         private const val MAX_UPLOAD_BATCH_SIZE = 10_000
+    }
+}
+
+/**
+ * A build's history, collected once and published once, before the server is asked anything that
+ * reads the commit graph: the stress gate's plan and the run's report. Publishing is recorded only
+ * once the upload succeeded, so a failed early attempt is retried before the report.
+ */
+class GitHistoryPublisher(
+    private val collect: () -> CollectedGitHistory?,
+    private val upload: (CollectedGitHistory?) -> Boolean
+) {
+    private var collected: CollectedGitHistory? = null
+    private var hasCollected = false
+    private var published = false
+
+    @Synchronized
+    fun publish(): CollectedGitHistory? {
+        if (!hasCollected) {
+            collected = collect()
+            hasCollected = true
+        }
+        if (!published) published = upload(collected)
+        return collected
     }
 }
