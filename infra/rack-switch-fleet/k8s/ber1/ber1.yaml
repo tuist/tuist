@@ -1,0 +1,14 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: RackSite
+metadata:
+  name: ber1
+  labels:
+    tuist.dev/site: ber1
+spec:
+  contractedPower:
+    - from: "2026-10-05"
+      watts: 3000
+    - from: "2027-02-05"
+      watts: 5000
+    - from: "2027-06-05"
+      watts: 8000

@@ -94,6 +94,7 @@ cmd_render() {
   done
   rm -f "$rendered" "$object"
   render_power "$check" || stale=1
+  render_site "$check" || stale=1
   render_edge "$check" || stale=1
   render_cables "$check" || stale=1
   if (( stale )); then
@@ -142,6 +143,29 @@ render_power() {
       echo "rendered ${target#"$FLEET_ROOT"/}"
     fi
   done
+  rm -f "$rendered"
+  return "$status"
+}
+
+# The site's RackSite object, from the same site definition.
+render_site() {
+  local check="$1" target rendered status=0
+  target="$(k8s_path "$SITE")"
+  rendered="$(mktemp)"
+  if ! fleet_render_site "$(site_file)" > "$rendered"; then
+    rm -f "$rendered"
+    return 1
+  fi
+  if (( check )); then
+    if ! diff -q "$rendered" "$target" >/dev/null 2>&1; then
+      echo "stale: ${target#"$FLEET_ROOT"/}" >&2
+      status=1
+    fi
+  else
+    mkdir -p "$(dirname "$target")"
+    cp "$rendered" "$target"
+    echo "rendered ${target#"$FLEET_ROOT"/}"
+  fi
   rm -f "$rendered"
   return "$status"
 }

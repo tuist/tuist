@@ -545,6 +545,32 @@ fleet_check_site() {
   fleet_check_sensor_chains "$site_file" || return 1
   fleet_check_power "$site_file" || return 1
   fleet_check_lags "$site_file" || return 1
+  fleet_check_contracted_power "$site_file" || return 1
+}
+
+# The colocation contract's power, as steps that each apply from a day (UTC)
+# until the next one's. Optional: a site without it has no cap to alert on.
+fleet_check_contracted_power() {
+  local site_file="$1" bad
+  bad="$(jq -r '
+    (.contracted_power // []) as $steps |
+    [
+      $steps[] | select((.from | type) != "string" or
+        ((try (.from | strptime("%Y-%m-%d") | mktime | strftime("%Y-%m-%d")) catch null) != .from)) |
+        "from \(.from | tojson) is not a day in the form YYYY-MM-DD"
+    ] + [
+      $steps[] | select((.watts | type) != "number" or .watts < 1 or .watts != (.watts | floor)) |
+        "\(.from): watts \(.watts | tojson) is not a whole number of watts above 0"
+    ] + [
+      $steps | group_by(.from)[] | select(length > 1) |
+        "\(.[0].from) has more than one step"
+    ] | .[]
+  ' "$site_file")" || return 1
+  if [ -n "$bad" ]; then
+    echo "error: contracted_power is wrong:" >&2
+    printf '  %s\n' "$bad" >&2
+    return 1
+  fi
 }
 
 # A device's whole desired configuration, as configuration-file text.
@@ -977,6 +1003,21 @@ fleet_render_power() {
         + (if $kind == "RackPDU" then { outletStateOnStartup: "on" } else { preferredSource: .preferred_source } end))
     }
   ' "$site_file" | yq -P -p=json '(select(.kind == "RackPDU") | .spec.outletStateOnStartup) style="double"' -
+}
+
+# The site as a RackSite object, whose controller exports the contracted power
+# in effect as capt_racksite_contracted_power_watts.
+fleet_render_site() {
+  local site_file="$1"
+  fleet_check_contracted_power "$site_file" || return 1
+  jq -r '
+    {
+      apiVersion: "infrastructure.cluster.x-k8s.io/v1alpha1",
+      kind: "RackSite",
+      metadata: { name: .site, labels: { "tuist.dev/site": .site } },
+      spec: (if .contracted_power then { contractedPower: [.contracted_power[] | { from, watts }] } else {} end)
+    }
+  ' "$site_file" | yq -P -p=json '(select(.spec | has("contractedPower")) | .spec.contractedPower[].from) style="double"' -
 }
 
 # Which terminal line is this connection, from `show users` output. The firmware
