@@ -1572,6 +1572,11 @@ rackLinuxFleet:
       role: storage
       bootMAC: "38:05:25:3a:de:67"
       address: 10.10.0.11
+      # On the cluster's Cilium network at the site's address, so the
+      # ber1-runners Kura region replicates pod to pod with the accounts' other
+      # regions. The rack's one public IPv4 fits one such host; store-b waits
+      # for the site's own range.
+      publicAddress: 149.6.170.31
       # Reinstalled so it registers with its pool and machines-address labels.
       reinstallGeneration: 1
       amt: {activate: true}

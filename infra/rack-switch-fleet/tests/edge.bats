@@ -534,7 +534,8 @@ STUB
     # the master translates the standby and the management segment onto the WAN
     [[ "$output" == *'oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade'* ]]
     # and the WAN lets in replies, ping, neighbour discovery and the tailnet's
-    # direct path, and nothing else
+    # direct path, what the edge forwards itself (the cluster-network hosts' ports,
+    # tuist_cluster_forwards), and nothing else
     [[ "$output" == *'table inet tuist_rack_wan {
   chain input {
     type filter hook input priority filter;
@@ -546,6 +547,7 @@ STUB
   chain forward {
     type filter hook forward priority filter;
     iifname "wan0" ct state established,related accept
+    iifname "wan0" ct status dnat accept
     iifname "wan0" drop
   }
 }'* ]]
