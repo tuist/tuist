@@ -1,5 +1,6 @@
 defmodule Tuist.ClickHouse.BackfillTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.ClickHouse.Backfill
   alias Tuist.IngestRepo
@@ -338,6 +339,63 @@ defmodule Tuist.ClickHouse.BackfillTest do
   describe "run/1" do
     test "refuses to start without a destination" do
       assert {:error, :no_target_configured} = Backfill.run()
+    end
+
+    test "counts a chunk on the source once to size it and once to copy it" do
+      test = self()
+      copied = start_supervised!({Agent, fn -> false end})
+      stub(Tuist.Environment, :clickhouse_bare_metal_url, fn -> "http://in-cluster:8123" end)
+
+      stub(IngestRepo, :query!, fn sql, _params, _opts ->
+        cond do
+          sql =~ "FROM system.columns" ->
+            %{rows: [["inserted_at"]]}
+
+          sql =~ "SELECT count()" ->
+            send(test, :source_count)
+            %{rows: [[1000]]}
+        end
+      end)
+
+      stub(Tuist.ClickHouseRepo, :query!, fn sql, _params, _opts ->
+        cond do
+          sql =~ "SELECT engine, engine_full, sorting_key FROM system.tables" ->
+            %{rows: [["MergeTree", "MergeTree ORDER BY build_run_id", "build_run_id"]]}
+
+          sql =~ "SELECT engine_full FROM system.tables" ->
+            %{rows: [["MergeTree ORDER BY build_run_id SETTINGS index_granularity = 8192"]]}
+
+          sql =~ "SELECT engine FROM system.tables" ->
+            %{rows: [["MergeTree"]]}
+
+          sql =~ "FROM system.columns" ->
+            %{rows: [["build_run_id", ""], ["inserted_at", "DEFAULT"]]}
+
+          sql =~ "remoteSecure" and sql =~ "SELECT count()" ->
+            %{rows: [[400]]}
+
+          sql =~ "INSERT INTO" ->
+            Agent.update(copied, fn _ -> true end)
+            %{rows: []}
+
+          sql =~ "SELECT count()" ->
+            %{rows: [[if(Agent.get(copied, & &1), do: 1000, else: 600)]]}
+        end
+      end)
+
+      assert {:ok, %{"build_files" => %{copied: 1, failed: 0}}} =
+               Backfill.run(
+                 source_repo: IngestRepo,
+                 target_repo: Tuist.ClickHouseRepo,
+                 tables: ["build_files"],
+                 windows: [{~U[2026-10-10 07:55:00Z], ~U[2026-10-11 07:55:00Z]}]
+               )
+
+      # `build_files` is not ordered by time, so each count reads the whole
+      # table on the source.
+      assert_received :source_count
+      assert_received :source_count
+      refute_received :source_count
     end
   end
 end

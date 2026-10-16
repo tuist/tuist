@@ -340,9 +340,12 @@ defmodule Tuist.ClickHouse.Backfill do
       }
 
       try do
-        copy(source, target, table, chunk, params)
+        unexpired = target |> Parity.ttl(table) |> unexpired_condition()
+        {all_rows, unexpired_rows} = source_counts(source, table, chunk, unexpired)
 
-        {source_rows, destination_rows} = verify(source, target, table, chunk)
+        copy(target, table, chunk, params, all_rows)
+
+        {source_rows, destination_rows} = verify(source, target, table, chunk, unexpired, unexpired_rows)
 
         case outcome(source_rows, destination_rows) do
           :done ->
@@ -556,7 +559,7 @@ defmodule Tuist.ClickHouse.Backfill do
   # The credentials are query parameters rather than interpolated text, so the
   # statement carries no secret even if something logs it. `log: false` as
   # well, because a driver-level error can echo the parameters too.
-  defp copy(source, target, table, chunk, params) do
+  defp copy(target, table, chunk, params, source_rows) do
     destination = "#{quote_ident(target.database)}.#{quote_ident(table)}"
     from = "remoteSecure({address:String}, {database:String}, {table:String}, {user:String}, {password:String})"
 
@@ -571,7 +574,7 @@ defmodule Tuist.ClickHouse.Backfill do
 
         if not Tables.collapsing?(shape.engine) do
           %{rows: [[lacking_rows]]} = run!(target, "SELECT count() FROM #{from} WHERE #{where}", params)
-          refuse_duplicates!(lacking_rows, count(source, table, chunk) - destination_rows)
+          refuse_duplicates!(lacking_rows, source_rows - destination_rows)
         end
 
         run!(target, "INSERT INTO #{destination} SELECT * FROM #{from} WHERE #{where}", params)
@@ -739,30 +742,61 @@ defmodule Tuist.ClickHouse.Backfill do
   # leaves them out: the two servers expire rows on their own merge schedules,
   # so an old chunk of a table with a TTL would otherwise come up short on
   # every run for rows that are meant to disappear.
-  defp verify(source, target, table, chunk) do
-    ttl = Parity.ttl(target, table)
-    source_rows = count(source, table, chunk, ttl: ttl)
-    destination_rows = settled_count(target, table, chunk, ttl, source_rows)
+  #
+  # A table that does not collapse has no `FINAL`, so counting it again would
+  # only repeat the same statement.
+  defp verify(source, target, table, chunk, unexpired, source_rows) do
+    destination_rows = settled_count(target, table, chunk, unexpired, source_rows)
 
-    if source_rows == destination_rows do
+    if source_rows == destination_rows or Tables.final_clause(target, table) == "" do
       {source_rows, destination_rows}
     else
-      {count(source, table, chunk, collapsed: true, ttl: ttl), count(target, table, chunk, collapsed: true, ttl: ttl)}
+      {count(source, table, chunk, collapsed: true, unexpired: unexpired),
+       count(target, table, chunk, collapsed: true, unexpired: unexpired)}
     end
   end
 
-  defp settled_count(target, table, chunk, ttl, expected) do
-    settle(target, table, chunk, ttl, expected, System.monotonic_time(:millisecond) + @verify_patience_ms)
+  # Both counts a copy needs from the source, in one read: every row, which
+  # bounds how many a gap-fill may insert, and the rows clear of their TTL,
+  # which the destination is checked against. On a table not ordered by time
+  # each count reads the whole table on the source, 28 billion rows for
+  # `build_files`. The chunk lies in the past, so its rows on the source do
+  # not change between the copy and the check.
+  defp source_counts(source, table, chunk, unexpired) do
+    selects = if unexpired, do: "count(), countIf(#{unexpired})", else: "count()"
+
+    %{rows: [counts]} =
+      source.repo.query!(
+        "SELECT #{selects} FROM #{quote_ident(source.database)}.#{quote_ident(table)} WHERE #{predicate(chunk)}",
+        [],
+        count_options()
+      )
+
+    case counts do
+      [all] -> {all, all}
+      [all, unexpired_rows] -> {all, unexpired_rows}
+    end
   end
 
-  defp settle(target, table, chunk, ttl, expected, deadline) do
-    rows = count(target, table, chunk, ttl: ttl)
+  # Fixed when the chunk starts rather than read as `now()` by each count, so
+  # the source's count before the copy and the destination's after it leave
+  # out the same rows, however long the copy takes.
+  defp unexpired_condition(nil), do: nil
+
+  defp unexpired_condition(ttl), do: "(#{ttl}) > toDateTime64('#{stamp(DateTime.utc_now())}', 6) + INTERVAL 1 DAY"
+
+  defp settled_count(target, table, chunk, unexpired, expected) do
+    settle(target, table, chunk, unexpired, expected, System.monotonic_time(:millisecond) + @verify_patience_ms)
+  end
+
+  defp settle(target, table, chunk, unexpired, expected, deadline) do
+    rows = count(target, table, chunk, unexpired: unexpired)
 
     if rows >= expected or System.monotonic_time(:millisecond) >= deadline do
       rows
     else
       Process.sleep(@verify_interval_ms)
-      settle(target, table, chunk, ttl, expected, deadline)
+      settle(target, table, chunk, unexpired, expected, deadline)
     end
   end
 
@@ -793,28 +827,32 @@ defmodule Tuist.ClickHouse.Backfill do
     final = if Keyword.get(opts, :collapsed, false), do: Tables.final_clause(endpoint, table), else: ""
 
     unexpired =
-      case Keyword.get(opts, :ttl) do
+      case Keyword.get(opts, :unexpired) do
         nil -> ""
-        ttl -> " AND (#{ttl}) > now() + INTERVAL 1 DAY"
+        condition -> " AND #{condition}"
       end
 
     result =
       endpoint.repo.query!(
         "SELECT count() FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{final} WHERE #{predicate(chunk)}#{unexpired}",
         [],
-        [
-          settings: [
-            max_memory_usage: @max_memory_usage,
-            max_execution_time: Keyword.fetch!(@copy_settings, :max_execution_time)
-          ],
-          log: false
-        ] ++ statement_options()
+        count_options()
       )
 
     case result.rows do
       [[n]] -> n
       _ -> 0
     end
+  end
+
+  defp count_options do
+    [
+      settings: [
+        max_memory_usage: @max_memory_usage,
+        max_execution_time: Keyword.fetch!(@copy_settings, :max_execution_time)
+      ],
+      log: false
+    ] ++ statement_options()
   end
 
   # The ledger is keyed on a time interval, so a hash chunk is mapped onto a
