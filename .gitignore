@@ -143,3 +143,6 @@ flux-app.pem
 # Python bytecode (the switch fleet tooling under infra/ is plain python3)
 __pycache__/
 *.pyc
+
+# Local autoresearch sessions, source snapshots, and runtime state
+/.auto/
