@@ -129,7 +129,7 @@ operations; retain them until an administrator removes them.
 - Cacheable tasks (Xcode cache analytics: type, status, keys)
 
 ### App Previews & Builds
-- Preview metadata (versions, platforms, git info)
+- Preview metadata (versions, platforms, git info, tracks, and optional plain-text release notes in `previews.release_notes`). Release notes belong to the project's preview, follow its existing retention/deletion policy, and can be exported with the other preview columns from PostgreSQL.
 - App build information
 
 ### Alerts & Monitoring
@@ -428,6 +428,16 @@ removes its binary from object storage only. The associated PostgreSQL and
 ClickHouse metadata rows, including build runs, test runs, command events,
 preview records, and shard plans, are kept so analytics and dashboards remain
 intact. The configurable policy does not change database retention rules.
+
+Xcode build and test insights records have no fixed time-based deletion schedule,
+regardless of hosted plan, including Enterprise. The ClickHouse definitions for
+`build_runs`, `build_files`, `build_targets`, `build_issues`, `test_runs`,
+`test_module_runs`, `test_suite_runs`, and `test_case_runs` have no TTL. This is
+separate from `build_steps` (timeline steps and their captured logs) and
+`build_machine_metrics`, which expire 90 days after `inserted_at` through
+ClickHouse TTLs. Xcode project graph records retain their separate 30-day TTLs,
+and coverage data follows the separate retention windows documented above.
+These database rules are independent of artifact-file cleanup.
 
 Test attachments created before attachment metadata included a test-run
 identifier are excluded from automated deletion. Their binary and metadata

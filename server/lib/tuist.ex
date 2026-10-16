@@ -254,6 +254,8 @@ defmodule Tuist do
       ClickHouseTimeSeries,
       Telemetry.QueryErrorContext,
       Repo.PromExPlugin,
+      Readiness,
+      Readiness.Plug,
       ClickHouseRepo.PromExPlugin,
       OpsClickHouseRepo,
       Markdown,

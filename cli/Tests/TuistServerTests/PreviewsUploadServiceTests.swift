@@ -93,7 +93,8 @@ struct PreviewsUploadServiceTests {
                 binaryId: .any,
                 fullHandle: .any,
                 serverURL: .any,
-                track: .any
+                track: .any,
+                releaseNotes: .any
             )
             .willReturn(
                 AppBuildUpload(appBuildId: "app-build-id", uploadId: "upload-id")
@@ -170,7 +171,8 @@ struct PreviewsUploadServiceTests {
                     binaryId: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(serverURL),
-                    track: .value(nil)
+                    track: .value(nil),
+                    releaseNotes: .value(nil)
                 )
                 .called(1)
         }
@@ -219,7 +221,8 @@ struct PreviewsUploadServiceTests {
                     binaryId: .any,
                     fullHandle: .any,
                     serverURL: .any,
-                    track: .any
+                    track: .any,
+                    releaseNotes: .any
                 )
                 .willReturn(AppBuildUpload(appBuildId: "app-build-id", uploadId: "upload-id"))
 
@@ -260,7 +263,8 @@ struct PreviewsUploadServiceTests {
                     binaryId: .any,
                     fullHandle: .any,
                     serverURL: .any,
-                    track: .any
+                    track: .any,
+                    releaseNotes: .any
                 )
                 .called(2)
 
@@ -394,7 +398,8 @@ struct PreviewsUploadServiceTests {
                     binaryId: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(serverURL),
-                    track: .value(nil)
+                    track: .value(nil),
+                    releaseNotes: .value(nil)
                 )
                 .called(1)
 
@@ -465,7 +470,8 @@ struct PreviewsUploadServiceTests {
                 binaryId: .value(expectedUUID.uuidString),
                 fullHandle: .any,
                 serverURL: .any,
-                track: .any
+                track: .any,
+                releaseNotes: .any
             )
             .called(1)
     }
@@ -532,7 +538,8 @@ struct PreviewsUploadServiceTests {
                 binaryId: .value(expectedUUID.uuidString),
                 fullHandle: .any,
                 serverURL: .any,
-                track: .any
+                track: .any,
+                releaseNotes: .any
             )
             .called(1)
     }
@@ -594,7 +601,8 @@ struct PreviewsUploadServiceTests {
                 binaryId: .value(expectedUUID.uuidString),
                 fullHandle: .any,
                 serverURL: .any,
-                track: .any
+                track: .any,
+                releaseNotes: .any
             )
             .called(1)
     }
@@ -687,7 +695,8 @@ struct PreviewsUploadServiceTests {
                 binaryId: .value(expectedUUID.uuidString),
                 fullHandle: .any,
                 serverURL: .any,
-                track: .any
+                track: .any,
+                releaseNotes: .any
             )
             .called(1)
     }
@@ -745,6 +754,7 @@ struct PreviewsUploadServiceTests {
             gitCommitSHA: "abc123",
             gitRef: "refs/heads/main",
             track: "beta",
+            releaseNotes: "Fix the sign-in flow",
             updateProgress: { _ in }
         )
 
@@ -780,7 +790,8 @@ struct PreviewsUploadServiceTests {
                 binaryId: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(serverURL),
-                track: .value("beta")
+                track: .value("beta"),
+                releaseNotes: .value("Fix the sign-in flow")
             )
             .called(1)
 
@@ -893,7 +904,8 @@ struct PreviewsUploadServiceTests {
                 },
                 fullHandle: .any,
                 serverURL: .any,
-                track: .any
+                track: .any,
+                releaseNotes: .any
             )
             .called(1)
     }

@@ -692,7 +692,7 @@ func runtimeClassName(pool *tuistv1.RunnerPool) *string {
 // goldenNodeLabelPrefix namespaces the per-digest Node labels tart-kubelet
 // publishes to advertise which golden base VMs a host already holds.
 //
-// CONTRACT: this prefix and goldenNodeAffinityKey's hashing MUST stay in
+// CONTRACT: this prefix and GoldenNodeAffinityKey's hashing MUST stay in
 // lockstep with tart-kubelet's `podagent.goldenNodeLabelPrefix` /
 // `goldenVMName` — the two live in separate Go modules, so they're coupled
 // by this convention, not shared code. A mismatch silently disables the
@@ -701,11 +701,11 @@ func runtimeClassName(pool *tuistv1.RunnerPool) *string {
 // scheduling, so it's failure-safe but worth a test on both sides.
 const goldenNodeLabelPrefix = "tuist.dev/golden-"
 
-// goldenNodeAffinityKey is the Node-label key advertising that a host holds
+// GoldenNodeAffinityKey is the Node-label key advertising that a host holds
 // the golden base for `image`. The suffix is the same 8-byte SHA-256 prefix
 // of the image ref that tart-kubelet embeds in the golden VM name, so both
 // sides derive an identical key from the same digest-pinned ref.
-func goldenNodeAffinityKey(image string) string {
+func GoldenNodeAffinityKey(image string) string {
 	sum := sha256.Sum256([]byte(image))
 	return goldenNodeLabelPrefix + hex.EncodeToString(sum[:8])
 }
@@ -738,7 +738,7 @@ func runnerAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
 				Weight: 100,
 				Preference: corev1.NodeSelectorTerm{
 					MatchExpressions: []corev1.NodeSelectorRequirement{{
-						Key:      goldenNodeAffinityKey(pool.Spec.Image),
+						Key:      GoldenNodeAffinityKey(pool.Spec.Image),
 						Operator: corev1.NodeSelectorOpExists,
 					}},
 				},

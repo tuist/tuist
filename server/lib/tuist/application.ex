@@ -313,6 +313,7 @@ defmodule Tuist.Application do
     #
     #   Shadow ClickHouse write (insert) failed: could not lookup Ecto repo
     #   Tuist.ShadowIngestRepo because it was not started or it does not exist
+    # Last, so it starts once Oban is up and stops first on shutdown.
     children =
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
@@ -384,7 +385,8 @@ defmodule Tuist.Application do
         dev_content_children() ++
         redis_children() ++
         [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}] ++
-        once_events_grpc_children()
+        once_events_grpc_children() ++
+        RuntimeChildren.readiness_server(Environment.mode())
 
     children
     |> Kernel.++(
