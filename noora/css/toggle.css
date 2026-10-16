@@ -8,6 +8,10 @@
     &[data-disabled] {
       cursor: not-allowed;
     }
+
+    &:has([data-part="description"]) {
+      align-items: start;
+    }
   }
 
   & [data-part="control"] {
