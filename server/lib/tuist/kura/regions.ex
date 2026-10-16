@@ -560,7 +560,10 @@ defmodule Tuist.Kura.Regions do
       # The node's XFS /data, through the same local-path class as the other
       # bare-metal pools.
       storage_class: "scw-local-nvme",
+      # Sized by the account's claim like scw-fr-par-runners. With one replica
+      # and no mesh, a raised claim rebuilds the cache cold.
       storage_size: "50Gi",
+      storage_governed: true,
       runner_platforms: [:macos],
       data_plane: :private_gateway,
       # The rack's machines segment, where the minis sit.

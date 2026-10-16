@@ -10,6 +10,12 @@ pub(crate) enum Body<'a> {
     Get,
     Json(Value),
     Form(Vec<(&'a str, &'a str)>),
+    Api {
+        method: reqwest::Method,
+        token: &'a str,
+        payload: Option<Value>,
+        failure: fn(u16, &[u8]) -> crate::AuthError,
+    },
 }
 
 pub(crate) trait Transport {
@@ -25,6 +31,24 @@ impl Transport for Network {
             Body::Get => client.get(url.clone()),
             Body::Json(value) => client.post(url.clone()).json(&value),
             Body::Form(parameters) => client.post(url.clone()).form(&parameters),
+            Body::Api {
+                method,
+                token,
+                payload,
+                failure,
+            } => {
+                let request = client
+                    .request(method, url.clone())
+                    .bearer_auth(token)
+                    .header("accept", "application/json")
+                    .header("cache-control", "no-store");
+                let request = if let Some(payload) = payload {
+                    request.json(&payload)
+                } else {
+                    request
+                };
+                return response_using(request.send(), failure);
+            }
         };
         response(request.send())
     }
@@ -47,6 +71,13 @@ fn client() -> Result<&'static Client> {
 }
 
 fn response<T: DeserializeOwned>(response: reqwest::Result<Response>) -> Result<T> {
+    response_using(response, response_failure)
+}
+
+fn response_using<T: DeserializeOwned>(
+    response: reqwest::Result<Response>,
+    failure: fn(u16, &[u8]) -> crate::AuthError,
+) -> Result<T> {
     use std::io::Read;
     const MAX_RESPONSE_BYTES: u64 = 1024 * 1024;
     let response = response
@@ -61,7 +92,7 @@ fn response<T: DeserializeOwned>(response: reqwest::Result<Response>) -> Result<
         return Err(invalid());
     }
     if !status.is_success() {
-        return Err(response_failure(status.as_u16(), &bytes));
+        return Err(failure(status.as_u16(), &bytes));
     }
     serde_json::from_slice(&bytes).map_err(|_| invalid())
 }

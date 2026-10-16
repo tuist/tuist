@@ -207,7 +207,7 @@ stringData:
   # The same database by its tailnet name, for writers that are not on the pod
   # network and cannot resolve the Service above. Same credential; what differs
   # is only how the host is reached.
-  url-tailnet: {{ printf "http://default:%s@%s:8123/%s" $password (required "clickhouse.managed.tailscale.hostname is required when tailscale.enabled is true" $m.tailscale.hostname) $m.database | quote }}
+  url-tailnet: {{ printf "http://default:%s@%s:8123/%s" $password (include "tuist.clickhouseTailnetHost" .) $m.database | quote }}
 {{- end }}
   # What replicas present to each other when fetching parts. Generated and
   # preserved like the password; nothing outside the server reads it.

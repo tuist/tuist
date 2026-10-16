@@ -10,7 +10,9 @@ defmodule TuistWeb.CoverageDetailLiveTest do
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.History
   alias Tuist.Tests.Test
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistWeb.Errors.NotFoundError
 
   defp file(path, counts), do: CoverageFixtures.file(path, counts, targets: ["Calculator"])
@@ -99,6 +101,49 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits&commits-status=incomplete")
     assert has_element?(lv, "#coverage-commit-status-a")
     refute has_element?(lv, "#coverage-commit-status-b")
+  end
+
+  test "lists the targets taken from the binary cache without counters as not measured, and says why the commit is incomplete",
+       %{conn: conn, base: base, organization: organization, project: project, run: run} do
+    # Calculator was measured; Net came plain from the cache in the only run that executed its tests.
+    event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run.id)
+    XcodeFixtures.xcode_target_fixture(command_event_id: event.id, name: "Net", binary_cache_hit: :local)
+    Commits.signal_complete(project, "b")
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=targets")
+    assert has_element?(lv, "#coverage-targets-table #target-Calculator", "66.7%")
+    assert has_element?(lv, "#coverage-targets-table #target-Net", "Not measured")
+    assert lv |> element("#target-Net-unmeasured") |> render() =~ "without coverage counters"
+    refute has_element?(lv, "[data-part='empty-targets']")
+
+    assert lv |> element("#coverage-detail [data-part='status']") |> render() =~ "Incomplete"
+    assert lv |> element("#coverage-status") |> render() =~ "binary cache"
+
+    # The search applies to them as to the measured ones.
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=targets&targets-search=net")
+    assert has_element?(lv, "#coverage-targets-table #target-Net")
+    refute has_element?(lv, "#coverage-targets-table #target-Calculator")
+
+    # A commit whose runs measured no product line lists only such targets, and no empty state.
+    CoverageFixtures.seed_history(organization.account, [
+      CoverageFixtures.commit("c", ["b"], 2, DateTime.add(DateTime.utc_now(), -1, :day))
+    ])
+
+    plain =
+      CoverageFixtures.run_with_coverage(
+        project,
+        organization.account,
+        [CoverageFixtures.file("Tests/ATests.swift", [1], is_test: true)],
+        %{git_commit_sha: "c"}
+      )
+
+    event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: plain.id)
+    XcodeFixtures.xcode_target_fixture(command_event_id: event.id, name: "Calculator", binary_cache_hit: :local)
+    Commits.signal_complete(project, "c")
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/c?tab=targets")
+    assert has_element?(lv, "#coverage-targets-table #target-Calculator", "Not measured")
+    refute has_element?(lv, "[data-part='empty-targets']")
   end
 
   test "lists a run from a dirty checkout as discarded, and says why the commit is incomplete", %{

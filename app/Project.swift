@@ -323,7 +323,7 @@ let project = Project(
     schemes: [
         .scheme(
             name: "TuistPreviews",
-            buildAction: .buildAction(targets: ["TuistPreviews"]),
+            buildAction: .buildAction(targets: [.target("TuistPreviews")]),
             testAction: .targets([.testableTarget(target: "TuistPreviewsTests")])
         ),
         .scheme(

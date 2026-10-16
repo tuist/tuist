@@ -349,10 +349,18 @@ defmodule TuistWeb.CoverageDetailLive do
 
     measured = Commits.targets(project.id, subject.sha)
 
+    # The targets taken from the binary cache without counters have no figure
+    # to sort by: they follow the measured ones, by name.
+    unmeasured =
+      for name <- Commits.unmeasured_targets(project.id, subject.sha),
+          do: %{name: name, covered_lines: 0, executable_lines: 0, files_count: 0, unmeasured: true}
+
+    listed? = fn target ->
+      name_matches?(target.name, :=~, search) and Enum.all?(filters, fn f -> target_matches?(target, f) end)
+    end
+
     targets =
-      measured
-      |> Enum.filter(&(name_matches?(&1.name, :=~, search) and Enum.all?(filters, fn f -> target_matches?(&1, f) end)))
-      |> sort_targets(sort_by, sort_order)
+      (measured |> Enum.filter(listed?) |> sort_targets(sort_by, sort_order)) ++ Enum.filter(unmeasured, listed?)
 
     total_pages = max(1, ceil(length(targets) / @page_size))
     page = min(Query.bounded_page(query["page"]), total_pages)
@@ -362,7 +370,7 @@ defmodule TuistWeb.CoverageDetailLive do
       :target_rows,
       targets |> Enum.slice((page - 1) * @page_size, @page_size) |> Enum.map(&Map.put(&1, :id, "target-" <> &1.name))
     )
-    |> assign(:targets_measured?, measured != [])
+    |> assign(:targets_listed?, measured != [] or unmeasured != [])
     |> assign(:targets_meta, %{current_page: page, total_pages: total_pages})
     |> assign(:targets_search, search)
     |> assign(:targets_sort_by, sort_by)

@@ -120,33 +120,25 @@ Never cache credentials or irreplaceable data.
 
 For GitHub Actions, you can change which branches save their changes. Open
 **Runners → Profiles**, edit the profile your workflows use in `runs-on:`, and
-expand **Save cache from**. The list applies to every custom volume used by jobs
-on that profile, including volumes created later.
+expand **Save cache from**. The settings apply to every custom volume used by
+jobs on that profile, including volumes created later.
 
-![The runner profile form with the Save cache from section expanded, listing main and release/* as branches that save their changes](/images/guides/features/runners/save-cache-from.png)
+![The runner profile form with the Save cache from section expanded, with Default branch turned on and develop and release/* added as additional branches](/images/guides/features/runners/save-cache-from.png)
 
-Until you change it, the list follows each repository's default branch. Add or
-remove branches to replace it with up to 20 branch names. Use `*` as a wildcard:
-`release/*` matches `release/1.0`, and `*` matches every branch. Successful push,
-schedule and manual-dispatch jobs, and pull requests from the same repository,
-save their changes when their branch matches. On push and manual-dispatch runs, a
-tag with a matching name also matches. Removing every branch, or **Use default
-branch**, returns to following the default branch.
+**Default branch** is on by default, so jobs on each repository's default branch
+save their changes. Turn it off to save only from the additional branches.
+
+Under **Additional branches**, add up to 20 branch names that also save. Use `*`
+as a wildcard: `release/*` matches `release/1.0`, and `*` matches every branch.
+Successful push, schedule and manual-dispatch jobs, and pull requests from the
+same repository, save their changes when their branch matches. On push and
+manual-dispatch runs, a tag with a matching name also matches.
 
 Jobs on other branches can still use the cache, but their changes are discarded.
-Fork pull requests and `pull_request_target` jobs never save. Changing the list
-or deleting the profile discards pending changes the new list no longer allows;
+Fork pull requests and `pull_request_target` jobs never save. Narrowing these
+settings or deleting the profile discards pending changes they no longer allow;
 a deleted profile falls back to the default branch. Buildkite and GitLab CI
 always save from the default branch.
-
-### Skip or request a save {#skip-or-request-a-save}
-
-The GitHub action accepts `commit: auto` (the default), `commit: 'false'` (discard
-this job's changes), and `commit: 'true'` (request a save). Both `auto` and `true`
-remain subject to the profile's **Save cache from** list and successful job
-completion; `true` cannot grant a branch permission or save a failed job. If the
-job is not allowed to save when the volume is attached, the action emits a warning
-and its changes are discarded.
 
 ## Capacity and retention {#capacity-and-retention}
 

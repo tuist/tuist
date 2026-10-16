@@ -36,6 +36,28 @@ defmodule TuistWeb.RateLimit.OnceEventsTest do
     assert [{:ok, _}, {:ok, _}, {:error, %GRPC.RPCError{}}] = Enum.map(streams, &call/1)
   end
 
+  test "shared limiter outages refuse calls before any credential work" do
+    stub(Environment, :redis_url, fn -> "redis://unavailable" end)
+    stub(Environment, :once_events_rate_limit_bucket_size, fn -> 100 end)
+    stub(TuistWeb.RateLimit.PersistentFixedWindow, :hit, fn _, _, _, _ -> exit(:noproc) end)
+    owner = self()
+
+    result =
+      OnceEvents.call(
+        %{},
+        stream(%{"x-forwarded-for" => address()}),
+        fn _, _ ->
+          send(owner, :service_reached)
+          {:ok, :called}
+        end,
+        []
+      )
+
+    assert {:error, %GRPC.RPCError{status: status}} = result
+    assert status == GRPC.Status.resource_exhausted()
+    refute_received :service_reached
+  end
+
   test "does not limit calls that carry no forwarded address" do
     results = for _ <- 1..10, do: call(stream(%{}))
 

@@ -22,7 +22,8 @@ defmodule TuistWeb.API.GitHistoryController do
 
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :test)
-  plug(TuistWeb.Plugs.RequireCoveragePlug)
+  # The commit graph is collected on every CI run; a commit's file listing only serves coverage.
+  plug(TuistWeb.Plugs.RequireCoveragePlug when action in [:missing_listings, :upload_listing])
 
   tags ["Tests"]
 

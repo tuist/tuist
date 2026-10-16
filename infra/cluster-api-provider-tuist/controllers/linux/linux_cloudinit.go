@@ -3,6 +3,7 @@ package linux
 import (
 	"context"
 	"fmt"
+	"path"
 	"strings"
 	"time"
 
@@ -610,7 +611,7 @@ func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
 
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euxo pipefail
-%[8]s%[1]smkdir -p /var/lib/kubelet /etc/modules-load.d /etc/sysctl.d /etc/systemd/system /opt
+%[8]s%[12]s%[1]smkdir -p /var/lib/kubelet /etc/modules-load.d /etc/sysctl.d /etc/systemd/system /opt
 # Turn project quotas on for /data before anything mounts off it: XFS only takes
 # quota accounting at mount time, and the bind below would pin the filesystem
 # busy. Aborts the join on a box whose /data cannot carry per-account quotas.
@@ -626,7 +627,7 @@ set -euxo pipefail
 %[5]s
 %[6]s
 %[7]s
-`,
+%[13]s`,
 		sudo,
 		heredoc("/var/lib/kubelet/kubeconfig", opts.KubeconfigYAML),
 		heredoc("/etc/modules-load.d/k8s.conf", modulesLoadContent),
@@ -638,7 +639,35 @@ set -euxo pipefail
 		dataKubeletMount(sudo),
 		caWrite,
 		dataProjectQuotaSetup(sudo, writeFile),
+		joinedGuard(sudo, opts.NodeName),
+		joinedMarker(sudo, opts.NodeName),
 	)
+}
+
+// joinedMarkerPath records the node name a completed self-join registered as.
+const joinedMarkerPath = "/var/lib/tuist/joined-node"
+
+// joinedGuard makes the SSH self-join a no-op on a host that already joined as
+// this node. A controller only records a successful bootstrap in the Machine's
+// status patch, so a manager restart between the SSH run and that patch makes
+// the next reconcile dial the host again. Re-running the join on a live node
+// deletes Cilium's sysctl overrides, re-applies the distribution's rp_filter
+// defaults, and restarts containerd under the running pods. The marker is
+// keyed by node name, so a box re-adopted under a new Machine still joins, and
+// a run that failed before the marker was written still retries in full.
+func joinedGuard(sudo, nodeName string) string {
+	return fmt.Sprintf(`if [ "$(%[1]scat %[2]s 2>/dev/null || true)" = %[3]s ] && systemctl is-active --quiet kubelet; then
+  echo "already joined as "%[3]s"; skipping the self-join"
+  exit 0
+fi
+`, sudo, joinedMarkerPath, shellSingleQuote(nodeName))
+}
+
+// joinedMarker writes the marker joinedGuard reads, as the last step of a
+// successful self-join.
+func joinedMarker(sudo, nodeName string) string {
+	return fmt.Sprintf("%[1]smkdir -p %[2]s\nprintf '%%s\\n' %[3]s | %[1]stee %[4]s > /dev/null\n",
+		sudo, path.Dir(joinedMarkerPath), shellSingleQuote(nodeName), joinedMarkerPath)
 }
 
 // dataProjectQuotaPath is where the self-join drops the script that turns

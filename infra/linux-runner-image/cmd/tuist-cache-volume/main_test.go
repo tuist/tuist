@@ -1,15 +1,12 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 )
@@ -18,13 +15,13 @@ func TestColdFallbackPreservesExistingContent(t *testing.T) {
 	t.Setenv("TUIST_CACHE_VOLUME_URL", "")
 	root := t.TempDir()
 	path := filepath.Join(root, ".gradle/caches/modules-2")
-	if err := attach("gradle", []string{path}, "auto"); err != nil {
+	if err := attach("gradle", []string{path}); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(path, "dependency"), []byte("keep"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := attach("gradle", []string{path}, "auto"); err == nil {
+	if err := attach("gradle", []string{path}); err == nil {
 		t.Fatal("replaced nonempty directory")
 	}
 	if b, err := os.ReadFile(filepath.Join(path, "dependency")); err != nil || string(b) != "keep" {
@@ -95,7 +92,7 @@ func TestAttachInContainerNamespaceWithoutWorkflowCredentials(t *testing.T) {
 	t.Setenv("TUIST_CACHE_VOLUME_URL", broker.URL)
 	if err := attachWithMounter("gradle", []string{".gradle/caches/modules-2", ".gradle/wrapper"}, cache, broker.Client(), func(socket, source, target string) error {
 		return os.Symlink(filepath.Join(cache, source), target+"/mounted")
-	}, "auto"); err != nil {
+	}); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(".gradle/caches/modules-2/mounted/dependency")
@@ -113,10 +110,10 @@ func TestRejectOverlappingTargetsBeforeAttaching(t *testing.T) {
 	root := t.TempDir()
 	cache := filepath.Join(root, "cache")
 	a := filepath.Join(root, "workspace/a")
-	if err := attachWithClient("key", []string{a, filepath.Join(a, "child")}, cache, nil, "auto"); err == nil {
+	if err := attachWithClient("key", []string{a, filepath.Join(a, "child")}, cache, nil); err == nil {
 		t.Fatal("accepted overlapping paths")
 	}
-	if err := attachWithClient("key", []string{cache}, cache, nil, "auto"); err == nil {
+	if err := attachWithClient("key", []string{cache}, cache, nil); err == nil {
 		t.Fatal("accepted cache mount as target")
 	}
 }
@@ -137,7 +134,7 @@ func TestMissingMountProofFallsBackWithoutLinkingHostDirectory(t *testing.T) {
 	os.WriteFile(output, nil, 0600)
 	t.Setenv("GITHUB_OUTPUT", output)
 	target := filepath.Join(root, "target")
-	if err := attachWithClient("key", []string{target}, cache, broker.Client(), "auto"); err != nil {
+	if err := attachWithClient("key", []string{target}, cache, broker.Client()); err != nil {
 		t.Fatal(err)
 	}
 	info, err := os.Lstat(target)
@@ -153,7 +150,7 @@ func TestMissingMountProofFallsBackWithoutLinkingHostDirectory(t *testing.T) {
 func TestRejectInvalidPathsBeforeAcquiringStorage(t *testing.T) {
 	for _, path := range []string{"", "cache\n", "cache\r", "cache\t", "cache\x00", "cache\x1f", "cache\x7f"} {
 		t.Run(path, func(t *testing.T) {
-			err := attachWithClient("key", []string{filepath.Join(t.TempDir(), "valid"), path}, t.TempDir(), nil, "auto")
+			err := attachWithClient("key", []string{filepath.Join(t.TempDir(), "valid"), path}, t.TempDir(), nil)
 			if !errors.Is(err, errInvalidPath) {
 				t.Fatalf("expected invalid path before HTTP request, got %v", err)
 			}
@@ -189,7 +186,7 @@ func TestMountFailureNeverReportsCacheHit(t *testing.T) {
 			t.Errorf("unexpected source %q", source)
 		}
 		return mountError
-	}, "auto")
+	})
 	if !called || !errors.Is(err, mountError) {
 		t.Fatalf("node_modules must reach the mounter and propagate its failure: %v", err)
 	}
@@ -216,7 +213,7 @@ func TestAcquireDeadlineContinuesWithWritableColdDirectory(t *testing.T) {
 	t.Setenv("GITHUB_OUTPUT", output)
 	client := broker.Client()
 	client.Timeout = 20 * time.Millisecond
-	if err := attachWithMounter("key", []string{target}, filepath.Join(root, "cache"), client, func(string, string, string) error { t.Fatal("mounted after timeout"); return nil }, "auto"); err != nil {
+	if err := attachWithMounter("key", []string{target}, filepath.Join(root, "cache"), client, func(string, string, string) error { t.Fatal("mounted after timeout"); return nil }); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -234,78 +231,5 @@ func TestAcquireDeadlineContinuesWithWritableColdDirectory(t *testing.T) {
 	data, err := os.ReadFile(output)
 	if err != nil || string(data) != "cache-hit=false\n" {
 		t.Fatal(string(data), err)
-	}
-}
-
-func TestExplicitCommitRequiresServerAcknowledgement(t *testing.T) {
-	for _, mode := range []string{"true", "false"} {
-		t.Run(mode, func(t *testing.T) {
-			acknowledged := false
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				var body map[string]any
-				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-					t.Error(err)
-				}
-				if body["commit"] != mode {
-					t.Errorf("lost commit intent: %v", body["commit"])
-				}
-				response := map[string]any{"directory": digest("volume"), "id": "lease", "warm": true}
-				if acknowledged {
-					response["commit"] = mode
-				}
-				json.NewEncoder(w).Encode(response)
-			}))
-			defer server.Close()
-			t.Setenv("TUIST_CACHE_VOLUME_URL", server.URL)
-			if _, _, _, err := acquire(server.Client(), "key", mode); !errors.Is(err, errCommitUnsupported) {
-				t.Fatal("accepted legacy response", err)
-			}
-			acknowledged = true
-			if _, _, _, err := acquire(server.Client(), "key", mode); err != nil {
-				t.Fatal(err)
-			}
-		})
-	}
-	target := filepath.Join(t.TempDir(), "cache")
-	err := attachUsing("key", []string{target}, t.TempDir(), func() (string, string, bool, error) { return "", "", false, errCommitUnsupported }, func(string, string, string) error { t.Fatal("mounted unsupported volume"); return nil })
-	if !errors.Is(err, errCommitUnsupported) {
-		t.Fatal("silently ignored explicit commit policy", err)
-	}
-}
-
-func TestExplicitSaveWarnsWhenNotAuthorized(t *testing.T) {
-	for _, tc := range []struct {
-		mode             string
-		allowed, warning bool
-	}{{"true", false, true}, {"true", true, false}, {"false", false, false}, {"auto", false, false}} {
-		var warnings bytes.Buffer
-		if err := checkCommit(tc.mode, tc.mode, tc.allowed, &warnings); err != nil {
-			t.Fatal(err)
-		}
-		if strings.Contains(warnings.String(), "::warning::") != tc.warning {
-			t.Fatalf("%+v: %s", tc, warnings.String())
-		}
-	}
-}
-
-func TestExplicitCommitNeverAllocatesOnLegacyHost(t *testing.T) {
-	allocations := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/acquire" {
-			allocations++
-			w.Write([]byte(`{}`))
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-	t.Setenv("TUIST_CACHE_VOLUME_URL", server.URL)
-	for i := 0; i < 9; i++ {
-		if _, _, _, err := acquire(server.Client(), "key", "true"); !errors.Is(err, errCommitUnsupported) {
-			t.Fatal(err)
-		}
-	}
-	if allocations != 0 {
-		t.Fatalf("legacy host allocated %d rejected requests", allocations)
 	}
 }

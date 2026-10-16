@@ -34,6 +34,7 @@ defmodule Tuist.Kura.Demand do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
+  alias Tuist.Billing
   alias Tuist.Environment
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionLifecycle
@@ -60,6 +61,13 @@ defmodule Tuist.Kura.Demand do
   # than keeping a per-request cost on an account that will not be served.
   @kick_backoff_after_ms to_timeout(minute: 15)
   @kick_backoff_interval_ms to_timeout(minute: 1)
+
+  # Twice Air's seven-day traffic window. A client that only resolves the
+  # endpoint keeps an idle instance in service for at most a third of the
+  # time, while an account that comes back to the cache through an older CLI
+  # waits at most this long; one that sends a request through the activation
+  # gateway is not held at all.
+  @idle_hold_days 14
 
   # A gap this much past an account's allowance is a new arrival rather than a
   # continuing streak, so its backoff starts over.
@@ -88,17 +96,24 @@ defmodule Tuist.Kura.Demand do
   it, for a request about to have its instance placed by a job that may run on
   another node (`Tuist.Kura.Workers.ProvisionOnDemandWorker`), where this
   node's buffer is not visible.
+
+  `traffic: true` marks a request that moved bytes, which also advances the
+  account's traffic clock (`last_cache_traffic_at`): a managed node's usage
+  report, or a request the activation gateway admitted. Endpoint resolution and
+  runner dispatch record demand without it.
   """
   def record(account_id, origin \\ nil, opts \\ [])
 
   def record(account_id, origin, opts) when is_integer(account_id) do
     Origins.record_demand(account_id, origin, persist: Keyword.get(opts, :persist_origin, false))
+    now = System.system_time(:second)
+    entries = [{account_id, now} | if(Keyword.get(opts, :traffic, false), do: [{{:traffic, account_id}, now}], else: [])]
 
     if Environment.kura_demand_write_through_repo?() do
-      persist([{account_id, System.system_time(:second)}])
+      persist(entries)
       :ok
     else
-      :ets.insert(@table, {account_id, System.system_time(:second)})
+      :ets.insert(@table, entries)
       :ok
     end
   rescue
@@ -189,8 +204,9 @@ defmodule Tuist.Kura.Demand do
   of leaving it in this node's buffer. For a caller that is about to act on the
   demand, possibly on another node, and so cannot wait for a flush.
   """
-  def persist_now(account_id, %DateTime{} = demand_at) do
-    persist([{account_id, DateTime.to_unix(demand_at)}])
+  def persist_now(account_id, %DateTime{} = demand_at, opts \\ []) do
+    at = DateTime.to_unix(demand_at)
+    persist([{account_id, at} | if(Keyword.get(opts, :traffic, false), do: [{{:traffic, account_id}, at}], else: [])])
   end
 
   @doc """
@@ -222,6 +238,35 @@ defmodule Tuist.Kura.Demand do
   """
   def unused_hold?(%Account{id: account_id}) do
     Repo.exists?(from(l in AccountRegionLifecycle, where: l.account_id == ^account_id and l.drain_reason == :unused))
+  end
+
+  @doc """
+  Days an `:idle` archival holds against demand that moved no bytes. Traffic
+  returns the instance at any time; endpoint resolution and runner dispatch do
+  only once the hold has run out.
+  """
+  def idle_hold_days, do: @idle_hold_days
+
+  @doc """
+  True while an Air account has an instance archived as `:idle` inside its
+  hold, with no traffic since. Endpoint resolution reads this to stop telling a
+  client that capacity is on its way when its request will not bring it back.
+  An account that has left Air is never held.
+  """
+  def idle_hold?(%Account{id: account_id} = account) do
+    Billing.effective_plan(account) == :air and idle_archival_held?(account_id)
+  end
+
+  defp idle_archival_held?(account_id) do
+    cutoff = DateTime.add(DateTime.utc_now(), -@idle_hold_days * 86_400, :second)
+
+    Repo.exists?(
+      from(l in AccountRegionLifecycle,
+        where: l.account_id == ^account_id and l.drain_reason == :idle,
+        where: l.archived_at > ^cutoff,
+        where: is_nil(l.last_cache_traffic_at) or l.last_cache_traffic_at <= l.archived_at
+      )
+    )
   end
 
   @doc """
@@ -334,10 +379,22 @@ defmodule Tuist.Kura.Demand do
 
   defp rows_for([]), do: []
 
+  # A traffic entry is buffered beside the demand entry the same request wrote,
+  # under its own key, so draining either never loses the other.
   defp rows_for(entries) do
+    {traffic, demand} = Enum.split_with(entries, &match?({{:traffic, _account_id}, _recorded_at}, &1))
+
+    traffic_at_by_account =
+      traffic
+      |> Enum.map(fn {{:traffic, account_id}, recorded_at} -> {account_id, recorded_at} end)
+      |> latest_by_account()
+
+    # Traffic is demand too. A flush can take a traffic entry whose demand
+    # entry the previous flush already drained, so the traffic stamp stands in
+    # for the demand one rather than being dropped.
     demand_at_by_account =
-      Map.new(entries, fn {account_id, recorded_at} ->
-        {account_id, DateTime.from_unix!(recorded_at)}
+      Map.merge(traffic_at_by_account, latest_by_account(demand), fn _account_id, traffic_at, demand_at ->
+        Enum.max([traffic_at, demand_at], DateTime)
       end)
 
     accounts =
@@ -360,7 +417,8 @@ defmodule Tuist.Kura.Demand do
             %{
               account_id: account.id,
               service_region: service_region,
-              last_cache_demand_at: Map.fetch!(demand_at_by_account, account.id)
+              last_cache_demand_at: Map.fetch!(demand_at_by_account, account.id),
+              last_cache_traffic_at: Map.get(traffic_at_by_account, account.id)
             }
           end)
 
@@ -371,6 +429,12 @@ defmodule Tuist.Kura.Demand do
           []
       end
     end)
+  end
+
+  defp latest_by_account(entries) do
+    entries
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+    |> Map.new(fn {account_id, recorded_at} -> {account_id, recorded_at |> Enum.max() |> DateTime.from_unix!()} end)
   end
 
   defp accounts_with_subscriptions(account_ids) do
@@ -399,6 +463,7 @@ defmodule Tuist.Kura.Demand do
           row
           |> Map.put(:id, UUIDv7.generate())
           |> Map.update!(:last_cache_demand_at, &DateTime.truncate(&1, :second))
+          |> Map.update(:last_cache_traffic_at, nil, &(&1 && DateTime.truncate(&1, :second)))
           |> Map.put(:inserted_at, now)
           |> Map.put(:updated_at, now)
         end)
@@ -411,6 +476,9 @@ defmodule Tuist.Kura.Demand do
               update: [
                 set: [
                   last_cache_demand_at: fragment("GREATEST(?, EXCLUDED.last_cache_demand_at)", l.last_cache_demand_at),
+                  # GREATEST ignores NULL, so a batch without traffic keeps the
+                  # clock where it was.
+                  last_cache_traffic_at: fragment("GREATEST(?, EXCLUDED.last_cache_traffic_at)", l.last_cache_traffic_at),
                   updated_at: fragment("EXCLUDED.updated_at")
                 ]
               ]

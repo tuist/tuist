@@ -133,7 +133,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
       assert %{"content" => [%{"text" => text}]} =
                ListRunnerProfiles.call(conn, %{"account_handle" => account.name})
 
-      assert %{"name" => "ci", "cache_writer_branches" => []} =
+      assert %{"name" => "ci", "cache_writer_default_branch" => true, "cache_writer_branches" => []} =
                Enum.find(JSON.decode!(text)["profiles"], &(&1["name"] == "ci"))
 
       arguments = %{"account_handle" => account.name, "profile_name" => "ci"}
@@ -141,16 +141,29 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
       assert %{"content" => [%{"text" => text}]} =
                UpdateRunnerProfileCacheBranches.call(
                  conn,
-                 Map.put(arguments, "cache_writer_branches", ["main", "release/*"])
+                 Map.merge(arguments, %{
+                   "cache_writer_default_branch" => false,
+                   "cache_writer_branches" => ["develop", "release/*"]
+                 })
                )
 
-      assert %{"cache_writer_branches" => ["main", "release/*"]} = JSON.decode!(text)
-      assert Repo.get!(Profile, profile.id).cache_writer_branches == ["main", "release/*"]
+      assert %{
+               "cache_writer_default_branch" => false,
+               "cache_writer_branches" => ["develop", "release/*"]
+             } = JSON.decode!(text)
+
+      assert %{cache_writer_default_branch: false, cache_writer_branches: ["develop", "release/*"]} =
+               Repo.get!(Profile, profile.id)
 
       assert %{"content" => [%{"text" => text}]} =
                UpdateRunnerProfileCacheBranches.call(conn, Map.put(arguments, "cache_writer_branches", []))
 
-      assert %{"cache_writer_branches" => []} = JSON.decode!(text)
+      assert %{"cache_writer_default_branch" => false, "cache_writer_branches" => []} = JSON.decode!(text)
+
+      assert %{"content" => [%{"text" => text}]} =
+               UpdateRunnerProfileCacheBranches.call(conn, Map.put(arguments, "cache_writer_default_branch", true))
+
+      assert %{"cache_writer_default_branch" => true, "cache_writer_branches" => []} = JSON.decode!(text)
 
       assert %{"isError" => true, "content" => [%{"text" => "Use up to 20 branch names" <> _}]} =
                UpdateRunnerProfileCacheBranches.call(conn, Map.put(arguments, "cache_writer_branches", ["a b"]))
@@ -166,7 +179,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
     test "refuses callers without account administration" do
       account = AccountsFixtures.organization_fixture(preload: [:account]).account
       stub(Tuist.Authorization, :authorize, fn _action, :subject, _account -> {:error, :forbidden} end)
-      reject(&Tuist.Runners.Profiles.update_cache_writer_branches/2)
+      reject(&Tuist.Runners.Profiles.update_cache_writer_policy/2)
       conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
       assert %{"isError" => true} =

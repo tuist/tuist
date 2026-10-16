@@ -167,6 +167,7 @@ final class DesktopPreviewsModel {
         try await listPreviewsService.listPreviews(
             displayName: nil,
             specifier: nil,
+            track: nil,
             supportedPlatforms: [],
             page: page,
             pageSize: 20,

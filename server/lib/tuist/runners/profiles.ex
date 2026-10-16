@@ -183,18 +183,19 @@ defmodule Tuist.Runners.Profiles do
   end
 
   @doc """
-  Replace the branches whose jobs save the profile's cache volumes. An empty
-  list follows each repository's default branch. Narrowing the list revokes pending
-  saves it no longer allows.
+  Updates which branches save the profile's cache volumes. `attrs` takes
+  `:cache_writer_default_branch`, whether the repository's default branch saves,
+  and `:cache_writer_branches`, the additional branch names or `*` patterns that
+  save. Narrowing the policy revokes pending saves it no longer allows.
   """
-  def update_cache_writer_branches(%Profile{} = profile, branches) do
+  def update_cache_writer_policy(%Profile{} = profile, attrs) do
     profile
-    |> Profile.cache_writer_changeset(%{cache_writer_branches: branches})
+    |> Profile.cache_writer_changeset(attrs)
     |> update_revoking_writers()
   end
 
   defp update_revoking_writers(changeset) do
-    if Map.has_key?(changeset.changes, :cache_writer_branches) do
+    if Enum.any?([:cache_writer_default_branch, :cache_writer_branches], &Map.has_key?(changeset.changes, &1)) do
       Repo.transaction(fn ->
         with {:ok, profile} <- Repo.update(changeset),
              :ok <- CacheVolumes.revoke_profile_writers(profile) do

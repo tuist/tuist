@@ -22,5 +22,8 @@ This module provides low-level helpers and shared infrastructure used across the
 - Status output is best-effort: write errors, including a revoked terminal, must not change command results or exit status.
 - Handled cancellation reports `idle`. Tuist intentionally does not install signal handlers for status reporting: Ctrl-C retains its existing process-group and termination semantics, and relies on terminal-side cleanup at process exit or the next shell prompt.
 
+- On GitHub Actions, automatic package-manifest filtering hides provider prefixes and SSH agent paths while retaining the provider marker, runner OS/architecture, toolchain settings and application inputs. Keep manifest evaluation/fingerprints separate from native resolver environments: known GitHub/SSH credentials must reach both native resolve/update and SwifterPM cold/lockfile-validation paths. Native SwiftPM evaluates manifests with those credentials too; manifests intentionally depending on them must opt in through includes or `.all`. Explicit includes win over all exclusions; explicit exclusions also apply to native resolution.
+
 ## Related Context
+
 - Core domain abstractions: `cli/Sources/TuistCore/AGENTS.md`

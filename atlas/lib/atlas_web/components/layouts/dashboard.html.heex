@@ -1,55 +1,5 @@
 <main class="layout">
-  <header class="headerbar">
-    <div data-part="left-section">
-      <.link navigate={~p"/"} class="headerbar__brand">
-        <img src={~p"/images/tuist-logo.svg"} alt="Atlas" data-part="logo" />
-        <span class="headerbar__title">Atlas</span>
-      </.link>
-    </div>
-    <div data-part="right-section">
-      <div
-        id="account-dropdown"
-        class="account-dropdown"
-        phx-hook="NooraDropdown"
-        data-loop-focus
-        data-close-on-select
-        data-positioning-offset-main-axis={6}
-      >
-        <button data-part="trigger">
-          <.avatar
-            id="account-dropdown-avatar"
-            size="small"
-            name={@current_user.name || @current_user.email}
-            image_href={Atlas.Users.User.avatar_url(@current_user)}
-          />
-        </button>
-        <div data-part="positioner">
-          <div data-part="content">
-            <div data-part="header">
-              <.avatar
-                id="account-dropdown-content-avatar"
-                size="small"
-                name={@current_user.name || @current_user.email}
-                image_href={Atlas.Users.User.avatar_url(@current_user)}
-              />
-              <div data-part="text">
-                <p data-part="title">{@current_user.name || @current_user.email}</p>
-                <p data-part="subtitle">{@current_user.email}</p>
-              </div>
-            </div>
-            <.line_divider />
-            <div data-part="actions">
-              <.link href={~p"/logout"} method="delete">
-                <.button label={gettext("Log out")} size="large" variant="destructive">
-                  <:icon_left><.logout /></:icon_left>
-                </.button>
-              </.link>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </header>
+  <AtlasWeb.AccountMenu.headerbar current_user={@current_user} />
   <.line_divider />
   <section class="layout__main">
     <.sidebar>
@@ -211,6 +161,20 @@
           icon="schema"
           navigate={~p"/engineering/specs"}
           selected={String.starts_with?(@current_path, "/engineering/specs")}
+        />
+      </.sidebar_group>
+      <.sidebar_group
+        id="sidebar-people"
+        label={gettext("People")}
+        icon="users"
+        collapsible={false}
+      >
+        <.sidebar_item
+          id="sidebar-time-off"
+          label={gettext("Time off")}
+          icon="calendar_week"
+          navigate={~p"/people/time-off"}
+          selected={String.starts_with?(@current_path, "/people/time-off")}
         />
       </.sidebar_group>
       <.sidebar_group

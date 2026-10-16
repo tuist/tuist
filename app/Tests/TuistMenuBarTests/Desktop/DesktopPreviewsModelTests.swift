@@ -329,7 +329,7 @@ struct DesktopPreviewsModelTests {
     ) {
         given(listPreviewsService)
             .listPreviews(
-                displayName: .any, specifier: .any, supportedPlatforms: .any,
+                displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
                 page: .value(page), pageSize: .any, distinctField: .any,
                 fullHandle: .value(fullHandle), serverURL: .any
             )
@@ -338,6 +338,14 @@ struct DesktopPreviewsModelTests {
 }
 
 private struct SuspendedPageService: ListPreviewsServicing {
+    func searchPreviews(
+        search: String, track: String?, page: Int, pageSize: Int, fullHandle: String, serverURL: URL
+    ) async throws -> ServerPreviewsPage {
+        try await base.searchPreviews(
+            search: search, track: track, page: page, pageSize: pageSize, fullHandle: fullHandle, serverURL: serverURL
+        )
+    }
+
     let base: ListPreviewsServicing
     let pendingPage: PendingPage
     var pendingFirstPageFullHandle: String?
@@ -345,6 +353,7 @@ private struct SuspendedPageService: ListPreviewsServicing {
     func listPreviews(
         displayName: String?,
         specifier: String?,
+        track: String?,
         supportedPlatforms: [DestinationType],
         page: Int?,
         pageSize: Int?,
@@ -358,6 +367,7 @@ private struct SuspendedPageService: ListPreviewsServicing {
         return try await base.listPreviews(
             displayName: displayName,
             specifier: specifier,
+            track: track,
             supportedPlatforms: supportedPlatforms,
             page: page,
             pageSize: pageSize,

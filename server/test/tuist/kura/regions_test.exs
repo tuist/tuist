@@ -127,6 +127,7 @@ defmodule Tuist.Kura.RegionsTest do
       end
 
       assert Regions.storage_governed?(Regions.get("scw-fr-par-runners"))
+      assert Regions.storage_governed?(Regions.get("ber1-runners"))
       refute Regions.storage_governed?(Regions.get("hetzner-staging-runners"))
       refute Regions.storage_governed?(Regions.get("local-controller"))
     end

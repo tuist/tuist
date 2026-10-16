@@ -1,0 +1,177 @@
+[data-part="time-off-page"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-body-medium);
+
+  & > [data-part="header"],
+  & [data-part="month-navigation"],
+  & [data-part="list-row"] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--noora-spacing-5);
+  }
+
+  & h1 {
+    margin: 0;
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & p {
+    color: var(--noora-surface-label-secondary);
+  }
+
+  & [data-part="filters"],
+  & [data-part="header-actions"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="form"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="time-off-overview"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="header-actions"] {
+    justify-content: flex-end;
+    align-items: center;
+  }
+
+  & [data-part="day-count"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="coverage-note"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="settings"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="list-row"] {
+    padding: var(--noora-spacing-4) 0;
+    border-bottom: 1px solid var(--noora-surface-border-primary);
+  }
+
+  & [data-part="time-off-input"] {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 2.5rem;
+    margin-top: var(--noora-spacing-2);
+    padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-primary);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="time-off-input"]:focus-visible {
+    outline: none;
+    box-shadow: var(--noora-border-light-focus);
+  }
+
+  & [data-part="calendar-scroll"] {
+    overflow-x: auto;
+  }
+
+  & [data-part="calendar-scroll"] > [data-part="team-calendar-grid"],
+  & [data-part="calendar-scroll"] > [data-part="weekdays"] {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    min-width: 49rem;
+  }
+
+  & [data-part="calendar-scroll"] > [data-part="weekdays"] > span {
+    padding: var(--noora-spacing-4);
+    font-weight: var(--noora-font-weight-medium);
+  }
+
+  & [data-part="calendar-day"] {
+    min-height: 8rem;
+    padding: var(--noora-spacing-3);
+    border: 1px solid var(--noora-surface-border-primary);
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="calendar-day"][data-weekend="true"] {
+    background: var(--noora-surface-background-secondary);
+  }
+
+  & [data-part="calendar-day"][data-outside="true"] > time {
+    color: var(--noora-surface-label-secondary);
+  }
+
+  & [data-part="calendar-entry"] {
+    display: flex;
+    flex-direction: column;
+    padding: var(--noora-spacing-2);
+    border-left: 3px solid var(--noora-surface-label-primary);
+    background: var(--noora-surface-background-secondary);
+    font: var(--noora-font-body-small);
+    overflow-wrap: anywhere;
+  }
+
+  & [data-part="calendar-entry"][data-kind="pending"] {
+    border-left-style: dashed;
+  }
+
+  & [data-part="calendar-entry"][data-kind="public"] {
+    border-left-style: dotted;
+    color: var(--noora-surface-label-secondary);
+  }
+
+  @media (max-width: 768px) {
+    & [data-part="header-actions"] {
+      justify-content: flex-start;
+    }
+
+    & > [data-part="header"],
+    & [data-part="month-navigation"] {
+      align-items: start;
+      flex-direction: column;
+    }
+  }
+}
+
+[data-part="holiday-request-modal-content"] {
+  padding: var(--noora-spacing-4) var(--noora-spacing-6);
+  font: var(--noora-font-body-medium);
+  color: var(--noora-surface-label-secondary);
+
+  & [data-part="holiday-request-form"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    margin-top: var(--noora-spacing-5);
+  }
+
+  & [data-part="holiday-range-picker"] [data-part="presets"] {
+    display: none;
+  }
+
+  & [data-part="range-error"] {
+    margin: 0;
+    color: var(--noora-surface-label-destructive);
+  }
+}

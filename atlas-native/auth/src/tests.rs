@@ -3,13 +3,13 @@ use serde_json::{Value, json};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 
-struct MockTransport {
+pub(super) struct MockTransport {
     responses: RefCell<VecDeque<Value>>,
-    requests: RefCell<Vec<(String, Value)>>,
+    pub(super) requests: RefCell<Vec<(String, Value)>>,
 }
 
 impl MockTransport {
-    fn new(responses: Vec<Value>) -> Self {
+    pub(super) fn new(responses: Vec<Value>) -> Self {
         Self {
             responses: RefCell::new(responses.into()),
             requests: RefCell::new(Vec::new()),
@@ -22,6 +22,12 @@ impl Transport for MockTransport {
         let value = match body {
             Body::Get => Value::Null,
             Body::Json(value) => value,
+            Body::Api {
+                method,
+                token,
+                payload,
+                ..
+            } => json!({"method": method.as_str(), "token": token, "payload": payload}),
             Body::Form(pairs) => Value::Object(
                 pairs
                     .into_iter()
@@ -176,7 +182,7 @@ fn invalid_callbacks_and_fresh_sessions_do_not_use_the_network() {
     assert!(network.requests.borrow().is_empty());
 }
 
-fn registration() -> Registration {
+pub(super) fn registration() -> Registration {
     Registration {
         server: "https://atlas.example/".into(),
         authorization_endpoint: "https://atlas.example/oauth2/authorize".into(),

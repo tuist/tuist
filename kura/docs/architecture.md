@@ -9,12 +9,21 @@ on standbys. Expired primaries retain an unclean-volume marker, preventing a
 restarted stale store from rejoining peers. Named planned handover freezes the
 source, reconciles its complete retained index on the destination through the
 bounded backfill pipeline, then freezes the destination. The reconciliation
-ignores the normal bootstrap age horizon but preserves capacity, version and
-tombstone guards, makes no sibling feed echoes, and cancels when the named intent
-ends. Capacity is checked per record at listing and dispatch so an older
-capacity rejection cannot discard newer queued repair work. Ordinary backward
-catch-up retains its pass-wide cutoff. Repair runs once per held intent;
-concurrent begin retries cannot duplicate it.
+ignores the normal bootstrap age horizon and recency selection cutoff, but
+preserves store capacity, version and tombstone guards, makes no sibling feed
+echoes, and cancels when the named intent ends. An older missing record may fit
+in the active segment or replace data the source already evicted. Normal ring
+rotation and quota-aware disk admission still apply. Each committed eviction
+advances an in-memory generation in the blocking worker, even when its waiter is
+cancelled. Repair repeats the complete walk if that generation changed during
+the pass: rotation can delete a previously checked blob and cascade its action
+cache entry. A pass without eviction acquires the destination hold under the
+eviction commit lock, closing the final comparison-to-freeze race. These serial
+passes share the original intent deadline and the normal replication budgets;
+they cannot guarantee convergence for every fragmented or undersized ring.
+Full verification still rejects any remaining retained holes. Ordinary backward
+catch-up and forward pages retain their recency policies. Concurrent begin
+requests cannot duplicate repair, and a retry after the hold never reopens it.
 Handover then verifies every retained record in negotiated bounded batches,
 persists matching receipts and
 positively revokes the old writer. Crash promotion requires external fence
@@ -117,6 +126,8 @@ Kura splits durable state into two planes so that the hot path is simple and the
 2. **Segment files** hold large immutable artifact bodies on disk. The hot path opens segment file descriptors directly, bypassing RocksDB for blob payloads.
 
 The metadata store uses tunable RocksDB budgets (`KURA_METADATA_STORE_*`) that auto-derive from the host's memory and FD limits. Newly written metadata SSTs use full-key Bloom filters to avoid searching overlapping tables for definitely absent keys. False positives still perform the authoritative lookup, existing unfiltered SSTs remain readable, and older nodes can read filtered SSTs without using the filter. Filters share the existing block-cache budget; cache and write-buffer limits are unchanged.
+
+Tuist's Swift Cargo compilation cache uses this same store through the existing Bazel Remote Execution API. The client publishes SHA-256 content blobs and domain-separated Command/Action indexes, and publishes ActionResults only after their complete output closure is available. No separate Cargo HTTP protocol, prediction service, or storage plane is required.
 
 Every public HTTP cache write and read is scoped by `tenant_id`, with an optional `namespace_id`. Namespace-scoped requests land in that namespace directly. Tenant-scoped requests omit `namespace_id` and Kura stores them under an internal empty namespace key, so policy hooks can still distinguish tenant-only traffic from project-like traffic without a special reserved namespace.
 

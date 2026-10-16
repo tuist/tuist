@@ -38,6 +38,9 @@
 
 ## Resolution
 
+- Embedded requests may provide a separate `resolutionEnvironment` for native fetching and lockfile validation. Manifest dumping and its fingerprint must always use `manifestEnvironment`; never restore credentials only in the fingerprint or silently mix the two. An omitted resolver environment preserves the existing manifest-environment contract. Native SwiftPM evaluates manifests with its resolver environment too, so embedders must document credential-dependent manifests and provide an opt-in to consistent inputs.
+
+
 - Stale-pin pruning must only inspect version-specific cached sources or registry downloads. If a reachable manifest is missing or cannot be evaluated, retain the seed and defer to normal resolution. Never infer reachability from an unverified scratch checkout or a local repository working tree.
 
 ## CI
