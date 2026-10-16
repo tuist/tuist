@@ -5,7 +5,7 @@ Rust core owns the section catalog and destinations; the CLI is Rust, Android
 uses Kotlin with platform widgets, and iOS uses SwiftUI. Native views must not duplicate catalog
 strings or routes. Authentication networking and OAuth state live in the independent
 Rust `auth/` crate (see `auth/AGENTS.md`); native adapters own browser presentation
-and secure persistence. Workspace sections still open in the system browser and
+and secure persistence. Time off is a native employee destination on both platforms; other workspace sections open in the system browser and
 may require a separate browser sign-in. Personal settings are native and use the authenticated API on the selected server. OAuth tokens are not browser cookies.
 
 ## Layout
@@ -70,6 +70,14 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
 - Native setup supports Claude create/update, ChatGPT start/poll/cancel, and confirmed disconnect. Poll no faster than the returned interval, stop on completion/expiry, ignore stale results, and cancel on leaving the ChatGPT page, including an in-flight start. Cancellation preserves existing credentials. Reload metadata after cancellation, including an already-completed/expired response, because authorization may have won the race. Retain failed cancellation handles for retry, treat `login_failed` and rejected Atlas refresh credentials as terminal, scope stale errors to their originating page, and never let a late save close a newer form. Android requires cancelling pending sign-in before disconnecting its saved ChatGPT connection. Real-account ChatGPT sign-in still needs an authorized Atlas client. User-triggered agent execution remains separate follow-up work.
 - Preserve platform behavior: 44pt iOS / 48dp Android touch targets, accessible labels/headings, system appearance and text scaling, scrollable keyboard-safe forms, and Android system/cutout/IME insets. Use API 33+ Back callbacks with the older Back fallback. Keep API-26 navigation bars dark; dark navigation icons on a light background belong in `values-v27`. Do not add navigation/state frameworks just for these two setup screens.
 - Reproducible fixture-backed screenshots and the iOS UI test use separate [preview targets](previews/AGENTS.md). These render production views without authenticating or making account-management requests. Never ship preview fixture sources or authentication bypasses in production apps. Clearly label screenshot evidence as preview-backed.
+
+## Employee time off
+
+- The shared catalog owns the Time off title, description, browser fallback URL, and native screen key. C/JNI field 3 exposes that screen key without changing fields 0–2. Mobile dispatches `time-off` natively instead of opening a browser; the CLI keeps the web destination.
+- iOS uses `AtlasTimeOff` with `AtlasTimeOffView`; Android uses the activity-independent `AtlasTimeOffModel` and platform-widget `AtlasTimeOffScreen`. Employees can request inclusive full days, view paginated personal history and Berlin public holidays, edit non-cancelled requests, and confirm cancellation of active requests. There are no mobile approval controls or location selectors. All transitions are enforced by the existing server context.
+- Requests use the fixed-route Rust `time_off` auth command and the owner-scoped bearer-authenticated `/api/me/time-off` endpoints, never browser cookies, arbitrary paths, owner IDs, or approval/status parameters. Preserve ISO calendar dates, not UTC instants. Refresh rotation/persistence is serialized by the existing auth coordinator; holiday networking runs outside that credential queue. Session identity checks reject responses from a signed-out/replaced session. Drafts/history remain memory-only; Android retains its model across configuration changes and detaches old view listeners.
+- Preserve drafts and loaded history on failures, prevent double submission, and distinguish a failed save from a successful mutation whose subsequent reload failed. iOS uses item-backed editor presentation to preselect the correct request. Android uses native date dialogs and saves its draft in the retained model, not a View. Cancellation and Back must not discard an in-flight save.
+- Coverage: Rust `auth/src/time_off_tests.rs`, Swift `ios/Tests/AtlasTimeOffTests.swift`, and server `atlas/test/atlas_web/controllers/time_off_controller_test.exs`. Once's production auth source lists must include `time_off.rs`; test sources remain separate.
 
 ## Boundaries
 

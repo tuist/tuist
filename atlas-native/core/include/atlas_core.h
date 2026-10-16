@@ -5,7 +5,7 @@
 
 int32_t atlas_section_count(void);
 
-/* Fields: 0 = title, 1 = description, 2 = HTTPS URL.
+/* Fields: 0 = title, 1 = description, 2 = HTTPS URL, 3 = native screen key.
  * Returns an immutable UTF-8 C string valid for the process lifetime, or NULL
  * for invalid input. The caller must never free or mutate the returned string.
  */

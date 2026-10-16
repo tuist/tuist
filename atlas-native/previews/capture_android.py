@@ -1,4 +1,4 @@
-"""Smoke-test native Settings on a booted emulator and capture fixture-backed screenshots."""
+"""Smoke-test native Settings or employee time off and capture fixture-backed screenshots."""
 
 import argparse
 from pathlib import Path
@@ -17,11 +17,12 @@ def main():
     parser.add_argument("--dark", action="store_true")
     parser.add_argument("--large-text", action="store_true")
     parser.add_argument("--landscape", action="store_true")
+    parser.add_argument("--time-off", action="store_true")
     args = parser.parse_args()
     checkout = Path(__file__).resolve().parents[1]
     output = args.output.resolve()
-    if output.is_relative_to(checkout):
-        parser.error("Keep screenshot assets outside atlas-native/")
+    if output.is_relative_to(checkout.parent):
+        parser.error("Keep screenshot assets outside the repository")
     output.mkdir(parents=True, exist_ok=True)
     suffix = ("-dark" if args.dark else "") + ("-large-text" if args.large_text else "") + ("-landscape" if args.landscape else "")
 
@@ -43,19 +44,21 @@ def main():
         start, end = (0.8, 0.35) if up else (0.35, 0.8)
         adb("shell", "input", "swipe", str(width // 2), str(int(height * start)), str(width // 2), str(int(height * end)), "300")
 
-    def find(label, scroll=False):
+    def find(label, scroll=False, clickable=False):
         for attempt in range(6):
             tree = hierarchy()
             for node in tree.iter("node"):
-                if label.casefold() in (node.get("text", "").casefold(), node.get("content-desc", "").casefold()):
+                if label.casefold() in (node.get("text", "").casefold(), node.get("content-desc", "").casefold()) and (
+                    not clickable or node.get("clickable") == "true"
+                ):
                     return node, tree
             if scroll and attempt >= 1:
                 swipe(True)
             time.sleep(0.2)
         raise AssertionError(f"Native control not found: {label}")
 
-    def tap(label):
-        node, _ = find(label, scroll=True)
+    def tap(label, clickable=False):
+        node, _ = find(label, scroll=True, clickable=clickable)
         x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds")))
         adb("shell", "input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
 
@@ -80,6 +83,56 @@ def main():
         adb("shell", "settings", "put", "system", "user_rotation", "1" if args.landscape else "0")
         adb("install", "-r", str(checkout / ".once/out/AtlasSettingsAndroidPreview/AtlasSettingsAndroidPreview.apk"))
         adb("shell", "am", "force-stop", "dev.tuist.atlas.preview")
+        if args.time_off:
+            activity = "dev.tuist.atlas.preview/dev.tuist.atlas.preview.TimeOffPreviewActivity"
+            adb("shell", "am", "start", "-n", activity)
+            find("Edit request", scroll=True)
+            minimum_target("Edit request")
+            minimum_target("Cancel holiday")
+            screenshot("android-time-off-overview")
+            tap("Edit request")
+            find("First day away: 2027-06-07", scroll=True)
+            find("Last day away: 2027-06-11", scroll=True)
+            screenshot("android-time-off-edit")
+            tap("First day away: 2027-06-07")
+            assert any(node.get("class") == "android.widget.DatePicker" for node in hierarchy().iter("node"))
+            screenshot("android-time-off-date-picker")
+            tap("OK")
+            tap("Save changes")
+            find("Edit request", scroll=True)
+            swipe(False)
+            tap("Request holiday", clickable=True)
+            date_labels = [node.get("text") for node in hierarchy().iter("node") if "day away:" in node.get("text", "")]
+            assert len(date_labels) == 2
+            adb("shell", "settings", "put", "system", "user_rotation", "0" if args.landscape else "1")
+            for label in date_labels:
+                find(label, scroll=True)
+            adb("shell", "settings", "put", "system", "user_rotation", "1" if args.landscape else "0")
+            screenshot("android-time-off-request")
+            tap("Request holiday", clickable=True)
+            find("Edit request", scroll=True)
+            tap("Cancel holiday")
+            find("Cancel this holiday?")
+            tap("Cancel holiday", clickable=True)
+            for _ in range(3):
+                swipe(False)
+            find("Cancelled", scroll=True)
+            screenshot("android-time-off-cancelled")
+            adb("shell", "am", "force-stop", "dev.tuist.atlas.preview")
+            adb("shell", "am", "start", "-n", activity, "--ez", "fail-save", "true")
+            tap("Edit request")
+            tap("Save changes")
+            swipe(False)
+            find("Preview save failed. Your dates are still here.", scroll=True)
+            find("First day away: 2027-06-07", scroll=True)
+            screenshot("android-time-off-failed-save")
+            adb("shell", "input", "keyevent", "KEYCODE_BACK")
+            find("Edit request", scroll=True)
+            tap("Edit request")
+            tap("Navigate up")
+            find("Edit request", scroll=True)
+            print(f"Passed time off{suffix}: model checks, 48dp controls, native dates, edit/create/cancel, rotation, failed-save retention, Back/Up.")
+            return
         adb("shell", "am", "start", "-n", "dev.tuist.atlas.preview/dev.tuist.atlas.preview.SettingsPreviewActivity", "--ez", "model-checks", "true")
         find("Settings")
         find("Not connected", scroll=True)

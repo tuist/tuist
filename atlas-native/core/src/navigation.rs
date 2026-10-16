@@ -5,6 +5,7 @@ pub struct Section {
     pub title: &'static CStr,
     pub description: &'static CStr,
     pub url: &'static CStr,
+    pub screen: &'static CStr,
 }
 
 pub static SECTIONS: &[Section] = &[
@@ -13,24 +14,35 @@ pub static SECTIONS: &[Section] = &[
         title: c"Accounts",
         description: c"Customer relationships and sales",
         url: c"https://atlas.tuist.dev/commercial/sales/accounts",
+        screen: c"browser",
     },
     Section {
         id: "tasks",
         title: c"Tasks",
         description: c"Your team's work and reminders",
         url: c"https://atlas.tuist.dev/tasks",
+        screen: c"browser",
     },
     Section {
         id: "notes",
         title: c"Notes",
         description: c"Shared knowledge and documents",
         url: c"https://atlas.tuist.dev/library/notes",
+        screen: c"browser",
     },
     Section {
         id: "ai-providers",
         title: c"AI accounts",
         description: c"Connect your personal Claude and ChatGPT accounts",
         url: c"https://atlas.tuist.dev/settings/llm-providers",
+        screen: c"browser",
+    },
+    Section {
+        id: "time-off",
+        title: c"Time off",
+        description: c"Request holidays and see your leave history",
+        url: c"https://atlas.tuist.dev/people/time-off",
+        screen: c"time-off",
     },
 ];
 
@@ -40,6 +52,7 @@ pub fn field(section: i32, field: i32) -> Option<&'static CStr> {
         0 => Some(section.title),
         1 => Some(section.description),
         2 => Some(section.url),
+        3 => Some(section.screen),
         _ => None,
     }
 }
@@ -88,7 +101,12 @@ mod tests {
             .iter()
             .map(|section| section.title.to_str().unwrap())
             .collect();
-        assert_eq!(titles, ["Accounts", "Tasks", "Notes", "AI accounts"]);
+        assert_eq!(
+            titles,
+            ["Accounts", "Tasks", "Notes", "AI accounts", "Time off"]
+        );
+        assert_eq!(field(4, 3), Some(c"time-off"));
+        assert_eq!(field(0, 3), Some(c"browser"));
     }
 
     #[test]
@@ -104,6 +122,7 @@ mod tests {
                 "https://atlas.tuist.dev/tasks",
                 "https://atlas.tuist.dev/library/notes",
                 "https://atlas.tuist.dev/settings/llm-providers",
+                "https://atlas.tuist.dev/people/time-off",
             ]
         );
     }
@@ -113,7 +132,7 @@ mod tests {
         for section in [-1, SECTIONS.len() as i32, i32::MAX] {
             assert!(field(section, 0).is_none());
         }
-        for field_id in [-1, 3, i32::MAX] {
+        for field_id in [-1, 4, i32::MAX] {
             assert!(field(0, field_id).is_none());
         }
     }

@@ -25,11 +25,15 @@ class MainActivity : Activity() {
     private lateinit var authentication: AtlasAuthentication
     private var settings: AtlasAIAccountsScreen? = null
     private var accounts: AtlasAIAccountsModel? = null
+    private var holidays: AtlasTimeOffModel? = null
+    private var timeOff: AtlasTimeOffScreen? = null
+    private var restoreTimeOff = false
     private var recoveredLoginId: String? = null
 
     private data class Retained(
         val authentication: AtlasAuthentication,
         val accounts: AtlasAIAccountsModel?,
+        val holidays: AtlasTimeOffModel?,
     )
 
     private var restoreSettings = false
@@ -41,13 +45,15 @@ class MainActivity : Activity() {
         val retained = lastNonConfigurationInstance as? Retained
         authentication = retained?.authentication ?: AtlasAuthentication(this)
         accounts = retained?.accounts
+        holidays = retained?.holidays
+        restoreTimeOff = savedInstanceState?.getBoolean("time_off") == true
         recoveredLoginId = if (retained?.accounts == null) savedInstanceState?.getString("chatgpt_login_id") else null
         restoreSettings = savedInstanceState?.getBoolean("settings") == true
         if (retained == null && intent.data == null) authentication.restore()
         if (savedInstanceState == null) handleCallback(intent)
     }
 
-    override fun onRetainNonConfigurationInstance(): Any = Retained(authentication, accounts)
+    override fun onRetainNonConfigurationInstance(): Any = Retained(authentication, accounts, holidays)
 
     override fun onStart() {
         super.onStart()
@@ -62,12 +68,14 @@ class MainActivity : Activity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putBoolean("settings", settings != null || restoreSettings)
+        outState.putBoolean("time_off", timeOff != null || restoreTimeOff)
         outState.putString("chatgpt_login_id", accounts?.pendingLoginId ?: recoveredLoginId)
         super.onSaveInstanceState(outState)
     }
 
     override fun onDestroy() {
         settings?.close(cancelPending = !isChangingConfigurations)
+        timeOff?.close()
         if (!isChangingConfigurations && settings == null) accounts?.takeIf { it.pendingLoginId != null }?.load()
         unregisterSettingsBack?.invoke()
         if (!isChangingConfigurations) authentication.close()
@@ -96,6 +104,10 @@ class MainActivity : Activity() {
             settings?.close()
             settings = null
             accounts = null
+            timeOff?.close()
+            timeOff = null
+            holidays = null
+            if (!authentication.busy) restoreTimeOff = false
             updateSettingsBack()
             setActionBar(null)
             setContentView(
@@ -109,7 +121,12 @@ class MainActivity : Activity() {
             )
             return
         }
-        if (settings != null) return
+        if (settings != null || timeOff != null) return
+        if (restoreTimeOff) {
+            restoreTimeOff = false
+            showTimeOff(AtlasCore().sections().first { it.screen == "time-off" }.title)
+            return
+        }
         if (restoreSettings) {
             restoreSettings = false
             showSettings()
@@ -155,6 +172,10 @@ class MainActivity : Activity() {
                         .startsWith("/settings/")
                 }.forEach { section ->
                     button(section.title) {
+                        if (section.screen == "time-off") {
+                            showTimeOff(section.title)
+                            return@button
+                        }
                         val origin = Uri.parse(server)
                         val destination =
                             Uri
@@ -176,7 +197,7 @@ class MainActivity : Activity() {
                 }
             content.addView(
                 TextView(this).apply {
-                    text = "Sections currently open in your browser, which may ask you to sign in separately."
+                    text = "Other workspace sections open in your browser, which may ask you to sign in separately."
                 },
             )
         }
@@ -211,7 +232,7 @@ class MainActivity : Activity() {
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        menu.findItem(1)?.isVisible = authentication.server != null && settings == null
+        menu.findItem(1)?.isVisible = authentication.server != null && settings == null && timeOff == null
         return super.onPrepareOptionsMenu(menu)
     }
 
@@ -222,7 +243,7 @@ class MainActivity : Activity() {
                 true
             }
             android.R.id.home -> {
-                leaveSettings()
+                if (timeOff != null) leaveTimeOff() else leaveSettings()
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -230,7 +251,33 @@ class MainActivity : Activity() {
 
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
-        if (settings != null) leaveSettings() else super.onBackPressed()
+        if (timeOff != null) {
+            leaveTimeOff()
+        } else if (settings != null) {
+            leaveSettings()
+        } else {
+            super.onBackPressed()
+        }
+    }
+
+    private fun showTimeOff(title: String) {
+        val model = holidays ?: AtlasTimeOffModel(authentication::timeOff).also { holidays = it }
+        val screen = AtlasTimeOffScreen(this, title, model)
+        timeOff = screen
+        setActionBar(screen.toolbar)
+        actionBar?.setDisplayHomeAsUpEnabled(true)
+        setContentView(screen.view)
+        invalidateOptionsMenu()
+        updateSettingsBack()
+        screen.load()
+    }
+
+    private fun leaveTimeOff() {
+        if (timeOff?.back() == true) return
+        timeOff?.close()
+        timeOff = null
+        updateSettingsBack()
+        render()
     }
 
     private fun showSettings() {
@@ -267,8 +314,8 @@ class MainActivity : Activity() {
     private fun updateSettingsBack() {
         unregisterSettingsBack?.invoke()
         unregisterSettingsBack = null
-        if (Build.VERSION.SDK_INT >= 33 && settings != null) {
-            val callback = OnBackInvokedCallback { leaveSettings() }
+        if (Build.VERSION.SDK_INT >= 33 && (settings != null || timeOff != null)) {
+            val callback = OnBackInvokedCallback { if (timeOff != null) leaveTimeOff() else leaveSettings() }
             onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
             unregisterSettingsBack = { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback) }
         }

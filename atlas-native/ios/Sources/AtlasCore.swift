@@ -6,6 +6,7 @@ struct AtlasSection: Identifiable {
     let title: String
     let description: String
     let url: URL
+    let screen: String
 }
 
 enum AtlasCore {
@@ -15,10 +16,11 @@ enum AtlasCore {
                 let title = field(section: index, id: 0),
                 let description = field(section: index, id: 1),
                 let destination = field(section: index, id: 2),
+                let screen = field(section: index, id: 3),
                 let url = URL(string: destination),
                 url.scheme == "https", url.host == "atlas.tuist.dev"
             else { return nil }
-            return AtlasSection(id: index, title: title, description: description, url: url)
+            return AtlasSection(id: index, title: title, description: description, url: url, screen: screen)
         }
     }
 

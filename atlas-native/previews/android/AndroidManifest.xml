@@ -7,5 +7,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name="dev.tuist.atlas.preview.TimeOffPreviewActivity" android:exported="true" />
     </application>
 </manifest>

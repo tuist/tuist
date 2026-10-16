@@ -108,6 +108,7 @@ pub(super) fn execute_using(
         method,
         token: &session.access_token,
         payload,
+        failure: response_failure,
     };
     match action {
         Action::List => encode(network.request::<Connections>(&url, body)?),

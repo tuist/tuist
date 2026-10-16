@@ -34,7 +34,7 @@ mod tests {
     fn byte_bridge_matches_every_c_string() {
         assert_eq!(atlas_section_count(), SECTIONS.len() as i32);
         for section in 0..atlas_section_count() {
-            for field_id in 0..3 {
+            for field_id in 0..4 {
                 let value = field(section, field_id).unwrap();
                 assert_eq!(atlas_section_field(section, field_id), value.as_ptr());
                 let length = atlas_section_field_length(section, field_id);
@@ -49,7 +49,7 @@ mod tests {
 
     #[test]
     fn invalid_bridge_inputs_do_not_panic_or_return_pointers() {
-        for (section, field_id) in [(-1, 0), (i32::MAX, 0), (0, -1), (0, 3)] {
+        for (section, field_id) in [(-1, 0), (i32::MAX, 0), (0, -1), (0, 4)] {
             assert!(atlas_section_field(section, field_id).is_null());
             assert_eq!(atlas_section_field_length(section, field_id), -1);
             assert_eq!(atlas_section_field_byte(section, field_id, 0), -1);
