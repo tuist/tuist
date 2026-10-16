@@ -271,6 +271,19 @@ defmodule Atlas.Accounts.POCsTest do
                )
     end
 
+    test "access updates publish only an ID, not private request data" do
+      poc = published_poc_for_access()
+
+      {:ok, request, token} =
+        POCs.create_access_request(poc, "jordan@example.com", ip: "192.0.2.1", user_agent: "synthetic agent")
+
+      :ok = POCs.subscribe_to_access_request(request.id)
+      assert {:ok, _verified} = POCs.verify_access_email(request.id, token)
+      request_id = request.id
+      assert_receive {:poc_access_request_updated, ^request_id}
+      refute_receive {:poc_access_request_updated, %AccessRequest{}}
+    end
+
     test "rejects a token whose verification window has expired even when the session is still valid" do
       poc = published_poc_for_access()
 

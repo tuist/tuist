@@ -169,7 +169,7 @@ render_edge() {
   [ -n "$dir" ] || return 0
   rendered="$(mktemp)"
   mkdir -p "$dir"
-  local -a files=(mgmt-path.sh dnsmasq.conf dnsmasq-machines.conf tailnet-routes.sh)
+  local -a files=(mgmt-path.sh dnsmasq.conf dhcp.sh dnsmasq-machines.conf tailnet-routes.sh)
   local node
   while IFS=$'\t' read -r node _; do files+=("keepalived-$node.conf"); done < <(fleet_edge_members "$(site_file)")
   for file in "$dir"/keepalived-*.conf; do
@@ -187,6 +187,7 @@ render_edge() {
     case "$file" in
       mgmt-path.sh) fleet_edge_path "$(site_file)" > "$rendered";;
       dnsmasq.conf) fleet_edge_dhcp "$(site_file)" > "$rendered";;
+      dhcp.sh) fleet_edge_dhcp_run "$(site_file)" > "$rendered";;
       dnsmasq-machines.conf) fleet_edge_machines_dhcp "$(site_file)" > "$rendered";;
       tailnet-routes.sh) fleet_edge_routes "$(site_file)" > "$rendered";;
       keepalived-*.conf)
@@ -203,6 +204,19 @@ render_edge() {
       echo "rendered ${dir#"$FLEET_ROOT"/}/$file"
     fi
   done
+  # What an edge's install needs, for the tuist chart's RackLinuxHosts.
+  file="$FLEET_RACK_SITES/$(basename "$(site_file)" .json).yaml"
+  fleet_edge_install "$(site_file)" > "$rendered"
+  if (( check )); then
+    if ! diff -q "$rendered" "$file" >/dev/null 2>&1; then
+      echo "stale: ${file#"$FLEET_ROOT"/}" >&2
+      status=1
+    fi
+  else
+    mkdir -p "$FLEET_RACK_SITES"
+    cp "$rendered" "$file"
+    echo "rendered ${file#"$FLEET_ROOT"/}"
+  fi
   rm -f "$rendered"
   return "$status"
 }
@@ -1356,7 +1370,7 @@ main() {
     esac
   done
   local command="${1:-}"
-  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|resolve|save|replace|backup|drift|ports|locate|recover|sessions|probe-tftp>" >&2; return 2; }
+  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|resolve|save|replace|backup|drift|ports|locate|recover|sessions|probe-tftp|env|helm-values>" >&2; return 2; }
   shift
   [ -f "$(site_file)" ] || { echo "error: no site definition at $(site_file)" >&2; return 2; }
   RACK="$(jq -r '.site // empty' "$(site_file)")"
@@ -1378,6 +1392,13 @@ main() {
     replace)    refuse_adopted "$@" && cmd_replace "$@";;
     drift)      cmd_drift "$@";;
     probe-tftp) cmd_probe_tftp "$@";;
+    env)        fleet_site_env "$(site_file)";;
+    helm-values)
+      case "${1:-}" in
+        rack-switch-controller) fleet_controller_values "$(site_file)";;
+        rack-edge) fleet_edge_values "$(site_file)";;
+        *) echo "usage: rack:fleet helm-values <rack-switch-controller|rack-edge>" >&2; return 2;;
+      esac;;
     *) echo "unknown command: $command" >&2; return 2;;
   esac
 }

@@ -1,5 +1,5 @@
 name: Tuist cache volume
-description: Attach a private clone of a persistent cache volume on Tuist Linux runners.
+description: Attach a private clone of a persistent cache volume on Tuist Linux or macOS runners.
 branding:
   icon: hard-drive
   color: purple
@@ -10,6 +10,10 @@ inputs:
   path:
     description: Directory to retain. Supports absolute paths, workspace-relative paths, and ~/.
     required: true
+  commit:
+    description: Save intent (auto, true, false). Publication still requires a successful job permitted by the volume writer policy.
+    required: false
+    default: auto
 outputs:
   cache-hit:
     description: Whether the job attached a previously committed snapshot.
@@ -22,5 +26,6 @@ runs:
       env:
         TUIST_VOLUME_KEY: ${{ inputs.key }}
         TUIST_VOLUME_PATH: ${{ inputs.path }}
+        TUIST_VOLUME_COMMIT: ${{ inputs.commit }}
         TUIST_ACTION_PATH: ${{ github.action_path }}
       run: bash "$TUIST_ACTION_PATH/attach.sh"

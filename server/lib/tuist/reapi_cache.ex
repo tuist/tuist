@@ -3,6 +3,7 @@ defmodule Tuist.ReapiCache do
 
   import Ecto.Query
 
+  alias Tuist.Bazel.CacheActionNames
   alias Tuist.Bazel.Invocation
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
@@ -40,6 +41,7 @@ defmodule Tuist.ReapiCache do
           duration_us: duration_us(event),
           invocation_id: event.invocation_id,
           action_mnemonic: event.action_mnemonic,
+          output_path: output_path(event),
           target_label: event.target_label,
           configuration_id: event.configuration_id,
           project_id: event.project_id,
@@ -56,6 +58,13 @@ defmodule Tuist.ReapiCache do
       entries,
       DedupToken.insert_all_opts(events, "reapi-cache-events")
     )
+  end
+
+  defp output_path(event) do
+    case Map.get(event, :output_path) do
+      path when is_binary(path) and byte_size(path) <= 1024 -> path
+      _ -> ""
+    end
   end
 
   defp duration_us(event) do
@@ -456,6 +465,7 @@ defmodule Tuist.ReapiCache do
   def list_invocation_cache_events(project_id, invocation_id, flop_params \\ %{}, options \\ []) do
     project_id
     |> invocation_cache_event_query(invocation_id, options)
+    |> CacheActionNames.query(project_id, invocation_id)
     |> ClickHouseFlop.validate_and_run!(flop_params, for: CacheEvent)
   end
 
@@ -722,6 +732,7 @@ defmodule Tuist.ReapiCache do
     query =
       CacheEvent
       |> from(where: [project_id: ^project_id])
+      |> maybe_filter_client_kind(Keyword.get(opts, :client_kind))
       |> maybe_filter_invocation_environment(project_id, Keyword.get(opts, :is_ci))
 
     query =
@@ -756,6 +767,9 @@ defmodule Tuist.ReapiCache do
     end
   end
 
+  defp maybe_filter_client_kind(query, nil), do: query
+  defp maybe_filter_client_kind(query, kind) when is_binary(kind), do: where(query, [event], event.client_kind == ^kind)
+
   defp maybe_filter_invocation_environment(query, project_id, is_ci) when is_boolean(is_ci) do
     invocation_ids =
       from(invocation in Invocation,
@@ -786,9 +800,9 @@ defmodule Tuist.ReapiCache do
 
   defp invocation_cache_event_query(project_id, invocation_id, options) do
     query =
-      from(event in CacheEvent,
-        where: event.project_id == ^project_id and event.invocation_id == ^invocation_id
-      )
+      CacheEvent
+      |> from(where: [project_id: ^project_id, invocation_id: ^invocation_id])
+      |> maybe_filter_client_kind(Keyword.get(options, :client_kind))
 
     query =
       case Keyword.get(options, :start_datetime) do

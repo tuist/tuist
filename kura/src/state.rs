@@ -369,7 +369,7 @@ impl AppState {
                 && view.serving
                 && !view.draining
                 && view.topology.as_ref().is_some_and(|remote| {
-                    own.same_provider(remote)
+                    own.same_private_network(remote)
                         && crate::peer_topology::endpoint(Some(own), Some(remote), peer).is_ok()
                 })
         })

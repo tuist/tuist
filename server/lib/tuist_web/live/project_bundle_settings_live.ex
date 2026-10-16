@@ -5,6 +5,7 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
 
   alias Tuist.Authorization
   alias Tuist.Bundles
+  alias Tuist.Bundles.BundleThreshold
   alias Tuist.Projects
   alias Tuist.Repo
   alias TuistWeb.Helpers.OpenGraph
@@ -45,9 +46,9 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
   def handle_event("open_create_threshold_modal", _params, socket) do
     socket =
       socket
-      |> assign(create_form_name: "")
+      |> assign(create_form_name: "", create_form_error: nil)
       |> assign(create_form_metric: :install_size)
-      |> assign(create_form_deviation: 5.0)
+      |> assign(create_form_deviation: "5.0", create_form_unit: "percentage")
       |> assign(create_form_baseline_branch: "main")
       |> assign(create_form_bundle_name: "")
 
@@ -55,26 +56,34 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
   end
 
   def handle_event("update_create_form_name", %{"value" => name}, socket) do
-    {:noreply, assign(socket, create_form_name: name)}
+    {:noreply, assign(socket, create_form_name: name, create_form_error: nil)}
   end
 
   def handle_event("update_create_form_metric", %{"metric" => metric}, socket) do
-    {:noreply, assign(socket, create_form_metric: String.to_existing_atom(metric))}
+    {:noreply, assign(socket, create_form_metric: String.to_existing_atom(metric), create_form_error: nil)}
   end
 
-  def handle_event("update_create_form_deviation", %{"value" => deviation_str}, socket) do
-    case Float.parse(deviation_str) do
-      {deviation, _} -> {:noreply, assign(socket, create_form_deviation: deviation)}
-      :error -> {:noreply, socket}
-    end
+  def handle_event("update_create_form_unit", %{"unit" => unit}, socket) when unit in ["percentage", "megabytes"] do
+    socket =
+      if unit == socket.assigns.create_form_unit do
+        socket
+      else
+        assign(socket, create_form_unit: unit, create_form_deviation: "", create_form_error: nil)
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("update_create_form_deviation", %{"value" => value}, socket) do
+    {:noreply, assign(socket, create_form_deviation: if(is_binary(value), do: value, else: ""), create_form_error: nil)}
   end
 
   def handle_event("update_create_form_baseline_branch", %{"value" => branch}, socket) do
-    {:noreply, assign(socket, create_form_baseline_branch: branch)}
+    {:noreply, assign(socket, create_form_baseline_branch: branch, create_form_error: nil)}
   end
 
   def handle_event("update_create_form_bundle_name", %{"value" => bundle_name}, socket) do
-    {:noreply, assign(socket, create_form_bundle_name: bundle_name)}
+    {:noreply, assign(socket, create_form_bundle_name: bundle_name, create_form_error: nil)}
   end
 
   def handle_event("create_threshold", _params, %{assigns: assigns} = socket) do
@@ -82,19 +91,21 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
       project_id: assigns.selected_project.id,
       name: assigns.create_form_name,
       metric: assigns.create_form_metric,
-      deviation_percentage: assigns.create_form_deviation,
       baseline_branch: assigns.create_form_baseline_branch,
       bundle_name: if(assigns.create_form_bundle_name == "", do: nil, else: assigns.create_form_bundle_name)
     }
 
-    {:ok, _threshold} = Bundles.create_bundle_threshold(attrs)
+    with {:ok, limit} <- limit_attrs(assigns.create_form_unit, assigns.create_form_deviation),
+         {:ok, _threshold} <- Bundles.create_bundle_threshold(Map.merge(attrs, limit)) do
+      socket =
+        socket
+        |> assign_threshold_defaults(assigns.selected_project)
+        |> push_event("close-modal", %{id: "create-threshold-modal"})
 
-    socket =
-      socket
-      |> assign_threshold_defaults(assigns.selected_project)
-      |> push_event("close-modal", %{id: "create-threshold-modal"})
-
-    {:noreply, socket}
+      {:noreply, socket}
+    else
+      error -> {:noreply, assign(socket, create_form_error: threshold_error_message(error))}
+    end
   end
 
   def handle_event("update_edit_form_name", %{"id" => id, "value" => name}, socket) do
@@ -105,11 +116,22 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     {:noreply, update_edit_form(socket, id, :metric, String.to_existing_atom(metric))}
   end
 
-  def handle_event("update_edit_form_deviation", %{"id" => id, "value" => deviation_str}, socket) do
-    case Float.parse(deviation_str) do
-      {deviation, _} -> {:noreply, update_edit_form(socket, id, :deviation, deviation)}
-      :error -> {:noreply, socket}
-    end
+  def handle_event("update_edit_form_unit", %{"id" => id, "unit" => unit}, socket)
+      when unit in ["percentage", "megabytes"] do
+    form = Map.get(socket.assigns.edit_threshold_forms, id, %{})
+
+    socket =
+      if form[:unit] == unit do
+        socket
+      else
+        socket |> update_edit_form(id, :unit, unit) |> update_edit_form(id, :deviation, "")
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("update_edit_form_deviation", %{"id" => id, "value" => value}, socket) do
+    {:noreply, update_edit_form(socket, id, :deviation, if(is_binary(value), do: value, else: ""))}
   end
 
   def handle_event("update_edit_form_baseline_branch", %{"id" => id, "value" => branch}, socket) do
@@ -128,10 +150,9 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
       form = Map.get(assigns.edit_threshold_forms, id, %{})
 
       attrs = %{
-        name: form[:name] || threshold.name,
-        metric: form[:metric] || threshold.metric,
-        deviation_percentage: form[:deviation] || threshold.deviation_percentage,
-        baseline_branch: form[:baseline_branch] || threshold.baseline_branch,
+        name: Map.get(form, :name, threshold.name),
+        metric: Map.get(form, :metric, threshold.metric),
+        baseline_branch: Map.get(form, :baseline_branch, threshold.baseline_branch),
         bundle_name:
           case Map.get(form, :bundle_name) do
             nil -> threshold.bundle_name
@@ -140,14 +161,21 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
           end
       }
 
-      {:ok, _threshold} = Bundles.update_bundle_threshold(threshold, attrs)
+      with {:ok, limit} <-
+             limit_attrs(
+               Map.get(form, :unit, threshold_unit(threshold)),
+               Map.get(form, :deviation, threshold_value(threshold))
+             ),
+           {:ok, _threshold} <- Bundles.update_bundle_threshold(threshold, Map.merge(attrs, limit)) do
+        socket =
+          socket
+          |> assign_threshold_defaults(assigns.selected_project)
+          |> push_event("close-modal", %{id: "update-threshold-modal-#{id}"})
 
-      socket =
-        socket
-        |> assign_threshold_defaults(assigns.selected_project)
-        |> push_event("close-modal", %{id: "update-threshold-modal-#{id}"})
-
-      {:noreply, socket}
+        {:noreply, socket}
+      else
+        error -> {:noreply, update_edit_form(socket, id, :error, threshold_error_message(error))}
+      end
     else
       {:noreply, socket}
     end
@@ -304,7 +332,8 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
          %{
            name: t.name,
            metric: t.metric,
-           deviation: t.deviation_percentage,
+           deviation: threshold_value(t),
+           unit: threshold_unit(t),
            baseline_branch: t.baseline_branch,
            bundle_name: t.bundle_name || ""
          }}
@@ -313,9 +342,9 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     socket
     |> assign(thresholds: thresholds)
     |> assign(edit_threshold_forms: edit_forms)
-    |> assign(create_form_name: "")
+    |> assign(create_form_name: "", create_form_error: nil)
     |> assign(create_form_metric: :install_size)
-    |> assign(create_form_deviation: 5.0)
+    |> assign(create_form_deviation: "5.0", create_form_unit: "percentage")
     |> assign(create_form_baseline_branch: "main")
     |> assign(create_form_bundle_name: "")
   end
@@ -323,21 +352,70 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
   defp update_edit_form(socket, id, key, value) do
     forms = socket.assigns.edit_threshold_forms
     form = Map.get(forms, id, %{})
-    updated_form = Map.put(form, key, value)
+    updated_form = form |> Map.delete(:error) |> Map.put(key, value)
     assign(socket, edit_threshold_forms: Map.put(forms, id, updated_form))
   end
 
   defp metric_label(:install_size), do: dgettext("dashboard_projects", "Install size")
   defp metric_label(:download_size), do: dgettext("dashboard_projects", "Download size")
 
-  defp threshold_description(metric, deviation, baseline_branch, bundle_name) do
-    size_label = metric_label(metric)
+  defp threshold_error_message(:error), do: dgettext("dashboard_projects", "Enter a valid size threshold.")
+
+  defp threshold_error_message({:error, _changeset}) do
+    dgettext("dashboard_projects", "The size threshold could not be saved. Check the name and baseline branch.")
+  end
+
+  defp threshold_unit(%{deviation_bytes: bytes}) when is_integer(bytes), do: "megabytes"
+  defp threshold_unit(_threshold), do: "percentage"
+
+  defp threshold_value(%{deviation_bytes: bytes}) when is_integer(bytes), do: BundleThreshold.megabytes(bytes)
+  defp threshold_value(threshold), do: to_string(threshold.deviation_percentage)
+
+  defp unit_label("percentage"), do: dgettext("dashboard_projects", "Percentage (%)")
+  defp unit_label("megabytes"), do: dgettext("dashboard_projects", "Absolute size (MB)")
+
+  defp deviation_label("percentage"), do: dgettext("dashboard_projects", "Deviation %")
+  defp deviation_label("megabytes"), do: dgettext("dashboard_projects", "Deviation (MB)")
+
+  defp deviation_hint("megabytes"), do: dgettext("dashboard_projects", "1 MB = 1,000,000 bytes")
+  defp deviation_hint(_unit), do: nil
+
+  defp valid_limit?(unit, value), do: match?({:ok, _}, limit_attrs(unit, value))
+
+  defp limit_attrs("percentage", value) do
+    case Float.parse(value) do
+      {percentage, ""} when percentage > 0 -> {:ok, %{deviation_percentage: percentage, deviation_bytes: nil}}
+      _ -> :error
+    end
+  end
+
+  defp limit_attrs("megabytes", value) when byte_size(value) <= 100 do
+    with {%Decimal{coef: coef} = megabytes, ""} when is_integer(coef) <- Decimal.parse(value),
+         %Decimal{sign: 1, exp: exponent} = megabytes <- Decimal.normalize(megabytes),
+         true <- exponent >= -6 && exponent <= 13,
+         bytes = Decimal.mult(megabytes, 1_000_000),
+         true <- Decimal.compare(bytes, 0) == :gt,
+         true <- Decimal.compare(bytes, 9_223_372_036_854_775_807) != :gt,
+         true <- Decimal.equal?(bytes, Decimal.round(bytes, 0)) do
+      {:ok, %{deviation_percentage: nil, deviation_bytes: Decimal.to_integer(bytes)}}
+    else
+      _ -> :error
+    end
+  end
+
+  defp limit_attrs(_unit, _value), do: :error
+
+  defp threshold_description(metric, deviation, unit, baseline_branch, bundle_name) do
+    deviation = escape_description(deviation <> if(unit == "megabytes", do: " MB", else: "%"))
+    baseline_branch = escape_description(baseline_branch)
+    bundle_name = if bundle_name, do: escape_description(bundle_name)
+    size_label = escape_description(metric_label(metric))
 
     text =
       if bundle_name == "" or is_nil(bundle_name) do
         dgettext(
           "dashboard_projects",
-          "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>.",
+          "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>.",
           size_label: size_label,
           deviation: deviation,
           baseline_branch: baseline_branch
@@ -345,7 +423,7 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
       else
         dgettext(
           "dashboard_projects",
-          "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>.",
+          "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>.",
           size_label: size_label,
           bundle_name: bundle_name,
           deviation: deviation,
@@ -355,4 +433,6 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
 
     raw(text)
   end
+
+  defp escape_description(value), do: value |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
 end

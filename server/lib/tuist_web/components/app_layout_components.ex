@@ -120,7 +120,7 @@ defmodule TuistWeb.AppLayoutComponents do
         />
         <.sidebar_item
           :if={
-            Project.xcode_project?(@selected_project) and
+            (Project.xcode_project?(@selected_project) or Project.mix_project?(@selected_project)) and
               Tuist.FeatureFlags.xcode_coverage_enabled?(@selected_account)
           }
           label={dgettext("dashboard", "Code Coverage")}
@@ -194,6 +194,13 @@ defmodule TuistWeb.AppLayoutComponents do
             ~p"/#{@selected_account.name}/#{@selected_project.name}/once-cache"
           )
         }
+      />
+      <.sidebar_item
+        :if={Project.mix_project?(@selected_project)}
+        label={dgettext("dashboard", "Mix Cache")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/mix-cache"}
+        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/mix-cache"}
       />
       <.sidebar_group
         :if={Project.xcode_project?(@selected_project)}

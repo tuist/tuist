@@ -29,7 +29,7 @@ struct GitLabRepo {
     }
 
     var apiBaseURL: URL {
-        let env = ProcessInfo.processInfo.environment
+        let env = Environment.current
         let apiHost = env["GITLAB_API_HOST"]?.gitLabNormalizedHost ?? host
         let apiScheme =
             env["GITLAB_URI"].flatMap(URL.init(string:))?.scheme
@@ -64,24 +64,20 @@ struct GitLabRepo {
         if host == "gitlab.com" || host.contains("gitlab") {
             return true
         }
-        let env = ProcessInfo.processInfo.environment
-        return [
-            env["GITLAB_HOST"],
-            env["GITLAB_URI"],
-            env["CI_SERVER_HOST"],
-            env["CI_SERVER_FQDN"],
-        ]
-        .compactMap { $0?.gitLabNormalizedHost }
-        .contains(host)
+        return configuredHosts.contains(host)
+    }
+
+    static var configuredHosts: [String] {
+        let environment = Environment.current
+        return ["SWIFTERPM_GITLAB_HOST", "GITLAB_HOST", "GITLAB_URI", "GITLAB_API_HOST", "CI_SERVER_HOST", "CI_SERVER_FQDN"]
+            .compactMap { environment[$0]?.gitLabNormalizedHost }
     }
 }
 
 extension String {
     fileprivate var gitLabNormalizedHost: String? {
-        if let url = URL(string: self), let host = url.host {
-            return host.lowercased()
-        }
-        return split(separator: "/").first.map { String($0).lowercased() }
+        let location = contains("://") ? self : "https://\(self)"
+        return URL(string: location)?.host?.lowercased()
     }
 }
 
@@ -111,82 +107,22 @@ enum GitLabAuth {
             }
         }
 
-        /// The `PRIVATE-TOKEN`/`JOB-TOKEN` headers authenticate GitLab's REST API but not its
-        /// git smart-HTTP endpoint, which only understands standard HTTP authentication. Map
-        /// each token kind to the credential form git transport accepts: a personal access
-        /// token authenticates as `oauth2:<token>` and a CI job token as `gitlab-ci-token:<token>`.
-        var gitHTTPAuthorization: String {
-            switch self {
-            case let .privateToken(token):
-                return "Basic \(Self.basicCredential(user: "oauth2", token: token))"
-            case let .jobToken(token):
-                return "Basic \(Self.basicCredential(user: "gitlab-ci-token", token: token))"
-            case let .bearer(token):
-                return "Bearer \(token)"
-            }
-        }
-
-        private static func basicCredential(user: String, token: String) -> String {
-            Data("\(user):\(token)".utf8).base64EncodedString()
-        }
     }
 
-    static func token(host: String) async -> Token? {
-        await gitLabTokenCache.token(host: host)
-    }
-
-    static func hasSession(host: String) async -> Bool {
-        await token(host: host) != nil
-    }
-}
-
-private actor GitLabTokenCache {
-    private var cachedTokens: [String: GitLabAuth.Token?] = [:]
-
-    func token(host: String) async -> GitLabAuth.Token? {
-        if let cached = cachedTokens[host] {
-            return cached
-        }
-
-        let token = await loadToken(host: host)
-        cachedTokens[host] = token
-        return token
-    }
-
-    private func loadToken(host: String) async -> GitLabAuth.Token? {
-        let env = ProcessInfo.processInfo.environment
-        if let token = nonEmpty(env["GITLAB_TOKEN"] ?? env["GITLAB_ACCESS_TOKEN"]) {
-            return .privateToken(token)
-        }
-        if let token = nonEmpty(env["OAUTH_TOKEN"]) {
-            return .bearer(token)
-        }
-        if let token = nonEmpty(env["CI_JOB_TOKEN"]) {
-            return .jobToken(token)
-        }
-
-        guard let output = try? await SystemProcess.output(
-            "/usr/bin/env",
-            ["glab", "config", "get", "token", "--host", host]
-        )
-        else {
-            return nil
-        }
-        guard let token = nonEmpty(output) else { return nil }
+    static func token(for apiURL: URL) async -> Token? {
+        guard apiURL.scheme == "https", let host = apiURL.host?.lowercased(),
+              host == "gitlab.com" || GitLabRepo.configuredHosts.contains(host)
+        else { return nil }
+        guard let token = Environment.current["SWIFTERPM_GITLAB_TOKEN"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !token.isEmpty
+        else { return nil }
         return .privateToken(token)
     }
 
-    private func nonEmpty(_ value: String?) -> String? {
-        guard let token = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !token.isEmpty
-        else {
-            return nil
-        }
-        return token
+    static func hasSession(for repo: GitLabRepo) async -> Bool {
+        await token(for: repo.apiBaseURL) != nil
     }
 }
-
-private let gitLabTokenCache = GitLabTokenCache()
 
 enum GitLabAPI {
     static func remoteVersions(repo: GitLabRepo) async throws -> [RemoteVersion] {
@@ -241,7 +177,7 @@ enum GitLabAPI {
     }
 
     private static func headers(for repo: GitLabRepo) async throws -> [String: String] {
-        guard let token = await GitLabAuth.token(host: repo.host) else {
+        guard let token = await GitLabAuth.token(for: repo.apiBaseURL) else {
             throw ToolError.message("no GitLab token available for \(repo.host)")
         }
         return token.header.merging(["User-Agent": "swifterpm/0.1"]) { current, _ in current }

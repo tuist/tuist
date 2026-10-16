@@ -10,14 +10,18 @@
     font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
   }
 
-  & > [data-part="github-card-section"] {
-    display: flex;
-    flex-direction: row;
-    align-items: flex-start;
+  & > :is([data-part="github-card-section"], [data-part="origin-card-section"]) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: var(--noora-spacing-8);
+
+    @media (max-width: 768px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
 
     & > [data-part="header"] {
       display: flex;
-      flex-grow: 1;
       flex-direction: column;
       gap: var(--noora-spacing-2);
       & > [data-part="title"] {
@@ -34,14 +38,13 @@
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-7);
-      width: 48%;
+      min-width: 0;
 
       & > [data-part="github-host-config"] {
         display: flex;
         flex-direction: column;
-        align-self: flex-end;
         gap: var(--noora-spacing-7);
-        width: 320px;
+        width: 100%;
 
         /* Equal-width tabs in the github.com / Enterprise server toggle.
          * Noora's default `.noora-button-group` flexbox would let the
@@ -61,17 +64,24 @@
           display: flex;
           flex-direction: column;
           gap: var(--noora-spacing-5);
+
+          & > .noora-button {
+            align-self: flex-end;
+          }
         }
       }
 
       & > [data-part="actions"] {
         display: flex;
         flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: flex-end;
         align-self: flex-end;
         gap: var(--noora-spacing-6);
+        max-width: 100%;
       }
 
-      & > [data-part="connection-card-section"] {
+      & > :is([data-part="connection-card-section"], [data-part="installation-card-section"]) {
         display: flex;
         flex-grow: 1;
         flex-direction: column;
@@ -80,6 +90,7 @@
         & > [data-part="header"] {
           display: flex;
           flex-direction: row;
+          flex-wrap: wrap;
           align-items: center;
           gap: var(--noora-spacing-3);
 
@@ -88,8 +99,10 @@
             flex-direction: row;
             align-items: center;
             gap: var(--noora-spacing-2);
+            min-width: 0;
 
             & > [data-part="icon"] {
+              flex-shrink: 0;
               width: var(--noora-icon-size-medium);
               height: var(--noora-icon-size-medium);
               color: var(--noora-surface-label-secondary);
@@ -103,6 +116,7 @@
             & > [data-part="label"] {
               color: var(--noora-surface-label-primary);
               font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+              overflow-wrap: anywhere;
             }
           }
 
@@ -121,6 +135,7 @@
         & > [data-part="footer"] {
           display: flex;
           flex-direction: row;
+          flex-wrap: wrap;
           align-items: center;
           gap: var(--noora-spacing-2);
 
@@ -249,7 +264,7 @@
     }
   }
 
-  & #add-connection-modal {
+  & :is(#add-connection-modal, #add-origin-connection-modal) {
     & [data-part="content"] {
       & [data-part="create-connection"] {
         display: flex;
@@ -307,9 +322,19 @@
           }
         }
 
-        & > #project-dropdown,
-        & > #repository-dropdown {
-          width: 244px;
+        & > #origin-installation-dropdown {
+          margin-bottom: var(--noora-spacing-5);
+        }
+
+        &
+          > :is(
+            #project-dropdown,
+            #repository-dropdown,
+            #origin-project-dropdown,
+            #origin-repository-dropdown,
+            #origin-installation-dropdown
+          ) {
+          width: min(244px, 100%);
 
           & .noora-dropdown-content {
             max-height: 200px;

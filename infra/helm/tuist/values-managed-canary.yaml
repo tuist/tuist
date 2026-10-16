@@ -61,6 +61,8 @@ server:
   # key in the server-config Secret with it. Rollback is a revert; the
   # existing `dsn` field on the same item stays put.
   config:
+    originAppKey:
+      enabled: true
     externalSecrets:
       fields:
         sentryDsn: dsn_atlas
@@ -762,6 +764,8 @@ macosFleet:
 # Canary keeps one warm runner so the production rollout can be
 # validated on the same substrate first.
 runnersFleet:
+  customCacheVolumes:
+    enabled: true
   enabled: true
   hostCount: 1
   # Pre-ordered pool. Operator pre-orders Mac minis named with the

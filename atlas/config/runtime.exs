@@ -1,6 +1,7 @@
 import Config
 
 alias Atlas.Config.DevInstance
+alias Atlas.Demo.Config, as: DemoConfig
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Mailgun
 alias Ueberauth.Strategy.Google
@@ -116,6 +117,13 @@ boolean_env = fn name, default ->
   end
 end
 
+demo_mode = boolean_env.("ATLAS_DEMO_MODE", false)
+
+if demo_mode do
+  DemoConfig.validate!(System.get_env())
+  config :atlas, Atlas.Repo, url: System.fetch_env!("DATABASE_URL")
+end
+
 support_chat_parent_origins =
   case System.get_env("ATLAS_SUPPORT_CHAT_PARENT_ORIGINS") do
     value when is_binary(value) and value != "" ->
@@ -135,6 +143,7 @@ support_chat_parent_origins =
   end
 
 config :atlas, AtlasWeb.Endpoint, endpoint_config
+config :atlas, :demo_mode, demo_mode
 
 config :atlas, :gtm_email,
   from_name: System.get_env("ATLAS_GTM_EMAIL_FROM_NAME", "Tuist"),

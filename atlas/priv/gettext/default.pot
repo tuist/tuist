@@ -11,6 +11,46 @@
 msgid ""
 msgstr ""
 
+#: lib/atlas_web/live/postal_live.ex:593
+#, elixir-autogen, elixir-format
+msgid "Awaiting signature"
+msgstr ""
+
+#: lib/atlas_web/live/postal_live.ex:599
+#, elixir-autogen, elixir-format
+msgid "Delivered"
+msgstr ""
+
+#: lib/atlas_web/live/postal_live.ex:601
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr ""
+
+#: lib/atlas_web/live/postal_live.ex:594
+#, elixir-autogen, elixir-format
+msgid "Preparing delivery"
+msgstr ""
+
+#: lib/atlas_web/live/postal_live.ex:596
+#, elixir-autogen, elixir-format
+msgid "Queued"
+msgstr ""
+
+#: lib/atlas_web/live/postal_live.ex:362
+#, elixir-autogen, elixir-format
+msgid "Refresh delivery status"
+msgstr ""
+
+#: lib/atlas_web/live/postal_live.ex:600
+#, elixir-autogen, elixir-format
+msgid "Undeliverable"
+msgstr ""
+
+#: lib/atlas_web/live/postal_live.ex:602
+#, elixir-autogen, elixir-format
+msgid "Unknown"
+msgstr ""
+
 #: lib/atlas_web/components/core_components.ex:369
 #, elixir-autogen, elixir-format
 msgid "Actions"
@@ -1487,4 +1527,48 @@ msgstr ""
 #: lib/atlas_web/live/mcp_live.ex:168
 #, elixir-autogen, elixir-format
 msgid "Server name does not match."
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Demo"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Docs"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:47
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:84
+#, elixir-autogen, elixir-format
+msgid "Explore Atlas"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:64
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:90
+#, elixir-autogen, elixir-format
+msgid "Finance"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:19
+#, elixir-autogen, elixir-format
+msgid "Fictional data. Read-only."
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:36
+#, elixir-autogen, elixir-format
+msgid "Self-host Atlas"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:58
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:89
+#, elixir-autogen, elixir-format
+msgid "Tasks"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:70
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:91
+#, elixir-autogen, elixir-format
+msgid "Vendor costs"
 msgstr ""

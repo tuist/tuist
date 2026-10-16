@@ -82,6 +82,29 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert Commits.file_detail(project.id, "abc123", "Missing.swift") == nil
   end
 
+  test "reads a run's scheme off the run, which a client-reported run gets after its coverage published", %{
+    project: project,
+    account: account
+  } do
+    run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1])], %{scheme: nil})
+
+    {:ok, _} =
+      Tuist.Tests.create_test(%{
+        id: run.id,
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        is_ci: true,
+        scheme: "AppTests",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        test_modules: []
+      })
+
+    assert [%{scheme: "AppTests"}] = Commits.runs(project.id, "abc123")
+  end
+
   test "leaves runs from a dirty checkout out, and republishes one version above the latest", %{
     project: project,
     account: account
@@ -550,6 +573,33 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       assert new_version > version
     end
 
+    test "refold the commit when a repository target came from the binary cache", %{project: project, account: account} do
+      run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+
+      cached = %{
+        name: "App",
+        projects: [
+          %{
+            "targets" => [
+              %{"name" => "Core", "binary_cache_metadata" => %{"hit" => "remote"}},
+              %{
+                "name" => "Alamofire",
+                "binary_cache_metadata" => %{"hit" => "local", "subhashes" => %{"external" => "5.9.0"}}
+              }
+            ]
+          }
+        ]
+      }
+
+      assert {:ok, %Oban.Job{}} =
+               Coverage.refold_after_selective_testing(%{test_run_id: run.id, project_id: project.id}, cached)
+
+      remote_package_only = update_in(cached, [:projects, Access.at(0), "targets"], &tl/1)
+
+      assert Coverage.refold_after_selective_testing(%{test_run_id: run.id, project_id: project.id}, remote_package_only) ==
+               :skipped
+    end
+
     test "schedule nothing when no target was skipped, or the event has no run", %{project: project, account: account} do
       run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
 
@@ -597,6 +647,49 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       # x1's own run, older than y1's.
       Commits.recompute(project, "x1")
       assert CoverageFixtures.branch_head(repository_id, "feature") == "y1"
+    end
+
+    # n1's own advance moves nothing either way: observed before n2's run
+    # moved main, or finding main already holds n1.
+    for {exit, n1_ago, n2_ago} <- [{"older", -7200, -3600}, {"newer", -3600, -7200}] do
+      test "publishes the commit's place when its child's fold advanced the branch past it mid-fold (#{exit} run)", %{
+        account: account,
+        project: project
+      } do
+        repository_id =
+          CoverageFixtures.seed_history(account, [
+            CoverageFixtures.commit("d", [], 0),
+            CoverageFixtures.commit("n1", ["d"], 1),
+            CoverageFixtures.commit("n2", ["n1"], 2)
+          ])
+
+        now = NaiveDateTime.utc_now()
+        file = [CoverageFixtures.file("Sources/A.swift", [1, 0])]
+
+        for {sha, ago} <- [{"n1", unquote(n1_ago)}, {"n2", unquote(n2_ago)}] do
+          CoverageFixtures.run_with_coverage(project, account, file, %{
+            git_commit_sha: sha,
+            ran_at: NaiveDateTime.add(now, ago),
+            recompute: false
+          })
+        end
+
+        # n1's fold has read where n1 stands (nowhere yet) when n2's fold
+        # advances main through n1, before n1's row exists to be synced.
+        stub(Repo, :transaction, &Mimic.call_original(Repo, :transaction, [&1, &2]))
+
+        expect(Repo, :transaction, fn fun, opts ->
+          Commits.recompute(project, "n2")
+          Mimic.call_original(Repo, :transaction, [fun, opts])
+        end)
+
+        Commits.recompute(project, "n1")
+
+        assert {ref_id, position} = GitHistory.position(repository_id, "n1")
+        assert %{ref_id: ^ref_id, position: ^position} = Commits.summary(project.id, "n1")
+        assert %{ref_id: ref_id_n2, position: position_n2} = Commits.summary(project.id, "n2")
+        assert {ref_id_n2, position_n2} == GitHistory.position(repository_id, "n2")
+      end
     end
   end
 

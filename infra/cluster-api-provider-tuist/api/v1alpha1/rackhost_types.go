@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
@@ -91,6 +92,43 @@ type RackHostSpec struct {
 	// which bootstraps the host again.
 	// +optional
 	Parked bool `json:"parked,omitempty"`
+
+	// NodeFleet is the `tuist.dev/fleet` label on the host's Node when it is not
+	// the operator's fleet: a host lent to the runner pools of another fleet,
+	// such as one another environment's server drives. Runner pools select Nodes
+	// by that label, so the operator's own pools stop placing runners on the
+	// host and pools selecting this value start. The Machine keeps the
+	// operator's fleet, its name and its credentials. A change reaches the host
+	// through the host-config drift loop.
+	// +optional
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	NodeFleet string `json:"nodeFleet,omitempty"`
+
+	// NodeCluster registers the host's Node in another cluster: the host stays
+	// in this operator's inventory (its Machine, power, OS updates and
+	// bootstrap are this cluster's), but its tart-kubelet joins the cluster
+	// whose kubeconfig the Secret holds, and that cluster's runner pools and
+	// server drive its guests. This cluster then has no Node for the host, so
+	// the Machine is kept off remediation and the host is not re-bootstrapped
+	// for a missing Node. Drain the host's Node before setting it.
+	// +optional
+	NodeCluster *RackHostNodeCluster `json:"nodeCluster,omitempty"`
+}
+
+// RackHostNodeCluster is the cluster a lent host's Node registers in.
+type RackHostNodeCluster struct {
+	// KubeconfigSecret names a Secret in the host's namespace whose
+	// `kubeconfig` key is the kubeconfig tart-kubelet authenticates with: a
+	// node identity the other cluster issued for this host's Machine name.
+	// +kubebuilder:validation:MinLength=1
+	KubeconfigSecret string `json:"kubeconfigSecret"`
+
+	// CacheVolumesURL is the other cluster's server endpoint for macOS custom
+	// cache volumes (`<server>/api/internal/runners/cache-volumes`). Empty
+	// turns custom cache volumes off on the host.
+	// +optional
+	CacheVolumesURL string `json:"cacheVolumesURL,omitempty"`
 }
 
 // RackHostMachine is the sizing the host's RackAppleSiliconMachine carries.
@@ -119,6 +157,11 @@ type RackHostMachine struct {
 	// +optional
 	RunnerCacheVolumeGiB *int `json:"runnerCacheVolumeGiB,omitempty"`
 }
+
+// RackSiteNodeLabel carries a rack host's site on its Machine. Cluster API
+// syncs labels in the node.cluster.x-k8s.io domain from a Machine to its Node,
+// where kube-state-metrics exposes it.
+const RackSiteNodeLabel = "node.cluster.x-k8s.io/rack-site"
 
 // RackHostLocation is the physical position of a host.
 type RackHostLocation struct {
@@ -182,6 +225,23 @@ type PowerOutletRef struct {
 	CredentialsSecretRef *corev1.LocalObjectReference `json:"credentialsSecretRef,omitempty"`
 }
 
+// OutletDraw is an outlet's meter reading. A field the device does not report
+// is unset.
+type OutletDraw struct {
+	// ActivePowerWatts is the real power drawn, in watts.
+	// +optional
+	ActivePowerWatts *resource.Quantity `json:"activePowerWatts,omitempty"`
+
+	// ApparentPowerVA is the apparent power, in volt-amperes. A cord plugged in
+	// to a machine that is off still reads a few VA, an empty outlet none.
+	// +optional
+	ApparentPowerVA *resource.Quantity `json:"apparentPowerVA,omitempty"`
+
+	// CurrentAmps is the RMS current, in amperes.
+	// +optional
+	CurrentAmps *resource.Quantity `json:"currentAmps,omitempty"`
+}
+
 // RackHostStatus is the observed state of one physical host.
 type RackHostStatus struct {
 	// Machine is the name of the CAPI Machine and RackAppleSiliconMachine that
@@ -193,6 +253,13 @@ type RackHostStatus struct {
 	// host has no outlet configured or the driver could not reach it.
 	// +optional
 	Power string `json:"power,omitempty"`
+
+	// OutletDraw is what the outlet's meter last read: the outlet's entry in its
+	// RackPDU's status, or the endpoint's own meter for an outlet of its own.
+	// Unset when there is no recent reading. The HostDrawing condition says
+	// what it means for the host.
+	// +optional
+	OutletDraw *OutletDraw `json:"outletDraw,omitempty"`
 
 	// LastPowerAction / LastPowerActionTime record the last action the
 	// operator took on the outlet (`on`, `off`, `cycle`), so a host that
@@ -221,7 +288,7 @@ type RackHostStatus struct {
 	// +optional
 	QuarantinedAt *metav1.Time `json:"quarantinedAt,omitempty"`
 
-	// Conditions are CAPI-style condition entries (PowerReachable).
+	// Conditions are CAPI-style condition entries (PowerReachable, HostDrawing).
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 }
@@ -232,6 +299,7 @@ type RackHostStatus struct {
 // +kubebuilder:printcolumn:name="Address",type=string,JSONPath=".spec.address"
 // +kubebuilder:printcolumn:name="Machine",type=string,JSONPath=".status.machine"
 // +kubebuilder:printcolumn:name="Power",type=string,JSONPath=".status.power"
+// +kubebuilder:printcolumn:name="Watts",type=string,priority=1,JSONPath=".status.outletDraw.activePowerWatts"
 // +kubebuilder:printcolumn:name="Quarantined",type=boolean,JSONPath=".status.quarantined"
 // +kubebuilder:printcolumn:name="Parked",type=boolean,JSONPath=".spec.parked"
 // +kubebuilder:printcolumn:name="Serial",type=string,priority=1,JSONPath=".spec.serial"

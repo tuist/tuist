@@ -11,6 +11,13 @@ struct AppPreviewsKey: AppStorageKey {
     static let defaultValue: [AppPreview] = []
 }
 
+/// The server the cached previews came from, so a session on another server doesn't show them.
+/// Caches written before this key existed have no server and belong to the Tuist-hosted session they were made in.
+struct AppPreviewsServerURLKey: AppStorageKey {
+    static let key = "appPreviewsServerURL"
+    static let defaultValue: String? = nil
+}
+
 enum AppPreviewsModelError: FatalError, Equatable {
     case previewNotFound(String)
 
@@ -35,6 +42,7 @@ final class AppPreviewsViewModel: Sendable {
     private(set) var appPreviews: [AppPreview] = [] {
         didSet {
             try? appStorage.set(AppPreviewsKey.self, value: appPreviews)
+            try? appStorage.set(AppPreviewsServerURLKey.self, value: serverEnvironmentService.url().absoluteString)
         }
     }
 
@@ -48,7 +56,7 @@ final class AppPreviewsViewModel: Sendable {
         deviceService: any DeviceServicing,
         listProjectsService: ListProjectsServicing = ListProjectsService(),
         listPreviewsService: ListPreviewsServicing = ListPreviewsService(),
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        serverEnvironmentService: ServerEnvironmentServicing = AppServerEnvironmentService(),
         appStorage: AppStoring = AppStorage()
     ) {
         self.deviceService = deviceService
@@ -59,6 +67,11 @@ final class AppPreviewsViewModel: Sendable {
     }
 
     func loadAppPreviewsFromCache() {
+        let cachedServerURL = (try? appStorage.get(AppPreviewsServerURLKey.self)) ?? nil
+        guard cachedServerURL == nil || cachedServerURL == serverEnvironmentService.url().absoluteString else {
+            appPreviews = []
+            return
+        }
         appPreviews = (try? appStorage.get(AppPreviewsKey.self)) ?? []
     }
 

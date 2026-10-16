@@ -5,7 +5,7 @@ import Foundation
 /// entry, otherwise the shared one does, and a location is mirrored only on an exact match.
 struct MirrorConfig: Sendable {
     private let mirrors: [String: String]
-    /// The mirrored locations keyed by `SourceControlLocations.canonicalResolvedFileLocation`.
+    /// The mirrored locations keyed by `SourceControlLocations.canonicalLocation`.
     /// SwifterPM used to write GitHub and GitLab pin locations into that form (without `.git`,
     /// for example), so a pin in such a Package.resolved does not match the location the mirror
     /// was configured for.
@@ -14,7 +14,7 @@ struct MirrorConfig: Sendable {
     init(_ mirrors: [String: String] = [:]) {
         self.mirrors = mirrors
         canonicalSourceControlOriginals = Dictionary(
-            mirrors.keys.sorted().map { (SourceControlLocations.canonicalResolvedFileLocation($0), $0) },
+            mirrors.keys.sorted().map { (SourceControlLocations.canonicalLocation($0), $0) },
             uniquingKeysWith: { first, _ in first }
         )
     }
@@ -62,7 +62,7 @@ struct MirrorConfig: Sendable {
     /// location matches it exactly, so rewriting it would make SwiftPM fetch the original.
     func mirroredOriginal(ofSourceControlLocation location: String) -> String? {
         if mirrors[location] != nil { return location }
-        return canonicalSourceControlOriginals[SourceControlLocations.canonicalResolvedFileLocation(location)]
+        return canonicalSourceControlOriginals[SourceControlLocations.canonicalLocation(location)]
     }
 
     private func effectiveSourceControlLocation(for location: String) -> String {

@@ -75,6 +75,47 @@ type RackLinuxHostSpec struct {
 	// the management port and can power a host whose OS is gone.
 	// +optional
 	AMT RackLinuxHostAMT `json:"amt,omitempty"`
+
+	// Edge is how an edge reaches the internet on its first boot, before its
+	// rack-edge pod runs: through the other edge, over the site's VRRP VLAN.
+	// The chart renders it from the site definition
+	// (infra/helm/tuist/rack-sites/<site>.yaml, written by rack:fleet
+	// render). Unset, an edge's install takes DHCP on its uplinks.
+	// +optional
+	Edge *RackLinuxHostEdge `json:"edge,omitempty"`
+}
+
+// RackLinuxHostEdge is an edge's end of the site's VRRP VLAN, as the
+// rack-edge pod sets it up: an active-backup bond, vrrp0, over one VLAN
+// interface per uplink, vrrp0-<n> on the n-th uplink, with the edge's VRRP
+// address and a default route through the other edge.
+type RackLinuxHostEdge struct {
+	// Uplinks are the OS names of the interfaces the edge's data links leave
+	// from, in the site's order.
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=2
+	// +kubebuilder:validation:items:Pattern=`^[a-z][a-z0-9]{0,14}$`
+	Uplinks []string `json:"uplinks"`
+
+	// VRRP is the edge's address on the site's VRRP VLAN, and its way out.
+	VRRP RackLinuxHostEdgeVRRP `json:"vrrp"`
+}
+
+// RackLinuxHostEdgeVRRP is an edge's address on the site's VRRP VLAN.
+type RackLinuxHostEdgeVRRP struct {
+	// VLAN is the site's VRRP VLAN.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=4094
+	VLAN int32 `json:"vlan"`
+
+	// Address is the edge's VRRP address, with the prefix length.
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$`
+	Address string `json:"address"`
+
+	// Peer is the other edge's VRRP address, the edge's default route until
+	// keepalived gives it the WAN.
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}$`
+	Peer string `json:"peer"`
 }
 
 // RackLinuxHostNode is what a rack host's Node registers with.
@@ -160,7 +201,8 @@ type RackLinuxHostStatus struct {
 	// +optional
 	Boot *RackLinuxHostBootStatus `json:"boot,omitempty"`
 
-	// Power is the host's power state as AMT reports it.
+	// Power is the host's power state: on while it is on the tailnet, as AMT
+	// reports it otherwise.
 	// +optional
 	Power *RackLinuxHostPowerStatus `json:"power,omitempty"`
 
@@ -323,15 +365,25 @@ type RackLinuxHostBootServer struct {
 	At metav1.Time `json:"at"`
 }
 
-// RackLinuxHostPowerStatus is a host's power state as AMT reports it.
+// RackLinuxHostPowerStatus is a host's power state.
 type RackLinuxHostPowerStatus struct {
 	// State is On or Off.
 	// +optional
 	State string `json:"state,omitempty"`
 
-	// ObservedAt is when AMT reported it.
+	// Source is what reported it: Tailnet, for a host connected to the
+	// tailnet, or AMT.
+	// +optional
+	Source string `json:"source,omitempty"`
+
+	// ObservedAt is when it was reported.
 	// +optional
 	ObservedAt *metav1.Time `json:"observedAt,omitempty"`
+
+	// Changes counts the power changes made since the state last matched
+	// spec.online. Each one waits twice as long as the one before.
+	// +optional
+	Changes int32 `json:"changes,omitempty"`
 }
 
 // RackLinuxHostAMTStatus is the host's Intel AMT.
@@ -391,11 +443,19 @@ type RackLinuxHostAMTStatus struct {
 	// LastPowerAction is the last power change the operator asked AMT for.
 	// +optional
 	LastPowerAction *RackLinuxHostAMTPowerAction `json:"lastPowerAction,omitempty"`
+
+	// LastPowerRead is the last time the operator read the host's power
+	// state from AMT, through an edge, as action read. It is read hourly while
+	// the host is on the tailnet, so a path that would not power the host on
+	// shows before it is needed.
+	// +optional
+	LastPowerRead *RackLinuxHostAMTPowerAction `json:"lastPowerRead,omitempty"`
 }
 
 // RackLinuxHostAMTPowerAction is one power change asked of a host's AMT.
 type RackLinuxHostAMTPowerAction struct {
-	// Action is on, off, or a tuist.dev/reboot value: cycle, reset or pxe.
+	// Action is on, off, a tuist.dev/reboot value (cycle, reset or pxe), or
+	// read for a read of the power state.
 	Action string `json:"action"`
 
 	// At is when the operator asked.
@@ -443,6 +503,7 @@ type RackLinuxHostTailnetStatus struct {
 // +kubebuilder:resource:path=racklinuxhosts,scope=Namespaced,categories=cluster-api,shortName=rlh
 // +kubebuilder:validation:XValidation:rule="self.metadata.name.matches('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')",message="a RackLinuxHost is named after the machine's SMBIOS UUID, in lowercase"
 // +kubebuilder:validation:XValidation:rule="self.spec.location.site != ''",message="spec.location.site is required; it composes the providerID"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.edge) || self.spec.role == 'edge'",message="only an edge has spec.edge"
 // +kubebuilder:printcolumn:name="Hostname",type=string,JSONPath=".spec.hostname"
 // +kubebuilder:printcolumn:name="Role",type=string,JSONPath=".spec.role"
 // +kubebuilder:printcolumn:name="State",type=string,JSONPath=".status.provisioning.state"
@@ -454,6 +515,7 @@ type RackLinuxHostTailnetStatus struct {
 // +kubebuilder:printcolumn:name="Device",type=string,priority=1,JSONPath=".status.tailnet.deviceID"
 // +kubebuilder:printcolumn:name="Install",type=string,priority=1,JSONPath=".status.install.keyID"
 // +kubebuilder:printcolumn:name="AMT",type=string,priority=1,JSONPath=".status.amt.controlMode"
+// +kubebuilder:printcolumn:name="PowerReachable",type=string,priority=1,JSONPath=".status.conditions[?(@.type==\"PowerReachable\")].status"
 // +kubebuilder:printcolumn:name="TPM",type=string,priority=1,JSONPath=".status.tpm.fingerprint"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 

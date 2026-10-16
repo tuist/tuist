@@ -1,9 +1,10 @@
 # Cache volume integrations
 
-GitHub Actions, Buildkite and GitLab CI have implemented Linux entry points and
-server identity adapters. They share private per-job local image clones, 20 GB capacity,
+GitHub Actions, Buildkite and GitLab CI share entry points for Linux and native
+macOS jobs, with server identity adapters. They share private per-job local image clones, 20 GB capacity,
 seven-day idle expiry, generation fencing, teardown checks and the dashboard.
-macOS is a separate follow-up. Provider namespaces never share data implicitly.
+macOS uses the [APFS backend](../tart-kubelet/custom-cache-volumes.md) and retains
+automatic built-in caches. Provider and platform namespaces never share data implicitly.
 
 | Provider | Entry point | Publication policy after a successful job |
 | --- | --- | --- |
@@ -65,8 +66,9 @@ nonempty-directory check. Unrelated archive cache entries keep working.
 A vendorable include works on self-managed GitLab too; a GitLab.com-only Catalog
 component would not, because [components require the same instance](https://docs.gitlab.com/ci/components/).
 
-Buildkite native commands and GitLab shell jobs are the supported initial paths.
-Docker child containers require explicit mapping of
+Buildkite native commands and GitLab shell jobs work on Linux and macOS.
+macOS mounts remain inside the guest and do not automatically enter a separate
+Docker VM. On Linux, Docker child containers require explicit mapping of
 `/home/runner/work/_tuist_cache` to the same absolute path, alongside the checkout,
 because attached directories are symlinks. Automatic Docker-plugin wiring is
 not included. Validate those mounts and execution UID separately; GitHub's
@@ -74,7 +76,7 @@ container smoke does not prove other container integrations.
 
 ## Identity and trust
 
-`CacheVolumes.allocate/1` resolves the running Linux pod through its live
+`CacheVolumes.allocate/1` resolves the running Linux or macOS pod through its live
 `RunnerSession.executed_workflow_job_id`. Buildkite/GitLab acquisition already
 records that exact assigned job. The new `CacheVolumes.Identity` adapter
 retrieves provider metadata; the storage lifecycle never accepts scope or save

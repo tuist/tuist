@@ -345,6 +345,7 @@ public enum EnvKey: String, CaseIterable {
 
     case organizationInviteOrganizationName = "TUIST_ORGANIZATION_INVITE_ORGANIZATION_NAME"
     case organizationInviteEmail = "TUIST_ORGANIZATION_INVITE_EMAIL"
+    case organizationInviteRole = "TUIST_ORGANIZATION_INVITE_ROLE"
     case organizationInvitePath = "TUIST_ORGANIZATION_INVITE_PATH"
 
     // ORGANIZATION SHOW

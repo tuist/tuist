@@ -41,7 +41,8 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
       activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]},
       analytics: %{
         storage: [%{at: ~U[2026-09-22 10:00:00Z], used_bytes: 1024, capacity_bytes: 4096}],
-        activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]}
+        activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]},
+        previous_activity: %{uses: 4, hit_rate: 75.0, points: []}
       },
       history: []
     }
@@ -90,6 +91,50 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     refute html =~ "Average attach · 30 days"
     assert html =~ "not unique physical bytes"
     assert html =~ "request_delete"
+  end
+
+  test "built-in volumes use the same presentation and measured sizes without a type label" do
+    assigns = assigns(true)
+
+    volume = %{
+      assigns.selected
+      | builtin_name: "tuist-cache",
+        key: "tuist-cache",
+        platform: "macos",
+        architecture: "arm64"
+    }
+
+    data = assigns.data.result
+    stats = Map.update!(data.stats, volume.id, &Map.put(&1, :retained_capacity_bytes, 20_000_000_000))
+    data = %{data | volumes: [volume], stats: stats}
+    assigns = %{assigns | selected: volume, data: AsyncResult.ok(data)}
+    detail = render_component(&RunnerVolumesLive.render/1, assigns)
+    assert detail =~ "tuist-cache"
+    assert detail =~ "macOS"
+    assert detail =~ "20.0 GB"
+    refute detail =~ "Automatic"
+    badges = detail |> Floki.parse_document!() |> Floki.find(".noora-badge") |> Floki.text()
+    assert badges =~ "macOS"
+    refute badges =~ "Custom"
+    refute detail =~ "phx-click=\"request_delete\""
+    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil})
+    assert inventory =~ "tuist-cache"
+    assert inventory =~ "20.0 GB"
+    assert inventory =~ "/runners/volumes/#{volume.id}"
+  end
+
+  test "inventory truncates long volume names and keeps the full name in the title" do
+    assigns = assigns(true)
+    key = "cli-dependencies-m4-20261009-01-tuist-macos-27-0-volumes-" <> String.duplicate("a", 64)
+    volume = %{assigns.selected | key: key}
+    data = %{assigns.data.result | volumes: [volume]}
+
+    html = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil, data: AsyncResult.ok(data)})
+
+    cell = html |> Floki.parse_document!() |> Floki.find("#volumes-table td:first-child")
+    assert Floki.text(cell) =~ "cli-dependencies-m4-20261009-01-tuist-macos-27-…"
+    refute Floki.text(cell) =~ key
+    assert Floki.attribute(cell, "[title]", "title") == [key]
   end
 
   test "account overview shows storage totals with missing measurement coverage" do
@@ -143,10 +188,19 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert RunnerVolumesLive.storage_chart_options("used_bytes").yAxis.axisLabel.formatter == "fn:formatBytes"
   end
 
-  test "hit rate trends use percentage points and distinguish unavailable comparisons" do
-    assert %{value: 25.0, value_label: "+25.0 pp"} = RunnerVolumesLive.hit_rate_trend(75.0, 50.0)
-    assert %{value: -25.0, value_label: "-25.0 pp"} = RunnerVolumesLive.hit_rate_trend(50.0, 75.0)
-    assert %{value: 50.0, value_label: "+50.0 pp"} = RunnerVolumesLive.hit_rate_trend(50.0, 0.0)
+  test "storage charts use the themed grid line and label colors" do
+    options = RunnerVolumesLive.storage_chart_options("used_bytes")
+    assert options.yAxis.splitLine.lineStyle.color == "var:noora-chart-lines"
+    assert options.yAxis.axisLabel.color == "var:noora-surface-label-secondary"
+    assert options.xAxis.axisLabel.color == "var:noora-surface-label-secondary"
+  end
+
+  test "hit rate trends are relative changes and distinguish unavailable comparisons" do
+    assert %{value: 50.0, value_label: nil, label: "since last period"} = RunnerVolumesLive.hit_rate_trend(75.0, 50.0)
+    assert %{value: -33.3, value_label: nil} = RunnerVolumesLive.hit_rate_trend(50.0, 75.0)
+    assert %{value: -100.0} = RunnerVolumesLive.hit_rate_trend(0.0, 50.0)
+    assert %{value: no_base, value_label: nil} = RunnerVolumesLive.hit_rate_trend(50.0, 0.0)
+    assert no_base == 0.0
     assert %{value: unchanged_rate, value_label: nil} = RunnerVolumesLive.hit_rate_trend(50.0, 50.0)
     assert unchanged_rate == 0.0
     assert %{value: 0, value_label: "No previous data"} = RunnerVolumesLive.hit_rate_trend(75.0, nil)
@@ -154,7 +208,8 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     period = {~U[2026-09-15 10:00:00Z], ~U[2026-09-22 10:00:00Z]}
     assert RunnerVolumesLive.previous_period(period) == {~U[2026-09-08 10:00:00.000000Z], ~U[2026-09-15 09:59:59.999999Z]}
     html = render_component(&RunnerVolumesLive.render/1, %{assigns(true) | selected: nil})
-    assert html =~ "+25.0 pp"
+    assert html =~ "+50.0%"
+    refute html =~ " pp"
   end
 
   test "inventory hit rate charts work without storage measurements and preserve unknown results" do
@@ -356,12 +411,9 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert jobs =~ "Continuous integration"
     assert RunnerVolumesLive.workflow_label(%{usage | workflow_name: nil}) == "Unknown"
     assert RunnerVolumesLive.workflow_label(%{usage | workflow_name: ""}) == "Unknown"
-    assert jobs =~ "Cache status"
-    assert jobs =~ "Saved"
-    assert jobs =~ "Changes from this job were saved to the volume for future job runs."
-    assert jobs =~ ~s(id="volume-use-status-#{usage.id}")
-    assert jobs =~ ~s(data-type="status_badge")
-    refute jobs =~ "Published"
+    assert jobs =~ "Hit"
+    refute jobs =~ "Cache status"
+    refute jobs =~ ~s(id="volume-use-status-#{usage.id}")
     assert RunnerVolumesLive.job_label(%{usage | job_name: nil}) == "# 1024"
     assert RunnerVolumesLive.job_label(%{usage | job_name: ""}) == "# 1024"
     assert jobs =~ ~s(id="volume-history")
@@ -370,6 +422,76 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert :binary.match(jobs, "Volume details") < :binary.match(jobs, "noora-tab-menu-horizontal")
     assert RunnerVolumesLive.selected_tab("size-history") == "overview"
     assert RunnerVolumesLive.selected_tab("invalid") == "overview"
+  end
+
+  test "detail widgets compare with the previous period" do
+    assigns = assigns(true)
+    data = assigns.data.result
+
+    analytics =
+      Map.merge(data.analytics, %{
+        storage: [
+          %{at: ~U[2026-09-15 10:00:00Z], used_bytes: 512, capacity_bytes: 4096},
+          %{at: ~U[2026-09-22 10:00:00Z], used_bytes: 1024, capacity_bytes: 4096}
+        ],
+        previous_activity: %{uses: 2, hit_rate: 50.0, points: []}
+      })
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | analytics: analytics})})
+
+    document = Floki.parse_document!(html)
+    widget = &(document |> Floki.find("##{&1}") |> Floki.text())
+
+    assert widget.("volume-used") =~ "+100.0%"
+    assert widget.("volume-used") =~ "since last period"
+    assert widget.("volume-hit-rate") =~ "+50.0%"
+    assert widget.("volume-uses") =~ "+100.0%"
+  end
+
+  test "each widget has its own legend color, matching its chart series" do
+    legend = fn html, id ->
+      html |> Floki.parse_document!() |> Floki.find(~s(##{id} [data-part="legend"])) |> Floki.attribute("data-color")
+    end
+
+    detail = render_component(&RunnerVolumesLive.render/1, assigns(true))
+    assert legend.(detail, "volume-used") == ["secondary"]
+    assert legend.(detail, "volume-hit-rate") == ["tertiary"]
+    assert legend.(detail, "volume-uses") == ["p50"]
+
+    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns(true) | selected: nil})
+    assert legend.(inventory, "storage-volumes") == ["primary"]
+    assert legend.(inventory, "storage-used") == ["secondary"]
+    assert legend.(inventory, "storage-hit-rate") == ["tertiary"]
+
+    analytics = assigns(true).data.result.analytics
+    assert [%{color: "var:noora-chart-secondary"}] = RunnerVolumesLive.detail_chart_series(analytics, "used_bytes")
+    assert [%{color: "var:noora-chart-tertiary"}] = RunnerVolumesLive.detail_chart_series(analytics, "hit_rate")
+    assert [%{color: "var:noora-chart-p50"}] = RunnerVolumesLive.detail_chart_series(analytics, "uses")
+    point = %{at: ~U[2026-09-22 10:00:00Z], volumes: 1, used_bytes: 1024, capacity_bytes: 4096}
+    assert [%{color: "var:noora-chart-primary"}] = RunnerVolumesLive.storage_chart_series([point], "volumes")
+  end
+
+  test "job run trends show absolute growth from zero and fall back without a previous count" do
+    assert %{value: 100.0, value_label: nil, label: "since last period"} = RunnerVolumesLive.uses_trend(4, 2)
+    assert %{value: -50.0} = RunnerVolumesLive.uses_trend(1, 2)
+    assert %{value: 7, value_label: "+7"} = RunnerVolumesLive.uses_trend(7, 0)
+    assert %{value: 0, value_label: nil} = RunnerVolumesLive.uses_trend(0, 0)
+    assert %{value: 0, value_label: nil} = RunnerVolumesLive.uses_trend(3, nil)
+  end
+
+  test "detail warns when the saved snapshot is too full to reuse" do
+    assigns = assigns(true)
+    data = assigns.data.result
+    full = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1700, saved_capacity_bytes: 2048}))
+    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: full})})
+
+    assert html =~ ~s(id="volume-full-alert")
+    assert html =~ "This volume is almost full"
+
+    roomy = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1024, saved_capacity_bytes: 2048}))
+    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: roomy})})
+    refute html =~ ~s(id="volume-full-alert")
   end
 
   test "reader sees metrics but no mutation controls" do

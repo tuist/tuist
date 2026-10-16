@@ -481,5 +481,5 @@ msgstr ""
 #: lib/tuist_web/live/docs_live.ex:324
 #: lib/tuist_web/live/docs_live.ex:737
 #, elixir-autogen, elixir-format
-msgid "Reuse build artifacts across Xcode, Gradle, Bazel, and Rust so work completed in one environment speeds up every other environment. Rust caching is experimental."
+msgid "Share Xcode, Gradle, Bazel, and Rust build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
 msgstr ""

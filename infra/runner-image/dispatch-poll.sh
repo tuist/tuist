@@ -130,6 +130,103 @@ report_heartbeat() {
   printf '%s' "${1}" >"${STATUS_SHARE}/runner-heartbeat" 2>/dev/null || true
 }
 
+RUNNER_TCC_DB="/Users/runner/Library/Application Support/com.apple.TCC/TCC.db"
+TCC_LOG=/var/log/tuist-runner/tcc.log
+TCC_LOG_PID=""
+
+# stream_tcc_log records TCC's unified-log output from boot on, for
+# report_finder_automation to read on the way out. Streamed rather than
+# read back with `log show` at exit: scanning the log store after a long
+# job takes tens of seconds, and a cut-off scan loses the newest lines,
+# which are the ones that explain a failure near the end of the job.
+stream_tcc_log() {
+  /usr/bin/log stream --level info --style ndjson --predicate 'subsystem == "com.apple.TCC"' >"${TCC_LOG}" 2>/dev/null &
+  TCC_LOG_PID=$!
+}
+
+filter_tcc_log() {
+  # JSON preserves multiline request boundaries. Bound parsing to the latest
+  # MiB; keep the last denial plus recent AppleEvents requests, not file access.
+  tail -c 1048576 "${TCC_LOG}" | jq -Rr '
+    fromjson? | select(.eventMessage != null) |
+    [.timestamp, .processID, .threadID, (.eventMessage | gsub("[\\n\\r\\t]"; " "))] | @tsv
+  ' | LC_ALL=C awk -F '\t' '
+    {
+      message=$4; thread=$2 ":" $3
+      if (match(message, /msgID=[0-9.]+/)) {
+        key=$2 ":" substr(message, RSTART, RLENGTH); current[thread]=key
+      } else key=current[thread]
+      if (key == "") next
+      if (message ~ /service="kTCCServiceAppleEvents"|subject=com\.apple\.finder|Handling access request: kTCCServiceAppleEvents/) apple[key]=1
+      if (message ~ /REQUEST_MSG/ && message ~ /service="/ && message !~ /service="kTCCServiceAppleEvents"/) other[key]=1
+      text=$1 " pid=" $2 " " message
+      if (message ~ /REQUEST_MSG|AUTHREQ_SUBJECT/) request[key]=text
+      if (message ~ /^(AUTHREQ_ATTRIBUTION|AttributionChain:)/ && (attribution[key]=="" || message ~ /responsible=/)) attribution[key]=text
+      if (message ~ /^AUTHREQ_RESULT|^Handling access request: kTCCServiceAppleEvents/) {
+        result[key]=text
+        if (message ~ /authValue[=:][ ]*0([, ]|$)/) { denied[key]=NR; denied_result[key]=text }
+        if (message ~ /authValue[=:][ ]*1([, ]|$)/) uncertain[key]=NR
+      }
+      seen[key]=NR; order[NR]=key
+    }
+    function emit(key, decision) {
+      if (request[key] != "") print substr(request[key],1,1800)
+      if (attribution[key] != "") print substr(attribution[key],1,1800)
+      if (decision == "") decision=result[key]
+      if (decision != "") print substr(decision,1,1800)
+    }
+    END {
+      for (key in denied) if (apple[key] && !other[key] && denied[key]>last) { last=denied[key]; failure=key }
+      if (failure == "") for (key in uncertain) if (apple[key] && !other[key] && uncertain[key]>last) { last=uncertain[key]; failure=key }
+      if (failure != "") emit(failure,denied_result[failure])
+      for (i=NR; i>0 && count<9; i--) {
+        key=order[i]
+        if (seen[key]==i && apple[key] && !other[key] && key!=failure) { emit(key); count++ }
+      }
+    }
+  '
+}
+
+# report_finder_automation appends the state behind scripted Finder
+# access to `${LOG}` on the way out. When the Finder approval was written
+# at boot, some jobs failed with an immediate
+# `Not authorized to send Apple events to Finder (-1743)`, and nothing
+# from those VMs survives them. Written last, after the job's own
+# output, it lands in the bounded tail that publish_runner_log hands to
+# tart-kubelet and that reaches Loki.
+#
+# Keep at most ten request summaries within the host 64 KiB tail. Teardown
+# is best-effort: a stalled stream or report must not prevent VM shutdown.
+report_finder_automation() {
+  local prefix pid timer stream="${TCC_LOG_PID}"
+  prefix="$(date -u +%FT%TZ) dispatch-poll: tcc:"
+  TCC_LOG_PID=""
+  if [ -n "${stream}" ] && jobs -pr | grep -qx "${stream}"; then
+    ( sleep 1; kill -KILL "${stream}" 2>/dev/null ) >/dev/null 2>&1 &
+    timer=$!
+    kill "${stream}" 2>/dev/null || true
+    wait "${stream}" 2>/dev/null || true
+    kill "${timer}" 2>/dev/null || true
+    wait "${timer}" 2>/dev/null || true
+  fi
+  set -m
+  (
+    stat -f "${prefix} db inode=%i birth=%SB mtime=%Sm" -t '%FT%T' "${RUNNER_TCC_DB}" 2>&1 | head -n 1
+    /usr/bin/sqlite3 -readonly -cmd '.timeout 1000' "${RUNNER_TCC_DB}" "SELECT client, auth_value, auth_reason, last_modified FROM access WHERE service = 'kTCCServiceAppleEvents' AND indirect_object_identifier = 'com.apple.finder' LIMIT 10;" 2>&1 |
+      head -n 10 | cut -c1-400 | sed "s|^|${prefix} row |"
+    ps -axo pid=,user=,lstart=,comm= | awk '$NF ~ /(^|\/)tccd$/' | head -n 5 | cut -c1-500 | sed "s|^ *|${prefix} tccd |"
+    [ ! -f "${TCC_LOG}" ] || filter_tcc_log | sed "s|^|${prefix} log |"
+  ) &
+  pid=$!
+  set +m
+  ( sleep 5; kill -TERM -- "-${pid}" 2>/dev/null; sleep 1; kill -KILL -- "-${pid}" 2>/dev/null ) >/dev/null 2>&1 &
+  timer=$!
+  wait "${pid}" 2>/dev/null || true
+  kill -KILL -- "-${pid}" 2>/dev/null || true
+  kill "${timer}" 2>/dev/null || true
+  wait "${timer}" 2>/dev/null || true
+}
+
 # Always halt the VM on script exit. tart-kubelet observes `tart run`
 # exiting and transitions the Pod to a terminal phase; without this
 # trap a non-zero `./run.sh` (errexit), an early `exit 1`
@@ -138,7 +235,7 @@ report_heartbeat() {
 # refilling. The trap fires once on EXIT so the happy path
 # (clean ./run.sh exit) and every error path halt the VM the
 # same way.
-trap '_rc=$?; report_runner_exit "${_rc}"; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; publish_runner_log; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
+trap '_rc=$?; report_runner_exit "${_rc}"; report_finder_automation; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; publish_runner_log; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
 
 if [ ! -f /etc/tuist.env ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: /etc/tuist.env missing; aborting"
@@ -148,6 +245,13 @@ fi
 source /etc/tuist.env
 
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
+
+# GitHub-hosted runners set ImageOS (e.g. `macos26`), and setup actions such
+# as erlef/setup-beam read it to pick a prebuilt binary for the OS. Derived
+# from the booted OS so it follows base-image bumps; the runner forwards it
+# to every step.
+ImageOS="macos$(sw_vers -productVersion | cut -d. -f1)"
+export ImageOS
 
 keep_desktop_interactive() {
   # ByHost screensaver preferences are tied to the cloned VM's
@@ -174,49 +278,24 @@ keep_desktop_interactive() {
 
 keep_desktop_interactive
 
-# approve_finder_automation records a standing approval for scripting
-# Finder, which `create-dmg` and any other `osascript`-driven window
-# styling needs. Without one, the first AppleEvent to Finder waits on a
-# consent prompt nobody can answer and the send fails as `AppleEvent
-# timed out (-1712)`.
-#
-# The decision is read from the session user's TCC database, which tccd
-# only creates once `runner` has logged in, so it cannot be seeded at
-# image build. The system database is not consulted for it.
-#
-# TCC charges the event to the responsible process, not to `osascript`:
-# `Runner.Listener` for GitHub jobs, and this script's `/bin/bash` for
-# the agents it launches directly. A row only matches when it carries
-# Finder's code requirement as `indirect_object_code_identity`.
-#
-# tccd is still writing the database right after login, and the sqlite3
-# CLI fails at once on a lock unless given a busy timeout. Without one,
-# some boots lost the approval to `database is locked`.
-#
-# Best-effort: a job that never scripts Finder must not wait on this.
-approve_finder_automation() {
-  local db="/Users/runner/Library/Application Support/com.apple.TCC/TCC.db"
-  local finder_requirement="X'fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003'"
-  local waited=0 failed=0 client
-  while [ ! -f "${db}" ] && [ "${waited}" -lt 30 ]; do
-    sleep 1
-    waited=$((waited + 1))
-  done
-  if [ ! -f "${db}" ]; then
-    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING per-user TCC.db missing; Finder automation will prompt"
-    return 0
+# check_tcc_approvals logs whether the standing TCC approvals the image
+# build seeded into runner's TCC.db (scripting Finder for `create-dmg`,
+# the iOS Simulator's microphone) are still there. It only reads; see
+# infra/runner-image/AGENTS.md for why the rows are written at build.
+# A missing row means a job that needs it waits on a consent prompt
+# nobody can answer.
+check_tcc_approvals() {
+  local result
+  if result=$(/opt/tuist/tcc-approvals.sh check 2>&1); then
+    echo "$(date -u +%FT%TZ) dispatch-poll: ${result}"
+  else
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING ${result}"
   fi
-  for client in /Users/runner/actions-runner/bin/Runner.Listener /bin/bash; do
-    if ! /usr/bin/sqlite3 -cmd ".timeout 10000" "${db}" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAppleEvents', '${client}', 1, 2, 3, 1, NULL, 0, 'com.apple.finder', ${finder_requirement}, 0, CAST(strftime('%s','now') AS INTEGER));"; then
-      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not approve Finder automation for ${client}"
-      failed=1
-    fi
-  done
-  [ "${failed}" -eq 0 ] && echo "$(date -u +%FT%TZ) dispatch-poll: Finder automation approved"
   return 0
 }
 
-approve_finder_automation
+stream_tcc_log
+check_tcc_approvals
 
 # In-VM cluster DNS for the runner-cache path. When the
 # runners-controller staged TUIST_CLUSTER_DNS_IP (macOS pools in
@@ -470,6 +549,8 @@ use_local_cold_cache() {
 # materializes the dispatched account's master into the branch.
 attach_cache_image() {
   local err
+  local attach_started_ms
+  attach_started_ms=$(perl -MTime::HiRes=time -e 'printf "%.0f", time * 1000')
   if [ ! -f "${CACHE_IMAGE}" ]; then
     cache_diag "no cache image at ${CACHE_IMAGE}"
     return 1
@@ -482,6 +563,8 @@ attach_cache_image() {
   fi
   CACHE_MOUNT="${CACHE_MOUNTPOINT}"
   CACHE_IMAGE_ACTIVE=1
+  CACHE_ATTACHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  CACHE_ATTACH_MS=$(( $(perl -MTime::HiRes=time -e 'printf "%.0f", time * 1000') - attach_started_ms ))
   # Make every inherited artifact owner-writable so the CLI can re-sign in place.
   # Empty (cold) images have no tuist/ yet, so guard on its presence.
   if [ -d "${CACHE_MOUNT}/tuist" ]; then
@@ -1218,6 +1301,7 @@ wait_for_cache_ready() {
         return 0
       fi
       CACHE_INVENTORY_BEFORE=$(cache_inventory "${CACHE_MOUNT}")
+      stage_volume_usage attach
       # Both caches' limits, from what the job inherited, before the prune that
       # applies the compilation cache's.
       set_cache_limits attach
@@ -1252,6 +1336,26 @@ wait_for_cache_ready() {
     waited=$((waited + 1))
   done
   use_local_cold_cache "cache-ready not signalled within ${CACHE_READY_TIMEOUT}s"
+}
+
+# Measure the mounted APFS filesystem, not the sparse image's host allocation.
+# The host supplies identity/outcome and sends this after fencing the guest.
+stage_volume_usage() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  local sample used capacity source warm
+  sample=$(df -kP "${CACHE_MOUNT}" 2>/dev/null | awk 'NR == 2 {printf "%.0f %.0f", $3 * 1024, $2 * 1024}')
+  used=${sample%% *}
+  capacity=${sample#* }
+  case "${used}:${capacity}" in *[!0-9:]*|:*) return 0 ;; esac
+  [ "${capacity}" -gt 0 ] 2>/dev/null || return 0
+  if [ "$1" = "attach" ]; then CACHE_ATTACHED_SIZE_BYTES=${used}; fi
+  [ -n "${CACHE_ATTACHED_SIZE_BYTES:-}" ] || return 0
+  source=$(cat "${STATUS_SHARE}/cache-source" 2>/dev/null)
+  case "${source}" in warm|seeded) warm=true ;; cold) warm=false ;; *) return 0 ;; esac
+  printf '{"attached_at":"%s","attach_ms":%s,"attached_size_bytes":%s,"size_bytes":%s,"capacity_bytes":%s,"warm":%s}\n' \
+    "${CACHE_ATTACHED_AT}" "${CACHE_ATTACH_MS}" "${CACHE_ATTACHED_SIZE_BYTES}" "${used}" "${capacity}" "${warm}" \
+    > "${STATUS_SHARE}/cache-usage.json.tmp" 2>/dev/null && \
+    mv "${STATUS_SHARE}/cache-usage.json.tmp" "${STATUS_SHARE}/cache-usage.json" 2>/dev/null || true
 }
 
 # The post-job fill % at or above which an image is refused promotion. A master
@@ -1866,7 +1970,6 @@ while true; do
       # account's cache master into the branch share now. Wait (bounded) for
       # the cache-ready signal before the runner touches the cache, then
       # snapshot the pre-job inventory. Cold path on timeout; never blocks.
-      wait_for_cache_ready
       # Force an NTP step before the job runs. A golden-base VM can be
       # handed a job within seconds of boot — before macOS `timed` has
       # synced the guest clock, which can start minutes behind. The
@@ -1882,6 +1985,7 @@ while true; do
       else
         echo "$(date -u +%FT%TZ) dispatch-poll: WARNING NTP step failed; relying on timed"
       fi
+      wait_for_cache_ready
       # Fork the machine-metrics sampler so it runs for the job's
       # duration and POSTs CPU/memory/network/disk to the server. It
       # dies with the VM when the EXIT trap halts us after the runner
@@ -2013,6 +2117,12 @@ HOOK
         fi
         echo "$(date -u +%FT%TZ) dispatch-poll: buildkite agent exited ${agent_rc}"
       else
+      # The runner prints `.setup_info` as groups in the job's "Set up job"
+      # step; the server's group links the job to its Tuist dashboard page.
+      # Best-effort: a missing or unwritable file only drops the link.
+      if "${JQ}" -e '.setup_info | type == "array"' /tmp/dispatch.json >/dev/null 2>&1; then
+        "${JQ}" '.setup_info' /tmp/dispatch.json >.setup_info 2>/dev/null || rm -f .setup_info
+      fi
       ./run.sh --jitconfig "${jit}" --disableupdate &
       runner_pid=$!
       if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
@@ -2132,6 +2242,7 @@ HOOK
         mark_cache_not_promotable "cache volume $(cat "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null)% full"
         cache_within_fill_ceiling=0
       fi
+      stage_volume_usage teardown
       if ! detach_cache_image; then
         mark_cache_not_promotable "detach failed"
       elif ! capture_settled_inventory; then
@@ -2145,6 +2256,11 @@ HOOK
         capture_content_digest
         report_cache_dirty "${JOB_PASSED}"
         report_volume_head "${JOB_PASSED}"
+      fi
+      if [ "${JOB_PASSED}" = "1" ] && [ -x /usr/local/bin/tuist-cache-volume ]; then
+        if ! /usr/local/bin/tuist-cache-volume --detach-all; then
+          echo "$(date -u +%FT%TZ) dispatch-poll: WARNING custom cache detach failed; affected volumes will not be published" >&2
+        fi
       fi
       # Final metrics sample before the EXIT trap halts the VM. The
       # looping sampler is killed mid-sleep by the shutdown, so the last

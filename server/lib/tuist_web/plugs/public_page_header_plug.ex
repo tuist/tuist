@@ -39,8 +39,14 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlug do
         _opts
       ) do
     case Projects.get_project_by_account_and_project_handles(account_handle, project_handle) do
-      %{visibility: :public} -> conn |> put_public_header() |> enable_robot_indexing()
-      _ -> conn
+      %{visibility: :public} ->
+        conn
+        |> put_private(:tuist_public_project, true)
+        |> put_public_header()
+        |> enable_robot_indexing()
+
+      _ ->
+        conn
     end
   end
 

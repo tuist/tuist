@@ -12,7 +12,9 @@ This module provides manifest-facing types used to describe projects, targets, a
 
 ## Invariants
 - Manifest types are `Codable`/`Equatable` and designed to be stable across versions.
+- Native `.package(product:)` dependencies may use `runtimeDynamic` or `runtimeDynamicEmbedded` as explicit linkage hints for hosted tests. Xcode still resolves their build type; existing `runtime` and `runtimeEmbedded` declarations retain their behavior. `.external(name:)` dependencies become Tuist-generated targets with linkage represented by their product types, so they do not require these native-package hints.
 - `Project` maps 1:1 to `Project.swift` manifests and includes targets, schemes, settings, and packages.
+- `enableCoveragePrefixMapping` is an explicit opt-in for teams remapping coverage with tools such as `llvm-cov`. It requires `enableCaching`; the default stays compatible with `xccov`.
 
 ## Related Context
 - cli/Sources/TuistLoader/AGENTS.md

@@ -37,6 +37,8 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.GapReasons
   alias Tuist.Tests.Coverage.Reported
+  alias Tuist.Tests.Coverage.TargetSources
+  alias Tuist.Tests.Coverage.TestSources
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.CoverageRun
@@ -67,9 +69,9 @@ defmodule Tuist.Tests.Coverage.Commits do
   @doc """
   Whether the commit's figure is incomplete, a lower bound (`reported_kind`
   `partial`, `gap_reasons` saying why): the coverage of some skipped tests
-  could not be determined, a selective run's skipped tests could not be
-  listed, or a scheme's coverage only came from CI runs on a dirty checkout. The
-  fold decides it, so the actual coverage may be higher. A figure whose
+  could not be determined, a scheme's runs executed only the tests their
+  caller selected, or a scheme's coverage only came from CI runs on a dirty
+  checkout. The fold decides it, so the actual coverage may be higher. A figure whose
   skipped tests were all carried forward is complete, as is one nothing
   skipped in.
   """
@@ -116,6 +118,18 @@ defmodule Tuist.Tests.Coverage.Commits do
     # Outside the commit's lock: advancing a ref takes the repository's.
     if row do
       advance_refs(project, sha, runs)
+
+      # The place was read before the row existed, so an advance that moved
+      # the commit in between (its child's fold advancing the branch through
+      # it) synced no row, and this commit's own advance, observed earlier
+      # than that one or finding the branch already holds it, moves nothing.
+      if row.git_repository_id > 0, do: GitHistory.sync_coverage_places(row.git_repository_id, [sha])
+
+      # The targets the commit's runs executed whole, and the versions of the
+      # tests they ran, become carry sources for the commits that skip them.
+      TargetSources.record(project.id, runs)
+      TestSources.record(project.id, runs)
+
       summary = summary(project.id, sha)
       if Deltas.complete?(summary), do: Deltas.enqueue(project.id, sha)
       summary
@@ -236,9 +250,8 @@ defmodule Tuist.Tests.Coverage.Commits do
       # its coverage is still known: all of it carried forward. The row is
       # written with nothing measured and the reported figure filled in, so
       # the commit is comparable and its pipeline can signal completion. A
-      # commit whose runs carried nothing either — no candidate was ever
-      # enumerated for those schemes — has no coverage to publish and keeps
-      # none.
+      # commit whose runs carried nothing either (no ancestor ran what those
+      # schemes skipped) has no coverage to publish and keeps none.
       runs == [] and not is_nil(reported) and reported.executable_lines > 0 ->
         clean = clean_runs(project.id, sha)
         {project |> carried_row(sha, previous, reported, clean, opts) |> lower_bound(project.id, sha), clean}
@@ -251,16 +264,16 @@ defmodule Tuist.Tests.Coverage.Commits do
     end
   end
 
-  # Besides the gaps `Reported` finds, the figure is a lower bound when what a
-  # selective run skipped could not be listed (`observed` with a partial
-  # scheme), or when a scheme's coverage only came from CI runs on a dirty
-  # checkout: the pipeline set out to measure it, and no clean run of it did,
-  # not even one skipped whole. A local run measures what a developer tried,
-  # not what the pipeline owes the commit. Settled on the built row, so the unmeasured
-  # files are still read the way the coverage was reached.
+  # Besides the gaps `Reported` finds, the figure is a lower bound when a
+  # scheme's runs all left tests out and nothing names what Tuist skipped, or
+  # when a scheme's coverage only came from CI runs on a dirty checkout: the
+  # pipeline set out to measure it, and no clean run of it did, not even one
+  # skipped whole. A local run measures what a developer tried, not what the pipeline
+  # owes the commit. Settled on the built row, so the unmeasured files are
+  # still read the way the coverage was reached.
   defp lower_bound(row, project_id, sha) do
     row =
-      if row.reported_kind == "observed" and row.partial_schemes != [],
+      if row.reported_kind == "measured" and row.partial_schemes != [],
         do: %{row | reported_kind: "partial"},
         else: row
 
@@ -281,7 +294,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.is_ci and t.id in subquery(covered),
           group_by: t.id,
           having: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == true,
-          select: fragment("any(?)", t.scheme)
+          select: fragment("argMax(?, ?)", t.scheme, t.inserted_at)
         ),
         settings: [select_sequential_consistency: 1]
       )
@@ -375,17 +388,20 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   # A commit's runs from a clean checkout, measured or not, oldest first, with
   # what they reported about where the commit is: what labels a commit whose
-  # every scheme was skipped whole and moves its refs.
+  # every scheme was skipped whole and moves its refs. Runs not set up to
+  # collect coverage are left out, as `Reported` leaves them out.
   defp clean_runs(project_id, sha) do
     ClickHouseRepo.all(
       from(t in Test,
         where: t.project_id == ^project_id and t.git_commit_sha == ^sha,
         group_by: t.id,
-        having: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false,
+        having:
+          fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false and
+            fragment("ifNull(argMax(?, ?), true)", t.coverage_enabled, t.inserted_at),
         order_by: [asc: min(t.ran_at)],
         select: %{
           test_run_id: t.id,
-          scheme: fragment("any(?)", t.scheme),
+          scheme: fragment("argMax(?, ?)", t.scheme, t.inserted_at),
           git_repository_id: fragment("argMax(?, ?)", t.git_repository_id, t.inserted_at),
           git_branch: fragment("any(?)", t.git_branch),
           is_pull_request: fragment("argMax(?, ?)", t.is_pull_request, t.inserted_at),
@@ -564,15 +580,22 @@ defmodule Tuist.Tests.Coverage.Commits do
   Only when no first parent within the window qualifies does the walk cover
   the window.
   """
-  def nearest_measured_ancestor(_project_id, _repository_id, _sha, []), do: nil
+  def nearest_measured_ancestor(project_id, repository_id, sha, schemes, opts \\ [])
+  def nearest_measured_ancestor(_project_id, _repository_id, _sha, [], _opts), do: nil
 
-  def nearest_measured_ancestor(project_id, repository_id, sha, schemes) do
+  def nearest_measured_ancestor(project_id, repository_id, sha, schemes, opts) do
     measured =
       from(c in CoverageCommit,
         where:
           c.project_id == ^project_id and c.executable_lines > 0 and c.git_commit_sha != ^sha and
             fragment("? && ?", c.schemes, type(^schemes, {:array, :string}))
       )
+
+    measured =
+      case Keyword.get(opts, :kind) do
+        nil -> measured
+        kind -> where(measured, [c], c.reported_kind == ^kind)
+      end
 
     nearest =
       case first_parent_distance_in(measured, repository_id, sha) do
@@ -752,7 +775,7 @@ defmodule Tuist.Tests.Coverage.Commits do
         group_by: t.id,
         select: %{
           id: t.id,
-          scheme: fragment("any(?)", t.scheme),
+          scheme: fragment("argMax(?, ?)", t.scheme, t.inserted_at),
           build_system: fragment("any(?)", t.build_system),
           git_commit_sha: fragment("any(?)", t.git_commit_sha),
           git_repository_id: fragment("argMax(?, ?)", t.git_repository_id, t.inserted_at),
@@ -762,6 +785,8 @@ defmodule Tuist.Tests.Coverage.Commits do
           pull_request_number: fragment("argMax(?, ?)", t.pull_request_number, t.inserted_at),
           base_branch: fragment("argMax(?, ?)", t.base_branch, t.inserted_at),
           coverage_evidence_status: fragment("argMax(?, ?)", t.coverage_evidence_status, t.inserted_at),
+          only_test_identifiers: fragment("argMax(?, ?)", t.only_test_identifiers, t.inserted_at),
+          skip_test_identifiers: fragment("argMax(?, ?)", t.skip_test_identifiers, t.inserted_at),
           ran_at: min(t.ran_at)
         }
       )
@@ -773,7 +798,12 @@ defmodule Tuist.Tests.Coverage.Commits do
         where: t.git_dirty == false,
         select: %{
           test_run_id: c.test_run_id,
-          scheme: c.scheme,
+          # The run's, not the published totals': a client that processed the bundle itself
+          # publishes its coverage with the run's creation, before the processor has read the
+          # scheme off the bundle, and the recompute that follows the processing reads it here.
+          # The run's rows are read by their latest version for the same reason: the row the
+          # creation wrote carries no scheme, and `any` could pick it.
+          scheme: t.scheme,
           build_system: c.build_system,
           partial: c.partial,
           git_commit_sha: t.git_commit_sha,
@@ -783,6 +813,8 @@ defmodule Tuist.Tests.Coverage.Commits do
           pull_request_number: t.pull_request_number,
           base_branch: t.base_branch,
           coverage_evidence_status: t.coverage_evidence_status,
+          only_test_identifiers: t.only_test_identifiers,
+          skip_test_identifiers: t.skip_test_identifiers,
           ran_at: t.ran_at,
           covered_lines: c.covered_lines,
           executable_lines: c.executable_lines

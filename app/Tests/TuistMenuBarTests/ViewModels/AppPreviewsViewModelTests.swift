@@ -44,6 +44,47 @@ import TuistTesting
         given(serverEnvironmentService)
             .url()
             .willReturn(.test())
+
+        given(appStorage)
+            .get(.any as Parameter<AppPreviewsServerURLKey.Type>)
+            .willReturn(nil)
+
+        given(appStorage)
+            .set(.any as Parameter<AppPreviewsServerURLKey.Type>, value: .any)
+            .willReturn()
+    }
+
+    @Test func does_not_load_app_previews_cached_for_another_server() {
+        // Given
+        let appStorage = MockAppStoring()
+        let subject = AppPreviewsViewModel(
+            deviceService: deviceService,
+            listProjectsService: listProjectsService,
+            listPreviewsService: listPreviewsService,
+            serverEnvironmentService: serverEnvironmentService,
+            appStorage: appStorage
+        )
+        given(appStorage)
+            .get(.any as Parameter<AppPreviewsServerURLKey.Type>)
+            .willReturn("https://other.example.com")
+
+        given(appStorage)
+            .get(.any as Parameter<AppPreviewsKey.Type>)
+            .willReturn([.test()])
+
+        given(appStorage)
+            .set(.any as Parameter<AppPreviewsKey.Type>, value: .any)
+            .willReturn()
+
+        given(appStorage)
+            .set(.any as Parameter<AppPreviewsServerURLKey.Type>, value: .any)
+            .willReturn()
+
+        // When
+        subject.loadAppPreviewsFromCache()
+
+        // Then
+        #expect(subject.appPreviews == [])
     }
 
     @Test func load_app_previews_from_cache() {
@@ -118,9 +159,10 @@ import TuistTesting
             ]
         )
 
+        // Mockable matches generic `set` calls across key types, so this counts the previews and their server.
         verify(appStorage)
             .set(.any as Parameter<AppPreviewsKey.Type>, value: .any)
-            .called(1)
+            .called(2)
     }
 
     @Test func launch_preview_when_no_preview_found() async throws {

@@ -162,11 +162,13 @@ public struct XcodeProjWriter: XcodeProjWriting {
             let staleXCProj = XcodeProj.xcprojPath(path)
             if staleXCProj.exists { try staleXCProj.delete() }
         case .xcproj:
-            // XcodeProj's PBXProj-level `xcprojData(settings:)` is `internal`, so we can't
-            // pre-serialize and byte-compare like we do for pbxproj. Delegate to the public
-            // `writeXCProj(path:override:outputSettings:)` which always rewrites; the mtime churn
-            // is acceptable while this format is opt-in and experimental.
-            try xcodeProj.writeXCProj(path: path, override: true)
+            let xcprojPath = XcodeProj.xcprojPath(path)
+            let output = try xcodeProj.pbxproj.xcprojData()
+            let existing = xcprojPath.exists ? try? xcprojPath.read() : nil
+            if existing != output {
+                if xcprojPath.exists { try xcprojPath.delete() }
+                try xcprojPath.write(output)
+            }
             let stalePBXProj = XcodeProj.pbxprojPath(path)
             if stalePBXProj.exists { try stalePBXProj.delete() }
         }

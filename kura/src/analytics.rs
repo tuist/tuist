@@ -113,6 +113,7 @@ pub struct ReapiCacheAnalyticsEvent {
     pub operation: &'static str,
     pub outcome: &'static str,
     pub action_digest: String,
+    pub output_path: String,
     pub size: u64,
     pub duration_us: u64,
     pub observed_at_ms: u64,
@@ -123,7 +124,8 @@ impl Serialize for ReapiCacheAnalyticsEvent {
     where
         S: Serializer,
     {
-        let mut event = serializer.serialize_struct("ReapiCacheAnalyticsEvent", 15)?;
+        let fields = if self.output_path.is_empty() { 15 } else { 16 };
+        let mut event = serializer.serialize_struct("ReapiCacheAnalyticsEvent", fields)?;
         event.serialize_field("event_id", &self.event_id)?;
         event.serialize_field("account_handle", &self.context.account_handle)?;
         event.serialize_field("project_handle", &self.context.project_handle)?;
@@ -131,6 +133,9 @@ impl Serialize for ReapiCacheAnalyticsEvent {
         event.serialize_field("operation", self.operation)?;
         event.serialize_field("outcome", self.outcome)?;
         event.serialize_field("action_digest", &self.action_digest)?;
+        if !self.output_path.is_empty() {
+            event.serialize_field("output_path", &self.output_path)?;
+        }
         event.serialize_field("size", &self.size)?;
         // Microseconds are the real measurement: Kura answers most action-cache
         // lookups in well under a millisecond, so a millisecond field rounds
@@ -1253,6 +1258,7 @@ mod tests {
             operation: "action_cache",
             outcome: "hit",
             action_digest: "digest-1".into(),
+            output_path: String::new(),
             size: 128,
             duration_us: 9_400,
             observed_at_ms: 1_700_000_000_123,

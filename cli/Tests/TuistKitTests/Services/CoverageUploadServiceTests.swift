@@ -54,15 +54,44 @@ struct CoverageUploadServiceTests {
             serverURL: serverURL
         ))
 
-        let inline = try #require(prepared.inline)
-        #expect(inline.partial == true)
-        #expect(inline.files.map(\.path) == ["Sources/File0.swift", "Sources/File1.swift", "Sources/File2.swift"])
-        #expect(prepared.upload == nil)
+        #expect(prepared.coverage.tool == "xccov")
+        #expect(prepared.coverage.partial == true)
+        #expect(prepared.coverage.files?.map(\.path) == ["Sources/File0.swift", "Sources/File1.swift", "Sources/File2.swift"])
+        #expect(prepared.coverage.storageKey == nil)
         #expect(prepared.testRunId == nil)
         verify(uploader).upload(file: .any, to: .any).called(0)
     }
 
-    @Test(.withMockedDependencies()) func uploadsLargeCoverageUnderAFreshRunId() async throws {
+    @Test(.withMockedDependencies(), .inTemporaryDirectory) func tiesTheRunsExportInsteadOfReadingTheBundle() async throws {
+        let bundle = try #require(FileSystem.temporaryTestDirectory).appending(component: "run.xcresult")
+        try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
+        let export = bundle.appending(component: CoverageExport.fileName)
+        try """
+        {"path":"/repo/Sources/A.swift","targets":["A.framework"],"is_test":false,"covered_lines":1,"executable_lines":2,"line_numbers":[1,2],"execution_counts":[1,0],"functions":[]}
+        {"path":"/elsewhere/B.swift","targets":[],"is_test":false,"covered_lines":1,"executable_lines":1,"line_numbers":[1],"execution_counts":[1],"functions":[]}
+
+        """.write(toFile: export.pathString, atomically: true, encoding: .utf8)
+        given(settingsService).inlineThresholdBytes(fullHandle: .any, serverURL: .any).willReturn(5_000_000)
+
+        let prepared = try #require(await subject.prepare(
+            resultBundlePath: bundle,
+            manifest: XcodeCoverageManifest(
+                rootDirectories: ["/repo"],
+                partial: false,
+                files: [XcodeCoverageSourceFile(path: "Sources/A.swift", gitBlobId: "aaa")]
+            ),
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL
+        ))
+
+        #expect(prepared.coverage.tool == "llvm-cov")
+        #expect(prepared.coverage.files?.map(\.path) == ["Sources/A.swift"])
+        #expect(prepared.coverage.files?.first?.gitBlobId == "aaa")
+        #expect(!FileManager.default.fileExists(atPath: export.pathString))
+        verify(xcResultService).parseCoverage(path: .any, manifest: .any, into: .any).called(0)
+    }
+
+    @Test(.withMockedDependencies()) func uploadsLargeCoverageUnderTheGivenOrAFreshRunId() async throws {
         stubParser(files: 3)
         given(settingsService).inlineThresholdBytes(fullHandle: .any, serverURL: .any).willReturn(0)
         given(createUploadService)
@@ -82,13 +111,24 @@ struct CoverageUploadServiceTests {
             serverURL: serverURL
         ))
 
-        #expect(prepared.inline == nil)
+        #expect(prepared.coverage.files == nil)
         let testRunId = try #require(prepared.testRunId)
-        #expect(prepared.upload == XcodeCoverageUpload(
-            storageKey: "tuist/tuist/runs/\(testRunId)/coverage.ndjson.deflate",
-            partial: true
+        #expect(prepared.coverage == TestRunCoverage(
+            tool: "xccov",
+            partial: true,
+            storageKey: "tuist/tuist/runs/\(testRunId)/coverage.ndjson.deflate"
         ))
         verify(uploader).upload(file: .any, to: .any).called(1)
+
+        let given = try #require(await subject.prepare(
+            resultBundlePath: try AbsolutePath(validating: "/run.xcresult"),
+            manifest: manifest,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            testRunId: "run-1"
+        ))
+        #expect(given.testRunId == "run-1")
+        #expect(given.coverage.storageKey == "tuist/tuist/runs/run-1/coverage.ndjson.deflate")
     }
 
     @Test(.withMockedDependencies()) func fallsBackToTheDefaultThresholdAndNeverFailsTheRun() async throws {
@@ -104,7 +144,7 @@ struct CoverageUploadServiceTests {
             serverURL: serverURL
         ))
 
-        #expect(prepared.inline?.files.count == 1)
+        #expect(prepared.coverage.files?.count == 1)
     }
 
     @Test func deflateRoundTrips() async throws {

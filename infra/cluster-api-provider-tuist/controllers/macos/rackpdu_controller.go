@@ -144,6 +144,7 @@ func (r *RackPDUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 			rackPDUEgress(pdu), pdu, RackPDUFinalizer, legacyRackPDUFinalizer)
 	}
 	if pdu.Spec.ManagedBy != infrav1.RackCardManagedByController {
+		forgetOutlets(pdu)
 		pdu.Status.Message = "standalone: the controller does not contact this PDU"
 		pdu.Status.Drift = infrav1.RackCardDriftUnknown
 		conditions.MarkFalse(pdu, clusterv1.ReadyCondition, "Standalone", clusterv1.ConditionSeverityInfo,
@@ -187,6 +188,7 @@ func (r *RackPDUReconciler) reconcileCard(ctx context.Context, pdu *infrav1.Rack
 	}
 	presented, err := power.ProbeTLSFingerprint(ctx, r.cardOutlet(pdu, secret), r.timeout())
 	if err != nil {
+		forgetOutlets(pdu)
 		markRackCardUnreachable(pdu, err)
 		return ctrl.Result{RequeueAfter: rackPDURetryInterval}, nil
 	}
@@ -407,6 +409,7 @@ func (r *RackPDUReconciler) verify(ctx context.Context, pdu *infrav1.RackPDU, se
 				retry = r.loginBackoff.refused(pdu)
 			}
 		}
+		forgetOutlets(pdu)
 		pdu.Status.Drift = infrav1.RackCardDriftUnknown
 		pdu.Status.Message = fmt.Sprintf("the controller's account cannot read the card: %v", err)
 		conditions.MarkFalse(pdu, clusterv1.ReadyCondition, reason, clusterv1.ConditionSeverityWarning, "%v", err)
@@ -415,6 +418,7 @@ func (r *RackPDUReconciler) verify(ctx context.Context, pdu *infrav1.RackPDU, se
 	}
 	r.loginBackoff.succeeded(pdu)
 	pdu.Status.OutletCount = len(outlets)
+	r.readOutlets(ctx, pdu, secret, eaton, outlets)
 	if identity, err := eaton.Identification(ctx, r.cardOutlet(pdu, secret)); err == nil {
 		pdu.Status.Model, pdu.Status.SerialNumber, pdu.Status.FirmwareVersion = identity.Model, identity.Serial, identity.Firmware
 	}

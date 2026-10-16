@@ -20,6 +20,8 @@ defmodule Tuist.Gradle do
   alias Tuist.IngestRepo
   alias Tuist.MCP.Events.Publisher
 
+  require Tuist.BuildMetrics
+
   @doc """
   Creates a Gradle build with associated tasks.
 
@@ -299,6 +301,11 @@ defmodule Tuist.Gradle do
       end)
 
     base_query = apply_custom_tag_filters(base_query, custom_tag_filters)
+
+    base_query =
+      if Keyword.get(opts, :failure_category, false),
+        do: Tuist.BuildMetrics.with_failure_category(base_query, "gradle", project_id),
+        else: base_query
 
     ClickHouseFlop.validate_and_run!(base_query, flop_params, for: Build)
   end

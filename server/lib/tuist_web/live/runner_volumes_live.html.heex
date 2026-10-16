@@ -14,7 +14,7 @@
       <div data-part="volume-icon"><.database /></div>
       <h1>{@selected.key}</h1>
     </div>
-    <div :if={@can_manage} data-part="actions">
+    <div :if={@can_manage and is_nil(@selected.builtin_name)} data-part="actions">
       <.button
         variant="secondary"
         size="medium"
@@ -64,6 +64,7 @@
       <div data-part="widgets">
         <.widget
           id="storage-volumes"
+          legend_color={metric_color("volumes")}
           trend_value={storage_trend(data.storage_history, :volumes, @analytics_period).value}
           trend_value_label={
             storage_trend(data.storage_history, :volumes, @analytics_period).value_label
@@ -84,6 +85,7 @@
         />
         <.widget
           id="storage-used"
+          legend_color={metric_color("used_bytes")}
           trend_value={storage_trend(data.storage_history, :used_bytes, @analytics_period).value}
           trend_value_label={
             storage_trend(data.storage_history, :used_bytes, @analytics_period).value_label
@@ -101,6 +103,7 @@
         />
         <.widget
           id="storage-hit-rate"
+          legend_color={metric_color("hit_rate")}
           trend_value={
             hit_rate_trend(data.activity.hit_rate, data.previous_activity.hit_rate).value
           }
@@ -200,7 +203,7 @@
             patch={sort_patch(assigns, "volume")}
             sort_order={@sort_by == "volume" && @sort_order}
           >
-            <.text_cell label={volume.key} />
+            <.text_cell label={volume_name(volume.key)} title={volume.key} />
           </:col>
           <:col
             :let={volume}
@@ -210,9 +213,9 @@
           >
             <.text_cell label={volume.repository} />
           </:col>
-          <:col label={dgettext("dashboard_runners", "Platform")}>
+          <:col :let={volume} label={dgettext("dashboard_runners", "Platform")}>
             <.badge_cell
-              label={dgettext("dashboard_runners", "Linux")}
+              label={TuistWeb.RunnersLive.platform_label(volume.platform)}
               color="attention"
               style="light-fill"
             />
@@ -292,6 +295,15 @@
     </.card>
     <div :for={volume <- if(@selected, do: data.volumes, else: [])} data-part="tab-panel">
       <% metrics = stats(data, volume) %>
+      <.alert
+        :if={full_snapshot?(volume, metrics)}
+        id="volume-full-alert"
+        status="warning"
+        type="secondary"
+        size="large"
+        title={dgettext("dashboard_runners", "This volume is almost full")}
+        description={full_snapshot_description(metrics)}
+      />
       <.card
         title={dgettext("dashboard_runners", "Volume details")}
         icon="database"
@@ -308,7 +320,7 @@
             </div>
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_runners", "Platform")}</div><.badge
-                label={"Linux · #{volume.architecture}"}
+                label={"#{TuistWeb.RunnersLive.platform_label(volume.platform)} · #{volume.architecture}"}
                 color="neutral"
                 style="light-fill"
                 size="large"
@@ -356,10 +368,23 @@
           />
         </:actions>
         <div data-part="widgets">
+          <% used_change = storage_trend(data.analytics.storage, :used_bytes, @analytics_period) %>
+          <% hit_rate_change =
+            hit_rate_trend(
+              data.analytics.activity.hit_rate,
+              data.analytics.previous_activity.hit_rate
+            ) %>
+          <% uses_change =
+            uses_trend(data.analytics.activity.uses, data.analytics.previous_activity.uses) %>
           <.widget
             id="volume-used"
+            legend_color={metric_color("used_bytes")}
             title={dgettext("dashboard_runners", "Used space")}
             value={storage_value(data.analytics.storage, :used_bytes)}
+            trend_value={used_change.value}
+            trend_value_label={used_change.value_label}
+            trend_label={used_change.label}
+            trend_type={:neutral}
             description={
               storage_description(List.last(data.analytics.storage) || %{}, :unmeasured_copies)
             }
@@ -369,8 +394,13 @@
           />
           <.widget
             id="volume-hit-rate"
+            legend_color={metric_color("hit_rate")}
             title={dgettext("dashboard_runners", "Hit rate")}
             value={percentage(data.analytics.activity.hit_rate)}
+            trend_value={hit_rate_change.value}
+            trend_value_label={hit_rate_change.value_label}
+            trend_label={hit_rate_change.label}
+            trend_type={:regular}
             description={
               dgettext(
                 "dashboard_runners",
@@ -383,8 +413,13 @@
           />
           <.widget
             id="volume-uses"
+            legend_color={metric_color("uses")}
             title={dgettext("dashboard_runners", "Job runs")}
             value={count(data.analytics.activity.uses)}
+            trend_value={uses_change.value}
+            trend_value_label={uses_change.value_label}
+            trend_label={uses_change.label}
+            trend_type={:neutral}
             description={
               dgettext(
                 "dashboard_runners",
@@ -445,21 +480,6 @@
             </:col>
             <:col :let={usage} label={dgettext("dashboard_runners", "Workflow")}>
               <.text_cell label={workflow_label(usage)} />
-            </:col>
-            <:col :let={usage} label={dgettext("dashboard_runners", "Cache status")}>
-              <.tooltip
-                id={"volume-use-status-#{usage.id}"}
-                title={usage_description(usage.status)}
-              >
-                <:trigger :let={attrs}>
-                  <div {attrs} tabindex="0" aria-label={usage_status(usage.status)}>
-                    <.status_badge_cell
-                      label={usage_status(usage.status)}
-                      status={usage_badge_status(usage.status)}
-                    />
-                  </div>
-                </:trigger>
-              </.tooltip>
             </:col>
             <:col :let={usage} label={dgettext("dashboard_runners", "Cache")}>
               <.badge_cell

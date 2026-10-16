@@ -341,6 +341,7 @@
               </div>
             </div>
           </div>
+          <TuistWeb.Components.BuildHealth.category_detail category={@failure_category} />
           <div :if={map_size(@run.custom_values) > 0} data-part="custom-metadata-section">
             <span data-part="custom-metadata-label">
               {dgettext("dashboard_builds", "Custom metadata")}

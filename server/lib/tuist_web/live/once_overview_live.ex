@@ -19,6 +19,7 @@ defmodule TuistWeb.OnceOverviewLive do
   alias Tuist.OnceEvents.CacheAnalytics
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.PublicOverviewCache
   alias TuistWeb.Utilities.Query
 
   @build_commands ["build"]
@@ -54,10 +55,10 @@ defmodule TuistWeb.OnceOverviewLive do
       builds_period: builds_period,
       builds_granularity: time_series_granularity(builds_period)
     )
-    |> assign_async(:cache_summary, fn ->
+    |> PublicOverviewCache.assign_async(:cache_summary, fn ->
       {:ok, %{cache_summary: cache_summary_with_trend(project.id, analytics_period, analytics_environment)}}
     end)
-    |> assign_async([:cache_hit_rate_analytics, :has_any_cache_observations], fn ->
+    |> PublicOverviewCache.assign_async([:cache_hit_rate_analytics, :has_any_cache_observations], fn ->
       analytics =
         CacheAnalytics.analytics(
           project.id,
@@ -70,13 +71,13 @@ defmodule TuistWeb.OnceOverviewLive do
          has_any_cache_observations: Enum.any?(analytics.lookup_values, &(&1 > 0))
        }}
     end)
-    |> assign_async(:build_summary, fn ->
+    |> PublicOverviewCache.assign_async(:build_summary, fn ->
       {:ok,
        %{
          build_summary: summary_with_trends(project.id, analytics_period, @build_commands, analytics_environment)
        }}
     end)
-    |> assign_async([:recent_builds, :builds_duration_analytics, :builds_summary], fn ->
+    |> PublicOverviewCache.assign_async([:recent_builds, :builds_duration_analytics, :builds_summary], fn ->
       {:ok,
        %{
          recent_builds: recent_runs(project, builds_opts),
@@ -84,7 +85,7 @@ defmodule TuistWeb.OnceOverviewLive do
          builds_summary: Analytics.summary(project.id, builds_opts)
        }}
     end)
-    |> assign_async([:test_summary, :recent_test_runs], fn ->
+    |> PublicOverviewCache.assign_async([:test_summary, :recent_test_runs], fn ->
       {:ok,
        %{
          test_summary: summary_with_trends(project.id, analytics_period, @test_commands, analytics_environment),

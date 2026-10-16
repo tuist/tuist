@@ -410,6 +410,8 @@ private actor CargoMemoryCache: REAPICacheStoring {
         return result
     }
 
+    func containsActionResult(for _: REAPI.Digest) async throws -> Bool { result != nil }
+
     func storeActionResult(_ result: REAPI.ActionResult, for _: REAPI.Digest) async throws {
         self.result = result
         publications += 1

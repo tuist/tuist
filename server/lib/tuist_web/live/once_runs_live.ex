@@ -20,6 +20,7 @@ defmodule TuistWeb.OnceRunsLive do
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Analytics
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Components.BuildHealth
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
@@ -60,7 +61,7 @@ defmodule TuistWeb.OnceRunsLive do
       |> assign(:once_show_analytics, show_analytics?)
       |> assign(:once_summary_card, summary_card?)
       |> assign(:head_title, "#{resource} · #{account.name}/#{project.name} · Tuist")
-      |> assign(:available_filters, define_filters())
+      |> assign(:available_filters, define_filters(resource_kind))
       |> assign(:refresh_scheduled?, false)
 
     if connected?(socket) do
@@ -73,6 +74,9 @@ defmodule TuistWeb.OnceRunsLive do
   def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
     page = parse_page(params["page"])
     sort_by = params["invocations-sort-by"] || "ran-at"
+
+    sort_by = listing_sort_by(sort_by, socket.assigns.once_resource_kind)
+
     sort_order = params["invocations-sort-order"] || "desc"
     uri = URI.new!("?" <> URI.encode_query(params))
     active_filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
@@ -108,13 +112,13 @@ defmodule TuistWeb.OnceRunsLive do
         project.id,
         %{
           filters: filters,
-          order_by: [sort_field(sort_by)],
-          order_directions: [sort_direction(sort_order)],
+          order_by: sort_fields(sort_by),
+          order_directions: List.duplicate(sort_direction(sort_order), length(sort_fields(sort_by))),
           page: page,
           page_size: @page_size,
           commands: commands
         },
-        listing_opts
+        Keyword.put(listing_opts, :failure_category, socket.assigns.once_resource_kind == :builds)
       )
 
     has_any_invocations = Enum.any?(invocations) || Analytics.invocations_present?(project.id, commands)
@@ -707,7 +711,6 @@ defmodule TuistWeb.OnceRunsLive do
           </:image>
         </.empty_card_section>
       </.async_card>
-
       <.card
         title={@once_table_title}
         icon="subtask"
@@ -830,7 +833,7 @@ defmodule TuistWeb.OnceRunsLive do
               secondary_text={dgettext("dashboard_builds", "Sort by:")}
             >
               <.dropdown_item
-                :for={column <- ~w(duration ran-at)}
+                :for={column <- ~w(duration ran-at failure-category)}
                 value={column}
                 label={invocations_sort_label(column)}
                 patch={column_patch_sort(assigns, column)}
@@ -982,6 +985,7 @@ defmodule TuistWeb.OnceRunsLive do
     if numeric(summary.total) == 0, do: nil, else: "#{Float.round(success_rate_value(summary), 1)}%"
   end
 
+  defp invocations_sort_label("failure-category"), do: dgettext("dashboard_builds", "Failure category")
   defp invocations_sort_label("duration"), do: dgettext("dashboard_builds", "Duration")
   defp invocations_sort_label(_ran_at), do: dgettext("dashboard_builds", "Ran at")
 
@@ -1289,6 +1293,12 @@ defmodule TuistWeb.OnceRunsLive do
     ~p"/#{assigns.selected_account.name}/#{assigns.selected_project.name}/once/runs/#{invocation_id}"
   end
 
+  defp listing_sort_by("failure-category", kind) when kind != :builds, do: "ran-at"
+  defp listing_sort_by(value, _kind), do: value
+  defp sort_fields("failure-category"), do: [:failure_category, :started_at, :id]
+  defp sort_fields(value), do: [sort_field(value)]
+
+  defp sort_field("failure-category"), do: :failure_category
   defp sort_field("command"), do: :command
   defp sort_field("status"), do: :status
   defp sort_field("duration"), do: :duration_ms
@@ -1320,8 +1330,8 @@ defmodule TuistWeb.OnceRunsLive do
   defp analytics_environment_label("ci"), do: dgettext("dashboard_tests", "CI")
   defp analytics_environment_label(_any), do: dgettext("dashboard_tests", "Any")
 
-  defp define_filters do
-    [
+  defp define_filters(resource_kind) do
+    filters = [
       %Filter.Filter{
         id: "status",
         field: :status,
@@ -1336,6 +1346,8 @@ defmodule TuistWeb.OnceRunsLive do
         value: nil
       }
     ]
+
+    if resource_kind == :builds, do: [BuildHealth.category_filter() | filters], else: filters
   end
 
   # Only the duration widget has a per-run value worth plotting; the other

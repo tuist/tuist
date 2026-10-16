@@ -64,7 +64,7 @@ struct SupportTests {
     @Test
     func binaryArtifactHeadersAskForRawBytesExactly() async throws {
         let url = try #require(URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1.zip"))
-        let headers = await HTTPClient.binaryArtifactHeaders(for: url)
+        let headers = try await HTTPClient.binaryArtifactHeaders(for: url)
 
         #expect(headers["Accept"] == "application/octet-stream")
     }
@@ -179,12 +179,15 @@ struct SupportTests {
                 let destination = root.appendingPathComponent("destination")
                 try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
                 try await fileSystem.atomicWrite(
-                    "value", to: nested.appendingPathComponent("file.txt"))
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
                 try await fileSystem.atomicWrite(
-                    "manifest", to: source.appendingPathComponent("Package.swift"))
+                    "manifest", to: source.appendingPathComponent("Package.swift")
+                )
 
                 try await fileSystem.replaceWithRegistryDownloadDirectory(
-                    source: source, destination: destination)
+                    source: source, destination: destination
+                )
 
                 #expect(fileSystem.isDirectoryAndNotSymlink(destination))
                 #expect(!(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested"))))
@@ -208,10 +211,12 @@ struct SupportTests {
                 let destination = root.appendingPathComponent("destination")
                 try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
                 try await fileSystem.atomicWrite(
-                    "value", to: nested.appendingPathComponent("file.txt"))
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
 
                 try await fileSystem.replaceWithRegistryDownloadDirectory(
-                    source: source, destination: destination)
+                    source: source, destination: destination
+                )
 
                 #expect(fileSystem.isDirectoryAndNotSymlink(destination))
                 #expect(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested")))
@@ -230,10 +235,12 @@ struct SupportTests {
                 let destination = root.appendingPathComponent("destination")
                 try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
                 try await fileSystem.atomicWrite(
-                    "value", to: nested.appendingPathComponent("file.txt"))
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
 
                 try await fileSystem.replaceWithRegistryDownloadDirectory(
-                    source: source, destination: destination)
+                    source: source, destination: destination
+                )
 
                 #expect(fileSystem.isDirectoryAndNotSymlink(destination))
                 #expect(!(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested"))))
@@ -322,136 +329,85 @@ struct SupportTests {
     }
 
     @Test
-    func netrcCredentialBeatsKeychainAndGitHubEnvToken() async {
-        let credential = RegistryCredential(user: "x-access-token", password: "harbor-token")
-        let header = await HTTPAuthorization.prioritizedHeader(
-            isGitHub: true,
+    func sourceControlTokenBeatsNetrcAndKeychain() async throws {
+        let header = try await HTTPAuthorization.prioritizedHeader(
+            sourceControlToken: "environment-token",
+            netrcCredential: RegistryCredential(user: "user", password: "file-token"),
+            keychain: { Issue.record("keychain consulted despite environment token"); return nil }
+        )
+        #expect(header == "Basic " + Data("token:environment-token".utf8).base64EncodedString())
+    }
+
+    @Test
+    func netrcCredentialBeatsKeychainWithAnEmptyEnvironmentToken() async throws {
+        let credential = RegistryCredential(user: "user", password: "file-token")
+        let header = try await HTTPAuthorization.prioritizedHeader(
+            sourceControlToken: "",
             netrcCredential: credential,
-            keychain: {
-                Issue.record("keychain consulted despite netrc credentials")
-                return RegistryCredential(user: "keychain", password: "credential")
-            },
-            gitHubEnvToken: "ghs_repo_scoped_token"
+            keychain: { Issue.record("keychain consulted despite netrc credentials"); return nil }
         )
-
-        let expected = "Basic " + Data("x-access-token:harbor-token".utf8).base64EncodedString()
-        #expect(header == expected)
+        #expect(header == "Basic " + Data("user:file-token".utf8).base64EncodedString())
     }
 
     @Test
-    func keychainCredentialBeatsGitHubEnvToken() async {
-        let credential = RegistryCredential(user: "keychain", password: "credential")
-        let header = await HTTPAuthorization.prioritizedHeader(
-            isGitHub: true,
-            netrcCredential: nil,
-            keychain: { credential },
-            gitHubEnvToken: "ghs_repo_scoped_token"
+    func keychainIsUsedWhenOtherHTTPProvidersMiss() async throws {
+        let header = try await HTTPAuthorization.prioritizedHeader(
+            sourceControlToken: nil, netrcCredential: nil,
+            keychain: { RegistryCredential(user: "keychain", password: "credential") }
         )
-
-        let expected = "Basic " + Data("keychain:credential".utf8).base64EncodedString()
-        #expect(header == expected)
+        #expect(header == "Basic " + Data("keychain:credential".utf8).base64EncodedString())
     }
 
     @Test
-    func gitHubEnvTokenUsedWhenNoNetrcOrKeychainCredential() async {
-        let header = await HTTPAuthorization.prioritizedHeader(
-            isGitHub: true,
-            netrcCredential: nil,
-            keychain: { nil },
-            gitHubEnvToken: "ghs_repo_scoped_token"
-        )
-
-        #expect(header == "Bearer ghs_repo_scoped_token")
+    func noHTTPProvidersProducesNoHeader() async throws {
+        #expect(try await HTTPAuthorization.prioritizedHeader(
+            sourceControlToken: nil, netrcCredential: nil, keychain: { nil }
+        ) == nil)
     }
 
-    @Test
-    func keychainCredentialIsUsedForNonGitHubHost() async {
-        let credential = RegistryCredential(user: "keychain", password: "credential")
-        let header = await HTTPAuthorization.prioritizedHeader(
-            isGitHub: false,
-            netrcCredential: nil,
-            keychain: { credential },
-            gitHubEnvToken: "ghs_repo_scoped_token"
-        )
-
-        let expected = "Basic " + Data("keychain:credential".utf8).base64EncodedString()
-        #expect(header == expected)
+    @Test(arguments: ["https://api.github.com/asset", "https://artifacts.example.com/asset"])
+    func sourceControlEnvironmentTokenIsNotHostScoped(location: String) async throws {
+        let header = try await Environment.$values.withValue([
+            "SWIFTPM_SOURCE_CONTROL_TOKEN": "environment-token",
+            "GITHUB_TOKEN": "unrelated-token",
+        ]) {
+            try await Environment.withNetrc(.empty) {
+                try await HTTPAuthorization.header(for: try #require(URL(string: location)))
+            }
+        }
+        #expect(header == "Basic " + Data("token:environment-token".utf8).base64EncodedString())
     }
 
-    @Test
-    func gitHubEnvTokenIsIgnoredForNonGitHubHostWithoutOtherCredentials() async {
-        let header = await HTTPAuthorization.prioritizedHeader(
-            isGitHub: false,
-            netrcCredential: nil,
-            keychain: { nil },
-            gitHubEnvToken: "ghs_repo_scoped_token"
-        )
-
+    @Test(arguments: ["https://api.github.com/asset", "https://artifacts.example.com/asset"])
+    func providerTokensDoNotAuthenticateHTTPArtifacts(location: String) async throws {
+        let netrc = Netrc(configuration: .init(disableKeychain: true), sources: [])
+        let header = try await Environment.$values.withValue([
+            "SWIFTERPM_GITHUB_TOKEN": "explicit-api-token",
+            "SWIFTERPM_GITLAB_TOKEN": "explicit-api-token",
+            "GITHUB_TOKEN": "github-token", "GH_TOKEN": "gh-token",
+            "GITLAB_TOKEN": "gitlab-token", "CI_JOB_TOKEN": "job-token",
+        ]) {
+            try await Environment.withNetrc(netrc) {
+                try await HTTPAuthorization.header(for: try #require(URL(string: location)))
+            }
+        }
         #expect(header == nil)
     }
 
     @Test
-    func swifterpmGitHubTokenTakesPrecedenceOverGitHubToken() async throws {
-        let header = try await Environment.$values.withValue([
-            "SWIFTERPM_GITHUB_TOKEN": "swifterpm-token",
-            "GITHUB_TOKEN": "github-token",
-            "GH_TOKEN": "gh-token",
-        ]) {
-            try await Environment.withNetrc(.empty) {
-                await HTTPAuthorization.header(
-                    for: URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
-                )
-            }
+    func gitEnvironmentMatchesNativeDefaultsWithoutOverridingUserConfiguration() {
+        Environment.$values.withValue([:]) {
+            #expect(SystemProcess.nonInteractiveGitEnvironment == [
+                "GIT_TERMINAL_PROMPT": "0", "GIT_SSH_COMMAND": "ssh -oBatchMode=yes",
+            ])
         }
-
-        #expect(header == "Bearer swifterpm-token")
-    }
-
-    @Test
-    func gitHubTokenUsedWhenSwifterpmGitHubTokenAbsent() async throws {
-        let header = try await Environment.$values.withValue([
-            "GITHUB_TOKEN": "github-token",
-            "GH_TOKEN": "gh-token",
+        Environment.$values.withValue([
+            "GIT_TERMINAL_PROMPT": "1", "GIT_SSH_COMMAND": "custom-ssh",
         ]) {
-            try await Environment.withNetrc(.empty) {
-                await HTTPAuthorization.header(
-                    for: URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
-                )
-            }
+            #expect(SystemProcess.nonInteractiveGitEnvironment == [
+                "GIT_TERMINAL_PROMPT": "1", "GIT_SSH_COMMAND": "custom-ssh",
+            ])
         }
-
-        #expect(header == "Bearer github-token")
-    }
-
-    @Test
-    func emptySwifterpmGitHubTokenFallsBackToGitHubToken() async throws {
-        let header = try await Environment.$values.withValue([
-            "SWIFTERPM_GITHUB_TOKEN": "",
-            "GITHUB_TOKEN": "github-token",
-        ]) {
-            try await Environment.withNetrc(.empty) {
-                await HTTPAuthorization.header(
-                    for: URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
-                )
-            }
-        }
-
-        #expect(header == "Bearer github-token")
-    }
-
-    @Test
-    func ghTokenUsedWhenOtherGitHubTokensAbsent() async throws {
-        let header = try await Environment.$values.withValue([
-            "GH_TOKEN": "gh-token",
-        ]) {
-            try await Environment.withNetrc(.empty) {
-                await HTTPAuthorization.header(
-                    for: URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1")!
-                )
-            }
-        }
-
-        #expect(header == "Bearer gh-token")
     }
 
     @Test
@@ -459,7 +415,8 @@ struct SupportTests {
         try await withTemporaryDirectory { directory in
             let target = directory.appendingPathComponent("Target")
             try await fileSystem.makeDirectory(
-                at: target.absolutePath, options: [.createTargetParentDirectories])
+                at: target.absolutePath, options: [.createTargetParentDirectories]
+            )
             let link = directory.appendingPathComponent("Link")
             try await fileSystem.createSymbolicLink(from: link.absolutePath, to: target.absolutePath)
             let absent = directory.appendingPathComponent("Absent/Deep")

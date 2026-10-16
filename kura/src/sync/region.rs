@@ -430,6 +430,7 @@ mod topology_tests {
     #[tokio::test]
     async fn only_backward_passes_yield_to_healthy_remote_private_donors() {
         let own = PeerTopology {
+            canonical_networks: Vec::new(),
             provider: "ovh".into(),
             private_network: Some("verified".into()),
             private_url: Some("https://private.example:7443".into()),

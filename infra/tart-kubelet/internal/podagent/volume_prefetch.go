@@ -102,11 +102,15 @@ func (s *ServerPrefetch) ObservePod(pod *corev1.Pod) {
 	}
 }
 
+func (s *ServerPrefetch) currentEndpoint() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.endpoint
+}
+
 // CacheMasters implements PrefetchSource.
 func (s *ServerPrefetch) CacheMasters(ctx context.Context) ([]PrefetchMaster, error) {
-	s.mu.Lock()
-	endpoint := s.endpoint
-	s.mu.Unlock()
+	endpoint := s.currentEndpoint()
 	if endpoint == "" {
 		return nil, errPrefetchUnavailable
 	}

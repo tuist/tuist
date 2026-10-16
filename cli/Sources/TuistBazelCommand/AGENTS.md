@@ -21,3 +21,5 @@
 - Warn when a failed case matches an older suite-based mute but now reports a
   different class identity. Do not transfer that policy automatically: multiple
   classes may have shared the old identity.
+
+- Setup probes and credential-helper responses use project-scoped cache-token exchange, preserving the signed origin used by cold activation. Bound returned token expiry with the existing safety margin. The server is upgraded ahead of the CLI, so exchange failures propagate without raw-credential fallback. Exchange is required even when no project handle is configured. Self-hosted discovery returns one main URL; known hosted servers use local derivation without discovery. Neither path registers demand or measures latency. Hosted private/custom endpoints use the explicit override.

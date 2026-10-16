@@ -175,7 +175,9 @@ def main():
         assert len(names) == (2 if miss else 1) and ((library in names) == miss), (phase, names)
         if phase in ("remote", "corrupt", "recovered"):
             assert metrics["downloaded_bytes"] > 0, (phase, metrics)
-        if phase == "cold":
+        # Chunked benchmark uploads may reuse chunks; their parent sizes are not measured transfer bytes.
+        # The following remote-hit phase independently proves publication after removing the publisher cache.
+        if phase == "cold" and not arguments.benchmark:
             assert metrics["uploaded_bytes"] > 0, metrics
         if phase == "unavailable":
             assert metrics["remote_failures"] > 0, metrics

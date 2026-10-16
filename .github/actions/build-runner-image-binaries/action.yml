@@ -33,6 +33,16 @@ runs:
         mkdir -p build
         go build -trimpath -ldflags="-s -w" -o build/runner-shell-agent ./cmd/runner-shell-agent
 
+    - name: Build cache volume client
+      shell: bash
+      working-directory: infra/linux-runner-image
+      env:
+        GOWORK: "off"
+        GOOS: darwin
+        GOARCH: arm64
+        CGO_ENABLED: "0"
+      run: go build -trimpath -ldflags="-s -w" -o ../runner-image/build/tuist-cache-volume ./cmd/tuist-cache-volume
+
     - name: Build GitLab job executor
       shell: bash
       working-directory: infra/linux-runner-image/gitlab-runner

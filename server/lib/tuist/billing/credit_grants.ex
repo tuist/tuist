@@ -34,8 +34,9 @@ defmodule Tuist.Billing.CreditGrants do
   Required keys: `:customer_id`, `:amount_cents`, `:currency`,
   `:price_ids`. Optional: `:category` (`"paid"` for something the
   customer bought, `"promotional"` for something given away — Stripe
-  reports the two separately), `:name`, `:expires_at`, `:priority`,
-  `:metadata`, and `:idempotency_key`.
+  reports the two separately), `:name`, `:effective_at` (when the grant
+  starts applying, which Stripe only takes in the future), `:expires_at`,
+  `:priority`, `:metadata`, and `:idempotency_key`.
 
   A zero or negative amount is rejected rather than sent: Stripe would
   take it and the result would be a grant that can never pay for
@@ -57,6 +58,7 @@ defmodule Tuist.Billing.CreditGrants do
       |> put_present(:name, Map.get(attrs, :name))
       |> put_present(:priority, Map.get(attrs, :priority))
       |> put_present(:metadata, Map.get(attrs, :metadata))
+      |> put_present(:effective_at, unix(Map.get(attrs, :effective_at)))
       |> put_present(:expires_at, unix(Map.get(attrs, :expires_at)))
 
     headers =

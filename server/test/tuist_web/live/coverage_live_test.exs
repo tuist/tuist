@@ -241,6 +241,7 @@ defmodule TuistWeb.CoverageLiveTest do
     } do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
       assert has_element?(lv, "[data-part='empty-analytics']")
+      refute has_element?(lv, "[data-part='analytics'] [data-part='view-more']")
 
       stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
 
@@ -350,6 +351,7 @@ defmodule TuistWeb.CoverageLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
 
       assert has_element?(lv, "[data-part='empty-commits']", "No complete commits on main in this period")
+      refute has_element?(lv, "[data-part='recent-commits'] [data-part='view-more']")
     end
   end
 
@@ -393,9 +395,38 @@ defmodule TuistWeb.CoverageLiveTest do
       assert URI.decode_query(more.query)["tab"] == "runs"
     end
 
+    test "names Mix runs after their command, with or without a scheme", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      project = project |> Ecto.Changeset.change(build_system: :mix) |> Tuist.Repo.update!()
+
+      main_run(project, organization, "a", [file("lib/a.ex", [1, 0])], %{build_system: "mix", scheme: ""})
+
+      main_run(project, organization, "b", [file("lib/a.ex", [1, 1])], %{
+        build_system: "mix",
+        scheme: "clickhouse-current",
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800, :second)
+      })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+
+      labels =
+        lv
+        |> element("#coverage-recent-runs-table")
+        |> render()
+        |> Floki.parse_fragment!()
+        |> Floki.find("tbody tr td:first-child [data-part='label']")
+        |> Enum.map(&(&1 |> Floki.text() |> String.trim()))
+
+      assert labels == ["mix test · clickhouse-current", "mix test"]
+    end
+
     test "says when no run named the branch in the period", %{conn: conn, organization: organization, project: project} do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
       assert has_element?(lv, "[data-part='empty-runs']", "No run gathered coverage on main in this period")
+      refute has_element?(lv, "[data-part='recent-runs'] [data-part='view-more']")
     end
   end
 
@@ -532,6 +563,8 @@ defmodule TuistWeb.CoverageLiveTest do
 
       assert [{"Down.swift", _, "0.0%", "-50.0%"}, {"Up.swift", _, "50.0%", "+50.0%"}] = change_cards(lv, "files")
       assert has_element?(lv, "[data-side='targets'] [data-part='empty']", "No coverage change")
+      assert has_element?(lv, "[data-side='files'] [data-part='view-more']")
+      refute has_element?(lv, "[data-side='targets'] [data-part='view-more']")
     end
 
     test "says when the period has no change to compare", %{conn: conn, organization: organization, project: project} do

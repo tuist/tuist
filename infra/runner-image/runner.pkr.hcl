@@ -56,6 +56,7 @@ packer {
 #   /Users/runner/work/<owner>/<repo>           <- workspace, set via JIT work_folder
 #   /Users/runner/Library/LaunchAgents/         <- dev.tuist.runner.plist
 #   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
+#   /opt/tuist/tcc-approvals.sh                 <- seeds/checks runner's standing TCC approvals
 #   /opt/tuist/metrics-poll.sh                  <- machine-metrics sampler (forked during a job)
 #   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
 #   /opt/tuist/runner-shell-agent               <- trusted interactive shell bridge
@@ -401,6 +402,11 @@ build {
   }
 
   provisioner "file" {
+    source = "${path.root}/build/tuist-cache-volume"
+    destination = "/tmp/tuist-cache-volume"
+  }
+
+  provisioner "file" {
     source      = "${path.root}/inject-env.sh"
     destination = "/tmp/inject-env.sh"
   }
@@ -454,6 +460,7 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent /opt/tuist/runner-shell-agent",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cache-volume /usr/local/bin/tuist-cache-volume",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-gitlab-runner /opt/tuist/tuist-gitlab-runner",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cas-proxy /opt/tuist/tuist-cas-proxy",
@@ -519,6 +526,57 @@ build {
       "sudo -u runner defaults -currentHost write com.apple.screensaver askForPasswordDelay -int 0",
       "sudo sysadminctl -screenLock off -password runner || true",
       "sudo /usr/bin/python3 - <<'CHECK'\nimport sys\nkey = bytes([0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f])\nwith open('/etc/kcpassword', 'rb') as f:\n    enc = f.read()\ndec = bytes(b ^ key[i % len(key)] for i, b in enumerate(enc))\nif dec.startswith(b'<sealed>'):\n    sys.stderr.write('kcpassword was replaced by macOS with <sealed>; runner auto-login would boot to the password screen\\n')\n    sys.exit(1)\nif dec != b'runner' + bytes(6):\n    sys.stderr.write('kcpassword does not decode to the runner auto-login payload\\n')\n    sys.exit(1)\nCHECK"
+    ]
+  }
+
+  # Standing TCC approvals (scripting Finder, the iOS Simulator's
+  # microphone) live in runner's own TCC.db, which tccd only creates
+  # when runner logs in. Nothing above logs runner in, so reboot into
+  # the auto-login session, write the rows into the database tccd
+  # made, and reboot once more to assert they survive a boot. Runs
+  # before the LaunchAgent is installed: dispatch-poll.sh halts a VM
+  # it cannot dispatch from. See AGENTS.md for why each row has the
+  # shape it has.
+  provisioner "file" {
+    source      = "${path.root}/tcc-approvals.sh"
+    destination = "/tmp/tcc-approvals.sh"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo install -m 0755 -o root -g wheel /tmp/tcc-approvals.sh /opt/tuist/tcc-approvals.sh",
+      "rm -f /tmp/tcc-approvals.sh"
+    ]
+  }
+
+  provisioner "shell" {
+    expect_disconnect = true
+    skip_clean        = true
+    inline            = ["(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"]
+  }
+
+  provisioner "shell" {
+    pause_before = "45s"
+    inline = [
+      "set -euo pipefail",
+      "sudo /opt/tuist/tcc-approvals.sh wait",
+      "sudo -u runner /opt/tuist/tcc-approvals.sh seed"
+    ]
+  }
+
+  provisioner "shell" {
+    expect_disconnect = true
+    skip_clean        = true
+    inline            = ["(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"]
+  }
+
+  provisioner "shell" {
+    pause_before = "45s"
+    inline = [
+      "set -euo pipefail",
+      "sudo /opt/tuist/tcc-approvals.sh wait",
+      "sudo -u runner /opt/tuist/tcc-approvals.sh check"
     ]
   }
 

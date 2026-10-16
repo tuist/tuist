@@ -18,6 +18,9 @@ defmodule Tuist.VCS do
   alias Tuist.GitHub.Client
   alias Tuist.Gradle
   alias Tuist.KeyValueStore
+  alias Tuist.Origin
+  alias Tuist.Origin.Client, as: OriginClient
+  alias Tuist.Origin.Installation, as: OriginInstallation
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Tests
@@ -31,6 +34,7 @@ defmodule Tuist.VCS do
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
   @max_flaky_tests_in_comment 5
   @max_failed_tests_in_comment 5
+  @test_body_build_systems [{"xcode", "Xcode"}, {"gradle", "Gradle"}, {"bazel", "Bazel"}, {"mix", "Mix"}]
 
   # Per-webhook lookup cache: every inbound GitHub webhook calls
   # `list_github_app_installations_for_webhook/2` once before HMAC
@@ -86,7 +90,7 @@ defmodule Tuist.VCS do
   def ci_run_url(_), do: nil
 
   def supported_vcs_hosts do
-    ["GitHub"]
+    ["GitHub", "Origin"]
   end
 
   @default_provider :github
@@ -96,6 +100,7 @@ defmodule Tuist.VCS do
   """
   def default_client_url(provider \\ @default_provider)
   def default_client_url(:github), do: "https://github.com"
+  def default_client_url(:origin), do: "https://cursor.com/codebase"
 
   @doc """
   REST API base URL for a given forge provider and instance URL.
@@ -116,6 +121,9 @@ defmodule Tuist.VCS do
   Convenience overload that returns the API base URL for an installation.
   Raises if the input is not a recognised installation struct/map.
   """
+  def installation_api_url(%{client_url: client_url, api_url: api_url})
+      when is_binary(client_url) and is_binary(api_url) and api_url != "", do: api_url
+
   def installation_api_url(%GitHubAppInstallation{client_url: client_url}), do: api_url(:github, client_url)
 
   def installation_api_url(%{client_url: client_url}) when is_binary(client_url), do: api_url(:github, client_url)
@@ -157,6 +165,85 @@ defmodule Tuist.VCS do
   end
 
   def validate_client_url(_), do: {:error, :invalid_url}
+
+  @doc """
+  Validates an optional REST API base URL, including any proxy path prefix.
+  Empty values use the API derived from the browser URL. Credentials, query
+  strings, and fragments are rejected; DNS and public-IP checks run at request
+  time, just as they do for installations without an override.
+  """
+  def validate_api_url(url) when url in [nil, ""], do: {:ok, nil}
+
+  def validate_api_url(url) when is_binary(url) do
+    case String.trim(url) do
+      "" ->
+        {:ok, nil}
+
+      trimmed ->
+        with {:ok, normalized} <- validate_client_url(trimmed),
+             %URI{host: host, userinfo: nil, query: nil, fragment: nil} <- URI.parse(normalized),
+             false <- public_github_host?(host) do
+          {:ok, normalized}
+        else
+          _ -> {:error, :invalid_url}
+        end
+    end
+  end
+
+  def validate_api_url(_), do: {:error, :invalid_url}
+
+  defp public_github_host?(host) do
+    host = host |> String.downcase() |> String.trim_trailing(".")
+    host == "github.com" or String.ends_with?(host, ".github.com")
+  end
+
+  @doc """
+  Rebases an API pagination link onto the configured transport endpoint.
+  GitHub Enterprise can emit its canonical browser host in Link headers.
+  Only the configured API or canonical API origin and path prefix are accepted.
+  """
+  def github_api_request_url(url, client_url, api_url) do
+    request = URI.parse(url)
+    transport = URI.parse(api_url)
+    canonical = URI.parse(api_url(:github, client_url))
+
+    cond do
+      api_url_under_base?(request, transport) ->
+        {:ok, url}
+
+      api_url_under_base?(request, canonical) ->
+        suffix = String.replace_prefix(request.path, canonical.path || "", "")
+        {:ok, URI.to_string(%{transport | path: (transport.path || "") <> suffix, query: request.query})}
+
+      true ->
+        {:error, "GitHub API pagination URL does not match the configured instance"}
+    end
+  end
+
+  defp api_url_under_base?(%URI{userinfo: nil, fragment: nil, path: path, host: host} = request, base)
+       when is_binary(path) and is_binary(host) do
+    same_api_origin?(request, base) and safe_api_path?(path) and api_path_under_base?(path, base.path || "")
+  end
+
+  defp api_url_under_base?(_, _), do: false
+
+  defp same_api_origin?(request, base) do
+    request.scheme == base.scheme and String.downcase(request.host) == String.downcase(base.host) and
+      request.port == base.port
+  end
+
+  defp api_path_under_base?(path, prefix), do: path == prefix or String.starts_with?(path, prefix <> "/")
+
+  defp safe_api_path?(path) do
+    if Regex.match?(~r/%(?![0-9A-Fa-f]{2})/, path) do
+      false
+    else
+      path
+      |> URI.decode()
+      |> String.split(["/", "\\"])
+      |> Enum.all?(&(&1 not in [".", ".."]))
+    end
+  end
 
   @doc """
   Returns the GitHub App credentials Tuist should use to act on behalf of
@@ -205,7 +292,7 @@ defmodule Tuist.VCS do
   @doc """
   Returns the distinct GitHub Apps Tuist should act as for App-level
   operations (e.g. webhook delivery log introspection). Each item is
-  `%{credentials, api_url}`.
+  `%{credentials, api_url, client_url}`.
 
   Includes the globally-configured github.com App when the env-var
   credentials are present, plus any per-installation Apps registered
@@ -215,7 +302,7 @@ defmodule Tuist.VCS do
   def list_github_apps do
     global =
       case github_app_credentials() do
-        %{} = creds -> [%{credentials: creds, api_url: api_url(:github, nil)}]
+        %{} = creds -> [%{credentials: creds, api_url: api_url(:github, nil), client_url: default_client_url()}]
         _ -> []
       end
 
@@ -226,8 +313,11 @@ defmodule Tuist.VCS do
       |> Enum.uniq_by(fn i -> {i.app_id, i.client_url} end)
       |> Enum.map(fn installation ->
         case github_app_credentials(installation) do
-          %{} = creds -> %{credentials: creds, api_url: installation_api_url(installation)}
-          _ -> nil
+          %{} = creds ->
+            %{credentials: creds, api_url: installation_api_url(installation), client_url: installation.client_url}
+
+          _ ->
+            nil
         end
       end)
       |> Enum.reject(&is_nil/1)
@@ -235,10 +325,10 @@ defmodule Tuist.VCS do
     global ++ per_installation
   end
 
-  def get_repository_content(
-        %{repository_full_handle: repository_full_handle, provider: provider, token: token},
-        opts \\ []
-      ) do
+  def get_repository_content(params, opts \\ [])
+  def get_repository_content(%{provider: :origin}, _opts), do: {:error, :unsupported_vcs}
+
+  def get_repository_content(%{repository_full_handle: repository_full_handle, provider: provider, token: token}, opts) do
     client = get_client_for_provider(provider)
 
     client.get_repository_content(
@@ -250,11 +340,15 @@ defmodule Tuist.VCS do
     )
   end
 
+  def get_tags(%{provider: :origin}), do: {:error, :unsupported_vcs}
+
   def get_tags(%{provider: provider, repository_full_handle: repository_full_handle, token: token}) do
     client = get_client_for_provider(provider)
 
     client.get_tags(%{repository_full_handle: repository_full_handle, token: token})
   end
+
+  def get_source_archive_by_tag_and_repository_full_handle(%{provider: :origin}), do: {:error, :unsupported_vcs}
 
   def get_source_archive_by_tag_and_repository_full_handle(%{
         provider: provider,
@@ -271,19 +365,28 @@ defmodule Tuist.VCS do
     })
   end
 
-  # NOTE: this only recognises github.com because the few callers that use it
-  # (mainly Swift package registry resolution from raw repo URLs) target the
-  # public Tuist instance. GitHub Enterprise Server flows reach the GitHub
-  # provider through a stored `GitHubAppInstallation` instead, so they don't
-  # depend on this function. If a GHES-aware caller appears, broaden this to
-  # accept hosts that match a known installation's `client_url`.
+  # Public GitHub and Origin URLs are recognized here. Enterprise Server
+  # flows use their stored installation instead of guessing a provider from
+  # an arbitrary host. Origin supports reports, not package-registry content.
   def get_provider_from_repository_url(repository_url) do
-    vcs_uri = URI.parse(repository_url)
-    host = Map.get(vcs_uri, :host)
+    vcs_uri = repository_url |> normalize_scp_url() |> URI.parse()
+    host = String.downcase(vcs_uri.host || "")
 
     case host do
-      "github.com" -> {:ok, :github}
-      _ -> {:error, :unsupported_vcs}
+      "github.com" ->
+        {:ok, :github}
+
+      "origin.cursor.com" ->
+        {:ok, :origin}
+
+      "cursor.com" ->
+        if(String.starts_with?(vcs_uri.path || "", "/codebase/"),
+          do: {:ok, :origin},
+          else: {:error, :unsupported_vcs}
+        )
+
+      _ ->
+        {:error, :unsupported_vcs}
     end
   end
 
@@ -291,20 +394,63 @@ defmodule Tuist.VCS do
     Client
   end
 
-  def get_repository_full_handle_from_url(repository_url) do
-    full_handle =
-      ~r/^git@(.+):/
-      |> Regex.replace(repository_url, "https://\\1/")
-      |> URI.parse()
-      |> Map.get(:path)
-      |> String.replace_leading("/", "")
-      |> String.replace_trailing("/", "")
-      |> String.replace_trailing(".git", "")
+  def get_repository_full_handle_from_url(repository_url) when is_binary(repository_url) do
+    uri = repository_url |> normalize_scp_url() |> URI.parse()
+    path = uri.path || ""
 
-    if full_handle |> String.split("/") |> Enum.count() == 2 do
+    path =
+      case String.downcase(uri.host || "") do
+        "origin.cursor.com" -> String.replace_prefix(path, "/git/", "/")
+        "cursor.com" -> String.replace_prefix(path, "/codebase/", "/")
+        _ -> path
+      end
+
+    full_handle = path |> String.trim("/") |> String.replace_trailing(".git", "")
+
+    if Regex.match?(~r{^[\w.-]+/[\w.-]+$}, full_handle) do
       {:ok, full_handle}
     else
       {:error, :invalid_repository_url}
+    end
+  end
+
+  def get_repository_full_handle_from_url(_), do: {:error, :invalid_repository_url}
+
+  defp normalize_scp_url(url), do: Regex.replace(~r/^git@([^:]+):/, url, "https://\\1/")
+
+  defp get_app_installation_for_repository(%{project: project, repository_full_handle: handle} = params) do
+    case Repo.preload(project, :vcs_connection).vcs_connection do
+      %{provider: :origin} -> Origin.installation_for_repository(project, handle)
+      _ -> get_github_app_installation_for_repository(params)
+    end
+  end
+
+  defp comment_client(%OriginInstallation{}), do: OriginClient
+  defp comment_client(%GitHubAppInstallation{}), do: Client
+
+  defp report_pull_request(%OriginInstallation{} = installation, handle, ref, sha, remote) do
+    case get_provider_from_repository_url(remote) do
+      {:ok, :origin} ->
+        OriginClient.get_pull_request_number(%{
+          installation: installation,
+          repository_full_handle: handle,
+          git_ref: ref,
+          git_commit_sha: sha
+        })
+
+      _ ->
+        {:error, :not_pull_request}
+    end
+  end
+
+  defp report_pull_request(%GitHubAppInstallation{}, _handle, ref, _sha, remote) do
+    if get_provider_from_repository_url(remote) == {:ok, :origin} do
+      {:error, :not_pull_request}
+    else
+      case pull_request_number_from_git_ref(ref) do
+        nil -> {:error, :not_pull_request}
+        number -> {:ok, number}
+      end
     end
   end
 
@@ -380,11 +526,11 @@ defmodule Tuist.VCS do
   def create_comment(%{repository_full_handle: repository_full_handle, git_ref: git_ref, body: body, project: project}) do
     with issue_id when is_integer(issue_id) <- pull_request_number_from_git_ref(git_ref),
          {:ok, installation} <-
-           get_github_app_installation_for_repository(%{
+           get_app_installation_for_repository(%{
              repository_full_handle: repository_full_handle,
              project: project
            }) do
-      client = get_client_for_provider(:github)
+      client = comment_client(installation)
 
       client.create_comment(%{
         repository_full_handle: repository_full_handle,
@@ -407,12 +553,12 @@ defmodule Tuist.VCS do
         body: body,
         project: project
       }) do
-    case get_github_app_installation_for_repository(%{
+    case get_app_installation_for_repository(%{
            repository_full_handle: repository_full_handle,
            project: project
          }) do
       {:ok, installation} ->
-        client = get_client_for_provider(:github)
+        client = comment_client(installation)
 
         client.update_comment(%{
           repository_full_handle: repository_full_handle,
@@ -437,24 +583,31 @@ defmodule Tuist.VCS do
         bundle_url: bundle_url,
         build_url: build_url
       }) do
-    repository_full_handle =
-      if is_nil(git_remote_url_origin) do
-        nil
-      else
-        git_remote_url_origin |> get_repository_full_handle_from_url() |> elem(1)
-      end
-
-    with true <- git_commit_sha != "",
-         true <- not is_nil(git_ref) and git_ref != "",
-         true <- not is_nil(repository_full_handle),
-         issue_id when is_integer(issue_id) <- pull_request_number_from_git_ref(git_ref),
+    with true <- is_binary(git_commit_sha) and git_commit_sha != "",
+         true <- is_binary(git_ref) and git_ref != "",
+         {:ok, repository_full_handle} <-
+           get_repository_full_handle_from_url(git_remote_url_origin),
          {:ok, installation} <-
-           get_github_app_installation_for_repository(%{
+           get_app_installation_for_repository(%{
              repository_full_handle: repository_full_handle,
              project: project
+           }),
+         {:ok, issue_id} <-
+           report_pull_request(
+             installation,
+             repository_full_handle,
+             git_ref,
+             git_commit_sha,
+             git_remote_url_origin
+           ),
+         client = comment_client(installation),
+         {:ok, existing_comment} <-
+           get_existing_vcs_comment_id(%{
+             client: client,
+             repository: repository_full_handle,
+             issue_id: issue_id,
+             installation: installation
            }) do
-      client = get_client_for_provider(:github)
-
       vcs_comment_body =
         get_vcs_comment_body(%{
           git_ref: git_ref,
@@ -467,14 +620,6 @@ defmodule Tuist.VCS do
           project: project
         })
 
-      existing_comment =
-        get_existing_vcs_comment_id(%{
-          client: client,
-          repository: repository_full_handle,
-          issue_id: issue_id,
-          installation: installation
-        })
-
       update_or_create_vcs_comment(%{
         vcs_comment_body: vcs_comment_body,
         repository: repository_full_handle,
@@ -484,8 +629,14 @@ defmodule Tuist.VCS do
         installation: installation
       })
     else
-      # No GitHub app installation, skip posting comment
-      _ -> :ok
+      {:error, reason} when reason in [:not_found, :not_pull_request, :invalid_repository_url] ->
+        :ok
+
+      {:error, _} = error ->
+        error
+
+      _ ->
+        :ok
     end
   end
 
@@ -502,20 +653,27 @@ defmodule Tuist.VCS do
     }
 
     expected_client_id =
-      case github_app_credentials(installation) do
-        %{client_id: client_id} -> client_id
-        _ -> nil
+      case installation do
+        %OriginInstallation{app_id: app_id} ->
+          app_id
+
+        %GitHubAppInstallation{} ->
+          case github_app_credentials(installation) do
+            %{client_id: client_id} -> client_id
+            _ -> nil
+          end
       end
 
     case client.get_comments(comments_params) do
       {:ok, comments} ->
-        Enum.find(comments, fn comment ->
-          comment.client_id == expected_client_id and
-            String.starts_with?(comment.body, @tuist_run_report_prefix)
-        end)
+        {:ok,
+         Enum.find(comments, fn comment ->
+           not is_nil(expected_client_id) and comment.client_id == expected_client_id and
+             String.starts_with?(comment.body, @tuist_run_report_prefix)
+         end)}
 
-      _ ->
-        nil
+      {:error, _} = error ->
+        error
     end
   end
 
@@ -720,6 +878,9 @@ defmodule Tuist.VCS do
 
   defp commit_link(nil, _git_remote_url_origin), do: ""
 
+  defp commit_link(git_commit_sha, "https://cursor.com/codebase/" <> _repository),
+    do: "`#{String.slice(git_commit_sha, 0, 9)}`"
+
   defp commit_link(git_commit_sha, git_remote_url_origin),
     do: "[#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha})"
 
@@ -790,44 +951,39 @@ defmodule Tuist.VCS do
     end
   end
 
+  defp get_test_body(%{test_runs: []}), do: nil
+
   defp get_test_body(%{
          test_runs: test_runs,
          git_remote_url_origin: git_remote_url_origin,
          test_run_url: test_run_url,
          project: project
        }) do
-    if Enum.empty?(test_runs) do
-      nil
-    else
-      project = Repo.preload(project, :account)
+    project = Repo.preload(project, :account)
+    runs_by_build_system = Enum.group_by(test_runs, & &1.build_system)
 
-      runs_by_build_system = Enum.group_by(test_runs, & &1.build_system)
+    sections =
+      for {build_system, name} <- @test_body_build_systems,
+          build_system_test_runs = Map.get(runs_by_build_system, build_system, []),
+          build_system_test_runs != [] do
+        args = test_body_args(build_system_test_runs, project, git_remote_url_origin, test_run_url)
 
-      sections =
-        Enum.reject(
-          [
-            {"Xcode",
-             get_xcode_test_body(
-               test_body_args(runs_by_build_system["xcode"], project, git_remote_url_origin, test_run_url)
-             )},
-            {"Gradle",
-             get_gradle_test_body(
-               test_body_args(runs_by_build_system["gradle"], project, git_remote_url_origin, test_run_url)
-             )},
-            {"Bazel",
-             get_bazel_test_body(
-               test_body_args(runs_by_build_system["bazel"], project, git_remote_url_origin, test_run_url)
-             )}
-          ],
-          fn {_name, body} -> body == "" end
-        )
+        body =
+          if build_system == "xcode",
+            do: get_xcode_test_body(args),
+            else: get_test_rollup_body(args)
 
-      section_body =
-        case sections do
-          [{_name, body}] -> body
-          sections -> Enum.map_join(sections, "\n", fn {name, body} -> "##### #{name}\n\n#{body}" end)
-        end
+        {name, body}
+      end
 
+    section_body =
+      case sections do
+        [] -> nil
+        [{_name, body}] -> body
+        sections -> Enum.map_join(sections, "\n", fn {name, body} -> "##### #{name}\n\n#{body}" end)
+      end
+
+    if section_body do
       """
 
       #### Tests 🧪
@@ -839,14 +995,12 @@ defmodule Tuist.VCS do
 
   defp test_body_args(test_runs, project, git_remote_url_origin, test_run_url) do
     %{
-      test_runs: test_runs || [],
+      test_runs: test_runs,
       git_remote_url_origin: git_remote_url_origin,
       test_run_url: test_run_url,
       project: project
     }
   end
-
-  defp get_xcode_test_body(%{test_runs: [], project: _project} = _args), do: ""
 
   defp get_xcode_test_body(%{
          test_runs: test_runs,
@@ -887,57 +1041,35 @@ defmodule Tuist.VCS do
 
   defp test_modules_text(metrics), do: metrics.ran_test_modules
 
-  defp get_gradle_test_body(%{test_runs: [], project: _project} = _args), do: ""
-
-  defp get_gradle_test_body(%{
-         test_runs: test_runs,
+  defp get_test_rollup_body(%{
+         test_runs: [latest | _] = test_runs,
          git_remote_url_origin: git_remote_url_origin,
          test_run_url: test_run_url,
          project: project
        }) do
-    metrics_data = TestsAnalytics.test_runs_metrics(project.id, test_runs)
-    metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
+    counts = TestsAnalytics.test_case_counts(project.id, test_runs)
 
-    rows =
-      Enum.map_join(test_runs, "", fn test_run ->
-        test_run_metrics = Map.get(metrics_map, test_run.id)
-
-        test_url = test_run_url.(%{project: project, test_run: test_run})
-        scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
-        total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
-
-        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
+    links =
+      Enum.map_join(test_runs, "<br/>", fn test_run ->
+        name = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+        "[#{name}](#{test_run_url.(%{project: project, test_run: test_run})})"
       end)
 
-    "| Project | Status | Tests | Commit |\n" <>
-      "|:-:|:-:|:-:|:-:|\n" <>
-      rows
+    "| Test runs | Status | Passed | Failed | Skipped | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|:-:|:-:|\n" <>
+      "| #{links} | #{rollup_status_text(test_runs, counts)} | #{counts.passed} | #{counts.failed} | #{counts.skipped} | #{commit_link(latest.git_commit_sha, git_remote_url_origin)} |\n"
   end
 
-  defp get_bazel_test_body(%{test_runs: [], project: _project} = _args), do: ""
+  defp rollup_status_text(test_runs, counts) do
+    statuses = Enum.map(test_runs, & &1.status)
 
-  defp get_bazel_test_body(%{
-         test_runs: test_runs,
-         git_remote_url_origin: git_remote_url_origin,
-         test_run_url: test_run_url,
-         project: project
-       }) do
-    metrics_data = TestsAnalytics.test_runs_metrics(project.id, test_runs)
-    metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
-
-    rows =
-      Enum.map_join(test_runs, "", fn test_run ->
-        test_run_metrics = Map.get(metrics_map, test_run.id)
-        test_url = test_run_url.(%{project: project, test_run: test_run})
-        target_patterns = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
-        total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
-
-        "| [#{target_patterns}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
-      end)
-
-    "| Target patterns | Status | Tests | Commit |\n" <>
-      "|:-:|:-:|:-:|:-:|\n" <>
-      rows
+    cond do
+      Enum.any?(statuses, &(&1 in ["in_progress", "processing"])) -> "⏳"
+      counts.failed > 0 or "failure" in statuses -> "❌"
+      "failed_processing" in statuses -> "⚠️"
+      Enum.all?(statuses, &(&1 == "skipped")) -> "⏭️"
+      true -> "✅"
+    end
   end
 
   defp get_test_run_status_text(test_run) do
@@ -1139,7 +1271,7 @@ defmodule Tuist.VCS do
     location_text = "#{path}:#{failure.line_number}"
     repo_handle = project.vcs_connection && project.vcs_connection.repository_full_handle
 
-    if repo_handle && commit_sha not in [nil, ""] do
+    if repo_handle && project.vcs_connection.provider == :github && commit_sha not in [nil, ""] do
       "[`#{location_text}`](https://github.com/#{repo_handle}/blob/#{commit_sha}/#{path}#L#{failure.line_number})"
     else
       "`#{location_text}`"
@@ -1220,25 +1352,25 @@ defmodule Tuist.VCS do
 
     from(t in Tests.Test)
     |> where([t], t.project_id == ^project.id and like(t.git_ref, ^git_ref_pattern))
-    |> where([t], t.scheme != "")
     |> order_by([t], desc: t.inserted_at)
     |> ClickHouseRepo.all()
-    |> Enum.reduce(%{}, fn test_run, acc ->
-      scheme = test_run.scheme
-
-      current_test = Map.get(acc, scheme)
-
-      if current_test == nil or
-           NaiveDateTime.after?(
-             test_run.inserted_at,
-             current_test.inserted_at
-           ) do
-        Map.put(acc, scheme, test_run)
-      else
-        acc
-      end
+    |> Enum.group_by(& &1.build_system)
+    |> Enum.flat_map(fn
+      {"xcode", test_runs} -> latest_test_run_per_scheme(test_runs)
+      {_build_system, test_runs} -> latest_commit_test_runs(test_runs)
     end)
-    |> Map.values()
+  end
+
+  # Expects the test runs newest first. A run without a scheme is kept like any
+  # other, under the empty scheme.
+  defp latest_test_run_per_scheme(test_runs), do: test_runs |> Enum.uniq_by(& &1.scheme) |> Enum.sort_by(& &1.scheme)
+
+  # Only the build system's latest commit is reported, the way coverage reports
+  # a commit, with a rerun replacing the run of the same scheme it repeats.
+  defp latest_commit_test_runs([latest | _] = test_runs) do
+    test_runs
+    |> Enum.filter(&(&1.git_commit_sha == latest.git_commit_sha))
+    |> latest_test_run_per_scheme()
   end
 
   defp get_builds_body(%{
@@ -1472,6 +1604,18 @@ defmodule Tuist.VCS do
     do: [__MODULE__, :webhook_installations, installation_id || "_", app_id || "_"]
 
   @doc """
+  Updates only an Enterprise installation's API transport endpoint. Changing
+  it leaves App credentials, canonical identity, and project connections intact.
+  Token and repository cache keys include the installation row and effective
+  endpoint. Cached webhook installation lookups refresh within one minute.
+  """
+  def update_github_app_api_url(%GitHubAppInstallation{} = installation, api_url) do
+    installation
+    |> GitHubAppInstallation.changeset(%{api_url: api_url})
+    |> Repo.update()
+  end
+
+  @doc """
   Updates a GitHub app installation.
   """
   def update_github_app_installation(%GitHubAppInstallation{} = github_app_installation, attrs) do
@@ -1526,7 +1670,7 @@ defmodule Tuist.VCS do
   """
   def get_github_app_installation_repositories(%GitHubAppInstallation{} = installation) do
     KeyValueStore.get_or_update(
-      [__MODULE__, "repositories", installation_api_url(installation), installation.installation_id],
+      [__MODULE__, "repositories", installation.id, installation_api_url(installation), installation.installation_id],
       [ttl: to_timeout(minute: 15)],
       fn ->
         # This can take long for organizations with a lot of repositories.
@@ -1572,7 +1716,9 @@ defmodule Tuist.VCS do
 
   Accepts an optional `:client_url` to target a self-hosted GitHub Enterprise Server instance,
   defaulting to https://github.com. Accepts an optional `:github_app_owner`
-  to register the manifest-owned App under a GitHub organization.
+  to register the manifest-owned App under a GitHub organization. An optional
+  `:api_url` overrides the REST API base URL for GHES server-side calls without
+  changing browser navigation or the canonical GitHub instance identity.
 
   For github.com, returns the direct installation URL of the
   globally-configured Tuist App. For a GHES `client_url`, returns an
@@ -1585,7 +1731,8 @@ defmodule Tuist.VCS do
   def get_github_app_installation_url(%Account{id: account_id}, opts \\ []) do
     client_url = normalize_client_url(Keyword.get(opts, :client_url))
     github_app_owner = normalize_github_app_owner(Keyword.get(opts, :github_app_owner))
-    state_token = generate_github_state_token(account_id, client_url, github_app_owner)
+    api_url = if client_url != default_client_url(), do: Keyword.get(opts, :api_url)
+    state_token = generate_github_state_token(account_id, client_url, github_app_owner, api_url)
 
     if client_url == default_client_url() do
       app_name = Environment.github_app_name()
@@ -1618,23 +1765,18 @@ defmodule Tuist.VCS do
   client URL. The token round-trips through GitHub's installation flow so we
   know which GitHub instance the resulting installation belongs to.
   """
-  def generate_github_state_token(account_id, client_url \\ default_client_url(), github_app_owner \\ nil) do
-    Phoenix.Token.sign(
-      TuistWeb.Endpoint,
-      "github_state",
-      {
-        account_id,
-        normalize_client_url(client_url),
-        normalize_github_app_owner(github_app_owner)
-      }
-    )
+  def generate_github_state_token(account_id, client_url \\ default_client_url(), github_app_owner \\ nil, api_url \\ nil) do
+    api_url = if is_binary(api_url), do: String.trim(api_url), else: api_url
+    payload = {account_id, normalize_client_url(client_url), normalize_github_app_owner(github_app_owner)}
+    payload = if api_url in [nil, ""], do: payload, else: Tuple.insert_at(payload, 3, api_url)
+    Phoenix.Token.sign(TuistWeb.Endpoint, "github_state", payload)
   end
 
   @doc """
   Verifies the state token. Returns
-  `{:ok, %{account_id: id, client_url: url, github_app_owner: owner}}` on
+  `{:ok, %{account_id: id, client_url: url, github_app_owner: owner, api_url: api_url}}` on
   success, `{:error, reason}` otherwise. Tokens generated before client_url or
-  github_app_owner were introduced are accepted with the available defaults.
+  github_app_owner or api_url were introduced are accepted with the available defaults.
   """
   def verify_github_state_token(token) do
     # 90 days
@@ -1646,33 +1788,38 @@ defmodule Tuist.VCS do
            token,
            max_age: token_max_age_seconds
          ) do
-      {:ok, {account_id, client_url, github_app_owner}}
-      when is_integer(account_id) and is_binary(client_url) ->
-        {:ok,
-         %{
-           account_id: account_id,
-           client_url: normalize_client_url(client_url),
-           github_app_owner: normalize_github_app_owner(github_app_owner)
-         }}
-
-      {:ok, {account_id, client_url}} when is_integer(account_id) and is_binary(client_url) ->
-        {:ok,
-         %{
-           account_id: account_id,
-           client_url: normalize_client_url(client_url),
-           github_app_owner: nil
-         }}
-
-      {:ok, account_id} when is_integer(account_id) ->
-        {:ok, %{account_id: account_id, client_url: default_client_url(), github_app_owner: nil}}
-
-      {:ok, _} ->
-        {:error, :invalid}
+      {:ok, payload} ->
+        decode_github_state(payload)
 
       {:error, _reason} = error ->
         error
     end
   end
+
+  defp decode_github_state({account_id, client_url, owner, api_url})
+       when is_integer(account_id) and is_binary(client_url) and (is_nil(owner) or is_binary(owner)) do
+    case validate_api_url(api_url) do
+      {:ok, normalized_api_url} ->
+        {:ok,
+         %{
+           account_id: account_id,
+           client_url: normalize_client_url(client_url),
+           github_app_owner: normalize_github_app_owner(owner),
+           api_url: normalized_api_url
+         }}
+
+      {:error, _} ->
+        {:error, :invalid}
+    end
+  end
+
+  defp decode_github_state({account_id, client_url, owner}), do: decode_github_state({account_id, client_url, owner, nil})
+  defp decode_github_state({account_id, client_url}), do: decode_github_state({account_id, client_url, nil, nil})
+
+  defp decode_github_state(account_id) when is_integer(account_id),
+    do: decode_github_state({account_id, default_client_url(), nil, nil})
+
+  defp decode_github_state(_), do: {:error, :invalid}
 
   def update_check_run(params), do: Client.update_check_run(params)
 end

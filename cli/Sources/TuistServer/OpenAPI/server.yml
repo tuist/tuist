@@ -268,20 +268,22 @@ components:
           x-struct:
           x-validate:
         history_source:
-          description: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+          description: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
           enum:
             - client
             - none
           type: string
           x-struct:
           x-validate:
+        coverage:
+          $ref: '#/components/schemas/Coverage'
         build_run_id:
           description: The UUID of an associated build run.
           type: string
           x-struct:
           x-validate:
         skip_test_identifiers:
-          description: The tests the caller asked this run to exclude.
+          description: "The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran."
           items:
             type: string
             x-struct:
@@ -336,50 +338,16 @@ components:
           type: string
           x-struct:
           x-validate:
+        coverage_enabled:
+          description: Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
+          type: boolean
+          x-struct:
+          x-validate:
         stress_new_tests:
           $ref: '#/components/schemas/StressNewTestsResult'
         xcode_coverage_partial:
           description: 'With `xcode_coverage_storage_key`: whether the run left tests out on purpose.'
           type: boolean
-          x-struct:
-          x-validate:
-        enumerated_tests:
-          description: The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.
-          items:
-            properties:
-              enabled:
-                description: False when the scheme or the test plan disables the test.
-                type: boolean
-                x-struct:
-                x-validate:
-              function:
-                description: "The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test(\"…\")`)."
-                type: string
-                x-struct:
-                x-validate:
-              module:
-                description: The test target.
-                type: string
-                x-struct:
-                x-validate:
-              name:
-                description: The test's name as the run reports it, `testExample()`.
-                type: string
-                x-struct:
-                x-validate:
-              suite:
-                description: The suite that declares the test, the innermost one when suites nest; empty outside any suite.
-                type: string
-                x-struct:
-                x-validate:
-            required:
-              - module
-              - name
-            type: object
-            x-struct:
-            x-validate:
-          maxItems: 500000
-          type: array
           x-struct:
           x-validate:
         macos_version:
@@ -397,73 +365,6 @@ components:
           description: Optional client-generated UUID for the test run. If not provided, the server generates one.
           format: uuid
           type: string
-          x-struct:
-          x-validate:
-        changed_files:
-          description: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
-          items:
-            properties:
-              git_blob_id:
-                description: The file's Git blob at the head; absent for a deleted file.
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              hunks:
-                description: The changed line ranges in the file at the head, inclusive.
-                items:
-                  properties:
-                    end:
-                      type: integer
-                      x-struct:
-                      x-validate:
-                    start:
-                      type: integer
-                      x-struct:
-                      x-validate:
-                  required:
-                    - start
-                    - end
-                  type: object
-                  x-struct:
-                  x-validate:
-                maxItems: 1000
-                type: array
-                x-struct:
-                x-validate:
-              path:
-                description: The path at the head, relative to the repository root.
-                type: string
-                x-struct:
-                x-validate:
-              previous_path:
-                description: The path before a rename.
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              status:
-                enum:
-                  - added
-                  - modified
-                  - deleted
-                  - renamed
-                type: string
-                x-struct:
-                x-validate:
-              truncated:
-                description: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
-                type: boolean
-                x-struct:
-                x-validate:
-            required:
-              - path
-              - status
-            type: object
-            x-struct:
-            x-validate:
-          maxItems: 10000
-          type: array
           x-struct:
           x-validate:
         xcode_coverage:
@@ -1548,6 +1449,372 @@ components:
       title: MissingCommitListingsRequest
       type: object
       x-struct:
+      x-validate:
+    BuildMetrics:
+      description: Counts, percentages and durations in milliseconds. Missing rates, durations and unreported cache savings are null. Success rate excludes cancelled builds. Rows are bounded to 100 recent failures or 1000 workloads.
+      properties:
+        dates:
+          items:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        rows:
+          items:
+            properties:
+              average:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              build_system:
+                type: string
+                x-struct:
+                x-validate:
+              builds:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              builds_needing_attention:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              cache_time_saved:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              cache_time_saved_samples:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              cache_work_avoided:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              cache_work_avoided_samples:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              cancelled_builds:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              category:
+                type: string
+                x-struct:
+                x-validate:
+              duration_ms:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              failed_builds:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              failure_category:
+                type: string
+                x-struct:
+                x-validate:
+              git_branch:
+                type: string
+                x-struct:
+                x-validate:
+              id:
+                type: string
+                x-struct:
+                x-validate:
+              p50:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              p90:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              p99:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              requested_tasks:
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              slow_build_threshold:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              started_at:
+                format: int64
+                type: integer
+                x-struct:
+                x-validate:
+              success_rate:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              successful_builds:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              user:
+                type: string
+                x-struct:
+                x-validate:
+              workload:
+                type: string
+                x-struct:
+                x-validate:
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        series:
+          properties:
+            average:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            builds:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            builds_needing_attention:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            cache_time_saved:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            cache_time_saved_samples:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            cache_work_avoided:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            cache_work_avoided_samples:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            cancelled_builds:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            failed_builds:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            p50:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            p90:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            p99:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            slow_build_threshold:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            success_rate:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            successful_builds:
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
+        totals:
+          properties:
+            average:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            builds:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            builds_needing_attention:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            cache_time_saved:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            cache_time_saved_samples:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            cache_work_avoided:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            cache_work_avoided_samples:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            cancelled_builds:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            failed_builds:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            p50:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            p90:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            p99:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            slow_build_threshold:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            success_rate:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            successful_builds:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
+      title: BuildMetrics
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.BuildMetrics
       x-validate:
     BuildsIndexPageSize:
       default: 20
@@ -4416,7 +4683,7 @@ components:
     Project:
       properties:
         build_system:
-          description: The build system used by the project, such as xcode, gradle, bazel, or once. New values can be added without notice, so clients must accept values they don't recognize.
+          description: The build system used by the project, such as xcode, gradle, bazel, once, or mix. New values can be added without notice, so clients must accept values they don't recognize.
           example: xcode
           type: string
           x-struct:
@@ -4464,6 +4731,19 @@ components:
       title: Project
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Project
+      x-validate:
+    CacheEndpoint:
+      properties:
+        endpoint:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - endpoint
+      title: CacheEndpoint
+      type: object
+      x-struct:
       x-validate:
     RunnerWorkflow:
       properties:
@@ -5049,6 +5329,141 @@ components:
       title: ProjectToken
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ProjectToken
+      x-validate:
+    Coverage:
+      description: 'Line coverage from a test run that ran with code coverage enabled: every source file the run instrumented, with its per-line execution counts, inline in `files` or uploaded under `storage_key`.'
+      properties:
+        files:
+          items:
+            properties:
+              covered_lines:
+                description: Executable lines the tests ran at least once.
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                description: Lines the compiler instrumented.
+                type: integer
+                x-struct:
+                x-validate:
+              execution_counts:
+                description: How many times each of `line_numbers` ran, index by index.
+                items:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              functions:
+                items:
+                  properties:
+                    covered_lines:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    executable_lines:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    execution_count:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    line_number:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    name:
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - name
+                    - line_number
+                    - execution_count
+                    - covered_lines
+                    - executable_lines
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              git_blob_id:
+                description: The Git blob object id of the file's contents, absent for files Git does not track.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              is_test:
+                description: Whether only test bundles compiled the file. Test code is stored but left out of coverage figures.
+                type: boolean
+                x-struct:
+                x-validate:
+              line_numbers:
+                description: The executable lines, ascending.
+                items:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              path:
+                description: "The file's path, relative to the repository's root when it lives under it and absolute otherwise."
+                type: string
+                x-struct:
+                x-validate:
+              targets:
+                description: The targets whose binaries compiled the file.
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - targets
+              - covered_lines
+              - executable_lines
+              - line_numbers
+              - execution_counts
+              - functions
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        partial:
+          description: Whether the run left tests out on purpose (filters, selective testing), so its coverage describes only the tests that ran.
+          type: boolean
+          x-struct:
+          x-validate:
+        storage_key:
+          description: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; sent instead of `files` when the coverage is too large to send inline.
+          type: string
+          x-struct:
+          x-validate:
+        tool:
+          description: The tool that measured the coverage, such as `cover` for Mix or `llvm-cov` (`xccov` from older clients) for Xcode.
+          type: string
+          x-struct:
+          x-validate:
+        tool_version:
+          description: The version of the tool, or of the runtime that provides it, so only like figures are compared.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - tool
+        - partial
+      title: Coverage
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Tests.Coverage
       x-validate:
     GenerationsIndexBefore:
       description: Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
@@ -7031,7 +7446,7 @@ components:
     CoverageUpload:
       properties:
         storage_key:
-          description: The key to send with the run as `xcode_coverage_storage_key`.
+          description: The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`).
           type: string
           x-struct:
           x-validate:
@@ -8754,6 +9169,15 @@ components:
       x-validate:
     RunnerProfile:
       properties:
+        cache_writer_branches:
+          description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         id:
           type: integer
           x-struct:
@@ -8803,6 +9227,7 @@ components:
         - vcpus
         - memory_gb
         - protected
+        - cache_writer_branches
         - inserted_at
         - updated_at
       title: RunnerProfile
@@ -11206,7 +11631,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/tests/coverage/uploads:
     post:
       callbacks: {}
-      description: Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `xcode_coverage_storage_key`, and the server reads it back once the run exists.
+      description: Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists.
       operationId: createCoverageUpload
       parameters:
         - description: The handle of the account.
@@ -11251,7 +11676,7 @@ paths:
               schema:
                 properties:
                   storage_key:
-                    description: The key to send with the run as `xcode_coverage_storage_key`.
+                    description: The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`).
                     type: string
                     x-struct:
                     x-validate:
@@ -11292,7 +11717,8 @@ paths:
   /api/cache/endpoints:
     get:
       callbacks: {}
-      description: Returns cache endpoints for the requested account.
+      deprecated: true
+      description: Deprecated for new clients. Hosted clients derive stable cache URLs locally. Self-hosted clients use GET /api/cache/endpoint to discover their main cache URL. This route retains legacy endpoint selection and provisioning behavior.
       operationId: getCacheEndpoints
       parameters:
         - description: The name of the account to get custom cache endpoints for.
@@ -12599,6 +13025,15 @@ paths:
                   profiles:
                     items:
                       properties:
+                        cache_writer_branches:
+                          description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
                         id:
                           type: integer
                           x-struct:
@@ -12648,6 +13083,7 @@ paths:
                         - vcpus
                         - memory_gb
                         - protected
+                        - cache_writer_branches
                         - inserted_at
                         - updated_at
                       title: RunnerProfile
@@ -13236,20 +13672,22 @@ paths:
                   x-struct:
                   x-validate:
                 history_source:
-                  description: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+                  description: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                   enum:
                     - client
                     - none
                   type: string
                   x-struct:
                   x-validate:
+                coverage:
+                  $ref: '#/components/schemas/Coverage'
                 build_run_id:
                   description: The UUID of an associated build run.
                   type: string
                   x-struct:
                   x-validate:
                 skip_test_identifiers:
-                  description: The tests the caller asked this run to exclude.
+                  description: "The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran."
                   items:
                     type: string
                     x-struct:
@@ -13304,50 +13742,16 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                coverage_enabled:
+                  description: Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 stress_new_tests:
                   $ref: '#/components/schemas/StressNewTestsResult'
                 xcode_coverage_partial:
                   description: 'With `xcode_coverage_storage_key`: whether the run left tests out on purpose.'
                   type: boolean
-                  x-struct:
-                  x-validate:
-                enumerated_tests:
-                  description: The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.
-                  items:
-                    properties:
-                      enabled:
-                        description: False when the scheme or the test plan disables the test.
-                        type: boolean
-                        x-struct:
-                        x-validate:
-                      function:
-                        description: "The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test(\"…\")`)."
-                        type: string
-                        x-struct:
-                        x-validate:
-                      module:
-                        description: The test target.
-                        type: string
-                        x-struct:
-                        x-validate:
-                      name:
-                        description: The test's name as the run reports it, `testExample()`.
-                        type: string
-                        x-struct:
-                        x-validate:
-                      suite:
-                        description: The suite that declares the test, the innermost one when suites nest; empty outside any suite.
-                        type: string
-                        x-struct:
-                        x-validate:
-                    required:
-                      - module
-                      - name
-                    type: object
-                    x-struct:
-                    x-validate:
-                  maxItems: 500000
-                  type: array
                   x-struct:
                   x-validate:
                 macos_version:
@@ -13365,73 +13769,6 @@ paths:
                   description: Optional client-generated UUID for the test run. If not provided, the server generates one.
                   format: uuid
                   type: string
-                  x-struct:
-                  x-validate:
-                changed_files:
-                  description: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
-                  items:
-                    properties:
-                      git_blob_id:
-                        description: The file's Git blob at the head; absent for a deleted file.
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      hunks:
-                        description: The changed line ranges in the file at the head, inclusive.
-                        items:
-                          properties:
-                            end:
-                              type: integer
-                              x-struct:
-                              x-validate:
-                            start:
-                              type: integer
-                              x-struct:
-                              x-validate:
-                          required:
-                            - start
-                            - end
-                          type: object
-                          x-struct:
-                          x-validate:
-                        maxItems: 1000
-                        type: array
-                        x-struct:
-                        x-validate:
-                      path:
-                        description: The path at the head, relative to the repository root.
-                        type: string
-                        x-struct:
-                        x-validate:
-                      previous_path:
-                        description: The path before a rename.
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      status:
-                        enum:
-                          - added
-                          - modified
-                          - deleted
-                          - renamed
-                        type: string
-                        x-struct:
-                        x-validate:
-                      truncated:
-                        description: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
-                        type: boolean
-                        x-struct:
-                        x-validate:
-                    required:
-                      - path
-                      - status
-                    type: object
-                    x-struct:
-                    x-validate:
-                  maxItems: 10000
-                  type: array
                   x-struct:
                   x-validate:
                 xcode_coverage:
@@ -13862,6 +14199,41 @@ paths:
       summary: Create a new test run.
       tags:
         - Tests
+  /api/cache/endpoint:
+    get:
+      callbacks: {}
+      description: Returns one server-configured cache URL, or null when none is configured. The first configured URL is the main endpoint. This operation never records demand or provisions capacity. Tuist-hosted clients derive their stable hostname locally and do not call this operation.
+      operationId: getCacheEndpoint
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  endpoint:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - endpoint
+                title: CacheEndpoint
+                type: object
+                x-struct:
+                x-validate:
+          description: Main cache endpoint
+          headers:
+            cache-control:
+              description: How long the endpoint configuration can be cached.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get the main self-hosted cache endpoint.
+      tags:
+        - Cache
   /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan:
     post:
       callbacks: {}
@@ -19202,6 +19574,117 @@ paths:
                   type: object
                   x-struct:
                   x-validate:
+                dependency_cache:
+                  description: Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                  items:
+                    properties:
+                      dependency:
+                        maxLength: 1024
+                        minLength: 1
+                        type: string
+                        x-struct:
+                        x-validate:
+                      duration_ms:
+                        maximum: 4294967295
+                        minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      key:
+                        pattern: ^([a-f0-9]{64})?$
+                        type: string
+                        x-struct:
+                        x-validate:
+                      outcome:
+                        enum:
+                          - local_hit
+                          - remote_hit
+                          - miss
+                          - bypass
+                        type: string
+                        x-struct:
+                        x-validate:
+                      read_bytes:
+                        description: Successful read bytes. Remote CAS payload bytes or local artifact and manifest copy bytes, identified by read_source.
+                        maximum: 9223372036854775807
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      read_duration_us:
+                        description: Successful client transfer or local restore duration in microseconds. Local restores include verification and installation; remote transfers exclude installation.
+                        maximum: 9223372036854775807
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      read_source:
+                        description: Read measurement provenance; legacy observations may omit it.
+                        enum:
+                          - local
+                          - remote
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      reason:
+                        enum:
+                          - ""
+                          - not_enabled
+                          - local_dependency
+                          - custom_compiler
+                          - unmodeled_input
+                          - inputs_changed
+                          - store_failed
+                        type: string
+                        x-struct:
+                        x-validate:
+                      saved_duration_ms:
+                        description: Estimated compilation time avoided on a hit, from the original compilation. Not elapsed build time saved.
+                        maximum: 4294967295
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      write_bytes:
+                        description: Successful write bytes. Remote CAS payload bytes or local artifact and manifest copy bytes, identified by write_source.
+                        maximum: 9223372036854775807
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      write_duration_us:
+                        description: Successful client transfer or local publication duration in microseconds. Local publications include snapshot verification. Excludes compilation.
+                        maximum: 9223372036854775807
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      write_source:
+                        description: Write measurement provenance; legacy observations may omit it.
+                        enum:
+                          - local
+                          - remote
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - dependency
+                      - outcome
+                      - duration_ms
+                    type: object
+                    x-struct:
+                    x-validate:
+                  maxItems: 5000
+                  type: array
+                  x-struct:
+                  x-validate:
                 diagnostics:
                   description: Compile-time diagnostics emitted during the build.
                   items:
@@ -21052,6 +21535,150 @@ paths:
       summary: List cache runs associated with a given project.
       tags:
         - Cache Runs
+  /api/projects/{account_handle}/{project_handle}/gradle/builds/metrics:
+    get:
+      callbacks: {}
+      operationId: gradleBuildMetrics
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: from
+          required: true
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: to
+          required: true
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            maxLength: 500
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: workload
+          required: false
+          schema:
+            maxLength: 500
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+              - cancelled
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: view
+          required: false
+          schema:
+            enum:
+              - series
+              - total
+              - workloads
+              - failures
+              - recent_failures
+            type: string
+            x-struct:
+            x-validate:
+        - description: Slow build threshold in milliseconds. Defaults to the cohort's 90th percentile.
+          in: query
+          name: slow_build_threshold_ms
+          required: false
+          schema:
+            maximum: 31536000000
+            minimum: 0
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildMetrics'
+          description: Gradle metrics
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not authorized
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Gradle build health, duration metrics and failure tables.
+      tags:
+        - Metrics
   /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/steps:
     get:
       callbacks: {}
@@ -27968,6 +28595,169 @@ paths:
       summary: Upload a crash report for a test case run.
       tags:
         - Tests
+  /api/accounts/{account_handle}/runners/profiles/{profile_name}:
+    patch:
+      callbacks: {}
+      description: Replaces the branch names or * patterns whose GitHub Actions jobs on the profile save custom cache volume changes. An empty list follows each repository's default branch. Narrowing the list discards pending saves it no longer allows.
+      operationId: updateRunnerProfile
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The profile name, without the runs-on label prefix.
+          in: path
+          name: profile_name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                cache_writer_branches:
+                  description: Branch names or * patterns. An empty list follows each repository's default branch.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+              required:
+                - cache_writer_branches
+              type: object
+              x-struct:
+              x-validate:
+        description: Profile changes
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  cache_writer_branches:
+                    description: Branch names or * patterns whose GitHub Actions jobs save custom cache volume changes. An empty list follows each repository's default branch.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  id:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  memory_gb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  name:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  platform:
+                    enum:
+                      - linux
+                      - macos
+                    type: string
+                    x-struct:
+                    x-validate:
+                  protected:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  vcpus:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  xcode_version:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - name
+                  - platform
+                  - vcpus
+                  - memory_gb
+                  - protected
+                  - cache_writer_branches
+                  - inserted_at
+                  - updated_at
+                title: RunnerProfile
+                type: object
+                x-struct:
+                x-validate:
+          description: Updated runner profile
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or malformed fields
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The profile was not found or runners are not enabled
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid branch names
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Update which branches save a runner profile's cache volumes.
+      tags:
+        - Runners
   /api/projects/{account_handle}/{project_handle}/builds:
     get:
       callbacks: {}
@@ -29034,6 +29824,94 @@ paths:
       summary: Completes artifacts uploads for a given run
       tags:
         - Analytics
+  /api/projects/{account_handle}/{project_handle}/builds/metrics/health/dimensions/{dimension}/values:
+    get:
+      callbacks: {}
+      operationId: buildHealthDimensionValues
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: dimension
+          required: true
+          schema:
+            enum:
+              - git_branch
+              - workload
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  values:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - values
+                type: object
+                x-struct:
+                x-validate:
+          description: Dimension values
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not authorized
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List build branches or workload groups.
+      tags:
+        - Metrics
   /api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete:
     post:
       callbacks: {}
@@ -29260,6 +30138,150 @@ paths:
       summary: 'List test case runs for a test run. Deprecated: use listTestCaseRuns with test_run_id query param instead.'
       tags:
         - Test Case Runs
+  /api/projects/{account_handle}/{project_handle}/builds/metrics/health:
+    get:
+      callbacks: {}
+      operationId: buildHealthMetrics
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: from
+          required: true
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: to
+          required: true
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            maxLength: 500
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: workload
+          required: false
+          schema:
+            maxLength: 500
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+              - cancelled
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: view
+          required: false
+          schema:
+            enum:
+              - series
+              - total
+              - workloads
+              - failures
+              - recent_failures
+            type: string
+            x-struct:
+            x-validate:
+        - description: Slow build threshold in milliseconds. Defaults to the cohort's 90th percentile.
+          in: query
+          name: slow_build_threshold_ms
+          required: false
+          schema:
+            maximum: 31536000000
+            minimum: 0
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildMetrics'
+          description: Build metrics
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not authorized
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Build health, duration metrics and failure tables.
+      tags:
+        - Metrics
   /api/cache/multipart/generate-url:
     post:
       callbacks: {}
@@ -33947,6 +34969,94 @@ paths:
       summary: List an automation alert's revision history.
       tags:
         - Automation Alerts
+  /api/projects/{account_handle}/{project_handle}/gradle/builds/metrics/dimensions/{dimension}/values:
+    get:
+      callbacks: {}
+      operationId: gradleMetricDimensionValues
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: dimension
+          required: true
+          schema:
+            enum:
+              - git_branch
+              - workload
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  values:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - values
+                type: object
+                x-struct:
+                x-validate:
+          description: Dimension values
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not authorized
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List Gradle branches or workload groups.
+      tags:
+        - Metrics
   /api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}:
     get:
       callbacks: {}

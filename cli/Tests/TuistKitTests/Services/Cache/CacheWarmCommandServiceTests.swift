@@ -129,6 +129,7 @@
                 )
                 .willReturn([externalGraphTarget: .test(hash: "external-hash")])
             given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
+            given(cacheStorage).republishIfNeeded(.any, cacheCategory: .value(.binaries)).willReturn()
             given(generatorFactory)
                 .binaryCacheWarming(
                     config: .any,
@@ -178,6 +179,86 @@
                 .called(0)
             verify(cacheStorageFactory)
                 .cacheLocalStorage()
+                .called(0)
+        }
+
+        @Test(.inTemporaryDirectory) func run_republishesLocalHits_whenUploading() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let path = temporaryDirectory.appending(components: "Binaries", "Fixtures.bundle")
+            let fingerprints = ["ios-simulator": "simulator-hash"]
+
+            try await run(
+                noUpload: false,
+                fingerprints: fingerprints,
+                fetched: [CacheItem(name: "Fixtures", hash: "fixtures-hash", source: .local, cacheCategory: .binaries): path]
+            )
+
+            verify(cacheStorage)
+                .republishIfNeeded(
+                    .matching { items in
+                        items.count == 1 && items.first?.key.hash == "fixtures-hash"
+                            && items.first?.key.metadata.binaryCacheFingerprints == fingerprints && items.first?.value == path
+                    },
+                    cacheCategory: .value(.binaries)
+                )
+                .called(1)
+        }
+
+        @Test(.inTemporaryDirectory) func run_storesMissesBeforeRepublishingLocalHits() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let path = temporaryDirectory.appending(components: "Binaries", "Cached.bundle")
+            let failure = CacheUploadFailure(
+                item: CacheStorableItem(name: "Cached", hash: "cached-hash"),
+                reason: "request timed out"
+            )
+
+            let error = await #expect(throws: CacheWarmCommandServiceError.self) {
+                try await run(
+                    noUpload: false,
+                    fetched: [CacheItem(name: "Cached", hash: "cached-hash", source: .local, cacheCategory: .binaries): path],
+                    cachedTarget: true,
+                    republishError: CacheUploadError(failures: [failure])
+                )
+            }
+
+            #expect(error?.errorDescription?.contains("  - Cached (cached-hash): request timed out") == true)
+            verify(cacheStorage)
+                .store(.any, cacheCategory: .value(.binaries))
+                .called(1)
+            verify(cacheStorage)
+                .republishIfNeeded(
+                    .matching { $0.keys.map(\.name) == ["Cached"] },
+                    cacheCategory: .value(.binaries)
+                )
+                .called(1)
+        }
+
+        @Test(.inTemporaryDirectory) func run_doesNotRepublishLocalHits_whenNoUpload() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let path = temporaryDirectory.appending(components: "Binaries", "Fixtures.bundle")
+
+            try await run(
+                noUpload: true,
+                fetched: [CacheItem(name: "Fixtures", hash: "fixtures-hash", source: .local, cacheCategory: .binaries): path]
+            )
+
+            verify(cacheStorage)
+                .republishIfNeeded(.any, cacheCategory: .any)
+                .called(0)
+        }
+
+        @Test(.inTemporaryDirectory) func run_doesNotRepublishLocalHits_whenGenerateOnly() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let path = temporaryDirectory.appending(components: "Binaries", "Fixtures.bundle")
+
+            try await run(
+                noUpload: false,
+                fetched: [CacheItem(name: "Fixtures", hash: "fixtures-hash", source: .local, cacheCategory: .binaries): path],
+                generateOnly: true
+            )
+
+            verify(cacheStorage)
+                .republishIfNeeded(.any, cacheCategory: .any)
                 .called(0)
         }
 
@@ -539,13 +620,27 @@
             storeError: Error? = nil,
             fingerprints: [String: String] = [:],
             targetProduct: Product = .bundle,
-            projectSettings: Settings = .test()
+            projectSettings: Settings = .test(),
+            fetched: [CacheItem: AbsolutePath] = [:],
+            generateOnly: Bool = false,
+            cachedTarget: Bool = false,
+            republishError: Error? = nil
         ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let resolvedConfiguration = configuration ?? "Debug"
             let target = Target.test(name: "Fixtures", product: targetProduct, foreignBuild: foreignBuild)
-            let project = Project.test(path: temporaryDirectory, settings: projectSettings, targets: [target], schemes: [])
+            let cached = Target.test(name: "Cached", product: .bundle)
+            let project = Project.test(
+                path: temporaryDirectory,
+                settings: projectSettings,
+                targets: cachedTarget ? [target, cached] : [target],
+                schemes: []
+            )
             let graphTarget = GraphTarget(path: temporaryDirectory, target: target, project: project)
+            var hashes: [GraphTarget: TargetContentHash] = [:]
+            if cachedTarget {
+                hashes[GraphTarget(path: temporaryDirectory, target: cached, project: project)] = .test(hash: "cached-hash")
+            }
             let graph = Graph.test(
                 path: temporaryDirectory,
                 workspace: .test(path: temporaryDirectory, schemes: schemes),
@@ -579,6 +674,7 @@
                 .willReturn(resolvedConfiguration)
             var targetHash = TargetContentHash.test(hash: "fixtures-hash")
             targetHash.binaryCacheFingerprints = fingerprints
+            hashes[graphTarget] = targetHash
             given(cacheGraphContentHasher)
                 .contentHashes(
                     for: .value(graph),
@@ -587,10 +683,19 @@
                     excludedTargets: .value([]),
                     destination: .value(nil)
                 )
-                .willReturn([graphTarget: targetHash])
+                .willReturn(hashes)
             given(cacheStorage)
                 .fetch(.any, cacheCategory: .value(.binaries))
-                .willReturn([:])
+                .willReturn(fetched)
+            if let republishError {
+                given(cacheStorage)
+                    .republishIfNeeded(.any, cacheCategory: .value(.binaries))
+                    .willThrow(republishError)
+            } else {
+                given(cacheStorage)
+                    .republishIfNeeded(.any, cacheCategory: .value(.binaries))
+                    .willReturn()
+            }
             given(generatorFactory)
                 .binaryCacheWarming(
                     config: .value(config),
@@ -624,7 +729,7 @@
                 configuration: configuration,
                 targetsToBinaryCache: [],
                 externalOnly: false,
-                generateOnly: false,
+                generateOnly: generateOnly,
                 noUpload: noUpload,
                 cacheProfile: nil,
                 scratchDirectory: scratchDirectory?.pathString

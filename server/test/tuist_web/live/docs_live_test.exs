@@ -103,7 +103,7 @@ defmodule TuistWeb.DocsLiveTest do
         end)
 
       assert supported_systems == %{
-               "/en/docs/guides/features/cache" => ~w(apple gradle bazel rust),
+               "/en/docs/guides/features/cache" => ~w(apple gradle bazel elixir rust),
                "/en/docs/guides/features/build-insights" => ~w(apple gradle bazel elixir rust),
                "/en/docs/guides/features/selective-testing" => ~w(apple),
                "/en/docs/guides/features/test-insights/flaky-tests" => ~w(apple gradle bazel elixir rust),
@@ -113,7 +113,7 @@ defmodule TuistWeb.DocsLiveTest do
              }
 
       assert length(Floki.find(document, ~s([data-part="supported-icon"][title="elixir"] svg))) ==
-               4
+               5
 
       assert length(Floki.find(document, ~s([data-part="supported-icon"][title="rust"] svg))) == 5
       assert has_element?(lv, "#docs-cache-card", "Rust caching is experimental.")
@@ -223,6 +223,69 @@ defmodule TuistWeb.DocsLiveTest do
   end
 
   describe "docs pages" do
+    test "links the cache overview to the Elixir guide", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/en/docs/guides/features/cache")
+      assert has_element?(view, ~s(a[href="/en/docs/guides/features/cache/elixir"]), "Elixir cache")
+    end
+
+    test "owns the shared Elixir setup in Get started", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/en/docs/guides/get-started/elixir-project")
+      markdown = html |> Floki.parse_document!() |> Floki.find("#docs-page-markdown") |> Floki.text()
+      assert markdown =~ "mix tuist.setup --project account/project"
+      assert markdown =~ "compile and test aliases"
+      assert markdown =~ "enables dependency caching"
+      assert markdown =~ "retries and CI sharding are optional"
+      refute markdown =~ "Code.eval_string"
+      refute markdown =~ "aliases: ["
+      assert has_element?(view, "h2 a#set-up-tuist")
+      assert has_element?(view, ~s(a[href="/en/docs/guides/features/cache/elixir"]))
+    end
+
+    test "feature guides link to shared Elixir setup instead of duplicating aliases", %{conn: conn} do
+      for path <- [
+            "/en/docs/guides/features/build-insights/elixir",
+            "/en/docs/guides/features/test-insights/elixir",
+            "/en/docs/guides/features/test-insights/flaky-tests/elixir",
+            "/en/docs/guides/features/test-sharding/elixir",
+            "/en/docs/guides/install-hex-package"
+          ] do
+        {:ok, view, html} = live(conn, path)
+        markdown = html |> Floki.parse_document!() |> Floki.find("#docs-page-markdown") |> Floki.text()
+        assert has_element?(view, ~s(a[href^="/en/docs/guides/get-started/elixir-project"]))
+        refute markdown =~ "aliases: ["
+      end
+    end
+
+    test "serves the Elixir cache guide with setup and safety boundaries", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/en/docs/guides/features/cache/elixir")
+      document = Floki.parse_document!(html)
+      markdown = document |> Floki.find("#docs-page-markdown") |> Floki.text()
+      assert markdown =~ "# Elixir cache"
+      refute markdown =~ "mix tuist.setup"
+      assert markdown =~ "no extra cache setup is needed"
+      refute markdown =~ "Code.eval_string"
+      refute markdown =~ "compile.exs"
+      refute markdown =~ "deps.compile tuist_ex --include-children"
+      assert markdown =~ "cache: true"
+      assert markdown =~ "automatically selects supported Hex and Git dependencies"
+      assert markdown =~ "nimble_options"
+      assert markdown =~ "include secrets"
+      assert markdown =~ "CAS Outputs"
+      refute markdown =~ "deps.loadpaths --no-compile --no-deps-check"
+      assert has_element?(view, ~s(a[href="/en/docs/guides/features/cache/elixir-advanced"]))
+      assert has_element?(view, ~s(a[href="/en/docs/guides/get-started/elixir-project#set-up-tuist"]))
+    end
+
+    test "serves advanced Elixir cache settings separately", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/en/docs/guides/features/cache/elixir-advanced")
+      markdown = html |> Floki.parse_document!() |> Floki.find("#docs-page-markdown") |> Floki.text()
+      assert markdown =~ "audited dependency allowlist"
+      assert markdown =~ "Portable reuse does not rewrite"
+      assert markdown =~ "shared REAPI"
+      assert markdown =~ "including secrets"
+      assert markdown =~ "exclude:"
+    end
+
     test "puts the page-owned template variables in a signed image URL", %{conn: conn} do
       {:ok, _live_view, html} = live(conn, ~p"/en/docs/guides/install-tuist")
       {:ok, document} = Floki.parse_document(html)

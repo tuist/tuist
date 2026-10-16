@@ -1958,6 +1958,26 @@ defmodule Tuist.AccountsTest do
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
+
+    test "tears the organization's Kura servers out of the cluster before its rows cascade away" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      test_pid = self()
+
+      expect(Tuist.Kura, :destroy_servers_for_account, fn account_id ->
+        send(test_pid, {:kura_teardown, account_id, Accounts.get_account_by_id(account_id)})
+        :ok
+      end)
+
+      # When
+      Accounts.delete_organization!(organization)
+
+      # Then
+      assert_receive {:kura_teardown, account_id, {:ok, _account}}
+      assert account_id == account.id
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+    end
   end
 
   describe "get_organization_by_id/1" do
@@ -2317,6 +2337,32 @@ defmodule Tuist.AccountsTest do
       # ClickHouse event deletion is async (mutations_sync = 0), so we don't
       # assert immediate removal — the mutation will complete eventually.
       assert Accounts.get_device_code(code.code) == nil
+    end
+
+    test "tears the user's Kura servers out of the cluster and purges its storage" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      test_pid = self()
+
+      expect(Tuist.Kura, :destroy_servers_for_account, fn account_id ->
+        send(test_pid, {:kura_teardown, account_id, Accounts.get_account_by_id(account_id)})
+        :ok
+      end)
+
+      expect(Tuist.Storage, :delete_all_objects, 2, fn prefix, _actor ->
+        send(test_pid, {:purged, prefix})
+        {:ok, 0}
+      end)
+
+      # When
+      Accounts.delete_user(user)
+
+      # Then
+      assert_receive {:kura_teardown, account_id, {:ok, _account}}
+      assert account_id == account.id
+      assert_receive {:purged, "runner-volume-masters/" <> _}
+      assert_receive {:purged, "runner-gitlab-cache/" <> _}
     end
   end
 
@@ -5799,6 +5845,37 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert resolution == %{endpoints: [], provisioning: true}
+    end
+
+    test "does not report provisioning, nor kick it, while an idle Air archival is held" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      archived_at = DateTime.truncate(DateTime.add(DateTime.utc_now(), -86_400, :second), :second)
+      {:ok, _} = Demand.upsert(account.id, "us-east", archived_at)
+
+      account.id
+      |> Demand.get("us-east")
+      |> Ecto.Changeset.change(%{drain_reason: :idle, archived_at: archived_at})
+      |> Repo.update!()
+
+      Repo.insert!(%Server{
+        account_id: account.id,
+        region: "us-east",
+        status: :archived,
+        provisioner_node_ref: "kura-#{account.id}-us-east"
+      })
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution == %{endpoints: [], provisioning: false}
+      refute_enqueued(worker: ProvisionOnDemandWorker)
     end
 
     test "returns no endpoints instead of the legacy cache nodes for an unknown or missing account handle" do

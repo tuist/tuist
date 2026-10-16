@@ -1,8 +1,9 @@
 defmodule Tuist.KeyValueStore do
   @moduledoc ~S"""
-  A module for doing key-value caching. The storage layer depends on the presence of a Redis connection.
-  - If a Redis connection is available, it caches the value in Redis.
-  - If a Redis connection is not available, it caches the value in memory (cleaned in deploys)
+  A module for doing key-value caching. Values use Cachex by default.
+  With `persist_across_deployments: true` and a configured Redis connection,
+  values are shared through Redis. Otherwise, or on Redis connection failure,
+  values use the selected in-memory Cachex cache (cleaned in deploys).
   """
 
   alias Tuist.Environment
@@ -60,7 +61,7 @@ defmodule Tuist.KeyValueStore do
   end
 
   defp get_from_redis(cache_key) do
-    case Redix.command(Environment.redis_conn_name(), ["GET", cache_key(cache_key)]) do
+    case redis_command(Environment.redis_conn_name(), ["GET", cache_key(cache_key)]) do
       {:ok, nil} ->
         nil
 
@@ -161,40 +162,65 @@ defmodule Tuist.KeyValueStore do
   end
 
   defp get_or_update_from_cachex(cache_key, opts, func) do
+    cache = cachex_cache(opts)
     cache_key = cache_key(cache_key)
 
-    read_or_update = fn cache ->
-      case read_from_cachex(cache, cache_key) do
-        nil ->
+    case read_from_cachex(cache, cache_key) do
+      nil ->
+        if Keyword.get(opts, :locking, true) do
+          fetch_from_cachex(cache, cache_key, opts, func)
+        else
           value = func.()
-
           Cachex.put(cache, cache_key, value, expire: cachex_cache_ttl(opts))
-
           value
+        end
 
-        value ->
-          value
-      end
+      value ->
+        value
     end
+  end
 
-    if Keyword.get(opts, :locking, true) do
-      run_cachex_transaction(cachex_cache(opts), [cache_key], read_or_update, func)
-    else
-      read_or_update.(cachex_cache(opts))
+  # `Cachex.fetch/3` runs the function in a worker process per key: concurrent callers of the key
+  # wait for that one computation, and callers of other keys are not queued behind it. A
+  # `Cachex.transaction/3` instead runs inside the cache's single Locksmith process, so one slow
+  # miss would stall every locked lookup on the node, including authentication on API requests.
+  defp fetch_from_cachex(cache, cache_key, opts, func) do
+    result =
+      Cachex.fetch(cache, cache_key, fn ->
+        case func.() do
+          nil -> {:ignore, nil}
+          value -> {:commit, value, expire: cachex_cache_ttl(opts)}
+        end
+      end)
+
+    case result do
+      {:commit, value} -> value
+      {:ignore, nil} -> nil
+      {:error, %Cachex.Error{message: message}} -> {:error, message}
+      value -> value
     end
+  rescue
+    _error in ArgumentError -> func.()
   end
 
   defp put_in_redis(cache_key, value, opts) do
     cache_key = cache_key(cache_key)
     cache_ttl = Keyword.get(opts, :ttl, to_timeout(minute: 1))
 
-    Redix.command(Environment.redis_conn_name(), [
+    redis_command(Environment.redis_conn_name(), [
       "SET",
       cache_key,
       :erlang.term_to_binary(value),
       "EX",
       div(cache_ttl, 1000)
     ])
+  end
+
+  defp redis_command(connection, command) do
+    case Redix.command(connection, command) do
+      {:error, %Redix.ConnectionError{} = error} -> raise error
+      result -> result
+    end
   end
 
   defp put_in_cachex(cache_key, value, opts) do
@@ -224,23 +250,6 @@ defmodule Tuist.KeyValueStore do
 
   defp normalize_cachex_put(:ok), do: {:ok, true}
   defp normalize_cachex_put(result), do: result
-
-  defp run_cachex_transaction(cache, keys, operation, fallback) do
-    result = Cachex.transaction(cache, keys, operation)
-
-    if cachex_returns_wrapped_results?() do
-      case result do
-        {:ok, value} -> value
-        # If the cache is unavailable, we handle it gracefully by obtaining the value without caching it.
-        {:error, _reason} -> fallback.()
-        value -> value
-      end
-    else
-      result
-    end
-  rescue
-    _error in ArgumentError -> fallback.()
-  end
 
   defp cachex_returns_wrapped_results? do
     case Application.spec(:cachex, :vsn) do

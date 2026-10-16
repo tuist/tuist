@@ -922,6 +922,39 @@ defmodule Tuist.Tests.Analytics do
     end)
   end
 
+  @doc """
+  Counts the distinct test cases across the given test runs, the way a
+  commit's coverage is the union of every run that measured it: a test case
+  run by several test runs counts once. It is failed when any run failed it
+  (a flaky failure does not count), passed when any run passed it, and
+  skipped otherwise.
+  """
+  def test_case_counts(_project_id, []), do: %{passed: 0, failed: 0, skipped: 0}
+
+  def test_case_counts(project_id, test_runs) when is_list(test_runs) do
+    test_run_ids = Enum.map(test_runs, & &1.id)
+
+    outcomes =
+      from(t in TestCaseRunByTestRun,
+        where: t.project_id == ^project_id and t.test_run_id in ^test_run_ids,
+        group_by: fragment("ifNull(toString(?), toString(?))", t.test_case_id, t.id),
+        select: %{
+          failed: fragment("countIf(? = 'failure' AND NOT ?) > 0", t.status, t.is_flaky),
+          passed: fragment("countIf(? != 'skipped') > 0", t.status)
+        }
+      )
+
+    from(o in subquery(outcomes),
+      select: %{
+        failed: fragment("countIf(?)", o.failed),
+        passed: fragment("countIf(NOT ? AND ?)", o.failed, o.passed),
+        skipped: fragment("countIf(NOT ? AND NOT ?)", o.failed, o.passed)
+      }
+    )
+    |> ClickHouseRepo.one()
+    |> Map.new(fn {key, count} -> {key, count || 0} end)
+  end
+
   # A test run that reused a separate build reports its module cache lookups on
   # the build's command event. Among events sharing the build run ID, prefer the
   # one without a test run, then the earliest, like the test run page does.

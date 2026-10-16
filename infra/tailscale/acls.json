@@ -7,16 +7,16 @@
 // HOW IT REACHES THE TAILNET: today, by hand. Paste this file into
 // the Tailscale admin console under "Access controls". Nothing in
 // CI applies it, so a merged change to this file has NO effect
-// until someone does that — a fact worth remembering when a fresh
+// until someone does that, a fact worth remembering when a fresh
 // grant appears not to work.
 //
 // Manual is a DECISION, not a platform limitation, and not an
 // oversight to go fix. Tailscale does expose the policy file over
 // its API (`GET`/`POST /api/v2/tailnet/<tailnet>/acl`, accepting
 // HuJSON and honouring `If-Match` for optimistic concurrency, plus
-// an `/acl/validate` endpoint), and ships an official GitHub Action
-// — `tailscale/gitops-acl-action` — that runs `action: test` on
-// pull requests and `action: apply` on merge.
+// an `/acl/validate` endpoint), and ships an official GitHub Action,
+// `tailscale/gitops-acl-action`, that runs `action: test` on pull
+// requests and `action: apply` on merge.
 //
 // We are not using it yet, because the `policy_file` scope is
 // whole-file: there is no way to authorise a credential for "may
@@ -24,16 +24,16 @@
 // apply this file could therefore add a
 // `tailscale.com/cap/kubernetes` grant on
 // `tag:tuist-k8s-production` handing its holder
-// `tuist-production-write` — exactly the elevation the JIT flow
+// `tuist-production-write`, exactly the elevation the JIT flow
 // exists to gate behind a stated intent, a TTL and a second human.
 // Automating the paste would put that capability behind "can land a
 // commit on main" instead. The `tests` block below cannot backstop
 // it either: Tailscale's test engine does not resolve `autogroup:*`,
-// so the human-kubectl grants are precisely the ones an automated
-// `apply` would validate the least.
+// so the human grants are precisely the ones an automated `apply`
+// would validate the least.
 //
 // Revisit when both halves have an answer: federated identity
-// (GitHub Actions OIDC, so no long-lived secret — see
+// (GitHub Actions OIDC, so no long-lived secret, see
 // https://tailscale.com/kb/1581/workload-identity-federation) for
 // the credential, and some way to keep production-tier grants off
 // the automated path. Until then, a human pastes it.
@@ -42,45 +42,65 @@
 // TuistOps.JIT.TailscaleClient, is deliberately `users:read` only
 // and cannot write this file.
 //
+// There is no catch-all grant. Every path on the tailnet is one of the
+// grants below; a flow that is not listed is denied. When something stops
+// working after a change here, the missing grant is the first suspect.
+//
 // Tag taxonomy:
 //
-//   tag:tuist-mgmt           Tuist team's management devices
-//                            (Talos node access, ops laptops).
-//                            Inherited from the tailnet's initial
-//                            setup.
+//   tag:tuist-mgmt           The management cluster's single Talos VM
+//                            (infra/k8s/mgmt/tailscale.yaml). Operators
+//                            reach talosd on it at tcp:50000. It
+//                            dials nothing and advertises no routes.
 //   tag:tuist-macmini-<env>  Mac minis in a specific env's macOS
-//                            fleet (xcresult-processor, customer
-//                            runners, future fleets), plus the
-//                            xcresult-processor Tart VMs that share
-//                            the fleet's credential. Joined via
-//                            infra/macos-host-bootstrap; the env
-//                            suffix is set by the operator-image
+//                            fleet, plus the xcresult-processor Tart
+//                            VMs that share the fleet's credential.
+//                            Joined via infra/macos-host-bootstrap;
+//                            the env suffix is set by the operator
 //                            flag --tailscale-tags, which the chart
 //                            wires from macosFleet.tailscale.tags
-//                            per env values file. Like the k8s tag
-//                            below, each env joins with its own
-//                            OAuth client scoped to this tag,
-//                            never a pre-auth key, which Tailscale
-//                            caps at 90 days and which took the
-//                            xcresult queue offline when it lapsed
-//                            (2026-08-12). Tags declared here are
-//                            what an OAuth-minted key applies, so
-//                            a tag removed from tagOwners breaks
-//                            every subsequent join.
-//   tag:tuist-k8s-<env>      Tailscale K8s operator + the cluster-
-//                            side subnet-router Connector it
-//                            provisions, scoped to one env's
-//                            cluster. Each env runs its own
+//                            per env values file. Today every Mac the
+//                            env's operator bootstraps carries it:
+//                            the xcresult fleet, the runner fleet,
+//                            the image builders and the BER1 rack.
+//                            Each env joins with its own OAuth client
+//                            scoped to this tag, never a pre-auth key,
+//                            which Tailscale caps at 90 days and which
+//                            took the xcresult queue offline when it
+//                            lapsed (2026-08-12). Tags declared here
+//                            are what an OAuth-minted key applies, so
+//                            a tag removed from tagOwners breaks every
+//                            subsequent join.
+//   tag:tuist-runner-host-<env>
+//                            Mac minis that run customer runner VMs or
+//                            bake VM images (runnersFleet, rackFleet,
+//                            buildersFleet). Declared ahead of the
+//                            operator change that applies it; until
+//                            then no device carries it and its grants
+//                            are inert. It is tag:tuist-macmini-<env>
+//                            without the database ports: a runner
+//                            host NATs its guests' traffic to its own
+//                            tailnet address, so whatever the host's
+//                            tag can reach, a guest running customer
+//                            code is one firewall rule away from.
+//                            Minted by its own OAuth client per env,
+//                            so a runner host's credential cannot
+//                            join a device with database access.
+//   tag:tuist-k8s-<env>      Tailscale K8s operator, the cluster-side
+//                            subnet-router Connector, the egress and
+//                            ingress proxies it provisions, scoped to
+//                            one env's cluster. Each env runs its own
 //                            operator instance with its own OAuth
 //                            client, so a leaked staging credential
-//                            can't enroll a device under a prod
-//                            tag.
-//   tag:tuist-ops            Human operators with SSH access to
-//                            every macOS fleet, regardless of env.
-//                            Env-agnostic deliberately — humans
-//                            manage all envs, the tag-per-env
-//                            split is for credential isolation,
-//                            not human access boundaries.
+//                            can't enroll a device under a prod tag.
+//   tag:tuist-ops            Reserved for human operators' devices.
+//                            No device carries it today: people's
+//                            laptops are untagged user devices, and
+//                            the human grants below use autogroups.
+//                            Env-agnostic deliberately: humans manage
+//                            all envs, the tag-per-env split is for
+//                            credential isolation, not human access
+//                            boundaries.
 //   tag:tuist-rack-edge      A rack's edge node, which relays its
 //                            switches' management traffic to the
 //                            Omada controller on the tailnet,
@@ -100,18 +120,23 @@
 {
 	// Human access groups for the Kubernetes API server proxy.
 	//
-	// Identity for the cluster grants below is sourced from the
-	// tailnet role (Owner/Admin/Member, set in the Tailscale admin
-	// console Users page) via Tailscale's built-in autogroups:
-	//   autogroup:owner  + autogroup:admin   → cluster admins
-	//   autogroup:member                     → engineers
+	// Identity for the human grants below is sourced from the tailnet
+	// role (Owner/Admin/Member, set in the Tailscale admin console
+	// Users page) via Tailscale's built-in autogroups:
+	//   autogroup:owner  + autogroup:admin   -> cluster admins, and
+	//                                           the infrastructure
+	//                                           planes (Talos, MDM,
+	//                                           rack SSH, Omada)
+	//   autogroup:member                     -> engineers
+	// autogroup:admin does not include the Owner role, so every
+	// admin-only grant lists autogroup:owner beside it.
 	// No email lists are kept in this file; promoting someone in
 	// the console flips their access on the next session.
 	//
 	// For CANARY and PRODUCTION this document is the **view-tier**
 	// policy only. Elevated access (writes) there flows through a
 	// separate Pomerium gateway that gates per-request on a Tuist DB
-	// flag — no Tailscale policy mutation. So there are no
+	// flag, with no Tailscale policy mutation. So there are no
 	// "break-glass" groups declared here, and the ACL itself is
 	// humans-only, edited through code review.
 	//
@@ -120,336 +145,426 @@
 	// per-request gateway to decide and staging kubectl runs over
 	// the tailnet instead. That makes the
 	// `tailscale.com/cap/kubernetes` grants further down the
-	// authoritative tier decision for staging — the only place in
+	// authoritative tier decision for staging, the only place in
 	// this file that hands out an `edit`-tier group.
 	"groups": {},
 
 	"tagOwners": {
-		"tag:tuist-mgmt":              ["autogroup:admin"],
-		"tag:tuist-ops":               ["autogroup:admin"],
-		"tag:tuist-k8s-staging":       ["autogroup:admin"],
-		"tag:tuist-k8s-canary":        ["autogroup:admin"],
-		"tag:tuist-k8s-production":    ["autogroup:admin"],
-		"tag:tuist-macmini-staging":   ["autogroup:admin"],
-		"tag:tuist-macmini-canary":    ["autogroup:admin"],
-		"tag:tuist-macmini-production":["autogroup:admin"],
-		"tag:tuist-rack-edge":         ["autogroup:admin"],
-		"tag:tuist-rack-node":         ["autogroup:admin", "tag:tuist-rack-edge"],
+		"tag:tuist-mgmt":                    ["autogroup:admin"],
+		"tag:tuist-ops":                     ["autogroup:admin"],
+		"tag:tuist-k8s-staging":             ["autogroup:admin"],
+		"tag:tuist-k8s-canary":              ["autogroup:admin"],
+		"tag:tuist-k8s-production":          ["autogroup:admin"],
+		"tag:tuist-macmini-staging":         ["autogroup:admin"],
+		"tag:tuist-macmini-canary":          ["autogroup:admin"],
+		"tag:tuist-macmini-production":      ["autogroup:admin"],
+		// Admin-owned only, not owned by tag:tuist-macmini-<env>: each env's
+		// runner hosts join through an OAuth client scoped to this tag alone.
+		"tag:tuist-runner-host-staging":     ["autogroup:admin"],
+		"tag:tuist-runner-host-canary":      ["autogroup:admin"],
+		"tag:tuist-runner-host-production":  ["autogroup:admin"],
+		"tag:tuist-rack-edge":               ["autogroup:admin"],
+		"tag:tuist-rack-node":               ["autogroup:admin", "tag:tuist-rack-edge"],
 	},
 
 	"grants": [
-		// Catch-all wide-open rule inherited from the tailnet's
-		// initial setup. Kept until a separate audit narrows it
-		// without breaking management access (Talos node, ops
-		// laptops). The explicit env-pair rules below are subsumed
-		// by this today; they're documented so the macOS fleet
-		// keeps working when this rule is removed.
-		{"src": ["*"], "dst": ["*"], "ip": ["*"]},
+		// ---------------------------------------------------------------
+		// Cluster -> Mac minis.
+		// ---------------------------------------------------------------
 
-		// Per-env operator → matching-env Mac mini fleet on the
-		// scrape ports plus SSH:
-		//   :22    tart-kubelet drift updates. The CAPI controller
-		//          rolls host config to already-bootstrapped minis
-		//          over the tailnet (reconcileTailscaleEgressService
-		//          fronts :22 on the ProxyGroup) because a running
-		//          runner mini filters inbound :22 on its public
-		//          interface, wedging the public-IP roll path.
-		//   :8080  controller-runtime metrics on tart-kubelet
-		//          (reconcile counts, errors, and the
-		//          tart_kubelet_vm_boot_duration_seconds histogram).
-		//   :9091  PromEx on the xcresult-processor Tart VM,
-		//          fronted by tart-kubelet's host-side Forwarder.
-		//   :9100  node_exporter on the Mac mini host.
+		// Per-env cluster -> matching-env Mac mini fleet, through the
+		// macmini-egress ProxyGroup, which carries the cluster's tag. The
+		// ports are exactly the ones the per-machine egress Service fronts
+		// (infra/cluster-api-provider-tuist/controllers/macos/hostagent.go,
+		// reconcileEgressService):
+		//   :22         tart-kubelet drift updates. The CAPI controller
+		//               rolls host config to already-bootstrapped minis
+		//               over the tailnet because a running runner mini
+		//               filters inbound :22 on its public interface. Also
+		//               `tailscale ssh admin@<vm>` into the xcresult VMs
+		//               (see the ssh block).
+		//   :8080       controller-runtime metrics on tart-kubelet, scraped
+		//               by alloy-metrics.
+		//   :9091       PromEx on the xcresult-processor Tart VM, fronted by
+		//               tart-kubelet's host-side forwarder. alloy-metrics
+		//               scrapes it on `*-macos-fleet` hosts only
+		//               (infra/helm/k8s-monitoring/values.yaml).
+		//   :9100       node_exporter on the Mac mini host.
+		//   :5900-5901  the dashboard's VNC relay, one port per guest the
+		//               host runs (DashboardVNCRelayPort in
+		//               scalewayapplesiliconmachine_controller.go). The
+		//               server dials it through the same egress Service
+		//               (server/lib/tuist/runners/interactive_sessions.ex).
+		//               Two guests is Apple's cap, hence 5901.
 		//
-		// Cross-env scraping (staging operator → prod macmini) is
-		// blocked at the tailnet layer once the wide-open rule
-		// above is removed. Today it's blocked in practice anyway
-		// because the CAPI controller in env X only materialises
-		// per-mini egress Services for env X's Mac minis (each
-		// cluster runs its own controller against its own set of
-		// ScalewayAppleSiliconMachines), so alloy-metrics never
-		// gets a cross-env target to dial. The explicit per-pair
-		// grants here make the boundary load-bearing rather than
-		// coincidental.
+		// The grants are per env pair, so a staging cluster cannot reach a
+		// production mini at the tailnet layer, independently of which
+		// egress Services each env's controller happens to render.
 		{
 			"src": ["tag:tuist-k8s-staging"],
 			"dst": ["tag:tuist-macmini-staging"],
-			"ip":  ["tcp:22", "tcp:8080", "tcp:9091", "tcp:9100"],
+			"ip":  ["tcp:22", "tcp:8080", "tcp:9091", "tcp:9100", "tcp:5900-5901"],
 		},
 		{
 			"src": ["tag:tuist-k8s-canary"],
 			"dst": ["tag:tuist-macmini-canary"],
-			"ip":  ["tcp:22", "tcp:8080", "tcp:9091", "tcp:9100"],
+			"ip":  ["tcp:22", "tcp:8080", "tcp:9091", "tcp:9100", "tcp:5900-5901"],
 		},
 		{
 			"src": ["tag:tuist-k8s-production"],
 			"dst": ["tag:tuist-macmini-production"],
-			"ip":  ["tcp:22", "tcp:8080", "tcp:9091", "tcp:9100"],
+			"ip":  ["tcp:22", "tcp:8080", "tcp:9091", "tcp:9100", "tcp:5900-5901"],
 		},
 
-		// Same-env Mac mini fleet → CNPG pooler proxy on tcp:5432.
-		// The Tailscale operator-managed proxy (rendered with the
-		// `tailscale.com/expose` + `tailscale.com/tags` annotations
-		// in postgresql-cnpg-pooler.yaml) registers under
-		// `tag:tuist-k8s-<env>` — the operator's OAuth client is
-		// only authorised to mint that tag today, so the proxy
-		// shares it with the cluster's subnet router rather than
-		// carrying a dedicated `tag:tuist-pg-pooler-<env>` tag.
-		// That makes the dst here wider than the proxy alone, but
-		// the catch-all above already subsumes that today; this is
-		// the load-bearing rule for when the catch-all is removed.
-		// Follow-up to narrow further: provision a dedicated proxy
-		// tag in the OAuth client, list it under tagOwners below,
-		// and swap the `tailscale.com/tags` annotation on the
-		// Pooler CR to use it.
+		// The same path to runner hosts, minus :9091: runner and builder
+		// hosts run no guest metrics endpoint, and alloy-metrics filters the
+		// pod-metrics port to the xcresult fleet.
+		{
+			"src": ["tag:tuist-k8s-staging"],
+			"dst": ["tag:tuist-runner-host-staging"],
+			"ip":  ["tcp:22", "tcp:8080", "tcp:9100", "tcp:5900-5901"],
+		},
+		{
+			"src": ["tag:tuist-k8s-canary"],
+			"dst": ["tag:tuist-runner-host-canary"],
+			"ip":  ["tcp:22", "tcp:8080", "tcp:9100", "tcp:5900-5901"],
+		},
+		{
+			"src": ["tag:tuist-k8s-production"],
+			"dst": ["tag:tuist-runner-host-production"],
+			"ip":  ["tcp:22", "tcp:8080", "tcp:9100", "tcp:5900-5901"],
+		},
+
+		// ---------------------------------------------------------------
+		// Mac minis -> cluster.
+		// ---------------------------------------------------------------
+
+		// Same-env Mac mini fleet -> the cluster's tailnet-exposed Services.
+		// Each is a Tailscale operator proxy registered under
+		// `tag:tuist-k8s-<env>`, because the operator's OAuth client can
+		// only mint that tag, so the dst is wider than the proxies alone.
+		//   :5432  CNPG pooler proxy (postgresql-cnpg-pooler.yaml), for the
+		//          xcresult-processor VMs.
+		//   :8123  the ClickHouse proxy (clickhouse-managed.yaml). The
+		//          xcresult processor writes the test tables and is the one
+		//          writer not on the pod network, so it reaches the database
+		//          this way or not at all. Without this port the VM cannot
+		//          connect, which is silent: its logs reach neither kubectl
+		//          nor Loki.
+		//   :4317  the Alloy receiver's OTLP gRPC intake, for the xcresult
+		//          VMs' spans (TUIST_OTEL_EXPORTER_OTLP_ENDPOINT in
+		//          values-managed-production.yaml).
+		//   :3100  the Alloy receiver's loki.source.api. Both the Mac mini
+		//          HOST (infra/macos-log-shipper, macosFleet.hostLogs.url)
+		//          and the xcresult VMs (TUIST_LOKI_URL) push logs here. The
+		//          host's launchd logs cannot be tailed from the cluster at
+		//          all, because a Pod on a macOS Node IS a VM.
+		//
+		// :443 is gone. It carried the tailnet OCI registry for VM images,
+		// which was removed in #12535; images are pulled from and pushed to
+		// GHCR over the public internet.
+		//
+		// 5432 and 8123 are the reason runner hosts get their own tag: the
+		// xcresult fleet needs them, a host running customer build code does
+		// not.
 		{
 			"src": ["tag:tuist-macmini-staging"],
 			"dst": ["tag:tuist-k8s-staging"],
-			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
-			// proxy, for spans and logs. Both the Mac mini HOST and the
-			// Tart VMs on it push logs to 3100. The VMs have no route to
-			// the in-cluster receiver address other workloads use; the
-			// host's own launchd logs (tart-kubelet's reconciler, node
-			// agent and volume manager, shipped by
-			// infra/macos-log-shipper) cannot be tailed from the cluster
-			// at all, because a Pod on a macOS Node IS a VM.
-			// :443   the OCI registry holding the VM images. The
-			//        builders clone their base and push finished
-			//        images over this; without it the image
-			//        workflows lose their registry the moment the
-			//        catch-all grant above is removed.
-			// :8123  the in-cluster ClickHouse proxy. The xcresult
-			//        processor writes the test tables and is the one
-			//        writer not on the pod network, so it reaches the
-			//        database this way or not at all. Without this port
-			//        the Service is exposed, the proxy node exists and
-			//        the VM still cannot connect, which is silent: its
-			//        logs reach neither kubectl nor Loki.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443", "tcp:8123"],
+			"ip":  ["tcp:5432", "tcp:8123", "tcp:4317", "tcp:3100"],
 		},
 		{
 			"src": ["tag:tuist-macmini-canary"],
 			"dst": ["tag:tuist-k8s-canary"],
-			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
-			// proxy, for spans and logs. Both the Mac mini HOST and the
-			// Tart VMs on it push logs to 3100. The VMs have no route to
-			// the in-cluster receiver address other workloads use; the
-			// host's own launchd logs (tart-kubelet's reconciler, node
-			// agent and volume manager, shipped by
-			// infra/macos-log-shipper) cannot be tailed from the cluster
-			// at all, because a Pod on a macOS Node IS a VM.
-			// :443   the OCI registry holding the VM images. The
-			//        builders clone their base and push finished
-			//        images over this; without it the image
-			//        workflows lose their registry the moment the
-			//        catch-all grant above is removed.
-			// :8123  the in-cluster ClickHouse proxy. The xcresult
-			//        processor writes the test tables and is the one
-			//        writer not on the pod network, so it reaches the
-			//        database this way or not at all. Without this port
-			//        the Service is exposed, the proxy node exists and
-			//        the VM still cannot connect, which is silent: its
-			//        logs reach neither kubectl nor Loki.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443", "tcp:8123"],
+			"ip":  ["tcp:5432", "tcp:8123", "tcp:4317", "tcp:3100"],
 		},
 		{
 			"src": ["tag:tuist-macmini-production"],
 			"dst": ["tag:tuist-k8s-production"],
-			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
-			// proxy, for spans and logs. Both the Mac mini HOST and the
-			// Tart VMs on it push logs to 3100. The VMs have no route to
-			// the in-cluster receiver address other workloads use; the
-			// host's own launchd logs (tart-kubelet's reconciler, node
-			// agent and volume manager, shipped by
-			// infra/macos-log-shipper) cannot be tailed from the cluster
-			// at all, because a Pod on a macOS Node IS a VM.
-			// :443   the OCI registry holding the VM images. The
-			//        builders clone their base and push finished
-			//        images over this; without it the image
-			//        workflows lose their registry the moment the
-			//        catch-all grant above is removed.
-			// :8123  the in-cluster ClickHouse proxy. The xcresult
-			//        processor writes the test tables and is the one
-			//        writer not on the pod network, so it reaches the
-			//        database this way or not at all. Without this port
-			//        the Service is exposed, the proxy node exists and
-			//        the VM still cannot connect, which is silent: its
-			//        logs reach neither kubectl nor Loki.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443", "tcp:8123"],
+			"ip":  ["tcp:5432", "tcp:8123", "tcp:4317", "tcp:3100"],
 		},
 		{
-			// The in-cluster ClickHouse as a Tailscale Service, served by
-			// the `tailnet-ingress` ProxyGroup rather than a standalone
-			// proxy (clickhouse.managed.tailscale.proxyGroup). A Service is
-			// addressed by its own VIP, which the tag grant above does not
-			// cover, so the xcresult processor needs this one to connect.
+			// The in-cluster ClickHouse as a Tailscale Service, for when it is
+			// served by the `tailnet-ingress` ProxyGroup rather than a
+			// standalone proxy (clickhouse.managed.tailscale.proxyGroup, empty
+			// in every env today, so this grant is currently unused). A
+			// Service is addressed by its own VIP, which the tag grant above
+			// does not cover.
 			"src": ["tag:tuist-macmini-production"],
 			"dst": ["svc:tuist-clickhouse-production"],
 			"ip":  ["tcp:8123"],
 		},
 
-		// Staging Mac mini fleet → the staging cluster's Service CIDR,
-		// through the cluster-side subnet-router Connector
+		// Runner hosts -> the same-env Alloy receiver, for host logs only.
+		// That is the one thing a runner host dials over the tailnet
+		// (macosFleet.hostLogs.url, infra/macos-log-shipper).
+		{
+			"src": ["tag:tuist-runner-host-staging"],
+			"dst": ["tag:tuist-k8s-staging"],
+			"ip":  ["tcp:3100"],
+		},
+		{
+			"src": ["tag:tuist-runner-host-canary"],
+			"dst": ["tag:tuist-k8s-canary"],
+			"ip":  ["tcp:3100"],
+		},
+		{
+			"src": ["tag:tuist-runner-host-production"],
+			"dst": ["tag:tuist-k8s-production"],
+			"ip":  ["tcp:3100"],
+		},
+
+		// Staging Mac minis -> the staging cluster's Service CIDR, through
+		// the cluster-side subnet-router Connector
 		// (infra/helm/tailscale-operator/values-staging.yaml advertises
 		// 10.128.0.0/12; infra/k8s/clusters/cluster-staging.yaml is the
 		// source of truth for the CIDR). This is the macOS runner-cache
 		// path: Tart runner VMs on the minis dial the account's private
-		// Kura node at its ClusterIP — 4000 (the co-hosted HTTP + gRPC
-		// cache port), mirroring the Linux runner namespace's egress
-		// carve-out in infra/helm/tuist/templates/runners-namespace.yaml
-		// — plus cluster DNS on 53 (kube-dns ClusterIP lives in the same
-		// range) so the VM's /etc/resolver entry can resolve
-		// `*.svc.cluster.local` names. Subnet-routed destinations are
-		// matched by CIDR, not by the router's tag, hence the literal
-		// prefix in dst. Per-account isolation is enforced at the Kura
-		// app layer (Kura's authorization verifies the build's JWT),
-		// same as for Linux runners.
+		// Kura node at its ClusterIP on 4000, plus cluster DNS on 53
+		// (kube-dns ClusterIP lives in the same range) so the VM's
+		// /etc/resolver entry can resolve `*.svc.cluster.local` names. The
+		// host NATs that VM traffic to its own tailnet address
+		// (tuist-pf-vmnat in infra/macos-host-bootstrap), so the source is
+		// the host's tag. Subnet-routed destinations are matched by CIDR,
+		// not by the router's tag, hence the literal prefix in dst.
+		// Per-account isolation is enforced at the Kura app layer.
 		//
-		// Staging only for now: all envs share this Service CIDR, so the
-		// CIDR-dst grant can't distinguish envs — it points at whichever
-		// env's Connector advertises the route. Keep this aligned with
-		// the single-advertiser rule documented in the tailscale-operator
-		// chart values before adding canary/production entries.
+		// Staging only: all envs share this Service CIDR, so the CIDR-dst
+		// grant can't distinguish envs; it points at whichever env's
+		// Connector advertises the route. Production's macmini-egress
+		// ProxyGroup accepts routes and so installs this one too; no grant
+		// lets tag:tuist-k8s-production use it (see the deny test below).
+		//
+		// The macmini-staging entry stays until staging's runner hosts move
+		// to tag:tuist-runner-host-staging; the xcresult fleet does not use
+		// this path.
 		{
-			"src": ["tag:tuist-macmini-staging"],
+			"src": ["tag:tuist-macmini-staging", "tag:tuist-runner-host-staging"],
 			"dst": ["10.128.0.0/12"],
 			"ip":  ["tcp:4000", "tcp:53", "udp:53"],
 		},
 
-		// Staging cluster → the BER1 rack's Mac minis, on SSH only.
+		// ---------------------------------------------------------------
+		// Cluster -> cluster.
+		// ---------------------------------------------------------------
+
+		// Pomerium in every env -> tuist-ops in production, on tcp:80.
+		// tuist-ops runs only in the production cluster and is exposed as
+		// `ops` (infra/helm/tuist-ops/templates/service.yaml, port 80). Each
+		// env's Pomerium reaches it through the `tuist-ops-egress` Service
+		// (infra/helm/pomerium/templates/tailscale-egress.yaml), a standalone
+		// egress proxy tagged with that env's own cluster tag, for:
+		//   - kube-impersonator's per-request /api/v1/policy lookup
+		//     (kube-impersonator/main.go POLICY_URL), canary and production
+		//     today, staging as a cold fallback;
+		//   - production Pomerium's ops.tuist.dev route, Slack webhooks
+		//     included (infra/helm/pomerium/values-production.yaml).
+		// This is the one cross-env grant in the file. The dst tag is the
+		// whole production cluster tag on :80; narrowing it needs a
+		// dedicated tag on the ops Service, which the production operator's
+		// OAuth client would have to be allowed to mint.
+		{
+			"src": ["tag:tuist-k8s-staging", "tag:tuist-k8s-canary", "tag:tuist-k8s-production"],
+			"dst": ["tag:tuist-k8s-production"],
+			"ip":  ["tcp:80"],
+		},
+
+		// ---------------------------------------------------------------
+		// BER1 rack.
+		// ---------------------------------------------------------------
+
+		// Production cluster -> the BER1 rack's Mac minis, on SSH only.
 		//
 		// This is the FIRST-DIAL path for rack-owned Mac minis
 		// (RackAppleSiliconMachine). A rented mini has a public IP the
 		// operator can reach before anything is installed on it; a mini in a
-		// rack we own does not, and it is not on the tailnet yet either: 
+		// rack we own does not, and it is not on the tailnet yet either:
 		// bootstrap is what puts it there. So the operator reaches it at its
 		// address on the rack's machines segment, which both of the rack's
-		// edges advertise (infra/helm/rack-edge).
+		// edges advertise (infra/helm/rack-edge), through the per-host
+		// `rack-<host>` egress Service on the macmini-egress ProxyGroup.
 		//
 		// Routing it separately from the host's OWN tailnet identity is
-		// deliberate, not incidental. Bootstrap stops and replaces tailscaled
-		// to install the operator's pinned build; over a session transported
-		// by the host's own tailnet identity that would drop the tunnel it is
-		// riding, which is exactly why the drift loop's tailnet fallback has
-		// to set SkipTailscaleInstall. Through a separate router the session
+		// deliberate. Bootstrap stops and replaces tailscaled to install the
+		// operator's pinned build; over a session transported by the host's
+		// own tailnet identity that would drop the tunnel it is riding, which
+		// is exactly why the drift loop's tailnet fallback has to set
+		// SkipTailscaleInstall. Through a separate router the session
 		// survives, so a rack host can be fully bootstrapped in one pass.
 		//
-		// Subnet-routed destinations match by CIDR, not by the router's tag,
-		// hence the literal prefix. tcp:22 only: everything else a mini serves
-		// (node_exporter, tart-kubelet, the VNC relay) is reached over the
-		// per-machine egress Service once the host has joined the tailnet, the
-		// same as for a rented one.
+		// tcp:22 only: everything else a mini serves (node_exporter,
+		// tart-kubelet, the VNC relay) is reached over the per-machine egress
+		// Service once the host has joined the tailnet, the same as for a
+		// rented one.
 		//
-		// A /32 PER HOST, never the machines segment's whole prefix, and that is
-		// load-bearing while the catch-all grant at the top of this list still
-		// exists. A catch-all of `*->*` subsumes the narrowing below, so what an
-		// advertised route actually exposes today is every address in it, on
-		// every port, to every device on the tailnet: three clusters' nodes, the
-		// rented Mac mini fleet, ops laptops, and every Tart runner VM that holds
-		// a tailnet identity. The edges advertise one /32 per mini for the same
-		// reason, so the segment's other addresses, the edges' own among them,
-		// are not routed at all.
-		//
-		// The cost is that a mini's address is load-bearing here as well as in
-		// its RackHost's `spec.address`, from which the edges render its DHCP
-		// reservation and its route.
-		//
-		// Widen to the segment's prefix only once the catch-all above is gone
-		// and this file is the thing that actually decides reachability. That
-		// removal is a PREREQUISITE for the BER1 rack, not a follow-up: a rack
-		// advertised as one prefix under the catch-all gives every device on the
-		// tailnet SSH to every mini, and the runner VMs on this tailnet execute
-		// customer build code. The per-env grants below were written to survive
-		// the removal, so the work is auditing what still leans on the catch-all
-		// (Talos node access, ops laptops) rather than rewriting them.
+		// One /32 per mini, matching exactly what the edges advertise
+		// (infra/helm/rack-edge/sites/ber1/tailnet-routes.sh, rendered from
+		// infra/rack-switch-fleet/sites/ber1.json, and the hosts' addresses
+		// in rackFleet.hosts in values-managed-production.yaml): b01-b09 at
+		// 10.10.0.101-10.10.0.109. Not the segment's /24, although the
+		// edges' routes are auto-approved inside it: the segment also holds
+		// the edges (10.10.0.2, .3) and ber1-store-a (10.10.0.11), and a
+		// /24 here would hand SSH to any of them the moment an edge
+		// advertised it. Racking a mini means adding its /32 here as well as
+		// to its RackHost's `spec.address`.
 		{
-			"src": ["tag:tuist-k8s-staging"],
-			"dst": ["10.10.0.101/32", "10.10.0.102/32", "10.10.0.103/32"],
+			"src": ["tag:tuist-k8s-production"],
+			"dst": [
+				"10.10.0.101/32",
+				"10.10.0.102/32",
+				"10.10.0.103/32",
+				"10.10.0.104/32",
+				"10.10.0.105/32",
+				"10.10.0.106/32",
+				"10.10.0.107/32",
+				"10.10.0.108/32",
+				"10.10.0.109/32",
+			],
 			"ip":  ["tcp:22"],
 		},
 
-		// Staging cluster → ber1-pdu-b's REST API, which the operator adopts
+		// Production cluster -> ber1-pdu-b's REST API, which the operator adopts
 		// the card through and switches the rack Macs' outlets through (the
-		// RackPDU ber1-pdu-b), through the macmini-egress ProxyGroup. The PDU sits on the rack's
-		// management LAN; the edge holding the management address advertises
-		// it as a /32 and forwards to it with SNAT. HTTPS only.
+		// RackPDU ber1-pdu-b), through the macmini-egress ProxyGroup. The PDU
+		// sits on the rack's management LAN; the edge holding the management
+		// address advertises it as a /32 and forwards to it with SNAT. HTTPS
+		// only.
 		{
-			"src": ["tag:tuist-k8s-staging"],
+			"src": ["tag:tuist-k8s-production"],
 			"dst": ["192.168.0.16/32"],
 			"ip":  ["tcp:443"],
 		},
 
-		// Staging cluster → ber1-ats-1 and ber1-ats-3's REST API, which the
+		// Production cluster -> ber1-ats-1 and ber1-ats-3's REST API, which the
 		// operator adopts each transfer switch's card through and reads its
 		// sources through every minute (the RackATS objects), through the
 		// macmini-egress ProxyGroup. Same path as the PDU above. HTTPS only.
 		{
-			"src": ["tag:tuist-k8s-staging"],
+			"src": ["tag:tuist-k8s-production"],
 			"dst": ["192.168.0.14/32", "192.168.0.15/32"],
 			"ip":  ["tcp:443"],
 		},
 
-		// Staging cluster → the BER1 rack's Linux nodes. SSH: the operator
+		// Production cluster -> the BER1 rack's Linux nodes. SSH: the operator
 		// joins each one over its own tailnet address and keeps it converged
 		// (RackLinuxMachine), through the macmini-egress ProxyGroup. 10250: the
 		// API server reaches each node's kubelet (logs, exec, port-forward)
 		// through the node's own kubelet proxy Pod, which the operator runs.
 		{
-			"src": ["tag:tuist-k8s-staging"],
+			"src": ["tag:tuist-k8s-production"],
 			"dst": ["tag:tuist-rack-edge", "tag:tuist-rack-node"],
 			"ip":  ["tcp:22", "tcp:10250"],
 		},
 
-		// The BER1 switches → the Omada controller in the staging cluster, on
-		// its device ports only. The switches are not on the tailnet: their
+		// The BER1 switches -> the Omada controller in the production cluster,
+		// on its device ports only. The switches are not on the tailnet: their
 		// traffic reaches it through the rack's edge node, translated to the
-		// edge node's own address, so the source here is the edge node's tag and
-		// the management prefix is not advertised or routed. The destination is
-		// the staging operator's tag, which the controller's exposed Service
-		// carries. 29811-29817 are the device management, adoption, upgrade
-		// and monitoring channels; 8044 firmware upgrades; 29810 and 19810
-		// discovery and management over UDP.
+		// edge node's own address, so the source here is the edge node's tag
+		// and the management prefix is not advertised or routed. The
+		// destination is the production operator's tag, which the
+		// controller's exposed Service carries. 29811-29817 are the device
+		// management, adoption, upgrade and monitoring channels; 8044 firmware
+		// upgrades; 29810 and 19810 discovery and management over UDP.
 		{
 			"src": ["tag:tuist-rack-edge"],
-			"dst": ["tag:tuist-k8s-staging"],
+			"dst": ["tag:tuist-k8s-production"],
 			"ip":  ["tcp:29811-29817", "tcp:8044", "udp:29810", "udp:19810"],
 		},
 
-		// The BER1 edge node → the staging Alloy receiver's loki.source.api.
-		// The node's pod logs (alloy-rack-edge in infra/helm/k8s-monitoring)
-		// have no other way into Loki: the node has no route to cluster
-		// Services.
+		// BER1's Linux nodes -> the production Alloy receiver: pod logs to its
+		// loki.source.api (3100) and node-local Kura metrics to its
+		// prometheus.receive_http (9009), both from alloy-rack in
+		// infra/helm/k8s-monitoring, and Kura's traces to its OTLP HTTP
+		// intake (4318, TUIST_KURA_NODE_LOCAL_OTLP_TRACES_ENDPOINT). A rack
+		// node has no route to cluster Services.
 		{
-			"src": ["tag:tuist-rack-edge"],
-			"dst": ["tag:tuist-k8s-staging"],
-			"ip":  ["tcp:3100"],
+			"src": ["tag:tuist-rack-edge", "tag:tuist-rack-node"],
+			"dst": ["tag:tuist-k8s-production"],
+			"ip":  ["tcp:3100", "tcp:9009", "tcp:4318"],
 		},
 
-		// Admins → the Omada controller's web UI and Open API in staging. The
-		// controller's own login is the access control; this keeps the path
-		// once the catch-all above is gone.
+		// ---------------------------------------------------------------
+		// Humans.
+		// ---------------------------------------------------------------
+
+		// Every member -> their own devices, on any port. Tailscale's default
+		// policy carries this grant, and the `check` SSH rule below
+		// (autogroup:member -> autogroup:self) needs a network path to be
+		// usable at all.
 		{
-			"src": ["autogroup:admin"],
-			"dst": ["tag:tuist-k8s-staging"],
+			"src": ["autogroup:member"],
+			"dst": ["autogroup:self"],
+			"ip":  ["*"],
+		},
+
+		// Admins -> talosd on the management cluster's Talos VM. The VM joins
+		// the tailnet so operators reach :50000 without a Hetzner firewall
+		// allowlist (infra/k8s/mgmt/tailscale.yaml); `talosctl --endpoints
+		// tuist-mgmt` is the documented path (infra/k8s/onboarding.md). The
+		// Talos API's own mTLS (talosconfig) is the authentication; this
+		// grant is reachability. Its :6443 stays public for CI. A single-node
+		// cluster has no trustd peers, so :50001 is not granted.
+		{
+			"src": ["autogroup:owner", "autogroup:admin"],
+			"dst": ["tag:tuist-mgmt"],
+			"ip":  ["tcp:50000"],
+		},
+
+		// Admins -> the MDM's operator APIs in production: nanomdm on 9000
+		// (`mdm-api`) and nanodep on 9001 (`mdm-dep`), each a standalone proxy
+		// carrying the production cluster tag (infra/helm/mdm, tailnet.tags).
+		// Only people call them, with curl, for the APNs certificate and ABM
+		// token setup (infra/mdm/README.md); in-cluster callers use the
+		// ClusterIP Services. Enrolling Macs use the public mdm.tuist.dev.
+		{
+			"src": ["autogroup:owner", "autogroup:admin"],
+			"dst": ["tag:tuist-k8s-production"],
+			"ip":  ["tcp:9000", "tcp:9001"],
+		},
+
+		// Admins -> the Omada controller's web UI and Open API in production
+		// (`omada-production`, :8043). The rack-switch-fleet tooling
+		// (infra/rack-switch-fleet/omada.sh) runs from a laptop against it.
+		// The controller's own login is the access control.
+		{
+			"src": ["autogroup:owner", "autogroup:admin"],
+			"dst": ["tag:tuist-k8s-production"],
 			"ip":  ["tcp:8043"],
 		},
 
-		// Humans SSH into any Mac mini. Not load-bearing — the
-		// CAPI provider's per-fleet SSH key is the normal path the
-		// controller takes. tag:tuist-ops is env-agnostic because
-		// the same humans manage all envs.
+		// Admins -> SSH on the BER1 rack's Linux nodes. The edges' SSH is
+		// reachable over the tailnet only (their WAN drops inbound :22,
+		// infra/rack-switch-fleet/AGENTS.md "Closed from outside"), and the
+		// fleet tooling uses `tuist@ber1-edge-a` as its jump host
+		// (infra/rack-switch-fleet/sites/ber1.json, lib/session.sh). The rest
+		// of the rack (the other edge on the VRRP link, ber1-store-a, the
+		// minis) is reached from the edge over the rack's own LAN, not the
+		// tailnet. The nodes authorize the fleet key and
+		// rackLinuxFleet.authorizedKeys; that is the authentication.
+		{
+			"src": ["autogroup:owner", "autogroup:admin"],
+			"dst": ["tag:tuist-rack-edge", "tag:tuist-rack-node"],
+			"ip":  ["tcp:22"],
+		},
+
+		// tag:tuist-ops -> SSH into any Mac mini. No device carries
+		// tag:tuist-ops today, so this grant matches nothing: people reach a
+		// rented mini on its public address and a rack mini through an edge.
+		// It is kept so tagging an ops device is the only step needed.
 		{
 			"src": ["tag:tuist-ops"],
 			"dst": [
 				"tag:tuist-macmini-staging",
 				"tag:tuist-macmini-canary",
 				"tag:tuist-macmini-production",
+				"tag:tuist-runner-host-staging",
+				"tag:tuist-runner-host-canary",
+				"tag:tuist-runner-host-production",
 			],
 			"ip": ["tcp:22"],
 		},
 
 		// Human kubectl to CANARY and PRODUCTION is NOT a tailnet
-		// grant — Pomerium per env handles it via Google Workspace
+		// grant. Pomerium per env handles it via Google Workspace
 		// OIDC (`kube-<env>.tuist.dev`) + per-request impersonation
 		// resolved by tuist-ops's PolicyController, which reads the
 		// live JIT elevation row. That decision cannot be expressed
@@ -473,12 +588,12 @@
 		//
 		// The group names are the same ones Pomerium's chart binds to
 		// ClusterRoles in
-		// infra/helm/pomerium/templates/access-tiers.yaml — that file
-		// is now load-bearing for BOTH doors into staging, so it must
+		// infra/helm/pomerium/templates/access-tiers.yaml; that file
+		// is load-bearing for BOTH doors into staging, so it must
 		// not be deleted along with a future Pomerium teardown.
 		//
 		// KNOWN GAP vs the gateway path: `autogroup:member` is
-		// role-agnostic — Tailscale documents it as every direct
+		// role-agnostic. Tailscale documents it as every direct
 		// member of the tailnet, which includes admin-flavour roles
 		// (Auditor, Billing admin, IT admin, Network admin).
 		// tuist-ops's PolicyController denies those roles outright.
@@ -487,7 +602,7 @@
 		// here. Accepted for staging while every member of this
 		// tailnet is an engineer. The fix, if that stops being true,
 		// is to declare an explicit `group:tuist-eng` in the `groups`
-		// block above and use it as `src` instead of the autogroup —
+		// block above and use it as `src` instead of the autogroup,
 		// at the cost of keeping an email list in this file.
 		//
 		// Owners and Admins match BOTH grants (they are members too),
@@ -496,14 +611,11 @@
 		// `tuist-eng` both bind to `view`, and the union is the same
 		// tier either way.
 		//
-		// `ip: tcp:443` is what actually reaches the proxy. It is
-		// subsumed by the catch-all grant at the top of this list
-		// today; it is spelled out so the path survives that rule's
-		// removal, same convention as the pairs above. Note the dst
+		// `ip: tcp:443` is what actually reaches the proxy. The dst
 		// tag is shared with the cluster's subnet router and egress
 		// proxies, so this opens 443 slightly wider than the operator
-		// alone — the same caveat already recorded for the CNPG
-		// pooler grant.
+		// alone, the same caveat recorded for the cluster's exposed
+		// Services above.
 		{
 			"src": ["autogroup:member"],
 			"dst": ["tag:tuist-k8s-staging"],
@@ -532,7 +644,7 @@
 		// the tuist-ops DB per request, and injects the
 		// Impersonate-Group header that maps to the env's elevated
 		// ClusterRole. For those two envs the tailnet ACL stays
-		// read-only and static — no runtime mutation, no break-glass
+		// read-only and static: no runtime mutation, no break-glass
 		// groups, and no role-tier branching at this layer (Pomerium
 		// owns that decision).
 	],
@@ -542,17 +654,20 @@
 	// human clicking "approve" in the admin console (the Connector
 	// Pod re-advertises on every recreate; manual approval would
 	// break the route on each rollout). Scoped to the staging
-	// cluster tag — the 100.64.0.0/10 advertisement predates this
-	// file's autoApprovers section and stays manually approved.
+	// cluster tag. The 100.64.0.0/10 advertisement every env's
+	// Connector also makes (the tailscale-operator chart default)
+	// predates this section and stays manually approved; it is the
+	// tailnet's own range and no grant here targets it.
 	//
 	// The BER1 edges' routes are auto-approved too, and only inside the
 	// rack's machines segment. They advertise one /32 per Mac mini,
 	// rendered from the rack's inventory (infra/rack-switch-fleet), so
 	// racking a mini changes their routes and hand approval would be a step
 	// per mini per edge. Scoped to the segment, the tag can put nothing else
-	// into the tailnet's routing table. On the management LAN, only the
-	// installed power devices' addresses are approved: ber1-ats-1,
-	// ber1-ats-3 and ber1-pdu-b.
+	// into the tailnet's routing table; what is reachable through those
+	// routes is decided by the per-host grant above, not by the approval.
+	// On the management LAN, only the installed power devices' addresses
+	// are approved: ber1-ats-1, ber1-ats-3 and ber1-pdu-b.
 	"autoApprovers": {
 		"routes": {
 			"10.128.0.0/12":   ["tag:tuist-k8s-staging"],
@@ -571,25 +686,28 @@
 		},
 	},
 
-	// Tailscale SSH (distinct from "grants"). The same-env
-	// k8s→macmini accept grants let the cluster-side subnet-router
-	// `tailscale ssh admin@<vm-tailnet-ip>` into matching-env Mac
-	// mini hosts + the Tart VMs that run on them — diagnostic
-	// shell access when `kubectl logs` / `kubectl exec` against
-	// the kubelet endpoint fails (tart-kubelet's Node hostname
-	// doesn't resolve from the K8s apiserver's DNS, so the
-	// standard debug path is broken on macOS fleets and this is
-	// the substitute).
+	// Tailscale SSH (distinct from "grants"). Only the xcresult-processor
+	// Tart VMs run tailscaled with --ssh=true
+	// (infra/xcresult-processor-image/tailscale-up.sh); Mac mini hosts and
+	// rack nodes join with --ssh=false, so the accept rules below reach the
+	// VMs only. They let the cluster-side subnet router
+	// `tailscale ssh admin@<vm-tailnet-ip>` into matching-env xcresult VMs:
+	// diagnostic shell access when `kubectl logs` / `kubectl exec` against
+	// the kubelet endpoint fails (tart-kubelet's Node hostname doesn't
+	// resolve from the K8s apiserver's DNS, so the standard debug path is
+	// broken on macOS fleets and this is the substitute). The tcp:22 in the
+	// cluster -> Mac mini grants is the network half of it.
 	//
-	// Locked down to the `admin` user only — the bake-time user
-	// that owns /opt/tuist and the launchd plist. Explicitly
-	// excludes `root` and the broader `autogroup:nonroot` to keep
-	// a compromise of the k8s tag (large blast radius — cluster
-	// subnet router, every operator pod the Tailscale operator
-	// exposes) from being a root-shell pivot. Tagged-device SSH
-	// can't use `check` mode (no re-auth flow for a non-human
-	// source), so `accept` is the only option and the narrowing
-	// happens via `users`. See sshTests below.
+	// Locked down to the `admin` user only, the bake-time user that owns
+	// /opt/tuist and the launchd plist. Explicitly excludes `root` and the
+	// broader `autogroup:nonroot` to keep a compromise of the k8s tag
+	// (large blast radius: cluster subnet router, every operator pod the
+	// Tailscale operator exposes) from being a root-shell pivot.
+	// Tagged-device SSH can't use `check` mode (no re-auth flow for a
+	// non-human source), so `accept` is the only option and the narrowing
+	// happens via `users`. No rule targets tag:tuist-runner-host-<env>:
+	// runner hosts and their guests run no Tailscale SSH server. See
+	// sshTests below.
 	"ssh": [
 		{
 			"action": "check",
@@ -620,9 +738,10 @@
 	// SSH ACL assertions, enforced on every save in the admin
 	// console. The accept lines lock in the `admin`-only narrowing
 	// added with #11134's diagnostic grants; the reject lines
-	// catch the failure modes that would re-expand blast radius
-	// — root SSH (host take-over) or cross-env SSH (staging
-	// subnet router into production VMs).
+	// catch the failure modes that would re-expand blast radius:
+	// root SSH (host take-over), cross-env SSH (staging subnet
+	// router into production VMs), and Tailscale SSH onto runner
+	// hosts.
 	"sshTests": [
 		{
 			"src":    "tag:tuist-k8s-staging",
@@ -659,91 +778,311 @@
 			"dst":    ["tag:tuist-macmini-production"],
 			"deny":   ["root"],
 		},
+		{
+			"src":    "tag:tuist-k8s-production",
+			"dst":    ["tag:tuist-runner-host-production"],
+			"deny":   ["admin", "root"],
+		},
 	],
 
-	// Tests run on every save in the console. With the wide-open
-	// rule above active, nothing is denied for any source, so these
-	// only assert that the explicit env-pair grants parse and
-	// accept the intended traffic. Add cross-env deny assertions
-	// when the catch-all is removed.
+	// Tests run on every save in the console. With no catch-all, the deny
+	// assertions are meaningful: they pin the boundaries this file exists
+	// to draw (cross-env, Mac minis away from other envs' databases, runner
+	// hosts away from every database, nothing but the production cluster
+	// into the rack).
+	//
+	// Note: no test entries with autogroup-based src. Tailscale's test
+	// engine doesn't resolve `autogroup:*` as a concrete identity, so the
+	// human grants (Talos, MDM, Omada UI, rack SSH, staging kubectl) are
+	// exercised only by the live access decisions in the console. Check
+	// them by hand after a paste (NOTES.md in the draft lists how).
 	"tests": [
+		// Cluster -> same-env Mac minis: scrape, drift SSH and VNC relay.
 		{
 			"src": "tag:tuist-k8s-staging",
 			"accept": [
-				"tag:tuist-rack-edge:22",
-				"tag:tuist-rack-node:22",
-				"tag:tuist-rack-edge:10250",
-				"tag:tuist-rack-node:10250",
-			],
-		},
-		{
-			"src": "tag:tuist-k8s-staging",
-			"accept": [
+				"tag:tuist-macmini-staging:22",
 				"tag:tuist-macmini-staging:8080",
 				"tag:tuist-macmini-staging:9091",
 				"tag:tuist-macmini-staging:9100",
+				"tag:tuist-macmini-staging:5900",
+				"tag:tuist-macmini-staging:5901",
+				"tag:tuist-runner-host-staging:22",
+				"tag:tuist-runner-host-staging:5901",
+			],
+			"deny": [
+				"tag:tuist-macmini-production:22",
+				"tag:tuist-macmini-production:9100",
+				"tag:tuist-macmini-canary:5900",
+				"tag:tuist-runner-host-production:22",
+				"tag:tuist-k8s-production:5432",
+				"tag:tuist-k8s-production:8123",
+				"tag:tuist-k8s-production:9000",
+				"tag:tuist-mgmt:50000",
+				"10.10.0.101:22",
+				"192.168.0.16:443",
+				"tag:tuist-rack-edge:22",
 			],
 		},
 		{
 			"src": "tag:tuist-k8s-canary",
 			"accept": [
+				"tag:tuist-macmini-canary:22",
 				"tag:tuist-macmini-canary:8080",
 				"tag:tuist-macmini-canary:9091",
 				"tag:tuist-macmini-canary:9100",
+				"tag:tuist-macmini-canary:5900",
+				"tag:tuist-macmini-canary:5901",
+				"tag:tuist-runner-host-canary:22",
+			],
+			"deny": [
+				"tag:tuist-macmini-production:22",
+				"tag:tuist-macmini-staging:22",
+				"tag:tuist-k8s-production:5432",
+				"10.10.0.101:22",
 			],
 		},
 		{
 			"src": "tag:tuist-k8s-production",
 			"accept": [
+				"tag:tuist-macmini-production:22",
 				"tag:tuist-macmini-production:8080",
 				"tag:tuist-macmini-production:9091",
 				"tag:tuist-macmini-production:9100",
+				"tag:tuist-macmini-production:5900",
+				"tag:tuist-macmini-production:5901",
+				"tag:tuist-runner-host-production:22",
+				"tag:tuist-runner-host-production:5900",
+			],
+			"deny": [
+				"tag:tuist-macmini-staging:22",
+				"tag:tuist-macmini-canary:9100",
+				"tag:tuist-runner-host-production:9091",
+				// Production's egress proxies accept staging's Service-CIDR
+				// route; nothing may use it.
+				"10.128.0.10:4000",
+				"10.128.0.10:53",
+				"tag:tuist-mgmt:50000",
 			],
 		},
+
+		// Pomerium in every env -> tuist-ops in production on :80, and
+		// nothing else in production from the other envs.
+		{
+			"src": "tag:tuist-k8s-staging",
+			"accept": ["tag:tuist-k8s-production:80"],
+			"deny":   ["tag:tuist-k8s-production:3100", "tag:tuist-k8s-production:8043", "tag:tuist-k8s-canary:80"],
+		},
+		{
+			"src": "tag:tuist-k8s-canary",
+			"accept": ["tag:tuist-k8s-production:80"],
+			"deny":   ["tag:tuist-k8s-production:3100", "tag:tuist-k8s-production:9001"],
+		},
+		{
+			"src": "tag:tuist-k8s-production",
+			"accept": ["tag:tuist-k8s-production:80"],
+		},
+
+		// Mac minis (xcresult fleet) -> same-env cluster: databases,
+		// telemetry and host logs, and not :443 any more. A narrowing that
+		// dropped 3100 would silently take the macOS fleet's only queryable
+		// output offline, with a healthy-looking Node.
+		{
+			"src": "tag:tuist-macmini-staging",
+			"accept": [
+				"tag:tuist-k8s-staging:5432",
+				"tag:tuist-k8s-staging:8123",
+				"tag:tuist-k8s-staging:4317",
+				"tag:tuist-k8s-staging:3100",
+				"10.128.0.10:4000",
+				"10.128.0.10:53",
+			],
+			"deny": [
+				"tag:tuist-k8s-staging:443",
+				"tag:tuist-k8s-staging:80",
+				"tag:tuist-k8s-production:5432",
+				"tag:tuist-k8s-production:8123",
+				"tag:tuist-k8s-production:3100",
+				"tag:tuist-k8s-canary:5432",
+				"tag:tuist-macmini-staging:22",
+				"tag:tuist-macmini-production:22",
+				"tag:tuist-mgmt:50000",
+				"10.10.0.101:22",
+			],
+		},
+		{
+			"src": "tag:tuist-macmini-canary",
+			"accept": [
+				"tag:tuist-k8s-canary:5432",
+				"tag:tuist-k8s-canary:8123",
+				"tag:tuist-k8s-canary:4317",
+				"tag:tuist-k8s-canary:3100",
+			],
+			"deny": [
+				"tag:tuist-k8s-production:5432",
+				"tag:tuist-k8s-staging:5432",
+				"10.128.0.10:4000",
+			],
+		},
+		{
+			"src": "tag:tuist-macmini-production",
+			"accept": [
+				"tag:tuist-k8s-production:5432",
+				"tag:tuist-k8s-production:8123",
+				"tag:tuist-k8s-production:4317",
+				"tag:tuist-k8s-production:3100",
+			],
+			"deny": [
+				"tag:tuist-k8s-production:443",
+				"tag:tuist-k8s-production:80",
+				"tag:tuist-k8s-production:9000",
+				"tag:tuist-k8s-production:8043",
+				"tag:tuist-k8s-staging:5432",
+				"tag:tuist-k8s-canary:8123",
+				"10.128.0.10:4000",
+				"10.10.0.101:22",
+				"10.10.0.109:22",
+				"192.168.0.16:443",
+				"tag:tuist-rack-edge:22",
+				"tag:tuist-rack-node:10250",
+				"tag:tuist-macmini-production:22",
+			],
+		},
+
+		// Runner hosts: host logs to the same-env receiver, the staging
+		// runner-cache path, and no database, telemetry or rack port.
+		{
+			"src": "tag:tuist-runner-host-staging",
+			"accept": [
+				"tag:tuist-k8s-staging:3100",
+				"10.128.0.10:4000",
+				"10.128.0.10:53",
+			],
+			"deny": [
+				"tag:tuist-k8s-staging:5432",
+				"tag:tuist-k8s-staging:8123",
+				"tag:tuist-k8s-staging:4317",
+				"tag:tuist-k8s-staging:443",
+				"tag:tuist-k8s-production:3100",
+				"tag:tuist-macmini-staging:22",
+				"tag:tuist-runner-host-staging:5900",
+			],
+		},
+		{
+			"src": "tag:tuist-runner-host-canary",
+			"accept": ["tag:tuist-k8s-canary:3100"],
+			"deny": [
+				"tag:tuist-k8s-canary:5432",
+				"tag:tuist-k8s-canary:8123",
+				"10.128.0.10:4000",
+			],
+		},
+		{
+			"src": "tag:tuist-runner-host-production",
+			"accept": ["tag:tuist-k8s-production:3100"],
+			"deny": [
+				"tag:tuist-k8s-production:5432",
+				"tag:tuist-k8s-production:8123",
+				"tag:tuist-k8s-production:4317",
+				"tag:tuist-k8s-production:80",
+				"tag:tuist-k8s-production:9000",
+				"10.128.0.10:4000",
+				"10.10.0.102:22",
+				"192.168.0.14:443",
+				"tag:tuist-rack-node:22",
+				"tag:tuist-macmini-production:22",
+			],
+		},
+
+		// tag:tuist-ops (no device carries it today) -> SSH on every Mac
+		// mini, nothing else.
 		{
 			"src": "tag:tuist-ops",
 			"accept": [
 				"tag:tuist-macmini-staging:22",
 				"tag:tuist-macmini-canary:22",
 				"tag:tuist-macmini-production:22",
+				"tag:tuist-runner-host-production:22",
+			],
+			"deny": [
+				"tag:tuist-k8s-production:5432",
+				"tag:tuist-rack-edge:22",
 			],
 		},
-		// macOS runner-cache path: staging minis reach the staging
-		// cluster's Service CIDR on the Kura + DNS ports.
+
+		// The BER1 rack and the production cluster: the operator to the rack
+		// (every mini's first-dial address, the power cards, the Linux
+		// nodes), the switches to the Omada controller, and the rack nodes'
+		// telemetry.
 		{
-			"src": "tag:tuist-macmini-staging",
+			"src": "tag:tuist-k8s-production",
 			"accept": [
-				"10.128.0.10:4000",
-				"10.128.0.10:53",
+				"tag:tuist-rack-edge:22",
+				"tag:tuist-rack-node:22",
+				"tag:tuist-rack-edge:10250",
+				"tag:tuist-rack-node:10250",
+				"10.10.0.101:22",
+				"10.10.0.103:22",
+				"10.10.0.104:22",
+				"10.10.0.109:22",
+				"192.168.0.14:443",
+				"192.168.0.15:443",
+				"192.168.0.16:443",
+			],
+			"deny": [
+				// The edges' and ber1-store-a's addresses on the machines
+				// segment are not granted, even if an edge advertised them.
+				"10.10.0.2:22",
+				"10.10.0.11:22",
+				"10.10.0.101:5900",
+				"10.10.0.110:22",
+				"192.168.0.16:80",
 			],
 		},
-		// Host-log push path: every mini POSTs its tart-kubelet log to
-		// the same-env Alloy receiver's loki.source.api on 3100. The
-		// grant predates the host agent (the Tart guests used it for
-		// spans and logs), so this only pins it — a narrowing that
-		// dropped 3100 would silently take the macOS fleet's only
-		// queryable output offline, with a healthy-looking Node.
-		{
-			"src": "tag:tuist-macmini-staging",
-			"accept": ["tag:tuist-k8s-staging:3100"],
-		},
-		{
-			"src": "tag:tuist-macmini-canary",
-			"accept": ["tag:tuist-k8s-canary:3100"],
-		},
-		{
-			"src": "tag:tuist-macmini-production",
-			"accept": ["tag:tuist-k8s-production:3100"],
-		},
-		// The rack edge node's pod logs, the same receiver port.
 		{
 			"src": "tag:tuist-rack-edge",
-			"accept": ["tag:tuist-k8s-staging:3100"],
+			"accept": [
+				"tag:tuist-k8s-production:29811",
+				"tag:tuist-k8s-production:29817",
+				"tag:tuist-k8s-production:8044",
+				"tag:tuist-k8s-production:3100",
+				"tag:tuist-k8s-production:9009",
+				"tag:tuist-k8s-production:4318",
+			],
+			"deny": [
+				"tag:tuist-k8s-production:5432",
+				"tag:tuist-k8s-production:8123",
+				"tag:tuist-k8s-production:80",
+				"tag:tuist-k8s-production:8043",
+				"tag:tuist-k8s-staging:3100",
+				"tag:tuist-rack-node:22",
+				"tag:tuist-macmini-production:22",
+			],
 		},
-		// Note: no test entries with autogroup-based src. Tailscale's
-		// test engine doesn't resolve `autogroup:*` as a concrete
-		// identity, so the human-kubectl grants above are exercised
-		// implicitly via the live access decisions in the console
-		// rather than via the test framework.
+		{
+			"src": "tag:tuist-rack-node",
+			"accept": [
+				"tag:tuist-k8s-production:3100",
+				"tag:tuist-k8s-production:9009",
+				"tag:tuist-k8s-production:4318",
+			],
+			"deny": [
+				"tag:tuist-k8s-production:29811",
+				"tag:tuist-k8s-production:5432",
+				"tag:tuist-rack-edge:22",
+				"tag:tuist-macmini-production:9100",
+			],
+		},
+
+		// The management VM reaches nothing.
+		{
+			"src": "tag:tuist-mgmt",
+			"deny": [
+				"tag:tuist-k8s-production:443",
+				"tag:tuist-k8s-staging:443",
+				"tag:tuist-macmini-production:22",
+				"tag:tuist-rack-edge:22",
+			],
+		},
 	],
 }

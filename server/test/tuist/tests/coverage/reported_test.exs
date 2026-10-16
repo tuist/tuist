@@ -18,11 +18,6 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
 
-  @tests [
-    %{module: "AppTests", suite: "MathTests", name: "testAdd()"},
-    %{module: "AppTests", suite: "TextTests", name: "testTrim()"}
-  ]
-
   setup do
     account = AccountsFixtures.user_fixture(preload: [:account]).account
     project = ProjectsFixtures.project_fixture(account_id: account.id, default_branch: "main")
@@ -60,14 +55,13 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
         file("Tests/AppTests.swift", [1, 1], is_test: true)
       ],
       %{
-        git_commit_sha: "base",
+        git_commit_sha: Keyword.get(opts, :sha, "base"),
         scheme: Keyword.get(opts, :scheme, "App"),
         test_modules:
           modules([
             test_case("testAdd()", "MathTests"),
             test_case("testTrim()", "TextTests", Keyword.get(opts, :trim_status, "success"))
           ]),
-        enumerated_tests: @tests,
         coverage_evidence: %{
           paths: ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"],
           scopes: [
@@ -101,7 +95,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
       git_commit_sha: "head",
       partial: true,
       test_modules: modules([test_case("testAdd()", "MathTests")]),
-      enumerated_tests: @tests
+      skip_test_identifiers: ["AppTests/TextTests/testTrim()"]
     })
   end
 
@@ -120,7 +114,6 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
         %{
           git_commit_sha: "base",
           test_modules: modules([test_case("testAdd()", "MathTests"), test_case("testTrim()", "TextTests")]),
-          enumerated_tests: @tests,
           coverage_evidence:
             Map.merge(
               %{
@@ -213,8 +206,77 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
              Reported.compute(project, "base")
   end
 
+  test "carries a skipped test's lines from the nearest ancestor run that holds its evidence", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("root", [], -1),
+      CoverageFixtures.commit("base", ["root"], 0)
+    ])
+
+    root = base_run(project, account, sha: "root", trim_lines: [1, 2, 4])
+    base_run(project, account)
+    head_run(project, account, head_files())
+
+    test_pid = self()
+
+    # A read of evidence lines merges them per file in ClickHouse.
+    report = fn query ->
+      query = inspect(query)
+      if query =~ "groupUniqArrayArray", do: send(test_pid, {:evidence_lines, query})
+    end
+
+    stub(ClickHouseRepo, :all, fn query ->
+      report.(query)
+      call_original(ClickHouseRepo, :all, [query])
+    end)
+
+    stub(ClickHouseRepo, :all, fn query, opts ->
+      report.(query)
+      call_original(ClickHouseRepo, :all, [query, opts])
+    end)
+
+    assert %{kind: "reported", covered_lines: 5, carried_tests_count: 1, carried_from: ["base"]} =
+             Reported.compute(project, "head")
+
+    queries = Stream.repeatedly(fn -> receive(do: ({:evidence_lines, query} -> query), after: (0 -> nil)) end)
+    queries = Enum.take_while(queries, & &1)
+
+    assert queries != []
+    refute Enum.any?(queries, &(&1 =~ root.id))
+  end
+
+  test "a scheme whose runs took targets from the binary cache, none of them from sources, is partial", %{
+    project: project,
+    account: account
+  } do
+    head = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
+    binary_cache(project, head, ["Core"])
+
+    assert %{kind: "partial", covered_lines: 2, executable_lines: 7} = reported = Reported.compute(project, "head")
+    # No ancestor measured the scheme, so what the run didn't build is unknown too.
+    assert reasons(reported) == [:unbuilt_file_unknown, :uninstrumented_code]
+  end
+
+  test "a run that took only remote packages from the binary cache is measured", %{project: project, account: account} do
+    head = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
+    binary_cache(project, head, ["Alamofire"], external_hash: "alamofire-revision")
+
+    assert %{kind: "measured", gap_reasons: 0} = Reported.compute(project, "head")
+  end
+
+  test "a scheme with a run that ran every test from sources is measured, whatever its other runs took from the cache",
+       %{project: project, account: account} do
+    cached = CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head", partial: true})
+    binary_cache(project, cached, ["Core"])
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{git_commit_sha: "head"})
+
+    assert %{kind: "measured", gap_reasons: 0} = Reported.compute(project, "head")
+  end
+
   test "carries the tests of a scheme selective testing skipped whole", %{project: project, account: account} do
-    # Two schemes at the base, each running and enumerating its own test.
+    # Two schemes at the base, each running its own test.
     CoverageFixtures.run_with_coverage(
       project,
       account,
@@ -223,7 +285,6 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
         git_commit_sha: "base",
         scheme: "AppScheme",
         test_modules: modules([test_case("testAdd()", "MathTests")]),
-        enumerated_tests: [Enum.at(@tests, 0)],
         coverage_evidence: %{
           paths: ["Sources/Math.swift", "Tests/AppTests.swift"],
           scopes: [
@@ -248,7 +309,6 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
         git_commit_sha: "base",
         scheme: "TextScheme",
         test_modules: modules([test_case("testTrim()", "TextTests")]),
-        enumerated_tests: [Enum.at(@tests, 1)],
         coverage_evidence: %{
           paths: ["Sources/Text.swift"],
           scopes: [
@@ -259,9 +319,9 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
       }
     )
 
-    # At the head only AppScheme ran, every test it listed. TextScheme was
-    # skipped whole, so it never built: its run carries no coverage and lists
-    # no candidates, and nothing at the commit says `testTrim()` exists.
+    # At the head only AppScheme ran. TextScheme was skipped whole, so it
+    # never built: its run carries no coverage, and only its target's hit
+    # says what it skipped.
     CoverageFixtures.run_with_coverage(
       project,
       account,
@@ -269,17 +329,19 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
       %{
         git_commit_sha: "head",
         scheme: "AppScheme",
-        test_modules: modules([test_case("testAdd()", "MathTests")]),
-        enumerated_tests: [Enum.at(@tests, 0)]
+        test_modules: modules([test_case("testAdd()", "MathTests")])
       }
     )
 
-    CoverageFixtures.run_with_coverage(project, account, [], %{
-      git_commit_sha: "head",
-      scheme: "TextScheme",
-      partial: true,
-      test_modules: []
-    })
+    skipped =
+      CoverageFixtures.run_with_coverage(project, account, [], %{
+        git_commit_sha: "head",
+        scheme: "TextScheme",
+        partial: true,
+        test_modules: []
+      })
+
+    selective_testing(project, skipped, [{"AppTests", :local}])
 
     assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1, gap_files_count: 0, carried_from: ["base"]} =
              Reported.compute(project, "head")
@@ -310,10 +372,6 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
           %{name: "AppTests", status: "success", duration: 1, test_cases: [test_case("testAdd()", "MathTests")]},
           %{name: "TextKitTests", status: "success", duration: 1, test_cases: [test_case("testTrim()", "TextTests")]}
         ],
-        enumerated_tests: [
-          %{module: "AppTests", suite: "MathTests", name: "testAdd()"},
-          %{module: "TextKitTests", suite: "TextTests", name: "testTrim()"}
-        ],
         coverage_evidence: %{
           paths: ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"],
           scopes: [
@@ -334,9 +392,17 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     CoverageFixtures.run_with_coverage(project, account, head_files(), %{
       git_commit_sha: "head",
       partial: true,
-      test_modules: modules([test_case("testAdd()", "MathTests")]),
-      enumerated_tests: [%{module: "AppTests", suite: "MathTests", name: "testAdd()"}]
+      test_modules: modules([test_case("testAdd()", "MathTests")])
     })
+  end
+
+  # Targets the run took from the binary cache: prebuilt, without coverage counters.
+  defp binary_cache(project, run, targets, opts \\ []) do
+    event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run.id)
+
+    for target <- targets do
+      XcodeFixtures.xcode_target_fixture([command_event_id: event.id, name: target, binary_cache_hit: :local] ++ opts)
+    end
   end
 
   defp selective_testing(project, run, hits) do
@@ -400,35 +466,84 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
               test_cases: [test_case("testTrim()", "TextTests", Keyword.get(opts, :trim_status, "success"))]
             }
           ],
-          enumerated_tests: [
-            %{module: "AppTests", suite: "MathTests", name: "testAdd()"},
-            %{module: "TextKitTests", suite: "TextTests", name: "testTrim()"}
-          ],
-          coverage_evidence: %{
-            paths: ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"],
-            scopes: [
-              %{
-                kind: "test",
-                module: "AppTests",
-                suite: "MathTests",
-                name: "testAdd()",
-                files: [0, 2],
-                lines: [[1, 2], [1, 1]]
-              },
-              %{kind: "target", module: "TextKitTests", suite: "", name: "", files: [1], lines: [[1, 3]]}
-            ]
-          }
+          coverage_evidence: target_only_evidence(Keyword.get(opts, :untracked, false))
         }
       )
 
     selective_testing(project, base, [{"AppTests", :miss, "app"}, {"TextKitTests", :miss, "text"}])
 
+    case Keyword.get(opts, :head, :measured) do
+      :measured -> target_only_head(project, account, opts)
+      :skipped -> skipped_head(project, account, [{"AppTests", :local, "app"}, {"TextKitTests", :local, "text"}])
+      :none -> :ok
+    end
+  end
+
+  # With `untracked`, both tests also executed a file in a submodule: the
+  # repository's Git tracks none of its files, so no run reports it and no
+  # listing holds its blob.
+  defp target_only_evidence(untracked) do
+    {paths, extra, extra_lines} =
+      if untracked, do: {["Vendor/Private/Sources/Secret.swift"], [3], [[1, 1]]}, else: {[], [], []}
+
+    %{
+      paths: ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"] ++ paths,
+      scopes: [
+        %{
+          kind: "test",
+          module: "AppTests",
+          suite: "MathTests",
+          name: "testAdd()",
+          files: [0, 2] ++ extra,
+          lines: [[1, 2], [1, 1]] ++ extra_lines
+        },
+        %{
+          kind: "target",
+          module: "TextKitTests",
+          suite: "",
+          name: "",
+          files: [1] ++ extra,
+          lines: [[1, 3]] ++ extra_lines
+        }
+      ]
+    }
+  end
+
+  # The scheme skipped whole at the head: its run measured nothing and listed
+  # no candidates, and only its targets' hits say what it skipped.
+  defp skipped_head(project, account, hits, attrs \\ %{}) do
+    CoverageFixtures.seed_listing(account, "head", ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"])
+
+    {:ok, head} =
+      Tests.create_test(
+        Map.merge(
+          %{
+            id: UUIDv7.generate(),
+            project_id: project.id,
+            account_id: account.id,
+            duration: 1,
+            status: "success",
+            scheme: "App",
+            git_branch: "feature/skipped",
+            git_remote_url_origin: CoverageFixtures.remote_url(),
+            git_commit_sha: "head",
+            ran_at: NaiveDateTime.utc_now(),
+            is_ci: true,
+            test_modules: []
+          },
+          attrs
+        )
+      )
+
+    selective_testing(project, head, hits)
+  end
+
+  defp target_only_head(project, account, opts) do
     head =
       CoverageFixtures.run_with_coverage(project, account, head_files(), %{
         git_commit_sha: "head",
         partial: true,
-        test_modules: modules([test_case("testAdd()", "MathTests")]),
-        enumerated_tests: [%{module: "AppTests", suite: "MathTests", name: "testAdd()"}]
+        test_modules: modules([test_case("testAdd()", "MathTests")])
       })
 
     selective_testing(project, head, [
@@ -461,8 +576,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     target_only_runs(project, account)
 
     report = fn
-      %Ecto.Query{from: %{source: {"xcode_targets", _schema}}, joins: joins} ->
-        send(self(), {:xcode_targets_query, joins})
+      %Ecto.Query{from: %{source: {"xcode_targets", _schema}}, joins: joins} = query ->
+        if inspect(query) =~ "selective_testing_hash", do: send(self(), {:xcode_targets_query, joins})
 
       _query ->
         :ok
@@ -486,7 +601,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     refute_received {:xcode_targets_query, _joins}
   end
 
-  test "walks the ancestor window once per fold, and reads tracked files only where evidence comes from", %{
+  test "walks no ancestor window, and reads tracked files only where evidence comes from", %{
     project: project,
     account: account
   } do
@@ -521,9 +636,411 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "reported", carried_tests_count: 1} = Reported.compute(project, "head")
 
-    assert_received :window_walk
     refute_received :window_walk
     refute_received {:tracked_files, "root"}
+  end
+
+  test "carries a target selective testing skipped whole when its scheme was skipped whole", %{
+    project: project,
+    account: account
+  } do
+    target_only_runs(project, account, head: :skipped)
+
+    assert %{
+             kind: "reported",
+             covered_lines: 5,
+             executable_lines: 7,
+             skipped_tests_count: 2,
+             carried_tests_count: 2,
+             gap_files_count: 0,
+             carried_from: ["base"]
+           } = Reported.compute(project, "head")
+  end
+
+  test "carries a target of a scheme skipped whole beside a scheme that measured", %{
+    project: project,
+    account: account
+  } do
+    base_app =
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [file("Sources/Math.swift", [1, 1, 0]), file("Tests/AppTests.swift", [1, 1], is_test: true)],
+        %{
+          git_commit_sha: "base",
+          test_modules: modules([test_case("testAdd()", "MathTests")]),
+          coverage_evidence: %{
+            paths: ["Sources/Math.swift", "Tests/AppTests.swift"],
+            scopes: [
+              %{
+                kind: "test",
+                module: "AppTests",
+                suite: "MathTests",
+                name: "testAdd()",
+                files: [0, 1],
+                lines: [[1, 2], [1, 1]]
+              }
+            ]
+          }
+        }
+      )
+
+    base_text =
+      CoverageFixtures.run_with_coverage(project, account, [file("Sources/Text.swift", [1, 1, 1, 0])], %{
+        git_commit_sha: "base",
+        scheme: "TextScheme",
+        test_modules: [
+          %{name: "TextKitTests", status: "success", duration: 1, test_cases: [test_case("testTrim()", "TextTests")]}
+        ],
+        coverage_evidence: %{
+          paths: ["Sources/Text.swift"],
+          scopes: [%{kind: "target", module: "TextKitTests", suite: "", name: "", files: [0], lines: [[1, 3]]}]
+        }
+      })
+
+    selective_testing(project, base_app, [{"AppTests", :miss, "app"}])
+    selective_testing(project, base_text, [{"TextKitTests", :miss, "text"}])
+
+    CoverageFixtures.seed_listing(account, "head", ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"])
+
+    head =
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [file("Sources/Math.swift", [1, 1, 0]), file("Tests/AppTests.swift", [1, 1], is_test: true)],
+        %{
+          git_commit_sha: "head",
+          test_modules: modules([test_case("testAdd()", "MathTests")])
+        }
+      )
+
+    selective_testing(project, head, [{"AppTests", :miss, "app-changed"}])
+
+    {:ok, silent} =
+      Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1,
+        status: "success",
+        scheme: "TextScheme",
+        git_branch: "main",
+        git_remote_url_origin: CoverageFixtures.remote_url(),
+        git_commit_sha: "head",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: []
+      })
+
+    selective_testing(project, silent, [{"TextKitTests", :local, "text"}])
+
+    assert %{skipped_tests_count: 1, carried_tests_count: 1, carried_from: ["base"]} = Reported.compute(project, "head")
+  end
+
+  test "carries what executed a file the repository's Git does not track, such as a submodule's", %{
+    project: project,
+    account: account
+  } do
+    target_only_runs(project, account, head: :skipped, untracked: true)
+
+    assert %{
+             kind: "reported",
+             covered_lines: 5,
+             executable_lines: 7,
+             carried_tests_count: 2,
+             gap_files_count: 0
+           } = Reported.compute(project, "head")
+  end
+
+  test "carries each of more skipped tests than one query names, from their recorded versions", %{
+    project: project,
+    account: account
+  } do
+    names = Enum.map(1..600, &"test#{&1}()")
+
+    base =
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [file("Sources/Math.swift", [1, 1, 0]), file("Tests/AppTests.swift", [1, 1], is_test: true)],
+        %{
+          git_commit_sha: "base",
+          test_modules: modules(Enum.map(names, &test_case(&1, "MathTests"))),
+          coverage_evidence: %{
+            paths: ["Sources/Math.swift", "Tests/AppTests.swift"],
+            scopes:
+              Enum.map(
+                names,
+                &%{kind: "test", module: "AppTests", suite: "MathTests", name: &1, files: [0, 1], lines: [[1, 2], [1, 1]]}
+              )
+          }
+        }
+      )
+
+    # The target's inputs changed, so its tests carry one by one.
+    selective_testing(project, base, [{"AppTests", :miss, "app"}])
+    skipped_head(project, account, [{"AppTests", :local, "app-changed"}])
+
+    test_pid = self()
+
+    stub(ClickHouseRepo, :all, fn query ->
+      # Which runs hold the tests' evidence: the walk's question.
+      if inspect(query) =~ "argMin" or
+           (inspect(query) =~ ~s(scope_kind == ^"test") and inspect(query) =~ "select: {c0.scope_id, c0.test_run_id}"),
+         do: send(test_pid, :walked_test_evidence)
+
+      call_original(ClickHouseRepo, :all, [query])
+    end)
+
+    assert %{kind: "reported", skipped_tests_count: 600, carried_tests_count: 600, carried_from: ["base"]} =
+             Reported.compute(project, "head")
+
+    # The versions say where each test comes from: no run is searched for its evidence.
+    refute_received :walked_test_evidence
+  end
+
+  # The base ran AppTests' testAdd() from its test file, and its hashes landed
+  # after its fold, so nothing is recorded under them: at the head, which
+  # skipped AppTests with a new hash, the target's tests come from the base.
+  # `head_test_files` are the head's test files with their blobs.
+  defp baseline_lists_runs(project, account, head_test_files) do
+    repository_id = CoverageFixtures.repository_id(account)
+    sources = [{"Sources/Math.swift", "blob-Sources/Math.swift"}, {"Sources/Text.swift", "blob-Sources/Text.swift"}]
+    listing = fn files -> Enum.map(files, fn {path, blob} -> %{path: path, git_blob_id: blob, mode: 0o100644} end) end
+    base_files = sources ++ [{"Tests/AppTests.swift", "blob-Tests/AppTests.swift"}]
+    GitHistory.record_listing(repository_id, "base", listing.(base_files), files_count: length(base_files))
+
+    GitHistory.record_listing(repository_id, "head", listing.(sources ++ head_test_files),
+      files_count: 2 + length(head_test_files)
+    )
+
+    base =
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [
+          file("Sources/Math.swift", [1, 1, 0]),
+          file("Tests/AppTests.swift", [1, 1], is_test: true, targets: ["AppTests.xctest"])
+        ],
+        %{
+          git_commit_sha: "base",
+          test_modules: modules([test_case("testAdd()", "MathTests")]),
+          coverage_evidence: %{
+            paths: ["Sources/Math.swift", "Tests/AppTests.swift"],
+            scopes: [
+              %{
+                kind: "test",
+                module: "AppTests",
+                suite: "MathTests",
+                name: "testAdd()",
+                files: [0, 1],
+                lines: [[1, 2], [1, 1]]
+              }
+            ]
+          }
+        }
+      )
+
+    selective_testing(project, base, [{"AppTests", :miss, "app"}])
+
+    {:ok, head} =
+      Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1,
+        status: "success",
+        scheme: "App",
+        git_branch: "feature/lists",
+        git_remote_url_origin: CoverageFixtures.remote_url(),
+        git_commit_sha: "head",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: []
+      })
+
+    selective_testing(project, head, [{"AppTests", :local, "app-new"}])
+  end
+
+  test "takes a skipped target's tests from the baseline while its test files are unchanged", %{
+    project: project,
+    account: account
+  } do
+    baseline_lists_runs(project, account, [{"Tests/AppTests.swift", "blob-Tests/AppTests.swift"}])
+
+    assert %{skipped_tests_count: 1, carried_tests_count: 1, carried_from: ["base"]} = Reported.compute(project, "head")
+  end
+
+  test "a skipped target whose test files changed since the baseline is a gap", %{project: project, account: account} do
+    baseline_lists_runs(project, account, [{"Tests/AppTests.swift", "blob-changed"}])
+
+    assert %{kind: "partial", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert :test_list_changed in reasons(reported)
+  end
+
+  test "a skipped target with a test file added beside its own since the baseline is a gap", %{
+    project: project,
+    account: account
+  } do
+    baseline_lists_runs(project, account, [
+      {"Tests/AppTests.swift", "blob-Tests/AppTests.swift"},
+      {"Tests/NewTests.swift", "blob-Tests/NewTests.swift"}
+    ])
+
+    assert %{kind: "partial", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert :test_list_changed in reasons(reported)
+  end
+
+  test "carries a test from the run whose version of it the commit reproduces, on another branch", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.seed_history(account, [CoverageFixtures.commit("s1", ["base"], 2)])
+
+    evidence = %{
+      paths: ["Sources/Math.swift", "Tests/AppTests.swift"],
+      scopes: [
+        %{kind: "test", module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0, 1], lines: [[1, 2], [1, 1]]}
+      ]
+    }
+
+    # The base ran testAdd() over a Math.swift the head no longer has; a
+    # branch off it ran it over the head's.
+    for {sha, blob} <- [{"base", "blob-before"}, {"s1", "blob-Sources/Math.swift"}] do
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [file("Sources/Math.swift", [1, 1, 0], git_blob_id: blob), file("Tests/AppTests.swift", [1, 1], is_test: true)],
+        %{git_commit_sha: sha, test_modules: modules([test_case("testAdd()", "MathTests")]), coverage_evidence: evidence}
+      )
+    end
+
+    # The target's inputs changed, so its tests carry one by one.
+    skipped_head(project, account, [{"AppTests", :local, "app-changed"}])
+
+    assert %{skipped_tests_count: 1, carried_tests_count: 1, carried_from: ["s1"]} = Reported.compute(project, "head")
+  end
+
+  # TextKitTests run whole on a branch off the base, then folded once its
+  # hashes landed, so the run is recorded as the target's source.
+  defp recorded_source(project, account, text_opts \\ [], run_attrs \\ %{}) do
+    CoverageFixtures.seed_history(account, [CoverageFixtures.commit("s1", ["base"], 2)])
+
+    run =
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [file("Sources/Text.swift", [1, 1, 1, 0], text_opts), file("Tests/AppTests.swift", [1, 1], is_test: true)],
+        Map.merge(
+          %{
+            git_commit_sha: "s1",
+            git_branch: "feature/text",
+            recompute: false,
+            test_modules: [
+              %{name: "TextKitTests", status: "success", duration: 1, test_cases: [test_case("testTrim()", "TextTests")]}
+            ],
+            coverage_evidence: %{
+              paths: ["Sources/Text.swift", "Tests/AppTests.swift"],
+              scopes: [
+                %{kind: "target", module: "TextKitTests", suite: "", name: "", files: [0, 1], lines: [[1, 3], [1, 1]]}
+              ]
+            }
+          },
+          run_attrs
+        )
+      )
+
+    selective_testing(project, run, [{"TextKitTests", :miss, "text"}])
+    CoverageFixtures.recompute_commit(run)
+    run
+  end
+
+  test "records a target whose run skipped tests of other targets", %{project: project, account: account} do
+    # Quarantine skips a test of another target on every run.
+    recorded_source(project, account, [], %{skip_test_identifiers: ["AppTests/MathTests/testFlaky()"]})
+    skipped_head(project, account, [{"TextKitTests", :local, "text"}])
+
+    assert %{skipped_tests_count: 1, carried_tests_count: 1, carried_from: ["s1"]} = Reported.compute(project, "head")
+  end
+
+  test "a recorded target whose run reported none of its tests is a gap", %{project: project, account: account} do
+    recorded_source(project, account, [], %{test_modules: []})
+    skipped_head(project, account, [{"TextKitTests", :local, "text"}])
+
+    assert %{kind: "partial", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert :target_without_history in reasons(reported)
+  end
+
+  test "carries a target from the run recorded under the hash it was skipped with, on another branch", %{
+    project: project,
+    account: account
+  } do
+    recorded_source(project, account)
+    skipped_head(project, account, [{"TextKitTests", :local, "text"}])
+
+    test_pid = self()
+
+    stub(ClickHouseRepo, :all, fn query ->
+      # Which runs hold the target's evidence: the walk's question.
+      if inspect(query) =~ ~s(scope_kind == ^"target") and inspect(query) =~ "select: {c0.scope_id, c0.test_run_id}",
+        do: send(test_pid, :walked_target_evidence)
+
+      call_original(ClickHouseRepo, :all, [query])
+    end)
+
+    # The branch isn't an ancestor: walking the history alone finds no source.
+    assert %{skipped_tests_count: 1, carried_tests_count: 1, carried_from: ["s1"]} = Reported.compute(project, "head")
+    refute_received :walked_target_evidence
+  end
+
+  test "a carried file no run at the commit compiled keeps the targets its source compiled it into", %{
+    project: project,
+    account: account
+  } do
+    recorded_source(project, account, targets: ["TextKit"])
+    skipped_head(project, account, [{"TextKitTests", :local, "text"}])
+
+    assert %{carried_tests_count: 1, files: %{"Sources/Text.swift" => file}} = Reported.compute(project, "head")
+
+    assert Map.take(file, [:targets, :covered_lines, :executable_lines]) == %{
+             targets: ["TextKit"],
+             covered_lines: 3,
+             executable_lines: 4
+           }
+  end
+
+  test "carries a recorded target although a file it executed has another blob: the hash is trusted", %{
+    project: project,
+    account: account
+  } do
+    recorded_source(project, account, git_blob_id: "blob-before")
+    skipped_head(project, account, [{"TextKitTests", :local, "text"}])
+
+    assert %{skipped_tests_count: 1, carried_tests_count: 1, carried_from: ["s1"]} = Reported.compute(project, "head")
+  end
+
+  test "carries no target recorded under another hash", %{project: project, account: account} do
+    recorded_source(project, account)
+    skipped_head(project, account, [{"TextKitTests", :local, "text-changed"}])
+
+    assert %{carried_tests_count: 0} = Reported.compute(project, "head")
+  end
+
+  test "falls back to the baseline for a target with no recorded source", %{project: project, account: account} do
+    # The base's hashes landed after its fold, so nothing recorded it.
+    target_only_runs(project, account, head: :skipped)
+
+    test_pid = self()
+
+    stub(ClickHouseRepo, :all, fn query ->
+      if inspect(query) =~ ~s(scope_kind == ^"target") and inspect(query) =~ "select: {c0.scope_id, c0.test_run_id}",
+        do: send(test_pid, :walked_target_evidence)
+
+      call_original(ClickHouseRepo, :all, [query])
+    end)
+
+    assert %{kind: "reported", carried_tests_count: 2, carried_from: ["base"]} = Reported.compute(project, "head")
+    assert_received :walked_target_evidence
   end
 
   test "carries no target whose inputs hashed differently where its evidence comes from", %{
@@ -596,8 +1113,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     ])
 
     # Nothing at the head measured anything: the scheme was skipped whole, so
-    # it reports a run with no coverage and no candidates of its own.
-    {:ok, _} =
+    # it reports a run with no coverage, and its target's hit.
+    {:ok, skipped} =
       Tests.create_test(%{
         id: UUIDv7.generate(),
         project_id: project.id,
@@ -615,6 +1132,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
         is_ci: true,
         test_modules: []
       })
+
+    selective_testing(project, skipped, [{"AppTests", :local}])
 
     assert %{
              kind: "reported",
@@ -651,7 +1170,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     base_run(project, account)
     CoverageFixtures.seed_listing(account, "head", ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"])
 
-    {:ok, _} =
+    {:ok, skipped} =
       Tests.create_test(%{
         id: UUIDv7.generate(),
         project_id: project.id,
@@ -667,6 +1186,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
         test_modules: []
       })
 
+    selective_testing(project, skipped, [{"AppTests", :local}])
     assert Commits.fully_carried?(Commits.recompute(project, "head"))
 
     assert %{"head" => _row} = Commits.by_shas(project.id, ["head"])
@@ -811,6 +1331,85 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{kind: "reported", carried_tests_count: 1} = Reported.compute(project, "head")
   end
 
+  test "a commit that changes a tracked file carries nothing without reading any evidence", %{
+    project: project,
+    account: account
+  } do
+    track_default_files()
+
+    # The head undoes the base's change, so the root's evidence would match
+    # it again; it is not carried for.
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("root", [], -1),
+      CoverageFixtures.commit("base", ["root"], 0)
+    ])
+
+    base_run(project, account, sha: "root")
+    head_run(project, account, head_files())
+
+    repository_id = CoverageFixtures.repository_id(account)
+    listing = fn blob -> [%{path: "Package.resolved", git_blob_id: blob, mode: 0o100644}] end
+    GitHistory.record_listing(repository_id, "root", listing.("one"), files_count: 1)
+    GitHistory.record_listing(repository_id, "base", listing.("two"), files_count: 1)
+    GitHistory.record_listing(repository_id, "head", listing.("one"), files_count: 1)
+
+    test_pid = self()
+
+    stub(GitHistory, :ancestors, fn repository_id, sha ->
+      send(test_pid, :window_walk)
+      call_original(GitHistory, :ancestors, [repository_id, sha])
+    end)
+
+    assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:tracked_file_changed]
+    refute_received :window_walk
+  end
+
+  test "without the first parent's listing, each source is checked for changed tracked files", %{
+    project: project,
+    account: account
+  } do
+    track_default_files()
+
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("root", [], -1),
+      CoverageFixtures.commit("base", ["root"], 0)
+    ])
+
+    base_run(project, account, sha: "root")
+    head_run(project, account, head_files())
+
+    repository_id = CoverageFixtures.repository_id(account)
+    listing = [%{path: "Package.resolved", git_blob_id: "one", mode: 0o100644}]
+    GitHistory.record_listing(repository_id, "root", listing, files_count: 1)
+    GitHistory.record_listing(repository_id, "head", listing, files_count: 1)
+
+    assert %{kind: "reported", carried_tests_count: 1, carried_from: ["root"]} = Reported.compute(project, "head")
+  end
+
+  test "a merge commit carries from the merged side that made its tracked-file change", %{
+    project: project,
+    account: account
+  } do
+    track_default_files()
+
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("feature", ["base"], 0),
+      CoverageFixtures.commit("head", ["base", "feature"], 1)
+    ])
+
+    base_run(project, account, sha: "feature")
+    head_run(project, account, head_files())
+
+    repository_id = CoverageFixtures.repository_id(account)
+    listing = fn blob -> [%{path: "Package.resolved", git_blob_id: blob, mode: 0o100644}] end
+    GitHistory.record_listing(repository_id, "base", listing.("one"), files_count: 1)
+    GitHistory.record_listing(repository_id, "feature", listing.("two"), files_count: 1)
+    GitHistory.record_listing(repository_id, "head", listing.("two"), files_count: 1)
+
+    assert %{kind: "reported", carried_tests_count: 1, carried_from: ["feature"]} = Reported.compute(project, "head")
+  end
+
   test "without the head's listing, whether a tracked file changed is unknown and nothing is carried", %{
     project: project,
     account: account
@@ -894,7 +1493,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert Commits.summary(project.id, "head").unmeasured_files_count == 2
   end
 
-  test "an unbuilt file whose coverage came from tests the run never listed is a gap", %{
+  test "an unbuilt file whose coverage came from tests the caller left out is a gap", %{
     project: project,
     account: account
   } do
@@ -909,15 +1508,203 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
         git_commit_sha: "head",
         partial: true,
         test_modules: modules([test_case("testAdd()", "MathTests")]),
-        enumerated_tests: [hd(@tests), %{module: "AppTests", suite: "MathTests", name: "testNew()"}]
+        only_test_identifiers: ["AppTests/MathTests"]
       }
     )
 
-    assert %{kind: "partial", covered_lines: 2, executable_lines: 7, skipped_tests_count: 1, gap_files_count: 1} =
+    assert %{kind: "partial", covered_lines: 2, executable_lines: 7, skipped_tests_count: 0, gap_files_count: 1} =
              reported = Reported.compute(project, "head")
 
-    # testNew() has no evidence, and the base's run didn't say it collected any.
-    assert reasons(reported) == [:collection_off, :unbuilt_file_uncarried]
+    # Nothing Tuist skipped is carried for what the caller left out.
+    assert reasons(reported) == [:unbuilt_file_uncarried, :caller_selected_tests]
+  end
+
+  test "a scheme whose every run executed only the tests its caller selected is partial", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/Math.swift", [1, 0])], %{
+      git_commit_sha: "head",
+      only_test_identifiers: ["AppTests/MathTests"]
+    })
+
+    assert %{kind: "partial", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:unbuilt_file_unknown, :caller_selected_tests]
+  end
+
+  test "a scheme the caller narrowed in one run and ran whole in another is measured", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/Math.swift", [1, 0])], %{
+      git_commit_sha: "head",
+      only_test_identifiers: ["AppTests/MathTests"]
+    })
+
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/Math.swift", [1, 0])], %{git_commit_sha: "head"})
+
+    assert %{kind: "measured"} = Reported.compute(project, "head")
+  end
+
+  defp skipping(project, account, skips) do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests")]),
+      skip_test_identifiers: skips
+    })
+
+    Reported.compute(project, "head")
+  end
+
+  test "carries the tests a skip identifier names by suite", %{project: project, account: account} do
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1} =
+             skipping(project, account, ["AppTests/TextTests"])
+  end
+
+  test "carries a test a skip identifier names without its parentheses", %{project: project, account: account} do
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1} =
+             skipping(project, account, ["AppTests/TextTests/testTrim"])
+  end
+
+  test "carries every test of a target a skip identifier names", %{project: project, account: account} do
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1} =
+             skipping(project, account, ["AppTests"])
+  end
+
+  test "carries nothing for a skip identifier that names a test no ancestor ran", %{project: project, account: account} do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests")]),
+      skip_test_identifiers: ["AppTests/TextTests/testGone()"]
+    })
+
+    assert %{kind: "measured", skipped_tests_count: 0} = Reported.compute(project, "head")
+  end
+
+  test "a target selective testing skipped that no ancestor run executed is a gap", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+
+    head =
+      CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+        git_commit_sha: "head",
+        test_modules: modules([test_case("testAdd()", "MathTests"), test_case("testTrim()", "TextTests")])
+      })
+
+    selective_testing(project, head, [{"AppTests", :miss}, {"NewKitTests", :remote}])
+
+    assert %{kind: "partial", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:target_without_history]
+  end
+
+  test "ignores what selective testing skipped in a run not set up to collect coverage", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests"), test_case("testTrim()", "TextTests")])
+    })
+
+    # Another pipeline's test job on the same commit, without coverage.
+    skipped_head(project, account, [{"AcceptanceTests", :remote}], %{scheme: "Acceptance", coverage_enabled: false})
+
+    assert %{kind: "measured", gap_reasons: 0, skipped_tests_count: 0} = Reported.compute(project, "head")
+  end
+
+  test "still reads what selective testing skipped in a run that didn't say whether it collected coverage", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests"), test_case("testTrim()", "TextTests")])
+    })
+
+    skipped_head(project, account, [{"AcceptanceTests", :remote}], %{scheme: "Acceptance"})
+
+    assert %{kind: "partial"} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:target_without_history]
+  end
+
+  test "carries a scheme skipped whole in a run set up to collect coverage", %{project: project, account: account} do
+    target_only_runs(project, account, head: :none)
+
+    skipped_head(project, account, [{"AppTests", :local, "app"}, {"TextKitTests", :local, "text"}], %{
+      coverage_enabled: true
+    })
+
+    assert %{kind: "reported", skipped_tests_count: 2, carried_tests_count: 2} = Reported.compute(project, "head")
+  end
+
+  test "has no coverage for a commit whose only runs weren't set up to collect it", %{
+    project: project,
+    account: account
+  } do
+    target_only_runs(project, account, head: :none)
+
+    skipped_head(project, account, [{"AppTests", :local, "app"}, {"TextKitTests", :local, "text"}], %{
+      coverage_enabled: false
+    })
+
+    assert Reported.compute(project, "head") == nil
+  end
+
+  test "takes a skipped target's tests from the run recorded under the hash it was skipped with", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("root", [], -1),
+      CoverageFixtures.commit("base", ["root"], 0)
+    ])
+
+    # The root hashed TextKitTests as the head does and ran testTrim(); the
+    # base changed the target, ran testTrim() and a test the head reverted.
+    root = target_only_base(project, account, "root", [test_case("testTrim()", "TextTests")])
+    selective_testing(project, root, [{"TextKitTests", :miss, "text"}])
+    # Its hashes landed before its fold, so the fold recorded it.
+    CoverageFixtures.recompute_commit(root)
+
+    base =
+      target_only_base(project, account, "base", [
+        test_case("testTrim()", "TextTests"),
+        test_case("testReverted()", "TextTests")
+      ])
+
+    selective_testing(project, base, [{"TextKitTests", :miss, "text-changed"}])
+
+    head =
+      CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+        git_commit_sha: "head",
+        test_modules: modules([test_case("testAdd()", "MathTests")])
+      })
+
+    selective_testing(project, head, [{"AppTests", :miss}, {"TextKitTests", :local, "text"}])
+
+    assert %{skipped_tests_count: 1} = Reported.compute(project, "head")
+  end
+
+  defp target_only_base(project, account, sha, cases) do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/Text.swift", [1, 1, 1, 0])], %{
+      git_commit_sha: sha,
+      scheme: "TextScheme",
+      test_modules: [%{name: "TextKitTests", status: "success", duration: 1, test_cases: cases}],
+      coverage_evidence: %{
+        paths: ["Sources/Text.swift"],
+        scopes: [%{kind: "target", module: "TextKitTests", suite: "", name: "", files: [0], lines: [[1, 3]]}]
+      }
+    })
   end
 
   # base → kit → tip: the base ran App, kit only Kit, and at the tip a
@@ -956,7 +1743,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
         git_commit_sha: "tip",
         partial: true,
         test_modules: modules([test_case("testAdd()", "MathTests")]),
-        enumerated_tests: @tests
+        skip_test_identifiers: ["AppTests/TextTests/testTrim()"]
       }
     )
   end
@@ -1030,10 +1817,10 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert Commits.file_detail(project.id, "head", "Sources/Text.swift", measured: true) == nil
   end
 
-  test "is the observed figure when the runs listed no candidates", %{project: project, account: account} do
+  test "is the measured figure when Tuist skipped nothing", %{project: project, account: account} do
     CoverageFixtures.run_with_coverage(project, account, [file("Sources/Math.swift", [1, 0])], %{git_commit_sha: "head"})
 
-    assert %{kind: "observed", covered_lines: 1, executable_lines: 2} = Reported.compute(project, "head")
+    assert %{kind: "measured", covered_lines: 1, executable_lines: 2} = Reported.compute(project, "head")
     assert Reported.compute(project, "unknown") == nil
   end
 end

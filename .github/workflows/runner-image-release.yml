@@ -15,7 +15,13 @@ on:
       - main
     paths:
       - infra/runner-image/**
+      - infra/linux-runner-image/cmd/tuist-cache-volume/**
+      - .github/actions/build-runner-image-binaries/**
       - .github/scripts/runner-image-release-plan.sh
+      - .github/workflows/runner-image-release.yml
+  pull_request:
+    paths:
+      - infra/runner-image/**
       - .github/workflows/runner-image-release.yml
   workflow_dispatch:
 
@@ -24,16 +30,32 @@ permissions:
   packages: write
 
 concurrency:
-  group: runner-image-release
+  group: ${{ github.event_name == 'pull_request' && format('runner-image-tests-{0}', github.event.pull_request.number) || 'runner-image-release' }}
   cancel-in-progress: false
 
 env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
 
 jobs:
+  test-tcc-report:
+    name: Test Finder diagnostics
+    if: github.repository == 'tuist/tuist'
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: bash infra/runner-image/tcc-report_test.sh
+
   plan:
     name: Plan runner image release
-    if: github.repository == 'tuist/tuist'
+    needs: test-tcc-report
+    if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
     runs-on: tuist-linux
     timeout-minutes: 10
     env:

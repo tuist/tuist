@@ -21,6 +21,34 @@ defmodule TuistEx.Analytics.CompileReporterTest do
     [%{path: "lib/foo.ex", compile_duration_ms: 1}]
   end
 
+  test "reports cache-only compiles without inventing compiled files" do
+    parent = self()
+
+    reporter =
+      start(
+        submit: fn payload, _ ->
+          send(parent, {:submitted, payload})
+          :ok
+        end
+      )
+
+    observation = %{
+      dependency: "jason",
+      outcome: "local_hit",
+      reason: "",
+      key: String.duplicate("a", 64),
+      duration_ms: 1,
+      saved_duration_ms: 42
+    }
+
+    CompileReporter.record_cache(reporter, observation)
+    :ok = CompileReporter.finish(reporter)
+
+    assert_receive {:submitted,
+                    %{dependency_cache: [^observation], files: [], status: "success"}},
+                   2000
+  end
+
   test "records each compiler's diagnostics and submits a merged payload" do
     parent = self()
 

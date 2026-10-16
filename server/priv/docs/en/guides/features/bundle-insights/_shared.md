@@ -78,11 +78,11 @@ Once your Tuist project is connected with your Git platform such as [GitHub](htt
 >
 > To use size thresholds, connect the [Tuist GitHub App](https://github.com/apps/tuist) to your project. You can do this from your project's integrations page.
 
-Size thresholds let you block pull requests when the bundle size increases beyond a configured percentage compared to a baseline branch. When a threshold is violated, Tuist creates a GitHub Check Run on the PR commit, blocking the merge until the size increase is resolved:
+Size thresholds let you block pull requests when the bundle size increases beyond a configured percentage or absolute size compared to a baseline branch. When a threshold is violated, Tuist creates a GitHub Check Run on the PR commit, blocking the merge until the size increase is resolved:
 
 ![PR status check showing bundle size threshold exceeded](/images/guides/features/bundle-size/github-pr-check-status.png)
 
-The check run shows the baseline size, current size, and percentage change. If the increase is intentional, you can accept it directly from the GitHub UI by clicking the **Accept** button:
+The check run shows the baseline size, current size, and change in the configured unit. If the increase is intentional, you can accept it directly from the GitHub UI by clicking the **Accept** button:
 
 ![GitHub check run showing threshold violation](/images/guides/features/bundle-size/github-check-run-threshold.png)
 
@@ -91,6 +91,15 @@ The check run shows the baseline size, current size, and percentage change. If t
 To configure thresholds, go to your project's **Settings > Bundles** tab:
 
 ![Bundle size thresholds settings](/images/guides/features/bundle-size/bundle-size-thresholds.png)
+
+Choose **Install size** or **Download size**, then select a **Threshold type**:
+
+- **Percentage (%)**: limit growth relative to the baseline size. Fractional percentages such as `0.47` are supported. Existing percentage thresholds keep their configured values and behavior.
+- **Absolute size (MB)**: limit growth by a fixed amount, independent of the baseline size. Enter `1.5` to allow up to 1.5 MB of growth. MB uses decimal units: 1 MB = 1,000,000 bytes. Values must resolve to a positive whole number of bytes.
+
+![Absolute bundle size growth threshold configuration](/images/guides/features/bundle-size/absolute-size-threshold.png)
+
+Both types compare against the latest matching bundle on the configured **Baseline branch**. The optional **Bundle name** restricts a rule to that bundle. A check fails only when growth is **more than** the limit; equal growth, unchanged sizes, and decreases pass. Without a matching baseline or a recorded size for the chosen metric, the rule is skipped. A zero-size baseline is supported for absolute limits; percentage limits keep skipping it because percentage growth is undefined.
 
 ### Restricting who can accept {#size-thresholds-approvals}
 

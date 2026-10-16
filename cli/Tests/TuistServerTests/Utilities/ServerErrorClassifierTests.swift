@@ -6,6 +6,18 @@ import TuistHTTP
 @testable import TuistServer
 
 struct ServerErrorClassifierTests {
+    @Test(arguments: [408, 429, 500, 503])
+    func discoveryFailuresAreTransient(status: Int) {
+        #expect(ServerErrorClassifier.isTransient(GetCacheEndpointServiceError.unknownError(status)))
+        #expect(ServerErrorClassifier.isRetryable(GetCacheEndpointServiceError.unknownError(status)))
+    }
+
+    @Test(arguments: [401, 403, 404])
+    func discoveryRejectionsAreNotTransient(status: Int) {
+        #expect(!ServerErrorClassifier.isTransient(GetCacheEndpointServiceError.unknownError(status)))
+        #expect(!ServerErrorClassifier.isRetryable(GetCacheEndpointServiceError.unknownError(status)))
+    }
+
     @Test(
         arguments: [408, 429, 500, 502, 503, 599]
     )
@@ -13,11 +25,6 @@ struct ServerErrorClassifierTests {
         #expect(
             ServerErrorClassifier.isTransient(
                 RefreshAuthTokenServiceError.unknownError(statusCode)
-            )
-        )
-        #expect(
-            ServerErrorClassifier.isTransient(
-                GetCacheEndpointsServiceError.unknownError(statusCode)
             )
         )
     }
@@ -31,11 +38,6 @@ struct ServerErrorClassifierTests {
                 RefreshAuthTokenServiceError.unknownError(statusCode)
             )
         )
-        #expect(
-            !ServerErrorClassifier.isTransient(
-                GetCacheEndpointsServiceError.unknownError(statusCode)
-            )
-        )
     }
 
     @Test func authenticationAndPermissionErrorsAreNotTransient() {
@@ -47,11 +49,6 @@ struct ServerErrorClassifierTests {
         #expect(
             !ServerErrorClassifier.isTransient(
                 RefreshAuthTokenServiceError.badRequest
-            )
-        )
-        #expect(
-            !ServerErrorClassifier.isTransient(
-                GetCacheEndpointsServiceError.forbidden("Forbidden")
             )
         )
     }

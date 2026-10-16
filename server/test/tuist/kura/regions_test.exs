@@ -611,6 +611,7 @@ defmodule Tuist.Kura.RegionsTest do
       # be deleted. It is not an available serving region.
       assert Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id) == [
                "scw-fr-par-runners",
+               "ber1-runners",
                "hetzner-staging-runners"
              ]
 

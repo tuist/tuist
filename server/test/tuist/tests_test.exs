@@ -6676,7 +6676,7 @@ defmodule Tuist.TestsTest do
   end
 
   describe "create_test/1 with Git history" do
-    test "stores the run's place in history and the files it changed" do
+    test "stores the run's place in history" do
       project = ProjectsFixtures.project_fixture()
 
       {:ok, test_run} =
@@ -6689,24 +6689,7 @@ defmodule Tuist.TestsTest do
           is_pull_request: true,
           pull_request_number: 42,
           git_object_format: "sha1",
-          history_source: "client",
-          changed_files: [
-            %{
-              path: "Sources/A.swift",
-              status: "modified",
-              git_blob_id: "blobA",
-              hunks: [%{start: 3, end: 5}, %{start: 10, end: 10}]
-            },
-            %{
-              path: "Sources/New.swift",
-              previous_path: "Sources/Old.swift",
-              status: "renamed",
-              git_blob_id: "blobN",
-              hunks: [],
-              truncated: true
-            },
-            %{path: "Sources/Gone.swift", status: "deleted"}
-          ]
+          history_source: "client"
         )
 
       {:ok, stored} = Tests.get_test(test_run.id)
@@ -6715,21 +6698,6 @@ defmodule Tuist.TestsTest do
                {"main", "base", true, 42}
 
       assert {stored.git_object_format, stored.history_source, stored.history_fallback_reason} == {"sha1", "client", ""}
-
-      files =
-        ClickHouseRepo.all(
-          from(f in Tuist.Tests.TestRunChangedFile,
-            where: f.test_run_id == ^test_run.id,
-            order_by: f.path,
-            select: {f.path, f.previous_path, f.status, f.git_blob_id, f.hunk_starts, f.hunk_ends, f.truncated}
-          )
-        )
-
-      assert files == [
-               {"Sources/A.swift", "", "modified", "blobA", [3, 10], [5, 10], false},
-               {"Sources/Gone.swift", "", "deleted", "", [], [], false},
-               {"Sources/New.swift", "Sources/Old.swift", "renamed", "blobN", [], [], true}
-             ]
     end
 
     test "defaults to no history when the client sent none" do
@@ -6874,6 +6842,54 @@ defmodule Tuist.TestsTest do
   end
 
   describe "list_flaky_test_cases/2" do
+    test "combines identity filters and search before paginating and counting" do
+      project = ProjectsFixtures.project_fixture()
+
+      for {name, suite_name, module_name} <- [
+            {"selectedFirst", "CoordinatorTests", "AppTests"},
+            {"selectedSecond", "CoordinatorTests", "AppTests"},
+            {"selectedOtherSuite", "OtherTests", "AppTests"},
+            {"selectedOtherModule", "CoordinatorTests", "OtherModule"},
+            {"excludedBySearch", "CoordinatorTests", "AppTests"}
+          ] do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: name,
+            suite_name: suite_name,
+            module_name: module_name
+          )
+
+        IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+        RunsFixtures.test_case_event_fixture(
+          project_id: project.id,
+          test_case_id: test_case.id,
+          event_type: "marked_flaky",
+          inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+        )
+      end
+
+      for {name, page} <- [{"selectedFirst", 1}, {"selectedSecond", 2}] do
+        {results, meta} =
+          Tests.list_flaky_test_cases(project.id, %{
+            filters: [
+              %{field: "suite_name", op: :==, value: "CoordinatorTests"},
+              %{field: "module_name", op: :==, value: "AppTests"},
+              %{field: :name, op: :ilike_and, value: "selected"}
+            ],
+            order_by: [:name],
+            order_directions: [:asc],
+            page_size: 1,
+            page: page
+          })
+
+        assert Enum.map(results, & &1.name) == [name]
+        assert meta.total_count == 2
+        assert meta.total_pages == 2
+      end
+    end
+
     test "returns empty list when no flaky test cases exist" do
       project = ProjectsFixtures.project_fixture()
 

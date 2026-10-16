@@ -28,6 +28,8 @@ service:
   port: 80
   targetPort: 4000
 env:
+  # Explicit env values take precedence over envFrom application Secrets.
+  ATLAS_DEMO_MODE: 'false'
   ATLAS_ALLOWED_EMAIL_DOMAIN: example.org
   POOL_SIZE: '10'
   DATABASE_SSL: 'false'
@@ -51,6 +53,14 @@ probes:
 migrationJob:
   enabled: true
   backoffLimit: 2
+  # Optional separate credentials for migrations (required by the demo).
+  appSecretName: ''
+demo:
+  enabled: false
+  # Demo egress permits only DNS and this separately provisioned PostgreSQL.
+  databaseNamespace: atlas-demo
+  databasePodSelector:
+    app.kubernetes.io/name: atlas-demo-postgres
 ingress:
   enabled: false
   className: ''

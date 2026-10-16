@@ -1108,6 +1108,16 @@ var targets: [Target] = [
         path: "cli/Tests/TuistOIDCTests"
     ),
     .testTarget(
+        name: "TuistREAPITests",
+        dependencies: [
+            "TuistREAPI",
+            "TuistEnvironmentTesting",
+            .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
+            .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
+        ],
+        path: "cli/Tests/TuistREAPITests"
+    ),
+    .testTarget(
         name: "TuistHTTPTests",
         dependencies: [
             "TuistHTTP",
@@ -1993,7 +2003,7 @@ let package = Package(
         .package(id: "kishikawakatsumi.KeychainAccess", from: "4.2.2"),
         .package(id: "stencilproject.Stencil", exact: "0.15.1"),
         .package(id: "tuist.GraphViz", exact: "0.4.2"),
-        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.17.1")),
+        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.17.5")),
         .package(id: "cpisciotta.xcbeautify", from: "3.1.0"),
         .package(id: "krzysztofzablocki.Difference", from: "1.0.2"),
         .package(id: "kolos65.Mockable", .upToNextMajor(from: "0.6.1")),

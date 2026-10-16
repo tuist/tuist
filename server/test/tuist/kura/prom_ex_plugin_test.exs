@@ -161,12 +161,16 @@ defmodule Tuist.Kura.PromExPluginTest do
       assert Map.fetch!(scraped, [:tuist, :kura, :capacity, :admission_headroom, :gibibytes]) == [:region]
     end
 
-    test "reports what admission can still place: the pressure line less the larger reservation" do
+    test "reports what admission can still place: the pressure line less what each instance reserves" do
+      server = instance(account())
+
+      replica =
+        Map.put(reserved_pod(8), "metadata", %{"labels" => %{"app.kubernetes.io/instance" => server.provisioner_node_ref}})
+
       stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, 2)}],
-        pods: [reserved_pod(50), reserved_pod(50)]
+        pods: [replica, replica, reserved_pod(84)]
       )
 
-      instance(account())
       pressure_line = trunc(trunc(2 * @node_allocatable_bytes / @gib) * 0.85)
 
       ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :capacity, :admission]])
@@ -323,6 +327,61 @@ defmodule Tuist.Kura.PromExPluginTest do
       assert_in_delta p90_seconds, 300, 1
     end
 
+    test "leaves out the rollouts an instance served before it was archived" do
+      {account, server} = tracked_instance()
+      spin_up(server, seconds_ago: 3 * 3600, took: 120)
+      returned_at = DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
+
+      account.id
+      |> Demand.get(@region)
+      |> Ecto.Changeset.change(%{last_returned_at: returned_at})
+      |> Repo.update!()
+
+      spin_up(server, seconds_ago: 3600 - 15, took: 15)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :new_instance_readiness]])
+
+      PromExPlugin.execute_new_instance_readiness_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :new_instance_readiness], ^ref, %{count: 1, p90_seconds: p90_seconds},
+                       %{}}
+
+      assert_in_delta p90_seconds, 15, 1
+    end
+
+    test "counts a return whose deployment was inserted in the second before the return was stamped" do
+      # `last_returned_at` is stamped after the deployment is inserted and is
+      # truncated to the second, so the two straddle a second boundary whenever
+      # the insert lands late in one.
+      {account, server} = tracked_instance()
+      returned_at = DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
+
+      account.id
+      |> Demand.get(@region)
+      |> Ecto.Changeset.change(%{last_returned_at: returned_at})
+      |> Repo.update!()
+
+      Repo.insert!(%Deployment{
+        cluster_id: "test-cluster",
+        image_tag: "0.5.2",
+        kura_server_id: server.id,
+        status: :succeeded,
+        inserted_at: DateTime.add(returned_at, -400_000, :microsecond),
+        finished_at: DateTime.add(returned_at, 15, :second)
+      })
+
+      spin_up(server, seconds_ago: 600, took: 120)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :new_instance_readiness]])
+
+      PromExPlugin.execute_new_instance_readiness_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :new_instance_readiness], ^ref, %{count: 1, p90_seconds: p90_seconds},
+                       %{}}
+
+      assert_in_delta p90_seconds, 15, 1
+    end
+
     test "counts the deployment that superseded a provision still coming up" do
       # A runtime image bump landing mid-provision supersedes the open
       # deployment and schedules a second one, and that second deployment is
@@ -464,6 +523,7 @@ defmodule Tuist.Kura.PromExPluginTest do
   end
 
   defp stub_region_pods(pods) do
+    stub(Client, :list_persistent_volumes, fn _opts -> {:ok, []} end)
     stub(Client, :list_pods, fn _namespace, _selector -> {:ok, pods} end)
   end
 

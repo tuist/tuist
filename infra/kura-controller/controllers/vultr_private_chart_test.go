@@ -30,7 +30,7 @@ func TestVultrPrivateNetworkChartOwnershipAndQualification(t *testing.T) {
 						if err := json.Unmarshal([]byte(raw), &regions); err != nil {
 							t.Fatal(err)
 						}
-						if len(regions) != 2 || !regions["ord"].Qualified || regions["scl"].Qualified || regions["ord"].CIDR != "172.30.244.0/24" || regions["scl"].CIDR != "172.30.245.0/24" {
+						if len(regions) != 2 || !regions["ord"].Qualified || !regions["scl"].Qualified || regions["ord"].CIDR != "172.30.244.0/24" || regions["scl"].CIDR != "172.30.245.0/24" {
 							t.Fatalf("unsafe qualification configuration: %+v", regions)
 						}
 					}

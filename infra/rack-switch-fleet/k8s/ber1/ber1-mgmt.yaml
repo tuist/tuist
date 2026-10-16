@@ -296,6 +296,10 @@ spec:
       purpose: management
       peer: ber1-edge-b
       detail: edge/i226-lm
+    - port: 3
+      purpose: management
+      peer: ber1-store-a
+      detail: storage/i226-lm
     - port: 41
       purpose: management
       peer: ber1-ats-1

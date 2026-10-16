@@ -97,10 +97,6 @@
       & [data-part="trigger"] {
         cursor: help;
       }
-
-      & [data-part="content"] {
-        position: absolute;
-      }
     }
 
     &:has(> input:disabled) {
