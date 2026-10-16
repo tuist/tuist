@@ -390,6 +390,19 @@ kuraGatewayNetworkPolicy:
   # routes to once an instance's pods serve it.
   grpcPort: 4001
 
+# Host policy that drops the cluster-internal node ports from `world`. Needs
+# Cilium with the host firewall enabled. See
+# templates/cluster-ports-host-policy.yaml.
+clusterPortsHostPolicy:
+  enabled: false
+  ports:
+    - port: 8472
+      protocol: UDP
+    - port: 4240
+      protocol: TCP
+    - port: 10250
+      protocol: TCP
+
 external-dns:
   enabled: true
   provider: cloudflare
