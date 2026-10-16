@@ -1503,7 +1503,6 @@ defmodule Tuist.Runners.JobsTest do
       settled_before = DateTime.add(DateTime.utc_now(), -5, :minute)
 
       assert Jobs.count_replica_divergence(settled_before, lookback_floor()) == %{}
-      assert %{republished: 0} = Jobs.repair_replica_divergence(settled_before, lookback_floor())
     end
 
     test "ignores a job still genuinely running in both stores" do
@@ -1515,131 +1514,6 @@ defmodule Tuist.Runners.JobsTest do
       flush_outbox!()
 
       assert Jobs.count_replica_divergence(DateTime.utc_now(), lookback_floor()) == %{}
-    end
-  end
-
-  describe "repair_replica_divergence/3" do
-    test "republishes the terminal state over a stale replica row, keeping its archive marker" do
-      account = account_fixture()
-      :ok = enqueue_fixture(account, 7370, fleet: "fleet-repair1")
-      {:ok, candidate} = Jobs.pick_queued("fleet-repair1", [])
-      claim!(account, candidate.workflow_job_id, "fleet-repair1", "pod-1")
-      :ok = mark_running!(7370, "runner-x")
-      flush_outbox!()
-      running = latest_replica_row(7370)
-      {:ok, _} = Jobs.complete(7370, "success")
-      flush_outbox!()
-
-      # What the 2026-08-19 archiver wrote: the pre-terminal row carried
-      # forward under a newer version, with the marker on it.
-      archived_at = ~U[2026-08-21 11:54:31.615821Z]
-      insert_replica_row!(%{running | log_archived_at: archived_at, updated_at: DateTime.utc_now()})
-      assert {:ok, %{status: "running"}} = Jobs.get_for_account(account.id, 7370)
-
-      assert %{republished: 1, closed: 0} =
-               Jobs.repair_replica_divergence(DateTime.add(DateTime.utc_now(), 1, :minute), lookback_floor())
-
-      flush_outbox!()
-
-      assert {:ok, job} = Jobs.get_for_account(account.id, 7370)
-      assert job.status == "completed"
-      assert job.conclusion == "success"
-      assert job.log_archived_at == archived_at
-      assert Jobs.count_replica_divergence(DateTime.add(DateTime.utc_now(), 1, :minute), lookback_floor()) == %{}
-    end
-
-    test "leaves rows that agree and jobs still running in both stores alone" do
-      account = account_fixture()
-      :ok = enqueue_fixture(account, 7371, fleet: "fleet-repair2")
-      {:ok, candidate} = Jobs.pick_queued("fleet-repair2", [])
-      claim!(account, candidate.workflow_job_id, "fleet-repair2", "pod-1")
-      :ok = mark_running!(7371, "runner-x")
-      flush_outbox!()
-
-      assert %{republished: 0, closed: 0, scanned: 1} =
-               Jobs.repair_replica_divergence(DateTime.add(DateTime.utc_now(), 1, :minute), lookback_floor())
-
-      assert {:ok, %{status: "running"}} = Jobs.get_for_account(account.id, 7371)
-    end
-
-    test "closes a replica row with no lifecycle row" do
-      account = account_fixture()
-      enqueued_at = DateTime.add(DateTime.utc_now(), -3, :day)
-      last_update = DateTime.add(enqueued_at, 10, :minute)
-
-      insert_replica_row!(%{
-        workflow_job_id: 7372,
-        account_id: account.id,
-        fleet_name: "fleet-repair3",
-        repository: "acme/cli",
-        status: "queued",
-        enqueued_at: enqueued_at,
-        updated_at: last_update
-      })
-
-      settled_before = DateTime.add(DateTime.utc_now(), 1, :minute)
-      floor = DateTime.add(DateTime.utc_now(), -7, :day)
-
-      assert %{republished: 0, closed: 1} = Jobs.repair_replica_divergence(settled_before, floor)
-
-      assert {:ok, job} = Jobs.get_for_account(account.id, 7372)
-      assert job.status == "completed"
-      assert job.conclusion == "stale"
-      assert job.completed_at == last_update
-    end
-
-    test "closes several untracked rows from each job's latest replica row" do
-      account = account_fixture()
-      enqueued_at = DateTime.add(DateTime.utc_now(), -3, :day)
-      claimed_at = DateTime.add(enqueued_at, 5, :minute)
-      requeued_at = DateTime.add(enqueued_at, 10, :minute)
-
-      base = %{
-        account_id: account.id,
-        fleet_name: "fleet-repair5",
-        repository: "acme/cli",
-        enqueued_at: enqueued_at
-      }
-
-      {3, _} =
-        IngestRepo.insert_all(Job, [
-          Map.merge(base, %{workflow_job_id: 7374, status: "claimed", pod_name: "pod-1", updated_at: claimed_at}),
-          Map.merge(base, %{workflow_job_id: 7374, status: "queued", pod_name: "", updated_at: requeued_at}),
-          Map.merge(base, %{workflow_job_id: 7375, status: "running", pod_name: "pod-2", updated_at: claimed_at})
-        ])
-
-      assert %{closed: 2} =
-               Jobs.repair_replica_divergence(
-                 DateTime.add(DateTime.utc_now(), 1, :minute),
-                 DateTime.add(DateTime.utc_now(), -7, :day)
-               )
-
-      assert {:ok, requeued} = Jobs.get_for_account(account.id, 7374)
-      assert {requeued.status, requeued.conclusion, requeued.pod_name} == {"completed", "stale", ""}
-      assert requeued.completed_at == requeued_at
-
-      assert {:ok, running} = Jobs.get_for_account(account.id, 7375)
-      assert {running.status, running.conclusion, running.pod_name} == {"completed", "stale", "pod-2"}
-      assert running.completed_at == claimed_at
-    end
-
-    test "does not close an untracked row enqueued after the untracked cutoff" do
-      account = account_fixture()
-
-      insert_replica_row!(%{
-        workflow_job_id: 7373,
-        account_id: account.id,
-        fleet_name: "fleet-repair4",
-        repository: "acme/cli",
-        status: "queued",
-        enqueued_at: DateTime.add(DateTime.utc_now(), -1, :hour),
-        updated_at: DateTime.add(DateTime.utc_now(), -1, :hour)
-      })
-
-      assert %{closed: 0} =
-               Jobs.repair_replica_divergence(DateTime.add(DateTime.utc_now(), 1, :minute), lookback_floor())
-
-      assert {:ok, %{status: "queued"}} = Jobs.get_for_account(account.id, 7373)
     end
   end
 
@@ -2087,26 +1961,6 @@ defmodule Tuist.Runners.JobsTest do
       })
 
     IngestRepo.insert_all(Job, [row])
-  end
-
-  defp latest_replica_row(workflow_job_id) do
-    Job
-    |> where([j], j.workflow_job_id == ^workflow_job_id)
-    |> order_by([j], desc: j.updated_at)
-    |> limit(1)
-    |> Tuist.ClickHouseRepo.one()
-  end
-
-  defp insert_replica_row!(%Job{} = job) do
-    job
-    |> Map.from_struct()
-    |> Map.delete(:__meta__)
-    |> insert_replica_row!()
-  end
-
-  defp insert_replica_row!(row) when is_map(row) do
-    {1, _} = IngestRepo.insert_all(Job, [row])
-    :ok
   end
 
   defp mark_running!(workflow_job_id, runner_name) do
