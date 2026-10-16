@@ -78,3 +78,9 @@ bypassing ring capacity or quota-aware disk admission.
 Capture the expected pressure corpus only after both receipts exist, while the
 source hold prevents read-time promotion and eviction. A pre-hold walk of a full
 ring can evict records it counted earlier and is not the retained barrier.
+
+The [production-shaped fixture](production/AGENTS.md) runs larger synthetic
+retained corpora on isolated staging PVCs when the local Docker disk cannot hold
+two production-sized rings. Its simulator is private to the fixture pods and
+never changes a real authority ConfigMap. Use its smoke mode to validate setup;
+only the full profile exercises the observed record distribution and reused disk.
