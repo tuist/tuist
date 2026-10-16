@@ -1179,4 +1179,3 @@ STUB
     [ "$status" -ne 0 ]
     [[ "$output" == *"ber1-pdu-b's mac '00:20:85:D7:00:CA' is not a MAC in lower case"* ]]
 }
-
