@@ -954,47 +954,66 @@ jobs:
         # schema changes ship the same way code changes do; no
         # operator-side manual step.
         run: kubectl apply -f "$HELM_CHART_PATH/crds/"
-      - name: Recover interrupted Helm release
+      - name: Recover interrupted Helm releases
+        # The xcresult processor release too: its preflight runs on every
+        # deploy, so a processor release left pending would refuse ("another
+        # operation is in progress") every server deploy after it.
         run: |
           set -euo pipefail
 
-          status="$(
-            helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE" 2>/dev/null |
-              awk '/^STATUS:/ { print $2 }' ||
-              true
-          )"
-          case "$status" in
-            pending-install|pending-upgrade|pending-rollback)
-              echo "Release $HELM_RELEASE_NAME is $status; rolling back to the last deployed revision before upgrading."
-              helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20
+          recover_release() {
+            release="$1"
+            status="$(
+              helm status "$release" -n "$NAMESPACE" 2>/dev/null |
+                awk '/^STATUS:/ { print $2 }' ||
+                true
+            )"
+            case "$status" in
+              pending-install|pending-upgrade|pending-rollback)
+                echo "Release $release is $status; recovering it before upgrading."
+                helm history "$release" -n "$NAMESPACE" --max 20
 
-              deployed_revision="$(
-                helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20 |
-                  awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { revision = $1 } END { print revision }'
-              )"
+                deployed_revision="$(
+                  helm history "$release" -n "$NAMESPACE" --max 20 |
+                    awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { revision = $1 } END { print revision }'
+                )"
 
-              if [ -z "$deployed_revision" ]; then
-                echo "No deployed revision found for $HELM_RELEASE_NAME in $NAMESPACE."
-                exit 1
-              fi
+                if [ -z "$deployed_revision" ]; then
+                  if [ "$release" = "$HELM_RELEASE_NAME" ]; then
+                    echo "No deployed revision found for $release in $NAMESPACE."
+                    exit 1
+                  fi
+                  # An interrupted first install of the processor release.
+                  # Dropping its release records leaves the objects running
+                  # and still annotated for this release, so the upgrade
+                  # below installs it again and adopts them. `helm uninstall`
+                  # would delete them.
+                  echo "No deployed revision found for $release; deleting its release records so the upgrade below installs it again."
+                  kubectl -n "$NAMESPACE" delete secret -l "owner=helm,name=$release"
+                  return
+                fi
 
-              # This is a metadata recovery path, not the real health gate.
-              # An interrupted atomic rollback can leave the latest Helm
-              # revision in pending-rollback even when the last deployed
-              # revision is the only viable base for the next deploy. Waiting
-              # here replays the old manifest's readiness problems and can
-              # strand this recovery step before the current chart gets a
-              # chance to fix them. The following helm upgrade owns the full
-              # --wait/--atomic rollout with richer diagnostics.
-              helm rollback "$HELM_RELEASE_NAME" "$deployed_revision" \
-                --namespace "$NAMESPACE" --timeout 5m
+                # This is a metadata recovery path, not the real health gate.
+                # An interrupted atomic rollback can leave the latest Helm
+                # revision in pending-rollback even when the last deployed
+                # revision is the only viable base for the next deploy. Waiting
+                # here replays the old manifest's readiness problems and can
+                # strand this recovery step before the current chart gets a
+                # chance to fix them. The following helm upgrade owns the full
+                # --wait/--atomic rollout with richer diagnostics.
+                helm rollback "$release" "$deployed_revision" \
+                  --namespace "$NAMESPACE" --timeout 5m
 
-              helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE"
-              ;;
-            *)
-              echo "Release $HELM_RELEASE_NAME status is ${status:-not-installed}; no recovery needed."
-              ;;
-          esac
+                helm status "$release" -n "$NAMESPACE"
+                ;;
+              *)
+                echo "Release $release status is ${status:-not-installed}; no recovery needed."
+                ;;
+            esac
+          }
+
+          recover_release "$HELM_RELEASE_NAME"
+          recover_release "$HELM_RELEASE_NAME-xcresult-processor"
       - name: Clean up stale migration Jobs
         # The chart's pre-upgrade migration hook is named
         # `tuist-tuist-server-migrate` (stable across revisions). Any
@@ -1347,15 +1366,32 @@ jobs:
           # Helm adopts an existing object whose ownership annotations name
           # the installing release. `keep` stops the release that stops
           # rendering it from deleting it; Helm checks that annotation on the
-          # live object when an upgrade drops a resource. It is cleared once
-          # the processor release is upgraded below.
+          # live object when an upgrade drops a resource.
           #
           # Both directions, so a deploy from a commit that renders the
           # processor in this release takes it back.
+          #
+          # The chart never renders `keep`, so every one found on these
+          # objects is a handover's, this run's or one an interrupted run
+          # left behind, and is cleared once both upgrades below have
+          # succeeded. Left in place it would outlive the move: a later
+          # deploy that disables the processor would leave it running,
+          # managed by neither release.
+          xcresult_objects=("deployment/$xcresult_processor_name" "poddisruptionbudget/$xcresult_processor_name")
+          clear_xcresult_keep() {
+            for object in "${xcresult_objects[@]}"; do
+              policy="$(
+                kubectl -n "$NAMESPACE" get "$object" --ignore-not-found \
+                  -o jsonpath='{.metadata.annotations.helm\.sh/resource-policy}'
+              )"
+              if [ "$policy" = "keep" ]; then
+                kubectl -n "$NAMESPACE" annotate "$object" helm.sh/resource-policy-
+              fi
+            done
+          }
           echo "::group::xcresult processor release ownership"
-          xcresult_handed_over=()
           if [ -n "$xcresult_owner" ]; then
-            for object in "deployment/$xcresult_processor_name" "poddisruptionbudget/$xcresult_processor_name"; do
+            for object in "${xcresult_objects[@]}"; do
               current_owner="$(
                 kubectl -n "$NAMESPACE" get "$object" --ignore-not-found \
                   -o jsonpath='{.metadata.annotations.meta\.helm\.sh/release-name}'
@@ -1366,9 +1402,12 @@ jobs:
                   "meta.helm.sh/release-name=$xcresult_owner" \
                   "meta.helm.sh/release-namespace=$NAMESPACE" \
                   helm.sh/resource-policy=keep
-                xcresult_handed_over+=("$object")
               fi
             done
+          else
+            # Neither release renders the processor, so whichever one holds
+            # it has to be free to delete it.
+            clear_xcresult_keep
           fi
           echo "xcresult processor objects belong to: ${xcresult_owner:-no release (processor disabled)}"
           echo "::endgroup::"
@@ -1465,9 +1504,7 @@ jobs:
           helm upgrade --install "$xcresult_release" infra/helm/xcresult-processor \
             "${xcresult_args[@]}" \
             --wait=hookOnly
-          if [ "${#xcresult_handed_over[@]}" -gt 0 ]; then
-            kubectl -n "$NAMESPACE" annotate "${xcresult_handed_over[@]}" helm.sh/resource-policy-
-          fi
+          clear_xcresult_keep
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the
