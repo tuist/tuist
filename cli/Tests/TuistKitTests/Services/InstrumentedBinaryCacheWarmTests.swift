@@ -16,16 +16,18 @@ struct InstrumentedBinaryCacheWarmTests {
         ])
     }
 
-    @Test func buildSettings_quoteARootWithWhitespaceSoItStaysOneArgument() {
-        let got = InstrumentedBinaryCacheWarm.buildSettings(sourceRoots: ["/Users/ci/My Projects/app"])
+    @Test func buildSettings_quoteEachPrefixMapSoARootWithWhitespaceStaysOneArgument() {
+        let got = InstrumentedBinaryCacheWarm.buildSettings(sourceRoots: ["/Users/ci/My Projects/app", #"/odd\"path"#])
 
         #expect(got.contains(
             "TUIST_BINARY_CACHE_COVERAGE_SWIFT_FLAGS_YES=-Xllvm -instrprof-atomic-counter-update-all "
-                + "-coverage-prefix-map \"/Users/ci/My Projects/app=/TUIST_SOURCE_ROOT\""
+                + #"-coverage-prefix-map "/Users/ci/My Projects/app=/TUIST_SOURCE_ROOT" "#
+                + #"-coverage-prefix-map "/odd\\\"path=/TUIST_SOURCE_ROOT""#
         ))
         #expect(got.contains(
             "TUIST_BINARY_CACHE_COVERAGE_CFLAGS_YES=-fprofile-update=atomic "
-                + "\"-fcoverage-prefix-map=/Users/ci/My Projects/app=/TUIST_SOURCE_ROOT\""
+                + #""-fcoverage-prefix-map=/Users/ci/My Projects/app=/TUIST_SOURCE_ROOT" "#
+                + #""-fcoverage-prefix-map=/odd\\\"path=/TUIST_SOURCE_ROOT""#
         ))
     }
 
@@ -38,12 +40,12 @@ struct InstrumentedBinaryCacheWarmTests {
             "TUIST_BINARY_CACHE_COVERAGE_MAPPING_YES=YES",
             "OTHER_SWIFT_FLAGS=$(inherited) $(TUIST_BINARY_CACHE_COVERAGE_SWIFT_FLAGS_$(TUIST_BINARY_CACHE_COVERAGE))",
             "TUIST_BINARY_CACHE_COVERAGE_SWIFT_FLAGS_YES=-Xllvm -instrprof-atomic-counter-update-all "
-                + "-coverage-prefix-map /tmp/checkout=/TUIST_SOURCE_ROOT "
-                + "-coverage-prefix-map /private/tmp/checkout=/TUIST_SOURCE_ROOT",
+                + #"-coverage-prefix-map "/tmp/checkout=/TUIST_SOURCE_ROOT" "#
+                + #"-coverage-prefix-map "/private/tmp/checkout=/TUIST_SOURCE_ROOT""#,
             "OTHER_CFLAGS=$(inherited) $(TUIST_BINARY_CACHE_COVERAGE_CFLAGS_$(TUIST_BINARY_CACHE_COVERAGE))",
             "TUIST_BINARY_CACHE_COVERAGE_CFLAGS_YES=-fprofile-update=atomic "
-                + "-fcoverage-prefix-map=/tmp/checkout=/TUIST_SOURCE_ROOT "
-                + "-fcoverage-prefix-map=/private/tmp/checkout=/TUIST_SOURCE_ROOT",
+                + #""-fcoverage-prefix-map=/tmp/checkout=/TUIST_SOURCE_ROOT" "#
+                + #""-fcoverage-prefix-map=/private/tmp/checkout=/TUIST_SOURCE_ROOT""#,
         ])
     }
 }

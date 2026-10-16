@@ -60,9 +60,13 @@ enum InstrumentedBinaryCacheWarm {
         ]
     }
 
-    /// `value` as one item of a build-setting list: Xcode splits a list on whitespace and keeps a
-    /// double-quoted item whole, so a checkout path with a space stays one argument.
+    /// `value` as one item of a build-setting list, the way `XcodeCachePrefixMappingWorkspaceMapper`
+    /// writes Xcode's own prefix maps: Xcode splits a list on whitespace and keeps a double-quoted item
+    /// whole, so a checkout path with a space stays one argument.
     private static func quoted(_ value: String) -> String {
-        value.contains(where: \.isWhitespace) ? "\"\(value.replacingOccurrences(of: "\"", with: "\\\""))\"" : value
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
     }
 }
