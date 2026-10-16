@@ -109,6 +109,54 @@ struct ServerReportPublishingTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func blank_environment_tokens_are_strict_only_for_opted_in_reporting(enabled: Bool) async throws {
+        let url = try #require(URL(string: "https://tuist.example"))
+        let environment = Environment(variables: [
+            "TUIST_TOKEN": "",
+            "TUIST_NETWORK_TRUSTED_PUBLISHING": enabled ? "true" : "false",
+        ], arguments: [])
+        let authentication = ServerAuthenticationController()
+        let middleware = ServerClientAuthenticationMiddleware(
+            serverAuthenticationController: authentication,
+            networkTrustedReports: true
+        )
+
+        try await Environment.$current.withValue(environment) {
+            #expect(try await authentication.authenticationToken(serverURL: url) == .project(""))
+            if enabled {
+                await #expect(throws: ServerReportPublishingError.invalidCredentials) {
+                    try await ServerReportPublishingMode.usesNetworkTrust(
+                        serverURL: url, authenticationController: authentication
+                    )
+                }
+                await #expect(throws: ServerReportPublishingError.invalidCredentials) {
+                    try await middleware.intercept(
+                        HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/"),
+                        body: nil, baseURL: url, operationID: "createBuild"
+                    ) { _, _, _ in
+                        Issue.record("An empty supplied credential must not become an unsigned report")
+                        return (HTTPResponse(status: .ok), nil)
+                    }
+                }
+            } else {
+                #expect(try await !ServerReportPublishingMode.usesNetworkTrust(
+                    serverURL: url, authenticationController: authentication
+                ))
+                try await confirmation("Ordinary authentication behavior is unchanged") { forwarded in
+                    _ = try await middleware.intercept(
+                        HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/"),
+                        body: nil, baseURL: url, operationID: "createBuild"
+                    ) { request, _, _ in
+                        forwarded()
+                        #expect(request.headerFields[.authorization] == "Bearer")
+                        return (HTTPResponse(status: .ok), nil)
+                    }
+                }
+            }
+        }
+    }
+
     @Test func supplied_credentials_are_kept() async throws {
         let url = try #require(URL(string: "https://tuist.example"))
         let authentication = MockServerAuthenticationControlling()
