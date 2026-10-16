@@ -153,7 +153,7 @@ Runner sizing uses the existing account disk policy and plan memory/CPU profiles
 
 ## Node-local pod networks
 
-`spec.nodeLocalNetwork` marks an instance whose pods run on nodes with a pod network the cluster cannot route to, such as BER1 rack nodes (bridge CNI, masquerade, `cilium.io/no-schedule=true`). Those pods reach the internet through the node's NAT but not cluster DNS, ClusterIPs or other pods, and the controller cannot reach their pod IPs.
+`spec.nodeLocalNetwork` marks an instance whose pods run on nodes with a pod network the cluster cannot route to, such as a rack node off the cluster network (bridge CNI, masquerade, `cilium.io/no-schedule=true`; no region renders one today: BER1's storage node runs Cilium). Those pods reach the internet through the node's NAT but not cluster DNS, ClusterIPs or other pods, and the controller cannot reach their pod IPs.
 
 - The pod template gets `dnsPolicy: None` with `nodeLocalNetwork.nameservers` and `ndots:1`. Unset leaves the template unchanged; setting it rolls the pods like any other template change.
 - `/status/rollout` is sampled through the API server's pod port-forward (`NodeLocalRuntimeStatusClient`, upgraded over SPDY within a two-second budget), which reaches the pod through its kubelet. Its connection lives no longer than the sample: the dial and an upgrade the API server accepts and never answers both end at the deadline. Everything built on those samples (rollout health, primary selection, the private endpoint observation, evacuation settling) works unchanged. A node-local instance never falls back to dialing the pod IP. The controller Role grants `pods/portforward` `create`.

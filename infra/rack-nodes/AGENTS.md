@@ -451,13 +451,13 @@ the cluster reaches it.
   to the API server it joined through (`/etc/tuist/kubernetes-service.nft`,
   which the node agent loads on every apply), so an in-cluster client on the
   node, host network or not, reaches the API at the address it is given.
-- **Names.** A pod that needs them sets its own nameservers. Kura's
-  `nodeLocalNetwork` instances use Tailscale's `100.100.100.100`, which
-  answers tailnet names and fails others over, then public resolvers.
+- **Names.** A pod that needs them sets its own nameservers, such as
+  Tailscale's `100.100.100.100`, which answers tailnet names and fails others
+  over, then public resolvers.
 - **Telemetry.** `alloy-rack` (`infra/helm/k8s-monitoring`) on each rack node
-  ships its pods' logs, scrapes its node-local Kura pods and exports the
-  host's own metrics, and pushes them to the Alloy receiver at its tailnet
-  name. Kura exports its traces there too.
+  ships its pods' logs, scrapes any node-local Kura pods (none since the
+  storage node joined the cluster network) and exports the host's own
+  metrics, and pushes them to the Alloy receiver at its tailnet name.
 - **Being reached.** A pod the cluster has to read from is reached through the
   API server: the Kura controller samples node-local pods through a
   port-forward, which goes through the kubelet.
