@@ -296,7 +296,7 @@ defmodule Tuist.Release do
         raise "ClickHouse schema drift: #{inspect(report.schema)}"
 
       {:ok, report} ->
-        raise "ClickHouse parity failed: #{inspect(report.differing)}"
+        raise "ClickHouse parity failed: #{inspect(report.differing, limit: :infinity)}"
 
       {:error, reason} ->
         raise "ClickHouse parity could not run: #{inspect(reason)}"
@@ -339,7 +339,7 @@ defmodule Tuist.Release do
           :ok
 
         {:ok, report} ->
-          raise "ClickHouse read parity failed: #{inspect(report.differing)}"
+          raise "ClickHouse read parity failed: #{inspect(report.differing, limit: :infinity)}"
 
         {:error, reason} ->
           raise "ClickHouse read parity could not run: #{inspect(reason)}"
