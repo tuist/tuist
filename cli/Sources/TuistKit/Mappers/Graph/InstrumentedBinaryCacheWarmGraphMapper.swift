@@ -32,7 +32,7 @@ public struct InstrumentedBinaryCacheWarmGraphMapper: GraphMapping {
                         .merging([InstrumentedBinaryCacheWarm.markerSetting: "YES"]) { _, marker in marker },
                     baseDebug: target.settings?.baseDebug ?? [:],
                     configurations: target.settings?.configurations ?? [:],
-                    defaultSettings: target.settings?.defaultSettings ?? .recommended,
+                    defaultSettings: target.settings?.defaultSettings ?? project.settings.defaultSettings,
                     defaultConfiguration: target.settings?.defaultConfiguration
                 )
                 return target
