@@ -38,6 +38,7 @@ fi
 # Bundling logic (runs natively on Linux or inside container)
 BUILD_DIRECTORY=$PROJECT_ROOT/build
 BUILD_PATH="${BUILD_PATH:-.build}"
+SDK_ID="swift-6.2.3-RELEASE_static-linux-0.0.1"
 SDK_TARGET="${ARCH}-swift-linux-musl"
 
 echo "==> Building Linux release into $BUILD_DIRECTORY"
@@ -51,7 +52,7 @@ mkdir -p $BUILD_DIRECTORY
 # The SDK carries the sysroots of both architectures, so either one can be built from
 # either host.
 echo "==> Installing Swift Static Linux SDK"
-swift sdk install https://download.swift.org/swift-6.2.3-release/static-sdk/swift-6.2.3-RELEASE/swift-6.2.3-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz \
+swift sdk install "https://download.swift.org/swift-6.2.3-release/static-sdk/swift-6.2.3-RELEASE/$SDK_ID.artifactbundle.tar.gz" \
     --checksum f30ec724d824ef43b5546e02ca06a8682dafab4b26a99fbb0e858c347e507a2c
 
 # Remove system static archives that conflict with the musl SDK.
@@ -63,8 +64,18 @@ echo "==> Removing conflicting system static libraries"
 rm -f /usr/lib/*/libc.a /usr/lib/*/libm.a /usr/lib/*/libm-*.a /usr/lib/*/libcurl.a \
     /usr/lib/*/libxml2.a /usr/lib/*/libz.a
 
+# ZIPFoundation and Kanna declare zlib and libxml2 as pkg-config system libraries. The
+# host's .pc files would put the host's library directory (/usr/lib/<host-triple>) on the
+# link line, where a cross-compiled link picks up archives of the wrong architecture. The
+# SDK's sysroot already provides both libraries; libxml2's headers only need its include
+# directory.
+echo "==> Removing host pkg-config files for zlib and libxml2"
+rm -f /usr/lib/*/pkgconfig/zlib.pc /usr/lib/*/pkgconfig/libxml-2.0.pc /usr/share/pkgconfig/zlib.pc
+SDK_ROOT=$(swift sdk configure --show-configuration "$SDK_ID" "$SDK_TARGET" | sed -n 's/^sdkRootPath: //p')
+
 echo "==> Building tuist executable (static musl, $SDK_TARGET)"
-swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry --swift-sdk "$SDK_TARGET"
+swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry --swift-sdk "$SDK_TARGET" \
+    -Xcc -I"$SDK_ROOT/usr/include/libxml2"
 
 BIN_PATH=$(swift build --product tuist --configuration release --build-path "$BUILD_PATH" --swift-sdk "$SDK_TARGET" --show-bin-path)
 echo "==> Copying binary from $BIN_PATH"
