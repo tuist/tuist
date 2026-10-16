@@ -6136,7 +6136,7 @@ The threshold comes from a measured baseline on the M5 Pro minis
 (2026-10-15 12:40 UTC to 2026-10-16 07:00 UTC, including an evening of
 sustained CI load on every slot):
 
-| | Busy minis | A mini running work outside the cluster |
+| | Busy minis | b01 under sustained benchmarks |
 | --- | --- | --- |
 | Highest 10-minute average | 89.8-94.5 C | 97.5 C |
 | 99th percentile of 10-minute averages | 87.9-91.0 C | 95.4 C |
