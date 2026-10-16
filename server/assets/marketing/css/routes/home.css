@@ -2622,9 +2622,14 @@
          JavaScript) the selected cell carries a static underline instead.
          Three columns on phones. */
       & > [data-part="tabs"] {
+        /* Defaults; the template sets --tab-count inline and the hook sets
+           the edge fades from the scroll position. */
+        --tab-count: 6;
+        --fade-start: 0px;
+        --fade-end: 0px;
         display: grid;
         position: relative;
-        grid-template-columns: repeat(var(--tab-count, 6), minmax(0, 1fr));
+        grid-template-columns: repeat(var(--tab-count), minmax(0, 1fr));
         gap: 1px;
         border-top: 1px solid var(--marketing-stroke-default);
         background: var(--marketing-stroke-default);
@@ -2640,15 +2645,15 @@
           -webkit-mask-image: linear-gradient(
             to right,
             transparent 0,
-            black var(--fade-start, 0px),
-            black calc(100% - var(--fade-end, 0px)),
+            black var(--fade-start),
+            black calc(100% - var(--fade-end)),
             transparent 100%
           );
           mask-image: linear-gradient(
             to right,
             transparent 0,
-            black var(--fade-start, 0px),
-            black calc(100% - var(--fade-end, 0px)),
+            black var(--fade-start),
+            black calc(100% - var(--fade-end)),
             transparent 100%
           );
           overflow-x: auto;
@@ -2699,16 +2704,20 @@
            cell's box (--indicator-x/-y/-w, in px within the tab row), so it
            also follows the two-row phone layout. */
         & > [data-part="indicator"] {
+          /* Defaults; the hook sets the selected tab's box inline. */
+          --indicator-x: 0px;
+          --indicator-y: 0px;
+          --indicator-w: 0px;
           display: none;
           position: absolute;
           top: 0;
           left: 0;
-          transform: translate(var(--indicator-x, 0), var(--indicator-y, 0));
+          transform: translate(var(--indicator-x), var(--indicator-y));
           transition:
             transform 350ms var(--ease-out-cubic),
             width 350ms var(--ease-out-cubic);
           background: var(--noora-surface-label-primary);
-          width: var(--indicator-w, 0);
+          width: var(--indicator-w);
           height: 2px;
           pointer-events: none;
 
@@ -2740,6 +2749,7 @@
            (the active slide's --slide-color, set inline by the carousel) on
            every slide change and blends from the previous brand to the next
            over the morph. Each dot's tone scales it further. */
+        --slide-color: var(--noora-surface-label-primary);
         --home-customers-dots-ink: var(--slide-color);
 
         & > [data-part="slide"] {
