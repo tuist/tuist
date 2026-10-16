@@ -374,8 +374,9 @@ var cacheVolumeCacheLimitBytes = prometheus.NewHistogramVec(
 
 // imageMirrorProbeTotal counts what a host learned each time it asked a rack
 // image cache for a golden base's image: `ok` (pulled from it next),
-// `syncing` (requeued while the cache fetches it), `sync_timeout` (waited
-// too long, pulled from the upstream), `absent`, `unavailable` or `error`
+// `syncing` (requeued while the cache fetches it), `syncing_bypassed` (still
+// fetching it, but another cache held it), `sync_timeout` (waited too long,
+// pulled from the upstream), `absent`, `unavailable` or `error`
 // (pulled from the upstream).
 var imageMirrorProbeTotal = prometheus.NewCounterVec(
 	prometheus.CounterOpts{

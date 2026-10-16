@@ -100,9 +100,11 @@ type imagePull struct {
 }
 
 // sources returns the mirror pulls to try for image, in order. The upstream
-// is not among them; the caller falls back to it. A mirror still fetching
-// the image within the sync timeout makes the whole call return
-// errMirrorSyncing, so no host pulls the image from the upstream beside it.
+// is not among them; the caller falls back to it. When no mirror holds the
+// image but one is still fetching it within the sync timeout, the call
+// returns errMirrorSyncing, so no host pulls the image from the upstream
+// beside it. A mirror that holds the image is used even while another is
+// still fetching it.
 func (s *ImageSources) sources(ctx context.Context, image string) ([]imagePull, error) {
 	if s == nil || len(s.Mirrors) == 0 {
 		return nil, nil
@@ -112,6 +114,7 @@ func (s *ImageSources) sources(ctx context.Context, image string) ([]imagePull, 
 		return nil, nil
 	}
 	var pulls []imagePull
+	var syncing []ImageMirror
 	for _, mirror := range s.Mirrors {
 		if mirror.Upstream != registry {
 			continue
@@ -127,18 +130,33 @@ func (s *ImageSources) sources(ctx context.Context, image string) ([]imagePull, 
 				mirror:   mirror.Endpoint.String(),
 			})
 		case errors.Is(err, errMirrorSyncing):
-			if s.waitedTooLong(mirror, image) {
-				recordImageMirrorProbe("sync_timeout")
-				continue
-			}
-			recordImageMirrorProbe("syncing")
-			return nil, fmt.Errorf("%s from %s: %w", image, mirror.Endpoint, err)
+			syncing = append(syncing, mirror)
 		default:
 			s.doneSyncing(mirror, image)
 			recordImageMirrorProbe(mirrorProbeResult(err))
 		}
 	}
-	return pulls, nil
+	if len(pulls) > 0 {
+		for range syncing {
+			recordImageMirrorProbe("syncing_bypassed")
+		}
+		return pulls, nil
+	}
+	// Every syncing mirror's wait starts on the same probe, so two mirrors
+	// fetching the image cost one sync timeout, not one each.
+	var waiting []string
+	for _, mirror := range syncing {
+		if s.waitedTooLong(mirror, image) {
+			recordImageMirrorProbe("sync_timeout")
+			continue
+		}
+		recordImageMirrorProbe("syncing")
+		waiting = append(waiting, mirror.Endpoint.String())
+	}
+	if len(waiting) > 0 {
+		return nil, fmt.Errorf("%s from %s: %w", image, strings.Join(waiting, ", "), errMirrorSyncing)
+	}
+	return nil, nil
 }
 
 var (
@@ -205,6 +223,12 @@ func (s *ImageSources) probe(ctx context.Context, mirror ImageMirror, repository
 	digest := "sha256:" + hex.EncodeToString(sum[:])
 	if header := resp.Header.Get("Docker-Content-Digest"); header != "" && header != digest {
 		return "", fmt.Errorf("manifest digest %s does not match the %s it was served as", digest, header)
+	}
+	// A Pod that names its image by digest gets exactly that manifest or the
+	// upstream: anything else would be materialized under the golden that
+	// digest names.
+	if strings.Contains(reference, ":") && reference != digest {
+		return "", fmt.Errorf("manifest digest %s does not match the requested %s", digest, reference)
 	}
 	return digest, nil
 }

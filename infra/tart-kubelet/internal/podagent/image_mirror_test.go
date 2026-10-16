@@ -361,3 +361,76 @@ func TestExpectedSetKeepsMirrorPulledImages(t *testing.T) {
 		t.Fatalf("the upstream repository is no longer kept: %v", expected.imageRepos)
 	}
 }
+
+func blocksUntilCancelled(_ http.ResponseWriter, r *http.Request) { <-r.Context().Done() }
+
+// A cache that holds the image is pulled from even while another is still
+// fetching it, in either order: a syncing backup must not hold up a VM the
+// other cache can start now.
+func TestImageSourcesUsesAReadyMirrorBesideASyncingOne(t *testing.T) {
+	ready := mirrorFor(t, fakeMirror(t, servesManifest))
+	syncing := mirrorFor(t, fakeMirror(t, blocksUntilCancelled))
+
+	for name, mirrors := range map[string][]ImageMirror{
+		"ready first":   {ready, syncing},
+		"syncing first": {syncing, ready},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := &ImageSources{Mirrors: mirrors, HTTP: &http.Client{Timeout: 100 * time.Millisecond}}
+			pulls, err := s.sources(context.Background(), mirroredImage)
+			if err != nil {
+				t.Fatalf("sources: %v, want the ready mirror", err)
+			}
+			if len(pulls) != 1 || pulls[0].mirror != ready.Endpoint.String() {
+				t.Fatalf("pulls = %+v, want one pull from %s", pulls, ready.Endpoint)
+			}
+		})
+	}
+}
+
+// Two caches fetching the image cost one sync timeout, not one each.
+func TestImageSourcesWaitsForSyncingMirrorsTogether(t *testing.T) {
+	now := time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC)
+	s := &ImageSources{
+		Mirrors: []ImageMirror{
+			mirrorFor(t, fakeMirror(t, blocksUntilCancelled)),
+			mirrorFor(t, fakeMirror(t, blocksUntilCancelled)),
+		},
+		HTTP:        &http.Client{Timeout: 100 * time.Millisecond},
+		SyncTimeout: 30 * time.Minute,
+		now:         func() time.Time { return now },
+	}
+	if _, err := s.sources(context.Background(), mirroredImage); !errors.Is(err, errMirrorSyncing) {
+		t.Fatalf("first probe: err = %v, want errMirrorSyncing", err)
+	}
+	now = now.Add(30 * time.Minute)
+	pulls, err := s.sources(context.Background(), mirroredImage)
+	if err != nil || len(pulls) != 0 {
+		t.Fatalf("after one sync timeout = %+v, %v; want the upstream", pulls, err)
+	}
+}
+
+// A Pod that pins its image by digest gets that manifest or the upstream,
+// whatever digest the cache claims for what it served.
+func TestImageSourcesHoldsADigestPinnedImageToItsDigest(t *testing.T) {
+	other := []byte(`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","annotations":{"x":"y"}}`)
+	sum := sha256.Sum256(other)
+	otherDigest := "sha256:" + hex.EncodeToString(sum[:])
+	srv := fakeMirror(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Docker-Content-Digest", otherDigest)
+		_, _ = w.Write(other)
+	})
+	s := &ImageSources{Mirrors: []ImageMirror{mirrorFor(t, srv)}}
+
+	pinned := "ghcr.io/tuist/tuist-runner@" + testManifestDigest()
+	pulls, err := s.sources(context.Background(), pinned)
+	if err != nil || len(pulls) != 0 {
+		t.Fatalf("sources(%s) = %+v, %v; want the upstream for a manifest that is not the pinned one", pinned, pulls, err)
+	}
+
+	pinnedToServed := "ghcr.io/tuist/tuist-runner@" + otherDigest
+	pulls, err = s.sources(context.Background(), pinnedToServed)
+	if err != nil || len(pulls) != 1 || !strings.HasSuffix(pulls[0].ref, "@"+otherDigest) {
+		t.Fatalf("sources(%s) = %+v, %v; want the mirror when it serves the pinned manifest", pinnedToServed, pulls, err)
+	}
+}
