@@ -51,7 +51,6 @@ struct CLI {
     var useRegistryIdentityForSCM = false
     var defaultRegistryURL: String?
     var disableSCMToRegistryTransformation = false
-    var reportTimings = false
     var quiet = false
     var disablePackageInfoCache = false
     var packageInfoCachePath: CLIPath?
@@ -165,7 +164,6 @@ public enum SwifterPMCommandParser {
                     disablePackageInfoCache: cli.disablePackageInfoCache,
                     packageInfoCacheDirectory: paths.resolve(cli.packageInfoCachePath),
                     cachedDirectoryMaterialization: cli.cachedDirectoryMaterialization,
-                    reportTimings: cli.reportTimings,
                     quiet: cli.quiet
                 )
             )
@@ -203,7 +201,6 @@ public enum SwifterPMCommandParser {
             packageInfoCacheDirectory: paths.resolve(cli.packageInfoCachePath),
             scmToRegistryTransformation: try CLIRunner.scmToRegistryTransformation(cli),
             cachedDirectoryMaterialization: cli.cachedDirectoryMaterialization,
-            reportTimings: cli.reportTimings,
             quiet: cli.quiet
         )
     }
@@ -288,9 +285,6 @@ public struct SwifterPMCommand: AsyncParsableCommand {
     @Flag(name: .customLong("disable-scm-to-registry-transformation"))
     var disableSCMToRegistryTransformation = false
 
-    @Flag(name: .customLong("report-timings"), help: "Report dependency installation phase durations.")
-    var reportTimings = false
-
     @Flag(name: [.customShort("q"), .customLong("quiet")])
     var quiet = false
 
@@ -354,7 +348,6 @@ public struct SwifterPMCommand: AsyncParsableCommand {
             useRegistryIdentityForSCM: useRegistryIdentityForSCM,
             defaultRegistryURL: defaultRegistryURL,
             disableSCMToRegistryTransformation: disableSCMToRegistryTransformation,
-            reportTimings: reportTimings,
             quiet: quiet,
             disablePackageInfoCache: disablePackageInfoCache,
             packageInfoCachePath: CLIPath.optional(packageInfoCachePath),
@@ -570,7 +563,7 @@ enum CLIRunner {
                 let package = canonicalPackageDir(commandPackageDir(cli: cli, paths: paths, commandPackageDir: directory))
                 let scratch = commandScratchDir(cli: cli, paths: paths, packageDir: package, commandScratchDir: scratchDirectory)
                 try await ManifestCache.withContext(
-                    packageDirectory: package, scratchDirectory: scratch, reportTimings: cli.reportTimings
+                    packageDirectory: package, scratchDirectory: scratch
                 ) {
                     try await runCommand(cli: cli, paths: paths, package: package, scratch: scratch)
                 }
@@ -614,7 +607,6 @@ enum CLIRunner {
                 printOnly: options.printOnly
             )
         case let .restore(options):
-            var timing = ResolutionTiming()
             let cache = try await Cache(
                 root: cliCacheDir(cli: cli, paths: paths, commandCacheDir: options.cacheDir))
             let registryConfig = try await cliRegistryConfig(
@@ -624,7 +616,6 @@ enum CLIRunner {
                 packageDir: package, configPath: paths.resolve(cli.configPath)
             )
             let resolved = try await ResolvedFile.read(packageDir: package)
-            timing.finish("configuration-and-pins")
             try await WorkspaceRestorer.restorePackage(
                 scratchDir: scratch, packageDir: package, cache: cache, registryConfig: registryConfig,
                 mirrors: mirrors,
@@ -632,18 +623,15 @@ enum CLIRunner {
                 progress: cli.quiet ? nil : RestoreProgressReporter(),
                 disableSandbox: cli.disableSandbox
             )
-            timing.finish("restore-sources")
             try await maybeWritePackageInfoCache(
                 cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved,
                 mirrors: mirrors
             )
-            timing.finish("package-info")
             try await WorkspaceRestorer.writeWorkspaceState(
                 packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
                 disableSandbox: cli.disableSandbox,
                 sourceCacheDirectory: cache.root
             )
-            timing.finish("workspace-state")
         }
     }
 
@@ -658,7 +646,6 @@ enum CLIRunner {
         restore: Bool,
         printOnly: Bool
     ) async throws {
-        var timing = ResolutionTiming()
         let cacheRoot = try Cache.resolvedRoot(
             cliCacheDir(cli: cli, paths: paths, commandCacheDir: cacheDir))
         let readOnly =
@@ -689,8 +676,6 @@ enum CLIRunner {
             cli: cli, paths: paths, package: package
         )
 
-        timing.finish("configuration")
-
         // Use the same native cold path as the embeddable API. The direct
         // invocation is only safe for lockfiles SwiftPM itself understands;
         // preserve SwifterPM's compatibility path for older custom pin kinds.
@@ -699,7 +684,6 @@ enum CLIRunner {
             cacheRoot: cacheRoot,
             registryConfig: registryConfig
         ) {
-            timing.finish("cache-probe")
             let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
                 packageDir: package,
                 scratchDir: scratch,
@@ -713,7 +697,6 @@ enum CLIRunner {
                 forceResolvedVersions: readOnly,
                 forwardOutput: !cli.quiet
             )
-            timing.finish("native-resolution")
             let cache = try await Cache(root: cacheRoot)
             try await WorkspaceRestorer.cacheNativeSourceCheckouts(
                 scratchDir: scratch,
@@ -727,14 +710,12 @@ enum CLIRunner {
                 registryConfig: registryConfig,
                 resolved: resolved
             )
-            timing.finish("cache-native-sources")
             if !cli.quiet {
                 ResolvedFile.print(resolved)
             }
             return
         }
 
-        timing.finish("cache-probe")
         let cache = try await Cache(root: cacheRoot)
 
         let resolved = try await PackageResolver.resolveOrLoad(
@@ -754,7 +735,6 @@ enum CLIRunner {
             progress: cli.quiet ? nil : ResolutionProgressReporter()
         )
 
-        timing.finish("load-pins")
         if !cli.quiet {
             ResolvedFile.print(resolved)
         }
@@ -766,19 +746,15 @@ enum CLIRunner {
                 progress: cli.quiet ? nil : RestoreProgressReporter(),
                 disableSandbox: cli.disableSandbox
             )
-            timing.finish("restore-sources")
             try await maybeWritePackageInfoCache(
                 cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved,
                 mirrors: mirrors
             )
-            timing.finish("package-info")
             try await WorkspaceRestorer.writeWorkspaceState(
                 packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
                 disableSandbox: cli.disableSandbox,
                 sourceCacheDirectory: cache.root
             )
-
-            timing.finish("workspace-state")
 
             // With the pins restored, confirm they still satisfy the manifest the
             // same way SwiftPM does. SwiftPM reuses the workspace state we just
@@ -793,7 +769,6 @@ enum CLIRunner {
                     disableSandbox: cli.disableSandbox,
                     scmToRegistryTransformation: try scmToRegistryTransformation(cli)
                 )
-                timing.finish("validate-lockfile")
             }
         }
     }

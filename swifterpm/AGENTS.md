@@ -49,8 +49,8 @@
 - Bind cached output bytes to the input record, and capture inputs before evaluation. If inputs change during evaluation, do not publish a cache entry for that evaluation.
 - All manifest dumps belong under the root scratch directory, outside materialized package roots. Local checkouts and registry roots can be replaced even when their sources are unchanged. Normalize declared paths for cache keys, keep them for evaluation, and use canonical paths for cycle detection and invalidation. Workspace-state writes prune obsolete per-package entries while retaining current pins, local dependencies and source-control cache paths.
 - Probe the toolchain lazily, at most once per invocation, including failures. Unavailable identities make caching unavailable without blocking manifest evaluation.
-- `--report-timings` reports installation phase durations without changing the manifest environment. Preserve the native forced-lockfile check.
-- The generated `SwifterPMCoreTests` target adds focused manifest/cache and CLI parsing coverage; broader CLI runner tests remain in the SwifterPM pipeline. Generate `SwifterPMCore SwifterPMCoreTests` and run the relevant suites through Xcode for focused validation.
+- Preserve the native forced-lockfile check.
+- The generated `SwifterPMCoreTests` target adds focused manifest/cache coverage; broader CLI runner tests remain in the SwifterPM pipeline. Generate `SwifterPMCore SwifterPMCoreTests` and run the relevant suites through Xcode for focused validation.
 
 ## CI
 

@@ -19,9 +19,7 @@ enum ManifestCache {
         func value() async throws -> String {
             if let result { return try await result.value }
             let result = Task {
-                var timing = ResolutionTiming()
-                defer { timing.finish("toolchain") }
-                return try await probe()
+                try await probe()
             }
             self.result = result
             return try await result.value
@@ -35,16 +33,13 @@ enum ManifestCache {
     static func withContext<T>(
         packageDirectory: URL,
         scratchDirectory: URL?,
-        reportTimings: Bool = false,
         toolchain: ToolchainIdentity = ToolchainIdentity(),
         operation: () async throws -> T
     ) async throws -> T {
         return try await $toolchain.withValue(toolchain) {
             try await $rootPackageDirectory.withValue(packageDirectory.standardizedFileURL) {
                 try await $scratchDirectory.withValue(scratchDirectory ?? packageDirectory.appendingPathComponent(".build")) {
-                    try await ResolutionTiming.$isEnabled.withValue(reportTimings) {
-                        try await operation()
-                    }
+                    try await operation()
                 }
             }
         }

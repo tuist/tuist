@@ -139,8 +139,6 @@ scratch directory, so identical fresh checkouts can reuse retained caches. Older
 refresh once on upgrade. Manifests that read arbitrary external files still require
 explicit cache invalidation; SwifterPM does not trace those reads.
 
-Use `--report-timings` (or `tuist install --report-timings`) to report installation phase durations.
-
 > [!IMPORTANT]
 > Cache `~/.cache/swifterpm` (or `$XDG_CACHE_HOME/swifterpm`). Without it, every continuous-integration run is a cold run.
 

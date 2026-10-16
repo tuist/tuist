@@ -32,7 +32,6 @@ enum WorkspaceRestorer {
         progress: RestoreProgressReporter?,
         disableSandbox: Bool = false
     ) async throws {
-        var timing = ResolutionTiming()
         let scratchLock = try await PathLock.acquire(
             at: scratchDir.appendingPathComponent(".swifterpm.lock")
         )
@@ -65,7 +64,6 @@ enum WorkspaceRestorer {
         )
 
         let (sourceResults, registryResults) = try await (restoredSources, restoredRegistry)
-        timing.finish("restore.materialize-sources")
 
         try await restoreBinaryArtifacts(
             scratchDir: scratchDir,
@@ -76,7 +74,6 @@ enum WorkspaceRestorer {
             disableSandbox: disableSandbox,
             progress: progress
         )
-        timing.finish("restore.binary-artifacts-and-manifests")
 
         guard let progress else { return }
         for (identity, source) in sourceResults {
