@@ -39,6 +39,10 @@ This directory contains database migrations and other private assets.
 ## Guardrails
 - Regenerate Gettext `.pot` templates with `mix gettext.extract` (without `--merge`) after moving translated calls as well as changing strings: CI checks source-line references too. Commit generated `.pot` changes only; never edit `.po` translations.
 - If you change stored customer data, update `server/data-export.md`.
+- Xcode 27.1 RC retirement uses forward-only, idempotent profile and unclaimed
+  queued-job statements. Exclude claims by both reserved and executed job IDs.
+  It requires an already-deployed stable chart plus post-rollout reconciliation;
+  follow `infra/runner-image/xcode-27.1-retirement.md` at repository root.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
 - REAPI cache output hints default to empty strings for historical rows and older Kura nodes. Append physical ClickHouse columns in schema order; these identifiers correlate profile descriptions and are never repository source links.
 - The Origin installation migration creates indexes concurrently and validates its provider constraint separately after adding it without validation, so existing connection writes are not blocked by an index build or constraint scan. The installation column keeps its UUID type when its nullability changes.
