@@ -59,7 +59,7 @@ struct AtlasApp: App {
                         if let server = authentication.server {
                             AtlasSettingsView(
                                 server: server,
-                                accounts: AtlasAIAccounts(request: authentication.aiAccounts),
+                                accounts: authentication.accountSettings,
                                 signOut: authentication.signOut
                             )
                         }
@@ -69,5 +69,6 @@ struct AtlasApp: App {
                 }
             }
         }
+        .tint(AtlasSettingsStyle.tint)
     }
 }

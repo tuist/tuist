@@ -256,7 +256,7 @@ ui_testing = true
 [[target]]
 name = "AtlasSettingsAndroidPreview"
 kind = "android_binary"
-srcs = ["previews/android/**/*.kt", "android/src/dev/tuist/atlas/AtlasAIAccounts.kt", "android/src/dev/tuist/atlas/AtlasAuthentication.kt"]
+srcs = ["previews/android/**/*.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsScreen.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsModel.kt", "android/src/dev/tuist/atlas/AtlasAuthentication.kt"]
 deps = ["./AtlasAuthAndroid"]
 
 [target.attrs]

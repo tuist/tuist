@@ -38,8 +38,11 @@ struct AtlasAIAccountsTests {
                     started.continuation.yield(())
                 }
             }
-            cancelled = request["login_id"] as? String
-            return Data("{\"status\":\"cancelled\"}".utf8)
+            if request["action"] as? String == "cancel_chatgpt" {
+                cancelled = request["login_id"] as? String
+                return Data("{\"status\":\"cancelled\"}".utf8)
+            }
+            return metadata
         }
         let start = Task { await accounts.startChatGPT() }
         for await _ in started.stream { break }
@@ -89,6 +92,85 @@ struct AtlasAIAccountsTests {
         #expect(disconnected == "claude")
     }
 
+    @Test func cancellationRefreshesCredentialsAfterAPollWonTheRace() async {
+        let started = AsyncStream<Void>.makeStream()
+        var finish: CheckedContinuation<Data, Never>?
+        var configured = false
+        let accounts = AtlasAIAccounts { request in
+            switch request["action"] as? String {
+            case "start_chatgpt": return login
+            case "poll_chatgpt":
+                configured = true
+                return await withCheckedContinuation { continuation in
+                    finish = continuation
+                    started.continuation.yield(())
+                }
+            case "cancel_chatgpt": throw AtlasAuthenticationError(kind: "login_expired", message: "Expired")
+            default:
+                return Data("""
+                {"providers":[{"provider":"chatgpt","credential_configured":\(configured),"login_available":true}]}
+                """.utf8)
+            }
+        }
+        await accounts.startChatGPT()
+        let poll = Task { await accounts.poll() }
+        for await _ in started.stream { break }
+        await accounts.cancelLogin()
+        finish?.resume(returning: Data("{\"status\":\"connected\"}".utf8))
+        await poll.value
+        #expect(accounts.account("chatgpt")?.credentialConfigured == true)
+        #expect(accounts.login == nil && accounts.errorMessage == nil && !accounts.busy)
+    }
+
+    @Test(arguments: ["login_failed", "rejected"]) func terminalLoginFailureStopsPolling(kind: String) async {
+        var polls = 0
+        let accounts = AtlasAIAccounts { request in
+            if request["action"] as? String == "start_chatgpt" { return login }
+            polls += 1
+            throw AtlasAuthenticationError(kind: kind, message: "Sign-in failed")
+        }
+        await accounts.startChatGPT()
+        await accounts.poll()
+        #expect(polls == 1 && accounts.login == nil && accounts.errorMessage == "Sign-in failed")
+    }
+
+    @Test func failedCancellationCanBeRetriedWithoutLosingItsHandle() async {
+        var attempts = 0
+        let accounts = AtlasAIAccounts { request in
+            switch request["action"] as? String {
+            case "start_chatgpt": return login
+            case "cancel_chatgpt":
+                attempts += 1
+                #expect(request["login_id"] as? String == "test-login")
+                if attempts == 1 { throw AtlasAuthenticationError(kind: "server", message: "Try again") }
+                return Data("{}".utf8)
+            default: return metadata
+            }
+        }
+        await accounts.startChatGPT()
+        await accounts.cancelLogin()
+        #expect(accounts.login == nil && accounts.errorMessage == "Try again")
+        await accounts.retry()
+        #expect(attempts == 2 && accounts.errorMessage == nil && !accounts.busy)
+    }
+
+    @Test func lateCredentialFailureDoesNotLeakIntoAnotherPage() async {
+        let started = AsyncStream<Void>.makeStream()
+        var finish: CheckedContinuation<Data, Error>?
+        let accounts = AtlasAIAccounts { _ in
+            try await withCheckedThrowingContinuation { continuation in
+                finish = continuation
+                started.continuation.yield(())
+            }
+        }
+        let save = Task { await accounts.saveClaude("preview-only") }
+        for await _ in started.stream { break }
+        accounts.clearError()
+        finish?.resume(throwing: AtlasAuthenticationError(kind: "invalid_token", message: "Paste a Claude token"))
+        #expect(await save.value == false)
+        #expect(accounts.errorMessage == nil && !accounts.busy)
+    }
+
     @Test func unknownFailuresNeverDisplayRawErrors() async {
         let accounts = AtlasAIAccounts { _ in
             throw NSError(domain: "private", code: 1, userInfo: [NSLocalizedDescriptionKey: "secret-token"])
@@ -96,5 +178,7 @@ struct AtlasAIAccountsTests {
         await accounts.load()
         #expect(accounts.errorMessage == "Could not read the Atlas response. Try again.")
         #expect(!accounts.busy)
+        accounts.clearError()
+        #expect(accounts.errorMessage == nil)
     }
 }

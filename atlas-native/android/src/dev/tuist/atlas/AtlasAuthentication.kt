@@ -115,12 +115,7 @@ class AtlasAuthentication(
     fun restore() {
         work {
             val saved = storage.load("session") ?: return@work
-            try {
-                accept(command(JSONObject().put("operation", "restore").put("session", saved)))
-            } catch (failure: AuthFailure) {
-                if (failure.kind == "rejected") storage.delete("session")
-                throw failure
-            }
+            accept(command(JSONObject().put("operation", "restore").put("session", saved)))
         }
     }
 
@@ -158,11 +153,14 @@ class AtlasAuthentication(
     }
 
     fun signOut() {
-        work {
-            storage.delete("session")
-            storage.delete("pending")
-            main.post { server = null }
-        }
+        work { discardSession() }
+    }
+
+    private fun discardSession(removeRegistration: Boolean = false) {
+        storage.delete("session")
+        main.post { server = null }
+        storage.delete("pending")
+        if (removeRegistration) storage.delete("registration")
     }
 
     fun aiAccounts(
@@ -170,8 +168,6 @@ class AtlasAuthentication(
         completion: (Result<JSONObject>) -> Unit,
     ) {
         apiRequests += 1
-        busy = true
-        listener?.invoke()
         worker.execute {
             val result =
                 try {
@@ -182,15 +178,22 @@ class AtlasAuthentication(
                     val request = JSONObject(action.toString()).put("operation", "ai_accounts").put("session", restored)
                     Result.success(command(request))
                 } catch (error: AuthFailure) {
+                    if (error.kind == "rejected") {
+                        try {
+                            discardSession(removeRegistration = true)
+                            main.post { errorMessage = error.message }
+                        } catch (_: Exception) {
+                            main.post { errorMessage = "Could not delete rejected Atlas credentials. Try again." }
+                        }
+                    }
                     Result.failure(error)
                 } catch (_: Exception) {
                     Result.failure(IllegalStateException("Could not access secure Atlas credentials. Try again."))
                 }
             main.post {
                 apiRequests -= 1
-                busy = apiRequests > 0
                 completion(result)
-                listener?.invoke()
+                if ((result.exceptionOrNull() as? AuthFailure)?.kind == "rejected") listener?.invoke()
                 if (closing && apiRequests == 0) worker.shutdown()
             }
         }
@@ -222,7 +225,7 @@ class AtlasAuthentication(
             } catch (error: AuthFailure) {
                 if (error.kind == "rejected") {
                     try {
-                        storage.delete("registration")
+                        discardSession(removeRegistration = true)
                     } catch (_: Exception) {
                         // Preserve the credential failure without exposing storage details.
                     }
@@ -232,7 +235,7 @@ class AtlasAuthentication(
                 failure = "Could not access secure Atlas credentials. Try again."
             }
             main.post {
-                busy = apiRequests > 0
+                busy = false
                 errorMessage = failure
                 listener?.invoke()
                 deferredCallback?.let { url ->

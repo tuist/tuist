@@ -154,6 +154,10 @@ pub(super) fn response_failure(status: u16, bytes: &[u8]) -> crate::AuthError {
             "unavailable",
             "ChatGPT sign-in has not been enabled by your Atlas administrator.",
         ),
+        (_, Some("chatgpt_login_failed")) => (
+            "login_failed",
+            "ChatGPT sign-in was not completed. Start again.",
+        ),
         (_, Some("login_in_progress")) => (
             "login_in_progress",
             "A ChatGPT sign-in is already pending. Cancel it or wait for it to expire.",

@@ -28,6 +28,8 @@ final class AtlasAIAccounts: ObservableObject {
     private let request: Request
     private var generation = 0
     private var loginDeadline: ContinuousClock.Instant?
+    private var cancellationId: String?
+    private var errorGeneration = 0
     private let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -37,6 +39,12 @@ final class AtlasAIAccounts: ObservableObject {
     init(request: @escaping Request) { self.request = request }
 
     func account(_ provider: String) -> AtlasAIAccount? { accounts.first { $0.provider == provider } }
+
+    func clearError() { errorGeneration += 1; errorMessage = nil }
+
+    func retry() async {
+        if cancellationId != nil { await cancelLogin() } else { await load() }
+    }
 
     func load() async {
         activeRequests += 1
@@ -51,31 +59,42 @@ final class AtlasAIAccounts: ObservableObject {
 
     func saveClaude(_ token: String) async -> Bool {
         guard !busy else { return false }
+        let context = errorGeneration
         activeRequests += 1
         defer { activeRequests -= 1 }
         do {
             _ = try await request(["action": "connect_claude", "token": token])
             await load()
             return true
-        } catch { show(error); return false }
+        } catch {
+            if context == errorGeneration { show(error) }
+            return false
+        }
     }
 
     func startChatGPT() async {
         guard !busy, login == nil else { return }
+        if cancellationId != nil {
+            await cancelLogin()
+            guard !busy, login == nil, cancellationId == nil else { return }
+        }
         activeRequests += 1
         let current = generation
+        let context = errorGeneration
         defer { activeRequests -= 1 }
         do {
             let data = try await request(["action": "start_chatgpt"])
             let started = try decoder.decode(AtlasDeviceLogin.self, from: data)
             if current != generation {
-                _ = try await request(["action": "cancel_chatgpt", "login_id": started.id])
+                await cancel(started.id)
                 return
             }
             loginDeadline = ContinuousClock().now.advanced(by: .seconds(900))
             login = started
             errorMessage = nil
-        } catch { show(error) }
+        } catch {
+            if context == errorGeneration { show(error) }
+        }
     }
 
     func poll() async {
@@ -106,7 +125,7 @@ final class AtlasAIAccounts: ObservableObject {
                 guard generation == current, !Task.isCancelled else { return }
                 show(error)
                 if let failure = error as? AtlasAuthenticationError,
-                   ["login_expired", "sign_in_required"].contains(failure.kind) {
+                   ["login_expired", "login_failed", "sign_in_required", "rejected"].contains(failure.kind) {
                     login = nil
                     return
                 }
@@ -116,16 +135,25 @@ final class AtlasAIAccounts: ObservableObject {
 
     func cancelLogin() async {
         generation += 1
-        let pending = login
+        let pending = login?.id ?? cancellationId
         login = nil
         guard let pending else { return }
         activeRequests += 1
         defer { activeRequests -= 1 }
+        await cancel(pending)
+    }
+
+    private func cancel(_ id: String) async {
+        cancellationId = id
+        var failure: Error?
         do {
-            _ = try await request(["action": "cancel_chatgpt", "login_id": pending.id])
+            _ = try await request(["action": "cancel_chatgpt", "login_id": id])
         } catch {
-            if (error as? AtlasAuthenticationError)?.kind != "login_expired" { show(error) }
+            if (error as? AtlasAuthenticationError)?.kind != "login_expired" { failure = error }
         }
+        if failure == nil && cancellationId == id { cancellationId = nil }
+        await load()
+        if let failure { show(failure) }
     }
 
     func disconnect(_ provider: String) async {

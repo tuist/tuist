@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.view.Menu
@@ -16,22 +17,37 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.Toolbar
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 
 class MainActivity : Activity() {
     private lateinit var authentication: AtlasAuthentication
     private var settings: AtlasAIAccountsScreen? = null
+    private var accounts: AtlasAIAccountsModel? = null
+    private var recoveredLoginId: String? = null
+
+    private data class Retained(
+        val authentication: AtlasAuthentication,
+        val accounts: AtlasAIAccountsModel?,
+    )
+
     private var restoreSettings = false
+    private var unregisterSettingsBack: (() -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         title = getString(R.string.app_name)
-        authentication = (lastNonConfigurationInstance as? AtlasAuthentication) ?: AtlasAuthentication(this)
+        val retained = lastNonConfigurationInstance as? Retained
+        authentication = retained?.authentication ?: AtlasAuthentication(this)
+        accounts = retained?.accounts
+        recoveredLoginId = if (retained?.accounts == null) savedInstanceState?.getString("chatgpt_login_id") else null
         restoreSettings = savedInstanceState?.getBoolean("settings") == true
-        if (lastNonConfigurationInstance == null && intent.data == null) authentication.restore()
+        if (retained == null && intent.data == null) authentication.restore()
         if (savedInstanceState == null) handleCallback(intent)
     }
 
-    override fun onRetainNonConfigurationInstance(): Any = authentication
+    override fun onRetainNonConfigurationInstance(): Any = Retained(authentication, accounts)
 
     override fun onStart() {
         super.onStart()
@@ -45,12 +61,15 @@ class MainActivity : Activity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        outState.putBoolean("settings", settings != null)
+        outState.putBoolean("settings", settings != null || restoreSettings)
+        outState.putString("chatgpt_login_id", accounts?.pendingLoginId ?: recoveredLoginId)
         super.onSaveInstanceState(outState)
     }
 
     override fun onDestroy() {
-        settings?.close()
+        settings?.close(cancelPending = !isChangingConfigurations)
+        if (!isChangingConfigurations && settings == null) accounts?.takeIf { it.pendingLoginId != null }?.load()
+        unregisterSettingsBack?.invoke()
         if (!isChangingConfigurations) authentication.close()
         super.onDestroy()
     }
@@ -76,7 +95,9 @@ class MainActivity : Activity() {
         if (authentication.server == null) {
             settings?.close()
             settings = null
-            actionBar?.setDisplayHomeAsUpEnabled(false)
+            accounts = null
+            updateSettingsBack()
+            setActionBar(null)
             setContentView(
                 AtlasLoginView(
                     this,
@@ -158,22 +179,25 @@ class MainActivity : Activity() {
                     text = "Sections currently open in your browser, which may ask you to sign in separately."
                 },
             )
-            button("Settings") { showSettings() }
         }
-        if (authentication.busy) content.addView(TextView(this).apply { text = "Signing in…" })
+        if (authentication.busy) content.addView(TextView(this).apply { text = "Updating session…" })
         authentication.errorMessage?.let { message -> content.addView(TextView(this).apply { text = message }) }
-        setContentView(
+        val toolbar = Toolbar(this)
+        setActionBar(toolbar)
+        val scroll =
             ScrollView(this).apply {
+                addView(content, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            }
+        setContentView(
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
                 setOnApplyWindowInsetsListener { view, insets ->
-                    view.setPadding(
-                        insets.systemWindowInsetLeft,
-                        insets.systemWindowInsetTop,
-                        insets.systemWindowInsetRight,
-                        insets.systemWindowInsetBottom,
-                    )
+                    view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, 0)
+                    scroll.setPadding(0, 0, 0, insets.systemWindowInsetBottom)
                     insets
                 }
-                addView(content, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+                addView(toolbar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+                addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
             },
         )
     }
@@ -211,14 +235,20 @@ class MainActivity : Activity() {
 
     private fun showSettings() {
         val server = authentication.server ?: return
+        val model = accounts ?: AtlasAIAccountsModel(recoveredLoginId, authentication::aiAccounts)
+        accounts = model
+        recoveredLoginId = null
         val screen =
-            AtlasAIAccountsScreen(this, server, authentication::aiAccounts, ::openBrowser) {
+            AtlasAIAccountsScreen(this, server, model, ::openBrowser, ::leaveSettings) {
                 settings?.close()
                 settings = null
+                accounts = null
+                updateSettingsBack()
                 actionBar?.setDisplayHomeAsUpEnabled(false)
                 authentication.signOut()
             }
         settings = screen
+        updateSettingsBack()
         actionBar?.setDisplayHomeAsUpEnabled(true)
         invalidateOptionsMenu()
         setContentView(screen.view)
@@ -229,8 +259,19 @@ class MainActivity : Activity() {
         if (settings?.back() == true) return
         settings?.close()
         settings = null
+        updateSettingsBack()
         actionBar?.setDisplayHomeAsUpEnabled(false)
         render()
+    }
+
+    private fun updateSettingsBack() {
+        unregisterSettingsBack?.invoke()
+        unregisterSettingsBack = null
+        if (Build.VERSION.SDK_INT >= 33 && settings != null) {
+            val callback = OnBackInvokedCallback { leaveSettings() }
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
+            unregisterSettingsBack = { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback) }
+        }
     }
 
     private fun selfHostedPrompt() {

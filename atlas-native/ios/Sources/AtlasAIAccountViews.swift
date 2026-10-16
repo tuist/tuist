@@ -1,4 +1,16 @@
 import SwiftUI
+import UIKit
+
+enum AtlasSettingsStyle {
+    static let tint = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 102 / 255, green: 199 / 255, blue: 232 / 255, alpha: 1)
+            : UIColor(red: 8 / 255, green: 124 / 255, blue: 170 / 255, alpha: 1)
+    })
+    static let onTint = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark ? .black : .white
+    })
+}
 
 private enum AtlasAIService: String {
     case claude, chatgpt
@@ -32,7 +44,7 @@ private struct AtlasServiceHeader: View {
     var body: some View {
         VStack(spacing: 12) {
             AtlasServiceIcon(service: service, size: 64)
-            Text(title).font(.title2.bold())
+            Text(title).font(.title2.bold()).accessibilityAddTraits(.isHeader)
             Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
         }
         .multilineTextAlignment(.center)
@@ -45,7 +57,7 @@ private struct AtlasServiceHeader: View {
 
 struct AtlasSettingsView: View {
     let server: URL
-    @StateObject var accounts: AtlasAIAccounts
+    @ObservedObject var accounts: AtlasAIAccounts
     var signOut: () -> Void
 
     var body: some View {
@@ -56,6 +68,7 @@ struct AtlasSettingsView: View {
                         .foregroundStyle(.tint)
                         .frame(width: 36, height: 36)
                         .background(.tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 9))
+                        .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Atlas server")
                         Text(server.host() ?? server.absoluteString)
@@ -63,6 +76,7 @@ struct AtlasSettingsView: View {
                     }
                 }
                 .padding(.vertical, 4)
+                .accessibilityElement(children: .combine)
             }
             Section {
                 accountLink(.claude) { AtlasClaudeAccountView(accounts: accounts) }
@@ -75,7 +89,7 @@ struct AtlasSettingsView: View {
             if let message = accounts.errorMessage {
                 Section {
                     Label(message, systemImage: "exclamationmark.circle").foregroundStyle(.red)
-                    Button("Try again") { Task { await accounts.load() } }.disabled(accounts.busy)
+                    Button("Try again") { Task { await accounts.retry() } }.disabled(accounts.busy)
                 }
             }
             Section {
@@ -87,6 +101,7 @@ struct AtlasSettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .tint(AtlasSettingsStyle.tint)
         .task { await accounts.load() }
         .refreshable { await accounts.load() }
     }
@@ -101,7 +116,7 @@ struct AtlasSettingsView: View {
                     Text(service.title).font(.body.weight(.medium))
                     HStack(spacing: 4) {
                         if accounts.account(service.rawValue)?.credentialConfigured == true {
-                            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).accessibilityHidden(true)
                         }
                         Text(status(service.rawValue)).foregroundStyle(.secondary)
                     }
@@ -111,6 +126,7 @@ struct AtlasSettingsView: View {
                 if accounts.busy && accounts.accounts.isEmpty { ProgressView() }
             }
             .padding(.vertical, 5)
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -123,6 +139,8 @@ struct AtlasSettingsView: View {
 struct AtlasClaudeAccountView: View {
     @ObservedObject var accounts: AtlasAIAccounts
     @State private var token = ""
+    @State private var saving = false
+    @State private var visible = false
     @State private var confirmingDisconnect = false
     @Environment(\.dismiss) private var dismiss
 
@@ -141,6 +159,10 @@ struct AtlasClaudeAccountView: View {
                     .autocorrectionDisabled()
                     .privacySensitive()
                     .accessibilityIdentifier("claude-token")
+                    .accessibilityLabel("Claude subscription token")
+                    .submitLabel(.done)
+                    .onSubmit(save)
+                    .disabled(saving)
                     .padding(.vertical, 8)
             } header: {
                 Text("Subscription token")
@@ -159,7 +181,13 @@ struct AtlasClaudeAccountView: View {
                             .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
                         Text("Follow the sign-in instructions, then paste the subscription token above. " +
                              "Use a Claude subscription token, not an Anthropic API key. Subscription terms apply.")
-                        Link("Install Claude Code", destination: URL(string: "https://code.claude.com/docs/en/setup")!)
+                        Link(destination: URL(string: "https://code.claude.com/docs/en/setup")!) {
+                            Text("Install Claude Code")
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("claude-install-link")
                     }
                     .font(.subheadline)
                     .padding(.vertical, 8)
@@ -179,25 +207,46 @@ struct AtlasClaudeAccountView: View {
         .navigationBarTitleDisplayMode(.inline)
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) {
-            Button {
-                let value = token
-                token = ""
-                Task { if await accounts.saveClaude(value) { dismiss() } }
-            } label: {
-                Text(accounts.busy ? "Saving…" : "Save connection").frame(maxWidth: .infinity)
+            Button(action: save) {
+                HStack {
+                    if saving { ProgressView().tint(.secondary) }
+                    Text(saving ? "Saving…" : "Save connection")
+                }
+                .frame(maxWidth: .infinity, minHeight: 24)
+                .foregroundStyle(canSave ? AtlasSettingsStyle.onTint : Color.secondary)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || accounts.busy)
+            .disabled(!canSave)
+            .frame(maxWidth: 560)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
             .background(.bar)
         }
-        .onDisappear { token = "" }
+        .tint(AtlasSettingsStyle.tint)
+        .onAppear { visible = true; accounts.clearError() }
+        .onDisappear { visible = false; token = ""; accounts.clearError() }
         .confirmationDialog("Disconnect Claude?", isPresented: $confirmingDisconnect, titleVisibility: .visible) {
             Button("Disconnect", role: .destructive) { Task { await accounts.disconnect("claude") } }
         } message: {
             Text("Atlas will delete its saved credentials. Revoke access separately in your Claude account settings.")
+        }
+    }
+
+    private var canSave: Bool {
+        !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !accounts.busy && !saving
+    }
+
+    private func save() {
+        guard canSave else { return }
+        let value = token
+        token = ""
+        saving = true
+        Task {
+            let saved = await accounts.saveClaude(value)
+            saving = false
+            if saved && visible { dismiss() }
         }
     }
 }
@@ -218,6 +267,9 @@ struct AtlasChatGPTAccountView: View {
                         Text(login.userCode)
                             .font(.system(.largeTitle, design: .monospaced).weight(.semibold))
                             .textSelection(.enabled)
+                            .accessibilityIdentifier("chatgpt-device-code")
+                            .accessibilityLabel("Sign-in code")
+                            .accessibilityValue(login.userCode.map(String.init).joined(separator: " "))
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -252,7 +304,10 @@ struct AtlasChatGPTAccountView: View {
                 }
             }
             if let message = accounts.errorMessage {
-                Section { Label(message, systemImage: "exclamationmark.circle").foregroundStyle(.red) }
+                Section {
+                    Label(message, systemImage: "exclamationmark.circle").foregroundStyle(.red)
+                    Button("Try again") { Task { await accounts.retry() } }.disabled(accounts.busy)
+                }
             }
             if accounts.account("chatgpt")?.credentialConfigured == true {
                 Section {
@@ -264,8 +319,13 @@ struct AtlasChatGPTAccountView: View {
         .navigationTitle("ChatGPT")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) { actions }
+        .tint(AtlasSettingsStyle.tint)
         .task(id: accounts.login?.id) { if accounts.login != nil { await accounts.poll() } }
-        .onDisappear { Task { await accounts.cancelLogin() } }
+        .onAppear { accounts.clearError() }
+        .onDisappear {
+            accounts.clearError()
+            Task { await accounts.cancelLogin() }
+        }
         .confirmationDialog("Disconnect ChatGPT?", isPresented: $confirmingDisconnect, titleVisibility: .visible) {
             Button("Disconnect", role: .destructive) { Task { await accounts.disconnect("chatgpt") } }
         } message: {
@@ -278,32 +338,45 @@ struct AtlasChatGPTAccountView: View {
             VStack(spacing: 12) {
                 if let login = accounts.login {
                     Link(destination: login.verificationUrl) {
-                        Label("Continue to ChatGPT", systemImage: "arrow.up.right").frame(maxWidth: .infinity)
+                        Label("Continue to ChatGPT", systemImage: "arrow.up.right")
+                            .frame(maxWidth: .infinity, minHeight: 24)
+                            .foregroundStyle(AtlasSettingsStyle.onTint)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    Button("Cancel sign-in", role: .cancel) { Task { await accounts.cancelLogin() } }
+                    Button(role: .cancel) { Task { await accounts.cancelLogin() } } label: {
+                        Text("Cancel sign-in")
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
                 } else {
                     Button {
                         Task {
                             if accounts.account("chatgpt") == nil { await accounts.load() } else { await accounts.startChatGPT() }
                         }
                     } label: {
-                        Text(startLabel).frame(maxWidth: .infinity)
+                        HStack {
+                            if accounts.busy { ProgressView() }
+                            Text(startLabel)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 24)
+                        .foregroundStyle(accounts.busy ? Color.secondary : AtlasSettingsStyle.onTint)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .disabled(accounts.busy)
                 }
             }
+            .frame(maxWidth: 560)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
             .background(.bar)
         }
     }
 
     private var startLabel: String {
         if accounts.account("chatgpt") == nil { return "Load connection status" }
-        return accounts.busy ? "Starting sign-in…" : "Sign in with ChatGPT"
+        return accounts.busy ? "Please wait…" : "Sign in with ChatGPT"
     }
 }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="dev.tuist.atlas.preview">
-    <application android:label="Atlas Settings Preview" android:theme="@style/AtlasTheme" android:allowBackup="false">
-        <activity android:name="dev.tuist.atlas.preview.SettingsPreviewActivity" android:exported="true">
+    <application android:label="Atlas Settings Preview" android:theme="@style/AtlasTheme" android:allowBackup="false" android:enableOnBackInvokedCallback="true" android:supportsRtl="true">
+        <activity android:name="dev.tuist.atlas.preview.SettingsPreviewActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

@@ -157,6 +157,7 @@ fn api_failures_are_sanitized_and_do_not_reject_the_oauth_refresh_credential() {
         (422, "invalid_claude_token", "invalid_token"),
         (503, "chatgpt_not_configured", "unavailable"),
         (409, "login_in_progress", "login_in_progress"),
+        (502, "chatgpt_login_failed", "login_failed"),
         (429, "anything", "rate_limited"),
         (410, "anything", "login_expired"),
         (502, "private-response", "server"),
