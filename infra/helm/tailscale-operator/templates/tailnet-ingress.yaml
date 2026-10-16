@@ -1,4 +1,4 @@
-{{- if .Values.tailnetIngress.enabled }}
+{{- if and .Values.tailnetIngress.enabled (include "tuist-tailscale-operator.crdsInstalled" .) }}
 # A ProxyGroup that exposes in-cluster Services to the tailnet, for peers that
 # cannot reach a standalone `tailscale.com/expose` proxy directly.
 #
@@ -27,12 +27,6 @@ metadata:
   labels:
     app.kubernetes.io/name: tuist-tailscale-operator
     app.kubernetes.io/component: tailnet-ingress
-  annotations:
-    # Same hook ordering as the other ProxyClasses: the CRD ships in the
-    # subchart's templates/, so a CR applied in the main pass races it.
-    helm.sh/hook: post-install,post-upgrade
-    helm.sh/hook-weight: "4"
-    helm.sh/hook-delete-policy: before-hook-creation
 spec:
   staticEndpoints:
     nodePort:
@@ -48,10 +42,6 @@ metadata:
   labels:
     app.kubernetes.io/name: tuist-tailscale-operator
     app.kubernetes.io/component: tailnet-ingress
-  annotations:
-    helm.sh/hook: post-install,post-upgrade
-    helm.sh/hook-weight: "5"
-    helm.sh/hook-delete-policy: before-hook-creation
 spec:
   type: ingress
   replicas: {{ .Values.tailnetIngress.proxyGroup.replicas }}
