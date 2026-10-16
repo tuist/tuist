@@ -41,7 +41,6 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.Coverage.TestSources
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
-  alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.Test
 
   @doc """
@@ -924,16 +923,12 @@ defmodule Tuist.Tests.Coverage.Commits do
     |> run_scheme(Keyword.get(opts, :search, ""), Keyword.get(opts, :scheme))
   end
 
-  # The runs whose coverage counts: totals with executable lines, published
-  # no earlier than the period starts, since a run's coverage lands after it.
+  # The runs whose coverage counts: the ones that gathered coverage
+  # (`Coverage.gathered_runs_query/1`, the rule `runs/2` reads them by),
+  # published no earlier than the period starts, since a run's coverage
+  # lands after it.
   defp covered_runs_query(project_id, scope, opts) do
-    query =
-      from(c in CoverageRun,
-        where: c.project_id == ^project_id,
-        group_by: c.test_run_id,
-        having: fragment("argMax(?, ?)", c.executable_lines, c.version) > 0,
-        select: c.test_run_id
-      )
+    query = project_id |> Coverage.gathered_runs_query() |> select([c], c.test_run_id)
 
     query =
       case {scope, Keyword.get(opts, :since)} do

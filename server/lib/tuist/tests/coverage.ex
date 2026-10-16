@@ -497,6 +497,13 @@ defmodule Tuist.Tests.Coverage do
     })
   end
 
+  @doc """
+  The project's `coverage_runs` grouped by run and kept to the runs that
+  gathered coverage, as `run_totals_query/2` keeps them, for a reader that
+  selects its own columns.
+  """
+  def gathered_runs_query(project_id), do: run_totals_base(project_id, nil)
+
   defp run_totals_base(project_id, nil) do
     from(c in CoverageRun,
       where: c.project_id == ^project_id,
