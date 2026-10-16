@@ -226,11 +226,12 @@ SHA-1 `d8b1d16397e6f2faab34bd48b19692a3f7797b9d`. A cached RC
 archive matching that checksum can populate the stable `xcode-xips:27.1`
 mirror tag without another Apple download. Build the stable base with
 `xcode_version=27.1` so its bundle path and downstream tags name the
-stable version. The RC leaves the active build list. Existing RC pools
-pin the published `macos-27-1-rc-0.34.1` runner image until the stable
-runner-image release is available; the fleet-enablement follow-up must
-migrate saved RC Runner Profiles and remove the RC catalog entry and
-image override together. The catalog default stays 26.6.
+stable version. Stable replaces RC in the build list and managed catalog;
+the migration moves saved RC Runner Profiles and unclaimed queued jobs
+before Helm removes the RC pools. The production deployment waits for a
+reachable runner-image release containing every active profile before
+running migrations or rolling the fleet. Direct deploys reject a release
+missing an active profile. The catalog default stays 26.6.
 
 Exact tags are immutable: a patch bump from Apple (26.4.1 to
 26.4.2) republishes under a *new* tag, never over an existing one,
@@ -258,9 +259,11 @@ automatically roll customer runners to Xcode 26.5. To promote:
    `xcodeOverrides` entry in each of the three managed env values
    files. The catalog entry is what renders the RunnerPool and what
    the Runner Profiles dropdown offers; `default: true` marks the
-   version `runs-on: tuist-macos` resolves to. Land this after the
-   `runner-image@` release that publishes the new profile: a catalog
-   entry deployed before it renders a pool whose image does not exist.
+   version `runs-on: tuist-macos` resolves to. The production cascade
+   waits for a reachable `runner-image@` release containing every active
+   profile before deployment, so the build list and catalog can change
+   together. Direct deploys fail before migrations if no compatible
+   release exists.
 4. Bump the inline `XCODE_VERSION` on
    `server-production-deployment.yml`'s
    `release-xcresult-processor-image.Build image` step in the same

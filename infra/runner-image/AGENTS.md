@@ -669,14 +669,15 @@ channel a later `Release Candidate 2` moves. The longer
 `release-candidate` would push the 12 vCPU shape pool's
 `tuist.dev/runner-pool` label past Kubernetes' 63-character limit.
 
-Xcode 27.1 stable replaces `27.1-rc` in the build profiles. Both are
-build `27A9275`, but the stable image uses `/Applications/Xcode_27.1.app`
-and its own `macos-27-1` runner tag. Until saved RC profiles migrate to
-stable, the existing RC pools pin `macos-27-1-rc-0.34.1` rather than
-following releases that no longer publish RC images. After the stable
-runner-image release, enable its Helm catalog entry, migrate saved RC
-profiles, and remove the RC catalog entry and image override together.
-The catalog default remains 26.6.
+Xcode 27.1 stable replaces `27.1-rc` in the build profiles and managed
+catalog. Both are build `27A9275`, but the stable image uses
+`/Applications/Xcode_27.1.app` and its own `macos-27-1` runner tag. The
+migration moves saved RC profiles and unclaimed queued jobs to stable
+before the RC pools are removed. The production cascade waits for a
+reachable runner-image release containing every active profile before
+deploying, so profile publication and catalog replacement can land in
+one change. Direct deploys fail before migrations when no compatible
+release exists. The catalog default remains 26.6.
 
 The file lives under `infra/runner-image/**`, so editing it triggers
 a runner-image release. Adding a profile builds only that profile;
@@ -719,9 +720,11 @@ Bumping the Xcode customers see on their runners:
    `XCODE_VERSION` to match** — that image must be at least as new
    as the newest runner profile.
    Commit with a `feat(runner-image): ...` message so the release
-   builds the new profile. Once that `runner-image@` release is
-   published, add the matching `runnersFleet.xcodeVersions` entry in
-   `values-managed-common.yaml` so the fleet renders a pool for it.
+   builds the new profile. The matching `runnersFleet.xcodeVersions`
+   entry and per-env overrides can land in the same change: the
+   production cascade waits for a reachable release containing all
+   active profiles before deploying. Direct deployments reject
+   incompatible releases before migrations.
 3. Once customers have migrated off an older Xcode, drop its entry
    from `profiles.json` (and its `values-managed-common.yaml` pool).
    The `:macos-<dashes>` tag stays in GHCR for any lingering pin; the

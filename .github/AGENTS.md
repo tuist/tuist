@@ -28,6 +28,14 @@ inline `XCODE_VERSION` at least as new as the newest stable runner profile,
 without following beta or RC channels. Publish the matching macOS + Xcode base
 before releasing the processor.
 
+Runner catalog changes can land with their build profiles. The production
+cascade waits up to 150 minutes for a reachable runner-image release containing
+every active profile before either canary or hotfix deployment. Direct deploys
+use the same compatibility resolver and fail before migrations if none exists.
+Keep profile publication verification before release tagging. Resolver tests run
+with the unprivileged runner-image PR tests via
+`python3 .github/scripts/resolve-runner-image-version.test.py`.
+
 Stable cache certificate readiness is an operator bootstrap check documented in
 `infra/cache-dns/README.md`, not a gate on routine server deployments. The Kura
 controller verifies TLS before advertising stable endpoints.

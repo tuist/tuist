@@ -806,6 +806,15 @@ jobs:
             done
           }
 
+          # The highest tag can predate a newly added Xcode. Fail before
+          # migrations or Helm if no release contains the active profiles.
+          # The production cascade waits for that release independently.
+          if [ -x .github/scripts/resolve-runner-image-version.sh ]; then
+            runner_image_semver="$(.github/scripts/resolve-runner-image-version.sh "$DEPLOY_SHA")"
+          else
+            runner_image_semver="$(resolve 'runner-image@')"
+          fi
+
           {
             echo "XCRESULT_PROCESSOR_TAG=$(resolve 'xcresult-processor-image@' 'tuist/tuist-xcresult-processor')"
             # Hosted Kura follows main like the server: the newest canary
@@ -817,7 +826,7 @@ jobs:
             kura_runtime_tag="$(resolve 'kura@' 'tuist/kura' merged '^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$')"
             [ -n "$kura_runtime_tag" ] || kura_runtime_tag="$(resolve 'kura@' 'tuist/kura' any)"
             echo "KURA_RUNTIME_TAG=$kura_runtime_tag"
-            echo "RUNNER_IMAGE_SEMVER=$(resolve 'runner-image@')"
+            echo "RUNNER_IMAGE_SEMVER=$runner_image_semver"
             echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@' 'tuist/tuist-linux-runner')"
             echo "CAPI_TAG=$(resolve 'capi-scaleway@' 'tuist/capi-provider-scaleway-applesilicon')"
             echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@' 'tuist/tuist-runners-controller')"

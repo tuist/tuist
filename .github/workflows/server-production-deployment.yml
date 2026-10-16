@@ -1442,17 +1442,45 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
           build-args: |
             MIX_ENV=prod
+
+  runner-images:
+    name: Wait for compatible runner images
+    needs: build
+    if: ${{ always() && needs.build.result == 'success' }}
+    runs-on: tuist-linux
+    timeout-minutes: 155
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked jq"
+          cache: "false"
+      - name: Wait for a release containing every active profile
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 9000))
+          until .github/scripts/resolve-runner-image-version.sh "$GITHUB_SHA"; do
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::Timed out waiting for the runner-image release. No migration or fleet rollout was started."
+              exit 1
+            fi
+            sleep 60
+            git fetch --tags origin --quiet
+          done
+
   # --------------------------------------------------------------------------
   # Canary leg - deploys the pre-built image. Skipped on a hotfix: the
   # fast-path ships straight to production without waiting on the canary
   # cascade.
   canary:
-    needs: [check-releases, build, tag-infra-releases, kura-release]
+    needs: [check-releases, build, tag-infra-releases, kura-release, runner-images]
     # `build` runs under `if: always()` so it survives the many skipped sibling
     # release jobs. A plain-`if` dependent of an `always()`-guarded job gets
     # caught by skip-propagation and is itself skipped even when `build`
     # succeeded, so the whole deploy tail must re-assert success explicitly.
-    if: ${{ always() && needs.build.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    if: ${{ always() && needs.build.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.runner-images.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
     # server-deployment.yml's build-kura-runtime job requests id-token: write;
     # a reusable workflow's permissions are validated against the caller at
     # startup, so this leg must grant the callee's full permission union.
@@ -1753,8 +1781,8 @@ jobs:
   # `always() && needs.build.result == 'success'` guard mirrors `canary`
   # (see its comment) so this leg is not skip-propagated away.
   production-hotfix:
-    needs: [check-releases, build, tag-infra-releases, kura-release]
-    if: ${{ always() && needs.build.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
+    needs: [check-releases, build, tag-infra-releases, kura-release, runner-images]
+    if: ${{ always() && needs.build.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.runner-images.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
     # See `canary` above: grant the callee's full permission union.
     permissions:
       contents: read
