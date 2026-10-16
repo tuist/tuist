@@ -78,11 +78,13 @@ This flag ensures that dependencies are resolved using the exact versions pinned
 
 #### Dependency installation on continuous-integration runners
 
-Tuist uses [SwifterPM](https://github.com/tuist/swifterpm) for `tuist install`. SwifterPM maintains a local source cache and restores package checkouts from it when possible. On an ephemeral continuous-integration runner, every job starts without that cache, so installation follows the native [Swift Package Manager](https://www.swift.org/package-manager/) path. No additional configuration is needed.
+For generated projects using Tuist's package integration, `tuist install` uses [SwifterPM](https://github.com/tuist/swifterpm). SwifterPM maintains a local source cache and restores package checkouts from it when possible. On an ephemeral continuous-integration runner without retained cache storage, every job starts without that cache, so installation follows the native [Swift Package Manager](https://www.swift.org/package-manager/) path. No additional configuration is needed.
 
 Package manifests can read process environment variables while declaring dependencies. The package-manifest cache therefore accounts for those variables. Job-specific values can change on every run without changing the declared dependencies, which would otherwise prevent a cache hit.
 
-Tuist handles this automatically for [GitLab](https://docs.gitlab.com/ci/variables/predefined_variables/), [GitHub Actions](https://docs.github.com/actions/reference/workflows-and-actions/variables), [Bitrise](https://docs.bitrise.io/en/bitrise-ci/references/available-environment-variables/), and [Codemagic](https://docs.codemagic.io/yaml-basic-configuration/environment-variables/). When it recognizes one of those environments, it hides only volatile run metadata, such as GitHub Actions run identifiers, retry counts, and per-step temporary paths, before evaluating `Package.swift` and calculating package-manifest cache keys. Branch, reference, commit, workflow, and other configuration values remain visible. These defaults apply on both ephemeral and persistent runners.
+`packageManifestEnvironment` defaults to `.automatic`; no `Tuist.swift` override or explicit exclusion list is needed for a typical CI workflow. On GitHub Actions, it excludes `GITHUB_*`, `ACTIONS_*`, `RUNNER_*`, and `SSH_AUTH_SOCK` from cached manifest evaluation, while preserving `GITHUB_ACTIONS`, `RUNNER_OS`, and `RUNNER_ARCH`. This also excludes branch, reference, commit, and workflow metadata. Toolchain settings and application-defined inputs remain visible and participate in cache keys.
+
+Tuist also filters selected volatile execution identifiers on GitLab, Bitrise, and Codemagic, and excludes Tuist cache-signing grants and runner pod identities on every provider. These defaults apply on both ephemeral and persistent runners. The expanded GitHub defaults and manifest-cache reuse across fresh checkout timestamps are available in `4.214.0-canary.33`; use that release or a later release containing these changes.
 
 If a package manifest intentionally uses one of the automatic exclusions to declare dependencies, restore that variable explicitly in `Tuist.swift`:
 
@@ -100,15 +102,29 @@ let tuist = Tuist(
 )
 ```
 
-Use `packageManifestEnvironment: .all` to preserve the complete process environment. You can also exclude organization-specific volatile values with `packageManifestEnvironment: .automatic(excluding: ["BUILD_RUN_*"])`. Tuist supplies the resulting environment to the package resolver as well as `Package.swift`, so never exclude credentials or another value needed to fetch a dependency. Entries can be exact names or trailing-wildcard prefixes such as `GITHUB_RUN_*`; included entries take precedence over automatic and custom exclusions.
+Use `packageManifestEnvironment: .all` to preserve the complete process environment. You can also exclude organization-specific volatile values with `packageManifestEnvironment: .automatic(excluding: ["BUILD_RUN_*"])`. The automatic policy keeps known GitHub/SSH authentication inputs available to native dependency resolution, while excluding them from cached manifest evaluation. Native resolution can also evaluate manifests; if a manifest intentionally reads those inputs, include them explicitly so both paths see the same values. Custom exclusions also apply to native resolution, so do not explicitly exclude credentials needed to fetch dependencies. Entries can be exact names or trailing-wildcard prefixes such as `GITHUB_RUN_*`; included entries take precedence over automatic and custom exclusions.
 
 #### Faster warm installations on persistent runners
 
-This is an optional optimization for a runner whose local cache survives between jobs. Keep SwifterPM's source cache at `~/.cache/swifterpm`, or at `$XDG_CACHE_HOME/swifterpm` when `XDG_CACHE_HOME` is set. With a warm source cache, pass `--cached-directory-materialization=symlink` to link each worktree to the cached checkouts instead of copying them into `.build`:
+For generated projects using `tuist install`, retain these directories between macOS jobs:
+
+| Directory | Retained contents |
+| --- | --- |
+| `.build` beside `Package.swift` | Dependency workspace state and manifest caches. For `Tuist/Package.swift`, retain `Tuist/.build`. |
+| `~/.cache/swifterpm` | Downloaded package sources. The default is `$XDG_CACHE_HOME/swifterpm` when `XDG_CACHE_HOME` is set. |
+| `~/Library/Caches/org.swift.swiftpm/manifests` | Native SwiftPM compiled manifests, reused when native evaluation is needed. |
+
+Pass the source-cache path explicitly and select symlink materialization to reuse checkouts without copying them into each job's workspace:
 
 ```bash
-tuist install --cached-directory-materialization=symlink
+tuist install --force-resolved-versions \
+  --cache-path "$HOME/.cache/swifterpm" \
+  --cached-directory-materialization=symlink
 ```
+
+Keep running installation on cache hits: retained state may not contain the current commit's pinned dependencies. Leave `packageManifestEnvironment` at its `.automatic` default; refreshed checkout timestamps and ordinary GitHub job metadata do not require a custom exclusion list.
+
+On Tuist Runners, follow the <.localized_link href="/guides/features/runners/cache-volumes#generated-projects">generated-project cache-volume example</.localized_link> to retain all three paths across fresh jobs. On a persistent machine, keep the mutable `.build` directory isolated per worktree, as described below.
 
 ### Agentic coding and worktrees {#agentic-coding-and-worktrees}
 

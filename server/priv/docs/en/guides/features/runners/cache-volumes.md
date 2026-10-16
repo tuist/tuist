@@ -51,6 +51,57 @@ The action exposes a `cache-hit` output and also works in ordinary GitHub Action
 container jobs, without privileged mode or extra workflow permissions. Native
 jobs and containers running as different users have separate volumes.
 
+### Generated projects {#generated-projects}
+
+For Tuist-generated projects that install package dependencies with `tuist install`, retain the dependency workspace, SwifterPM source cache, and native SwiftPM manifest cache. Use the <.localized_link href="/guides/features/projects/best-practices#dependency-installation-on-continuous-integration-runners">default automatic manifest environment</.localized_link>; no custom exclusions are needed for this workflow.
+
+The following example assumes `Tuist/Package.swift`, a committed `Tuist/Package.resolved`, and Tuist pinned in `mise.toml`. The cache behavior described here is available in `4.214.0-canary.33`; pin that release or a later release containing these changes. Select your normal macOS runner profile; a larger runner is not required for cache volumes.
+
+```yaml
+name: Generate project
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: tuist-macos
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Identify the toolchain
+        id: toolchain
+        run: echo "key=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - uses: tuist/cache-volume@v1
+        with:
+          key: generated-workspace-${{ github.job }}-${{ steps.toolchain.outputs.key }}-${{ hashFiles('Tuist/Package.swift') }}
+          path: Tuist/.build
+      - uses: tuist/cache-volume@v1
+        with:
+          key: generated-sources-${{ steps.toolchain.outputs.key }}
+          path: ~/.cache/swifterpm
+      - uses: tuist/cache-volume@v1
+        with:
+          key: generated-manifests-${{ steps.toolchain.outputs.key }}
+          path: ~/Library/Caches/org.swift.swiftpm/manifests
+      - name: Install dependencies
+        run: |
+          tuist install --force-resolved-versions \
+            --cache-path "$HOME/.cache/swifterpm" \
+            --cached-directory-materialization=symlink
+      - run: tuist generate --no-open
+```
+
+If `Package.swift` is at the repository root, use `.build` and `hashFiles('Package.swift')` instead. Keep the mounted workspace path consistent with any custom scratch-directory setting. Ignore the workspace symlink without a trailing slash in `.gitignore`, for example `Tuist/.build`.
+
+The workspace key separates jobs and package structure; the source and compiled-manifest caches can be shared across jobs using the same toolchain. Keep `Package.resolved` out of the keys so unchanged dependencies remain reusable when other pins change. Always run installation with `--force-resolved-versions`, including on cache hits, to validate the current lockfile. Each volume is saved independently.
+
+Attach the volumes before any command populates these paths, and remove archive-cache restore/save steps for the same directories. The first eligible successful default-branch run seeds the volumes; subsequent jobs can reuse them under the <.localized_link href="/guides/features/runners/cache-volumes#saving-changes">normal saving policy</.localized_link>. If storage is unavailable, the action warns and supplies an empty job-local directory, and installation populates it normally.
+
 ## Buildkite {#buildkite}
 
 Add the plugin to a step on your Tuist Linux or macOS queue. It attaches after checkout,

@@ -121,6 +121,10 @@ jobs:
 > We recommend using `mise use --pin` in your Tuist projects to pin the version of Tuist across environments. The command will create a `.tool-versions` file containing the version of Tuist.
 
 
+#### Dependency volumes for generated projects {#generated-project-dependency-volumes}
+
+For generated projects using `tuist install` on Tuist macOS runners, retain dependency workspace state, package sources, and compiled manifests with <.localized_link href="/guides/features/runners/cache-volumes#generated-projects">cache volumes</.localized_link>. The example uses the default `.automatic` manifest environment and validates the lockfile on every job.
+
 ### Xcode Cloud {#xcode-cloud}
 
 In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode projects as the source of truth, you'll need to add a [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) script to install Tuist and run the commands you need, for example `tuist generate`:
