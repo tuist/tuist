@@ -9,9 +9,15 @@ enum CargoCacheDetailsReport {
         let kind: String?
         let status: String?
         let operation: String?
-        let duration_ns: UInt64?
-        let size_bytes: UInt64?
+        let durationNanoseconds: UInt64?
+        let sizeBytes: UInt64?
         let object: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case record, key, name, kind, status, operation, object
+            case durationNanoseconds = "duration_ns"
+            case sizeBytes = "size_bytes"
+        }
     }
 
     static func read(root: URL) -> [String: Any]? {
@@ -66,7 +72,7 @@ enum CargoCacheDetailsReport {
                     adapters[row.key] = row.kind
                 case "timing":
                     guard timings.count < 5000, let operation = row.operation, ["read", "write"].contains(operation),
-                          let duration = row.duration_ns, duration <= 9_000_000_000_000_000
+                          let duration = row.durationNanoseconds, duration <= 9_000_000_000_000_000
                     else { truncated = true; continue }
                     let previous = timings[row.key, default: [:]][operation, default: 0]
                     timings[row.key, default: [:]][operation] = previous + Double(duration)
@@ -81,8 +87,8 @@ enum CargoCacheDetailsReport {
                           let status = row.status,
                           (operation == "download" ? ["downloaded", "failed"] : ["uploaded", "present", "failed"])
                           .contains(status),
-                          row.key.hasPrefix("sha256:"), let size = row.size_bytes, size <= 9_000_000_000_000_000,
-                          let duration = row.duration_ns, duration <= 9_000_000_000_000_000
+                          row.key.hasPrefix("sha256:"), let size = row.sizeBytes, size <= 9_000_000_000_000_000,
+                          let duration = row.durationNanoseconds, duration <= 9_000_000_000_000_000
                     else { truncated = true; continue }
                     objects.append([
                         "key": row.key,

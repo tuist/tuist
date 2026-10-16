@@ -1,8 +1,12 @@
 import FileSystem
 import Foundation
 import Path
-import TuistCore
 import TuistREAPI
+#if os(Linux)
+    import TuistCoreCache
+#else
+    import TuistCore
+#endif
 
 struct CargoCompilationCache {
     let invocation: CargoCacheInvocation
@@ -110,7 +114,13 @@ struct CargoCompilationCache {
             let elapsed = Date().timeIntervalSince(started)
             for digest in blobs.keys {
                 let status: String
-                if !upload.available.contains(digest) { status = "failed" } else if let uploaded = upload.uploaded { status = uploaded.contains(digest) ? "uploaded" : "present" } else { continue }
+                if !upload.available.contains(digest) {
+                    status = "failed"
+                } else if let uploaded = upload.uploaded {
+                    status = uploaded.contains(digest) ? "uploaded" : "present"
+                } else {
+                    continue
+                }
                 measurement.transfer(digest, operation: "upload", status: status, duration: elapsed)
             }
             guard upload.available == Set(blobs.keys) else {

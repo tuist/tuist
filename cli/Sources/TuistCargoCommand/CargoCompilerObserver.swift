@@ -54,10 +54,18 @@ struct CargoCompilerObserver {
                 switch event {
                 case let .standardOutput(bytes):
                     FileHandle.standardOutput.write(Data(bytes))
-                    if stdout.count + stderr.count + bytes.count <= 1_000_000 { stdout.append(contentsOf: bytes) } else { bounded = false }
+                    if stdout.count + stderr.count + bytes.count <= 1_000_000 {
+                        stdout.append(contentsOf: bytes)
+                    } else {
+                        bounded = false
+                    }
                 case let .standardError(bytes):
                     FileHandle.standardError.write(Data(bytes))
-                    if stdout.count + stderr.count + bytes.count <= 1_000_000 { stderr.append(contentsOf: bytes) } else { bounded = false }
+                    if stdout.count + stderr.count + bytes.count <= 1_000_000 {
+                        stderr.append(contentsOf: bytes)
+                    } else {
+                        bounded = false
+                    }
                     pending.append(contentsOf: bytes)
                     if pending.count > 1_000_000 { pending.removeAll() }
                     diagnostics += Self.diagnostics(from: &pending, remaining: 100 - diagnostics.count)

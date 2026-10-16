@@ -41,11 +41,7 @@ public struct TuistCommand: AsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
-        CommandConfiguration(
-            commandName: "tuist",
-            abstract: "Build better apps faster.",
-            groupedSubcommands: groupedSubcommands
-        )
+        CommandConfiguration(commandName: "tuist", abstract: "Build better apps faster.", groupedSubcommands: groupedSubcommands)
     }
 
     private static var groupedSubcommands: [CommandGroup] {

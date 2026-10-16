@@ -2,8 +2,12 @@ import Crypto
 import FileSystem
 import Foundation
 import TuistCAS
-import TuistCore
 import TuistServer
+#if os(Linux)
+    import TuistCoreCache
+#else
+    import TuistCore
+#endif
 
 struct CargoCacheSetup {
     private let cacheDirectoriesProvider: any CacheDirectoriesProviding

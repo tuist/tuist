@@ -154,9 +154,16 @@ struct CargoCacheInvocation {
             var token = ""
             escaped = false
             for character in line[line.index(after: separator)...] {
-                if escaped { token.append(character); escaped = false } else if character == "\\" { escaped = true } else if character.isWhitespace {
+                if escaped {
+                    token.append(character)
+                    escaped = false
+                } else if character == "\\" {
+                    escaped = true
+                } else if character.isWhitespace {
                     if !token.isEmpty { result.append(token); token = "" }
-                } else { token.append(character) }
+                } else {
+                    token.append(character)
+                }
             }
             guard !escaped else { throw CacheError.unsupported }
             if !token.isEmpty { result.append(token) }
