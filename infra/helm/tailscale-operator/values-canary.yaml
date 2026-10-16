@@ -19,12 +19,14 @@ connector:
 tailnetIngress:
   enabled: true
   proxyGroup:
+    hostnamePrefix: tailnet-ingress-canary
     tags:
       - "tag:tuist-k8s-canary"
 
 macminiEgress:
   enabled: true
   proxyGroup:
+    hostnamePrefix: macmini-egress-canary
     tags:
       - "tag:tuist-k8s-canary"
   # Per-machine Services are created dynamically by the CAPI

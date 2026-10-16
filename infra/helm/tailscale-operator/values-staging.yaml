@@ -77,12 +77,14 @@ connector:
 tailnetIngress:
   enabled: true
   proxyGroup:
+    hostnamePrefix: tailnet-ingress-staging
     tags:
       - "tag:tuist-k8s-staging"
 
 macminiEgress:
   enabled: true
   proxyGroup:
+    hostnamePrefix: macmini-egress-staging
     tags:
       - "tag:tuist-k8s-staging"
   # Per-machine Services are created dynamically by the CAPI
