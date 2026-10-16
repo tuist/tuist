@@ -8,7 +8,7 @@
 # The receiver's tailnet name below is served by the `tailnet-ingress`
 # ProxyGroup rather than a standalone proxy, which the macOS VMs only reached
 # through a DERP relay. Switching needs the standalone proxy's device deleted
-# by hand; see the runbook in the PR that set this.
+# by hand; see the runbook in #14233.
 alloyReceiverTailnet:
   proxyGroup: tailnet-ingress
 
