@@ -959,9 +959,9 @@ differs otherwise:
 4. **Every minute**, as the controller's account through the eaton driver's
    session: `status.activeSource` (1, 2, or 0 for neither), `status.inputs`
    (each source's `state`, one of `good`, `derated`, `outOfRange`,
-   `missing`, `unknown`, with `voltage`, `frequency` and the card's raw
-   `detail`), `status.preferredSource`, the device's and the card's
-   identity, and `status.lastObserved`. Every change of the active source
+   `missing`, `unknown`, with `voltage`, `frequency`, `current` and the
+   card's raw `detail`), `status.outputs` (below), `status.preferredSource`,
+   the device's and the card's identity, and `status.lastObserved`. Every change of the active source
    between two reads sets `status.lastTransfer`, with 0 for neither source,
    and counts in `capt_rackats_observed_transfers_total{from,to}`. The event
    tells them apart: `Transferred` between the sources (Warning when it moved
@@ -995,11 +995,29 @@ not observed either: `Redundant=Unknown`, reason `Standalone`.
 `capt_rackats_redundant`, `capt_rackats_input_good{source}`,
 `capt_rackats_input_state{source,state}`,
 `capt_rackats_input_voltage_volts{source}`,
+`capt_rackats_input_current_amps{source}`, `capt_rackats_output_current_amps{output}`,
+`capt_rackats_output_voltage_volts{output}`,
+`capt_rackats_output_active_power_watts{output}`,
+`capt_rackats_output_apparent_power_va{output}`,
 `capt_rackats_last_observed_timestamp_seconds`, and the counter
 `capt_rackats_observed_transfers_total{from,to}`. These exist only while the
 last read succeeded; `capt_rackats_observed` is 1 or 0 for whether it did.
 `capt_rackats_active_source` and `capt_rackats_redundant` are left out while
 the card does not say which source powers the load.
+
+**Outputs.** Each observation also reads `powerDistributions/1/outputs`, and
+each listed output's measures, embedded in it or at its own `measures`
+resource. No collection documents outputs for a transfer switch, so this is
+how the controller learns what the card serves. `status.outputs` carries
+`current`, `voltage`, `activePower` and `apparentPower` when the card reports
+them as numbers, and every measure verbatim in `detail`, for a key the
+controller does not recognise. A card that serves no outputs, or one the
+controller cannot read, leaves `status.outputs` empty and says why in
+`status.outputsMessage`. It fails nothing else: redundancy, the active source
+and `Ready` stand without it. The output gauges exist only for a measure the
+card reported. The EATS16N's manual lists output current and voltage among its
+front-panel measures, and no active power. The input's `current` is read from
+the same `measures` object as its voltage.
 The lifecycle is `capt_rackats_ready`, `capt_rackats_adopted`,
 `capt_rackats_drifted` and `capt_rackats_certificate_changed`. The transfer
 counter counts what the controller saw between reads a minute apart: a
