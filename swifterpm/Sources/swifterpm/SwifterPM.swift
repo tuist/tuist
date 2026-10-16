@@ -147,7 +147,8 @@ public struct SwifterPM: Sendable {
                     request.cachedDirectoryMaterialization
                 ) {
                     try await ManifestCache.withContext(
-                        packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory
+                        packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory,
+                        sharedCacheDirectory: request.cacheDirectory
                     ) {
                         try await runResolution(request: request, preferResolvedFile: true)
                     }
@@ -167,7 +168,8 @@ public struct SwifterPM: Sendable {
                     request.cachedDirectoryMaterialization
                 ) {
                     try await ManifestCache.withContext(
-                        packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory
+                        packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory,
+                        sharedCacheDirectory: request.cacheDirectory
                     ) {
                         try await runResolution(request: request, preferResolvedFile: false)
                     }
@@ -182,7 +184,8 @@ public struct SwifterPM: Sendable {
                 request.cachedDirectoryMaterialization
             ) {
                 try await ManifestCache.withContext(
-                    packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory
+                    packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory,
+                    sharedCacheDirectory: request.cacheDirectory
                 ) {
                     try await runRestore(request)
                 }

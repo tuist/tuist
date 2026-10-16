@@ -135,6 +135,9 @@ enum ManifestLoader {
         }
 
         var args = ["package"]
+        if let sharedCacheDirectory = ManifestCache.sharedCacheDirectory {
+            args += ["--cache-path", sharedCacheDirectory.path]
+        }
         if disableSandbox {
             args.append("--disable-sandbox")
         }
