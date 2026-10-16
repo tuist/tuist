@@ -220,9 +220,13 @@ func (c *Client) send(ctx context.Context, frame any) error {
 	return conn.Write(writeCtx, websocket.MessageText, data)
 }
 
+// readLoop starts a goroutine per command and does not wait for them when
+// the connection ends: lifecycle operations run detached and bounded by
+// their own timeouts, and waiting would keep the node from reconnecting, or
+// from draining on shutdown, until a long snapshot or template build
+// finished. A result that outlives its connection goes out on the next one,
+// where the server ignores the unknown command id.
 func (c *Client) readLoop(ctx context.Context, conn *websocket.Conn) error {
-	var handlers sync.WaitGroup
-	defer handlers.Wait()
 	for {
 		_, data, err := conn.Read(ctx)
 		if err != nil {
@@ -238,11 +242,7 @@ func (c *Client) readLoop(ctx context.Context, conn *websocket.Conn) error {
 			c.cfg.Log.Warn("ignoring unexpected frame from server", "type", fmt.Sprintf("%T", frame))
 			continue
 		}
-		handlers.Add(1)
-		go func(cmd protocol.Command) {
-			defer handlers.Done()
-			c.handle(ctx, cmd)
-		}(*cmd)
+		go c.handle(ctx, *cmd)
 	}
 }
 

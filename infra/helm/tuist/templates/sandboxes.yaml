@@ -147,6 +147,8 @@ spec:
               value: {{ $templateTag | quote }}
             - name: PREBUILD_SHAPES
               value: {{ .Values.sandboxes.prebuildShapes | quote }}
+            - name: ALLOWED_SHAPES
+              value: {{ .Values.sandboxes.allowedShapes | quote }}
             - name: DISK_BUDGET_GIB
               value: {{ .Values.sandboxes.diskGiB | quote }}
             - name: METRICS_ADDR

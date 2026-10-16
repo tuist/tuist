@@ -27,6 +27,10 @@ import (
 
 const (
 	LogFileName = "firecracker.log"
+	// MaxLogBytes caps firecracker.log, which also receives the guest's
+	// serial console: past it the file starts over, so a guest writing to
+	// ttyS0 cannot fill the node's disk.
+	MaxLogBytes = 8 << 20
 	pidFileName = "firecracker.pid"
 	// DefaultNetNSDir is where `ip netns add` mounts namespaces.
 	DefaultNetNSDir = "/var/run/netns"
@@ -170,7 +174,7 @@ type machine struct {
 	log    *slog.Logger
 
 	cmd     *exec.Cmd
-	logFile *os.File
+	logFile *cappedLog
 	pid     atomic.Int64
 	killed  atomic.Bool
 	done    chan struct{}
@@ -190,21 +194,38 @@ func (l *FirecrackerLauncher) Launch(ctx context.Context, spec Spec) (Instance, 
 	if err := Prepare(root, spec.UID, spec.GID); err != nil {
 		return nil, fmt.Errorf("preparing jail %s: %w", root, err)
 	}
-	logFile, err := os.OpenFile(filepath.Join(root, LogFileName), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	logFile, err := openCappedLog(filepath.Join(root, LogFileName), MaxLogBytes)
 	if err != nil {
+		return nil, err
+	}
+	// Firecracker gets the write end of a pipe rather than the file, so the
+	// daemon decides how much of its output (and the guest console) reaches
+	// the disk. An *os.File keeps exec.Cmd from adding its own copy
+	// goroutine, which would hold Wait open until Firecracker exits and hide
+	// the jailer's own early exit.
+	pipeR, pipeW, err := os.Pipe()
+	if err != nil {
+		logFile.Close()
 		return nil, err
 	}
 	bin, args := Command(spec)
 	cmd := exec.Command(bin, args...)
 	cmd.Dir = root
-	cmd.Stdout = logFile
-	cmd.Stderr = logFile
+	cmd.Stdout = pipeW
+	cmd.Stderr = pipeW
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	fmt.Fprintf(logFile, "\n==== %s sandboxd spawn: %s %s\n", time.Now().UTC().Format(time.RFC3339), bin, strings.Join(args, " "))
 	if err := cmd.Start(); err != nil {
+		pipeW.Close()
+		pipeR.Close()
 		logFile.Close()
 		return nil, fmt.Errorf("starting %s: %w", bin, err)
 	}
+	pipeW.Close()
+	go func() {
+		defer pipeR.Close()
+		_, _ = io.Copy(logFile, pipeR)
+	}()
 	m := &machine{
 		spec:    spec,
 		root:    root,
@@ -230,20 +251,21 @@ func (l *FirecrackerLauncher) Launch(ctx context.Context, spec Spec) (Instance, 
 		select {
 		case err := <-parentExited:
 			if err != nil {
-				m.finish(fmt.Errorf("jailer: %w: %s", err, m.LogTail(2048)))
-				logFile.Close()
+				m.log.Warn("jailer failed", "error", err, "log", m.LogTail(2048))
+				m.finish(fmt.Errorf("jailer: %w", err))
 				return nil, m.ExitError()
 			}
 		case <-time.After(timeout):
 			m.log.Warn("jailer parent still running; continuing")
 		case <-ctx.Done():
-			_ = m.Kill(context.Background())
+			m.abort(ctx.Err())
 			return nil, ctx.Err()
 		}
 		pid, err := readPIDFile(filepath.Join(root, pidFileName))
 		if err != nil {
-			_ = m.Kill(context.Background())
-			return nil, fmt.Errorf("reading firecracker pid: %w: %s", err, m.LogTail(2048))
+			m.log.Warn("reading firecracker pid failed", "error", err, "log", m.LogTail(2048))
+			m.abort(err)
+			return nil, fmt.Errorf("reading firecracker pid: %w", err)
 		}
 		m.pid.Store(int64(pid))
 		go func() {
@@ -259,7 +281,8 @@ func (l *FirecrackerLauncher) Launch(ctx context.Context, spec Spec) (Instance, 
 	if err := m.client.WaitReady(ctx, timeout); err != nil {
 		select {
 		case <-m.done:
-			return nil, fmt.Errorf("firecracker exited before its API came up: %w: %s", m.ExitError(), m.LogTail(2048))
+			m.log.Warn("firecracker exited before its API came up", "error", m.ExitError(), "log", m.LogTail(2048))
+			return nil, fmt.Errorf("firecracker exited before its API came up: %w", m.ExitError())
 		default:
 		}
 		_ = m.Kill(context.Background())
@@ -329,6 +352,17 @@ func (m *machine) ExitError() error {
 	return m.exitErr
 }
 
+// abort kills a launch that failed before anything watches the process:
+// Kill would wait for an exit nobody reports, so the exit is recorded here.
+func (m *machine) abort(err error) {
+	m.killed.Store(true)
+	_ = syscall.Kill(-m.cmd.Process.Pid, syscall.SIGKILL)
+	if pid := m.PID(); pid > 0 && pid != m.cmd.Process.Pid {
+		_ = syscall.Kill(pid, syscall.SIGKILL)
+	}
+	m.finish(err)
+}
+
 // Kill sends SIGKILL to the process group and the tracked pid and waits for
 // the exit to be observed.
 func (m *machine) Kill(ctx context.Context) error {
@@ -357,7 +391,7 @@ func (m *machine) LogTail(n int64) string {
 }
 
 func LogTail(path string, n int64) string {
-	f, err := os.Open(path)
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
 	if err != nil {
 		return ""
 	}
@@ -373,4 +407,82 @@ func LogTail(path string, n int64) string {
 	}
 	data, _ := io.ReadAll(f)
 	return strings.TrimSpace(string(data))
+}
+
+// cappedLog appends to a file the jailed Firecracker could tamper with, so
+// it never follows a symlink, and starts the file over once it exceeds max
+// bytes.
+type cappedLog struct {
+	mu     sync.Mutex
+	file   *os.File
+	size   int64
+	max    int64
+	closed bool
+}
+
+func openCappedLog(path string, max int64) (*cappedLog, error) {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|syscall.O_NOFOLLOW, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return nil, err
+	}
+	l := &cappedLog{file: file, max: max, size: info.Size()}
+	if l.size > max {
+		if err := l.restart(); err != nil {
+			file.Close()
+			return nil, err
+		}
+	} else if _, err := file.Seek(0, io.SeekEnd); err != nil {
+		file.Close()
+		return nil, err
+	}
+	return l, nil
+}
+
+func (l *cappedLog) restart() error {
+	if err := l.file.Truncate(0); err != nil {
+		return err
+	}
+	if _, err := l.file.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	l.size = 0
+	n, err := fmt.Fprintf(l.file, "==== %s sandboxd: log exceeded %d bytes and was truncated\n", time.Now().UTC().Format(time.RFC3339), l.max)
+	l.size += int64(n)
+	return err
+}
+
+// Write never fails towards the copier: dropping console output is better
+// than blocking Firecracker on a full pipe.
+func (l *cappedLog) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed {
+		return len(p), nil
+	}
+	if l.size+int64(len(p)) > l.max {
+		if err := l.restart(); err != nil {
+			return len(p), nil
+		}
+		if int64(len(p)) > l.max/2 {
+			p = p[int64(len(p))-l.max/2:]
+		}
+	}
+	n, _ := l.file.Write(p)
+	l.size += int64(n)
+	return len(p), nil
+}
+
+func (l *cappedLog) Close() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed {
+		return nil
+	}
+	l.closed = true
+	return l.file.Close()
 }

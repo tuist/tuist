@@ -45,7 +45,8 @@ reflink, so rootfs clones are instant copy-on-write):
   workspace.ext4      sparse raw ext4 mounted at /workspace in the guest
   mem                 hard link to the template memfile, replaced by the sandbox's own memory file on the first pause
   snapshot            template vmstate, replaced on the first pause
-  run/firecracker.socket, v.sock, firecracker.log
+  run/firecracker.socket, v.sock
+  firecracker.log     Firecracker and guest console output, drained through a pipe and started over past 8 MiB
   metadata.json       {id, template, tag, vcpus, memory_mb, state, generation}
 ```
 
@@ -86,16 +87,22 @@ resolve both cluster Services and public names through the pod's NAT.
   `set_time`, `configure {hostname, dns, format_workspace: true}` (the guest
   flushes the block device's cached sectors, formats `/dev/vdb` and mounts it
   at `/workspace`) and `ping`. Reports `boot_ms`.
-- `pause {sandbox_id}`: refuse if a worker or exec is still running. `PATCH
+- `pause {sandbox_id}`: refuse if a worker or exec is still running, and
+  from then on refuse new execs and workers until the pause ends. `PATCH
   /vm Paused`, `PUT /snapshot/create` (Full) into `mem.new` + `snapshot.new`,
-  kill Firecracker, rename over `mem` and `snapshot`, tear down the netns.
-  Reports `snapshot_ms` and `mem_bytes`.
+  kill Firecracker, tear down the netns, rename over `mem` and `snapshot`.
+  Reports `snapshot_ms` and `mem_bytes`. If Firecracker does not die the
+  sandbox moves to `error` (`sandbox_died`); if the renames fail it becomes
+  `paused` with `cold_boot` set.
 - `resume {sandbox_id}`: recreate the netns with the same tap name and
   addresses, spawn jailer + Firecracker, `PUT /snapshot/load` with the
   sandbox's own `mem` (`File` backend, `resume_vm: true`), then `set_time`,
-  `configure` (flushes ARP) and `ping`. Reports `restore_ms`.
+  `configure` (flushes ARP) and `ping`. Reports `restore_ms`. Resuming a
+  sandbox that is already running succeeds without doing anything, so a
+  retried resume whose first answer was lost is harmless.
 - `delete {sandbox_id}`: kill the VM if running, tear down the netns, remove
-  the jail dir.
+  the jail dir. Deleting an id the node does not hold succeeds and removes
+  whatever is left on disk under it.
 - `exec` streams a command's output back to the server; `start_worker` runs
   `/usr/local/bin/sbx-worker` with the Anthropic environment variables and
   emits `worker_exited` when it ends; `stop_worker` sends SIGTERM and waits.
@@ -303,7 +310,8 @@ agent so the manager runs end to end without KVM).
 | `FIRECRACKER_BIN`, `JAILER_BIN` | `/usr/local/bin/{firecracker,jailer}` | |
 | `JAILER_ENABLED` | `true` | `false` runs Firecracker directly under `ip netns exec` with absolute paths (debug only). |
 | `JAIL_UID_BASE` | `10000` | Jail uid/gid = base + slot index. |
-| `PREBUILD_SHAPES` | | Comma-separated shapes to build at startup, e.g. `2x4096,4x8192`. |
+| `PREBUILD_SHAPES` | | Comma-separated shapes to build at startup, e.g. `2x4096,4x8192`. Must be a subset of `ALLOWED_SHAPES` when that is set. |
+| `ALLOWED_SHAPES` | | The only shapes `create` and template builds accept. Empty accepts any valid shape. |
 | `DISK_BUDGET_GIB` | `0` | Share of the data filesystem jails may hold exclusively, reported as `disk.budget_bytes` for the server's placement; `0` reports no budget. |
 | `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. |
 | `BOOT_TIMEOUT`, `TEMPLATE_BOOT_TIMEOUT` | `60s`, `2m` | Agent readiness after a restore / a cold template boot. |
@@ -357,9 +365,11 @@ template memfile for generation 0), and Firecracker treats the disks as
 part of a snapshot, so that image is never restored: the sandbox becomes
 `paused` with `cold_boot` set when its rootfs, workspace and kernel are
 present, and `error` otherwise. The next `resume` of a `cold_boot` sandbox
-boots the kernel on its own disks instead of loading a snapshot (processes
-are gone, files survive with the guest replaying its journals as after a
-power loss), discards the stale `mem` and `snapshot`, and clears the flag;
+boots the kernel on its own disks instead of loading a snapshot, discards
+the stale `mem` and `snapshot`, and clears the flag. For the guest this is a
+power cut: processes are gone, data it had flushed survives with its
+journals replayed on mount, and writes still in its page cache (up to ext4's
+5 s commit interval) are lost;
 the next pause writes a fresh pair. A cleanly paused sandbox keeps its
 memory image, because the pause path pauses the VM, snapshots, then kills
 it, so nothing touches the disks afterwards. Jail directories without
@@ -378,7 +388,18 @@ from the WebSocket that delivered them, with their own timeouts, so a
 dropped connection cannot abort a snapshot half-way; `exec` is cancelled
 with the connection (its output has nowhere to go), which kills the guest
 process. Events that cannot be delivered are queued (bounded) for the next
-connection.
+connection. The read loop does not wait for in-flight commands when a
+connection ends, so a long snapshot or template build never keeps the node
+from reconnecting or from draining on shutdown; a result that outlives its
+connection is sent on the next one, where the server drops the unknown id.
+
+The guest is untrusted (root inside the VM can replace the agent), so the
+daemon bounds what it takes from it: a vsock frame is at most 4 MiB, exec
+output past 2 MiB is not streamed to the server, worker output is logged at
+most 5000 lines of 4 KiB, and the console log is capped as above. Files in
+the jail root, which belongs to the jailed Firecracker's uid, are never
+opened through a symlink, and console output never travels to the server
+inside an error.
 
 ### Metrics
 

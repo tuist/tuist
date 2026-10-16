@@ -197,8 +197,16 @@ func (c *conn) send(req request) error {
 	return err
 }
 
+// MaxFrameBytes bounds one frame from the guest. The guest is untrusted
+// (root inside the VM can replace the agent), and an unterminated line
+// would otherwise grow the daemon's heap inside the memory cgroup it
+// shares with every guest on the node.
+const MaxFrameBytes = 4 << 20
+
+var ErrFrameTooLarge = errors.New("agent frame exceeds the size limit")
+
 func (c *conn) recv() (response, error) {
-	line, err := c.reader.ReadBytes('\n')
+	line, err := readFrame(c.reader, MaxFrameBytes)
 	if err != nil {
 		return response{}, err
 	}
@@ -207,6 +215,23 @@ func (c *conn) recv() (response, error) {
 		return response{}, fmt.Errorf("decoding agent frame: %w", err)
 	}
 	return resp, nil
+}
+
+func readFrame(r *bufio.Reader, max int) ([]byte, error) {
+	var frame []byte
+	for {
+		chunk, err := r.ReadSlice('\n')
+		if len(frame)+len(chunk) > max {
+			return nil, fmt.Errorf("%w (%d bytes)", ErrFrameTooLarge, max)
+		}
+		frame = append(frame, chunk...)
+		if err == nil {
+			return frame, nil
+		}
+		if !errors.Is(err, bufio.ErrBufferFull) {
+			return nil, err
+		}
+	}
 }
 
 // call sends one request and reads exactly one response, applying the

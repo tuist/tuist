@@ -2,9 +2,12 @@ package sandbox
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
@@ -44,7 +47,7 @@ func (m Metadata) Info(workerRunning bool) protocol.SandboxInfo {
 }
 
 func LoadMetadata(root string) (Metadata, error) {
-	data, err := os.ReadFile(filepath.Join(root, MetadataFile))
+	data, err := readNoFollow(filepath.Join(root, MetadataFile))
 	if err != nil {
 		return Metadata{}, err
 	}
@@ -58,7 +61,10 @@ func LoadMetadata(root string) (Metadata, error) {
 	return m, nil
 }
 
-// Save writes the metadata atomically (temp file + rename).
+// Save writes the metadata atomically (temp file + rename). The jail root
+// belongs to the jailed Firecracker's uid, so neither the temp file nor the
+// metadata file is ever opened through a symlink; rename replaces a planted
+// link rather than following it.
 func (m *Metadata) Save(root string) error {
 	m.UpdatedAt = time.Now().UTC()
 	data, err := json.MarshalIndent(m, "", "  ")
@@ -67,8 +73,28 @@ func (m *Metadata) Save(root string) error {
 	}
 	path := filepath.Join(root, MetadataFile)
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o644); err != nil {
+	if err := os.Remove(tmp); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	file, err := os.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY|syscall.O_NOFOLLOW, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := file.Write(append(data, '\n')); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Close(); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)
+}
+
+func readNoFollow(path string) ([]byte, error) {
+	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return io.ReadAll(file)
 }

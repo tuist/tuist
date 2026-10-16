@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"syscall"
 	"time"
@@ -68,6 +69,17 @@ func main() {
 	if err != nil {
 		logger.Error("invalid PREBUILD_SHAPES", "error", err)
 		os.Exit(1)
+	}
+	allowedShapes, err := template.ParseShapes(os.Getenv("ALLOWED_SHAPES"))
+	if err != nil {
+		logger.Error("invalid ALLOWED_SHAPES", "error", err)
+		os.Exit(1)
+	}
+	for _, shape := range prebuild {
+		if len(allowedShapes) > 0 && !slices.Contains(allowedShapes, shape) {
+			logger.Error("PREBUILD_SHAPES lists a shape ALLOWED_SHAPES does not offer", "shape", shape.String())
+			os.Exit(1)
+		}
 	}
 	if serverURL != "" && nodeName == "" {
 		logger.Error("NODE_NAME is required when SERVER_URL is set (downward API)")
@@ -159,6 +171,7 @@ func main() {
 	manager := sandbox.New(sandbox.Config{
 		JailBase: jailBase, FirecrackerBin: firecrackerBin, JailerBin: jailerBin, JailerEnabled: jailerEnabled,
 		UIDBase: uidBase, DNS: dns, DefaultTemplate: templateName, DefaultTemplateTag: defaultTemplate.Tag, BootTimeout: bootTimeout,
+		AllowedShapes: allowedShapes,
 	}, sandbox.Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: netManager, Slots: slots, Agent: agent,
 		Metrics: metrics, Events: events, Log: logger,

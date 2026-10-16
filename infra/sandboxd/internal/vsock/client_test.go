@@ -276,3 +276,15 @@ func TestWaitReadyRetriesUntilAgentAnswers(t *testing.T) {
 		t.Fatalf("attempts %d", attempts)
 	}
 }
+
+func TestReadFrameRejectsOversizedFrames(t *testing.T) {
+	small := strings.Repeat("a", 1000) + "\n"
+	got, err := readFrame(bufio.NewReaderSize(strings.NewReader(small), 64), 4096)
+	if err != nil || string(got) != small {
+		t.Fatalf("frame larger than the buffer but under the limit: %q, %v", got, err)
+	}
+	endless := strings.Repeat("b", 10000)
+	if _, err := readFrame(bufio.NewReaderSize(strings.NewReader(endless), 64), 4096); !errors.Is(err, ErrFrameTooLarge) {
+		t.Fatalf("unterminated frame past the limit: %v", err)
+	}
+}
