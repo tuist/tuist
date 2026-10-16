@@ -509,9 +509,12 @@
                     clean: .any,
                     arguments: .any,
                     passthroughXcodeBuildArguments: .matching { arguments in
-                        arguments.contains("CLANG_COVERAGE_MAPPING=$(TUIST_BINARY_CACHE_COVERAGE_MAPPING_$(TUIST_BINARY_CACHE_COVERAGE))")
+                        arguments
+                            .contains(
+                                "CLANG_COVERAGE_MAPPING=$(TUIST_BINARY_CACHE_COVERAGE_MAPPING_$(TUIST_BINARY_CACHE_COVERAGE))"
+                            )
                             && arguments.contains { $0.hasPrefix("TUIST_BINARY_CACHE_COVERAGE_SWIFT_FLAGS_YES=")
-                                && $0.contains("-coverage-prefix-map \(temporaryDirectory.pathString)=/TUIST_SOURCE_ROOT")
+                                && $0.contains("-coverage-prefix-map \"\(temporaryDirectory.pathString)=/TUIST_SOURCE_ROOT\"")
                             }
                     }
                 )
