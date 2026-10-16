@@ -1553,13 +1553,13 @@ replica count, so 32 GiB is one enterprise instance at its starting claim in
 `scw-fr-par-runners` (two replicas) and two in `ber1-runners` (one replica).
 Both are a single box, so the remedy is freeing reservations or giving the
 site another storage node rather than adding a node to a pool. Runner-cache
-claims grow well past their starting claim (50 to 128 GiB was typical in
+claims grow well past their starting claim (16 to 100 GiB on the rack in
 October 2026), so a single-box private region is effectively out of room for
 growth long before it reaches 32; the rule is the floor below which the region
-cannot take another account at all. A private region refusing a claim growth
-no longer blocks the account's other regions (the growth applies where it is
-admitted and the private region catches up later), so its refusals are visible
-only here and on `tuist_kura_lifecycle_claim_apply_refused_count`.
+cannot take another account at all. A full private region also refuses the
+claim growth of every account it hosts in all of that account's regions, as
+any governed region does, which shows on
+`tuist_kura_lifecycle_claim_apply_refused_count`.
 
 **Why nothing fired while us-west, us-central and eu-west filled (2026-09-11 to
 2026-09-17).** Admission headroom on 2026-09-17 07:00 UTC was eu-west 4 GiB,

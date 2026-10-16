@@ -123,18 +123,6 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
     assert %ClaimProposal{status: :open} = ClaimProposals.open_proposal_for(account)
   end
 
-  test "reports a runner-cache region that kept its claim while the rest of the account moved" do
-    expect(Kura, :apply_claim_proposal, fn %ClaimProposal{}, "automatic" ->
-      {:ok, %{claim_size: "20Gi", raised: [], lowered: [], deferred: [{"scw-fr-par-runners", :capacity_unplaceable}]}}
-    end)
-
-    ref = TelemetryCapture.attach_event_handlers([Telemetry.event_name_claim_apply_refused()])
-
-    assert :ok = perform_job(ClaimSizingWorker, %{})
-
-    assert_receive {_event, ^ref, %{count: 1}, %{region: "scw-fr-par-runners", reason: "capacity_unplaceable"}}
-  end
-
   test "counts only capacity refusals, which are the ones that name a region" do
     # A stale proposal is superseded by the next sweep rather than refused, and
     # names no region, so it must not read as a region that stopped moving.

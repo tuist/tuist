@@ -30,10 +30,7 @@ defmodule Tuist.Kura.ClaimSizing do
   Each region is measured against the claim its own instances hold, since that
   is the ring its telemetry describes. The account keeps one claim, the largest
   any region needs, so a region pinned under it that runs short is raised to it
-  even when its own ring asks for less. A private runner-cache region is the
-  exception that does not wait to run short: it falls behind the account's
-  claim only when it had no room as the rest of the account moved, so it is
-  raised to that claim on any pass that proposes nothing else.
+  even when its own ring asks for less.
 
   Windows count rollup rows, one row being one UTC day per account-region.
   Today's row is live, so a one-row window can be satisfied in minutes. Rows
@@ -114,8 +111,6 @@ defmodule Tuist.Kura.ClaimSizing do
     * `:region_claim_sizes` - optional, the claim pinned in each region, by
       region; a region missing from it is measured against
       `:current_claim_size`
-    * `:private_regions` - optional, the regions among them a claim can
-      apply after the rest of the account (`Tuist.Kura.Regions.private?/1`)
     * `:rollups` - `Tuist.Kura.StorageRollup` rows (or maps with the same
       keys) covering the policy windows
     * `:last_resized_at` - when sizing last changed this account's claim, or
@@ -129,8 +124,7 @@ defmodule Tuist.Kura.ClaimSizing do
   evaluated independently and merged conservatively: any growing region grows
   the account to the largest target, and shrinking needs every region with
   data to agree. A growth whose target the account's claim already covers
-  recommends that claim, to raise the region pinned under it, and so does a
-  private region left under it when nothing else is proposed.
+  recommends that claim, to raise the region pinned under it.
   """
   def evaluate(context, policy \\ @default_policy) do
     case Regions.parse_storage_quantity(context.current_claim_size) do
@@ -142,10 +136,6 @@ defmodule Tuist.Kura.ClaimSizing do
           evaluate_region(region, rollups, region_claim(context, region, current_bytes), context, policy)
         end)
         |> merge_verdicts(current_bytes, context, policy)
-        |> case do
-          :none -> private_catch_up(current_bytes, context, policy)
-          verdict -> verdict
-        end
 
       :error ->
         :none
@@ -680,30 +670,6 @@ defmodule Tuist.Kura.ClaimSizing do
     if short != [] and current_bytes <= quantity_bytes(ceiling(context.plan, policy)) do
       {region, _target_bytes, _claim_bytes, evidence} = Enum.max_by(short, &elem(&1, 1))
       {:grow, context.current_claim_size, Map.put(evidence, "region", region)}
-    end
-  end
-
-  # A private region under the account's claim is one that had no room when
-  # the claim last moved, which applied everywhere else. Raising it needs no
-  # reading of its own ring: the account already decided the claim. The
-  # smallest pin goes first, and never past the plan's ceiling.
-  defp private_catch_up(current_bytes, context, policy) do
-    private_regions = Map.get(context, :private_regions, [])
-
-    lagging =
-      for {region, claim} <- Map.get(context, :region_claim_sizes, %{}),
-          region in private_regions,
-          {:ok, claim_bytes} <- [Regions.parse_storage_quantity(claim)],
-          claim_bytes < current_bytes,
-          do: {region, claim, claim_bytes}
-
-    if lagging != [] and current_bytes <= quantity_bytes(ceiling(context.plan, policy)) do
-      {region, claim, _claim_bytes} = Enum.min_by(lagging, &{elem(&1, 2), elem(&1, 0)})
-
-      {:grow, context.current_claim_size,
-       %{"signal" => "private_region_below_account_claim", "region" => region, "region_claim_size" => claim}}
-    else
-      :none
     end
   end
 

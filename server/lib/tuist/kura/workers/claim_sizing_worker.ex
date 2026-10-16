@@ -98,12 +98,17 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
   # that refused, which is not necessarily the proposal's.
   defp apply_proposal(%ClaimProposal{} = proposal) do
     case Kura.apply_claim_proposal(proposal, "automatic") do
-      {:ok, outcome} ->
-        Enum.each(Map.get(outcome, :deferred, []), &report_refusal(proposal, &1))
+      {:ok, _outcome} ->
         :applied
 
       {:error, {region, reason}} ->
-        report_refusal(proposal, {region, reason})
+        Telemetry.claim_apply_refused(region, reason)
+
+        Logger.warning(
+          "[Kura.ClaimSizing] #{region} refused #{proposal.current_claim_size} -> " <>
+            "#{proposal.recommended_claim_size}: #{inspect(reason)}"
+        )
+
         :not_applied
 
       {:error, reason} ->
@@ -114,16 +119,5 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
 
         :not_applied
     end
-  end
-
-  # A private runner-cache region out of room no longer stops the rest of the
-  # account, but it refused all the same and is counted the same way.
-  defp report_refusal(%ClaimProposal{} = proposal, {region, reason}) do
-    Telemetry.claim_apply_refused(region, reason)
-
-    Logger.warning(
-      "[Kura.ClaimSizing] #{region} refused #{proposal.current_claim_size} -> " <>
-        "#{proposal.recommended_claim_size}: #{inspect(reason)}"
-    )
   end
 end

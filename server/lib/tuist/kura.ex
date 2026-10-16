@@ -525,14 +525,10 @@ defmodule Tuist.Kura do
   Every instance that holds volumes moves to the recommendation, whatever it
   held, so an account whose instances were pinned apart comes out on one
   claim: some raised, which admission has to take, others lowered, which keep
-  their caches and evict down. One transaction does all of it, so a public
-  region refusing a raise leaves every pin, the sized claim and the proposal as
-  they were. A private runner-cache region out of room does not hold the rest
-  back: its instances keep their pins, come back under `:deferred` with the
-  reason, and sizing raises them once the region has room. A proposal whose
-  only change such a region turned down stays open as a refusal. The sized
-  claim is written even when it does not change, which is what restarts the
-  evidence window on the rings the instances now run.
+  their caches and evict down. One transaction does all of it, so a region
+  refusing a raise leaves every pin, the sized claim and the proposal as they
+  were. The sized claim is written even when it does not change, which is what
+  restarts the evidence window on the rings the instances now run.
 
   A proposal whose premises no longer hold — resolved meanwhile, or the claim
   it measured moved since it was written — is marked superseded instead of
@@ -735,66 +731,41 @@ defmodule Tuist.Kura do
         {server, candidate, raised?}
       end)
 
-    with {:ok, deferred} <- admit_claim_growths(changes),
-         deferred_regions = Enum.map(deferred, &elem(&1, 0)),
-         changes =
-           Enum.reject(changes, fn {server, _candidate, raised?} -> raised? and server.region in deferred_regions end),
-         :ok <- deferred_only(changes, deferred) do
-      {raised, lowered} =
-        changes
-        |> Enum.map(fn {server, _candidate, raised?} ->
-          {server |> Server.lifecycle_changeset(%{storage_claim_size: claim_size}) |> Repo.update!(), raised?}
-        end)
-        |> Enum.split_with(fn {_server, raised?} -> raised? end)
+    case admit_claim_growths(changes) do
+      :ok ->
+        {raised, lowered} =
+          changes
+          |> Enum.map(fn {server, _candidate, raised?} ->
+            {server |> Server.lifecycle_changeset(%{storage_claim_size: claim_size}) |> Repo.update!(), raised?}
+          end)
+          |> Enum.split_with(fn {_server, raised?} -> raised? end)
 
-      %{raised: Enum.map(raised, &elem(&1, 0)), lowered: Enum.map(lowered, &elem(&1, 0)), deferred: deferred}
-    else
-      {:error, reason} -> Repo.rollback(reason)
+        %{raised: Enum.map(raised, &elem(&1, 0)), lowered: Enum.map(lowered, &elem(&1, 0))}
+
+      {:error, reason} ->
+        Repo.rollback(reason)
     end
   end
-
-  # A proposal whose only change a private region turned down changed nothing,
-  # so it stays open for the next pass rather than resolving as applied.
-  defp deferred_only([], [refusal | _deferred]), do: {:error, refusal}
-  defp deferred_only(_changes, _deferred), do: :ok
 
   # A claim is account-wide, so the refusal can come from any region the account
   # runs in, not only the one whose demand proposed it. The refusing region
   # travels with the reason.
-  #
-  # A private runner-cache region that is out of room is deferred rather than
-  # refused: it keeps its pin, the rest of the account takes the claim, and
-  # sizing raises it once it has room. Public regions still apply together or
-  # not at all, and a private region that cannot be read refuses like any other.
   defp admit_claim_growths(changes) do
     changes
     |> Enum.filter(fn {_server, _candidate, raised?} -> raised? end)
     |> Enum.group_by(fn {server, _candidate, _raised?} -> server.region end)
-    |> Enum.reduce_while({:ok, []}, fn {region_id, changes}, {:ok, deferred} ->
+    |> Enum.reduce_while(:ok, fn {region_id, changes}, :ok ->
       with {:ok, region} <- Regions.fetch(region_id),
            :ok <-
              Admission.admit_replacements?(
                region,
                Enum.map(changes, fn {server, candidate, _raised?} -> {server, candidate} end)
              ) do
-        {:cont, {:ok, deferred}}
+        {:cont, :ok}
       else
-        {:error, reason} when reason in [:capacity_exhausted, :capacity_unplaceable] ->
-          if private_region?(region_id),
-            do: {:cont, {:ok, deferred ++ [{region_id, reason}]}},
-            else: {:halt, {:error, {region_id, reason}}}
-
-        {:error, reason} ->
-          {:halt, {:error, {region_id, reason}}}
+        {:error, reason} -> {:halt, {:error, {region_id, reason}}}
       end
     end)
-  end
-
-  defp private_region?(region_id) do
-    case Regions.fetch(region_id) do
-      {:ok, region} -> Regions.private?(region)
-      {:error, _reason} -> false
-    end
   end
 
   # Which way this row's claim moved, which bounds what the cluster does with it.

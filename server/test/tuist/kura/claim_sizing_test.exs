@@ -1581,64 +1581,6 @@ defmodule Tuist.Kura.ClaimSizingTest do
     end
   end
 
-  describe "evaluate/2 with a private region behind the account's claim" do
-    # The account grew to 128Gi in its public regions while the runner cache,
-    # full at the time, kept the 64Gi it held.
-    defp lagging_context(attrs) do
-      context(
-        Keyword.merge(
-          [
-            plan: :enterprise,
-            current_claim_size: "128Gi",
-            region_claim_sizes: %{"us-east" => "128Gi", "scw-fr-par-runners" => "64Gi"},
-            private_regions: ["scw-fr-par-runners"]
-          ],
-          attrs
-        )
-      )
-    end
-
-    test "raises it to the account's claim when nothing else is proposed" do
-      assert {:grow, "128Gi", evidence} = ClaimSizing.evaluate(lagging_context([]))
-      assert evidence["signal"] == "private_region_below_account_claim"
-      assert evidence["region"] == "scw-fr-par-runners"
-      assert evidence["region_claim_size"] == "64Gi"
-    end
-
-    test "a public region pinned under the claim still waits until its ring runs short" do
-      assert ClaimSizing.evaluate(lagging_context(private_regions: [])) == :none
-    end
-
-    test "a growth the account's rings ask for comes first" do
-      rollups = severe_churn(2, @today)
-
-      assert {:grow, "256Gi", evidence} = ClaimSizing.evaluate(lagging_context(rollups: rollups))
-      assert evidence["signal"] == "shed_age_below_retention_floor"
-      assert evidence["region"] == "us-east"
-    end
-
-    test "its own ring is measured against the claim it holds" do
-      # Two confirmed days of severe shedding take four times the 64Gi ring
-      # they measured, which the enterprise ceiling holds at 256Gi.
-      rollups = 2 |> severe_churn(@today) |> Enum.map(&Map.put(&1, :region, "scw-fr-par-runners"))
-
-      assert {:grow, "256Gi", evidence} = ClaimSizing.evaluate(lagging_context(rollups: rollups))
-      assert evidence["region"] == "scw-fr-par-runners"
-      assert evidence["region_claim_size"] == "64Gi"
-    end
-
-    test "is never raised past the plan's ceiling" do
-      context =
-        lagging_context(
-          plan: :pro,
-          current_claim_size: "300Gi",
-          region_claim_sizes: %{"us-east" => "300Gi", "scw-fr-par-runners" => "64Gi"}
-        )
-
-      assert ClaimSizing.evaluate(context) == :none
-    end
-  end
-
   describe "evaluate/2 across regions" do
     test "a growing region wins over a shrinking one" do
       rollups =

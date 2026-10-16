@@ -21,9 +21,7 @@ defmodule Tuist.Kura.Telemetry do
     * `claim_apply_refused` counts the storage-claim applies capacity admission
       turned down, tagged with the region that refused. The proposal stays open
       and every later pass retries it, so without this the only trace of a
-      region refusing every claim is a resize that never happens. A private
-      runner-cache region out of room is counted too when the rest of the
-      account takes the claim without it; sizing retries that region alone.
+      region refusing every claim is a resize that never happens.
     * `provision_refused` counts the provisions and cold returns capacity
       admission turned down, tagged with the region that refused. The account
       keeps asking and every later pass retries it, so a full region reads as a

@@ -138,8 +138,7 @@ defmodule Tuist.Kura.ClaimProposals do
       placer_claims: placer_claims,
       open_proposals: open_proposals,
       last_applied_proposals: last_applied_proposals,
-      region_claims: PlacerClaims.region_claims(account_ids),
-      private_regions: Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id)
+      region_claims: PlacerClaims.region_claims(account_ids)
     }
   end
 
@@ -159,7 +158,6 @@ defmodule Tuist.Kura.ClaimProposals do
       plan: AccountPolicies.sizing_plan(account),
       current_claim_size: current,
       region_claim_sizes: region_claims,
-      private_regions: inputs.private_regions,
       rollups: Map.get(inputs.rollups, account.id, []),
       last_resized_at: placer_claim && placer_claim.updated_at,
       capped_resize_from: capped_resize_from(Map.get(inputs.last_applied_proposals, account.id), policy),
