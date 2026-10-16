@@ -25,27 +25,21 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Runners.WorkflowJob
 
   @retention_seconds 7 * 24 * 60 * 60
-  @commit_modes ~w(auto true false)
 
   # A saved snapshot at or above @full_percent of its capacity, which a clone filled
   # to @out_of_space_percent, is not cloned again: the next use starts a fresh lineage.
   @full_percent 80
   @out_of_space_percent 99
 
-  def allocate(
-        %{
-          "pod_name" => pod,
-          "pod_uid" => uid,
-          "node_name" => node,
-          "key" => key,
-          "architecture" => arch,
-          "uid" => user_id
-        } = params
-      ) do
-    commit_mode = Map.get(params, "commit", "auto")
-
-    with true <- commit_mode in @commit_modes,
-         true <- valid_key?(key),
+  def allocate(%{
+        "pod_name" => pod,
+        "pod_uid" => uid,
+        "node_name" => node,
+        "key" => key,
+        "architecture" => arch,
+        "uid" => user_id
+      }) do
+    with true <- valid_key?(key),
          true <- arch in ["amd64", "arm64"],
          true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
          true <- is_binary(uid) and Regex.match?(~r/^[a-zA-Z0-9-]{1,128}$/, uid),
@@ -56,7 +50,6 @@ defmodule Tuist.Runners.CacheVolumes do
         pod_uid: uid,
         node_name: node,
         key: key,
-        commit_mode: commit_mode,
         architecture: arch,
         platform: to_string(platform),
         uid: user_id
@@ -116,10 +109,9 @@ defmodule Tuist.Runners.CacheVolumes do
   # Also used by lifecycle tests with already verified provider metadata.
   def allocate_for_job(job, identity, attrs) do
     identity = Identity.storage_scope(identity)
-    attrs = attrs |> Map.put_new(:platform, "linux") |> Map.put_new(:commit_mode, "auto")
+    attrs = Map.put_new(attrs, :platform, "linux")
 
     Repo.transaction(fn ->
-      if attrs.commit_mode not in @commit_modes, do: Repo.rollback(:unavailable)
       # One admission lock per pod also bounds concurrent requests for new keys.
       Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
         "cache-volume:#{job.account_id}:#{attrs.pod_uid}"
@@ -172,11 +164,10 @@ defmodule Tuist.Runners.CacheVolumes do
           content_digest: head && head.content_digest,
           workflow_job_id: job.workflow_job_id,
           workflow_run_id: job.workflow_run_id,
-          commit_mode: attrs.commit_mode,
           inserted_at: timestamp,
           updated_at: timestamp
         })
-        |> Map.merge(writer_fields(identity, grant, attrs.commit_mode))
+        |> Map.merge(writer_fields(identity, grant))
 
       Repo.insert_all(Usage, [use_attrs],
         on_conflict: :nothing,
@@ -205,15 +196,13 @@ defmodule Tuist.Runners.CacheVolumes do
         image_digest: usage.image_digest,
         content_digest: usage.content_digest,
         can_publish: usage.can_publish,
-        commit: usage.commit_mode,
         uid: volume.uid
       }
     end)
   end
 
   defp ensure_allocation_matches!(usage, job, attrs) do
-    if usage.node_name != attrs.node_name or usage.workflow_job_id != job.workflow_job_id or
-         usage.commit_mode != attrs.commit_mode do
+    if usage.node_name != attrs.node_name or usage.workflow_job_id != job.workflow_job_id do
       Repo.rollback(:unavailable)
     end
   end
@@ -229,7 +218,7 @@ defmodule Tuist.Runners.CacheVolumes do
   defp writer_grant(%{trusted: true}, profile), do: {:ok, profile && profile.id}
   defp writer_grant(_identity, _profile), do: :denied
 
-  defp writer_fields(identity, grant, commit_mode) do
+  defp writer_fields(identity, grant) do
     %{
       writer_branch: Map.get(identity, :writer_branch),
       writer_default_branch: identity.trusted,
@@ -238,7 +227,7 @@ defmodule Tuist.Runners.CacheVolumes do
           {:ok, id} -> id
           _ -> nil
         end,
-      can_publish: commit_mode != "false" and grant != :denied
+      can_publish: grant != :denied
     }
   end
 

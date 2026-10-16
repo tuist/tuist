@@ -96,4 +96,4 @@ This directory contains database migrations and other private assets.
 
 - The Grafana guide distinguishes the neutral percentile-based failed-or-slow metric from explicit duration targets, documents paired cache savings/coverage, and points native failure classification to build details and category filters rather than default table columns.
 
-- Cache-volume writer policy adds an empty-default exact branch list on volumes and auto-default commit intent and nullable additional-branch grant provenance on uses. Preserve existing volume identity, clear epochs and default-branch permissions; document policy data in the export inventory.
+- Cache-volume writer policy adds an empty-default exact branch list on volumes and auto-default commit intent and nullable additional-branch grant provenance on uses. Preserve existing volume identity, clear epochs and default-branch permissions; document policy data in the export inventory. `runner_cache_volume_uses.commit_mode` and `runner_cache_volumes.writer_branches` are no longer read.

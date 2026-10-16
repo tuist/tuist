@@ -70,5 +70,3 @@ This area owns Phoenix controllers for HTML and API endpoints.
   `tuist-runner-host` audience, derives the node from its ServiceAccount, and
   delegates session/job binding to `CacheVolumes.Builtin`. Workflow tokens and
   body-supplied account/node/repository fields cannot authorize these reports.
-
-- The authorize-commit route shares cache-volume agent authentication and allocation with authorize. Its distinct path lets older servers reject explicit modes without allocating a use.

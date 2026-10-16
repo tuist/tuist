@@ -493,7 +493,7 @@ The archive contains everything needed to understand the account's complete data
 - **Usage history** (`runner_cache_volume_uses`, PostgreSQL): use UUID and volume
   foreign key, invalidation generation, parent use UUID, shared HEAD base/published
   generations, image SHA-1 and content SHA-256 digests, workflow run/job IDs, pod name/UID,
-  node name, commit intent (`auto`, `true`, `false`), branch the job ran on, from verified push, schedule, dispatch or same-repository pull-request metadata (nullable), whether it was the repository's default branch, ID of the runner profile whose branch list applied (nullable), publication permission, lifecycle status, warm/cold result, logical
+  node name, a legacy commit intent column that is no longer read (`auto` for new uses), branch the job ran on, from verified push, schedule, dispatch or same-repository pull-request metadata (nullable), whether it was the repository's default branch, ID of the runner profile whose branch list applied (nullable), publication permission, lifecycle status, warm/cold result, logical
   filesystem used/capacity bytes, attachment milliseconds, last report, attachment/finish/
   physical-deletion and creation/update timestamps. Export via the volume's
   account ID. Daily cleanup removes history 90 days after acknowledged physical
