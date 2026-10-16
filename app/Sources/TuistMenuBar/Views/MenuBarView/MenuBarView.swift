@@ -15,7 +15,7 @@ public struct MenuBarView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button("Open Tuist") {
-                openWindow(id: "main")
+                openWindow(id: DesktopWindow(authenticationState: authenticationService.authenticationState).rawValue)
                 NSApp.activate(ignoringOtherApps: true)
             }
             .menuItemStyle()
@@ -34,7 +34,7 @@ public struct MenuBarView: View {
                 DevicesView(viewModel: DevicesViewModel(deviceService: applicationModel.deviceService))
             case .loggedOut:
                 Button("Sign In…") {
-                    openWindow(id: "main")
+                    openWindow(id: DesktopWindow.welcome.rawValue)
                     NSApp.activate(ignoringOtherApps: true)
                 }
                 .menuItemStyle()

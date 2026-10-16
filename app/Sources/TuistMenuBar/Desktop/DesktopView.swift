@@ -15,36 +15,42 @@ public struct DesktopView: View {
 
     public var body: some View {
         Group {
-            switch authenticationService.authenticationState {
-            case let .loggedIn(account, server):
+            if case let .loggedIn(account, server) = authenticationService.authenticationState {
                 SignedInDesktopView(account: account, applicationModel: applicationModel)
                     .id("\(server?.url.absoluteString ?? "hosted")/\(account.handle)")
-            case .loggedOut:
-                DesktopLoginView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .toolbar {
+                        ToolbarItem(placement: .status) {
+                            DesktopActivityView()
+                        }
+                    }
             }
         }
         .frame(minWidth: 900, minHeight: 560)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if case .loggedIn = authenticationService.authenticationState {
-                HStack {
-                    StatusView()
-                    Spacer()
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(.bar)
-            }
-        }
         .macApplicationEnvironment(applicationModel)
         .task {
+            guard authenticationService.authenticationState != .loggedOut else { return }
             do {
                 try await applicationModel.loadDevices()
             } catch {
                 applicationModel.errorHandling.handle(error: error)
             }
+        }
+    }
+}
+
+private struct DesktopActivityView: View {
+    @EnvironmentObject private var taskStatusReporter: TaskStatusReporter
+
+    var body: some View {
+        if taskStatusReporter.statuses.contains(where: { status in
+            switch status.state {
+            case .preparing, .running: true
+            case .done: false
+            }
+        }) {
+            StatusView()
+                .font(.caption)
+                .accessibilityIdentifier("preview-activity")
         }
     }
 }

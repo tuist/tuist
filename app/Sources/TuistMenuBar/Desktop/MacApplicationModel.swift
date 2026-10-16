@@ -12,6 +12,7 @@ public final class MacApplicationModel: ObservableObject {
     let deviceService: DeviceService
     let taskStatusReporter = TaskStatusReporter()
     let errorHandling = ErrorHandling()
+    @Published public private(set) var desktopWindow: DesktopWindow
     @Published private(set) var canCheckForUpdates = false
     private let updater: SPUUpdater
     private var cancellables = Set<AnyCancellable>()
@@ -20,8 +21,14 @@ public final class MacApplicationModel: ObservableObject {
 
     public init(updaterController: SPUStandardUpdaterController) {
         authenticationService = MacApplicationEnvironment.withValue { AuthenticationService() }
+        desktopWindow = DesktopWindow(authenticationState: authenticationService.authenticationState)
         deviceService = DeviceService(taskStatusReporter: taskStatusReporter)
         updater = updaterController.updater
+        authenticationService.$authenticationState
+            .sink { [weak self] state in
+                self?.desktopWindow = DesktopWindow(authenticationState: state)
+            }
+            .store(in: &cancellables)
         updater.publisher(for: \.canCheckForUpdates)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.canCheckForUpdates = $0 }

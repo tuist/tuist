@@ -12,8 +12,9 @@ import TuistServer
         @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
         @StateObject private var bootstrapper = AppBootstrapper()
         @StateObject private var applicationModel: MacApplicationModel
-        @AppStorage("showMenuBarExtra") private var showMenuBarExtra = true
+        @AppStorage("showMenuBarExtra") private var showMenuBarExtra = false
         @Environment(\.openWindow) private var openWindow
+        @Environment(\.dismissWindow) private var dismissWindow
 
         private let updaterController: SPUStandardUpdaterController
 
@@ -28,26 +29,31 @@ import TuistServer
         }
 
         var body: some Scene {
-            appDelegate.openMainWindow = {
-                openWindow(id: "main")
-                NSApp.activate(ignoringOtherApps: true)
-            }
+            appDelegate.openMainWindow = showApplicationWindow
             applicationModel.observeURLs(from: appDelegate)
             return scenes
         }
 
         @SceneBuilder
         private var scenes: some Scene {
-            Window("Tuist", id: "main") {
-                if bootstrapper.isReady {
-                    DesktopView(applicationModel: applicationModel)
-                } else {
-                    ProgressView().frame(width: 900, height: 560)
+            Window("Welcome to Tuist", id: DesktopWindow.welcome.rawValue) {
+                if applicationModel.desktopWindow == .welcome {
+                    if bootstrapper.isReady {
+                        DesktopLoginView(applicationModel: applicationModel)
+                    } else {
+                        ProgressView().frame(width: 420, height: 580)
+                    }
                 }
             }
-            .defaultSize(width: 1100, height: 720)
-            .windowResizability(.contentMinSize)
-            .windowToolbarStyle(.unified)
+            .windowStyle(.hiddenTitleBar)
+            .windowResizability(.contentSize)
+            .defaultPosition(.center)
+            .defaultLaunchBehavior(applicationModel.desktopWindow == .welcome ? .presented : .suppressed)
+            .restorationBehavior(.disabled)
+            .commandsRemoved()
+            .onChange(of: applicationModel.desktopWindow) {
+                showApplicationWindow()
+            }
             .commands {
                 DesktopCommands()
                 CommandGroup(after: .appInfo) {
@@ -55,13 +61,26 @@ import TuistServer
                         .disabled(!updaterController.updater.canCheckForUpdates)
                 }
                 CommandGroup(after: .newItem) {
-                    Button("Open Tuist") {
-                        openWindow(id: "main")
-                        NSApp.activate(ignoringOtherApps: true)
-                    }
-                    .keyboardShortcut("0", modifiers: .command)
+                    Button("Open Tuist", action: showApplicationWindow)
+                        .keyboardShortcut("0", modifiers: .command)
                 }
             }
+
+            Window("Tuist", id: DesktopWindow.main.rawValue) {
+                if applicationModel.desktopWindow == .main {
+                    if bootstrapper.isReady {
+                        DesktopView(applicationModel: applicationModel)
+                    } else {
+                        ProgressView().frame(width: 900, height: 560)
+                    }
+                }
+            }
+            .defaultSize(width: 1100, height: 720)
+            .windowResizability(.contentMinSize)
+            .windowToolbarStyle(.unified)
+            .defaultLaunchBehavior(applicationModel.desktopWindow == .main ? .presented : .suppressed)
+            .restorationBehavior(.disabled)
+            .commandsRemoved()
 
             Settings {
                 if bootstrapper.isReady {
@@ -71,7 +90,10 @@ import TuistServer
                 }
             }
 
-            MenuBarExtra("Tuist", image: "MenuBarIcon", isInserted: $showMenuBarExtra) {
+            MenuBarExtra("Tuist", image: "MenuBarIcon", isInserted: Binding(
+                get: { showMenuBarExtra && applicationModel.desktopWindow == .main },
+                set: { showMenuBarExtra = $0 }
+            )) {
                 if bootstrapper.isReady {
                     MenuBarView(applicationModel: applicationModel)
                 } else {
@@ -79,6 +101,13 @@ import TuistServer
                 }
             }
             .menuBarExtraStyle(.window)
+        }
+
+        private func showApplicationWindow() {
+            let destination = applicationModel.desktopWindow
+            openWindow(id: destination.rawValue)
+            dismissWindow(id: destination == .main ? DesktopWindow.welcome.rawValue : DesktopWindow.main.rawValue)
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 #else

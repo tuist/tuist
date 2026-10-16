@@ -2,7 +2,7 @@ import SwiftUI
 import TuistAuthentication
 
 public struct DesktopSettingsView: View {
-    @AppStorage("showMenuBarExtra") private var showMenuBarExtra = true
+    @AppStorage("showMenuBarExtra") private var showMenuBarExtra = false
     @ObservedObject private var applicationModel: MacApplicationModel
     @ObservedObject private var authenticationService: AuthenticationService
 
@@ -12,14 +12,36 @@ public struct DesktopSettingsView: View {
     }
 
     public var body: some View {
+        TabView {
+            general
+                .tabItem { Label("General", systemImage: "gearshape") }
+            account
+                .tabItem { Label("Account", systemImage: "person.crop.circle") }
+        }
+        .frame(width: 500, height: 340)
+    }
+
+    private var general: some View {
         Form {
-            Section("General") {
+            Section {
                 Toggle("Show Tuist in the menu bar", isOn: $showMenuBarExtra)
+            } footer: {
                 Text("Keep recent previews and devices a click away, even when the main window is closed.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
             }
-            Section("Account") {
+            Section("Updates") {
+                Button("Check for Updates…") { applicationModel.checkForUpdates() }
+                    .disabled(!applicationModel.canCheckForUpdates)
+            }
+            Section {
+                Link("Tuist Documentation", destination: URL(string: "https://docs.tuist.dev")!)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var account: some View {
+        Form {
+            Section {
                 switch authenticationService.authenticationState {
                 case let .loggedIn(account, _):
                     LabeledContent("Account", value: account.handle)
@@ -31,21 +53,11 @@ public struct DesktopSettingsView: View {
                         }
                     }
                 case .loggedOut:
-                    Text("Sign in from the main window to access your projects and previews.")
+                    Text("Sign in from the welcome window to access your projects and previews.")
                         .foregroundStyle(.secondary)
                 }
             }
-            Section("About") {
-                LabeledContent(
-                    "Version",
-                    value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
-                )
-                Button("Check for Updates…") { applicationModel.checkForUpdates() }
-                    .disabled(!applicationModel.canCheckForUpdates)
-                Link("Tuist Documentation", destination: URL(string: "https://docs.tuist.dev")!)
-            }
         }
         .formStyle(.grouped)
-        .frame(width: 500, height: 460)
     }
 }
