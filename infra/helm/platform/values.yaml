@@ -405,6 +405,10 @@ clusterPortsHostPolicy:
       protocol: TCP
     - port: 10250
       protocol: TCP
+    - port: 9962
+      protocol: TCP
+    - port: 9965
+      protocol: TCP
 
 external-dns:
   enabled: true
