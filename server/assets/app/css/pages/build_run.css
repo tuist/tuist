@@ -343,6 +343,17 @@
     }
   }
 
+  &[data-build-system="cargo"] [data-part="file-breakdown-card-section"] {
+    & > [data-part="filters"] {
+      flex-wrap: wrap;
+      align-items: center;
+
+      & > .noora-dropdown {
+        flex-shrink: 0;
+      }
+    }
+  }
+
   &[data-build-system="mix"] > [data-part="cache"] {
     & [data-part="pagination"] {
       display: flex;
@@ -359,25 +370,36 @@
 
     & > [data-part="cache-summary-card"] {
       & [data-part="widgets-card-section"] {
-        display: flex;
-        flex-direction: row;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
         gap: var(--noora-spacing-4);
         background-color: var(--noora-surface-background-primary);
         padding: var(--noora-spacing-8);
 
         & > * {
-          flex-grow: 1;
+          min-width: 0;
+        }
+
+        @media (max-width: 1200px) {
+          & {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
         }
 
         @media (max-width: 768px) {
           & {
-            flex-direction: column;
+            grid-template-columns: minmax(0, 1fr);
           }
         }
       }
     }
-    & > :is([data-part="xcode-cache-card"], [data-part="mix-cache-card"]) {
-      & > :is([data-part="xcode-cache-card-section"], [data-part="mix-cache-card-section"]) {
+    & > :is([data-part="xcode-cache-card"], [data-part="mix-cache-card"], [data-part="compilation-cache-card"]) {
+      &
+        > :is(
+          [data-part="xcode-cache-card-section"],
+          [data-part="mix-cache-card-section"],
+          [data-part="compilation-cache-card-section"]
+        ) {
         gap: var(--noora-spacing-8);
         padding: var(--noora-spacing-8);
         & > [data-part="cacheable-tasks-card-section"],
@@ -411,12 +433,21 @@
           flex-direction: row;
           gap: var(--noora-spacing-4);
           & > * {
-            flex-grow: 1;
+            flex: 1 1 0;
+            min-width: 0;
+          }
+        }
+
+        @media (max-width: 768px) {
+          & > [data-part="latency-widgets"],
+          & > [data-part="throughput-widgets"] {
+            flex-direction: column;
           }
         }
 
         & > [data-part="filters"] {
           display: flex;
+          flex-wrap: wrap;
           gap: var(--noora-spacing-6);
           & .noora-dropdown-item:not([data-selected]) svg {
             visibility: hidden;

@@ -242,12 +242,15 @@ struct REAPICacheClientTests {
                 inputs[REAPI.digest(body)] = file
             }
             await state.failNextBatches()
-            #expect(try await client.uploadAvailableBlobs(inputs).available.count == 300)
+            let upload = try await client.uploadAvailableBlobs(inputs)
+            #expect(upload.available.count == 300)
+            #expect(upload.uploaded == Set(inputs.keys))
             #expect(await state.missingQueries == 1)
             #expect(await state.updateCalls > 1)
             #expect(await state.updateCalls < 20)
             #expect(await state.largestBatch <= 32 * 1024)
-            let corrupt = try #require(inputs.keys.first)
+            // Replacing an all-zero blob with zeros is not corruption.
+            let corrupt = try REAPI.digest(file: directory.appending(component: "small-0").url)
             await state.corrupt(corrupt)
             var destinations = Dictionary(uniqueKeysWithValues: inputs.keys.map {
                 ($0, directory.appending(component: "download-" + $0.hash).url)
@@ -338,6 +341,7 @@ struct REAPICacheClientTests {
                 let before = await state.updateBytes
                 let upload = try await client.uploadAvailableBlobs([digest: source])
                 #expect(upload.available == [digest])
+                #expect(upload.uploaded == nil)
                 #expect(await state.blobs[digest] == data)
                 uploadedBytes.append(await state.updateBytes - before)
             }
@@ -714,6 +718,10 @@ struct REAPICacheClientTests {
             let upload = try await client.uploadAvailableBlobs(blobs)
 
             #expect(upload.available == [REAPI.digest(small)])
+            #expect(upload.uploaded == [REAPI.digest(small)])
+            let repeated = try await client.uploadAvailableBlobs([REAPI.digest(small): smallPath])
+            #expect(repeated.available == [REAPI.digest(small)])
+            #expect(repeated.uploaded == [])
             let reason = try #require(upload.failures[REAPI.digest(large)])
             #expect(reason.hasPrefix("/google.bytestream.ByteStream/Write is not served by the cache endpoint"))
             #expect(reason.hasSuffix("it must route /google.bytestream.ByteStream to the cache's gRPC API"))
@@ -1832,7 +1840,12 @@ private actor WireCache {
 
     func put(_ data: Data, digest: REAPI.Digest) { blobs[digest] = data; writes += 1 }
     func put(_ result: REAPI.ActionResult, digest: REAPI.Digest) { actions[digest] = result }
-    func corrupt(_ digest: REAPI.Digest) { blobs[digest] = Data(repeating: 0, count: Int(digest.sizeBytes)) }
+    func corrupt(_ digest: REAPI.Digest) {
+        guard var data = blobs[digest], !data.isEmpty else { return }
+        data[data.startIndex] ^= 0xFF
+        blobs[digest] = data
+    }
+
     func drop(_ digests: [REAPI.Digest]) { for digest in digests {
         blobs[digest] = nil
     } }

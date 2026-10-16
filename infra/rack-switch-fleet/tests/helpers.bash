@@ -211,4 +211,3 @@ apply_fixtures() {
     fleet_render "$SITE_FILE" ber1-tor-b > "$rendered"
     grep -vx 'lldp' "$rendered" > "$drifted"
 }
-

@@ -8,6 +8,9 @@ enum Environment {
     static var manifestValues: [String: String]?
 
     @TaskLocal
+    static var resolutionValues: [String: String]?
+
+    @TaskLocal
     static var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
 
     /// The netrc every download authenticates against. Entry points install it once
@@ -47,13 +50,14 @@ enum Environment {
 
     static func withManifestEnvironment<T>(
         _ environment: [String: String]?,
+        resolutionEnvironment: [String: String]? = nil,
         operation: () async throws -> T
     ) async throws -> T {
-        guard let environment else {
-            return try await operation()
-        }
-        return try await Environment.$manifestValues.withValue(environment) {
-            try await operation()
+        let nativeEnvironment = resolutionEnvironment ?? (environment == nil ? resolutionValues : nil)
+        return try await Environment.$resolutionValues.withValue(nativeEnvironment) {
+            try await Environment.$manifestValues.withValue(environment ?? manifestValues) {
+                try await operation()
+            }
         }
     }
 
@@ -77,11 +81,14 @@ enum Environment {
 
     /// The environment the process runs in. Overridable through the `values` task-local
     /// for dependency injection (notably in tests); otherwise the live process environment.
-    /// Manifest evaluation observes the same environment because swifterpm inherits it into
-    /// the `swift package dump-package` subprocess, so this is also the environment a cached
-    /// dump was produced under.
+    /// Downloads retain this environment independently of filtered manifest evaluation.
+    /// Native resolution can use a separate environment to retain fetch credentials.
     static var current: [String: String] {
         values ?? ProcessInfo.processInfo.environment
+    }
+
+    static var resolution: [String: String]? {
+        resolutionValues ?? manifestValues
     }
 
     static var manifest: [String: String] {

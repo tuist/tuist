@@ -212,7 +212,7 @@ defmodule TuistWeb.MixCacheLive do
 
   defp transport_value(_widget, nil), do: value(nil)
   defp transport_value("transfer", bytes), do: ByteFormatter.format_bytes(bytes)
-  defp transport_value("latency", duration), do: DateFormatter.format_duration_from_milliseconds(duration)
+  defp transport_value("latency", duration), do: duration |> round() |> DateFormatter.format_duration_from_milliseconds()
   defp transport_value("throughput", bytes), do: ThroughputFormatter.format_throughput(bytes)
 
   defp transport_metric(analytics, widget, type), do: analytics.transport[String.to_existing_atom(widget)].metrics[type]

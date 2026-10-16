@@ -209,14 +209,10 @@ defmodule TuistWeb.TestsLive do
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
-    analytics_test_scheme = params["analytics-test-scheme"] || "any"
+    {analytics_test_scheme, duration_scatter_group_by, test_schemes} = test_scheme_options(project, params)
     analytics_selected_widget = params["analytics-selected-widget"] || "test_run_count"
     selected_duration_type = params["duration-type"] || "avg"
     duration_chart_type = params["duration-chart-type"] || "line"
-
-    duration_scatter_group_by =
-      params["duration-scatter-group-by"] ||
-        if(schemes?(socket.assigns.selected_project), do: "scheme", else: "environment")
 
     %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
@@ -225,7 +221,7 @@ defmodule TuistWeb.TestsLive do
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:analytics_environment_label, environment_label(analytics_environment))
       |> assign(:analytics_test_scheme, analytics_test_scheme)
-      |> assign(:test_schemes, Tests.project_test_schemes(project))
+      |> assign(:test_schemes, test_schemes)
       |> assign(:analytics_preset, preset)
       |> assign(:analytics_period, period)
       |> assign(:analytics_trend_label, trend_label(preset))
@@ -442,6 +438,15 @@ defmodule TuistWeb.TestsLive do
   defp environment_label("ci"), do: dgettext("dashboard_tests", "CI")
   defp environment_label(true), do: dgettext("dashboard_tests", "CI")
   defp environment_label(false), do: dgettext("dashboard_tests", "Local")
+
+  defp test_scheme_options(project, params) do
+    if schemes?(project) do
+      {params["analytics-test-scheme"] || "any", params["duration-scatter-group-by"] || "scheme",
+       Tests.project_test_schemes(project)}
+    else
+      {"any", "environment", []}
+    end
+  end
 
   defp opts_with_analytics_test_scheme(opts, "any"), do: opts
   defp opts_with_analytics_test_scheme(opts, scheme), do: Keyword.put(opts, :scheme, scheme)

@@ -51,6 +51,7 @@ rules:
       - rackhosts
       - rackpdus
       - rackatses
+      - racksites
       - racklinuxhosts
       - racklinuxmachines
       - racklinuxcandidates
@@ -77,6 +78,7 @@ rules:
       - rackpdus/finalizers
       - rackatses/status
       - rackatses/finalizers
+      - racksites/status
       - racklinuxhosts/status
       # The RackLinuxHost controller holds a deleted host with a finalizer
       # until it retired the host's Machine, tailnet devices and console key,

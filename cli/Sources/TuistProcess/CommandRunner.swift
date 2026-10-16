@@ -2,6 +2,9 @@ import Foundation
 import Mockable
 import Path
 import Subprocess
+#if os(macOS)
+    import Darwin
+#endif
 #if canImport(System)
     import System
 #else
@@ -83,6 +86,13 @@ public protocol CommandRunning: Sendable {
         workingDirectory: Path.AbsolutePath?
     ) -> AsyncThrowingStream<ProcessEvent, any Error>
 
+    /// Runs with inherited standard streams, preserving terminal detection and interactive behavior.
+    func runInheritingOutput(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?
+    ) async throws
+
     /// Runs the command in a process group of its own, which cancellation terminates as a whole, so
     /// the processes the command starts go with it. The group is not the terminal's foreground one,
     /// so an interrupt at the terminal no longer reaches the command: use it only for commands that
@@ -95,6 +105,15 @@ public protocol CommandRunning: Sendable {
 }
 
 extension CommandRunning {
+    public func runInheritingOutput(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?
+    ) async throws {
+        try await run(arguments: arguments, environment: environment, workingDirectory: workingDirectory)
+            .pipedStream().awaitCompletion()
+    }
+
     public func runInOwnProcessGroup(
         arguments: [String],
         environment: [String: String],
@@ -209,12 +228,72 @@ public struct CommandRunner: CommandRunning {
         run(arguments: arguments, environment: environment, workingDirectory: workingDirectory, ownProcessGroup: false)
     }
 
+    public func runInheritingOutput(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?
+    ) async throws {
+        try await processLimiter.withPermit {
+            guard let name = arguments.first else { throw CommandError.executableNotFound("") }
+            let executable: Executable = name.contains("/") ? .path(FilePath(name)) : .name(name)
+            let subprocessEnvironment = Dictionary(uniqueKeysWithValues: environment.map { (
+                Environment.Key(rawValue: $0.key)!,
+                $0.value
+            ) })
+            var options = Self.platformOptions(environment: environment)
+            options.teardownSequence = [.gracefulShutDown(allowedDurationToNextStep: Self.gracefulShutdownDuration)]
+            let configuration = Configuration(
+                executable: executable,
+                arguments: Arguments(Array(arguments.dropFirst())),
+                environment: .custom(subprocessEnvironment),
+                workingDirectory: workingDirectory.map { FilePath($0.pathString) },
+                platformOptions: options
+            )
+            let result = try await Subprocess.run(
+                configuration,
+                input: .standardInput,
+                output: .standardOutput,
+                error: .standardError
+            )
+            guard result.terminationStatus.isSuccess else {
+                switch result.terminationStatus {
+                case let .exited(code): throw CommandError.terminated(code, stderr: "", command: arguments)
+                #if !os(Windows)
+                    case let .signaled(signal): throw CommandError.signalled(signal, command: arguments)
+                #endif
+                }
+            }
+        }
+    }
+
     public func runInOwnProcessGroup(
         arguments: [String],
         environment: [String: String],
         workingDirectory: Path.AbsolutePath?
     ) -> AsyncThrowingStream<ProcessEvent, any Error> {
         run(arguments: arguments, environment: environment, workingDirectory: workingDirectory, ownProcessGroup: true)
+    }
+
+    private static func platformOptions(environment: [String: String]) -> PlatformOptions {
+        var options = PlatformOptions()
+        #if os(macOS)
+            guard environment["TUIST_CARGO_SESSION"] != nil,
+                  let flags = environment["CARGO_MAKEFLAGS"],
+                  let authentication = flags.split(whereSeparator: \.isWhitespace).last(where: {
+                      $0.hasPrefix("--jobserver-auth=") || $0.hasPrefix("--jobserver-fds=")
+                  }),
+                  let value = authentication.split(separator: "=").last else { return options }
+            let descriptors = value.split(separator: ",").compactMap { Int32($0) }
+            guard descriptors.count == 2, Set(descriptors).count == 2,
+                  descriptors.allSatisfy({ $0 > 2 && fcntl($0, F_GETFD) != -1 }) else { return options }
+            options.preSpawnProcessConfigurator = { _, actions in
+                for descriptor in descriptors {
+                    let result = posix_spawn_file_actions_addinherit_np(&actions, descriptor)
+                    if result != 0 { throw POSIXError(POSIXErrorCode(rawValue: result) ?? .EINVAL) }
+                }
+            }
+        #endif
+        return options
     }
 
     private func run(
@@ -237,7 +316,7 @@ public struct CommandRunner: CommandRunning {
                         let subprocessEnvironment = Dictionary(
                             uniqueKeysWithValues: environment.map { (Environment.Key(rawValue: $0.key)!, $0.value) }
                         )
-                        var platformOptions = PlatformOptions()
+                        var platformOptions = Self.platformOptions(environment: environment)
                         platformOptions.teardownSequence = [
                             .gracefulShutDown(allowedDurationToNextStep: Self.gracefulShutdownDuration),
                         ]

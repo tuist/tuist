@@ -5,6 +5,8 @@ defmodule TuistWeb.BuildRunLive do
 
   import Phoenix.Component
   import TuistWeb.Components.BuildTimeline
+  import TuistWeb.Components.CacheBreakdown
+  import TuistWeb.Components.CacheOutputList
   import TuistWeb.Components.EmptyTabStateBackground
   import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.MachineMetricsCharts

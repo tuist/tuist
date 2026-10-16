@@ -67,6 +67,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - Metrics with explicit `duration_ms` represent native Bazel counter buckets. Render horizontal segments and return the bucket value on hover throughout that interval, preserving gaps and the original start. Point samples from Xcode and Gradle retain their existing interpolation and collection bounds.
 - Profile-based timelines use the profile duration and recorded event bounds, not the longer BEP invocation clock. Adjacent metric intervals tolerate sub-microsecond floating-point rounding when connecting their segments; real collection gaps stay blank.
 
+- Xcode and Cargo cache details share the compilation-cache card, stacked-breakdown styling and responsive two-widget row. Cargo reuses the Cacheable Tasks / CAS Outputs tabs, Noora table cells and shared toolbar. Two latency/throughput widgets have equal widths independent of text; toolbars wrap on narrow screens and tables own horizontal scrolling. Cache Summary remains the shared five-widget section with equal-width cards independent of title/value lengths (five columns on desktop, two at 1200px and below, one at 768px and below); keep Xcode and Cargo geometry identical for ready and empty widgets. Cumulative Cargo timings must not be styled or labelled as average latency.
 - Hash-input detail values wrap long values within the cache and selective-testing tables.
 
 - Direct dependency links wrap within expanded target rows in both cache tabs.
