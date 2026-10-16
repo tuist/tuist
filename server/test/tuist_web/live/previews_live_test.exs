@@ -7,6 +7,7 @@ defmodule TuistWeb.PreviewsLiveTest do
   import Phoenix.LiveViewTest
 
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
+  alias TuistWeb.Previews.AppPreview
 
   test "renders empty view when no previews are available", %{
     conn: conn,
@@ -55,12 +56,23 @@ defmodule TuistWeb.PreviewsLiveTest do
     assert has_element?(lv, "span", "AppTwo")
   end
 
-  test "keeps release notes out of preview cards and table rows", %{
+  test "release notes summaries ignore blank notes and normalize line endings" do
+    for notes <- [nil, "", " \t\n\r\n"] do
+      assert AppPreview.release_notes_summary(notes) == nil
+    end
+
+    for newline <- ["\n", "\r\n", "\r", "\u2028"] do
+      assert AppPreview.release_notes_summary(" \n Build 204  " <> newline <> "Detailed instructions") == "Build 204"
+    end
+  end
+
+  test "shows only the first release notes line as escaped text in cards and rows", %{
     conn: conn,
     organization: organization,
     project: project
   } do
-    notes = "Detailed QA instructions belong on the preview detail page"
+    first_line = "Build 204 <script>alert('test')</script> **QA**"
+    notes = first_line <> "\r\nDetailed QA instructions belong on the preview detail page"
 
     preview =
       AppBuildsFixtures.preview_fixture(
@@ -77,8 +89,56 @@ defmodule TuistWeb.PreviewsLiveTest do
     assert has_element?(lv, "#previews-table", "Atlas")
     assert has_element?(lv, "#previews-table td:nth-child(3) [data-part='label']", "Qa")
     assert has_element?(lv, "#previews-table [data-part='row-link'][href$='/previews/#{preview.id}']")
-    refute html =~ notes
+    assert has_element?(lv, ".tuist-app-preview [data-part='release-notes-summary']", first_line)
+    assert has_element?(lv, "#previews-table [data-part='description']", first_line)
+    refute html =~ "Detailed QA instructions belong on the preview detail page"
+    refute has_element?(lv, ".tuist-app-preview script")
+    refute has_element?(lv, "#previews-table script")
+    refute has_element?(lv, "#previews-table strong")
     refute has_element?(lv, "[data-part='release-notes']")
+  end
+
+  test "omits release notes snippets when notes are absent", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    AppBuildsFixtures.preview_fixture(project: project, release_notes: nil)
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews")
+    refute has_element?(lv, "[data-part='release-notes-summary']")
+    refute has_element?(lv, "#previews-table [data-part='description']")
+  end
+
+  test "searches full release notes and preserves word search across names and notes", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    AppBuildsFixtures.preview_fixture(
+      project: project,
+      display_name: "Atlas",
+      track: "QA",
+      release_notes: "Build 204\nFix CHECKOUT for 100%_ready testers"
+    )
+
+    AppBuildsFixtures.preview_fixture(project: project, display_name: "Atlas", track: "QA")
+    AppBuildsFixtures.preview_fixture(display_name: "Atlas", release_notes: "checkout")
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews")
+    lv |> form("form[phx-change='search-name']", %{name: "checkout Atlas"}) |> render_change()
+
+    assert has_element?(lv, "#previews-table [data-part='description']", "Build 204")
+
+    assert lv |> element("#previews-table") |> render() |> Floki.parse_fragment!() |> Floki.find("tbody tr") |> length() ==
+             1
+
+    refute has_element?(lv, "#previews-table", "Fix CHECKOUT")
+
+    lv |> form("form[phx-change='search-name']", %{name: "%_"}) |> render_change()
+    assert has_element?(lv, "#previews-table [data-part='description']", "Build 204")
+
+    assert lv |> element("#previews-table") |> render() |> Floki.parse_fragment!() |> Floki.find("tbody tr") |> length() ==
+             1
   end
 
   test "ignores a stale pagination cursor on initial load", %{

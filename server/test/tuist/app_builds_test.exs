@@ -788,6 +788,40 @@ defmodule Tuist.AppBuildsTest do
   end
 
   describe "list_previews/1" do
+    test "searches release notes before choosing distinct bundle identifiers" do
+      project = ProjectsFixtures.project_fixture()
+
+      matching =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          release_notes: "Build 204\nFix checkout",
+          inserted_at: ~U[2026-01-01 00:00:00Z]
+        )
+
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        release_notes: "Build 205",
+        inserted_at: ~U[2026-01-02 00:00:00Z]
+      )
+
+      AppBuildsFixtures.preview_fixture(release_notes: "Fix checkout")
+
+      {previews, _meta} =
+        AppBuilds.list_previews(
+          %{
+            page: 1,
+            page_size: 20,
+            filters: [%{field: :project_id, op: :==, value: project.id}],
+            order_by: [:inserted_at],
+            order_directions: [:desc]
+          },
+          search: "CHECKOUT",
+          distinct: [:bundle_identifier]
+        )
+
+      assert Enum.map(previews, & &1.id) == [matching.id]
+    end
+
     test "selects the latest compatible platform before distinct bundle identifiers" do
       project = ProjectsFixtures.project_fixture()
 

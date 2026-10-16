@@ -1109,6 +1109,42 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert Enum.all?(response["previews"], &(&1["id"] in Enum.map(matches, fn preview -> preview.id end)))
     end
 
+    test "search matches full release notes before pagination and combines with a track", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      matches =
+        Enum.map(1..22, fn _ ->
+          AppBuildsFixtures.preview_fixture(
+            project: project,
+            display_name: "Atlas",
+            track: "QA",
+            release_notes: "Build 204\nFix CHECKOUT"
+          )
+        end)
+
+      AppBuildsFixtures.preview_fixture(project: project, track: "beta", release_notes: "Fix checkout")
+      AppBuildsFixtures.preview_fixture(project: project, track: "QA", release_notes: nil)
+      AppBuildsFixtures.preview_fixture(track: "QA", release_notes: "Fix checkout")
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{
+          "search" => "checkout",
+          "track" => "qa",
+          "page" => 2,
+          "page_size" => 20
+        })
+        |> json_response(:ok)
+
+      assert response["pagination_metadata"]["total_count"] == 22
+      assert length(response["previews"]) == 2
+      assert Enum.all?(response["previews"], &(&1["id"] in Enum.map(matches, fn preview -> preview.id end)))
+    end
+
     test "search treats wildcard characters literally and an empty search returns all names", %{
       conn: conn,
       user: user,
@@ -1116,7 +1152,8 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       AppBuildsFixtures.preview_fixture(project: project, display_name: "Build 100%_ready")
-      AppBuildsFixtures.preview_fixture(project: project, display_name: "Other App")
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Other App", release_notes: "Build 100%_ready")
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Unrelated", release_notes: "Build 100XXready")
       authenticated = Authentication.put_current_user(conn, user)
 
       filtered =
@@ -1124,15 +1161,15 @@ defmodule TuistWeb.PreviewsControllerTest do
         |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{"search" => "%_"})
         |> json_response(:ok)
 
-      assert filtered["pagination_metadata"]["total_count"] == 1
-      assert hd(filtered["previews"])["display_name"] == "Build 100%_ready"
+      assert filtered["pagination_metadata"]["total_count"] == 2
+      assert Enum.sort(Enum.map(filtered["previews"], & &1["display_name"])) == ["Build 100%_ready", "Other App"]
 
       unfiltered =
         authenticated
         |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{"search" => ""})
         |> json_response(:ok)
 
-      assert unfiltered["pagination_metadata"]["total_count"] == 2
+      assert unfiltered["pagination_metadata"]["total_count"] == 3
     end
 
     test "omitting track or sending an empty track returns all tracks", %{

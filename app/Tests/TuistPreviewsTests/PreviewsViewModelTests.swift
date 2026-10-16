@@ -308,6 +308,30 @@ import TuistSimulator
         #expect(subject.selectedTrack == nil)
     }
 
+    @Test func search_accepts_matches_in_full_release_notes() async throws {
+        let subject = subject()
+        given(previewsService)
+            .listPreviews(
+                displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
+                page: .any, pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
+            )
+            .willReturn(.test(previews: []))
+        given(previewsService)
+            .searchPreviews(
+                search: .value("checkout"),
+                track: .any,
+                page: .any,
+                pageSize: .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(.test(previews: [.test(displayName: "Atlas", releaseNotes: "Build 204\nFix CHECKOUT")]))
+        try await subject.selectProject(.test())
+        try await subject.searchPreviews("checkout")
+        #expect(subject.previews.first?.displayName == "Atlas")
+        #expect(subject.previews.first?.releaseNotesSummary == "Build 204")
+    }
+
     @Test func reports_older_servers_that_ignore_search() async throws {
         let subject = subject()
         given(previewsService)

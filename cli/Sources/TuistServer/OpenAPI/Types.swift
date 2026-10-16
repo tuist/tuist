@@ -31898,7 +31898,7 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/display_name`.
                 public var display_name: Swift.String?
-                /// Match part of a preview's display name, case-insensitively. Omit or pass an empty value for all names.
+                /// Match a literal substring of a preview's display name or full release notes, case-insensitively. Omit or pass an empty value for all previews.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/search`.
                 public var search: Swift.String?
@@ -31934,7 +31934,7 @@ public enum Operations {
                 ///
                 /// - Parameters:
                 ///   - display_name: The display name of previews.
-                ///   - search: Match part of a preview's display name, case-insensitively. Omit or pass an empty value for all names.
+                ///   - search: Match a literal substring of a preview's display name or full release notes, case-insensitively. Omit or pass an empty value for all previews.
                 ///   - track: Only return previews on this track (case-insensitive). Omit or pass an empty value to return all tracks.
                 ///   - specifier: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
                 ///   - supported_platforms:

@@ -15127,7 +15127,7 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Match part of a preview's display name, case-insensitively. Omit or pass an empty value for all names.
+        - description: Match a literal substring of a preview's display name or full release notes, case-insensitively. Omit or pass an empty value for all previews.
           in: query
           name: search
           required: false

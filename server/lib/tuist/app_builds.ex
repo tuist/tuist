@@ -228,10 +228,18 @@ defmodule Tuist.AppBuilds do
   end
 
   defp query_with_search_when_needed(query, opts) do
-    case Keyword.get(opts, :search) do
-      search when search in [nil, ""] -> query
-      search -> where(query, [p], fragment("strpos(lower(?), lower(?)) > 0", p.display_name, ^search))
-    end
+    opts
+    |> Keyword.get(:search)
+    |> List.wrap()
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.reduce(query, fn search, query ->
+      where(
+        query,
+        [p],
+        fragment("strpos(lower(?), lower(?)) > 0", p.display_name, ^search) or
+          fragment("strpos(lower(?), lower(?)) > 0", p.release_notes, ^search)
+      )
+    end)
   end
 
   defp query_with_distinct_bundle_identifier_when_needed(query, attrs, opts) do

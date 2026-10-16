@@ -68,6 +68,14 @@ struct PreviewRowView: View {
                         .foregroundColor(Noora.Colors.surfaceLabelPrimary)
                         .lineLimit(1)
 
+                    if let summary = preview.releaseNotesSummary {
+                        Text(verbatim: summary)
+                            .font(.caption)
+                            .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+
                     HStack(spacing: Noora.Spacing.spacing4) {
                         HStack(spacing: Noora.Spacing.spacing1) {
                             NooraIcon(.history)

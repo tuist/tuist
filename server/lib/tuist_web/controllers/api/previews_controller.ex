@@ -535,7 +535,7 @@ defmodule TuistWeb.API.PreviewsController do
         in: :query,
         type: :string,
         description:
-          "Match part of a preview's display name, case-insensitively. Omit or pass an empty value for all names."
+          "Match a literal substring of a preview's display name or full release notes, case-insensitively. Omit or pass an empty value for all previews."
       ],
       track: [
         in: :query,

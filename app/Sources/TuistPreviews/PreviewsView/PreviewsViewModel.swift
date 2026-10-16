@@ -272,7 +272,10 @@ final class PreviewsViewModel: Sendable {
         }
 
         if !searchQuery.isEmpty,
-           previewsPage.previews.contains(where: { $0.displayName?.localizedCaseInsensitiveContains(searchQuery) != true })
+           previewsPage.previews.contains(where: {
+               $0.displayName?.localizedCaseInsensitiveContains(searchQuery) != true
+                   && $0.releaseNotes?.localizedCaseInsensitiveContains(searchQuery) != true
+           })
         {
             throw PreviewsViewModelError.searchUnsupported
         }

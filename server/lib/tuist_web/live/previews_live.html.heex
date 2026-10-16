@@ -69,7 +69,11 @@
           }
         >
           <:col :let={preview} label={dgettext("dashboard_previews", "Name")}>
-            <.text_cell label={preview.display_name} />
+            <%= if summary = release_notes_summary(preview.release_notes) do %>
+              <.text_and_description_cell label={preview.display_name} description={summary} />
+            <% else %>
+              <.text_cell label={preview.display_name} />
+            <% end %>
           </:col>
           <:col :let={preview} label={dgettext("dashboard_previews", "Platforms")}>
             <div data-part="platforms">
