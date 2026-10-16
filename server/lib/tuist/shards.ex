@@ -105,7 +105,7 @@ defmodule Tuist.Shards do
   end
 
   def get_shard_plan(id) do
-    case ClickHouseRepo.one(from(s in ShardPlan, where: s.id == ^id, limit: 1)) do
+    case read_plan(fn -> IngestRepo.one(from(s in ShardPlan, where: s.id == ^id, limit: 1)) end) do
       nil -> {:error, :not_found}
       plan -> {:ok, plan}
     end
@@ -313,7 +313,7 @@ defmodule Tuist.Shards do
   end
 
   defp fetch_shard_data(%ShardPlan{granularity: "module"} = plan, shard_index, _opts) do
-    plan = ClickHouseRepo.preload(plan, :modules)
+    plan = read_plan(fn -> IngestRepo.preload(plan, :modules) end)
 
     modules =
       plan.modules
@@ -324,7 +324,7 @@ defmodule Tuist.Shards do
   end
 
   defp fetch_shard_data(%ShardPlan{granularity: "suite"} = plan, shard_index, opts) do
-    plan = ClickHouseRepo.preload(plan, [:test_suites, :modules])
+    plan = read_plan(fn -> IngestRepo.preload(plan, [:test_suites, :modules]) end)
     suite_catch_all? = Keyword.get(opts, :suite_catch_all?, false)
 
     results =
@@ -383,25 +383,35 @@ defmodule Tuist.Shards do
   defp all_suite_modules(plan), do: plan.test_suites |> Enum.map(& &1.module_name) |> Enum.uniq()
 
   defp get_plan(project_id, reference) do
-    ClickHouseRepo.one(
-      from(s in ShardPlan,
-        where: s.project_id == ^project_id,
-        where: s.reference == ^reference,
-        order_by: [desc: s.inserted_at],
-        limit: 1
+    read_plan(fn ->
+      IngestRepo.one(
+        from(s in ShardPlan,
+          where: s.project_id == ^project_id,
+          where: s.reference == ^reference,
+          order_by: [desc: s.inserted_at],
+          limit: 1
+        )
       )
-    )
+    end)
   end
 
   defp get_plan_by_id(project_id, plan_id) do
-    ClickHouseRepo.one(
-      from(s in ShardPlan,
-        where: s.project_id == ^project_id,
-        where: s.id == ^plan_id,
-        limit: 1
+    read_plan(fn ->
+      IngestRepo.one(
+        from(s in ShardPlan,
+          where: s.project_id == ^project_id,
+          where: s.id == ^plan_id,
+          limit: 1
+        )
       )
-    )
+    end)
   end
+
+  # The CLI uploads a plan's build seconds after creating it, so plans are read from the repository
+  # that took the write. `ClickHouseRepo` can route reads to the in-cluster ClickHouse
+  # (`Tuist.ClickHouse.ReadRoute`), which only has the rows once `IngestRepo`'s detached mirror
+  # (`Tuist.IngestRepo.ShadowWrite`) has written them there.
+  defp read_plan(fun), do: IngestRepo.with_retry(fun)
 
   defp get_shard_for_plan(project, account, plan, shard_index, opts) do
     case fetch_shard_data(plan, shard_index, opts) do
