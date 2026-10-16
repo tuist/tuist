@@ -1,32 +1,101 @@
-defmodule Tuist.OAuth.NoCacheTest do
+defmodule Tuist.OAuth.AuthoritativeCacheTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Boruta.Ecto.AccessTokens
   alias Boruta.Ecto.Client
+  alias Boruta.Ecto.ClientStore
   alias Boruta.Ecto.Codes
   alias Boruta.Ecto.Scope
   alias Boruta.Ecto.Scopes
   alias Boruta.Ecto.Token
   alias Boruta.Oauth.Token, as: OAuthToken
+  alias Tuist.OAuth.AuthoritativeCache
   alias Tuist.OAuth.Clients
-  alias Tuist.OAuth.NoCache
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup :set_mimic_from_context
 
-  test "Boruta uses an inert entity cache and upstream Ecto adapters" do
-    assert Boruta.Config.cache_backend() == NoCache
+  test "Boruta uses authoritative reads and upstream Ecto adapters" do
+    assert Boruta.Config.cache_backend() == AuthoritativeCache
     assert Boruta.Config.access_tokens() == AccessTokens
     assert Boruta.Config.codes() == Codes
     assert Boruta.Config.scopes() == Scopes
-    assert :ok = NoCache.put(:grant, %{revoked_at: nil}, ttl: 60_000)
-    assert :ok = NoCache.put(:client, %{name: "not retained"})
-    assert NoCache.get(:grant) == nil
-    assert NoCache.get(:client) == nil
-    assert :ok = NoCache.delete(:grant)
-    assert NoCache.get(:grant) == nil
+  end
+
+  test "reads and fills ignore legacy entries but invalidation removes them" do
+    key = {__MODULE__, Ecto.UUID.generate()}
+    on_exit(fn -> Boruta.Cache.delete(key) end)
+
+    assert :ok = Boruta.Cache.put(key, :legacy)
+    assert AuthoritativeCache.get(key) == nil
+    assert :ok = AuthoritativeCache.put(key, :replacement, ttl: 60_000)
+    assert :ok = AuthoritativeCache.put(key, :replacement)
+    assert AuthoritativeCache.get(key) == nil
+    assert Boruta.Cache.get(key) == :legacy
+    assert :ok = AuthoritativeCache.delete(key)
+    assert Boruta.Cache.get(key) == nil
+  end
+
+  test "token lookups ignore a stale token already stored by a legacy replica" do
+    token = create_access_token()
+    key = {OAuthToken, :value, token.value}
+    on_exit(fn -> Boruta.Cache.delete(key) end)
+    assert :ok = Boruta.Cache.put(key, token)
+    update_token(token, revoked_at: DateTime.utc_now())
+
+    assert {:error, "Token revoked."} = OAuthToken.ensure_valid(AccessTokens.get_by(value: token.value))
+    refute OAuthToken.revoked?(Boruta.Cache.get(key), :access_token)
+  end
+
+  test "invalidation failure propagates after the database revocation" do
+    token = create_access_token()
+    expect(Boruta.Cache, :delete, fn _key -> raise "owned invalidation failure" end)
+
+    assert_raise RuntimeError, "owned invalidation failure", fn ->
+      AccessTokens.revoke_refresh_token(token)
+    end
+
+    assert Repo.get!(Token, token.id).refresh_token_revoked_at
+  end
+
+  test "upstream refresh revocation invalidates previously cached legacy token keys" do
+    token = create_access_token()
+    keys = [{OAuthToken, :value, token.value}, {OAuthToken, :refresh_token, token.refresh_token}]
+    on_exit(fn -> Enum.each(keys, &Boruta.Cache.delete/1) end)
+
+    for key <- keys, do: assert(:ok = Boruta.Cache.put(key, token))
+    for key <- keys, do: assert(Boruta.Cache.get(key).id == token.id)
+
+    assert {:ok, _} = AccessTokens.revoke_refresh_token(token)
+    for key <- keys, do: assert(Boruta.Cache.get(key) == nil)
+
+    assert {:error, "Token revoked."} =
+             OAuthToken.ensure_valid(AccessTokens.get_by(refresh_token: token.refresh_token), :refresh_token)
+  end
+
+  test "upstream client invalidation removes a previously cached legacy client" do
+    client = create_client()
+    key = {Boruta.Oauth.Client, client.id}
+    on_exit(fn -> Boruta.Cache.delete(key) end)
+
+    assert :ok = Boruta.Cache.put(key, client)
+    assert Boruta.Cache.get(key).id == client.id
+    assert :ok = ClientStore.invalidate(client)
+    assert Boruta.Cache.get(key) == nil
+  end
+
+  test "upstream code revocation invalidates a previously cached legacy code" do
+    code = create_code()
+    key = {OAuthToken, :value, code.value}
+    on_exit(fn -> Boruta.Cache.delete(key) end)
+
+    assert :ok = Boruta.Cache.put(key, code)
+    assert Boruta.Cache.get(key).id == code.id
+    assert {:ok, _} = Codes.revoke(code)
+    assert Boruta.Cache.get(key) == nil
+    assert {:error, "Token revoked."} = OAuthToken.ensure_valid(Codes.get_by(value: code.value))
   end
 
   test "client security metadata changes are visible after an earlier lookup" do
@@ -96,20 +165,7 @@ defmodule Tuist.OAuth.NoCacheTest do
   end
 
   test "code lookups by value, id and redirect URI observe database revocation" do
-    client = create_client()
-    user = AccountsFixtures.user_fixture()
-
-    assert {:ok, code} =
-             Codes.create(%{
-               client: client,
-               sub: to_string(user.id),
-               redirect_uri: hd(client.redirect_uris),
-               scope: "mcp",
-               state: "state",
-               code_challenge: nil,
-               code_challenge_method: nil,
-               authorization_details: []
-             })
+    code = create_code()
 
     # Boruta never caches codes by ID; that variant retains database-path parity coverage.
     lookups = [[value: code.value], [id: code.id], [value: code.value, redirect_uri: code.redirect_uri]]
@@ -144,6 +200,25 @@ defmodule Tuist.OAuth.NoCacheTest do
     assert Enum.any?(Scopes.all(), &(&1.id == scope.id))
     Repo.delete!(scope)
     refute Enum.any?(Scopes.all(), &(&1.id == scope.id))
+  end
+
+  defp create_code do
+    client = create_client()
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, code} =
+      Codes.create(%{
+        client: client,
+        sub: to_string(user.id),
+        redirect_uri: hd(client.redirect_uris),
+        scope: "mcp",
+        state: "state",
+        code_challenge: nil,
+        code_challenge_method: nil,
+        authorization_details: []
+      })
+
+    code
   end
 
   defp create_scope do
