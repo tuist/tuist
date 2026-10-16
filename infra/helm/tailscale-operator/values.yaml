@@ -162,11 +162,7 @@ tailnetIngress:
   proxyGroup:
     name: tailnet-ingress
     replicas: 2
-    # Prefix of the proxies' tailnet device names, which get `-<n>` appended.
-    # Without one they are named after the ProxyGroup, and every env shares
-    # the tailnet, so each env's proxies took the same names and Tailscale
-    # suffixed the later ones (`macmini-egress-0-2`). Per-env overlays set
-    # `<name>-<env>`.
+    # Per-env device name prefix; see macminiEgress.proxyGroup.hostnamePrefix.
     hostnamePrefix: ""
     # Tailscale identity the proxies register under. Per-env overlays set
     # `tag:tuist-k8s-<env>`, which the tailnet policy's grants and
