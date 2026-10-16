@@ -283,15 +283,22 @@
 			"ip":  ["tcp:5432", "tcp:8123", "tcp:4317", "tcp:3100"],
 		},
 		{
-			// The in-cluster ClickHouse as a Tailscale Service, for when it is
-			// served by the `tailnet-ingress` ProxyGroup rather than a
-			// standalone proxy (clickhouse.managed.tailscale.proxyGroup, empty
-			// in every env today, so this grant is currently unused). A
-			// Service is addressed by its own VIP, which the tag grant above
-			// does not cover.
+			// The in-cluster ClickHouse as a Tailscale Service, served by the
+			// `tailnet-ingress` ProxyGroup rather than a standalone proxy
+			// (clickhouse.managed.tailscale.proxyGroup). A Service is
+			// addressed by its own VIP, which the tag grant above does not
+			// cover.
 			"src": ["tag:tuist-macmini-production"],
 			"dst": ["svc:tuist-clickhouse-production"],
 			"ip":  ["tcp:8123"],
+		},
+		{
+			// The CNPG pooler, for when it is served the same way
+			// (postgresql.cnpg.pooler.tailscale.proxyGroup, empty in every env
+			// today, so this grant is currently unused).
+			"src": ["tag:tuist-macmini-production"],
+			"dst": ["svc:tuist-pg-pooler-production"],
+			"ip":  ["tcp:5432"],
 		},
 
 		// Runner hosts -> the same-env Alloy receiver, for host logs only.
@@ -683,6 +690,7 @@
 		// take it offline on each rollout.
 		"services": {
 			"svc:tuist-clickhouse-production": ["tag:tuist-k8s-production"],
+			"svc:tuist-pg-pooler-production": ["tag:tuist-k8s-production"],
 		},
 	},
 
