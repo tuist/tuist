@@ -6,9 +6,10 @@
  * End move between tabs and select as they go), and the active panel is the
  * only one visible and interactive; the others are inert. The card's dot
  * field takes the active story's colour through --slide-color. A single
- * underline slides to the selected tab, placed from its measured box (so it
- * also follows the two-row phone layout); it jumps without animating on
- * load and resize.
+ * underline slides to the selected tab, placed from its measured box; it
+ * jumps without animating on load and resize. On phones the tab row is a
+ * single sideways-scrolling strip: its edges fade while there's more in
+ * that direction, and a newly selected tab is scrolled into view.
  *
  * Autoplay starts on page load (the first story, OpenAI, shows first) and
  * cycles continuously, on screen or off. It pauses while a mouse pointer is
@@ -45,7 +46,14 @@ export const CustomersCarousel = {
     if (this.tablist && this.indicator) {
       this.placeIndicator({ animate: false });
       this.tablist.dataset.indicator = "";
-      const observer = new ResizeObserver(() => this.placeIndicator({ animate: false }));
+    }
+    if (this.tablist) {
+      this.updateFades();
+      listen(this.tablist, "scroll", () => this.updateFades());
+      const observer = new ResizeObserver(() => {
+        this.placeIndicator({ animate: false });
+        this.updateFades();
+      });
       observer.observe(this.tablist);
       this.cleanups.push(() => observer.disconnect());
     }
@@ -133,6 +141,26 @@ export const CustomersCarousel = {
     }
   },
 
+  // Fades the tab row's edges while it can scroll further that way (only
+  // the phone layout ever overflows).
+  updateFades() {
+    const row = this.tablist;
+    if (!row) return;
+    const more = row.scrollWidth - row.clientWidth;
+    row.style.setProperty("--fade-start", row.scrollLeft > 1 ? "40px" : "0px");
+    row.style.setProperty("--fade-end", row.scrollLeft < more - 1 ? "40px" : "0px");
+  },
+
+  // Scrolls the tab row, never the page, to centre the selected tab.
+  revealTab() {
+    const row = this.tablist;
+    const tab = this.tabs[this.index];
+    if (!row || !tab || row.scrollWidth <= row.clientWidth) return;
+    const left = tab.offsetLeft - (row.clientWidth - tab.offsetWidth) / 2;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    row.scrollTo({ left: Math.max(0, left), behavior: reduced ? "auto" : "smooth" });
+  },
+
   show(index) {
     const count = this.slides.length;
     this.index = ((index % count) + count) % count;
@@ -147,6 +175,7 @@ export const CustomersCarousel = {
       tab.tabIndex = selected ? 0 : -1;
     });
     this.placeIndicator();
+    this.revealTab();
     const slide = this.slides[this.index];
     this.card.style.setProperty("--slide-color", slide.dataset.color);
     // The dot field morphs into this story's figure.

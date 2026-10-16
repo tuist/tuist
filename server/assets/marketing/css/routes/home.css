@@ -2629,8 +2629,36 @@
         border-top: 1px solid var(--marketing-stroke-default);
         background: var(--marketing-stroke-default);
 
+        /* Phones: one row that scrolls sideways, each logo in a cell sized
+           to it. The edges fade out only while there's more in that
+           direction (--fade-start/--fade-end, set by the hook from the
+           scroll position), so the row shows it continues. */
         @media (max-width: 767px) {
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: none;
+          grid-auto-columns: max-content;
+          grid-auto-flow: column;
+          -webkit-mask-image: linear-gradient(
+            to right,
+            transparent 0,
+            black var(--fade-start, 0px),
+            black calc(100% - var(--fade-end, 0px)),
+            transparent 100%
+          );
+          mask-image: linear-gradient(
+            to right,
+            transparent 0,
+            black var(--fade-start, 0px),
+            black calc(100% - var(--fade-end, 0px)),
+            transparent 100%
+          );
+          overflow-x: auto;
+          overscroll-behavior-x: contain;
+          scroll-snap-type: x proximity;
+          scrollbar-width: none;
+
+          &::-webkit-scrollbar {
+            display: none;
+          }
         }
 
         & > [data-part="tab"] {
@@ -2644,6 +2672,12 @@
           padding: 0 var(--noora-spacing-6);
           height: 88px;
           color: var(--noora-surface-label-primary);
+
+          @media (max-width: 767px) {
+            padding: 0 var(--noora-spacing-9);
+            height: 72px;
+            scroll-snap-align: center;
+          }
 
           & > svg {
             width: auto;
