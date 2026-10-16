@@ -29,7 +29,7 @@ sealed interface PreviewsUiState {
         val hasMorePreviews: Boolean,
     ) : PreviewsUiState {
         val recentPreviews: List<Preview>
-            get() = previews.take(5)
+            get() = previews.take(3)
     }
     data class Empty(val message: String) : PreviewsUiState
     data class Error(val message: String) : PreviewsUiState

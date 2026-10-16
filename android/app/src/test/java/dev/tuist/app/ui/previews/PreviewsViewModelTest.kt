@@ -237,7 +237,7 @@ class PreviewsViewModelTest {
     }
 
     @Test
-    fun `recent previews contains five newest without limiting the full list`() {
+    fun `recent previews contains three newest without limiting the full list`() {
         val previews = (8 downTo 1).map { index ->
             createPreview("$index", "Preview $index").copy(insertedAt = "2025-01-0${index}T00:00:00Z")
         }
@@ -248,7 +248,7 @@ class PreviewsViewModelTest {
             hasMorePreviews = true,
         )
 
-        assertEquals(listOf("8", "7", "6", "5", "4"), state.recentPreviews.map { it.id })
+        assertEquals(listOf("8", "7", "6"), state.recentPreviews.map { it.id })
         assertEquals(8, state.previews.size)
     }
 
