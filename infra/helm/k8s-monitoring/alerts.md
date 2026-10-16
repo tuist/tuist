@@ -3348,6 +3348,10 @@ reported `Available=True MinimumReplicasAvailable` and
 satisfied by `maxUnavailable` rather than by `readyReplicas ==
 spec.replicas`. Kubernetes considers that healthy; it is not.
 
+With `xcresultProcessor.readinessProbe.enabled`, the probe tart-kubelet
+evaluates also makes a replica that runs but cannot reach Postgres,
+ClickHouse or its Oban queue count as unavailable here.
+
 Same 45-minute rationale as the per-host rule: a Tart VM replacement
 makes one replica unavailable for a long, legitimate window. Deliberately
 does not subsume the metrics rules: a Pod whose VM booted but whose
