@@ -1663,6 +1663,45 @@ defmodule Tuist.BundlesTest do
       assert Bundles.evaluate_project_thresholds(project, %{bundle | name: "Other"}) == :ok
     end
 
+    test "compares against the latest baseline of the same bundle type and platforms" do
+      project = ProjectsFixtures.project_fixture()
+      threshold = BundlesFixtures.bundle_threshold_fixture(project: project, deviation_bytes: 1)
+
+      for {type, platforms, install_size, inserted_at} <- [
+            {:app, [:ios_simulator], 1000, ~U[2024-01-01 00:00:00Z]},
+            {:ipa, [:ios], 10, ~U[2024-01-02 00:00:00Z]},
+            {:app, [:ios], 10, ~U[2024-01-03 00:00:00Z]}
+          ] do
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          type: type,
+          supported_platforms: platforms,
+          install_size: install_size,
+          git_branch: "main",
+          inserted_at: inserted_at
+        )
+      end
+
+      simulator_app =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          type: :app,
+          supported_platforms: [:ios_simulator],
+          install_size: 1000,
+          git_branch: "feature"
+        )
+
+      assert Bundles.evaluate_project_thresholds(project, simulator_app) == :ok
+
+      assert {:violated, ^threshold, %{baseline_size: 10}} =
+               Bundles.evaluate_project_thresholds(project, %{simulator_app | type: :ipa, supported_platforms: [:ios]})
+
+      assert {:violated, ^threshold, %{baseline_size: 10}} =
+               Bundles.evaluate_project_thresholds(project, %{simulator_app | supported_platforms: [:ios]})
+
+      assert Bundles.evaluate_project_thresholds(project, %{simulator_app | type: :xcarchive}) == :ok
+    end
+
     test "absolute download limits skip missing sizes" do
       project = ProjectsFixtures.project_fixture()
       BundlesFixtures.bundle_threshold_fixture(project: project, metric: :download_size, deviation_bytes: 1)
