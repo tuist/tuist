@@ -160,7 +160,7 @@ defmodule Tuist.Tests.Coverage.Reported do
         having: fragment("ifNull(argMax(?, ?), true)", t.coverage_enabled, t.inserted_at),
         select: %{
           test_run_id: t.id,
-          scheme: fragment("any(?)", t.scheme),
+          scheme: fragment("argMax(?, ?)", t.scheme, t.inserted_at),
           build_system: fragment("any(?)", t.build_system),
           git_repository_id: fragment("argMax(?, ?)", t.git_repository_id, t.inserted_at),
           skip_test_identifiers: fragment("argMax(?, ?)", t.skip_test_identifiers, t.inserted_at)

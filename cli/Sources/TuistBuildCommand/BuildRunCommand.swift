@@ -128,7 +128,7 @@
         var passthroughXcodeBuildArguments: [String] = []
     }
 
-    public struct BuildRunCommand: AsyncParsableCommand, LogConfigurableCommand {
+    public struct BuildRunCommand: AsyncParsableCommand, LogConfigurableCommand, ProjectPathProviding {
         public init() {}
 
         public static var configuration: CommandConfiguration {
@@ -144,6 +144,8 @@
 
         @OptionGroup()
         var buildOptions: BuildOptions
+
+        public var path: String? { buildOptions.path }
 
         @Flag(
             help: "Ignore binary cache and use sources only.",

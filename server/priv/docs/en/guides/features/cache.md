@@ -2,7 +2,7 @@
 {
   "title": "Cache",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, Gradle cache, and Bazel cache."
+  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, Gradle cache, Bazel cache, and Elixir dependency cache."
 }
 ---
 # Cache {#cache}
@@ -31,6 +31,11 @@ Learn the cache workflow that matches your project or deployment model:
     title="Bazel cache"
     details="Point Bazel at Tuist's Remote Execution API cache to share action outputs across your team and CI."
     link="/guides/features/cache/bazel-cache"
+/>
+  <.home_card
+    title="Elixir cache"
+    details="Enable caching for supported Elixir dependencies and keep using Mix. Inspect cache hits and transfers in the dashboard."
+    link="/guides/features/cache/elixir"
 />
   <.home_card
     title="Self-hosting"

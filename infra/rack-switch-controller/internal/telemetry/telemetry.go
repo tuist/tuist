@@ -34,25 +34,26 @@ const (
 var (
 	upDesc = prometheus.NewDesc("rack_switch_up",
 		"1 when the Omada controller reports the switch connected, 0 when it reports it in any other state.",
-		[]string{"switch"}, nil)
+		[]string{"site", "switch"}, nil)
 	cpuDesc = prometheus.NewDesc("rack_switch_cpu_utilization_ratio",
 		"CPU utilization as the Omada controller last measured it.",
-		[]string{"switch"}, nil)
+		[]string{"site", "switch"}, nil)
 	memoryDesc = prometheus.NewDesc("rack_switch_memory_utilization_ratio",
 		"Memory utilization as the Omada controller last measured it.",
-		[]string{"switch"}, nil)
+		[]string{"site", "switch"}, nil)
 	temperatureDesc = prometheus.NewDesc("rack_switch_temperature_celsius",
 		"Chassis temperature from the Omada controller's health detail, averaged over the last ten minutes. Absent on a model without the sensor.",
-		[]string{"switch"}, nil)
+		[]string{"site", "switch"}, nil)
 	opticDesc = prometheus.NewDesc("rack_switch_optic_temperature_celsius",
 		"Transceiver temperature from its digital diagnostics.",
-		[]string{"switch", "port"}, nil)
+		[]string{"site", "switch", "port"}, nil)
 	lastSuccessDesc = prometheus.NewDesc("rack_switch_telemetry_last_success_timestamp_seconds",
 		"When the switches were last read from the Omada controller.",
 		nil, nil)
 )
 
 type reading struct {
+	site        string
 	name        string
 	up          bool
 	cpu         *int
@@ -149,7 +150,7 @@ func (p *Poller) poll(ctx context.Context) {
 		if !ok {
 			continue
 		}
-		r := reading{name: sw.Name, up: device.Status == omada.StatusConnected}
+		r := reading{site: sw.Spec.Site, name: sw.Name, up: device.Status == omada.StatusConnected}
 		// The controller keeps the last numbers of a switch it has lost, and
 		// those are not current.
 		if r.up {
@@ -211,19 +212,19 @@ func (p *Poller) Collect(ch chan<- prometheus.Metric) {
 		if r.up {
 			up = 1
 		}
-		ch <- prometheus.MustNewConstMetric(upDesc, prometheus.GaugeValue, up, r.name)
+		ch <- prometheus.MustNewConstMetric(upDesc, prometheus.GaugeValue, up, r.site, r.name)
 		if r.cpu != nil {
-			ch <- prometheus.MustNewConstMetric(cpuDesc, prometheus.GaugeValue, float64(*r.cpu)/100, r.name)
+			ch <- prometheus.MustNewConstMetric(cpuDesc, prometheus.GaugeValue, float64(*r.cpu)/100, r.site, r.name)
 		}
 		if r.memory != nil {
-			ch <- prometheus.MustNewConstMetric(memoryDesc, prometheus.GaugeValue, float64(*r.memory)/100, r.name)
+			ch <- prometheus.MustNewConstMetric(memoryDesc, prometheus.GaugeValue, float64(*r.memory)/100, r.site, r.name)
 		}
 		if r.temperature != nil {
-			ch <- prometheus.MustNewConstMetric(temperatureDesc, prometheus.GaugeValue, float64(*r.temperature), r.name)
+			ch <- prometheus.MustNewConstMetric(temperatureDesc, prometheus.GaugeValue, float64(*r.temperature), r.site, r.name)
 		}
 		for _, o := range r.optics {
 			if o.Valid() {
-				ch <- prometheus.MustNewConstMetric(opticDesc, prometheus.GaugeValue, *o.Temperature, r.name, strconv.Itoa(o.Port))
+				ch <- prometheus.MustNewConstMetric(opticDesc, prometheus.GaugeValue, *o.Temperature, r.site, r.name, strconv.Itoa(o.Port))
 			}
 		}
 	}

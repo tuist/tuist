@@ -154,6 +154,7 @@ abstract class TuistBuildInsightsService :
         val gitRemoteUrlOrigin: Property<String>
         val requestedTasks: ListProperty<String>
         val backgroundUpload: Property<Boolean>
+        val actorId: Property<String>
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
@@ -373,6 +374,9 @@ abstract class TuistBuildInsightsService :
                 connection.requestMethod = "POST"
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/json")
+                ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
+                    connection.setRequestProperty(ActorIdentifier.HEADER, it)
+                }
 
                 OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
                     Gson().toJson(report, writer)
@@ -520,6 +524,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.gitRemoteUrlOrigin.set(gitInfo.remoteUrlOrigin())
             parameters.requestedTasks.set(project.gradle.startParameter.taskRequests.flatMap { it.args })
             parameters.backgroundUpload.set(config.uploadInBackground ?: !EnvironmentCIDetector().isCi())
+            config.actorId?.let { parameters.actorId.set(it) }
         }
 
         // A provider can have only one subscription. An operation-only service also

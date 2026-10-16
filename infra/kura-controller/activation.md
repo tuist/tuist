@@ -11,12 +11,19 @@ legacy behavior; there is no public demand endpoint.
 ## Routing and lifecycle
 
 An optional `*.cache.tuist.dev` Route53 record sends names with no exact DNS
-record to two shared, stateless activation pods behind the main ingress. The
+record to two shared, stateless activation pods behind the `nginx-grpc` ingress. The
 pods use ordinary general-purpose workers, no PVCs, no Kubernetes credentials
 and no per-account resource reservation. They ship in the controller image but
 run as a separate Deployment. Existing exact account latency records retain
 precedence and keep warm traffic on the regional gateways. This does not turn
 DNS into an outage fallback: an existing unhealthy exact record still wins.
+
+Both HTTP and gRPC routes use the same `nginx-grpc` ingress class and load
+balancer. Its upstream keepalive setting suppresses the `Connection` header.
+The main `nginx` class intentionally disables upstream keepalive for its HTTP
+backends and sends `Connection: close`, which the gateway's HTTP/2 server
+rejects before a gRPC request reaches activation. Do not use that class, split
+the two protocols across load balancers, or enable ingress snippets as a workaround.
 
 The gateway selects the control plane from the stable hostname's environment
 suffix. Production, canary and staging share one DNS wildcard, so there is one
@@ -30,7 +37,12 @@ retained client-name validity and billing, records demand, and enqueues the
 existing unique `ProvisionOnDemandWorker` immediately. The worker applies the
 normal admission, placement and provisioning rules; it does not wait for the
 minute reconciliation tick. Regional ready URLs come from the managed-instance
-projection, not arbitrary custom endpoints. The gateway never returns those
+projection, not arbitrary custom endpoints. The bounded activation worker
+continues after regional readiness to publish
+stable DNS intent and refresh the controller readiness projection. It stops
+when stable routing is ready or the original polling budget expires, leaving
+the minute reconciler as a fallback. A regional URL becoming active alone is
+not completion of cold activation. The gateway never returns those
 URLs to clients and never redirects credentials or proxies back to itself.
 
 Activation waits at most 20 seconds, polling every two seconds. At most 128
@@ -131,12 +143,13 @@ Before releasing the new CLI:
    authority through nginx, including pending activation followed by a successful
    streamed operation. Keep explicit retiring regions excluded from activation.
 3. After rollout approval, enable `kuraActivation.enabled` on the one global
-   owner (intended: production). Verify both replicas, both ingress routes and
-   TLS by pinning a fixture hostname to the main ingress address first.
-4. On that same cluster enable platform `cacheDNS.activationIngressClass: nginx`.
-   External-dns now reads main-ingress status as well as existing DNSEndpoints;
+   owner (intended: production). Verify both replicas and both ingress routes.
+   Ensure the platform's dedicated `grpc-ingress-nginx` controller is ready. Verify
+   TLS by pinning a fixture hostname to the `nginx-grpc` load-balancer address first.
+4. On that same cluster enable platform `cacheDNS.activationIngressClass: nginx-grpc`.
+   External-dns now reads the activation ingress status as well as existing DNSEndpoints;
    its existing `cache.tuist.dev` zone filter and ownership remain in force.
-   It publishes the wildcard using the main ingress load-balancer address.
+   It publishes the wildcard using the `nginx-grpc` load-balancer address.
    Regional classes are excluded from this additional source, avoiding a second
    writer for account latency records. Cloudflare keeps excluding this zone.
 5. Check authoritative and recursive DNS for a cold fixture and a warm account;

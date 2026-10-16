@@ -46,6 +46,7 @@ defmodule Tuist.Kura.Capacity do
   alias Tuist.Accounts.Account
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kubernetes.Quantity
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Admission
   alias Tuist.Kura.Identity
@@ -420,67 +421,7 @@ defmodule Tuist.Kura.Capacity do
 
   defp allocatable_bytes(_node), do: 0
 
-  @binary_suffixes %{
-    "Ki" => 1024,
-    "Mi" => 1024 ** 2,
-    "Gi" => 1024 ** 3,
-    "Ti" => 1024 ** 4,
-    "Pi" => 1024 ** 5,
-    "Ei" => 1024 ** 6
-  }
-  @decimal_exponents %{
-    "n" => -9,
-    "u" => -6,
-    "m" => -3,
-    "" => 0,
-    "k" => 3,
-    "M" => 6,
-    "G" => 9,
-    "T" => 12,
-    "P" => 15,
-    "E" => 18
-  }
-
-  # A Kubernetes quantity in whole units, at `scale` units per unit of the
-  # quantity: bytes for a storage quantity, millicores for a CPU one read at a
-  # thousand. The API keeps a quantity in whatever form it was written rather
-  # than a canonical one -- a decimal number with a binary suffix (`Ki` to
-  # `Ei`), a decimal one (`n` to `E`) or an exponent (`e3`) -- so every form
-  # is read, and a node whose eviction threshold left it `858993459200000m`
-  # of disk is read as the 800 GiB it has. Rounded down: a fraction of a byte
-  # or a millicore decides nothing.
-  defp parse_quantity(quantity, scale \\ 1)
-
-  defp parse_quantity(quantity, scale) when is_binary(quantity) do
-    with [_match, whole, fraction, suffix] <- Regex.run(~r/^\+?(\d+)(?:\.(\d*))?(.*)$/, quantity),
-         {numerator, denominator} <- multiplier(suffix) do
-      digits = String.to_integer(whole <> fraction)
-
-      div(digits * numerator * scale, Integer.pow(10, String.length(fraction)) * denominator)
-    else
-      _ -> nil
-    end
-  end
-
-  defp parse_quantity(quantity, scale) when is_integer(quantity), do: quantity * scale
-  defp parse_quantity(_quantity, _scale), do: nil
-
-  defp multiplier(suffix) when is_map_key(@binary_suffixes, suffix), do: {Map.fetch!(@binary_suffixes, suffix), 1}
-
-  defp multiplier(suffix) when is_map_key(@decimal_exponents, suffix),
-    do: power_of_ten(Map.fetch!(@decimal_exponents, suffix))
-
-  defp multiplier(<<e, exponent::binary>>) when e in [?e, ?E] do
-    case Integer.parse(exponent) do
-      {exponent, ""} -> power_of_ten(exponent)
-      _ -> :error
-    end
-  end
-
-  defp multiplier(_suffix), do: :error
-
-  defp power_of_ten(exponent) when exponent >= 0, do: {Integer.pow(10, exponent), 1}
-  defp power_of_ten(exponent), do: {1, Integer.pow(10, -exponent)}
+  defp parse_quantity(quantity, scale \\ 1), do: Quantity.parse(quantity, scale)
 
   @doc """
   Gibibytes of the region's disk its pods have reserved, or `nil` when the
@@ -490,6 +431,9 @@ defmodule Tuist.Kura.Capacity do
   from this repo's rows: it is the number the scheduler places against, it
   already accounts for replicas and for anything else sharing the region's
   nodes, and it cannot disagree with the cluster the way a parallel model can.
+  Retained volumes on the region's nodes count as well
+  (`retained_volume_bytes_by_node/1`): the scheduler cannot see them, but the
+  disk they hold is gone all the same.
   """
   def reserved_gib(region_id) do
     KeyValueStore.get_or_update(
@@ -500,16 +444,16 @@ defmodule Tuist.Kura.Capacity do
   end
 
   defp measure_reserved_gib(region_id) do
-    case Client.list_pods(@namespace, region_selector(region_id)) do
-      {:ok, pods} ->
-        pods
-        |> Enum.reject(&terminal?/1)
-        |> Enum.map(&requested_bytes/1)
-        |> Enum.sum()
-        |> div(@gib)
-
-      {:error, _reason} ->
-        nil
+    with {:ok, pods} <- Client.list_pods(@namespace, region_selector(region_id)),
+         retained when is_map(retained) <- retained_volume_bytes_by_node(region_id) do
+      pods
+      |> Enum.reject(&terminal?/1)
+      |> Enum.map(&requested_bytes/1)
+      |> Enum.concat(Map.values(retained))
+      |> Enum.sum()
+      |> div(@gib)
+    else
+      _ -> nil
     end
   end
 
@@ -520,6 +464,10 @@ defmodule Tuist.Kura.Capacity do
 
   Keyed so a reading can be matched against the rows it describes: a pod with
   no row still holds its disk, and a row whose pods do not exist yet will.
+
+  A node-local volume that no claim is bound to any more counts too, under
+  `persistentvolume/<name>`, because its directory still sits on the node's
+  disk with nothing scheduled against it (see `retained_volume_bytes_by_node/1`).
   """
   def reserved_gib_by_instance(region_id) do
     KeyValueStore.get_or_update(
@@ -530,17 +478,115 @@ defmodule Tuist.Kura.Capacity do
   end
 
   defp measure_reserved_gib_by_instance(region_id) do
-    case Client.list_pods(@namespace, region_selector(region_id)) do
-      {:ok, pods} ->
-        pods
-        |> Enum.reject(&terminal?/1)
-        |> Enum.group_by(&get_in(&1, ["metadata", "labels", "app.kubernetes.io/instance"]), &requested_bytes/1)
-        |> Map.new(fn {instance, bytes} -> {instance, div(Enum.sum(bytes), @gib)} end)
+    with {:ok, pods} <- Client.list_pods(@namespace, region_selector(region_id)),
+         {:ok, volumes} <- retained_volumes(region_id) do
+      pods
+      |> Enum.reject(&terminal?/1)
+      |> Enum.group_by(&get_in(&1, ["metadata", "labels", "app.kubernetes.io/instance"]), &requested_bytes/1)
+      |> Map.new(fn {instance, bytes} -> {instance, div(Enum.sum(bytes), @gib)} end)
+      |> Map.merge(Map.new(volumes, fn volume -> {"persistentvolume/" <> volume.name, div(volume.bytes, @gib)} end))
+    else
+      _ -> nil
+    end
+  end
 
-      {:error, _reason} ->
+  @doc """
+  Bytes of node-local volumes on each of the region's nodes that no claim is
+  bound to, by node, or `nil` when the cluster cannot be read.
+
+  The data volume of a cache replica is a directory on its node's disk, held
+  to its size by a filesystem quota. While a pod requests it, that request is
+  what the scheduler and admission count. A volume whose claim is gone keeps
+  its directory and its quota with nothing requesting either: a replica
+  quarantined by serving-authority recovery is retained until an operator
+  decides what to do with it, and nothing deletes it in the meantime. Counted
+  at the size it was provisioned at, which is what its quota lets it hold.
+
+  Only volumes pinned to a node of the region count, so a volume left behind
+  on a machine that has left the pool, whose disk is gone with it, does not.
+  """
+  def retained_volume_bytes_by_node(region_id) do
+    case retained_volumes(region_id) do
+      {:ok, volumes} ->
+        volumes
+        |> Enum.group_by(& &1.node, & &1.bytes)
+        |> Map.new(fn {node, bytes} -> {node, Enum.sum(bytes)} end)
+
+      _ ->
         nil
     end
   end
+
+  defp retained_volumes(region_id) do
+    cached([__MODULE__, "retained_volumes", region_id], fn -> measure_retained_volumes(region_id) end)
+  end
+
+  defp measure_retained_volumes(region_id) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         {:ok, volumes} <- Client.list_persistent_volumes(timeout: @read_timeout),
+         unbound = unbound_local_volumes(volumes),
+         {:ok, nodes} <- if(unbound == [], do: {:ok, MapSet.new()}, else: region_node_names(region)) do
+      {:ok, Enum.filter(unbound, &MapSet.member?(nodes, &1.node))}
+    else
+      _ -> :error
+    end
+  end
+
+  defp unbound_local_volumes(volumes) do
+    Enum.flat_map(volumes, fn volume ->
+      case local_volume_node(volume) do
+        node when is_binary(node) ->
+          if bound?(volume),
+            do: [],
+            else: [%{name: get_in(volume, ["metadata", "name"]), node: node, bytes: volume_bytes(volume)}]
+
+        nil ->
+          []
+      end
+    end)
+  end
+
+  # A region that pins its instances to no pool has no nodes of its own to
+  # attribute a volume to.
+  defp region_node_names(region) do
+    case Regions.node_label_selector(region) do
+      nil ->
+        {:ok, MapSet.new()}
+
+      selector ->
+        case Client.list_nodes(selector, timeout: @read_timeout) do
+          {:ok, %{"items" => items}} -> {:ok, MapSet.new(items, &node_name/1)}
+          _ -> :error
+        end
+    end
+  end
+
+  # Every phase but Bound: Released (its claim was deleted), Available (never
+  # claimed, or unclaimed by hand) and Failed all leave the directory behind.
+  defp bound?(%{"status" => %{"phase" => "Bound"}}), do: true
+  defp bound?(_volume), do: false
+
+  # The local-path provisioner pins each volume to the node its directory is
+  # on with a required `kubernetes.io/hostname` affinity. A volume without one
+  # is not on a node's disk.
+  defp local_volume_node(%{"spec" => %{"nodeAffinity" => %{"required" => %{"nodeSelectorTerms" => terms}}}})
+       when is_list(terms) do
+    Enum.find_value(terms, fn
+      %{"matchExpressions" => expressions} when is_list(expressions) ->
+        Enum.find_value(expressions, fn
+          %{"key" => "kubernetes.io/hostname", "operator" => "In", "values" => [node]} -> node
+          _expression -> nil
+        end)
+
+      _term ->
+        nil
+    end)
+  end
+
+  defp local_volume_node(_volume), do: nil
+
+  defp volume_bytes(%{"spec" => %{"capacity" => %{"storage" => quantity}}}), do: parse_quantity(quantity) || 0
+  defp volume_bytes(_volume), do: 0
 
   # A pod that has run to completion or been evicted holds no directory, and
   # the scheduler counts neither against the node.
@@ -995,7 +1041,8 @@ defmodule Tuist.Kura.Capacity do
     with selector when is_binary(selector) <- Regions.node_label_selector(region),
          {:ok, %{"items" => items}} <- Client.list_nodes(selector, timeout: @read_timeout),
          {[_ | _] = nodes, off_pool} <- Enum.split_with(items, &schedulable?/1),
-         headroom = Enum.map(nodes, &measure_node(&1, region_id)),
+         retained when is_map(retained) <- retained_volume_bytes_by_node(region_id),
+         headroom = Enum.map(nodes, &measure_node(&1, region_id, retained)),
          false <- Enum.any?(headroom, &is_nil/1) do
       %{
         nodes: headroom,
@@ -1028,14 +1075,16 @@ defmodule Tuist.Kura.Capacity do
 
   defp ceiling_budget_advertised?(_node), do: false
 
-  defp measure_node(node, region_id) do
+  # A retained volume holds its node's disk the way a pod's request does, so it
+  # is charged to the node's ephemeral storage alongside them.
+  defp measure_node(node, region_id, retained) do
     with name when is_binary(name) and name != "" <- node_name(node),
          allocatable when is_map(allocatable) <- node_allocatable(node),
          {:ok, pods} <- Client.list_pods_on_node(name, timeout: @read_timeout) do
       %{
         name: name,
         allocatable: allocatable,
-        reserved: pods_requested(pods),
+        reserved: pods |> pods_requested() |> Map.update!(@ephemeral_storage, &(&1 + Map.get(retained, name, 0))),
         kura_replicas: kura_replicas(pods, region_id)
       }
     else

@@ -4,6 +4,17 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+Helm CI also watches hosted dashboard changes. Monitoring cost-control tests
+start the production Alloy image to compile log selectors, exercise rendered
+remote-write rules against a local Prometheus receiver, and check all migrated
+latency queries across mixed-version rollout states. These checks need no cloud
+credentials and must never write to the production telemetry destinations.
+
+The existing runner-image release workflow runs the portable TCC report tests
+on PRs with read-only permissions and without persisted checkout credentials
+or the release token. Release planning is disabled on PRs and depends on the
+tests on release events. PR concurrency must not block release serialization.
+
 UI evidence for pull request discussions lives in `screenshots/`. Capture the
 actual UI with demo data and link images using immutable commit URLs.
 
@@ -11,6 +22,9 @@ The app's device-build job generates with `--configuration Release` to match its
 Release archive. Default Debug binary-cache hits cannot be optimized by the
 archive's Release setting and make the bundle-size check depend on cache warmth.
 Keep simulator build/test generation on its normal configuration.
+
+The xcresult processor follows the newest stable runner Xcode, not beta or
+RC toolchains. Its matching macOS + Xcode base must be published before release.
 
 Stable cache certificate readiness is an operator bootstrap check documented in
 `infra/cache-dns/README.md`, not a gate on routine server deployments. The Kura
@@ -30,7 +44,11 @@ when authentication succeeds. Main builds publish the tested artifacts to the
 private Tuist project's `nightly` preview track after distinct build, test and
 language-specific lint jobs pass; pull requests never publish. The single
 `atlas-mobile.yml` pipeline's automatic path filters include only `atlas-native/**`
-and all jobs skip draft pull requests. Mobile artifacts are debug Android APKs and
+and all jobs skip draft pull requests. Rust auth dependencies are resolved during
+Once graph loading, so SwiftLint jobs install Rust as well as SwiftLint/Once.
+The composite materializes locked third-party sources before graph validation;
+core test jobs run both navigation and authentication suites.
+Mobile artifacts are debug Android APKs and
 arm64 iOS simulator bundles, not store releases. The CLI is uploaded as a
 host-labeled archive that preserves its executable permission, not a Tuist preview.
 The Tuist project must be connected to `tuist/tuist` for GitHub OIDC access.
@@ -101,6 +119,19 @@ The barrier reads only its own workflow run attempt and fails if its peer fails
 or does not attach within 25 minutes. Keep it outside the timed install command.
 Rerun both jobs together: a failed-job-only retry cannot prove overlap with a
 writer from an earlier attempt.
+
+Kura's clients test shard also runs the portable Xcode lookup fixture lifecycle
+regressions in `kura/spec/e2e/xcode_lookups_lifecycle_spec.sh`. These validate
+cleanup and deletion guards without Xcode or a cache service; actual compiler
+replay remains an opt-in Apple silicon test.
+
+## SwifterPM E2E credentials
+
+`swifterpm.yml` passes its read-only job token to the E2E task's HTTPS GitHub
+credential helper. The fixtures deliberately isolate HOME and disable global/system
+Git configuration, so checkout's local authentication does not reach their native
+SwiftPM fetches. Keep the credential in the job environment, outside cached paths;
+never persist it or extend its host scope beyond github.com.
 
 ## CLI dependency volumes
 
@@ -173,7 +204,7 @@ for current and oldest-supported ClickHouse, with references scoped to the GitHu
 run, attempt, and variant. Each shard owns fresh PostgreSQL and ClickHouse databases.
 Only the build job compiles, so it stays on `tuist-linux-large` while the shards
 run on the default `tuist-linux` shape.
-Bootstrap only `tuist_ex` and download with `mix tuist.test --prepare-only`;
+Bootstrap `tuist_ex` and its dependencies with `mix deps.compile tuist_ex --include-children`, then download with `mix tuist.test --prepare-only`; include children for coverage completion as well so cold jobs have gRPC/Protobuf available.
 `tuist_ex` exchanges the job's GitHub OpenID Connect token itself, so there is no
 login step. Run `db:reset`
 in a separate process before `mix tuist.test --no-download --warnings-as-errors`,
@@ -194,9 +225,12 @@ Keep `TUIST_DEV_ALL_LOCALES=1` in both phases. Fork pull requests run both unsha
 variants without Tuist authentication or `id-token: write`, like the CLI and
 Gradle fork fallbacks. The explicitly named unsharded fallback also runs both variants when the build-plan job fails, without changing that job's failure status. Never silently fall back to the whole suite inside an authenticated shard.
 
-On push to main, the current ClickHouse shards also run with `--cover
---export-coverage shard`, reporting the server's coverage to `tuist/server`,
-and `coverage-complete` then runs `mix tuist.coverage.complete`. Keep coverage
+On push to main, the current ClickHouse shards also run with `--cover`,
+reporting the server's coverage to `tuist/server`,
+and `coverage-complete` then runs `mix tuist.coverage.complete`. The build
+job plans them with `mix tuist.test.build --cover`, which instruments the
+build for native coverage, so the shards count without compiling every
+module for `cover`. Keep coverage
 off pull requests, the merge queue, the floor shards and the unsharded
 fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`.
 
@@ -209,6 +243,10 @@ Atlas releases publish the image and standalone Helm chart with the same version
 ## Cloudflare configuration
 
 `workflows/cloudflare-config-tests.yml` runs the crawler-exemption scope regressions without credentials on pull requests and main changes. These tests do not validate Cloudflare's API expression parser or modify the live zone.
+
+## SwifterPM diagnostics
+
+The SwifterPM E2E workflow probes public Git HTTP status and isolated Git access after a failure. Keep probes credential-free and do not log authorization headers or change the test result.
 
 ## CodeQL
 

@@ -19,7 +19,6 @@ var scopePattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var idPattern = regexp.MustCompile(`^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`)
 
 type Identity struct {
-	Commit         string `json:"commit,omitempty"`
 	ID             string `json:"id"`
 	Account        int64  `json:"account_id"`
 	Scope          string `json:"scope"`

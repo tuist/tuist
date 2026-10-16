@@ -24,6 +24,7 @@ defmodule TuistTestSupport.Fixtures.AppBuildsFixtures do
       git_commit_sha: Keyword.get_lazy(opts, :git_commit_sha, fn -> UUIDv7.generate() end),
       git_ref: Keyword.get(opts, :git_ref, "refs/heads/main"),
       track: Keyword.get(opts, :track, ""),
+      release_notes: Keyword.get(opts, :release_notes),
       created_by_account_id: Keyword.get(opts, :created_by_account_id, project.account.id),
       visibility: Keyword.get(opts, :visibility),
       supported_platforms: Keyword.get(opts, :supported_platforms, []),

@@ -15,6 +15,7 @@ extension Client {
                 RequestIdMiddleware(),
                 ServerClientFeatureFlagsHeadersMiddleware(),
                 ServerClientCLIMetadataHeadersMiddleware(),
+                ServerClientActorHeadersMiddleware(),
                 ServerClientAuthenticationMiddleware(authenticationURL: authenticationURL),
                 VerboseLoggingMiddleware(),
                 OutputWarningsMiddleware(),
