@@ -742,12 +742,15 @@ defmodule Tuist.Tests do
     shard_status = Map.get(attrs, :status, "success")
     shard_duration = Map.get(attrs, :duration, 0)
 
-    # `shard_runs` is the only authority on which run a plan's shards report
-    # into. The first shard claims that mapping before its run row exists, so a
-    # report that dies in between leaves a pointer the next shard rebuilds
-    # through, rather than a run no later shard can find.
+    # A plan's shards report into the run that carries the plan's id. Nothing
+    # serializes the first claim, and reads trail writes through an
+    # asynchronous mirror, so shards that each minted their own id would split
+    # one plan across several runs. The mapping is still read first for plans
+    # whose run predates this. The first shard claims it before its run row
+    # exists, so a report that dies in between leaves a pointer the next shard
+    # rebuilds through.
     mapped_id = mapped_shard_test_run_id(project_id, shard_plan_id)
-    merged_id = String.downcase(mapped_id || Map.get(attrs, :id) || UUIDv7.generate())
+    merged_id = String.downcase(mapped_id || shard_plan_id)
 
     if is_nil(mapped_id) do
       insert_shard_run(

@@ -2463,6 +2463,52 @@ defmodule Tuist.TestsTest do
       refute Enum.any?(queries, &(&1 =~ ~s(FROM "test_runs") and &1 =~ ~s|"shard_plan_id" = |))
     end
 
+    test "shards that cannot yet read the plan's mapping still report into one run" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      # Reads reach a replica that only gets rows through an asynchronous
+      # mirror, so a shard can miss the mapping another shard just wrote.
+      stub(ClickHouseRepo, :one, fn
+        %Ecto.Query{from: %{source: {"shard_runs", _}}} -> nil
+        query -> call_original(ClickHouseRepo, :one, [query])
+      end)
+
+      shard = fn index ->
+        %{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: index
+        }
+      end
+
+      {:ok, first} = Tests.create_test(shard.(0))
+      {:ok, second} = Tests.create_test(shard.(1))
+
+      assert second.id == first.id
+
+      assert [_] =
+               IngestRepo.all(
+                 from(shard_run in ShardRun,
+                   where: shard_run.shard_plan_id == ^plan.id,
+                   distinct: true,
+                   select: shard_run.test_run_id
+                 )
+               )
+    end
+
     test "single shard plan sets status directly (not in_progress)" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
@@ -2817,7 +2863,7 @@ defmodule Tuist.TestsTest do
 
       assert first_test.status == "in_progress"
 
-      assert first_test.id == String.downcase(client_id)
+      assert first_test.id == plan.id
 
       # The row a shard writes for itself is not reliably observable by the
       # read that immediately follows it, so the last shard to report has to
