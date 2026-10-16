@@ -127,8 +127,8 @@ server:
   # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
   # them to Grafana Cloud Tempo. Logs follow a different path — the server
   # writes to stdout and a per-node Alloy DaemonSet tails /var/log/pods —
-  # so TUIST_LOKI_URL stays unset (the in-app LokiLoggerHandler only
-  # attaches when TUIST_LOKI_INPROC=1).
+  # so TUIST_LOKI_URL stays unset (setting it attaches the in-app Loki
+  # handler, which only the xcresult processor's Tart VMs need).
   extraEnv:
     # Selects the runtime deployment target (Tuist.Environment.env()). The
     # image is env-agnostic (built with MIX_ENV=prod); this flag picks which
