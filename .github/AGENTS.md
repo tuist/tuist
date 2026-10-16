@@ -164,9 +164,9 @@ must not be presented as validation of the automatic policy.
 
 Attach `~/Library/Caches/org.swift.swiftpm/manifests` directly as a third volume
 before any SwiftPM commands populate it. Its key is shared across jobs for the
-same Xcode version. Fresh checkout mtimes still make SwifterPM evaluate the root
-and local packages; retaining SwiftPM's native manifest cache avoids rebuilding
-those inputs. Keep SwiftPM configuration, security and authentication directories
+same Xcode version. Content-based manifest caches reuse unchanged root and local
+packages across fresh checkouts. Retaining SwiftPM's native manifest cache still
+avoids recompilation on misses and during forced lockfile validation. Keep SwiftPM configuration, security and authentication directories
 outside the volume. Forks keep their existing unmounted cache layout. Use the
 action's normal absent-or-empty path contract instead of relocating cache data
 with workflow scripts.
