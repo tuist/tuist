@@ -73,6 +73,7 @@ const DEFAULT_INSTANCE_NAME: &str = "default";
 // The reader fills the response vector directly, so there is no intermediate
 // reader buffer.
 const BYTESTREAM_RESPONSE_LIVE_CHUNK_COUNT: usize = 2;
+const BYTESTREAM_ZSTD_OUTPUT_BUFFER_BYTES: usize = 32 * 1024;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
 
 fn retain_response_permit<T>(
@@ -324,10 +325,20 @@ fn compressed_wire_ceiling(declared_uncompressed: u64) -> u64 {
 /// decoder's inner buffer at exactly what the declared size still allows, so
 /// a compression bomb cannot materialize a full chunk of expansion before the
 /// per-chunk size check runs — the pattern `SnapshotWireWriter` already uses.
-#[derive(Default)]
 struct BoundedZstdDecoderSink {
     bytes: Vec<u8>,
     remaining: u64,
+    admission: GrpcWriteAdmission,
+}
+
+impl BoundedZstdDecoderSink {
+    fn new(admission: GrpcWriteAdmission) -> Self {
+        Self {
+            bytes: Vec::new(),
+            remaining: 0,
+            admission,
+        }
+    }
 }
 
 impl std::io::Write for BoundedZstdDecoderSink {
@@ -338,14 +349,80 @@ impl std::io::Write for BoundedZstdDecoderSink {
                 "compressed write decompressed past the declared blob size (possible bomb)",
             ));
         }
-        self.remaining -= buffer.len() as u64;
+        let required = self.bytes.len().checked_add(buffer.len()).ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "decoded length overflow")
+        })?;
+        if required > self.bytes.capacity() {
+            let maximum = self
+                .bytes
+                .len()
+                .saturating_add(usize::try_from(self.remaining).unwrap_or(usize::MAX));
+            let capacity = required
+                .max(self.bytes.capacity().saturating_mul(2))
+                .min(maximum);
+            // Reallocation may own the old and new allocation simultaneously.
+            // The codec also owns its separate output buffer. Admit all three
+            // before allocating; declared output length is not a memory permit.
+            let workspace = (self.bytes.capacity() as u64)
+                .saturating_add(capacity as u64)
+                .saturating_add(BYTESTREAM_ZSTD_OUTPUT_BUFFER_BYTES as u64);
+            self.admission
+                .try_grow_decompression(workspace)
+                .map_err(std::io::Error::other)?;
+            self.bytes
+                .try_reserve_exact(capacity - self.bytes.len())
+                .map_err(|error| std::io::Error::new(std::io::ErrorKind::OutOfMemory, error))?;
+        }
         self.bytes.extend_from_slice(buffer);
+        self.remaining -= buffer.len() as u64;
         Ok(buffer.len())
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
     }
+}
+
+fn zstd_upload_decode_status(error: std::io::Error) -> Status {
+    if let Some(status) = error
+        .get_ref()
+        .and_then(|inner| inner.downcast_ref::<Status>())
+    {
+        return status.clone();
+    }
+    if error.kind() == std::io::ErrorKind::OutOfMemory {
+        return write_admission_rejected(
+            "server could not allocate ByteStream decompression memory; retry the write",
+            crate::backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS,
+        );
+    }
+    Status::invalid_argument(format!("failed to decode zstd upload: {error}"))
+}
+
+fn new_zstd_upload_decoder(
+    admission: &GrpcWriteAdmission,
+    declared_bytes: u64,
+) -> Result<zstd::stream::write::Decoder<'static, BoundedZstdDecoderSink>, Status> {
+    let output_bytes = BYTESTREAM_ZSTD_OUTPUT_BUFFER_BYTES as u64;
+    admission
+        .try_grow_decompression(output_bytes.saturating_add(declared_bytes.min(output_bytes)))?;
+    let output = try_allocate_exact_vec(BYTESTREAM_ZSTD_OUTPUT_BUFFER_BYTES).ok_or_else(|| {
+        write_admission_rejected(
+            "server could not allocate ByteStream decoder output; retry the write",
+            crate::backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS,
+        )
+    })?;
+    let decoder = zstd::stream::raw::Decoder::new().map_err(|error| {
+        Status::internal(format!(
+            "failed to build zstd decoder for compressed write: {error}"
+        ))
+    })?;
+    let writer = zstd::stream::zio::Writer::with_output_buffer(
+        output,
+        BoundedZstdDecoderSink::new(admission.clone()),
+        decoder,
+    );
+    Ok(zstd::stream::write::Decoder::with_writer(writer))
 }
 
 fn fill_staging_window(buffer: &mut Vec<u8>, window: usize, data: &[u8]) -> usize {
@@ -867,6 +944,12 @@ impl ReapiService {
                         .discard_stored_write(&mut stream, chunk, parsed_resource)
                         .await;
                 }
+                if parsed_resource.compressor == BlobCompressor::Zstd {
+                    let output_bytes = BYTESTREAM_ZSTD_OUTPUT_BUFFER_BYTES as u64;
+                    memory_admission.try_grow_decompression(
+                        output_bytes.saturating_add(parsed_resource.size_bytes.min(output_bytes)),
+                    )?;
+                }
                 let (policy, admitted_window) =
                     memory_admission.try_configure_staging(parsed_resource.size_bytes)?;
                 file_cache_policy = policy;
@@ -917,14 +1000,10 @@ impl ReapiService {
                     staging_buffer = Vec::with_capacity(staging_buffer_bytes);
                 }
                 if parsed_resource.compressor == BlobCompressor::Zstd {
-                    zstd_decoder = Some(
-                        zstd::stream::write::Decoder::new(BoundedZstdDecoderSink::default())
-                            .map_err(|error| {
-                                Status::internal(format!(
-                                    "failed to build zstd decoder for compressed write: {error}"
-                                ))
-                            })?,
-                    );
+                    zstd_decoder = Some(new_zstd_upload_decoder(
+                        &memory_admission,
+                        parsed_resource.size_bytes,
+                    )?);
                 }
                 resource = Some(parsed_resource);
                 resource_name = Some(chunk.resource_name);
@@ -936,6 +1015,7 @@ impl ReapiService {
                 .as_ref()
                 .expect("resource is initialized with the first chunk")
                 .size_bytes;
+            file_cache_policy = memory_admission.file_cache_policy()?;
             let is_compressed = zstd_decoder.is_some();
             if !is_compressed
                 && stored_written.saturating_add(chunk.data.len() as u64) > expected_size
@@ -955,18 +1035,14 @@ impl ReapiService {
                 let decoded_owned;
                 let decoded: &[u8] = if let Some(decoder) = zstd_decoder.as_mut() {
                     decoder.get_mut().remaining = expected_size.saturating_sub(stored_written);
-                    std::io::Write::write_all(decoder, &chunk.data).map_err(|error| {
-                        Status::invalid_argument(format!(
-                            "failed to decode zstd upload chunk: {error}"
-                        ))
-                    })?;
+                    std::io::Write::write_all(decoder, &chunk.data)
+                        .map_err(zstd_upload_decode_status)?;
                     // The `write::Decoder` may hold decoded bytes in its
                     // internal scratch buffer until the next write pushes them
                     // to the inner writer; flush forces them through so the
                     // per-chunk drain sees every decoded byte.
-                    std::io::Write::flush(decoder).map_err(|error| {
-                        Status::invalid_argument(format!("failed to flush zstd decoder: {error}"))
-                    })?;
+                    std::io::Write::flush(decoder).map_err(zstd_upload_decode_status)?;
+                    file_cache_policy = memory_admission.file_cache_policy()?;
                     // Take the sink's bytes buffer so we can process it
                     // without holding a mutable borrow across the write path;
                     // the sink stays in place with its `remaining` budget
@@ -1047,11 +1123,8 @@ impl ReapiService {
         // in-loop step uses.
         if let Some(mut decoder) = zstd_decoder.take() {
             decoder.get_mut().remaining = resource.size_bytes.saturating_sub(stored_written);
-            std::io::Write::flush(&mut decoder).map_err(|error| {
-                Status::invalid_argument(format!(
-                    "failed to flush zstd decoder at end of stream: {error}"
-                ))
-            })?;
+            std::io::Write::flush(&mut decoder).map_err(zstd_upload_decode_status)?;
+            file_cache_policy = memory_admission.file_cache_policy()?;
             let mut trailing = decoder.into_inner().bytes;
             if !trailing.is_empty() {
                 if stored_written.saturating_add(trailing.len() as u64) > resource.size_bytes {
@@ -1138,8 +1211,9 @@ impl ReapiService {
                     None,
                 )
                 .await
-        }
-        .map_err(|error| {
+        };
+        drop(memory_payload);
+        let persisted = persisted.map_err(|error| {
             if is_fd_pool_exhausted_error(&error) {
                 Status::resource_exhausted(format!(
                     "file descriptor pool exhausted while persisting CAS blob: {error}"
@@ -12282,16 +12356,191 @@ mod tests {
 
     #[test]
     fn bounded_zstd_decoder_sink_rejects_bytes_past_its_budget() {
-        let mut sink = BoundedZstdDecoderSink {
-            remaining: 4,
-            ..Default::default()
-        };
+        let (_memory, admission) = bytestream_admission(16 * 1024 * 1024);
+        let mut sink = BoundedZstdDecoderSink::new(admission);
+        sink.remaining = 4;
         std::io::Write::write_all(&mut sink, &[1, 2, 3, 4])
             .expect("bytes inside the budget should be accepted");
         assert_eq!(sink.bytes, vec![1, 2, 3, 4]);
         assert_eq!(sink.remaining, 0);
         let overflow = std::io::Write::write_all(&mut sink, &[5]);
         assert!(overflow.is_err(), "a byte past the budget must be refused");
+    }
+
+    #[test]
+    fn bytestream_zstd_sink_admits_capacity_and_reallocation_before_growth() {
+        let mib = 1024 * 1024;
+        let (memory, admission) = bytestream_admission(32 * mib);
+        assert_eq!(memory.foreground_transient_capacity_bytes(), 16 * mib);
+        admission
+            .try_configure_staging(8 * mib)
+            .expect("staging fits");
+        let mut sink = BoundedZstdDecoderSink::new(admission.clone());
+        sink.remaining = 8 * mib;
+        let chunk = vec![0x5a; 128 * 1024];
+        let error = loop {
+            let old_capacity = sink.bytes.capacity();
+            let old_length = sink.bytes.len();
+            let old_remaining = sink.remaining;
+            match std::io::Write::write_all(&mut sink, &chunk) {
+                Ok(()) => {
+                    assert!(
+                        memory.foreground_transient_reserved_bytes()
+                            >= 8 * mib + sink.bytes.capacity() as u64
+                    );
+                    assert!(
+                        memory.foreground_transient_reserved_bytes()
+                            <= memory.foreground_transient_capacity_bytes()
+                    );
+                }
+                Err(error) => {
+                    assert_eq!(sink.bytes.capacity(), old_capacity);
+                    assert_eq!(sink.bytes.len(), old_length);
+                    assert_eq!(sink.remaining, old_remaining);
+                    break zstd_upload_decode_status(error);
+                }
+            }
+        };
+        assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+        let details = RpcStatus::decode(error.details()).expect("standard RPC status");
+        assert_eq!(
+            details.details[0].type_url,
+            "type.googleapis.com/google.rpc.RetryInfo"
+        );
+        drop(sink);
+        assert!(
+            memory.foreground_transient_reserved_bytes() > 0,
+            "the request keeps the high-water reservation after scratch drops"
+        );
+        drop(admission);
+        assert_eq!(memory.foreground_transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_zstd_expansion_refuses_unadmitted_scratch_without_publication() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|config| {
+            config.memory_soft_limit_bytes = 32 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 64 * 1024 * 1024;
+        })
+        .await;
+        context.state.memory.observe(0);
+        let before = context.state.memory.foreground_transient_reserved_bytes();
+        let ring = context.state.store.storage_snapshot().live_segment_bytes;
+        let blob = vec![0x5a; 64 * 1024 * 1024];
+        let encoded = zstd::stream::encode_all(blob.as_slice(), 3).expect("compress fixture");
+        assert!(
+            encoded.len() < 64 * 1024,
+            "one small wire chunk expands well beyond staging"
+        );
+        let hash = hex::encode(Sha256::digest(&blob));
+        let resource = format!(
+            "uploads/expansion/compressed-blobs/zstd/{hash}/{}",
+            blob.len()
+        );
+        let (channel, shutdown, server) = connect_test_routes(context.state.clone()).await;
+        let mut client = ByteStreamClient::new(channel);
+        let error = client
+            .write(tokio_stream::iter(chunked_write_requests(
+                &resource, &encoded, true,
+            )))
+            .await
+            .expect_err("scratch must be admitted before decompression allocates it");
+        assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+        let details = RpcStatus::decode(error.details()).expect("standard RPC status");
+        assert_eq!(
+            details.details[0].type_url,
+            "type.googleapis.com/google.rpc.RetryInfo"
+        );
+        assert_eq!(
+            context.state.store.storage_snapshot().live_segment_bytes,
+            ring
+        );
+        assert_eq!(context.state.tmp_staging_budget.reserved_bytes(), 0);
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while context.state.memory.foreground_transient_reserved_bytes() != before {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("failed decoding must release its owned reservations");
+        let error = client
+            .read(bytestream::ReadRequest {
+                resource_name: format!("blobs/{hash}/{}", blob.len()),
+                read_offset: 0,
+                read_limit: 0,
+            })
+            .await
+            .expect_err("the refused blob must not be published");
+        assert_eq!(error.code(), tonic::Code::NotFound);
+        let _ = shutdown.send(());
+        tokio::time::timeout(Duration::from_secs(10), server)
+            .await
+            .expect("server must stop")
+            .expect("server must not panic");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_zstd_own_scratch_growth_does_not_drop_uncontended_file_cache() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|_| {}).await;
+        context.state.memory.observe(0);
+        let blob = vec![0x5a; 3 * 1024 * 1024 + 17];
+        let hash = hex::encode(Sha256::digest(&blob));
+        let encoded = zstd::stream::encode_all(blob.as_slice(), 3).expect("compress fixture");
+        let resource = format!(
+            "uploads/own-growth/compressed-blobs/zstd/{hash}/{}",
+            blob.len()
+        );
+        let (channel, shutdown, server) = connect_test_routes(context.state.clone()).await;
+        let mut client = ByteStreamClient::new(channel);
+        let response = client
+            .write(tokio_stream::iter(chunked_write_requests(
+                &resource, &encoded, true,
+            )))
+            .await
+            .expect("uncontended upload fits")
+            .into_inner();
+        assert_eq!(response.committed_size as usize, encoded.len());
+        let metrics = context.state.metrics.render();
+        for action in ["staging_file_cache_drop", "segment_file_cache_drop"] {
+            for line in metrics.lines().filter(|line| {
+                line.starts_with("kura_memory_actions_total_total{")
+                    && line.contains(&format!("action=\"{action}\""))
+            }) {
+                assert_eq!(
+                    line.split_whitespace()
+                        .last()
+                        .expect("counter value")
+                        .parse::<f64>()
+                        .unwrap(),
+                    0.0,
+                    "own reservation growth must not look like another foreground upload: {line}"
+                );
+            }
+        }
+        let mut read = client
+            .read(bytestream::ReadRequest {
+                resource_name: format!("blobs/{hash}/{}", blob.len()),
+                read_offset: 0,
+                read_limit: 0,
+            })
+            .await
+            .expect("blob must be published")
+            .into_inner();
+        let mut readback = Vec::new();
+        while let Some(chunk) = read.message().await.expect("read chunk") {
+            readback.extend_from_slice(&chunk.data);
+        }
+        assert_eq!(readback, blob);
+        drop(read);
+        let _ = shutdown.send(());
+        tokio::time::timeout(Duration::from_secs(10), server)
+            .await
+            .expect("server must stop")
+            .expect("server must not panic");
     }
 
     #[test]

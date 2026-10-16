@@ -63,7 +63,7 @@ struct RetryInfo {
 
 // Try-only decode/staging refusals have no queued backlog, so use the idle
 // jitter window. Critical memory shedding retains the saturated window.
-fn write_admission_rejected(message: &str, retry_ceiling_seconds: u64) -> Status {
+pub(super) fn write_admission_rejected(message: &str, retry_ceiling_seconds: u64) -> Status {
     let retry = RetryInfo {
         retry_delay: Some(protobuf::Duration {
             seconds: crate::backpressure::retry_after_seconds(retry_ceiling_seconds) as i64,
@@ -95,6 +95,7 @@ struct GrpcWriteReservation {
     file_cache: ForegroundFileCacheReservation,
     stream_message_high_water_bytes: u64,
     decode_structural_high_water_bytes: u64,
+    decompression_high_water_bytes: u64,
     stream_staging_bytes: u64,
     decode_copy_multiplier: u64,
     /// The whole budget this stream can be admitted against -- the
@@ -117,6 +118,7 @@ impl GrpcWriteReservation {
             ),
             stream_message_high_water_bytes: 0,
             decode_structural_high_water_bytes: 0,
+            decompression_high_water_bytes: 0,
             stream_staging_bytes: 0,
             decode_copy_multiplier: decode_copy_multiplier.max(1),
             transient_capacity_bytes: memory.foreground_transient_capacity_bytes(),
@@ -137,10 +139,29 @@ impl GrpcWriteReservation {
         let requested_bytes = high_water_bytes
             .saturating_mul(self.decode_copy_multiplier)
             .saturating_add(structural_high_water_bytes)
+            .saturating_add(self.decompression_high_water_bytes)
             .saturating_add(self.stream_staging_bytes);
         self.file_cache.try_resize(requested_bytes)?;
         self.stream_message_high_water_bytes = high_water_bytes;
         self.decode_structural_high_water_bytes = structural_high_water_bytes;
+        if let FileCachePolicy::Foreground { .. } = self.file_cache.file_cache_policy() {
+            self.file_cache.set_policy(FileCachePolicy::Foreground {
+                reservation_bytes: requested_bytes,
+            });
+        }
+        Ok(())
+    }
+
+    fn try_grow_decompression(&mut self, bytes: u64) -> Result<(), ()> {
+        let high_water_bytes = self.decompression_high_water_bytes.max(bytes);
+        let requested_bytes = self
+            .stream_message_high_water_bytes
+            .saturating_mul(self.decode_copy_multiplier)
+            .saturating_add(self.decode_structural_high_water_bytes)
+            .saturating_add(high_water_bytes)
+            .saturating_add(self.stream_staging_bytes);
+        self.file_cache.try_resize(requested_bytes)?;
+        self.decompression_high_water_bytes = high_water_bytes;
         if let FileCachePolicy::Foreground { .. } = self.file_cache.file_cache_policy() {
             self.file_cache.set_policy(FileCachePolicy::Foreground {
                 reservation_bytes: requested_bytes,
@@ -168,7 +189,8 @@ impl GrpcWriteReservation {
         let decode_bytes = self
             .stream_message_high_water_bytes
             .saturating_mul(self.decode_copy_multiplier)
-            .saturating_add(self.decode_structural_high_water_bytes);
+            .saturating_add(self.decode_structural_high_water_bytes)
+            .saturating_add(self.decompression_high_water_bytes);
         let staging_budget_bytes = self.transient_capacity_bytes.saturating_sub(decode_bytes);
         let desired_window_bytes = declared_or_max_bytes.min(FOREGROUND_STAGING_WINDOW_BYTES);
         let window_bytes = desired_window_bytes.min(staging_budget_bytes.saturating_div(2));
@@ -231,6 +253,27 @@ impl GrpcWriteAdmission {
                     crate::backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS,
                 )
             })
+    }
+
+    pub(super) fn file_cache_policy(&self) -> Result<FileCachePolicy, Status> {
+        self.reservation
+            .lock()
+            .map(|reservation| reservation.file_cache.file_cache_policy())
+            .map_err(|_| Status::internal("gRPC write memory admission lock was poisoned"))
+    }
+
+    pub(super) fn try_grow_decompression(&self, bytes: u64) -> Result<(), Status> {
+        let mut reservation = self
+            .reservation
+            .lock()
+            .map_err(|_| Status::internal("gRPC write memory admission lock was poisoned"))?;
+        reservation.try_grow_decompression(bytes).map_err(|_| {
+            self.metrics.record_decode_rejected();
+            write_admission_rejected(
+                "server is limiting concurrent ByteStream decompression; retry the write",
+                crate::backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS,
+            )
+        })
     }
 
     /// Reserves this write's reply before the write persists, so a stored
@@ -754,6 +797,96 @@ mod tests {
         drop(admission);
         drop(held);
         assert_eq!(memory.transient_reserved_bytes(), 0);
+    }
+
+    #[test]
+    fn decompression_reservation_survives_wire_growth_and_staging_configuration() {
+        let metrics = crate::metrics::Metrics::new("local".into(), "tenant".into());
+        let mib = 1024 * 1024;
+        let memory =
+            MemoryController::with_runtime_limit(metrics.clone(), 512 * mib, 64 * mib, 128 * mib);
+        memory.observe(0);
+        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics())
+            .expect("initial reservation");
+        admission.try_grow_decompression(mib).expect("scratch fits");
+        let (_, window) = admission
+            .try_configure_staging(8 * mib)
+            .expect("staging fits");
+        admission
+            .try_grow_decode(mib, 0)
+            .expect("wire message fits");
+        assert_eq!(
+            memory.foreground_transient_reserved_bytes(),
+            3 * mib + 2 * window
+        );
+        admission
+            .try_grow_decompression(mib / 2)
+            .expect("high water does not shrink");
+        assert_eq!(
+            memory.foreground_transient_reserved_bytes(),
+            3 * mib + 2 * window
+        );
+        let before = memory.foreground_transient_reserved_bytes();
+        let error = admission
+            .try_grow_decompression(u64::MAX)
+            .expect_err("oversized growth refused");
+        assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+        let status = rpc::Status::decode(error.details()).expect("standard RPC status");
+        let retry = RetryInfo::decode(status.details[0].value.as_slice()).expect("RetryInfo");
+        assert!((1..=2).contains(&retry.retry_delay.expect("retry delay").seconds));
+        assert_eq!(memory.foreground_transient_reserved_bytes(), before);
+        drop(admission);
+        assert_eq!(memory.foreground_transient_reserved_bytes(), 0);
+    }
+
+    #[test]
+    fn live_file_cache_policy_distinguishes_own_growth_from_other_reservations() {
+        let metrics = crate::metrics::Metrics::new("local".into(), "tenant".into());
+        let mib = 1024 * 1024;
+        let memory =
+            MemoryController::with_runtime_limit(metrics.clone(), 512 * mib, 64 * mib, 128 * mib);
+        memory.observe(0);
+        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics())
+            .expect("initial reservation");
+        let (stale, _) = admission.try_configure_staging(mib).expect("staging fits");
+        admission
+            .try_grow_decompression(2 * mib)
+            .expect("scratch fits");
+        admission.try_grow_decode(mib, 0).expect("wire fits");
+        let own_bytes = memory.foreground_transient_reserved_bytes();
+        assert!(
+            stale.should_drop(false, own_bytes),
+            "a stale snapshot misreads own growth as overlap"
+        );
+        let live = admission.file_cache_policy().expect("live policy");
+        assert!(
+            !live.should_drop(false, own_bytes),
+            "own growth must not evict warm pages"
+        );
+        assert!(
+            live.should_drop(true, own_bytes),
+            "real reclaim pressure must still drop pages"
+        );
+        let other = memory
+            .try_reserve_foreground_memory(mib)
+            .expect("another request fits");
+        assert!(
+            live.should_drop(false, memory.foreground_transient_reserved_bytes()),
+            "another request's reservation must still trigger drop-behind"
+        );
+        drop(other);
+        admission
+            .try_configure_staging(8 * mib)
+            .expect("bounded staging fits");
+        admission
+            .try_grow_decompression(3 * mib)
+            .expect("scratch growth fits");
+        assert_eq!(
+            admission.file_cache_policy().expect("live policy"),
+            FileCachePolicy::Bounded
+        );
+        drop(admission);
+        assert_eq!(memory.foreground_transient_reserved_bytes(), 0);
     }
 
     #[test]
