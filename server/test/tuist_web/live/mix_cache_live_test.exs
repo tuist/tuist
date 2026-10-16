@@ -72,7 +72,7 @@ defmodule TuistWeb.MixCacheLiveTest do
     {:ok, view, _} = live(context.conn, context.path)
     render_async(view, 5_000)
     assert has_element?(view, "#mix-cache-widget-transfer > [data-part='value']", "3.0 KB")
-    assert has_element?(view, "#mix-cache-widget-latency > [data-part='value']", "12ms")
+    assert has_element?(view, "#mix-cache-widget-latency > [data-part='value']", "13ms")
     refute has_element?(view, "#mix-cache-widget-throughput > [data-part='value']", "No data")
     reject(&Cache.io_analytics/2)
 
@@ -98,6 +98,87 @@ defmodule TuistWeb.MixCacheLiveTest do
     assert has_element?(view, "#mix-cache-widget-transfer > [data-part='value']", "1.0 KB")
     render_click(view, "select_latency_type", %{"type" => "write"})
     assert has_element?(view, "#mix-cache-widget-latency > [data-part='value']", "20ms")
+  end
+
+  test "latency legends round like chart tooltips while retaining precise measured series", context do
+    read =
+      Map.merge(event("nimble_options", "remote_hit", 500), %{
+        read_bytes: 1_000,
+        read_duration_us: 114_820,
+        read_source: "remote"
+      })
+
+    write =
+      Map.merge(event("phoenix_pubsub", "miss"), %{
+        write_bytes: 2_000,
+        write_duration_us: 56_600,
+        write_source: "remote"
+      })
+
+    build(context, false, [read, write])
+    {:ok, view, _} = live(context.conn, context.path <> "?widget=latency")
+    options = view |> render_async(5_000) |> chart_options()
+
+    assert has_element?(view, "#mix-cache-widget-latency > [data-part='value']", "86ms")
+    assert has_element?(view, "#mix-cache-widget-latency-dropdown-content-portal", "Read latency")
+    assert has_element?(view, "#mix-cache-widget-latency-dropdown-content-portal", "115ms")
+    assert has_element?(view, "#mix-cache-widget-latency-dropdown-content-portal", "57ms")
+
+    read_series = Enum.find(options["series"], &(&1["name"] == "Read latency"))
+    assert Enum.at(hd(read_series["data"]), 1) == 114.82
+    assert read_series["color"] == "var:noora-chart-secondary"
+
+    render_click(view, "select_latency_type", %{"type" => "read"})
+    assert has_element?(view, "#mix-cache-widget-latency > [data-part='value']", "115ms")
+    assert has_element?(view, "#mix-cache-widget-latency [data-color='secondary']")
+  end
+
+  test "recent builds without lookups stay unavailable while a measured miss is zero", context do
+    legacy = build(context, false, [], -180)
+    bypass = build(context, false, [event("native", "bypass")], -120)
+    miss = build(context, false, [event("nimble_options", "miss")], -60)
+    {:ok, view, _} = live(context.conn, context.path)
+    html = render_async(view, 5_000)
+
+    assert has_element?(view, "#mix-cache-build-#{legacy}", "No data")
+    assert has_element?(view, "#mix-cache-build-#{bypass}", "No data")
+    assert has_element?(view, "#mix-cache-build-#{miss}", "0.0%")
+
+    points = html |> chart_options("mix-cache-recent-builds-chart") |> Map.fetch!("series") |> hd() |> Map.fetch!("data")
+    values = Map.new(points, &{&1["url"], &1["value"]})
+
+    base_path = String.replace_suffix(context.path, "/mix-cache", "")
+
+    for id <- [legacy, bypass] do
+      assert Map.fetch!(values, "#{base_path}/builds/mix-builds/#{id}?tab=cache") == nil
+    end
+
+    assert Map.fetch!(values, "#{base_path}/builds/mix-builds/#{miss}?tab=cache") == 0.0
+  end
+
+  test "recent chart can show an older rate while all seven latest rows have no observations", context do
+    measured =
+      build(
+        context,
+        false,
+        [event("one", "remote_hit", 100), event("two", "remote_hit", 100), event("three", "miss")],
+        -600
+      )
+
+    for index <- 1..7, do: build(context, false, [], -index * 60)
+    {:ok, view, _} = live(context.conn, context.path)
+    html = render_async(view, 5_000)
+
+    rows = html |> Floki.parse_document!() |> Floki.find("#mix-cache-recent-builds-table tbody tr")
+    assert length(rows) == 7
+    assert Enum.all?(rows, &(Floki.text(&1) =~ "No data"))
+    refute has_element?(view, "#mix-cache-build-#{measured}")
+
+    options = chart_options(html, "mix-cache-recent-builds-chart")
+    points = hd(options["series"])["data"]
+    assert length(points) == 8
+    assert Enum.count(points, &is_nil(&1["value"])) == 7
+    assert_in_delta hd(points)["value"], 100 * 2 / 3, 0.0001
   end
 
   test "shows average and percentile lines using the Xcode chart geometry", context do
