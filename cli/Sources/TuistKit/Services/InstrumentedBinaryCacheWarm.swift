@@ -44,10 +44,10 @@ enum InstrumentedBinaryCacheWarm {
     static func buildSettings(sourceRoots: [String]) -> [String] {
         let marker = "$(\(markerSetting))"
         let swiftFlags = [AtomicCoverageCounters.swiftFlags] + sourceRoots.map {
-            "-coverage-prefix-map \(quoted("\($0)=\(sourceRootPlaceholder)"))"
+            "-coverage-prefix-map \(SettingValue.quoted("\($0)=\(sourceRootPlaceholder)"))"
         }
         let cFlags = [AtomicCoverageCounters.cFlags] + sourceRoots.map {
-            quoted("-fcoverage-prefix-map=\($0)=\(sourceRootPlaceholder)")
+            SettingValue.quoted("-fcoverage-prefix-map=\($0)=\(sourceRootPlaceholder)")
         }
         return [
             "CLANG_COVERAGE_MAPPING=$(TUIST_BINARY_CACHE_COVERAGE_MAPPING_\(marker))",
@@ -58,15 +58,5 @@ enum InstrumentedBinaryCacheWarm {
             "OTHER_CFLAGS=$(inherited) $(TUIST_BINARY_CACHE_COVERAGE_CFLAGS_\(marker))",
             "TUIST_BINARY_CACHE_COVERAGE_CFLAGS_YES=\(cFlags.joined(separator: " "))",
         ]
-    }
-
-    /// `value` as one item of a build-setting list, the way `XcodeCachePrefixMappingWorkspaceMapper`
-    /// writes Xcode's own prefix maps: Xcode splits a list on whitespace and keeps a double-quoted item
-    /// whole, so a checkout path with a space stays one argument.
-    private static func quoted(_ value: String) -> String {
-        let escaped = value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"\(escaped)\""
     }
 }
