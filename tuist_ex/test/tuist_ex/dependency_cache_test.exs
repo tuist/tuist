@@ -294,6 +294,35 @@ defmodule TuistEx.DependencyCacheTest do
     refute second["output"] =~ "Compiling 1 file"
   end
 
+  test "regex and struct configuration restores across VMs and invalidates on regex changes", %{
+    project: project
+  } do
+    configure = fn pattern ->
+      File.write!(
+        Path.join(project, "config/config.exs"),
+        "import Config\nconfig :dep_probe, value: 1, nested: %{patterns: [#{pattern}], uri: URI.parse(\"https://tuist.dev\")}\n"
+      )
+    end
+
+    configure.("~r/priv\\/static/iu")
+    first = run!(project)
+    assert [%{"outcome" => "miss", "reason" => "", "key" => key}] = first["dependency_cache"]
+    File.rm_rf!(Path.join(project, "_build"))
+    second = run!(project)
+    assert [%{"outcome" => "local_hit", "key" => ^key}] = second["dependency_cache"]
+
+    for pattern <- ["~r/priv\\/assets/iu", "~r/priv\\/static/u"] do
+      File.rm_rf!(Path.join(project, "_build"))
+      configure.(pattern)
+      result = run!(project)
+
+      assert [%{"outcome" => "miss", "reason" => "", "key" => changed_key}] =
+               result["dependency_cache"]
+
+      refute changed_key == key
+    end
+  end
+
   test "effective compile configuration invalidates a dependency", %{project: project} do
     first = run!(project)
     File.rm_rf!(Path.join(project, "_build"))
