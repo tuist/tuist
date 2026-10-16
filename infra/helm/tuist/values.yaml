@@ -3263,6 +3263,12 @@ postgresql:
         # tailnet's ACL only permits Tuist-scoped tags; set this to the
         # env's permitted tag (e.g. "tag:tuist-k8s-production").
         tags: ""
+        # Name of a Tailscale ProxyGroup of type `ingress` to serve the pooler
+        # as the Tailscale Service `svc:<hostname>` instead of a standalone
+        # proxy, from a Service of its own. The tailnet policy must
+        # auto-approve that Service for the ProxyGroup's tag and grant the
+        # macOS fleet access to it.
+        proxyGroup: ""
     storage:
       # Bumped per env. 100Gi at staging, 250Gi at canary + production.
       size: "20Gi"

@@ -910,8 +910,19 @@ never contains a Tailscale Service and keeps an old address after the name
 moves to another device.
 */}}
 {{- define "tuist.clickhouseTailnetHost" -}}
-{{- $host := required "clickhouse.managed.tailscale.hostname is required when tailscale.enabled is true" .Values.clickhouse.managed.tailscale.hostname }}
-{{- with .Values.macosFleet.tailscaleEgress.magicDNSSuffix }}
+{{- include "tuist.tailnetFQDN" (dict "root" . "host" (required "clickhouse.managed.tailscale.hostname is required when tailscale.enabled is true" .Values.clickhouse.managed.tailscale.hostname)) }}
+{{- end }}
+
+{{/*
+The same for the CNPG pooler the xcresult processor reaches over the tailnet.
+*/}}
+{{- define "tuist.poolerTailnetHost" -}}
+{{- include "tuist.tailnetFQDN" (dict "root" . "host" (required "postgresql.cnpg.pooler.tailscale.hostname is required when tailscale.enabled is true" .Values.postgresql.cnpg.pooler.tailscale.hostname)) }}
+{{- end }}
+
+{{- define "tuist.tailnetFQDN" -}}
+{{- $host := .host }}
+{{- with .root.Values.macosFleet.tailscaleEgress.magicDNSSuffix }}
 {{- $host = printf "%s.%s" $host . }}
 {{- end }}
 {{- $host }}
