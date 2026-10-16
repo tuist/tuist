@@ -120,16 +120,16 @@ Keep `--force-resolved-versions`, pass `--cache-path` explicitly, and select
 `--cached-directory-materialization=symlink` for mounted caches. Automatic CI mode
 copies sources even on a hit. Never archive these mounted paths. Set
 `TUIST_DEV_INSTANCE=1` before mise so random checkout-local development settings
-do not invalidate manifest fingerprints. `Tuist.swift` hides `GITHUB_*`,
-`ACTIONS_*` and `RUNNER_*` from dependency manifests using
-`packageManifestEnvironment`, including branch/ref metadata that changes between
-main and pull requests. Keep the additional Tuist cache-signing grant, runner
-pod identity and SSH agent socket exclusions. This is this repository's manifest
-contract, not a change to provider defaults for other projects.
-These values are neither visible to manifest evaluation nor part of its cache
-key; SwifterPM downloads retain their authentication environment. Keep meaningful
-package inputs visible, and always measure fresh-runner reuse: a volume hit
-alone is not evidence that manifest evaluation was skipped.
+do not invalidate manifest fingerprints. `Tuist.swift` uses plain
+`packageManifestEnvironment: .automatic`. This depends on the defaults and
+separate native-resolution authentication environment from PR #14162; upgrade
+the bootstrap CLI pin to a release containing it before merging this migration.
+GitHub job/branch metadata and rotating credentials are excluded from cached
+manifest evaluation, while native dependency fetching retains known credentials.
+Keep platform/toolchain and application inputs visible, and always measure
+fresh-runner reuse: a volume hit alone is not evidence that manifest evaluation
+was skipped. The earlier 8.31-second measurement used explicit exclusions and
+must not be presented as validation of the automatic policy.
 
 Attach `~/Library/Caches/org.swift.swiftpm/manifests` directly as a third volume
 before any SwiftPM commands populate it. Its key is shared across jobs for the
