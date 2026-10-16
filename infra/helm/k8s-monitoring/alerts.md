@@ -6207,6 +6207,89 @@ While an ATS is not observed its redundancy and active-source series are
 absent, so the two power rules above cannot fire for it. The RackATS or
 RackPDU `Ready` reason says why.
 
+`capt_rackats_ready` has no rule of its own: `capt_rackats_observed` is 1 only
+while the RackATS is Ready, so the two go to 0 together.
+
+### Rack transfer switch readings stale
+
+```promql
+time() - max by (cluster, env, site, ats) (
+  capt_rackats_last_observed_timestamp_seconds{cluster="tuist-production"}
+)
+```
+
+- Threshold: `> 600`
+- Pending period: 5 minutes
+- Severity: warning
+- Already created: rule `fg1do7ejlqi9sd`, folder `Alerts`, group `Rack`
+- Summary: `Rack transfer switch {{ $labels.ats }} was last read
+  {{ humanizeDuration $values.A.Value }} ago`
+
+A failed read drops the timestamp, so this does not fire for an unreachable
+card; that is [Rack power equipment not observed](#rack-power-equipment-not-observed).
+It fires when the operator keeps serving the last successful read but stops
+reading again, which freezes every other ATS series at its last value. The
+controller reads every minute, so the reading is normally under two minutes
+old; the worst over the week before the rule was created was under six. The
+series is per operator pod, so the rule takes the newest across pods.
+
+### Rack load on its alternate source
+
+```promql
+(
+  max by (cluster, env, site, ats) (capt_rackats_active_source{cluster="tuist-production"})
+  != bool
+  max by (cluster, env, site, ats) (capt_rackats_preferred_source{cluster="tuist-production"})
+)
+* on (cluster, env, site, ats) (max by (cluster, env, site, ats) (capt_rackats_active_source{cluster="tuist-production"}) > bool 0)
+* on (cluster, env, site, ats) (max by (cluster, env, site, ats) (capt_rackats_preferred_source{cluster="tuist-production"}) > bool 0)
+* on (cluster, env, site, ats) min by (cluster, env, site, ats) (capt_rackats_input_good{cluster="tuist-production"})
+```
+
+- Threshold: `> 0`
+- Pending period: 10 minutes
+- Severity: warning
+- Already created: rule `dg1do6r1tm7eoa`, folder `Alerts`, group `Rack`
+- Summary: `Rack transfer switch {{ $labels.ats }} has run its load on the
+  alternate source for 10 minutes while both sources are good`
+
+Each ATS prefers one feed (`ber1-ats-3` prefers source 2 by design), so the
+rack's load is split across both. One that stays on its other source after the
+preferred one is good again puts more load on one feed than planned. The rule
+needs both inputs good: while the preferred source is bad,
+[Rack transfer switch lost redundancy](#rack-transfer-switch-lost-redundancy)
+is the alert. A preferred source of 0 is a card whose setting the controller
+does not recognise (`Converged=False`, `PreferredSourceUnrecognised`), not a
+load on the wrong source, so it is left out.
+
+### Rack transfer switch changed source
+
+```promql
+changes((max by (cluster, env, site, ats) (capt_rackats_active_source{cluster="tuist-production"}))[15m:1m])
+* on (cluster, env, site, ats)
+max by (cluster, env, site, ats) (capt_rackats_redundant{cluster="tuist-production"})
+```
+
+- Threshold: `> 0`
+- Pending period: none
+- Severity: warning
+- Already created: rule `eg1do73fkhwqof`, folder `Alerts`, group `Rack`
+- Summary: `Rack transfer switch {{ $labels.ats }} changed the source powering
+  its load in the last 15 minutes`
+
+Fires once both sources are good again, and resolves when the change leaves the
+15-minute window. It covers a feed that dropped for less than the five minutes
+[Rack transfer switch lost redundancy](#rack-transfer-switch-lost-redundancy)
+waits for, and a load that lost power for less than a read. It also fires when
+the load moves back after a longer outage. The RackATS events (`Transferred`,
+`LoadNotPowered`, `LoadRestored`) and `status.lastTransfer` say which way it
+went. A change and its return between two reads, a minute apart, is not seen.
+
+It reads the active-source gauge rather than
+`capt_rackats_observed_transfers_total`. That counter is created at its first
+transfer, so `increase()` reads the series' first sample as no change and
+misses it, and it restarts with every operator pod.
+
 ### Rack switch telemetry stale
 
 ```promql

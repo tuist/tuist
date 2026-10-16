@@ -990,20 +990,26 @@ The lifecycle is `capt_rackats_ready`, `capt_rackats_adopted`,
 `capt_rackats_drifted` and `capt_rackats_certificate_changed`. The transfer
 counter counts what the controller saw between reads a minute apart: a
 transfer and its return within one minute is not counted, and the counter
-restarts with the operator. Lost redundancy, an unpowered load and a switch
-that is not observed are live rules (group `Rack`, documented in
-`infra/helm/k8s-monitoring/alerts.md`); the rest of this table is not yet:
+restarts with the operator. Its series appear at their first transfer, so
+`increase()` misses that one; alerts read changes of
+`capt_rackats_active_source` instead.
 
-| Alert | Expression |
+The ATS alerts are live in Grafana (folder `Alerts`, group `Rack`, documented
+with their exact queries in `infra/helm/k8s-monitoring/alerts.md`):
+
+| Alert | Condition |
 |---|---|
-| A transfer switch lost redundancy | `capt_rackats_redundant == 0` for 5m |
-| A load is on its alternate source | `capt_rackats_active_source != capt_rackats_preferred_source and capt_rackats_active_source > 0` for 10m |
-| A load is not powered | `capt_rackats_active_source == 0` for 1m |
-| A source is not good | `capt_rackats_input_good == 0` for 5m |
-| A transfer happened | `increase(capt_rackats_observed_transfers_total{from!="0",to!="0"}[15m]) > 0` |
-| A load lost or regained power | `increase(capt_rackats_observed_transfers_total{to="0"}[15m]) > 0`, and `{from="0"}` |
-| A transfer switch is not observed | `capt_rackats_observed == 0` for 10m, or `time() - capt_rackats_last_observed_timestamp_seconds > 600` |
-| A transfer switch is not Ready | `capt_rackats_ready == 0` for 15m |
+| Rack transfer switch lost redundancy | `capt_rackats_redundant == 0` for 5m |
+| Rack load not powered | `capt_rackats_active_source == 0` for 1m |
+| Rack power equipment not observed | `capt_rackats_observed == 0` for 15m (shared with `capt_rackpdu_ready`) |
+| Rack transfer switch readings stale | `time() - capt_rackats_last_observed_timestamp_seconds > 600` for 5m |
+| Rack load on its alternate source | active source is not the preferred one, both inputs good, for 10m |
+| Rack transfer switch changed source | `capt_rackats_active_source` changed in the last 15m and the switch is redundant again |
+
+`capt_rackats_ready` has no rule: `capt_rackats_observed` is 1 only while the
+RackATS is Ready. A standby source that is not good is lost redundancy; an
+active source that is derated without a transfer (`capt_rackats_input_good ==
+0` on the active source) has no rule.
 
 **Which card, and the unsupported case.** The controller speaks to the card
 through `atsCard` (`rackats_card.go`): `Fingerprint`, `Adopt`, `Observe`. The
