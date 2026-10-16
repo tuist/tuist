@@ -294,7 +294,12 @@ defmodule Mix.Tasks.Tuist.Test do
     :ok
   end
 
+  # The commits and branch heads go up before the runs, whose ingestion reads
+  # which commits the default branch reached; the commit's listing once the
+  # runs exist.
   defp submit_runs(deferred, attempts, options, history) do
+    upload_history(history, &GitHistory.publish/2)
+
     for {payload, opts, _aborted?} <- deferred do
       payload
       |> ExUnitFormatter.merge_retries(attempts)
@@ -302,21 +307,22 @@ defmodule Mix.Tasks.Tuist.Test do
       |> ExUnitFormatter.submit(opts)
     end
 
-    # The commits and listing go to the repository's graph once the runs
-    # that reference them exist.
-    if history do
-      analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
-
-      case Isolated.run(fn -> GitHistory.upload(history, analytics_options) end, 300_000) do
-        problems when is_list(problems) ->
-          Enum.each(problems, &Report.debug("tuist analytics: " <> &1))
-
-        {:error, reason} ->
-          Report.debug("tuist analytics: the Git history upload failed: #{inspect(reason)}")
-      end
-    end
-
+    upload_history(history, &GitHistory.upload_listing/2)
     :ok
+  end
+
+  defp upload_history(nil, _upload), do: :ok
+
+  defp upload_history(history, upload) do
+    analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
+
+    case Isolated.run(fn -> upload.(history, analytics_options) end, 300_000) do
+      problems when is_list(problems) ->
+        Enum.each(problems, &Report.debug("tuist analytics: " <> &1))
+
+      {:error, reason} ->
+        Report.debug("tuist analytics: the Git history upload failed: #{inspect(reason)}")
+    end
   end
 
   # On CI, or with coverage, unless `TUIST_GIT_UPLOAD_ENABLED=false`.

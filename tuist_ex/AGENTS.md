@@ -104,16 +104,23 @@ must leave a running cover server alone: under `mix test --cover` it is Mix's.
 `Git` and `Analytics.GitHistory` port the command line tool's Git history
 collection (`GitController+History.swift`, `GitHistoryParser.swift`,
 `GitHistoryService.swift`) and must stay in step with it, since the server
-compares what both report: the merge base with the CI provider's base branch
-(fetching it and deepening a shallow clone within the server's budget, unless
-`TUIST_GIT_UNSHALLOW_ENABLED=false`), the base branch's commit as the checkout
-saw it, the commits within the window reachable from the head and that commit
-(a shallow boundary's parents read from the commit objects), whether the
-checkout is dirty (`git status --porcelain`, untracked files included), and
-after the run the commits the server lacks, the branch heads (the run's, and
-the base branch's when it differs and was listed, which is how the default
-branch's head advances between its own runs), and, only with `--cover`, a
-clean checkout's file listing. Git's standard error is discarded and nothing here ever fails a run.
+compares what both report: the merge base with the CI provider's base branch,
+the base branch's commit, the commits within the window reachable from the
+head and from that commit when the checkout has it (a shallow boundary's
+parents read from the commit objects), and whether the checkout is dirty
+(`git status --porcelain`, untracked files included). What reaches the remote
+is `Git.history/4`'s `remote_access`: `:history` only with `--cover` (the base
+branch fetched and a shallow clone deepened within the server's budget until
+the merge base is found), `:base_head` otherwise (a checkout without the base
+branch gets its latest commit from one `git ls-remote`, killed at the budget),
+`:none` with `TUIST_GIT_UNSHALLOW_ENABLED=false`. Every remote call is a round
+trip whatever it transfers, which is why only coverage fetches.
+`GitHistory.publish/2` sends the commits the server lacks and the branch heads
+(the run's, and the base branch's when it differs, listed or not: it is how
+the default branch's head advances between its own runs) before the runs are
+submitted, since ingestion reads which commits the default branch reached;
+`GitHistory.upload_listing/2` sends a clean checkout's file listing after
+them, only with `--cover`. Git's standard error is discarded and nothing here ever fails a run.
 Server ingestion and
 dashboard presentation belong in `server/`.
 

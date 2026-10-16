@@ -11,7 +11,7 @@ defmodule TuistEx.Git do
     window_days: 365,
     window_commits: 5000,
     deepen_budget_seconds: 60,
-    unshallow: true
+    remote_access: :history
   }
 
   # Git must never stop to ask for credentials, and signature checks would
@@ -128,11 +128,15 @@ defmodule TuistEx.Git do
   end
 
   @doc """
-  The run's history: the object format, the merge base with `base_branch`
-  (fetching and deepening a shallow clone within the budget unless
-  `unshallow` is off), the base branch's commit as the checkout saw it, and
-  the commits within the window reachable from the head and from that commit.
-  `fallback_reason` says what could not be collected.
+  The run's history: the object format, the merge base with `base_branch`,
+  the base branch's commit, and the commits within the window reachable from
+  the head and from that commit when the checkout has it. `fallback_reason`
+  says what could not be collected. `remote_access` is what may be read from
+  the remote, each call a round trip whatever it transfers: with `:history`,
+  the base branch is fetched and a shallow clone deepened within the budget
+  until the merge base is found; with `:base_head`, a checkout without the
+  base branch gets its latest commit from one `git ls-remote`; with `:none`,
+  only the checkout is read.
   """
   def history(dir, head, base_branch, limits \\ @default_limits) do
     limits = Map.merge(@default_limits, limits)
@@ -150,7 +154,19 @@ defmodule TuistEx.Git do
           else: {nil, nil, ["no base branch is known"]}
 
       # Read after any deepening, which fetches the base branch again and can move it.
-      base_head = if ref, do: commit_sha(dir, ref)
+      local_base_head = if ref, do: commit_sha(dir, ref)
+
+      base_head =
+        cond do
+          local_base_head ->
+            local_base_head
+
+          base_branch && limits.remote_access == :base_head ->
+            remote_head(dir, base_branch, limits)
+
+          true ->
+            nil
+        end
 
       {:ok,
        %{
@@ -159,7 +175,7 @@ defmodule TuistEx.Git do
          base_branch: base_branch,
          merge_base_sha: merge_base,
          base_head_sha: base_head,
-         commits: window_commits(dir, Enum.uniq([head | List.wrap(base_head)]), limits),
+         commits: window_commits(dir, Enum.uniq([head | List.wrap(local_base_head)]), limits),
          fallback_reason: if(reasons != [], do: Enum.join(reasons, "; "))
        }}
     end
@@ -245,11 +261,8 @@ defmodule TuistEx.Git do
     refspec = "+#{base_branch}:refs/remotes/origin/#{base_branch}"
 
     {ref, fetch_problem} =
-      case {base_ref(dir, base_branch), limits.unshallow} do
-        {nil, false} ->
-          {nil, :disabled}
-
-        {nil, true} ->
+      case {base_ref(dir, base_branch), limits.remote_access} do
+        {nil, :history} ->
           fetch =
             ["fetch", "--quiet", "--no-tags", "--filter=blob:none"] ++
               if(shallow?, do: ["--depth=1"], else: [])
@@ -259,14 +272,16 @@ defmodule TuistEx.Git do
             _ -> {base_ref(dir, base_branch), nil}
           end
 
-        {ref, _unshallow} ->
+        {nil, _remote_access} ->
+          {nil, :not_fetched}
+
+        {ref, _remote_access} ->
           {ref, nil}
       end
 
     cond do
-      fetch_problem == :disabled ->
-        {nil, nil,
-         ["the base branch #{base_branch} is not in the checkout and fetching it is disabled"]}
+      fetch_problem == :not_fetched ->
+        {nil, nil, ["the base branch #{base_branch} is not in the checkout"]}
 
       fetch_problem == :timed_out ->
         {nil, nil,
@@ -285,11 +300,8 @@ defmodule TuistEx.Git do
         {nil, ref,
          ["#{String.slice(head, 0, 12)} and #{base_branch} share no history in the checkout"]}
 
-      not limits.unshallow ->
-        {nil, ref,
-         [
-           "shallow clone: the merge base with #{base_branch} is not in the checkout and deepening it is disabled"
-         ]}
+      limits.remote_access != :history ->
+        {nil, ref, ["shallow clone: the merge base with #{base_branch} is not in the checkout"]}
 
       sha = deepen(dir, ref, head, refspec, deadline, max(limits.window_commits, 50), 0, 50) ->
         {sha, ref, []}
@@ -306,19 +318,22 @@ defmodule TuistEx.Git do
     step = min(step, max_depth - depth)
 
     if System.monotonic_time(:millisecond) < deadline and depth < max_depth and
-         run_until(
-           dir,
-           [
-             "fetch",
-             "--quiet",
-             "--no-tags",
-             "--filter=blob:none",
-             "--deepen=#{step}",
-             "origin",
-             refspec
-           ],
-           deadline
-         ) == :succeeded do
+         match?(
+           {:succeeded, _},
+           run_until(
+             dir,
+             [
+               "fetch",
+               "--quiet",
+               "--no-tags",
+               "--filter=blob:none",
+               "--deepen=#{step}",
+               "origin",
+               refspec
+             ],
+             deadline
+           )
+         ) do
       merge_base(dir, ref, head) ||
         deepen(dir, ref, head, refspec, deadline, max_depth, depth + step, step * 2)
     end
@@ -334,6 +349,26 @@ defmodule TuistEx.Git do
     case capture(dir, ["merge-base", ref, head]) do
       {:ok, output} -> if String.trim(output) != "", do: String.trim(output)
       :error -> nil
+    end
+  end
+
+  # The branch's latest commit as the remote has it: one `git ls-remote`,
+  # which transfers no objects, killed like a fetch when it outlasts the budget.
+  defp remote_head(dir, branch, limits) do
+    deadline = System.monotonic_time(:millisecond) + limits.deepen_budget_seconds * 1000
+    ref = "refs/heads/#{branch}"
+
+    case run_until(dir, ["ls-remote", "origin", ref], deadline) do
+      {:succeeded, output} ->
+        Enum.find_value(String.split(output, "\n"), fn line ->
+          case String.split(line, "\t") do
+            [sha, ^ref] -> sha
+            _ -> nil
+          end
+        end)
+
+      _ ->
+        nil
     end
   end
 
@@ -354,16 +389,16 @@ defmodule TuistEx.Git do
         ])
 
       os_pid = port |> Port.info(:os_pid) |> elem(1)
-      await_port(port, os_pid, deadline)
+      await_port(port, os_pid, deadline, [])
     end
   end
 
-  defp await_port(port, os_pid, deadline) do
+  defp await_port(port, os_pid, deadline, output) do
     remaining = max(deadline - System.monotonic_time(:millisecond), 0)
 
     receive do
-      {^port, {:data, _}} -> await_port(port, os_pid, deadline)
-      {^port, {:exit_status, 0}} -> :succeeded
+      {^port, {:data, data}} -> await_port(port, os_pid, deadline, [output, data])
+      {^port, {:exit_status, 0}} -> {:succeeded, IO.iodata_to_binary(output)}
       {^port, {:exit_status, _}} -> :failed
     after
       remaining ->

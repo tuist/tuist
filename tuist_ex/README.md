@@ -79,9 +79,11 @@ CI run.
 On continuous integration, the run also uploads the checkout's commit history:
 commit SHAs, their parents, commit dates, and the branch the run and its pull
 request's base branch were on, which is how Tuist learns which commits landed
-on the default branch. `TUIST_GIT_UPLOAD_ENABLED=false` turns it off, and
-`TUIST_GIT_UNSHALLOW_ENABLED=false` keeps a shallow clone from being fetched
-or deepened.
+on the default branch. It reads what the checkout has, and asks the remote
+for the base branch's latest commit (`git ls-remote`) when the checkout lacks
+it; only `--cover` fetches history. `TUIST_GIT_UPLOAD_ENABLED=false` turns it
+off, and `TUIST_GIT_UNSHALLOW_ENABLED=false` keeps it from contacting the
+remote.
 
 Analytics submission never changes the exit code of `mix test`. If a request
 fails, set `TUIST_DEBUG=1` to print the reason to standard error. Authentication

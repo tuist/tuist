@@ -39,10 +39,11 @@ defmodule TuistEx.Analytics.GitHistory do
 
   @doc """
   Collects the history of the checkout at `dir`. Returns the collected state
-  for `payload/1` and `upload/2`. The commit's file listing, which only
-  coverage measures against, is uploaded only when `coverage?`.
-  `TUIST_GIT_UNSHALLOW_ENABLED=false` reads what the checkout has, without
-  fetching.
+  for `payload/1`, `publish/2` and `upload_listing/2`. Only coverage needs the
+  merge base, so only `coverage?` fetches history, and only it uploads the
+  commit's file listing, which coverage measures against; any other run reads
+  the checkout and asks the remote for the base branch's latest commit at
+  most. `TUIST_GIT_UNSHALLOW_ENABLED=false` keeps every run to the checkout.
   """
   def collect(dir, options, environment \\ &System.get_env/1, coverage? \\ false) do
     observed_at = DateTime.utc_now()
@@ -78,7 +79,7 @@ defmodule TuistEx.Analytics.GitHistory do
         limits =
           settings
           |> Map.take([:window_days, :window_commits, :deepen_budget_seconds])
-          |> Map.put(:unshallow, environment.("TUIST_GIT_UNSHALLOW_ENABLED") not in @falsy)
+          |> Map.put(:remote_access, remote_access(coverage?, environment))
 
         case Git.history(dir, head, base_branch, limits) do
           {:ok, history} ->
@@ -121,22 +122,31 @@ defmodule TuistEx.Analytics.GitHistory do
   @doc """
   Sends the commits the server lacks, oldest first so their generation
   numbers are exact, in batches of the server's size, with the branch head
-  the run was on and the base branch's as the checkout saw it, and, with
-  coverage, the commit's file listing when the server lacks it and the
-  checkout is clean. A checkout without a remote has no graph to upload to.
-  Returns the problems it ran into, which are never raised.
+  the run was on and the base branch's. It goes before the runs that
+  reference them: the server reads which commits the default branch reached
+  when it ingests a run. A checkout without a remote has no graph to upload
+  to. Returns the problems it ran into, which are never raised.
   """
-  def upload(%{history: nil}, _options), do: []
-  def upload(%{repository_url: url}, _options) when url in [nil, ""], do: []
+  def publish(%{history: nil}, _options), do: []
+  def publish(%{repository_url: url}, _options) when url in [nil, ""], do: []
 
-  def upload(collected, options) do
-    [
-      upload_step("the run's Git history", fn -> upload_commits(collected, options) end),
-      if(collected.coverage?,
-        do: upload_step("the commit's file listing", fn -> upload_listing(collected, options) end)
-      )
-    ]
-    |> Enum.reject(&is_nil/1)
+  def publish(collected, options) do
+    List.wrap(upload_step("the run's Git history", fn -> upload_commits(collected, options) end))
+  end
+
+  @doc """
+  With coverage, sends the commit's file listing when the server lacks it and
+  the checkout is clean. Returns the problems it ran into, which are never
+  raised.
+  """
+  def upload_listing(%{coverage?: false}, _options), do: []
+  def upload_listing(%{history: nil}, _options), do: []
+  def upload_listing(%{repository_url: url}, _options) when url in [nil, ""], do: []
+
+  def upload_listing(collected, options) do
+    List.wrap(
+      upload_step("the commit's file listing", fn -> send_listing(collected, options) end)
+    )
   end
 
   defp upload_step(what, fun) do
@@ -198,21 +208,20 @@ defmodule TuistEx.Analytics.GitHistory do
   end
 
   # A pull request's run is how the default branch's head is seen between the
-  # default branch's own runs. It is reported only when it was listed, so the
-  # server knows it.
+  # default branch's own runs. The checkout may not have that commit: the run
+  # that tested it, a merge queue's typically, sent it already.
   defp branch_heads(%{branch: branch, history: history}) do
     base_head =
-      if history.base_branch && history.base_branch != branch && history.base_head_sha &&
-           Enum.any?(history.commits, &(&1.sha == history.base_head_sha)),
-         do: [{history.base_branch, history.base_head_sha}],
-         else: []
+      if history.base_branch && history.base_branch != branch && history.base_head_sha,
+        do: [{history.base_branch, history.base_head_sha}],
+        else: []
 
     if(branch, do: [{branch, history.head_sha}], else: []) ++ base_head
   end
 
-  defp upload_listing(%{dirty?: true}, _options), do: :ok
+  defp send_listing(%{dirty?: true}, _options), do: :ok
 
-  defp upload_listing(%{history: history} = collected, options) do
+  defp send_listing(%{history: history} = collected, options) do
     with {:ok, missing} <-
            missing(
              [history.head_sha],
@@ -285,6 +294,14 @@ defmodule TuistEx.Analytics.GitHistory do
 
       _ ->
         @default_settings
+    end
+  end
+
+  defp remote_access(coverage?, environment) do
+    cond do
+      environment.("TUIST_GIT_UNSHALLOW_ENABLED") in @falsy -> :none
+      coverage? -> :history
+      true -> :base_head
     end
   end
 

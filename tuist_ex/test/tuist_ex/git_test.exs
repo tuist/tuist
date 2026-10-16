@@ -128,7 +128,7 @@ defmodule TuistEx.GitTest do
       assert {:ok, %{base_head_sha: nil}} = Git.history(repo, head, nil)
     end
 
-    test "reads only what the checkout has when unshallowing is off", %{repo: repo} do
+    test "reads only what the checkout has without remote access", %{repo: repo} do
       write!(repo, "a.ex", "a\n")
       commit!(repo, "base")
       git!(repo, ["checkout", "--quiet", "-b", "feature"])
@@ -153,19 +153,29 @@ defmodule TuistEx.GitTest do
       ])
 
       assert {:ok, %{merge_base_sha: nil, base_head_sha: nil, fallback_reason: reason}} =
-               Git.history(clone, head, "main", %{unshallow: false})
+               Git.history(clone, head, "main", %{remote_access: :none})
 
-      assert reason == "the base branch main is not in the checkout and fetching it is disabled"
+      assert reason == "the base branch main is not in the checkout"
+      remote_main = git!(repo, ["rev-parse", "main"])
+
+      assert {:ok,
+              %{
+                merge_base_sha: nil,
+                base_head_sha: ^remote_main,
+                commits: [%{sha: ^head}],
+                fallback_reason: ^reason
+              }} = Git.history(clone, head, "main", %{remote_access: :base_head})
+
       refute git!(clone, ["branch", "--remotes"]) =~ "origin/main"
 
       git!(clone, ["fetch", "--quiet", "--depth=1", "origin", "+main:refs/remotes/origin/main"])
       main = git!(clone, ["rev-parse", "origin/main"])
 
       assert {:ok, %{merge_base_sha: nil, base_head_sha: ^main, fallback_reason: reason}} =
-               Git.history(clone, head, "main", %{unshallow: false})
+               Git.history(clone, head, "main", %{remote_access: :none})
 
       assert reason ==
-               "shallow clone: the merge base with main is not in the checkout and deepening it is disabled"
+               "shallow clone: the merge base with main is not in the checkout"
 
       assert git!(clone, ["rev-list", "--count", "HEAD"]) == "1"
     end
