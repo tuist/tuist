@@ -1361,7 +1361,7 @@ rackFleet:
   # so both are on the rack before a mini asks.
   imageCache:
     enabled: true
-    routeHosts: []
+    routeHosts: [ber1-runner-b01]
     nodes:
       - name: ber1-store-a
         address: 10.10.0.11
