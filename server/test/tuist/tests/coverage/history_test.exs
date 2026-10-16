@@ -361,7 +361,33 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
              ]
 
       assert History.commit_cursor_page(project, "main", status: "not-measured").commits == []
-      assert History.head_commit(project, "main").git_commit_sha == "c0"
+      # The branch page describes its newest listed commit, as it does any incomplete one.
+      assert History.head_commit(project, "main").git_commit_sha == "c1"
+    end
+  end
+
+  describe "a branch whose only commits measured no product line" do
+    test "has a head commit and is listed, so its page opens on the commit's gap", %{
+      project: project,
+      account: account
+    } do
+      CoverageFixtures.seed_history(account, [CoverageFixtures.commit("c0", [], 0)], branch_heads: [{"feature", "c0"}])
+
+      plain =
+        CoverageFixtures.run_with_coverage(
+          project,
+          account,
+          [CoverageFixtures.file("Tests/ATests.swift", [1], is_test: true)],
+          %{git_commit_sha: "c0", git_branch: "feature"}
+        )
+
+      event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: plain.id)
+      XcodeFixtures.xcode_target_fixture(command_event_id: event.id, name: "A", binary_cache_hit: :local)
+      Commits.signal_complete(project, "c0")
+
+      assert %{git_commit_sha: "c0", reported_kind: "partial", coverage: 0.0} = History.head_commit(project, "feature")
+      assert "feature" in History.branches(project)
+      assert Enum.map(History.commit_cursor_page(project, "feature").commits, &Commits.status/1) == [:incomplete]
     end
   end
 

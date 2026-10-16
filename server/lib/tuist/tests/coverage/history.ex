@@ -563,13 +563,15 @@ defmodule Tuist.Tests.Coverage.History do
   @doc """
   The branches whose runs never named a pull request, the most recently
   measured first, at most `limit` of them (100 by default): the branches the
-  Code Coverage page picks its analytics from. The default branch leads,
-  whether or not it is among them.
+  Code Coverage page picks its analytics from, those with a commit a list
+  shows (`Commits.listed/1`). The default branch leads, whether or not it is
+  among them.
   """
   def branches(%Project{} = project, opts \\ []) do
     measured =
       CoverageCommit
-      |> where([c], c.project_id == ^project.id and c.git_branch != "" and c.executable_lines > 0)
+      |> where([c], c.project_id == ^project.id and c.git_branch != "")
+      |> Commits.listed()
       |> group_by([c], c.git_branch)
       |> having([c], max(c.pull_request_number) == 0)
       |> order_by([c], desc: max(c.ran_at), asc: c.git_branch)
@@ -581,24 +583,28 @@ defmodule Tuist.Tests.Coverage.History do
   end
 
   @doc """
-  The branch's newest measured commit, complete or not: the commit a branch
-  page describes. Among the newest #{@head_lookback} commits its ref owns or,
-  when it owns none, the commits its runs were labelled with. Nil when
-  nothing on the branch was measured.
+  The branch's newest listed commit (`Commits.listed/1`), complete or not:
+  the commit a branch page describes. Among the newest #{@head_lookback}
+  commits its ref owns or, when it owns none, the commits its runs were
+  labelled with. Nil when nothing on the branch was measured, so the page
+  says so rather than describing nothing.
   """
   def head_commit(%Project{} = project, branch) do
     row =
       case branch_ref(project, branch) do
         nil ->
           project.id
-          |> Commits.all(fn query ->
-            query |> where([c], c.git_branch == ^branch) |> order_by([c], desc: c.ran_at) |> limit(1)
-          end)
+          |> Commits.all(
+            fn query ->
+              query |> where([c], c.git_branch == ^branch) |> order_by([c], desc: c.ran_at) |> limit(1)
+            end,
+            listed: true
+          )
           |> List.first()
 
         ref ->
           shas = ref.id |> GitHistory.ref_commits(limit: @head_lookback) |> Enum.map(&elem(&1, 0))
-          measured = Commits.by_shas(project.id, shas)
+          measured = Commits.by_shas(project.id, shas, listed: true)
           Enum.find_value(shas, &Map.get(measured, &1))
       end
 
