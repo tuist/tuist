@@ -323,9 +323,6 @@ defmodule Tuist.Sandboxes.AgentSessions do
       {:ok, %{data: events, next_page: next_page}} ->
         {:ok, [events | acc] |> Enum.reverse() |> Enum.concat(), next_page}
 
-      {:ok, %{data: events}} ->
-        {:ok, [events | acc] |> Enum.reverse() |> Enum.concat(), nil}
-
       {:error, reason} ->
         {:error, reason}
     end
