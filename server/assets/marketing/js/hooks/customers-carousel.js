@@ -1,5 +1,3 @@
-import { whenInView } from "../lib/in-view.js";
-
 /*
  * Home customers carousel: the previous/next buttons cycle the customer
  * story slides, wrapping at either end, and the carousel advances on its own
@@ -8,9 +6,12 @@ import { whenInView } from "../lib/in-view.js";
  * card takes the active slide's brand colour through --slide-color, which
  * the stylesheet eases between slides.
  *
- * Autoplay pauses while the pointer is over the carousel or focus is inside
- * it, while it is off screen and while the tab is hidden, and is off under
- * prefers-reduced-motion. Using the buttons restarts the countdown. Only
+ * Autoplay starts on page load (the first slide, OpenAI, shows first) and
+ * cycles continuously, on screen or off. It pauses while a mouse pointer is
+ * over the carousel (touch taps don't pause it), while keyboard focus is
+ * inside it (a mouse click on an arrow doesn't count, so it never sticks
+ * paused after a click) and while the browser tab is hidden, and is off
+ * under prefers-reduced-motion. Using the buttons restarts the countdown. Only
  * changes the visitor makes are announced: the live region is silenced
  * while autoplay advances.
  *
@@ -50,9 +51,9 @@ export const CustomersCarousel = {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) return;
 
-    // Autoplay runs only while nothing holds it: hover, focus, off screen or
-    // a hidden tab each add a hold.
-    this.holds = new Set(["view"]);
+    // Autoplay runs unless something holds it: a hovering mouse, keyboard
+    // focus inside the carousel, or a hidden browser tab.
+    this.holds = new Set(document.hidden ? ["hidden"] : []);
     const hold = (reason, on) => {
       if (on) this.holds.add(reason);
       else this.holds.delete(reason);
@@ -62,20 +63,20 @@ export const CustomersCarousel = {
       target.addEventListener(type, handler);
       this.cleanups.push(() => target.removeEventListener(type, handler));
     };
-    listen(this.el, "pointerenter", () => hold("hover", true));
+    listen(this.el, "pointerenter", (event) => {
+      if (event.pointerType === "mouse") hold("hover", true);
+    });
     listen(this.el, "pointerleave", () => hold("hover", false));
-    listen(this.el, "focusin", () => hold("focus", true));
+    // Keyboard focus only: buttons match :focus-visible when reached with
+    // Tab, not when clicked with a mouse.
+    listen(this.el, "focusin", (event) => {
+      if (event.target.matches?.(":focus-visible")) hold("focus", true);
+    });
     listen(this.el, "focusout", (event) => {
       if (!this.el.contains(event.relatedTarget)) hold("focus", false);
     });
     listen(document, "visibilitychange", () => hold("hidden", document.hidden));
-    this.cleanups.push(
-      whenInView(this.el, {
-        rootMargin: "0px",
-        enter: () => hold("view", false),
-        leave: () => hold("view", true),
-      }),
-    );
+    this.schedule();
   },
 
   destroyed() {
