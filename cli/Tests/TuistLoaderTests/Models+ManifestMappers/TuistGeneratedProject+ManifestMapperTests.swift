@@ -137,6 +137,38 @@ struct TuistGeneratedProjectManifestMapperTests {
         #expect(decoded.enableCachingPrefixMapping == true)
     }
 
+    @Test(arguments: ["enableCaching", "enableCoveragePrefixMapping", "projectFormat"])
+    func generationOptions_stillRequiresExistingSerializedKeys(key: String) throws {
+        let manifest = ProjectDescription.Config.GenerationOptions.options()
+        let configuration = TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.test()
+        for encoded in [try JSONEncoder().encode(manifest), try JSONEncoder().encode(configuration)] {
+            var json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+            json.removeValue(forKey: key)
+            let data = try JSONSerialization.data(withJSONObject: json)
+
+            #expect(throws: DecodingError.self) {
+                try JSONDecoder().decode(ProjectDescription.Config.GenerationOptions.self, from: data)
+            }
+            #expect(throws: DecodingError.self) {
+                try JSONDecoder().decode(TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.self, from: data)
+            }
+        }
+    }
+
+    @Test func generationOptions_rejectsInvalidCachingPrefixMapping() throws {
+        let options = ProjectDescription.Config.GenerationOptions.options()
+        var json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(options)) as? [String: Any])
+        json["enableCachingPrefixMapping"] = "false"
+        let data = try JSONSerialization.data(withJSONObject: json)
+
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(ProjectDescription.Config.GenerationOptions.self, from: data)
+        }
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.self, from: data)
+        }
+    }
+
     @Test(.inTemporaryDirectory)
     func generationOptions_roundTripsNonDefaultConfiguration() throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)

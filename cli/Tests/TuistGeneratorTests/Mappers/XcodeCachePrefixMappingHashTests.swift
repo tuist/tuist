@@ -21,12 +21,14 @@ struct XcodeCachePrefixMappingHashTests {
         root: AbsolutePath,
         enableCaching: Bool,
         enableCachingPrefixMapping: Bool,
+        enableCoveragePrefixMapping: Bool = false,
         casPluginPath: AbsolutePath? = nil
     ) async throws -> String {
         let tuist = Tuist(
             project: .generated(.test(generationOptions: .test(
                 enableCaching: enableCaching,
-                enableCachingPrefixMapping: enableCachingPrefixMapping
+                enableCachingPrefixMapping: enableCachingPrefixMapping,
+                enableCoveragePrefixMapping: enableCoveragePrefixMapping
             ))),
             fullHandle: casPluginPath == nil ? nil : "test/project",
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
@@ -59,8 +61,11 @@ struct XcodeCachePrefixMappingHashTests {
         return hashes.joined(separator: ";")
     }
 
-    @Test(.withMockedXcodeController, arguments: [false, true])
-    func hash_withPrefixMappingOptOut_matchesCachingDisabled(onXcode27: Bool) async throws {
+    @Test(.withMockedXcodeController, arguments: [false, true], [false, true])
+    func hash_withPrefixMappingOptOut_matchesCachingDisabled(
+        onXcode27: Bool,
+        enableCoveragePrefixMapping: Bool
+    ) async throws {
         let controller = try #require(XcodeController.mocked)
         given(controller).selectedVersion().willReturn(Version(onXcode27 ? 27 : 26, 0, 0))
         let root = try AbsolutePath(validating: "/repo")
@@ -70,13 +75,26 @@ struct XcodeCachePrefixMappingHashTests {
             swiftPackageManagerScratchDirectory: root.appending(components: "Tuist", ".build")
         )
 
-        let cached = try await hash(project: project, root: root, enableCaching: true, enableCachingPrefixMapping: false)
-        let uncached = try await hash(project: project, root: root, enableCaching: false, enableCachingPrefixMapping: false)
+        let cached = try await hash(
+            project: project,
+            root: root,
+            enableCaching: true,
+            enableCachingPrefixMapping: false,
+            enableCoveragePrefixMapping: enableCoveragePrefixMapping
+        )
+        let uncached = try await hash(
+            project: project,
+            root: root,
+            enableCaching: false,
+            enableCachingPrefixMapping: false,
+            enableCoveragePrefixMapping: enableCoveragePrefixMapping
+        )
         let existingUncached = try await hash(
             project: project,
             root: root,
             enableCaching: false,
-            enableCachingPrefixMapping: true
+            enableCachingPrefixMapping: true,
+            enableCoveragePrefixMapping: enableCoveragePrefixMapping
         )
 
         #expect(cached == uncached)
@@ -101,6 +119,30 @@ struct XcodeCachePrefixMappingHashTests {
         let secondHash = try await hash(project: second, root: root, enableCaching: true, enableCachingPrefixMapping: false)
 
         #expect(firstHash != secondHash)
+    }
+
+    @Test(.withMockedXcodeController)
+    func hash_withPrefixMappingOptOut_stillHashesInstrumentationSettings() async throws {
+        let controller = try #require(XcodeController.mocked)
+        given(controller).selectedVersion().willReturn(Version(27, 0, 0))
+        let root = try AbsolutePath(validating: "/repo")
+        let ordinary = Project.test(settings: .test(base: ["CLANG_COVERAGE_MAPPING": "NO"]))
+        let instrumented = Project.test(settings: .test(base: ["CLANG_COVERAGE_MAPPING": "YES"]))
+
+        let ordinaryHash = try await hash(
+            project: ordinary,
+            root: root,
+            enableCaching: true,
+            enableCachingPrefixMapping: false
+        )
+        let instrumentedHash = try await hash(
+            project: instrumented,
+            root: root,
+            enableCaching: true,
+            enableCachingPrefixMapping: false
+        )
+
+        #expect(ordinaryHash != instrumentedHash)
     }
 
     @Test(.inTemporaryDirectory, .withMockedXcodeController, arguments: [false, true])
