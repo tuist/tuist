@@ -256,21 +256,28 @@ jobs:
           set -euo pipefail
           kubectl exec -n tuist-staging deployment/tuist-tuist-server -- env SMOKE_TEST_RUN_ID="$TEST_RUN_ID" /app/bin/tuist eval '
           Application.load(:tuist)
-          {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.IngestRepo, fn repo ->
-            {:ok, id} = Ecto.UUID.cast(System.fetch_env!("SMOKE_TEST_RUN_ID"))
-            Enum.reduce_while(1..60, nil, fn _, _ ->
-              result = repo.query!("SELECT status, xcode_version FROM test_runs WHERE id = '\''#{id}'\'' ORDER BY inserted_at DESC LIMIT 1")
-              case result.rows do
-                [["success", xcode]] ->
-                  unless String.starts_with?(xcode, "27.1"), do: raise("Unexpected Xcode: #{xcode}")
-                  [[count]] = repo.query!("SELECT count() FROM test_case_runs WHERE test_run_id = '\''#{id}'\'' AND status = '\''success'\''").rows
-                  if count < 1, do: raise("No persisted passing test case")
-                  IO.puts(Jason.encode!(%{test_run_id: id, status: "success", xcode_version: xcode, passing_test_cases: count}))
-                  {:halt, :ok}
-                [[status, _]] when status in ["failed_processing", "failure"] -> raise "Processing failed: #{status}"
-                _ -> Process.sleep(5_000); {:cont, nil}
-              end
-            end) || raise "Timed out waiting for xcresult processing"
+          {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.Repo, fn pg ->
+            {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.IngestRepo, fn repo ->
+              {:ok, id} = Ecto.UUID.cast(System.fetch_env!("SMOKE_TEST_RUN_ID"))
+              Enum.reduce_while(1..60, nil, fn _, _ ->
+                result = repo.query!("SELECT status, xcode_version FROM test_runs WHERE id = '\''#{id}'\'' ORDER BY inserted_at DESC LIMIT 1")
+                case result.rows do
+                  [["success", xcode]] ->
+                    unless String.starts_with?(xcode, "27.1"), do: raise("Unexpected Xcode: #{xcode}")
+                    [[count]] = repo.query!("SELECT count() FROM test_case_runs WHERE test_run_id = '\''#{id}'\'' AND status = '\''success'\''").rows
+                    [[completed]] = pg.query!("SELECT count(*) FROM oban_jobs WHERE args->>'\''test_run_id'\'' = '\''#{id}'\'' AND worker = '\''Tuist.Tests.Workers.ProcessXcresultWorker'\'' AND state = '\''completed'\''").rows
+                    if count > 0 and completed > 0 do
+                      IO.puts(Jason.encode!(%{test_run_id: id, status: "success", xcode_version: xcode, passing_test_cases: count, completed_processing_jobs: completed}))
+                      {:halt, :ok}
+                    else
+                      Process.sleep(5_000)
+                      {:cont, nil}
+                    end
+                  [[status, _]] when status in ["failed_processing", "failure"] -> raise "Processing failed: #{status}"
+                  _ -> Process.sleep(5_000); {:cont, nil}
+                end
+              end) || raise "Timed out waiting for persisted cases and completed xcresult processing"
+            end)
           end)
           '
       - name: Remove only the isolated smoke profile
