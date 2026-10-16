@@ -47,7 +47,9 @@ import TuistServer
             }
             .defaultSize(width: 1100, height: 720)
             .windowResizability(.contentMinSize)
+            .windowToolbarStyle(.unified)
             .commands {
+                DesktopCommands()
                 CommandGroup(after: .appInfo) {
                     Button("Check for Updates…") { updaterController.updater.checkForUpdates() }
                         .disabled(!updaterController.updater.canCheckForUpdates)

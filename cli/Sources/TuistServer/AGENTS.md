@@ -18,6 +18,8 @@ This module handles CLI integration with the Tuist Server APIs.
 - Browser authentication reports OSC 7501 `blocked` with `kind=auth` while waiting for tokens, then restores `working`. This uses the CLI-scoped reporter and is a no-op in other consumers.
 - Cache request metadata carries SDK build fingerprints separately from the existing exact content hash; preserve it through target-to-item storage conversions.
 
+- `ServerPreview` preserves the API's optional `track` release-channel metadata for app display and filtering. Keep the field optional so existing cached previews and servers without tracks continue to decode. Do not conflate preview tracks with Git tags.
+
 - Mix's optional dependency-cache observations are generated from the server build-report schema; keep nullable avoided-compilation estimates, local/remote hits, I/O source provenance, paired measurements and supported reason values aligned. Never derive remote CAS outputs from these client observations; Kura's shared signed REAPI telemetry is authoritative.
 - Gradle and Bazel recorded-step endpoints and the optional Gradle report start timestamp are generated from server controller schemas. Regenerate through `server/mise/tasks/generate-api-cli-code.sh`; preserve opaque step IDs and nullable per-step logs.
 

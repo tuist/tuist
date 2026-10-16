@@ -105,12 +105,14 @@ struct DesktopPreviewsModelTests {
         stubPage([.test(id: "second")], fullHandle: "tuist/other")
         try await subject.refresh()
         subject.searchText = "first"
+        subject.trackFilter = .track("beta")
 
         try await subject.selectProject("tuist/other")
 
         #expect(subject.selectedProjectFullHandle == "tuist/other")
         #expect(subject.previews.map(\.id) == ["second"])
         #expect(subject.searchText.isEmpty)
+        #expect(subject.trackFilter == .all)
     }
 
     @Test func browser_filters_names_branches_and_commits_case_insensitively() async throws {
@@ -129,6 +131,78 @@ struct DesktopPreviewsModelTests {
         #expect(subject.filteredPreviews.isEmpty)
         subject.searchText = ""
         #expect(subject.filteredPreviews.count == 2)
+    }
+
+    @Test func track_filters_combine_with_search_without_filtering_home() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
+        stubPage([
+            .test(id: "beta", displayName: "Tuist", track: "beta"),
+            .test(id: "nightly", displayName: "Tuist", track: "nightly"),
+            .test(id: "none", displayName: "Other"),
+            .test(id: "empty", displayName: "Other", track: ""),
+        ])
+        try await subject.refresh()
+
+        #expect(subject.availableTracks == ["beta", "nightly"])
+        subject.trackFilter = .track("beta")
+        #expect(subject.filteredPreviews.map(\.id) == ["beta"])
+        #expect(subject.recentPreviews.map(\.id) == ["beta", "nightly", "none"])
+        subject.searchText = "other"
+        #expect(subject.filteredPreviews.isEmpty)
+        subject.trackFilter = .unassigned
+        #expect(subject.filteredPreviews.map(\.id) == ["none", "empty"])
+        subject.clearFilters()
+        #expect(!subject.hasActiveFilters)
+        #expect(subject.filteredPreviews.count == 4)
+        subject.searchText = " NIGHTLY "
+        #expect(subject.filteredPreviews.map(\.id) == ["nightly"])
+    }
+
+    @Test func loading_more_expands_track_choices_and_keeps_the_active_filter() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
+        stubPage([.test(id: "first", track: "beta")], hasNextPage: true)
+        stubPage([.test(id: "second", track: "nightly"), .test(id: "third", track: "beta")], page: 2)
+        try await subject.refresh()
+        subject.trackFilter = .track("beta")
+
+        try await subject.loadMore()
+
+        #expect(subject.availableTracks == ["beta", "nightly"])
+        #expect(subject.trackFilter == .track("beta"))
+        #expect(subject.filteredPreviews.map(\.id) == ["first", "third"])
+    }
+
+    @Test func a_track_without_current_matches_remains_a_valid_picker_selection() async throws {
+        given(listProjectsService).listProjects(serverURL: .any).willReturn([.test(fullName: "tuist/app")])
+        stubPage([.test(id: "preview", track: "nightly")])
+        try await subject.refresh()
+        subject.trackFilter = .track("beta")
+
+        #expect(subject.availableTracks == ["beta", "nightly"])
+        #expect(subject.filteredPreviews.isEmpty)
+        subject.clearFilters()
+        #expect(subject.availableTracks == ["nightly"])
+    }
+
+    @Test func server_preview_preserves_track_metadata_and_legacy_cached_previews() throws {
+        let payload = Components.Schemas.Preview(
+            builds: [],
+            created_from_ci: false,
+            device_url: "https://tuist.dev/device",
+            icon_url: "https://tuist.dev/icon.png",
+            id: "preview",
+            inserted_at: "2026-10-16T00:00:00Z",
+            qr_code_url: "https://tuist.dev/qr.png",
+            supported_platforms: [],
+            track: "beta",
+            url: "https://tuist.dev/preview"
+        )
+        let preview = try ServerPreview(payload)
+        #expect(preview.track == "beta")
+        var legacy = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(preview)) as? [String: Any])
+        legacy.removeValue(forKey: "track")
+        let decoded = try JSONDecoder().decode(ServerPreview.self, from: JSONSerialization.data(withJSONObject: legacy))
+        #expect(decoded.track == nil)
     }
 
     @Test func browser_loads_the_next_page() async throws {

@@ -105,6 +105,9 @@ struct DesktopPreviewDetail: View {
                 if let bundleIdentifier = preview.bundleIdentifier {
                     LabeledContent("Bundle Identifier", value: bundleIdentifier)
                 }
+                if let track = preview.track, !track.isEmpty {
+                    LabeledContent("Track", value: track)
+                }
                 if let branch = preview.gitBranch {
                     LabeledContent("Branch", value: branch)
                 }
@@ -116,15 +119,6 @@ struct DesktopPreviewDetail: View {
             .textSelection(.enabled)
         }
         .formStyle(.grouped)
-        .navigationTitle(preview.displayName ?? "Preview")
-        .toolbar {
-            ToolbarItemGroup {
-                ShareLink(item: preview.url)
-                Link(destination: preview.url) {
-                    Label("Open in Browser", systemImage: "safari")
-                }
-            }
-        }
     }
 
     private func run() {

@@ -75,18 +75,21 @@ private struct SignedInDesktopView: View {
         _model = State(initialValue: DesktopPreviewsModel(projectContext: context))
     }
 
+    private var selectedPreview: ServerPreview? {
+        model.previews.first { $0.id == selectedPreviewID }
+    }
+
     var body: some View {
         NavigationSplitView {
-            List(DesktopSection.allCases, selection: $section) { section in
-                Label(section.rawValue, systemImage: section.systemImage)
-                    .tag(section)
-            }
-            .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 300)
-            .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
                 ProjectSwitcher(context: projectContext)
-                    .padding()
-            }
-            .safeAreaInset(edge: .bottom) {
+                    .padding(16)
+                List(DesktopSection.allCases, selection: $section) { section in
+                    Label(section.rawValue, systemImage: section.systemImage)
+                        .tag(section)
+                }
+                .listStyle(.sidebar)
+                Divider()
                 HStack {
                     Label(account.handle, systemImage: "person.crop.circle")
                         .lineLimit(1)
@@ -98,28 +101,22 @@ private struct SignedInDesktopView: View {
                     .help("Settings")
                 }
                 .foregroundStyle(.secondary)
-                .padding()
+                .padding(12)
             }
+            .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 300)
         } content: {
             Group {
                 if section == .previews {
                     previewList
-                        .searchable(text: $model.searchText, placement: .toolbar, prompt: "Filter previews")
+                        .searchable(text: $model.searchText, placement: .toolbar, prompt: "Search loaded previews")
                 } else {
                     home
                 }
             }
             .navigationTitle(section?.rawValue ?? "Home")
             .navigationSplitViewColumnWidth(min: 280, ideal: 360, max: 500)
-            .toolbar {
-                ToolbarItem {
-                    Button("Refresh", systemImage: "arrow.clockwise", action: refresh)
-                        .keyboardShortcut("r", modifiers: .command)
-                        .disabled(model.isLoading || projectContext.isLoading)
-                }
-            }
         } detail: {
-            if let preview = model.previews.first(where: { $0.id == selectedPreviewID }),
+            if let preview = selectedPreview,
                let fullHandle = model.selectedProjectFullHandle
             {
                 DesktopPreviewDetail(preview: preview, fullHandle: fullHandle)
@@ -132,8 +129,47 @@ private struct SignedInDesktopView: View {
                 )
             }
         }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Refresh Previews", systemImage: "arrow.clockwise", action: refresh)
+                    .help("Refresh Previews (⌘R)")
+                    .disabled(model.isLoading || projectContext.isLoading)
+            }
+            if let preview = selectedPreview {
+                ToolbarItem(placement: .primaryAction) {
+                    ShareLink(item: preview.url) {
+                        Label("Share Preview", systemImage: "square.and.arrow.up")
+                    }
+                    .help("Share Preview")
+                    .accessibilityIdentifier("share-preview")
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Open in Browser", systemImage: "safari") {
+                        NSWorkspace.shared.open(preview.url)
+                    }
+                    .help("Open Preview in Browser")
+                    .accessibilityIdentifier("open-preview-in-browser")
+                }
+            }
+        }
+        .focusedSceneValue(\.desktopPreviewActions, DesktopPreviewActions(
+            preview: selectedPreview,
+            canRefresh: !model.isLoading && !projectContext.isLoading,
+            refresh: refresh
+        ))
         .onChange(of: model.selectedProjectFullHandle) {
             selectedPreviewID = nil
+            model.clearFilters()
+        }
+        .onChange(of: model.filteredPreviews.map(\.id)) {
+            if section == .previews, !model.filteredPreviews.contains(where: { $0.id == selectedPreviewID }) {
+                selectedPreviewID = nil
+            }
+        }
+        .onChange(of: section) {
+            if section == .previews, !model.filteredPreviews.contains(where: { $0.id == selectedPreviewID }) {
+                selectedPreviewID = nil
+            }
         }
         .task {
             do {
@@ -189,30 +225,56 @@ private struct SignedInDesktopView: View {
     }
 
     private var previewList: some View {
-        List(selection: $selectedPreviewID) {
-            ForEach(model.filteredPreviews) { preview in
-                DesktopPreviewRow(preview: preview)
-                    .tag(preview.id)
-            }
-            if model.hasMorePreviews {
-                HStack {
-                    Spacer()
-                    if model.isLoadingMore {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Button("Load More Previews") {
-                            applicationModel.errorHandling.fireAndHandleError {
-                                try await model.loadMore()
-                            }
-                        }
-                        .buttonStyle(.borderless)
+        VStack(spacing: 0) {
+            HStack {
+                Picker("Track", selection: $model.trackFilter) {
+                    Text("All Tracks").tag(PreviewTrackFilter.all)
+                    Text("No Track").tag(PreviewTrackFilter.unassigned)
+                    Divider()
+                    ForEach(model.availableTracks, id: \.self) { track in
+                        Text(track).tag(PreviewTrackFilter.track(track))
                     }
-                    Spacer()
                 }
-                .listRowSeparator(.hidden)
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("preview-track-filter")
+                .help("Filter the loaded previews by release track")
+                .disabled(model.isLoading || projectContext.isLoading)
+                Spacer(minLength: 8)
+                Button("Clear Filters") { model.clearFilters() }
+                    .disabled(!model.hasActiveFilters)
             }
+            .controlSize(.small)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            Divider()
+            List(selection: $selectedPreviewID) {
+                ForEach(model.filteredPreviews) { preview in
+                    DesktopPreviewRow(preview: preview)
+                        .tag(preview.id)
+                }
+            }
+            .listStyle(.inset)
+            .overlay { emptyState }
+            Divider()
+            HStack {
+                Text("\(model.filteredPreviews.count) of \(model.previews.count) loaded")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if model.isLoadingMore {
+                    ProgressView().controlSize(.small)
+                } else if model.hasMorePreviews {
+                    Button("Load More") {
+                        applicationModel.errorHandling.fireAndHandleError {
+                            try await model.loadMore()
+                        }
+                    }
+                    .accessibilityIdentifier("load-more-previews")
+                }
+            }
+            .font(.caption)
+            .controlSize(.small)
+            .padding(12)
         }
-        .overlay { emptyState }
     }
 
     @ViewBuilder
@@ -240,8 +302,13 @@ private struct SignedInDesktopView: View {
                 description: Text("Share a preview with Tuist to see it here.")
             )
         } else if section == .previews, model.filteredPreviews.isEmpty {
-            ContentUnavailableView.search(text: model.searchText)
-                .allowsHitTesting(false)
+            ContentUnavailableView {
+                Label("No Matching Previews", systemImage: "line.3.horizontal.decrease.circle")
+            } description: {
+                Text("Try another search or track, or load more previews.")
+            } actions: {
+                Button("Clear Filters") { model.clearFilters() }
+            }
         }
     }
 
@@ -268,10 +335,17 @@ struct DesktopPreviewRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .truncationMode(.middle)
                 }
-                Text(preview.insertedAt, style: .relative)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    if let track = preview.track, !track.isEmpty {
+                        Label(track, systemImage: "tag")
+                            .lineLimit(1)
+                    }
+                    Text(preview.insertedAt, style: .relative)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 6)

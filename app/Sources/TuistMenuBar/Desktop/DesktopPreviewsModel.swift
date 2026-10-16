@@ -4,6 +4,12 @@ import TuistAuthentication
 import TuistProjects
 import TuistServer
 
+enum PreviewTrackFilter: Hashable {
+    case all
+    case unassigned
+    case track(String)
+}
+
 @MainActor
 @Observable
 final class DesktopPreviewsModel {
@@ -22,6 +28,22 @@ final class DesktopPreviewsModel {
     var errorMessage: String? { previewErrorMessage ?? projectContext.errorMessage }
     private var previewErrorMessage: String?
     var searchText = ""
+    var trackFilter: PreviewTrackFilter = .all
+
+    var availableTracks: [String] {
+        var tracks = Set(previews.compactMap(\.track).filter { !$0.isEmpty })
+        if case let .track(track) = trackFilter { tracks.insert(track) }
+        return tracks.sorted()
+    }
+
+    var hasActiveFilters: Bool {
+        trackFilter != .all || !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    func clearFilters() {
+        searchText = ""
+        trackFilter = .all
+    }
 
     var recentPreviews: [ServerPreview] {
         Array(previews.prefix(3))
@@ -29,11 +51,18 @@ final class DesktopPreviewsModel {
 
     var filteredPreviews: [ServerPreview] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return previews }
         return previews.filter { preview in
-            [preview.displayName, preview.bundleIdentifier, preview.gitBranch, preview.gitCommitSHA]
-                .compactMap { $0 }
-                .contains { $0.localizedCaseInsensitiveContains(query) }
+            let matchesTrack: Bool
+            switch trackFilter {
+            case .all: matchesTrack = true
+            case .unassigned: matchesTrack = preview.track == nil || preview.track?.isEmpty == true
+            case let .track(track): matchesTrack = preview.track == track
+            }
+            return matchesTrack && (query.isEmpty || [
+                preview.displayName, preview.bundleIdentifier, preview.gitBranch, preview.gitCommitSHA, preview.track,
+            ]
+            .compactMap { $0 }
+            .contains { $0.localizedCaseInsensitiveContains(query) })
         }
     }
 
@@ -66,7 +95,7 @@ final class DesktopPreviewsModel {
         let fullHandle = selectedProjectFullHandle
         guard fetchingFullHandle != fullHandle || !isLoading else { return }
         guard force || !hasLoaded || requestedFullHandle != fullHandle else { return }
-        if requestedFullHandle != fullHandle { searchText = "" }
+        if requestedFullHandle != fullHandle { clearFilters() }
         let request = beginRequest()
         requestedFullHandle = fullHandle
         fetchingFullHandle = fullHandle
