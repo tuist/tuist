@@ -147,23 +147,25 @@ const L = (() => {
    up to half the spacing along the surface so the lattice never reads as
    rows or moiré, classified land/ocean against a rasterized
    equirectangular mask. Rebuilt when a globe asks for another count. */
-let STIP_N = 0;
+let STIP_N = 0; // spiral points plus the island dots
+let stipCount = 0; // the spiral's requested point count
 let stip = null; // x, y, z, rand
 let stipShade = null; // a second, independent random per dot for the shade pick
 let landFlag = null;
 let maskData = null;
 
 function ensureGeometry(count) {
-  if (stip && STIP_N === count) return;
-  STIP_N = count;
+  if (stip && stipCount === count) return;
+  stipCount = count;
+  STIP_N = count + SMALL_ISLANDS.length * ISLAND_DOTS;
   stip = new Float32Array(STIP_N * 4);
   stipShade = new Float32Array(STIP_N);
   const ga = Math.PI * (3 - Math.sqrt(5));
-  const spacing = Math.sqrt((4 * Math.PI) / STIP_N);
+  const spacing = Math.sqrt((4 * Math.PI) / count);
   let seed = 1234567;
   const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
-  for (let i = 0; i < STIP_N; i++) {
-    const y = 1 - ((i + 0.5) * 2) / STIP_N;
+  for (let i = 0; i < count; i++) {
+    const y = 1 - ((i + 0.5) * 2) / count;
     const r = Math.sqrt(1 - y * y);
     const th = ga * i;
     const x = Math.cos(th) * r;
@@ -189,6 +191,20 @@ function ensureGeometry(count) {
     stip[i * 4 + 3] = rnd();
     stipShade[i] = rnd();
   }
+  // A small cluster of dots on each island (within its stamped disc, so the
+  // mask classifies them as land below).
+  let i = count;
+  for (const [lat, lon] of SMALL_ISLANDS) {
+    for (let k = 0; k < ISLAND_DOTS; k++) {
+      const [x, y, z] = ll2xyz(lon + (rnd() - 0.5) * 0.5, lat + (rnd() - 0.5) * 0.5);
+      stip[i * 4] = x;
+      stip[i * 4 + 1] = y;
+      stip[i * 4 + 2] = z;
+      stip[i * 4 + 3] = rnd();
+      stipShade[i] = rnd();
+      i++;
+    }
+  }
 
   // Land classification via the mask: one native even-odd fill plus cheap
   // texel lookups, instead of point-in-polygon tests over the LAND rings
@@ -204,6 +220,87 @@ function ensureGeometry(count) {
     const mx = Math.min(MW - 1, ((lon / Math.PI + 1) / 2) * MW) | 0;
     const my = Math.min(MH - 1, (0.5 - lat / Math.PI) * MH) | 0;
     landFlag[i] = isLand(mx, my) ? 1 : 0;
+  }
+}
+
+/* ---------- small islands the 110m map omits -----------------------
+   Natural Earth 110m drops most small islands, so a country anchor such as
+   Guam, Mauritius or the Maldives sat in open ocean, more than the 3° snap
+   from any drawn land, and its arcs launched from empty sea. These are the
+   anchors (Tuist.Marketing.CacheGlobeLocations, plus Oahu for the
+   illustrative Honolulu origin) at least 1° from drawn land: each is
+   stamped into the land mask as a small disc, so origins there count as
+   land and stay put, and gets a few land dots of its own, since the
+   stipple's ~0.9° spacing would otherwise skip something this small.
+   Keep it in sync when anchors change. */
+const SMALL_ISLANDS = [
+  [17.06, -61.8], // AG
+  [18.22, -63.07], // AI
+  [-14.27, -170.13], // AS
+  [13.19, -59.54], // BB
+  [32.32, -64.76], // BM
+  [-54.42, 3.41], // BV
+  [-12.16, 96.87], // CC
+  [-21.24, -159.78], // CK
+  [16, -24.01], // CV
+  [-10.45, 105.69], // CX
+  [15.41, -61.37], // DM
+  [7.43, 150.55], // FM
+  [61.89, -6.91], // FO
+  [12.26, -61.6], // GD
+  [17, -62.07], // GP
+  [-54.43, -36.59], // GS
+  [13.44, 144.79], // GU
+  [-53.08, 73.5], // HM
+  [-6.34, 71.88], // IO
+  [-3.37, -168.73], // KI
+  [-11.88, 43.87], // KM
+  [17.36, -62.78], // KN
+  [19.51, -80.57], // KY
+  [13.91, -60.98], // LC
+  [7.13, 171.18], // MH
+  [17.33, 145.38], // MP
+  [14.64, -61.02], // MQ
+  [16.74, -62.19], // MS
+  [-20.35, 57.55], // MU
+  [3.2, 73.22], // MV
+  [-29.04, 167.95], // NF
+  [-0.52, 166.93], // NR
+  [-19.05, -169.87], // NU
+  [-17.68, -149.41], // PF
+  [-24.7, -127.44], // PN
+  [-21.12, 55.54], // RE
+  [-4.68, 55.49], // SC
+  [-24.14, -10.03], // SH
+  [0.19, 6.61], // ST
+  [21.69, -71.8], // TC
+  [-8.97, -171.86], // TK
+  [-21.18, -175.2], // TO
+  [-7.11, 177.65], // TV
+  [12.98, -61.29], // VC
+  [18.42, -64.64], // VG
+  [18.34, -64.9], // VI
+  [-13.77, -177.16], // WF
+  [-13.76, -172.1], // WS
+  [-12.83, 45.17], // YT
+  [21.31, -157.86], // Oahu
+];
+const ISLAND_RADIUS_TEXELS = 2;
+const ISLAND_DOTS = 3;
+
+function stampIslands(data) {
+  const r = ISLAND_RADIUS_TEXELS;
+  for (const [lat, lon] of SMALL_ISLANDS) {
+    const cx = Math.floor(((lon + 180) / 360) * MW);
+    const cy = Math.floor(((90 - lat) / 180) * MH);
+    for (let dy = -r; dy <= r; dy++) {
+      const y = cy + dy;
+      if (y < 0 || y >= MH) continue;
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy > r * r) continue;
+        data[(y * MW + ((cx + dx + MW) % MW)) * 4 + 3] = 255;
+      }
+    }
   }
 }
 
@@ -231,6 +328,7 @@ function ensureLandMask() {
   mctx.fillStyle = "#fff";
   mctx.fill(path, "evenodd");
   maskData = mctx.getImageData(0, 0, MW, MH).data;
+  stampIslands(maskData);
   return maskData;
 }
 

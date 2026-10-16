@@ -6,8 +6,8 @@
 }
 
 #marketing-navbar {
-  /* Cursor position for the bottom-hairline glow; the home page's
-     PlatformBackground hook writes real values inline. */
+  /* Cursor position for the bottom-hairline glow; parked off-canvas unless
+     a page hook writes real values inline. */
   --hx: -9999px;
   --hy: -9999px;
   /* Bar height, measured inline by the MobileMenu hook when the menu opens;
@@ -26,8 +26,8 @@
   border-bottom: 1px solid var(--marketing-stroke-default);
   background: var(--noora-surface-background-primary);
 
-  /* Cursor-proximity recolor of the bottom hairline — fed --hx/--hy by the
-     PlatformBackground hook on the home page; inert everywhere else. Only
+  /* Cursor-proximity recolor of the bottom hairline, fed --hx/--hy by a
+     page hook when one opts in; inert otherwise. Only
      for pointers that can hover: on touch screens a tap fires a synthetic
      mousemove, so the glow parked under the finger and never left, and the
      masked layer cost every frame for nothing. */
