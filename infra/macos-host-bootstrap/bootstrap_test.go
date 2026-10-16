@@ -1736,6 +1736,44 @@ func TestRenderVMEgressFirewallScript_GuardsGuestsInboundBeforeNAT(t *testing.T)
 	}
 }
 
+// A rack guest leaves through the same public address the storage node uses
+// as its cluster InternalIP, so every Cilium node would take its packets for
+// the storage node's. The guard drops the cluster's node ports to every
+// destination.
+func TestRenderVMEgressFirewallScript_GuardDropsClusterNodePorts(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMCacheGatewayCIDRs: []string{"10.10.0.11/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	for _, drop := range []string{
+		"block drop in quick proto udp from <vm_sources> to any port 8472",
+		"block drop in quick proto tcp from <vm_sources> to any port { 4240, 10250 }",
+	} {
+		at := strings.Index(anchor, drop)
+		if at < 0 {
+			t.Fatalf("guard does not drop %q\n%s", drop, anchor)
+		}
+		if carveOut := strings.Index(anchor, "pass in quick proto tcp from <vm_sources> to 10.10.0.11/32"); carveOut >= 0 && at > carveOut {
+			t.Errorf("%q renders after a carve-out pass (first quick match wins)\n%s", drop, anchor)
+		}
+	}
+
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	for _, rule := range []string{
+		"block drop in quick proto udp from <vm_sources> to any port = 8472",
+		"block drop in quick proto tcp from <vm_sources> to any port = 4240",
+		"block drop in quick proto tcp from <vm_sources> to any port = 10250",
+	} {
+		if !strings.Contains(parsed, rule) {
+			t.Errorf("pfctl did not load %q\n%s", rule, parsed)
+		}
+	}
+}
+
 // The host dials its guests itself: tart-kubelet's metrics forwarder and VNC
 // relays connect from the bridge address. A guest's reply arrives inbound to a
 // host address, so without a state from the host's side it hits the drop.
