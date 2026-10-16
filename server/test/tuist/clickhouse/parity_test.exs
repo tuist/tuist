@@ -148,46 +148,56 @@ defmodule Tuist.ClickHouse.ParityTest do
       refute_received {:fingerprint, _}
     end
 
-    test "bounds a table by when its rows were written as well as by its own time column" do
-      # `runner_job_logs`: bounded by the time of each log line, while the
-      # lines arrive after the job finishes. Read one side after the other,
-      # the second side counted lines the first had not received yet.
+    # Answers a table whose time columns are `columns`, in position order, and
+    # hands back the statement it was fingerprinted with.
+    defp fingerprint_with_time_columns(table, columns) do
       test = self()
+      rows = Enum.map(columns, &[&1])
 
-      stub(Tuist.IngestRepo, :query!, fn sql, _params, _opts ->
-        cond do
-          sql =~ "SELECT count() AS rows" ->
-            send(test, {:fingerprint, sql})
-            %{rows: [[1, ~U[2026-10-04 19:00:00Z], ~U[2026-10-04 19:00:00Z]]]}
+      for repo <- [Tuist.IngestRepo, Tuist.ClickHouseRepo] do
+        stub(repo, :query!, fn sql, _params, _opts ->
+          cond do
+            sql =~ "SELECT count() AS rows" ->
+              send(test, {:fingerprint, repo, sql})
+              %{rows: [[1, ~U[2026-10-04 19:00:00Z], ~U[2026-10-04 19:00:00Z]]]}
 
-          sql =~ "SELECT name FROM system.columns" ->
-            %{rows: [["ts"], ["inserted_at"]]}
+            sql =~ "SELECT name FROM system.columns" ->
+              %{rows: rows}
 
-          true ->
-            %{rows: []}
-        end
-      end)
+            true ->
+              %{rows: []}
+          end
+        end)
+      end
 
-      stub(Tuist.ClickHouseRepo, :query!, fn sql, _params, _opts ->
-        cond do
-          sql =~ "SELECT count() AS rows" -> %{rows: [[1, ~U[2026-10-04 19:00:00Z], ~U[2026-10-04 19:00:00Z]]]}
-          sql =~ "SELECT name FROM system.columns" -> %{rows: [["ts"], ["inserted_at"]]}
-          true -> %{rows: []}
-        end
-      end)
-
-      assert {:ok, %{matching: ["runner_job_logs"]}} =
+      assert {:ok, %{matching: [^table]}} =
                Parity.compare(
                  source_repo: Tuist.IngestRepo,
                  target_repo: Tuist.ClickHouseRepo,
-                 tables: ["runner_job_logs"],
+                 tables: [table],
                  derived: [],
                  as_of: ~U[2026-10-04 20:05:00Z]
                )
 
-      assert_received {:fingerprint, sql}
+      assert_received {:fingerprint, Tuist.IngestRepo, sql}
+      sql
+    end
+
+    test "bounds a table by when its rows were written as well as by its own time column" do
+      # `runner_job_logs`: bounded by the time of each log line, while the
+      # lines arrive after the job finishes. Read one side after the other,
+      # the second side counted lines the first had not received yet.
+      sql = fingerprint_with_time_columns("runner_job_logs", ["ts", "inserted_at"])
+
       assert sql =~ "PREWHERE `inserted_at` < toDateTime64('2026-10-04 20:05:00', 6) WHERE"
       assert sql =~ "`ts` < toDateTime64('2026-10-04 20:05:00', 6)"
+    end
+
+    test "bounds a table without an inserted_at by its own time column only" do
+      sql = fingerprint_with_time_columns("kura_capacity_samples", ["window_start"])
+
+      refute sql =~ "PREWHERE"
+      assert sql =~ "`window_start` < toDateTime64('2026-10-04 20:05:00', 6)"
     end
 
     test "adds the months up into one fingerprint of the table" do

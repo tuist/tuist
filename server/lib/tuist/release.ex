@@ -326,7 +326,7 @@ defmodule Tuist.Release do
           :ok
 
         {:ok, report} ->
-          raise "ClickHouse read parity failed: #{inspect(report.differing)}"
+          raise "ClickHouse read parity failed: #{inspect(report.differing, limit: :infinity)}"
 
         {:error, reason} ->
           raise "ClickHouse read parity could not run: #{inspect(reason)}"

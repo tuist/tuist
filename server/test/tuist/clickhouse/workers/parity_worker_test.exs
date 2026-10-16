@@ -2,6 +2,8 @@ defmodule Tuist.ClickHouse.Workers.ParityWorkerTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Tuist.ClickHouse.Parity
   alias Tuist.ClickHouse.Workers.ParityWorker
 
@@ -111,6 +113,21 @@ defmodule Tuist.ClickHouse.Workers.ParityWorkerTest do
       end)
 
       assert :ok = ParityWorker.perform(%Oban.Job{args: %{}})
+    end
+
+    test "names every differing table in the log" do
+      stub(Tuist.Environment, :clickhouse_shadow_writes_enabled?, fn -> true end)
+
+      sums = Map.new(1..9, &{"sum_c#{&1}", &1})
+      differing = Enum.map(1..14, &%{table: "table_#{&1}", source: sums, destination: sums})
+
+      expect(Parity, :compare, fn _opts ->
+        {:ok, %{compared: 14, matching: [], differing: differing, skipped: [], derived: %{}, schema: no_drift()}}
+      end)
+
+      log = capture_log(fn -> ParityWorker.perform(%Oban.Job{args: %{}}) end)
+
+      assert log =~ ~s("table_14")
     end
   end
 end

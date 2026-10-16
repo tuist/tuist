@@ -75,7 +75,7 @@ defmodule Tuist.ClickHouse.Workers.ParityWorker do
 
         if report.differing != [] do
           Logger.error(
-            "ClickHouse parity: #{length(report.differing)} of #{report.compared} table(s) differ over the last #{@window_hours}h: #{inspect(report.differing)}"
+            "ClickHouse parity: #{length(report.differing)} of #{report.compared} table(s) differ over the last #{@window_hours}h: #{inspect(report.differing, limit: :infinity)}"
           )
         end
 
