@@ -77,11 +77,19 @@ jobs:
           sudo chmod 0666 /dev/kvm
       - name: Create a VM from an unprivileged Kata container
         run: |
-          # --init: run as PID 1 in the Kata guest, the script exits 0 but the
-          # container reports 255.
-          docker run --rm --init --runtime io.containerd.kata.v2 --device /dev/kvm \
+          # Asserts on what the check proved rather than on docker's exit code:
+          # tearing down a Kata container whose guest created KVM VMs sometimes
+          # reports 255 after the script itself exited 0.
+          set +e
+          out=$(docker run --rm --runtime io.containerd.kata.v2 --device /dev/kvm \
             -v "$PWD/infra/kata-kvm-kernel:/check:ro" \
-            docker.io/library/ubuntu:24.04 sh /check/check-kvm.sh
+            docker.io/library/ubuntu:24.04 sh /check/check-kvm.sh 2>&1)
+          rc=$?
+          echo "$out"
+          echo "docker run exited $rc"
+          for user in root nobody; do
+            echo "$out" | grep -q "^$user: KVM API 12, created a VM, its irqchip and a vCPU$" || { echo "::error::$user could not drive KVM in the guest"; exit 1; }
+          done
 
   release:
     needs: [build, verify]
