@@ -38,6 +38,10 @@ spec:
         # name it dials has to restart it to take effect.
         tuist.dev/clickhouse-tailnet-host: {{ include "tuist.clickhouseTailnetHost" . | quote }}
         {{- end }}
+        {{- if and .Values.postgresql.cnpg.pooler.enabled .Values.postgresql.cnpg.pooler.tailscale.enabled }}
+        # Likewise for the database URL it reads at startup.
+        tuist.dev/pg-pooler-tailnet-host: {{ include "tuist.poolerTailnetHost" . | quote }}
+        {{- end }}
         # tart-kubelet honours these by spinning up a host-side HTTP
         # reverse proxy on <node_ip>:9091 → <vm_ip>:9091 for the Tart
         # VM and rewriting Pod.Status.PodIP to the Mac mini's host
