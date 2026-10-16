@@ -4149,9 +4149,16 @@ limit in the summary, which is what the on-call needs to pick the lever:
   state on an instance, raise the floor or move the kind to a rate-based tier;
   do not raise the bar for the HTTP kinds, which are loss.
   - `reapi_write_decode` now sheds only after the elastic pool is also spent.
-    Write decoding borrows the ceiling headroom above the floor-derived budget
-    while pressure is normal, so a shed means the pod exhausted its floor *and*
-    that headroom, or it was above normal pressure and the borrow was closed.
+    Write decoding, including a compressed `BatchUpdateBlobs` item, borrows
+    the ceiling headroom above the floor-derived budget while pressure is
+    normal, so a shed means the pod exhausted its floor *and* that headroom,
+    or it was above normal pressure and the borrow was closed. The one
+    exception is a write's reply, which never borrows: it is refused when the
+    floor cannot cover it, which happens only after that write's own decode
+    borrowed, so `transient_ceiling_headroom_borrowed` in
+    `kura_memory_actions_total_total` rises in the same window. A shed burst
+    with no borrows at normal pressure is a pod predating compressed items
+    borrowing, which refused them on a full floor with the headroom idle.
     Read `kura_memory_elastic_transient_reserved_bytes` against
     `kura_memory_elastic_transient_capacity_bytes` before reaching for the
     profile: a pod resting at its elastic capacity has a floor genuinely too
