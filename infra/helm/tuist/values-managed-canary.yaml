@@ -329,6 +329,11 @@ clickhouse:
       enabled: true
       hostname: tuist-clickhouse-canary
       tags: tag:tuist-k8s-canary
+      # Served by the `tailnet-ingress` ProxyGroup as a Tailscale Service, so
+      # the xcresult VMs reach it directly instead of through a DERP relay.
+      # Switching needs the standalone proxy's device deleted by hand; see
+      # the runbook in #14235.
+      proxyGroup: tailnet-ingress
     keeper:
       replicas: 1
     backup:
