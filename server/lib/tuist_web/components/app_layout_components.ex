@@ -11,6 +11,8 @@ defmodule TuistWeb.AppLayoutComponents do
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Projects.Project
+  alias TuistWeb.API.BuildEntityResources
+  alias TuistWeb.Helpers.BuildEntityLabels
 
   attr(:selected_project, :map, required: true)
   attr(:selected_account, :map, required: true)
@@ -22,6 +24,7 @@ defmodule TuistWeb.AppLayoutComponents do
     ~H"""
     <.sidebar>
       <% overview_path = ~p"/#{@selected_account.name}/#{@selected_project.name}" %>
+      <% entity_resources = BuildEntityResources.for_project(@selected_project) %>
       <.sidebar_item
         label={dgettext("dashboard", "Overview")}
         icon="smart_home"
@@ -55,7 +58,10 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="versions"
         navigate={builds_root}
         selected={@current_path == builds_root}
-        default_open={String.starts_with?(@current_path, builds_root)}
+        default_open={
+          String.starts_with?(@current_path, builds_root) or
+            Enum.any?(entity_resources, &String.starts_with?(@current_path, overview_path <> &1.path))
+        }
         phx-update="ignore"
       >
         <.sidebar_item
@@ -69,6 +75,13 @@ defmodule TuistWeb.AppLayoutComponents do
                 "/#{@selected_account.name}/#{@selected_project.name}/builds/invocations"
               )
           }
+        />
+        <.sidebar_item
+          :for={resource <- entity_resources}
+          label={BuildEntityLabels.plural(resource.system, resource.kind)}
+          icon="subtask"
+          navigate={overview_path <> resource.path}
+          selected={String.starts_with?(@current_path, overview_path <> resource.path)}
         />
       </.sidebar_group>
       <.sidebar_group
@@ -287,12 +300,16 @@ defmodule TuistWeb.AppLayoutComponents do
         <.sidebar_item
           label={dgettext("dashboard", "Tasks")}
           icon="subtask"
-          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"}
+          navigate={
+            if Enum.any?(entity_resources, &(&1.key == :gradle_tasks)),
+              do: overview_path <> "/builds/gradle/tasks",
+              else: ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"
+          }
           selected={
             String.starts_with?(
               @current_path,
               ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"
-            )
+            ) or String.starts_with?(@current_path, overview_path <> "/builds/gradle/tasks")
           }
         />
       </.sidebar_group>

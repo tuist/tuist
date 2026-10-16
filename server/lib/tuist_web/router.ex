@@ -893,6 +893,10 @@ defmodule TuistWeb.Router do
         end
 
         scope "/xcode" do
+          get "/modules", XcodeModulesController, :index
+          get "/modules/:module_id", XcodeModulesController, :show
+          get "/modules/:module_id/events", XcodeModulesController, :history
+
           scope "/builds" do
             get "/", BuildsController, :index
             get "/:build_id/steps", BuildStepsController, :index
@@ -908,6 +912,9 @@ defmodule TuistWeb.Router do
         end
 
         scope "/gradle" do
+          get "/tasks", GradleTaskDetailsController, :index
+          get "/tasks/:task_id", GradleTaskDetailsController, :show
+          get "/tasks/:task_id/executions", GradleTaskDetailsController, :history
           get "/builds/metrics", MetricsController, :gradle_metrics
           get "/builds/metrics/dimensions/:dimension/values", MetricsController, :gradle_dimension_values
           post "/builds", GradleController, :create_build
@@ -919,6 +926,18 @@ defmodule TuistWeb.Router do
 
         scope "/mix" do
           post "/builds", MixController, :create_build
+          get "/files", MixFilesController, :index
+          get "/files/:file_id", MixFilesController, :show
+          get "/files/:file_id/compilations", MixFilesController, :history
+          get "/modules", MixModulesController, :index
+          get "/modules/:module_id", MixModulesController, :show
+          get "/modules/:module_id/compilations", MixModulesController, :history
+        end
+
+        scope "/once" do
+          get "/actions", OnceActionsController, :index
+          get "/actions/:action_id", OnceActionsController, :show
+          get "/actions/:action_id/executions", OnceActionsController, :history
         end
 
         scope "/bazel" do
@@ -1526,6 +1545,17 @@ defmodule TuistWeb.Router do
       live "/analytics", OverviewLive, :analytics, metadata: @public_project_route_metadata
       live "/bundles", BundlesLive, metadata: @public_project_route_metadata
       live "/bundles/:bundle_id", BundleLive, metadata: @public_project_route_metadata
+      live "/builds/gradle/tasks", BuildEntityLive, :gradle_tasks, metadata: @public_project_route_metadata
+      live "/builds/gradle/tasks/:task_id", BuildEntityLive, :gradle_tasks, metadata: @public_project_route_metadata
+      live "/builds/xcode/modules", BuildEntityLive, :xcode_modules, metadata: @public_project_route_metadata
+      live "/builds/xcode/modules/:module_id", BuildEntityLive, :xcode_modules, metadata: @public_project_route_metadata
+      live "/builds/once/actions", BuildEntityLive, :once_actions, metadata: @public_project_route_metadata
+      live "/builds/once/actions/:action_id", BuildEntityLive, :once_actions, metadata: @public_project_route_metadata
+      live "/builds/mix/files", BuildEntityLive, :mix_files, metadata: @public_project_route_metadata
+      live "/builds/mix/files/:file_id", BuildEntityLive, :mix_files, metadata: @public_project_route_metadata
+      live "/builds/mix/modules", BuildEntityLive, :mix_modules, metadata: @public_project_route_metadata
+      live "/builds/mix/modules/:module_id", BuildEntityLive, :mix_modules, metadata: @public_project_route_metadata
+
       live "/builds", BuildsLive, metadata: @public_project_route_metadata
       live "/builds/build-runs", BuildRunsLive, metadata: @public_project_route_metadata
 

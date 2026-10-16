@@ -93,6 +93,12 @@ defmodule Tuist do
       Gradle.Analytics,
       Gradle.Metrics,
       BuildMetrics,
+      # Stable build entities (tasks, modules, cache actions, actions, files)
+      # and the request parameters web, API and MCP surfaces share.
+      BuildEntities,
+      BuildEntities.Params,
+      BuildEntities.QueryLimitError,
+      BuildEntities.Resources,
       Gradle.TaskAnalytics,
       Gradle.Build,
       Gradle.Timeline,
